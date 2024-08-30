@@ -6,6 +6,9 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
+
 CREATE TABLE t1 (
        id           VARCHAR(255) NOT NULL PRIMARY KEY,
        sujet        VARCHAR(255),
@@ -24,13 +27,10 @@ INSERT INTO t2 VALUES('123', 'moi');
 INSERT INTO t2 VALUES('123', 'lui');
 INSERT INTO t2 VALUES('456', 'lui');
 
-select round(match(t1.texte,t1.sujet,t1.motsclefs) against('droit'),5)
+select round(match(t1.texte,t1.sujet,t1.motsclefs) against('droit'),5) as exp
        from t1 left join t2 on t2.id=t1.id;
-#enable after fix MDEV-27871
---disable_view_protocol
-select match(t1.texte,t1.sujet,t1.motsclefs) against('droit' IN BOOLEAN MODE)
+select match(t1.texte,t1.sujet,t1.motsclefs) against('droit' IN BOOLEAN MODE) as exp
        from t1 left join t2 on t2.id=t1.id;
---enable_view_protocol
 
 drop table t1, t2;
 
@@ -114,3 +114,5 @@ SELECT * FROM t2 LEFT OUTER JOIN t1 ON (MATCH(f1) against (""));
 SELECT * FROM t1 RIGHT OUTER JOIN t2 ON (MATCH(f1) against (""));
 
 DROP table t1,t2;
+
+--source include/test_db_charset_restore.inc

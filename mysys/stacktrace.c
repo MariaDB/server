@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -14,12 +15,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include <my_global.h>
+#include "mysys_priv.h"
 #include <my_stacktrace.h>
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <signal.h>
-#include <my_pthread.h>
 #include <m_string.h>
 #ifdef HAVE_STACKTRACE
 #include <unistd.h>
@@ -34,11 +34,52 @@
 #include <execinfo.h>
 #endif
 
+#ifdef HAVE_gcov
+#include <gcov.h>
+#endif
+/**
+   Default handler for printing stacktrace
+*/
+
+static sig_handler default_handle_fatal_signal(int sig)
+{
+  my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
+                        my_progname_short, sig);
+  my_print_stacktrace(0,0,1);
+#ifndef _WIN32
+  signal(sig, SIG_DFL);
+  kill(getpid(), sig);
+#endif /* _WIN32 */
+  return;
+}
+
+
+/**
+   Initialize priting off stacktrace at signal
+*/
+
+void my_setup_stacktrace(void)
+{
+  struct sigaction sa;
+  sa.sa_flags = SA_RESETHAND | SA_NODEFER;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_handler= default_handle_fatal_signal;
+  sigaction(SIGSEGV, &sa, NULL);
+  sigaction(SIGABRT, &sa, NULL);
+#ifdef SIGBUS
+  sigaction(SIGBUS, &sa, NULL);
+#endif
+  sigaction(SIGILL, &sa, NULL);
+  sigaction(SIGFPE, &sa, NULL);
+}
+
+
 /*
   Attempt to print a char * pointer as a string.
 
   SYNOPSIS
-    Prints until  max_len characters have been printed.
+    Prints either until the end of string ('\0'), or max_len characters have
+    been printed.
 
   RETURN VALUE
     0  Pointer was within the heap address space.
@@ -306,8 +347,8 @@ void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
 		      :"r"(pc));
 #endif  /* __alpha__ */
 
-  /* We are 1 frame above signal frame with NPTL and 2 frames above with LT */
-  sigreturn_frame_count = thd_lib_detected == THD_LIB_LT ? 2 : 1;
+  /* We are 1 frame above signal frame with NPTL */
+  sigreturn_frame_count = 1;
 
   while (fp < (uchar**) stack_bottom)
   {
@@ -371,9 +412,6 @@ end:
 /* Produce a core for the thread */
 void my_write_core(int sig)
 {
-#ifdef HAVE_gcov
-  extern void __gcov_flush(void);
-#endif
   signal(sig, SIG_DFL);
 #ifdef HAVE_gcov
   /*
@@ -381,7 +419,7 @@ void my_write_core(int sig)
     information from this process, causing gcov output to be incomplete.
     So we force the writing of coverage information here before terminating.
   */
-  __gcov_flush();
+  __gcov_dump();
 #endif
   pthread_kill(pthread_self(), sig);
 #if defined(P_MYID) && !defined(SCO)
@@ -390,7 +428,7 @@ void my_write_core(int sig)
 #endif
 }
 
-#else /* __WIN__*/
+#else /* _WIN32*/
 
 #ifdef _MSC_VER
 /* Silence warning in OS header dbghelp.h */
@@ -549,8 +587,12 @@ void my_print_stacktrace(uchar* unused1, ulong unused2, my_bool silent)
   frame.AddrFrame.Offset= context.Rbp;
   frame.AddrPC.Offset=    context.Rip;
   frame.AddrStack.Offset= context.Rsp;
+#elif defined(_M_ARM64)
+  machine= IMAGE_FILE_MACHINE_ARM64;
+  frame.AddrFrame.Offset= context.Fp;
+  frame.AddrPC.Offset=    context.Pc;
+  frame.AddrStack.Offset= context.Sp;
 #else
-  /*There is currently no need to support IA64*/
 #pragma error ("unsupported architecture")
 #endif
 
@@ -675,7 +717,7 @@ int my_safe_print_str(const char *val, size_t len)
   }
   return 0;
 }
-#endif /*__WIN__*/
+#endif /*_WIN32*/
 
 
 size_t my_write_stderr(const void *buf, size_t count)

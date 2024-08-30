@@ -1,0 +1,25 @@
+CREATE TEMPORARY TABLE tmp_global_priv AS SELECT * FROM mysql.global_priv;
+CREATE TEMPORARY TABLE tmp_tables_priv AS SELECT * FROM mysql.tables_priv;
+DROP DATABASE sys;
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+test
+SHOW DATABASES;
+Database
+information_schema
+mtr
+mysql
+performance_schema
+sys
+test
+TRUNCATE TABLE mysql.global_priv;
+INSERT INTO mysql.global_priv (SELECT * FROM tmp_global_priv);
+DROP TEMPORARY TABLE tmp_global_priv;
+TRUNCATE TABLE mysql.tables_priv;
+INSERT INTO mysql.tables_priv (SELECT * FROM tmp_tables_priv);
+DROP TEMPORARY TABLE tmp_tables_priv;
+FLUSH PRIVILEGES;

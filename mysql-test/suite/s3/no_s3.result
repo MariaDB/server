@@ -1,0 +1,11 @@
+create table t1 (a int, b int) engine=aria select seq,seq+10 from seq_1_to_2;
+alter table t1 engine=s3;
+ERROR HY000: Can't create table `test`.`t1` (errno: 138 "Unsupported extension used for table")
+drop table t1;
+select * from s3_unique_table;
+ERROR 42000: Table 's3_unique_table' uses an extension that doesn't exist in this MariaDB version
+truncate table s3_unique_table;
+ERROR 42000: Table 's3_unique_table' uses an extension that doesn't exist in this MariaDB version
+rename table s3_unique_table to t1;
+ERROR HY000: Error on rename of './test/s3_unique_table' to './test/t1' (errno: 138 "Unsupported extension used for table")
+drop table s3_unique_table;

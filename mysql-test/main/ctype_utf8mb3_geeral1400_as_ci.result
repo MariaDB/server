@@ -1,0 +1,25 @@
+#
+# Start of 11.5 tests
+#
+#
+#  MDEV-33806 Server crashes when executing Admin SQL/DML after setting character_set_collations to utf8mb3_general1400_as_ci
+#
+CREATE TABLE t1(a CHAR (32),KEY (a)) DEFAULT CHARSET=utf8mb3 COLLATE utf8mb3_general1400_as_ci;
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+INSERT INTO t1 VALUES ('a');
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+a
+FOR i IN 0..32
+DO
+INSERT INTO t1 VALUES (CONCAT('b', i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE a LIKE 'a%';
+a
+a
+DROP TABLE t1;
+#
+# End of 11.5 tests
+#

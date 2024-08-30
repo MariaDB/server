@@ -2,6 +2,7 @@
 # with named user
 #
 create user 'USER' identified via unix_socket;
+grant select on test.* to 'USER';
 #
 # name match = ok
 #
@@ -27,3 +28,4 @@ USER@localhost	@%	test
 #
 delete from mysql.user where user='';
 FLUSH PRIVILEGES;
+delete from mysql.db;

@@ -144,4 +144,10 @@ connection slave;
 #
 # End of 10.3 tests
 #
+connection master;
+SET GLOBAL collation_server=utf8mb4_uca1400_ai_ci;
+SET SESSION collation_server=utf8mb4_uca1400_ai_ci;
+connection slave;
+SET GLOBAL collation_server=utf8mb4_uca1400_ai_ci;
+SET SESSION collation_server=utf8mb4_uca1400_ai_ci;
 include/rpl_end.inc

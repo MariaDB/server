@@ -4,8 +4,8 @@
 
 --echo Setting SST method to mysqldump ...
 
-call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127.0.0.1'");
-call mtr.add_suppression("Failed to load slave replication state from table mysql.gtid_slave_pos");
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to '127\\.0\\.0\\.1'");
+call mtr.add_suppression("Failed to load slave replication state from table mysql\\.gtid_slave_pos");
 
 --connection node_1
 # We need a user with a password to perform SST, otherwise we hit LP #1378253

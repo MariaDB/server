@@ -34,7 +34,7 @@ drop table t1;
 # which contains 0x20 in the high byte.
 #
 
-CREATE TABLE t1 (word VARCHAR(64) CHARACTER SET ucs2, word2 CHAR(64) CHARACTER SET ucs2);
+CREATE TABLE t1 (word VARCHAR(64), word2 CHAR(64)) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 INSERT INTO t1 VALUES (_koi8r'ò',_koi8r'ò'), (X'2004',X'2004');
 SELECT hex(word) FROM t1 ORDER BY word;
 SELECT hex(word2) FROM t1 ORDER BY word2;
@@ -75,8 +75,10 @@ DROP TABLE t1;
 
 --echo # Problem # 1 (original report): wrong parsing of ucs2 data
 SET character_set_connection=ucs2;
+--enable_prepare_warnings
 --disable_ps2_protocol
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp.txt';
+--disable_prepare_warnings
 --enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp.txt' INTO TABLE t1 CHARACTER SET ucs2
@@ -90,7 +92,9 @@ remove_file $MYSQLD_DATADIR/test/tmpp.txt;
 
 --disable_ps2_protocol
 --echo # Problem # 2 : if you write and read ucs2 data to a file they're lost
+--enable_prepare_warnings
 SELECT '00' UNION SELECT '10' INTO OUTFILE 'tmpp2.txt' CHARACTER SET ucs2;
+--disable_prepare_warnings
 --enable_ps2_protocol
 CREATE TABLE t1(a INT);
 LOAD DATA INFILE 'tmpp2.txt' INTO TABLE t1 CHARACTER SET ucs2
@@ -609,6 +613,7 @@ deallocate prepare stmt;
 #
 # Bug#22638 SOUNDEX broken for international characters
 #
+--disable_service_connection
 set names latin1;
 set character_set_connection=ucs2;
 select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
@@ -619,6 +624,7 @@ select hex(soundex(_ucs2 0x041004110412));
 # Make sure that "U+00BF INVERTED QUESTION MARK" is not considered as letter
 select hex(soundex(_ucs2 0x00BF00C0));
 set names latin1;
+--enable_service_connection
 
 #
 # Bug #14290: character_maximum_length for text fields
@@ -790,10 +796,12 @@ DROP TABLE t1;
 --echo # Start of 5.5 tests
 --echo #
 
+--disable_service_connection
 SET NAMES latin1;
 SET collation_connection=ucs2_general_ci;
 --source include/ctype_numconv.inc
 SET NAMES latin1;
+--enable_service_connection
 
 --echo #
 --echo # Bug #13832953 	MY_STRNXFRM_UNICODE: ASSERTION `SRC' FAILED
@@ -1031,8 +1039,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-9178 Wrong result for CAST(CONVERT('1Ä²3' USING ucs2) AS SIGNED)
 --echo #
+--disable_service_connection
 SET NAMES utf8;
 SELECT CAST(CONVERT('1Ä²3' USING ucs2) AS SIGNED);
+--enable_service_connection
 
 --echo #
 --echo # End of 10.1 tests
@@ -1045,14 +1055,17 @@ SELECT CAST(CONVERT('1Ä²3' USING ucs2) AS SIGNED);
 --echo #
 --echo # MDEV-9711 NO PAD Collatons
 --echo #
-SET character_set_connection=ucs2;
+SET collation_connection=ucs2_general_nopad_ci;
 let $coll='ucs2_general_nopad_ci';
 let $coll_pad='ucs2_general_ci';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
+SET collation_connection=ucs2_nopad_bin;
 let $coll='ucs2_nopad_bin';
 let $coll_pad='ucs2_bin';
 --source include/ctype_pad_all_engines.inc
+--source include/ctype_like.inc
 
 --echo #
 --echo # MDEV-10585 EXECUTE IMMEDIATE statement
@@ -1066,6 +1079,7 @@ EXECUTE IMMEDIATE @stmt;
 --echo #
 --echo # MDEV-10866 Extend PREPARE and EXECUTE IMMEDIATE to understand expressions
 --echo #
+--disable_service_connection
 SET NAMES utf8, collation_connection=ucs2_bin;
 SET @stmt='SELECT COLLATION(''a'')';
 EXECUTE IMMEDIATE @stmt;
@@ -1093,6 +1107,7 @@ EXECUTE IMMEDIATE @stmt;
 PREPARE stmt FROM @stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests
@@ -1153,4 +1168,59 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-8844 Unreadable control characters printed as is in warnings
+--echo #
+
+--echo # control
+SELECT CAST(_ucs2 0x006100000062 AS INT);
+SELECT CAST(_ucs2 0x006100010062 AS INT);
+
+--echo # surrogate halfs
+SELECT CAST(_ucs2 0x0061D8000062 AS INT);
+SELECT CAST(_ucs2 0x0061DFFF0062 AS INT);
+
+--echo # normal characters
+SELECT CAST(_ucs2 0x0061D7000062 AS INT);
+SELECT CAST(_ucs2 0x0061E0030062 AS INT);
+
+--echo #
+--echo # MDEV-24584 Selecting INT column with COLLATE utf8mb4_general_ci throws an error
+--echo #
+
+SET NAMES utf8, collation_connection=ucs2_general_ci;
+SELECT 1 COLLATE ucs2_general_ci;
+SELECT 1 COLLATE ucs2_bin;
+SELECT HEX(1 COLLATE ucs2_general_ci);
+SELECT HEX(1 COLLATE ucs2_bin);
+--error ER_COLLATION_CHARSET_MISMATCH
+SELECT 1 COLLATE latin1_swedish_ci;
+SET NAMES utf8;
+
+--echo #
+--echo # MDEV-33772 Bad SEPARATOR value in GROUP_CONCAT on character set conversion
+--echo #
+
+SET NAMES utf8mb3, @@collation_connection=ucs2_general_ci;
+CREATE TABLE t1 (c VARCHAR(10)) CHARACTER SET ucs2;
+INSERT INTO t1 VALUES ('a'),('A');
+CREATE OR REPLACE VIEW v1 AS
+  SELECT COUNT(*) AS cnt, GROUP_CONCAT(c) AS c1 FROM t1 GROUP BY c;
+SELECT * FROM v1;
+SELECT HEX(c1) FROM v1;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+DROP TABLE t1;
+SET NAMES utf8mb3;
+
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

@@ -2,7 +2,7 @@
 # Test of fulltext index
 #
 
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
 --disable_warnings
@@ -347,7 +347,9 @@ drop table t1, t2;
 CREATE TABLE t1 (t VARCHAR(200) CHARACTER SET utf8 COLLATE utf8_unicode_ci, FULLTEXT (t));
 SET NAMES latin1;
 INSERT INTO t1 VALUES('Mit freundlichem Grüß aus Osnabrück');
+--disable_service_connection
 SELECT COUNT(*) FROM t1 WHERE MATCH(t) AGAINST ('"osnabrück"' IN BOOLEAN MODE);
+--enable_service_connection
 DROP TABLE t1;
 
 #
@@ -544,6 +546,8 @@ INSERT INTO t2 VALUES (1,'Scargill');
 
 CREATE TABLE t3 (a int, b int);
 INSERT INTO t3 VALUES (1,1), (2,1);
+
+SELECT * FROM t2 where MATCH(b2) AGAINST('scargill' IN BOOLEAN MODE);
 
 --echo # t2 should use full text index
 EXPLAIN

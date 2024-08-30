@@ -29,6 +29,7 @@ struct Ordered_blob_storage
   {}
 };
 
+#define PAR_EXT ".par"
 #define PARTITION_BYTES_IN_POS 2
 #define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
 #define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
@@ -108,12 +109,14 @@ public:
   */
   bool partition_name_hash_initialized;
   HASH partition_name_hash;
+  const char *partition_engine_name;
   /** Storage for each partitions Handler_share */
   Parts_share_refs partitions_share_refs;
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
     partition_name_hash_initialized(false),
+    partition_engine_name(NULL),
     partition_names(NULL)
   {
     mysql_mutex_init(key_partition_auto_inc_mutex,
@@ -279,7 +282,7 @@ typedef struct st_partition_part_key_multi_range_hld
 extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
-class ha_partition :public handler
+class ha_partition final :public handler
 {
 private:
   enum partition_index_scan_type
@@ -371,7 +374,6 @@ private:
   uint m_rec_length;                     // Local copy of record length
 
   bool m_ordered;                        // Ordered/Unordered index scan
-  bool m_pkey_is_clustered;              // Is primary key clustered
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
@@ -397,6 +399,7 @@ private:
   */
   bool m_innodb;                        // Are all underlying handlers
                                         // InnoDB
+  bool m_myisammrg;                     // Are any of the handlers of type MERGE
   /*
     When calling extra(HA_EXTRA_CACHE) we do not pass this to the underlying
     handlers immediately. Instead we cache it and call the underlying
@@ -464,6 +467,10 @@ public:
   {
     return m_file;
   }
+  ha_partition *get_clone_source()
+  {
+    return m_is_clone_of;
+  }
   virtual part_id_range *get_part_spec()
   {
     return &m_part_spec;
@@ -474,7 +481,7 @@ public:
   }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
-  virtual void set_part_info(partition_info *part_info) override
+  void set_part_info(partition_info *part_info) override
   {
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
@@ -542,8 +549,10 @@ public:
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info) override;
   int create_partitioning_metadata(const char *name,
-                                   const char *old_name, int action_flag)
+                                   const char *old_name,
+                                   chf_create_flags action_flag)
     override;
+  bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
                         ulonglong * const copied, ulonglong * const deleted,
@@ -569,8 +578,7 @@ private:
   void cleanup_new_partition(uint part_count);
   int prepare_new_partition(TABLE *table, HA_CREATE_INFO *create_info,
                             handler *file, const char *part_name,
-                            partition_element *p_elem,
-                            uint disable_non_uniq_indexes);
+                            partition_element *p_elem);
   /*
     delete_table and rename_table uses very similar logic which
     is packed into this routine.
@@ -583,10 +591,11 @@ private:
   */
   bool create_handler_file(const char *name);
   bool setup_engine_array(MEM_ROOT *mem_root, handlerton *first_engine);
-  bool read_par_file(const char *name);
+  int read_par_file(const char *name);
   handlerton *get_def_part_engine(const char *name);
   bool get_from_handler_file(const char *name, MEM_ROOT *mem_root,
                              bool is_clone);
+  bool re_create_par_file(const char *name);
   bool new_handlers_from_part_info(MEM_ROOT *mem_root);
   bool create_handlers(MEM_ROOT *mem_root);
   void clear_handler_file();
@@ -671,8 +680,9 @@ public:
     Bind the table/handler thread to track table i/o.
   */
   virtual void unbind_psi();
-  virtual void rebind_psi();
+  virtual int rebind();
 #endif
+  int discover_check_version() override;
   /*
     -------------------------------------------------------------------------
     MODULE change record
@@ -910,7 +920,7 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *mrr_mode,
+                                      uint *mrr_mode, ha_rows limit,
                                       Cost_estimate *cost) override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
                                 uint key_parts, uint *bufsz,
@@ -978,6 +988,10 @@ private:
                                           handler *file, uint *n);
   static const uint NO_CURRENT_PART_ID= NOT_A_PARTITION_ID;
   int loop_partitions(handler_callback callback, void *param);
+  int loop_partitions_over_map(const MY_BITMAP *map,
+                               handler_callback callback,
+                               void *param);
+  int loop_read_partitions(handler_callback callback, void *param);
   int loop_extra_alter(enum ha_extra_function operations);
   void late_extra_cache(uint partition_id);
   void late_extra_no_cache(uint partition_id);
@@ -1022,22 +1036,22 @@ public:
   /*
     Called in test_quick_select to determine if indexes should be used.
   */
-  double scan_time() override;
+  IO_AND_CPU_COST scan_time() override;
 
-  double key_scan_time(uint inx) override;
+  IO_AND_CPU_COST key_scan_time(uint inx, ha_rows rows) override;
 
-  double keyread_time(uint inx, uint ranges, ha_rows rows) override;
+  IO_AND_CPU_COST keyread_time(uint inx, ulong ranges, ha_rows rows,
+                               ulonglong blocks) override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) override;
 
-  /*
-    The next method will never be called if you do not implement indexes.
-  */
-  double read_time(uint index, uint ranges, ha_rows rows) override;
   /*
     For the given range how many records are estimated to be in this range.
     Used by optimiser to calculate cost of using a particular index.
   */
-  ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key)
-    override;
+  ha_rows records_in_range(uint inx,
+                           const key_range * min_key,
+                           const key_range * max_key,
+                           page_range *pages) override;
 
   /*
     Upper bound of number records returned in scan is sum of all
@@ -1071,8 +1085,7 @@ public:
   const char *index_type(uint inx) override;
 
   /* The name of the table type that will be used for display purposes */
-  const char *table_type() const;
-
+  const char *real_table_type() const override;
   /* The name of the row type used for the underlying tables. */
   enum row_type get_row_type() const override;
 
@@ -1300,10 +1313,6 @@ public:
       The underlying storage engine might support Rowid Filtering. But
       ha_partition does not forward the needed SE API calls, so the feature
       will not be used.
-
-      Note: It's the same with IndexConditionPushdown, except for its variant
-      of IndexConditionPushdown+BatchedKeyAccess (that one works). Because of
-      that, we do not clear HA_DO_INDEX_COND_PUSHDOWN here.
     */
     return part_flags & ~HA_DO_RANGE_FILTER_PUSHDOWN;
   }
@@ -1327,12 +1336,6 @@ public:
   uint max_supported_key_length() const override;
   uint max_supported_key_part_length() const override;
   uint min_record_length(uint options) const override;
-
-  /*
-    Primary key is clustered can only be true if all underlying handlers have
-    this feature.
-  */
-  bool primary_key_is_clustered() override { return m_pkey_is_clustered; }
 
   /*
     -------------------------------------------------------------------------
@@ -1403,9 +1406,8 @@ private:
   {
     ulonglong nr= (((Field_num*) field)->unsigned_flag ||
                    field->val_int() > 0) ? field->val_int() : 0;
+    update_next_auto_inc_val();
     lock_auto_increment();
-    DBUG_ASSERT(part_share->auto_inc_initialized ||
-                !can_use_for_auto_inc_init());
     /* must check when the mutex is taken */
     if (nr >= part_share->next_auto_inc_val)
       part_share->next_auto_inc_val= nr + 1;
@@ -1505,12 +1507,10 @@ public:
                                      Alter_inplace_info *ha_alter_info)
       override;
     bool inplace_alter_table(TABLE *altered_table,
-                             Alter_inplace_info *ha_alter_info) override;
+                            Alter_inplace_info *ha_alter_info) override;
     bool commit_inplace_alter_table(TABLE *altered_table,
                                     Alter_inplace_info *ha_alter_info,
                                     bool commit) override;
-    void notify_table_changed() override;
-
   /*
     -------------------------------------------------------------------------
     MODULE tablespace support
@@ -1549,8 +1549,9 @@ public:
   */
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
-    void clear_top_table_fields() override;
     int info_push(uint info_type, void *info) override;
+    Item *idx_cond_push(uint keyno, Item* idx_cond) override;
+    void cancel_pushed_idx_cond() override;
 
     private:
     int handle_opt_partitions(THD *thd, HA_CHECK_OPT *check_opt, uint flags);
@@ -1579,8 +1580,8 @@ public:
     Enable/Disable Indexes are only supported by HEAP and MyISAM.
     -------------------------------------------------------------------------
   */
-    int disable_indexes(uint mode) override;
-    int enable_indexes(uint mode) override;
+    int disable_indexes(key_map map, bool persist) override;
+    int enable_indexes(key_map map, bool persist) override;
     int indexes_are_disabled() override;
 
   /*
@@ -1617,6 +1618,11 @@ public:
     return h;
   }
 
+  bool partition_engine() override { return 1;}
+
+  /**
+     Get the number of records in part_elem and its subpartitions, if any.
+  */
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);
@@ -1634,10 +1640,19 @@ public:
     return part_recs;
   }
 
+  int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
+                              LEX_CUSTRING *frm, LEX_CUSTRING *version);
+
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 
   bool can_convert_nocopy(const Field &field,
                           const Column_definition &new_field) const override;
+  void handler_stats_updated() override;
+  void set_optimizer_costs(THD *thd) override;
+  void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
+  virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  virtual ulonglong row_blocks() override;
 };
+
 #endif /* HA_PARTITION_INCLUDED */

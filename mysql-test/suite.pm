@@ -4,14 +4,7 @@ use My::Platform;
 @ISA = qw(My::Suite);
 
 sub skip_combinations {
-  my @combinations;
-
-  # disable innodb combinations for configurations that were not built
-  push @combinations, 'innodb_plugin' unless $ENV{HA_INNODB_SO};
-
-  push @combinations, 'innodb' unless $::mysqld_variables{'innodb'} eq "ON";
-
-  my %skip = ( 'include/have_innodb.combinations' => [ @combinations ]);
+  my %skip;
 
   $skip{'include/innodb_encrypt_log.combinations'} = [ 'crypt' ]
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
@@ -23,6 +16,12 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'win', 'unix' ];
   } else {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
+  }
+
+  if ( $::opt_ps_protocol ) {
+    $skip{'include/protocol.combinations'} = [ 'nm' ];
+  } else {
+    $skip{'include/protocol.combinations'} = [ 'ps' ];
   }
 
   $skip{'include/maybe_debug.combinations'} =
@@ -74,13 +73,33 @@ sub skip_combinations {
 
   $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
     unless $openssl_ver ge "1.0.1d" and $openssl_ver lt "1.1.1";
+  $skip{'main/func_kdf.combinations'} = [ $ssl_lib =~ /OpenSSL 1\.0\./ ? 'new' : 'old' ];
 
-  $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
-    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";
+  sub utf8_command_line_ok() {
+   if (IS_WINDOWS) {
+     # Can use UTF8 on command line since Windows 10 1903 (10.0.18362)
+     # or if OS codepage is set to UTF8
+     my($os_name, $os_major, $os_minor, $os_build, $os_id) = Win32::GetOSVersion();
+     if($os_major lt 10){
+       return 0;
+     } elsif($os_major gt 10 or $os_minor gt 0 or $os_build ge 18362){
+       return 1;
+     } elsif(Win32::GetACP() eq 65001) {
+       return 1;
+     }
+     return 0;
+   }
+   return 1;
+  }
 
-  $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
-    unless $openssl_ver ge "1.0.2";
+  $skip{'include/check_utf8_cli.inc'} = 'No utf8 command line support'
+    unless utf8_command_line_ok();
 
+  $skip{'include/no_utf8_cli.inc'} = 'Not tested with utf8 command line support'
+    unless !utf8_command_line_ok();
+  
+  $skip{'include/check_windows_admin.inc'} = 'Requires admin privileges'
+    unless IS_WINDOWS and Win32::IsAdminUser();
 
   %skip;
 }

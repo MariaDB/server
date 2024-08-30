@@ -19,24 +19,63 @@ INSTALL_MYSQL_TEST("." ".")
 IF(NOT ${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   # Enable running mtr from build directory
   CONFIGURE_FILE(
-    ${CMAKE_CURRENT_SOURCE_DIR}/mtr.out-of-source 
-    ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
+    ${CMAKE_CURRENT_SOURCE_DIR}/mtr.out-of-source
+    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-test-run.pl
     @ONLY
   )
+  CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-stress-test.pl
+    ${CMAKE_CURRENT_BINARY_DIR}/mariadb-stress-test.pl
+    @ONLY
+  )
+  IF(WIN32)
+    CONFIGURE_FILE(
+      ${CMAKE_CURRENT_SOURCE_DIR}/mtr.out-of-source
+      ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
+      @ONLY)
+  ENDIF()
   SET(out_of_source_build TRUE)
+ELSEIF(WIN32)
+  CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-test-run.pl
+    ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run.pl
+    COPYONLY)
+    CONFIGURE_FILE(
+    ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-stress-test.pl
+    ${CMAKE_CURRENT_BINARY_DIR}/mysql-stress-test.pl
+    COPYONLY)
 ENDIF()
+
 IF(UNIX)
   EXECUTE_PROCESS(
-  COMMAND chmod +x  mysql-test-run.pl
-  COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mtr
-  COMMAND ${CMAKE_COMMAND} -E create_symlink 
-   ./mysql-test-run.pl mysql-test-run
-  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  ) 
-  IF(INSTALL_MYSQLTESTDIR AND out_of_source_build)
-    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mtr
-      ${CMAKE_CURRENT_BINARY_DIR}/mysql-test-run
+  COMMAND chmod +x  mariadb-test-run.pl
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+  FOREACH (lnk mysql-test-run mtr mysql-test-run.pl mariadb-test-run)
+    EXECUTE_PROCESS(
+     COMMAND ${CMAKE_COMMAND} -E create_symlink
+       ./mariadb-test-run.pl ${lnk}
+     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    IF(INSTALL_MYSQLTESTDIR)
+      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/${lnk}
+        DESTINATION ${INSTALL_MYSQLTESTDIR}
+        COMPONENT Test)
+    ENDIF()
+  ENDFOREACH()
+  EXECUTE_PROCESS(
+    COMMAND chmod +x mariadb-stress-test.pl
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+    ./mariadb-stress-test.pl mysql-stress-test.pl
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  )
+ELSE()
+  IF(INSTALL_MYSQLTESTDIR)
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-test-run.pl
+      RENAME mysql-test-run.pl
+      DESTINATION ${INSTALL_MYSQLTESTDIR}
+      COMPONENT Test)
+    INSTALL(FILES ${CMAKE_CURRENT_SOURCE_DIR}/mariadb-stress-test.pl
+      RENAME mysql-stress-test.pl
       DESTINATION ${INSTALL_MYSQLTESTDIR}
       COMPONENT Test)
   ENDIF()
@@ -156,4 +195,3 @@ IF (MAX_INDEXES)
     MESSAGE(STATUS "mysql-test/include/max_indexes.inc adjusted")
   ENDIF()
 ENDIF()
-

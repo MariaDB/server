@@ -22,6 +22,7 @@
 #    Supported formats:
 #     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."
 #     - "matches"  : Each match is printed, on a separate line
+#     - "count"    : "FOUND n matches in FILE" or "NOT FOUND ..." (omit pattern)
 #
 #    In case of
 #    - SEARCH_FILE and/or SEARCH_PATTERN is not set
@@ -35,7 +36,7 @@
 #    let SEARCH_FILE= $error_log;
 #    # Stop the server
 #    let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
-#    --exec echo "wait" > $restart_file
+#    --write_line wait $restart_file
 #    --shutdown_server
 #    --source include/wait_until_disconnected.inc
 #
@@ -77,17 +78,23 @@ perl;
         close(FILE);
         $content.= $file_content;
     }
-    my @matches=($content =~ m/$search_pattern/gs);
+    my @matches= ($content =~ /$search_pattern/gs);
     my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 
     if ($ENV{SEARCH_OUTPUT} eq "matches") {
-      foreach (@matches) {
-        print $_ . "\n";
-      }
-    } else {
-      print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        foreach (@matches) {
+            print $_ . "\n";
+        }
     }
-    die "$ENV{SEARCH_ABORT}\n"
-      if $ENV{SEARCH_ABORT} && $res =~ /^$ENV{SEARCH_ABORT}/;
+    elsif ($ENV{SEARCH_OUTPUT} eq "count")
+    {
+        print "$res matches in $ENV{SEARCH_FILE}\n";
+    }
+    elsif ($ENV{SEARCH_ABORT} and $res =~ /^$ENV{SEARCH_ABORT}/) {
+        die "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    } else {
+        print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+    }
 EOF

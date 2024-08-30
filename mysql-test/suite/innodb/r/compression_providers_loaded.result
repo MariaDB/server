@@ -1,0 +1,10 @@
+#
+# Testing unloaded compression provider: bzip2
+#
+# Innodb_have_bzip2 reflects that the provider is loaded
+SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_bzip2";
+Variable_name	Value
+Innodb_have_bzip2	ON
+# Innodb_compression_algorithm can be set to bzip2
+SET GLOBAL Innodb_compression_algorithm = bzip2;
+SET GLOBAL Innodb_compression_algorithm = zlib;

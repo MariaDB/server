@@ -1,0 +1,113 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+--connect(cancel_purge,localhost,root,,)
+# Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
+# ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
+# lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
+# emitted after the last SELECT in this test. The last SELECT will hang waiting
+# for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
+# The last SELECT will then be successfully executed instead of finishing by
+# lock wait timeout.
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+
+--connection default
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB;
+
+INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
+INSERT INTO t2 VALUES (10), (20), (30);
+
+BEGIN; # trx 1
+SELECT * FROM t WHERE a = 20 FOR UPDATE;
+# Locking order:
+# (10,10)    (20,20)    (30,30)
+#               ^
+#             trx 1
+
+--connect(con_2,localhost,root,,)
+# RC is neccessary to do semi-consistent read
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+BEGIN; # trx 2
+# The first time it will be hit on trying to lock (20,20), the second hit
+# will be on (30,30).
+SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont EXECUTE 2';
+# We must not modify primary key fields to cause rr_sequential() read record
+# function choosing in mysql_update(), i.e. both query_plan.using_filesort and
+# query_plan.using_io_buffer must be false during init_read_record() call.
+--send UPDATE t SET b = 100
+
+--connect(con_3,localhost,root,,)
+BEGIN; # trx 3
+# The following update is necessary to increase the transaction weight, which is
+# calculated as the number of locks + the number of undo records during deadlock
+# report. Victim's transaction should have minimum weight. We need trx 2 to be
+# choosen as victim, that's why we need to increase the current transaction
+# weight.
+UPDATE t2 SET a = a + 100;
+SELECT * FROM t WHERE a = 30 FOR UPDATE;
+SET DEBUG_SYNC='now WAIT_FOR upd_locked';
+# Locking queue:
+# (10,10)             (20,20)                  (30,30)
+#    ^                   ^                        ^
+#  trx 2                trx 1                   trx 3
+#               trx 2 (waiting for 1)
+
+SET DEBUG_SYNC = 'lock_wait_start SIGNAL sel_locked';
+--send SELECT * FROM t WHERE a = 20 FOR UPDATE
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR sel_locked';
+# Locking queue:
+# (10,10)             (20,20)                  (30,30)
+#    ^                   ^                        ^
+#  trx 2                trx 1                   trx 3
+#               trx 2 (waiting for 1)
+#               trx 3 (waiting for 1)
+#
+# Note trx 1 must grant lock to trx2 before trx 2 checks the lock state in
+# lock_trx_handle_wait(), i.e. the function must return DB_SUCCESS, that's why
+# the following ROLLBACK must be executed before sending upd_cont signal.
+ROLLBACK;
+SET DEBUG_SYNC='now SIGNAL upd_cont';
+
+SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+# Locking queue:
+# (10,10)             (20,20)                  (30,30)
+#    ^                   ^                        ^
+#  trx 2                trx 2                   trx 3
+#               trx 3 (waiting for 2)       trx 2 (waiting for 3)
+#
+# Deadlock happened after trx 1 granted lock to trx 2, and trx2 continued
+# sequential read (with rr_sequential() read record function), and requested
+# lock on (30,30). But the deadlock has not been determined yet.
+
+SET SESSION innodb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
+# The deadlock will be determined in lock_wait() after lock wait timeout
+# expired.
+SELECT * FROM t WHERE a = 10 FOR UPDATE;
+SET DEBUG_SYNC="now SIGNAL upd_cont";
+
+--connection con_3
+--reap
+
+--connection con_2
+# As lock_trx_handle_wait() wrongly returned DB_SUCCESS instead of
+# DB_DEADLOCK, row_search_mvcc() of trx 2 behaves so as if (30,30) was locked.
+# But the waiting(for trx 3) lock was cancelled by deadlock checker after
+# trx 2 was choosen as a victim (see lock_cancel_waiting_and_release() call
+# from Deadlock::report() for details). The try to update non-locked record
+# will cause assertion if the bug is not fixed.
+--error ER_LOCK_DEADLOCK
+--reap
+
+--disconnect con_3
+--disconnect con_2
+
+--connection default
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+DROP TABLE t2;
+--disconnect cancel_purge
+--source include/wait_until_count_sessions.inc

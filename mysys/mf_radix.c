@@ -26,7 +26,7 @@
 
 	/* Radixsort */
 
-my_bool radixsort_is_appliccable(uint n_items, size_t size_of_element)
+my_bool radixsort_is_applicable(uint n_items, size_t size_of_element)
 {
   return size_of_element <= 20 && n_items >= 1000 && n_items < 100000;
 }

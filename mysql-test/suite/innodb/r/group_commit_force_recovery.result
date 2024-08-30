@@ -1,0 +1,5 @@
+CREATE TABLE t1(a int) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+RESET MASTER;
+DROP TABLE t1;
+End of the tests.

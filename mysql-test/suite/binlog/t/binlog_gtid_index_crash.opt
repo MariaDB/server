@@ -1,0 +1,1 @@
+--binlog-gtid-index-page-size=128 --binlog-gtid-index-span-min=1

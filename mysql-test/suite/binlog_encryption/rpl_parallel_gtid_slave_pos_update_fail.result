@@ -1,0 +1,65 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t4 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
+INSERT INTO t4 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
+connect  con1,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  con2,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection server_2;
+include/stop_slave.inc
+connection con1;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+UPDATE t4 SET b=NULL WHERE a=6;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con2;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+DELETE FROM t4 WHERE b <= 1;
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con1;
+connection con2;
+SET debug_sync='RESET';
+connection server_2;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,disable_thd_need_ordering_with";
+include/start_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SELECT * FROM t4 ORDER BY a;
+a	b
+1	NULL
+2	2
+3	NULL
+4	4
+5	NULL
+6	NULL
+SET @last_gtid= 'GTID';
+SELECT IF(@@gtid_slave_pos LIKE CONCAT('%',@last_gtid,'%'), "GTID found ok",
+CONCAT("GTID ", @last_gtid, " not found in gtid_slave_pos=", @@gtid_slave_pos))
+AS result;
+result
+GTID found ok
+SELECT "ROW FOUND" AS `Is the row found?`
+  FROM mysql.gtid_slave_pos
+WHERE CONCAT(domain_id, "-", server_id, "-", seq_no) = @last_gtid;
+Is the row found?
+ROW FOUND
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+SET DEBUG_SYNC= 'RESET';
+connection server_1;
+DROP TABLE t4;
+SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+disconnect con2;
+include/rpl_end.inc

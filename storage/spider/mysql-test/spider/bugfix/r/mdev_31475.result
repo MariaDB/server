@@ -1,0 +1,25 @@
+for master_1
+for child2
+for child3
+CREATE TABLE t3 (c1 MEDIUMINT NULL, c2 CHAR(5)) ENGINE=Spider PARTITION BY KEY(c1) PARTITIONS 2;
+ALTER TABLE t3 DROP PRIMARY KEY;
+ERROR 42000: Can't DROP INDEX `PRIMARY`; check that it exists
+SELECT * FROM t3 WHERE c1 <=> '1000-00-01 00:00:00' ORDER BY c1,c2 LIMIT 2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+CREATE TABLE t1 (a INT UNSIGNED NOT NULL PRIMARY KEY, b INT UNSIGNED NOT NULL, c INT UNSIGNED, UNIQUE (b, c) USING HASH) ENGINE=Spider;
+SELECT t1.c1 FROM t3 RIGHT JOIN t1 ON t1.c1=current_date() UNION SELECT t1.c2 FROM t1 LEFT OUTER JOIN t3 ON t1.c2;
+ERROR HY000: Unable to connect to foreign data source: localhost
+drop table t1, t3;
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t1 (a INT, b VARCHAR(255), PRIMARY KEY(a)) ENGINE=Spider PARTITION BY RANGE (a) (PARTITION p1 VALUES LESS THAN (3), PARTITION p2 VALUES LESS THAN MAXVALUE COMMENT='srv "srv"');
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+DROP SERVER srv;
+SELECT * FROM t1;
+ERROR HY000: The foreign server name you are trying to reference does not exist. Data source error:  srv
+drop table t1;
+for master_1
+for child2
+for child3

@@ -1,0 +1,13 @@
+#
+# MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+#
+SET NAMES utf8;
+# Bad delimiter
+--delimiter cannot be used with utf16 to utf8mb3 conversion
+# Bad delimiter
+--delimiter cannot be used with utf8mb3 to utf16 conversion
+# Start of file01.utf16.txt
+aaa
+xxxяяяxxx
+bbb
+# End of file01.utf16.txt

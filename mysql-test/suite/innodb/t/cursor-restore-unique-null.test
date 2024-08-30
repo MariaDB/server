@@ -14,7 +14,7 @@ BEGIN;
 
 --connection default
 BEGIN;
-SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+SET DEBUG_SYNC="lock_wait_start SIGNAL select_locked";
 --send SELECT * FROM t FORCE INDEX(b) FOR UPDATE
 
 --connection con1

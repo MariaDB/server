@@ -35,7 +35,9 @@ eval CREATE TABLE tbl_a (
 );
 
 --connection master_1
+--disable_ps_protocol
 SELECT distinct b FROM tbl_a WHERE b=999;
+--enable_ps_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_remote;

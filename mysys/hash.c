@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,7 +45,7 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
                                 size_t length)
 {
   ulong nr1= 1, nr2= 4;
-  cs->coll->hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
+  my_ci_hash_sort(cs, (uchar*) key, length, &nr1, &nr2);
   return (my_hash_value_type) nr1;
 }
 
@@ -60,8 +60,9 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
   dynamic array that is part of the hash will allocate memory
   as required during insertion.
 
+  @param[in]     psi_key      The key to register instrumented memory
   @param[in,out] hash         The hash that is initialized
-  @param[in[     growth_size  size incrememnt for the underlying dynarray
+  @param[in]     growth_size  size incrememnt for the underlying dynarray
   @param[in]     charset      The character set information
   @param[in]     size         The hash size
   @param[in]     key_offest   The key offset for the hash
@@ -76,14 +77,14 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
     @retval 1 failure
 */
 my_bool
-my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
-              ulong size, size_t key_offset, size_t key_length,
-              my_hash_get_key get_key,
+my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
+              CHARSET_INFO *charset, size_t size, size_t key_offset,
+              size_t key_length, my_hash_get_key get_key,
               my_hash_function hash_function,
               void (*free_element)(void*), uint flags)
 {
   my_bool res;
-  DBUG_ENTER("my_hash_init");
+  DBUG_ENTER("my_hash_init2");
   DBUG_PRINT("enter",("hash:%p  size: %u", hash, (uint) size));
 
   hash->records=0;
@@ -95,7 +96,7 @@ my_hash_init2(HASH *hash, uint growth_size, CHARSET_INFO *charset,
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
-  res= init_dynamic_array2(&hash->array, sizeof(HASH_LINK), NULL, size,
+  res= init_dynamic_array2(psi_key, &hash->array, sizeof(HASH_LINK), NULL, size,
                            growth_size, MYF((flags & HASH_THREAD_SPECIFIC ?
                                              MY_THREAD_SPECIFIC : 0)));
   DBUG_RETURN(res);
@@ -282,6 +283,8 @@ uchar* my_hash_first_from_hash_value(const HASH *hash,
     uint flag= 1;
     uint idx= my_hash_mask(hash_value,
                            hash->blength, hash->records);
+    if (!length)
+      length= hash->key_length; // length for fixed length keys or 0
     do
     {
       pos= dynamic_element(&hash->array,idx,HASH_LINK*);
@@ -316,6 +319,8 @@ uchar* my_hash_next(const HASH *hash, const uchar *key, size_t length,
   if (*current_record != NO_RECORD)
   {
     HASH_LINK *data=dynamic_element(&hash->array,0,HASH_LINK*);
+    if (!length)
+      length= hash->key_length; // length for fixed length keys or 0
     for (idx=data[*current_record].next; idx != NO_RECORD ; idx=pos->next)
     {
       pos=data+idx;
@@ -356,8 +361,11 @@ static void movelink(HASH_LINK *array,uint find,uint next_link,uint newlink)
     length length of key
 
   NOTES:
-    If length is 0, comparison is done using the length of the
-    record being compared against.
+    length equal 0 can mean 2 things:
+      1) it is fixed key length hash (HASH::key_length != 0) and
+      default length should be taken in this case
+      2) it is really 0 length key for variable key length hash
+      (HASH::key_length == 0)
 
   RETURN
     = 0  key of record == key
@@ -368,10 +376,10 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
                    size_t length)
 {
   size_t rec_keylength;
-  uchar *rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
-  return ((length && length != rec_keylength) ||
-	  my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
-		       (uchar*) key, rec_keylength));
+  uchar *rec_key;
+  rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
+  return my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
+		       (uchar*) key, length);
 }
 
 
@@ -894,7 +902,7 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
   DBUG_PUSH("d:t:O,/tmp/test_hash.trace");
 
   printf("my_hash_init\n");
-  if (my_hash_init2(&hash_test, 100, &my_charset_bin, 20,
+  if (my_hash_init2(PSI_INSTRUMENT_ME, &hash_test, 100, &my_charset_bin, 20,
                     0, 0, (my_hash_get_key) test_get_key, 0, 0, HASH_UNIQUE))
   {
     fprintf(stderr, "hash init failed\n");

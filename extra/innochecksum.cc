@@ -26,13 +26,15 @@
   Published with a permission.
 */
 
+#define VER "1.0"
+
 #include <my_global.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef __WIN__
+#ifndef _WIN32
 # include <unistd.h>
 #endif
 #include <my_getopt.h>
@@ -48,8 +50,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "buf0buf.h"             /* buf_page_is_corrupted */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
-#include "ut0crc32.h"            /* ut_crc32_init() */
-#include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
@@ -75,18 +75,15 @@ static bool			do_one_page;
 static my_bool do_leaf;
 static my_bool per_page_details;
 static ulint n_merge;
-extern ulong			srv_checksum_algorithm;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
 ulong srv_page_size;
-ulong srv_page_size_shift;
+uint32_t srv_page_size_shift;
 /* Current page number (0 based). */
 uint32_t		cur_page_num;
 /* Current space. */
 uint32_t		cur_space;
 /* Skip the checksum verification. */
 static bool			no_check;
-/* Enabled for strict checksum verification. */
-bool				strict_verify = 0;
 /* Enabled for rewrite checksum. */
 static bool			do_write;
 /* Mismatches count allowed (0 by default). */
@@ -104,15 +101,13 @@ FILE*				log_file = NULL;
 /* Enabled for log write option. */
 static bool			is_log_enabled = false;
 
+static byte field_ref_zero_buf[UNIV_PAGE_SIZE_MAX];
+const byte *field_ref_zero = field_ref_zero_buf;
+
 #ifndef _WIN32
 /* advisory lock for non-window system. */
 struct flock			lk;
 #endif /* _WIN32 */
-
-/* Strict check algorithm name. */
-static ulong			strict_check;
-/* Rewrite checksum algorithm name. */
-static ulong			write_check;
 
 /* Innodb page type. */
 struct innodb_page_type {
@@ -139,24 +134,6 @@ struct innodb_page_type {
 	int n_fil_page_type_page_compressed;
 	int n_fil_page_type_page_compressed_encrypted;
 } page_type;
-
-/* Possible values for "--strict-check" for strictly verify checksum
-and "--write" for rewrite checksum. */
-static const char *innochecksum_algorithms[] = {
-	"crc32",
-	"crc32",
-	"innodb",
-	"innodb",
-	"none",
-	"none",
-	NullS
-};
-
-/* Used to define an enumerate type of the "innochecksum algorithm". */
-static TYPELIB innochecksum_algorithms_typelib = {
-	array_elements(innochecksum_algorithms)-1,"",
-	innochecksum_algorithms, NULL
-};
 
 #define SIZE_RANGES_FOR_PAGE 10
 #define NUM_RETRIES 3
@@ -287,14 +264,14 @@ static void init_page_size(const byte* buf)
 						 + FSP_SPACE_FLAGS);
 
 	if (fil_space_t::full_crc32(flags)) {
-		const ulong ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
+		const uint32_t ssize = FSP_FLAGS_FCRC32_GET_PAGE_SSIZE(flags);
 		srv_page_size_shift = UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize;
 		srv_page_size = 512U << ssize;
 		physical_page_size = srv_page_size;
 		return;
 	}
 
-	const ulong	ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	const uint32_t ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 
 	srv_page_size_shift = ssize
 		? UNIV_ZIP_SIZE_SHIFT_MIN - 1 + ssize
@@ -458,12 +435,7 @@ static bool is_page_all_zeroes(
 				with crypt_scheme encrypted
 @param[in]	flags		tablespace flags
 @retval true if page is corrupted otherwise false. */
-static
-bool
-is_page_corrupted(
-	byte*		buf,
-	bool		is_encrypted,
-	ulint		flags)
+static bool is_page_corrupted(byte *buf, bool is_encrypted, uint32_t flags)
 {
 
 	/* enable if page is corrupted. */
@@ -471,7 +443,7 @@ is_page_corrupted(
 	/* use to store LSN values. */
 	uint32_t logseq;
 	uint32_t logseqfield;
-	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+	const uint16_t page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
 	uint32_t key_version = buf_page_get_key_version(buf, flags);
 	uint32_t space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -620,7 +592,7 @@ Rewrite the checksum for the page.
 @retval false : skip the rewrite as checksum stored match with
 		calculated or page is doublwrite buffer.
 */
-static bool update_checksum(byte* page, ulint flags)
+static bool update_checksum(byte* page, uint32_t flags)
 {
 	ib_uint32_t	checksum = 0;
 	byte		stored1[4];	/* get FIL_PAGE_SPACE_OR_CHKSUM field checksum */
@@ -651,10 +623,9 @@ static bool update_checksum(byte* page, ulint flags)
 	}
 
 	if (iscompressed) {
-		/* page is compressed */
-		checksum = page_zip_calc_checksum(
-			page, physical_page_size,
-			static_cast<srv_checksum_algorithm_t>(write_check));
+		/* ROW_FORMAT=COMPRESSED */
+		checksum = page_zip_calc_checksum(page, physical_page_size,
+						  false);
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
@@ -665,7 +636,7 @@ static bool update_checksum(byte* page, ulint flags)
 	} else if (use_full_crc32) {
 		ulint payload = buf_page_full_crc32_size(page, NULL, NULL)
 			- FIL_PAGE_FCRC32_CHECKSUM;
-		checksum = ut_crc32(page, payload);
+		checksum = my_crc32c(0, page, payload);
 		byte* c = page + payload;
 		if (mach_read_from_4(c) == checksum) return false;
 		mach_write_to_4(c, checksum);
@@ -678,50 +649,17 @@ static bool update_checksum(byte* page, ulint flags)
 		/* page is uncompressed. */
 
 		/* Store the new formula checksum */
-		switch ((srv_checksum_algorithm_t) write_check) {
-
-		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-			checksum = buf_calc_page_crc32(page);
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-			checksum = (ib_uint32_t)
-					buf_calc_page_new_checksum(page);
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-			checksum = BUF_NO_CHECKSUM_MAGIC;
-			break;
-
-		/* no default so the compiler will emit a warning if new
-		enum is added and not handled here */
-		}
+		checksum = buf_calc_page_crc32(page);
 
 		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 		if (is_log_enabled) {
-			fprintf(log_file, "page::" UINT32PF "; Updated checksum field1"
-				" = " UINT32PF "\n", cur_page_num, checksum);
-		}
-
-		if (write_check == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB
-		    || write_check == SRV_CHECKSUM_ALGORITHM_INNODB) {
-			checksum = (ib_uint32_t)
-					buf_calc_page_old_checksum(page);
+			fprintf(log_file, "page::" UINT32PF
+				"; Updated checksum = " UINT32PF "\n",
+				cur_page_num, checksum);
 		}
 
 		mach_write_to_4(page + physical_page_size -
 				FIL_PAGE_END_LSN_OLD_CHKSUM,checksum);
-
-		if (is_log_enabled) {
-			fprintf(log_file, "page::" UINT32PF "; Updated checksum "
-				"field2 = " UINT32PF "\n", cur_page_num, checksum);
-		}
-
 	}
 
 func_exit:
@@ -763,7 +701,7 @@ write_file(
 	const char*	filename,
 	FILE*		file,
 	byte*		buf,
-	ulint		flags,
+	uint32_t	flags,
 	fpos_t*		pos)
 {
 	bool	do_update;
@@ -816,7 +754,7 @@ static inline bool is_page_free(const byte *xdes, ulint physical_page_size,
   const byte *des=
       xdes + XDES_ARR_OFFSET +
       XDES_SIZE * ((page_no & (physical_page_size - 1)) / FSP_EXTENT_SIZE);
-  return xdes_get_bit(des, XDES_FREE_BIT, page_no % FSP_EXTENT_SIZE);
+  return xdes_is_free(des, page_no % FSP_EXTENT_SIZE);
 }
 
 /*
@@ -845,7 +783,7 @@ parse_page(
 	/* Check whether page is doublewrite buffer. */
 	str = skip_page ? "Double_write_buffer" : "-";
 
-	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {
+	switch (fil_page_get_type(page)) {
 
 	case FIL_PAGE_INDEX: {
 		uint32_t key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -896,8 +834,7 @@ parse_page(
 			/* update per-index statistics */
 			{
 				per_index_stats &index = index_ids[id];
-				if (is_page_free(xdes, physical_page_size,
-						 page_no)) {
+				if (is_page_free(xdes, physical_page_size, page_no)) {
 					index.free_pages++;
 					return;
 				}
@@ -1248,17 +1185,13 @@ static struct my_option innochecksum_options[] = {
   {"page", 'p', "Check only this page (0 based).",
     &do_page, &do_page, 0, GET_UINT, REQUIRED_ARG,
     0, 0, FIL_NULL, 0, 1, 0},
-  {"strict-check", 'C', "Specify the strict checksum algorithm by the user.",
-    &strict_check, &strict_check, &innochecksum_algorithms_typelib,
-    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"no-check", 'n', "Ignore the checksum verification.",
     &no_check, &no_check, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"allow-mismatches", 'a', "Maximum checksum mismatch allowed.",
     &allow_mismatches, &allow_mismatches, 0,
     GET_ULL, REQUIRED_ARG, 0, 0, ULLONG_MAX, 0, 1, 0},
-  {"write", 'w', "Rewrite the checksum algorithm by the user.",
-    &write_check, &write_check, &innochecksum_algorithms_typelib,
-    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"write", 'w', "Rewrite the checksum.",
+    &do_write, &do_write, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"page-type-summary", 'S', "Display a count of each page type "
    "in a tablespace.", &page_type_summary, &page_type_summary, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1278,20 +1211,6 @@ static struct my_option innochecksum_options[] = {
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
-/* Print out the Innodb version and machine information. */
-static void print_version(void)
-{
-#ifdef DBUG_OFF
-	printf("%s Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
-		SYSTEM_TYPE, MACHINE_TYPE);
-#else
-	printf("%s-debug Ver %s, for %s (%s)\n",
-		my_progname, INNODB_VERSION_STR,
-		SYSTEM_TYPE, MACHINE_TYPE);
-#endif /* DBUG_OFF */
-}
-
 static void usage(void)
 {
 	print_version();
@@ -1299,7 +1218,7 @@ static void usage(void)
 	printf("InnoDB offline file checksum utility.\n");
 	printf("Usage: %s [-c] [-s <start page>] [-e <end page>] "
 		"[-p <page>] [-i] [-v]  [-a <allow mismatches>] [-n] "
-		"[-C <strict-check>] [-w <write>] [-S] [-D <page type dump>] "
+		"[-S] [-D <page type dump>] "
 		"[-l <log>] [-l] [-m <merge pages>] <filename or [-]>\n", my_progname);
 	printf("See https://mariadb.com/kb/en/library/innochecksum/"
 	       " for usage hints.\n");
@@ -1309,11 +1228,11 @@ static void usage(void)
 
 extern "C" my_bool
 innochecksum_get_one_option(
-	int			optid,
-	const struct my_option	*opt MY_ATTRIBUTE((unused)),
-	char			*argument MY_ATTRIBUTE((unused)))
+	const struct my_option	*opt,
+	const char		*argument MY_ATTRIBUTE((unused)),
+        const char *)
 {
-	switch (optid) {
+	switch (opt->id) {
 #ifndef DBUG_OFF
 	case '#':
 		dbug_setting = argument
@@ -1335,38 +1254,6 @@ innochecksum_get_one_option(
 		print_version();
 		my_end(0);
 		exit(EXIT_SUCCESS);
-		break;
-	case 'C':
-		strict_verify = true;
-		switch ((srv_checksum_algorithm_t) strict_check) {
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_CRC32:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		case SRV_CHECKSUM_ALGORITHM_INNODB:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_INNODB;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		case SRV_CHECKSUM_ALGORITHM_NONE:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_NONE;
-			break;
-
-		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-			srv_checksum_algorithm =
-				SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32;
-			break;
-
-		default:
-			return(true);
-		}
 		break;
 	case 'n':
 		no_check = true;
@@ -1468,7 +1355,7 @@ static int verify_checksum(
 	byte*			buf,
 	bool			is_encrypted,
 	unsigned long long*	mismatch_count,
-	ulint			flags)
+	uint32_t		flags)
 {
 	int exit_status = 0;
 	if (is_page_corrupted(buf, is_encrypted, flags)) {
@@ -1509,7 +1396,7 @@ rewrite_checksum(
 	byte*		buf,
 	fpos_t*		pos,
 	bool		is_encrypted,
-	ulint		flags)
+	uint32_t	flags)
 {
 	bool is_compressed = fil_space_t::is_compressed(flags);
 
@@ -1528,8 +1415,6 @@ int main(
 	/* our input filename. */
 	char*		filename;
 	/* Buffer to store pages read. */
-	byte*		buf_ptr = NULL;
-	byte*		xdes_ptr = NULL;
 	byte*		buf = NULL;
 	byte*		xdes = NULL;
 	/* bytes read count */
@@ -1563,19 +1448,11 @@ int main(
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
-	ut_crc32_init();
 	MY_INIT(argv[0]);
 	DBUG_ENTER("main");
 	DBUG_PROCESS(argv[0]);
 
 	if (get_options(&argc,&argv)) {
-		exit_status = 1;
-		goto my_exit;
-	}
-
-	if (strict_verify && no_check) {
-		fprintf(stderr, "Error: --strict-check option cannot be used "
-			"together with --no-check option.\n");
 		exit_status = 1;
 		goto my_exit;
 	}
@@ -1609,10 +1486,10 @@ int main(
 	}
 
 
-	buf_ptr = (byte*) malloc(UNIV_PAGE_SIZE_MAX * 2);
-	xdes_ptr = (byte*)malloc(UNIV_PAGE_SIZE_MAX * 2);
-	buf = (byte *) ut_align(buf_ptr, UNIV_PAGE_SIZE_MAX);
-	xdes = (byte *) ut_align(xdes_ptr, UNIV_PAGE_SIZE_MAX);
+	buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						UNIV_PAGE_SIZE_MAX));
+	xdes = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						 UNIV_PAGE_SIZE_MAX));
 
 	/* The file name is not optional. */
 	for (int i = 0; i < argc; ++i) {
@@ -1688,7 +1565,7 @@ int main(
 		from fsp_flags and encryption metadata from page 0 */
 		init_page_size(buf);
 
-		ulint flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
+		uint32_t flags = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + buf);
 
 		if (physical_page_size == UNIV_ZIP_SIZE_MIN) {
 			partial_page_read = false;
@@ -1895,6 +1772,18 @@ unexpected_eof:
 			}
 
 			if (ferror(fil_in)) {
+#ifdef _AIX
+				/*
+				  AIX fseeko can go past eof without error.
+				  the error occurs on read, hence output the
+				  same error here as would show up on other
+				  platforms. This shows up in the mtr test
+				  innodb_zip.innochecksum_3-4k,crc32,innodb
+				*/
+				if (errno == EFBIG) {
+					goto unexpected_eof;
+				}
+#endif
 				fprintf(stderr, "Error reading " ULINTPF " bytes",
 					physical_page_size);
 				perror(" ");
@@ -1919,7 +1808,7 @@ first_non_zero:
 				skip_page = false;
 			}
 
-			ulint cur_page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+			const uint16_t cur_page_type = fil_page_get_type(buf);
 
 			/* FIXME: Page compressed or Page compressed and encrypted
 			pages do not contain checksum. */
@@ -1932,8 +1821,7 @@ first_non_zero:
 			checksum verification.*/
 			if (!no_check
 			    && !skip_page
-			    && !is_page_free(xdes, physical_page_size,
-					     cur_page_num)
+			    && !is_page_free(xdes, physical_page_size, cur_page_num)
 			    && (exit_status = verify_checksum(
 						buf, is_encrypted,
 						&mismatch_count, flags))) {
@@ -2003,21 +1891,9 @@ first_non_zero:
 		fclose(log_file);
 	}
 
-	free(buf_ptr);
-	free(xdes_ptr);
-
-	my_end(exit_status);
-	DBUG_RETURN(exit_status);
+	goto common_exit;
 
 my_exit:
-	if (buf_ptr) {
-		free(buf_ptr);
-	}
-
-	if (xdes_ptr) {
-		free(xdes_ptr);
-	}
-
 	if (!read_from_stdin && fil_in) {
 		fclose(fil_in);
 	}
@@ -2026,6 +1902,9 @@ my_exit:
 		fclose(log_file);
 	}
 
+common_exit:
+	aligned_free(buf);
+	aligned_free(xdes);
 	my_end(exit_status);
 	DBUG_RETURN(exit_status);
 }

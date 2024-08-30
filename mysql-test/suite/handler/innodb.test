@@ -15,6 +15,7 @@ let $engine_type= InnoDB;
 
 --source init.inc
 --source handler.inc
+--source savepoint.inc
 
 #
 # LP#697610 ha_index_prev(uchar*): Assertion `inited==INDEX'

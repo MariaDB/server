@@ -55,8 +55,8 @@ drop user gigi@localhost;
 --echo # Run mysql_upgrade
 --exec $MYSQL_UPGRADE  2>&1
 let $MYSQLD_DATADIR= `select @@datadir`;
---file_exists $MYSQLD_DATADIR/mysql_upgrade_info
---remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+--file_exists $MYSQLD_DATADIR/mariadb_upgrade_info
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
 
 create user gigi@localhost;
 show create user gigi@localhost;

@@ -27,10 +27,9 @@ DROP TABLE t1;
 --echo #
 
 --connection node_1
-let $wsrep_replicate_myisam_saved= `SELECT @@wsrep_replicate_myisam`;
-SET @@global.wsrep_replicate_myisam=1;
+SET @@global.wsrep_mode = REPLICATE_MYISAM;
 
-CREATE TABLE t1 (i INT) ENGINE=MYISAM;
+CREATE TABLE t1 (i INT NOT NULL PRIMARY KEY) ENGINE=MYISAM;
 INSERT INTO t1 VALUES(1);
 
 --connection node_2
@@ -38,6 +37,9 @@ SELECT * FROM t1;
 
 --connection node_1
 DROP TABLE t1;
-eval SET @@global.wsrep_replicate_myisam=$wsrep_replicate_myisam_saved;
+
+--disable_query_log
+SET @@global.wsrep_mode=DEFAULT;
+--enable_query_log
 
 --echo # End of tests.

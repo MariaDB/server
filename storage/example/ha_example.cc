@@ -38,7 +38,7 @@
   build by doing the following during your build process:<br> ./configure
   --with-example-storage-engine
 
-  Once this is done, MySQL will let you create tables with:<br>
+  Once this is done, MariaDB will let you create tables with:<br>
   CREATE TABLE <table name> (...) ENGINE=EXAMPLE;
 
   The example storage engine is set up to use table locks. It
@@ -51,9 +51,9 @@
   of this file.
 
   @note
-  When you create an EXAMPLE table, the MySQL Server creates a table .frm
+  When you create an EXAMPLE table, the MariaDB Server creates a table .frm
   (format) file in the database directory, using the table name as the file
-  name as is customary with MySQL. No other files are created. To get an idea
+  name as is customary with MariaDB. No other files are created. To get an idea
   of what occurs, here is an example select that would do a scan of an entire
   table:
 
@@ -85,10 +85,6 @@
   the table in question was already opened; had it not been open, a call to
   ha_example::open() would also have been necessary. Calls to
   ha_example::extra() are hints as to what will be occuring to the request.
-
-  A Longer Example can be found called the "Skeleton Engine" which can be 
-  found on TangentOrg. It has both an engine and a full build environment
-  for building a pluggable storage engine.
 
   Happy coding!<br>
     -Brian
@@ -215,6 +211,8 @@ static void init_example_psi_keys()
   count= array_elements(all_example_mutexes);
   mysql_mutex_register(category, all_example_mutexes, count);
 }
+#else
+static void init_example_psi_keys() { }
 #endif
 
 
@@ -252,17 +250,15 @@ static int example_init_func(void *p)
 {
   DBUG_ENTER("example_init_func");
 
-#ifdef HAVE_PSI_INTERFACE
   init_example_psi_keys();
-#endif
 
   example_hton= (handlerton *)p;
-  example_hton->state=   SHOW_OPTION_YES;
   example_hton->create=  example_create_handler;
   example_hton->flags=   HTON_CAN_RECREATE;
   example_hton->table_options= example_table_option_list;
   example_hton->field_options= example_field_option_list;
   example_hton->tablefile_extensions= ha_example_exts;
+  example_hton->drop_table= [](handlerton *, const char*) { return -1; };
 
   DBUG_RETURN(0);
 }
@@ -384,8 +380,6 @@ int ha_example::close(void)
   @endcode
 
   See ha_tina.cc for an example of extracting all of the data as strings.
-  ha_berekly.cc has an example of how to store it intact by "packing" it
-  for ha_berkeley's own native storage type.
 
   See the note for update_row() on auto_increments and timestamps. This
   case also applies to write_row().
@@ -771,7 +765,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   Before adding the lock into the table lock handler (see thr_lock.c),
   mysqld calls store lock with the requested locks. Store lock can now
   modify a write lock to a read lock (or some other lock), ignore the
-  lock (if we don't want to use MySQL table locks at all), or add locks
+  lock (if we don't want to use MariaDB table locks at all), or add locks
   for many tables (like we do when we are using a MERGE handler).
 
   Berkeley DB, for example, changes all WRITE locks to TL_WRITE_ALLOW_WRITE
@@ -781,7 +775,7 @@ int ha_example::external_lock(THD *thd, int lock_type)
   When releasing locks, store_lock() is also called. In this case one
   usually doesn't have to do anything.
 
-  In some exceptional cases MySQL may send a request for a TL_IGNORE;
+  In some exceptional cases MariaDB may send a request for a TL_IGNORE;
   This means that we are requesting the same lock as last time and this
   should also be ignored. (This may happen when someone does a flush
   table when we have opened a part of the tables, in which case mysqld
@@ -840,6 +834,10 @@ int ha_example::delete_table(const char *name)
   @brief
   Given a starting key and an ending key, estimate the number of rows that
   will exist between the two keys.
+  The handler can also optionally update the 'pages' parameter with the page
+  number that contains the min and max keys. This will help the optimizer
+  to know if two ranges are partly on the same pages and if the min and
+  max key are on the same page.
 
   @details
   end_key may be empty, in which case determine if start_key matches any rows.
@@ -849,8 +847,10 @@ int ha_example::delete_table(const char *name)
   @see
   check_quick_keys() in opt_range.cc
 */
-ha_rows ha_example::records_in_range(uint inx, key_range *min_key,
-                                     key_range *max_key)
+ha_rows ha_example::records_in_range(uint inx,
+                                     const key_range *min_key,
+                                     const key_range *max_key,
+                                     page_range *pages)
 {
   DBUG_ENTER("ha_example::records_in_range");
   DBUG_RETURN(10);                         // low number to force index usage
@@ -1010,7 +1010,7 @@ static MYSQL_SYSVAR_ENUM(
   enum_var,                       // name
   srv_enum_var,                   // varname
   PLUGIN_VAR_RQCMDARG,            // opt
-  "Sample ENUM system variable.", // comment
+  "Sample ENUM system variable",  // comment
   NULL,                           // check
   NULL,                           // update
   0,                              // def
@@ -1078,7 +1078,7 @@ static int show_func_example(MYSQL_THD thd, struct st_mysql_show_var *var,
   var->value= buf; // it's of SHOW_VAR_FUNC_BUFF_SIZE bytes
   my_snprintf(buf, SHOW_VAR_FUNC_BUFF_SIZE,
               "enum_var is %lu, ulong_var is %lu, int_var is %d, "
-              "double_var is %f, %.6b", // %b is a MySQL extension
+              "double_var is %f, %.6b", // %b is a MariaDB/MySQL extension
               srv_enum_var, srv_ulong_var, THDVAR(thd, int_var),
               srv_double_var, "really");
   return 0;
@@ -1093,23 +1093,6 @@ static struct st_mysql_show_var func_status[]=
 struct st_mysql_daemon unusable_example=
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
-mysql_declare_plugin(example)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &example_storage_engine,
-  "EXAMPLE",
-  "Brian Aker, MySQL AB",
-  "Example storage engine",
-  PLUGIN_LICENSE_GPL,
-  example_init_func,                            /* Plugin Init */
-  NULL,                                         /* Plugin Deinit */
-  0x0001 /* 0.1 */,
-  func_status,                                  /* status variables */
-  example_system_variables,                     /* system variables */
-  NULL,                                         /* config options */
-  0,                                            /* flags */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(example)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -139,22 +139,22 @@ struct pos_events_waits_history : public PFS_double_index
 class table_events_waits_common : public PFS_engine_table
 {
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_events_waits_common(const PFS_engine_table_share *share, void *pos);
 
   ~table_events_waits_common() = default;
 
   void clear_object_columns();
-  int make_table_object_columns(volatile PFS_events_waits *wait);
-  int make_file_object_columns(volatile PFS_events_waits *wait);
-  int make_socket_object_columns(volatile PFS_events_waits *wait);
+  int make_table_object_columns(PFS_events_waits *wait);
+  int make_file_object_columns(PFS_events_waits *wait);
+  int make_socket_object_columns(PFS_events_waits *wait);
+  int make_metadata_lock_object_columns(PFS_events_waits *wait);
 
-  void make_row(bool thread_own_wait, PFS_thread *pfs_thread,
-                volatile PFS_events_waits *wait);
+  void make_row(PFS_events_waits *wait);
 
   /** Current row. */
   row_events_waits m_row;
@@ -166,14 +166,16 @@ protected:
 class table_events_waits_current : public table_events_waits_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_waits_current();
@@ -188,6 +190,8 @@ private:
   /** Table share lock. */
   static THR_LOCK m_table_lock;
 
+  void make_row(PFS_thread *thread, PFS_events_waits *wait);
+
   /** Current position. */
   pos_events_waits_current m_pos;
   /** Next position. */
@@ -198,14 +202,16 @@ private:
 class table_events_waits_history : public table_events_waits_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_waits_history();
@@ -217,6 +223,8 @@ private:
   /** Table share lock. */
   static THR_LOCK m_table_lock;
 
+  void make_row(PFS_thread *thread, PFS_events_waits *wait);
+
   /** Current position. */
   pos_events_waits_history m_pos;
   /** Next position. */
@@ -227,14 +235,16 @@ private:
 class table_events_waits_history_long : public table_events_waits_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+    int rnd_pos(const void *pos) override;
+    void reset_position(void) override;;
 
 protected:
   table_events_waits_history_long();

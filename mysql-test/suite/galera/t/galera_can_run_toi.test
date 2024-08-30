@@ -1,0 +1,32 @@
+--source include/galera_cluster.inc
+#
+# MDEV-24833 : Signal 11 on wsrep_can_run_in_toi at wsrep_mysqld.cc:1994
+#
+SET sql_mode='';
+CREATE TABLE t3 (c1 VARCHAR(10));
+ALTER TABLE t3 ENGINE=NonExistentEngine;
+SHOW CREATE TABLE t3;
+INSERT INTO t3 values (1);
+SET sql_mode=default;
+--error ER_UNKNOWN_STORAGE_ENGINE
+ALTER TABLE t3 engine=innodbCLUSTER;
+SHOW CREATE TABLE t3;
+DROP TABLE t3;
+#
+# Test default_storage_engine to engine that is not supported by Galera
+#
+SET sql_mode='';
+SET SESSION default_storage_engine=MyISAM;
+SELECT @@default_storage_engine;
+SET GLOBAL wsrep_mode=STRICT_REPLICATION;
+CREATE TABLE t3 (c1 VARCHAR(10)) ENGINE=InnoDB;
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+ALTER TABLE t3 ENGINE=NonExistentEngine;
+SHOW CREATE TABLE t3;
+DROP TABLE t3;
+
+--disable_query_log
+SET GLOBAL sql_mode=default;
+SET GLOBAL default_storage_engine=default;
+SET GLOBAL wsrep_mode=default;
+--enable_query_log

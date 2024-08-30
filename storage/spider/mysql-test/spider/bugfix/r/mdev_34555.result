@@ -1,0 +1,36 @@
+for master_1
+for child2
+for child3
+set spider_same_server_link= 1;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE '',user 'Spider', password 'foo');
+CREATE TABLE tSpider (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+CREATE TABLE t2 (c INT,c2 CHAR(1)) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+XA START 'a';
+SELECT * FROM information_schema.table_constraints;
+SELECT SLEEP (1);
+SLEEP (1)
+0
+SELECT * FROM t2;
+ERROR HY000: Unable to connect to foreign data source: srv
+SELECT SLEEP (1);
+SLEEP (1)
+0
+SELECT * FROM t2;
+ERROR HY000: Unable to connect to foreign data source: srv
+SELECT SLEEP (1);
+SLEEP (1)
+0
+SELECT * FROM t2;
+ERROR HY000: Unable to connect to foreign data source: srv
+xa end 'a';
+xa rollback 'a';
+drop table tSpider, t2;
+drop server srv;
+for master_1
+for child2
+for child3

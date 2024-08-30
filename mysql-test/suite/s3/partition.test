@@ -1,0 +1,118 @@
+--source include/have_partition.inc
+--source include/have_s3.inc
+--source create_database.inc
+
+--echo # Test for COALESCE PARTITION, ALTER TABLE and ADD PARTITIONS
+--echo # for tables with HASH partitions
+CREATE TABLE t1 (
+  c1 INT DEFAULT NULL
+) ENGINE=Aria
+  PARTITION BY HASH (c1)
+  PARTITIONS 3;
+INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202);
+ALTER TABLE t1 ENGINE=S3;
+SELECT count(*) FROM t1;
+# Check that partition tables are not shown;
+--replace_result $database s3
+SHOW TABLES;
+
+--replace_result $database s3
+--error ER_UNSUPPORTED_EXTENSION
+ALTER TABLE t1 COALESCE PARTITION 2;
+--replace_result $database s3
+SHOW WARNINGS;
+ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
+SELECT count(*) FROM t1;
+ALTER TABLE t1 ADD COLUMN c INT;
+SELECT count(*) FROM t1;
+DROP TABLE t1;
+
+--echo # Test for simple change engine to S3
+CREATE TABLE t1 (
+  c1 int DEFAULT NULL,
+  c2 int DEFAULT NULL
+) ENGINE=Aria
+  PARTITION BY RANGE (c1)
+  SUBPARTITION BY HASH(c2)
+  SUBPARTITIONS 2
+ (PARTITION p0 VALUES LESS THAN (100),
+ PARTITION p1 VALUES LESS THAN (200),
+ PARTITION p3 VALUES LESS THAN (300));
+
+INSERT INTO t1 VALUE (1,1), (2,2), (101,101), (102,102), (201,201), (202,202);
+ALTER TABLE t1 ENGINE=S3;
+SELECT count(*) FROM t1;
+
+--echo # Test for rename table
+RENAME TABLE t1 TO t2;
+SELECT count(*) FROM t2;
+
+--echo # Test for TRUNCATE, ANALYZE, CHECK, REBUILD, OPTIMIZE, REPAIR,
+--echo # ADD, DROP, REORGANIZE partition
+--error ER_OPEN_AS_READONLY
+ALTER TABLE t2 TRUNCATE PARTITION p3;
+--replace_result $database s3
+ALTER TABLE t2 ANALYZE PARTITION p3;
+SELECT count(*) FROM t2;
+--replace_result $database s3
+ALTER TABLE t2 CHECK PARTITION p3;
+SELECT count(*) FROM t2;
+--replace_result $database s3
+--error ER_UNSUPPORTED_EXTENSION
+ALTER TABLE t2 REBUILD PARTITION p0, p1;
+--replace_result $database s3
+ALTER TABLE t2 OPTIMIZE PARTITION p0, p1;
+SELECT count(*) FROM t2;
+--replace_result $database s3
+ALTER TABLE t2 REPAIR PARTITION p0, p1;
+SELECT count(*) FROM t2;
+--replace_result $database s3
+ALTER TABLE t2 ADD PARTITION (PARTITION p4 VALUES LESS THAN (400));
+SHOW CREATE TABLE t2;
+--replace_result $database s3
+--error ER_UNSUPPORTED_EXTENSION
+ALTER TABLE t2
+    REORGANIZE PARTITION p4 INTO (
+        PARTITION n0 VALUES LESS THAN (500),
+        PARTITION n1 VALUES LESS THAN (600)
+);
+ALTER TABLE t2 DROP PARTITION p3;
+SHOW CREATE TABLE t2;
+SELECT count(*) from t2;
+
+--echo # Test for ALTER TABLE
+ALTER TABLE t2 ADD COLUMN c INT;
+SELECT count(*) FROM t2;
+ALTER TABLE t2 DROP COLUMN c;
+SELECT count(*) FROM t2;
+
+--echo # Test for REMOVE PARTITIONING
+ALTER TABLE t2 REMOVE PARTITIONING;
+SHOW CREATE TABLE t2;
+SELECT count(*) FROM t2;
+DROP TABLE t2;
+
+--echo # Test for EXCHANGE PARTITION
+CREATE TABLE t1 (
+  c1 int DEFAULT NULL
+) ENGINE=Aria
+  PARTITION BY RANGE (c1)
+ (PARTITION p0 VALUES LESS THAN (100),
+ PARTITION p1 VALUES LESS THAN (200));
+INSERT INTO t1 VALUE (1), (2), (101), (102);
+ALTER TABLE t1 ENGINE=S3;
+CREATE TABLE t_part (
+  c1 int DEFAULT NULL
+) ENGINE=Aria;
+INSERT INTO t_part VALUE (120), (130), (140);
+ALTER TABLE t_part ENGINE=S3;
+ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t_part;
+SELECT count(*) FROM t_part;
+SELECT count(*) FROM t1;
+DROP TABLE t1;
+DROP TABLE t_part;
+
+#
+# clean up
+#
+--source drop_database.inc

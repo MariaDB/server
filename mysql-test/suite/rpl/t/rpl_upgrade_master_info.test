@@ -4,7 +4,6 @@
 
 --connection slave
 --source include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid=CURRENT_POS;
 --let $datadir= `SELECT @@datadir`
 
 --let $rpl_server_number= 2
@@ -156,7 +155,7 @@ INSERT INTO t1 VALUES (6);
 --connection slave
 # Fix the port after we replaced master.info.
 --replace_result $SERVER_MYPORT_1 SERVER_MYPORT_1
-eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1;
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$SERVER_MYPORT_1, MASTER_SSL=1;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER BY a;

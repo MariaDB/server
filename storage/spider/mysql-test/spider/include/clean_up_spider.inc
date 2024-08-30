@@ -1,8 +1,8 @@
-DROP FUNCTION spider_flush_table_mon_cache;
-DROP FUNCTION spider_copy_tables;
-DROP FUNCTION spider_ping_table;
-DROP FUNCTION spider_bg_direct_sql;
-DROP FUNCTION spider_direct_sql;
+DROP FUNCTION IF EXISTS spider_flush_table_mon_cache;
+DROP FUNCTION IF EXISTS spider_copy_tables;
+DROP FUNCTION IF EXISTS spider_ping_table;
+DROP FUNCTION IF EXISTS spider_bg_direct_sql;
+DROP FUNCTION IF EXISTS spider_direct_sql;
 UNINSTALL SONAME IF EXISTS 'ha_spider';
 DROP TABLE IF EXISTS mysql.spider_xa;
 DROP TABLE IF EXISTS mysql.spider_xa_member;

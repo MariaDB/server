@@ -75,3 +75,53 @@ select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
 set join_cache_level=@tmp;
 drop table t1, t2;
 
+--echo #
+--echo # MDEV-30972: ANALYZE FORMAT=JSON: some time is unaccounted-for in BNL-H join
+--echo #
+
+create table t1 (
+  a int,
+  col1 varchar(100),
+  col2 varchar(100),
+  col3 varchar(100)
+);
+
+insert into t1 select
+  seq/100,
+  concat('col1-', seq),
+  concat('col1-', seq),
+  concat('col1-', seq)
+from seq_1_to_1000;
+
+create table t2 (
+  a int,
+  col1 varchar(100),
+  col2 varchar(100),
+  col3 varchar(100)
+);
+
+insert into t2 select
+  seq/100,
+  concat('col1-', seq),
+  concat('col1-', seq),
+  concat('col1-', seq)
+from seq_1_to_2000;
+
+set @tmp=@@join_cache_level, join_cache_level=6;
+
+let $out=`
+analyze format=json
+select * from t1, t2
+where
+  t1.a=t2.a
+  and concat(t1.col1, t1.col2, t1.col3)= concat(t2.col1, t2.col2, t2.col3)
+`;
+--source include/analyze-format.inc
+evalp select '$out' as X;
+
+set @out=(select json_extract(@js,'$**.block-nl-join.r_other_time_ms'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0;
+
+set join_cache_level=@tmp;
+drop table t1, t2;
+

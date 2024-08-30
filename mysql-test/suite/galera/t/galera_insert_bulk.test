@@ -1,0 +1,88 @@
+#
+# Test that bulk insert replicates as table-level exclusive key and
+# rolls back properly if needed.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+#
+# Make bulk insert BF-abort, but regular insert succeed.
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+# Disable foreign and unique key checks to allow bulk insert.
+SET foreign_key_checks = 0;
+SET unique_checks = 0;
+
+START TRANSACTION;
+
+--let $count=0
+--disable_query_log
+while ($count < 1000)
+{
+  --eval INSERT INTO t1 VALUES ($count)
+  --inc $count
+}
+--enable_query_log
+
+--connection node_2
+
+# Disable bulk insert.
+SET foreign_key_checks = 1;
+SET unique_checks = 1;
+
+# Insert a value out of the bulk insert range.
+INSERT INTO t1 VALUES (1001);
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;
+
+#
+# Make bulk insert succeed, but regular insert BF-abort.
+#
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--let $before_bulk_keys = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_repl_keys'`
+
+START TRANSACTION;
+
+--let $count=0
+--disable_query_log
+while ($count < 1000)
+{
+  --eval INSERT INTO t1 VALUES ($count)
+  --inc $count
+}
+--enable_query_log
+
+--connection node_2
+
+# Disable bulk insert.
+SET foreign_key_checks = 1;
+SET unique_checks = 1;
+
+START TRANSACTION;
+
+# Insert a value out of the bulk insert range.
+INSERT INTO t1 VALUES (1001);
+
+--connection node_1
+COMMIT;
+
+# Expect two keys to be added for bulk insert: DB-level shared key and table-level exclusive key.
+--let $bulk_keys_count = `SELECT VARIABLE_VALUE - $before_bulk_keys FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_repl_keys'`
+--echo $bulk_keys_count
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+DROP TABLE t1;

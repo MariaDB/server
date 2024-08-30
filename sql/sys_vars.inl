@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -31,6 +31,8 @@
 #include "tztime.h"     // my_tz_find, my_tz_SYSTEM, struct Time_zone
 #include "rpl_mi.h" // For Multi-Source Replication
 #include "debug_sync.h"
+#include "sql_acl.h"    // check_global_access()
+#include "optimizer_defaults.h"   // create_optimizer_costs
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -39,6 +41,7 @@
 #define VALID_RANGE(X,Y) X,Y
 #define DEFAULT(X) X
 #define BLOCK_SIZE(X) X
+#define COST_ADJUST(X) X
 #define GLOBAL_VAR(X) sys_var::GLOBAL, (((char*)&(X))-(char*)&global_system_variables), sizeof(X)
 #define SESSION_VAR(X) sys_var::SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
 #define SESSION_ONLY(X) sys_var::ONLY_SESSION, offsetof(SV, X), sizeof(((SV *)0)->X)
@@ -61,12 +64,15 @@
 #define PARSED_EARLY sys_var::PARSE_EARLY+
 #define NO_SET_STMT sys_var::NO_SET_STATEMENT+
 
+extern const char *UNUSED_HELP;
+
 /*
   Sys_var_bit meaning is reversed, like in
   @@foreign_key_checks <-> OPTION_NO_FOREIGN_KEY_CHECKS
 */
 #define REVERSE(X) ~(X)
-#define DEPRECATED(X) X
+#define DEPRECATED(V, REPL) (check_deprecated_version<V>(), REPL)
+#define DEPRECATED_NO_REPLACEMENT(V) DEPRECATED(V, "")
 
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())
@@ -97,10 +103,47 @@
       exit(255);                                                        \
     }
 
-enum charset_enum {IN_SYSTEM_CHARSET, IN_FS_CHARSET};
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
 TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+
+
+template<class BASE, privilege_t GLOBAL_PRIV, privilege_t SESSION_PRIV>
+class Sys_var_on_access: public BASE
+{
+  using BASE::BASE;
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, GLOBAL_PRIV);
+  }
+  bool on_check_access_session(THD *thd) const override
+  {
+    return check_global_access(thd, SESSION_PRIV);
+  }
+};
+
+
+template<class BASE, privilege_t GLOBAL_PRIV>
+class Sys_var_on_access_global: public BASE
+{
+  using BASE::BASE;
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, GLOBAL_PRIV);
+  }
+};
+
+
+template<class BASE, privilege_t SESSION_PRIV>
+class Sys_var_on_access_session: public BASE
+{
+  using BASE::BASE;
+  bool on_check_access_session(THD *thd) const override
+  {
+    return check_global_access(thd, SESSION_PRIV);
+  }
+};
+
 
 /**
   A small wrapper class to pass getopt arguments as a pair
@@ -160,7 +203,7 @@ public:
     SYSVAR_ASSERT(block_size > 0);
     SYSVAR_ASSERT(def_val % block_size == 0);
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     my_bool fixed= FALSE, unused;
     longlong v= var->value->val_int();
@@ -207,23 +250,23 @@ public:
     return throw_bounds_warning(thd, name.str, fixed,
                                 var->value->unsigned_flag, v);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, T)= static_cast<T>(var->save_result.ulonglong_value);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(T)= static_cast<T>(var->save_result.ulonglong_value);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= (ulonglong)*(T*)global_value_ptr(thd, 0); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
   private:
   T get_max_var() { return *((T*) max_var_ptr()); }
-  const uchar *default_value_ptr(THD *thd) const { return (uchar*) &option.def_value; }
+  const uchar *default_value_ptr(THD *thd) const override { return (uchar*) &option.def_value; }
 };
 
 typedef Sys_var_integer<int, GET_INT, SHOW_SINT> Sys_var_int;
@@ -289,7 +332,7 @@ public:
     typelib.type_lengths= 0;    // only used by Fields_enum and Field_set
     option.typelib= &typelib;
   }
-  bool do_check(THD *thd, set_var *var) // works for enums and my_bool
+  bool do_check(THD *thd, set_var *var) override // works for enums and my_bool
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff, sizeof(buff), system_charset_info), *res;
@@ -357,7 +400,7 @@ public:
     SYSVAR_ASSERT(size == sizeof(ulong));
   }
   bool check_maximum(THD *thd, set_var *var,
-                     const char *c_val, longlong i_val)
+                     const char *c_val, longlong i_val) override
   {
     if (!max_var_ptr() ||
         var->save_result.ulonglong_value <= get_max_var())
@@ -368,27 +411,27 @@ public:
                    throw_bounds_warning(thd, name.str, TRUE,
                                         var->value->unsigned_flag, i_val);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, ulong)= static_cast<ulong>(var->save_result.ulonglong_value);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(ulong)= static_cast<ulong>(var->save_result.ulonglong_value);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= global_var(ulong); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
   const uchar *valptr(THD *thd, ulong val) const
   { return reinterpret_cast<const uchar*>(typelib.type_names[val]); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, ulong)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(ulong)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, (ulong)option.def_value); }
 
   ulong get_max_var() { return *((ulong *) max_var_ptr()); }
@@ -422,21 +465,21 @@ public:
     SYSVAR_ASSERT(getopt.arg_type == OPT_ARG || getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(my_bool));
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, my_bool)= var->save_result.ulonglong_value != 0;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(my_bool)= var->save_result.ulonglong_value != 0;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= (ulonglong)*(my_bool *)global_value_ptr(thd, 0); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   {
     thd->sys_var_tmp.my_bool_value=(my_bool) option.def_value;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
@@ -449,23 +492,24 @@ public:
   or not. The state of the initial value is specified in the constructor,
   after that it's managed automatically. The value of NULL is supported.
 
-  Class specific constructor arguments:
-    enum charset_enum is_os_charset_arg
-
   Backing store: char*
 
   @note
-  This class supports only GLOBAL variables, because THD on destruction
-  does not destroy individual members of SV, there's no way to free
-  allocated string variables for every thread.
+
+  Note that the memory management for SESSION_VAR's is manual, the
+  value must be strdup'ed in THD::init() and freed in
+  plugin_thdvar_cleanup(), see e.g. redirect_url. TODO: it should be
+  done automatically when we'll have more session string variables to
+  justify it. Maybe some kind of a loop over all variables, like
+  sys_var_end() in set_var.cc?
 */
-class Sys_var_charptr_base: public sys_var
+class Sys_var_charptr: public sys_var
 {
+  const size_t max_length= 2000;
 public:
-  Sys_var_charptr_base(const char *name_arg,
+  Sys_var_charptr(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
@@ -476,7 +520,6 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   {
-    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     /*
      use GET_STR_ALLOC - if ALLOCATED it must be *always* allocated,
      otherwise (GET_STR) you'll never know whether to free it or not.
@@ -484,8 +527,9 @@ public:
     */
     option.var_type|= (flags & ALLOCATED) ? GET_STR_ALLOC : GET_STR;
     global_var(const char*)= def_val;
+    SYSVAR_ASSERT(size == sizeof(char *));
   }
-  void cleanup()
+  void cleanup() override
   {
     if (flags & ALLOCATED)
     {
@@ -523,22 +567,39 @@ public:
 
     return false;
   }
-  bool do_check(THD *thd, set_var *var)
-  { return do_string_check(thd, var, charset(thd)); }
-  bool session_update(THD *thd, set_var *var)= 0;
-  char *global_update_prepare(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
+  {
+    if (do_string_check(thd, var, charset(thd)))
+      return true;
+    if (var->save_result.string_value.length > max_length)
+    {
+      my_error(ER_WRONG_STRING_LENGTH, MYF(0), var->save_result.string_value.str,
+               name.str, (int) max_length);
+      return true;
+    }
+    return false;
+  }
+  char *update_prepare(set_var *var, myf my_flags)
   {
     char *new_val, *ptr= var->save_result.string_value.str;
     size_t len=var->save_result.string_value.length;
     if (ptr)
     {
-      new_val= (char*)my_memdup(ptr, len+1, MYF(MY_WME));
+      new_val= (char*)my_memdup(key_memory_Sys_var_charptr_value,
+                                ptr, len+1, my_flags);
       if (!new_val) return 0;
       new_val[len]=0;
     }
     else
       new_val= 0;
     return new_val;
+  }
+  bool session_update(THD *thd, set_var *var) override
+  {
+    char *new_val= update_prepare(var, MYF(MY_WME | MY_THREAD_SPECIFIC));
+    my_free(session_var(thd, char*));
+    session_var(thd, char*)= new_val;
+    return (new_val == 0 && var->save_result.string_value.str != 0);
   }
   void global_update_finish(char *new_val)
   {
@@ -547,14 +608,19 @@ public:
     flags|= ALLOCATED;
     global_var(char*)= new_val;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
-    char *new_val= global_update_prepare(thd, var);
+    char *new_val= update_prepare(var, MYF(MY_WME));
     global_update_finish(new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
-  void session_save_default(THD *thd, set_var *var)= 0;
-  void global_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *, set_var *var) override
+  {
+    var->save_result.string_value.str= global_var(char*);
+    var->save_result.string_value.length=
+      strlen(var->save_result.string_value.str);
+  }
+  void global_save_default(THD *thd, set_var *var) override
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
@@ -562,60 +628,40 @@ public:
   }
 };
 
-class Sys_var_charptr: public Sys_var_charptr_base
+class Sys_var_charptr_fscs: public Sys_var_charptr
 {
+  using Sys_var_charptr::Sys_var_charptr;
 public:
-  Sys_var_charptr(const char *name_arg,
-          const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
-          const char *def_val, PolyLock *lock=0,
-          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
-          on_check_function on_check_func=0,
-          on_update_function on_update_func=0,
-          const char *substitute=0) :
-    Sys_var_charptr_base(name_arg, comment, flag_args, off, size, getopt,
-                         is_os_charset_arg, def_val, lock, binlog_status_arg,
-                         on_check_func, on_update_func, substitute)
+  CHARSET_INFO *charset(THD *thd) const override
   {
-    SYSVAR_ASSERT(scope() == GLOBAL);
-    SYSVAR_ASSERT(size == sizeof(char *));
+    return thd->variables.character_set_filesystem;
   }
-
-  bool session_update(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-    return true;
-  }
-  void session_save_default(THD *thd, set_var *var)
-  { DBUG_ASSERT(FALSE); }
 };
 
 #ifndef EMBEDDED_LIBRARY
-class Sys_var_sesvartrack: public Sys_var_charptr_base
+class Sys_var_sesvartrack: public Sys_var_charptr
 {
 public:
   Sys_var_sesvartrack(const char *name_arg,
                       const char *comment,
                       CMD_LINE getopt,
-                      enum charset_enum is_os_charset_arg,
                       const char *def_val, PolyLock *lock= 0) :
-    Sys_var_charptr_base(name_arg, comment,
-                         SESSION_VAR(session_track_system_variables),
-                         getopt, is_os_charset_arg, def_val, lock,
-                         VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
+    Sys_var_charptr(name_arg, comment,
+                    SESSION_VAR(session_track_system_variables),
+                    getopt, def_val, lock,
+                    VARIABLE_NOT_IN_BINLOG, 0, 0, 0)
     {}
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
-     if (Sys_var_charptr_base::do_check(thd, var) ||
+     if (Sys_var_charptr::do_string_check(thd, var, charset(thd)) ||
          sysvartrack_validate_value(thd, var->save_result.string_value.str,
                                     var->save_result.string_value.length))
        return TRUE;
      return FALSE;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
-    char *new_val= global_update_prepare(thd, var);
+    char *new_val= update_prepare(var, MYF(MY_WME));
     if (new_val)
     {
       if (sysvartrack_global_update(thd, new_val,
@@ -629,9 +675,9 @@ public:
     global_update_finish(new_val);
     return (new_val == 0 && var->save_result.string_value.str != 0);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   { return thd->session_tracker.sysvars.update(thd, var); }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
      var->save_result.string_value.str= global_var(char*);
      var->save_result.string_value.length=
@@ -655,37 +701,35 @@ public:
 class Sys_var_proxy_user: public sys_var
 {
 public:
-  Sys_var_proxy_user(const char *name_arg,
-          const char *comment, enum charset_enum is_os_charset_arg)
+  Sys_var_proxy_user(const char *name_arg, const char *comment)
     : sys_var(&all_sys_vars, name_arg, comment,
               sys_var::READONLY+sys_var::ONLY_SESSION, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
               NULL, NULL, NULL)
   {
-    is_os_charset= is_os_charset_arg == IN_FS_CHARSET;
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { DBUG_ASSERT(FALSE); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { DBUG_ASSERT(FALSE); }
 protected:
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     return thd->security_ctx->proxy_user[0] ?
       (uchar *) &(thd->security_ctx->proxy_user[0]) : NULL;
@@ -695,13 +739,12 @@ protected:
 class Sys_var_external_user : public Sys_var_proxy_user
 {
 public:
-  Sys_var_external_user(const char *name_arg, const char *comment_arg, 
-          enum charset_enum is_os_charset_arg) 
-    : Sys_var_proxy_user (name_arg, comment_arg, is_os_charset_arg)
+  Sys_var_external_user(const char *name_arg, const char *comment_arg)
+    : Sys_var_proxy_user (name_arg, comment_arg)
   {}
 
 protected:
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     return (uchar*)thd->security_ctx->external_user;
   }
@@ -712,54 +755,122 @@ class Sys_var_rpl_filter: public sys_var
 {
 private:
   int opt_id;
+  privilege_t m_access_global;
 
 public:
-  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment)
+  Sys_var_rpl_filter(const char *name, int getopt_id, const char *comment,
+                     privilege_t access_global)
     : sys_var(&all_sys_vars, name, comment, sys_var::GLOBAL, 0, NO_GETOPT,
               NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL), opt_id(getopt_id)
+              NULL, NULL, NULL), opt_id(getopt_id),
+      m_access_global(access_global)
   {
     option.var_type|= GET_STR | GET_ASK_ADDR;
   }
 
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     return Sys_var_charptr::do_string_check(thd, var, charset(thd));
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *, set_var *) override
   { DBUG_ASSERT(FALSE); }
 
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= ptr ? strlen(ptr) : 0;
   }
 
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *, set_var *) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
 
-  bool global_update(THD *thd, set_var *var);
+  bool global_update(THD *thd, set_var *var) override;
+
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, m_access_global);
+  }
 
 protected:
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
   bool set_filter_value(const char *value, Master_info *mi);
+};
+
+class Sys_var_binlog_filter: public sys_var
+{
+private:
+  int opt_id;
+  privilege_t m_access_global;
+
+public:
+  Sys_var_binlog_filter(const char *name, int getopt_id, const char *comment,
+                     privilege_t access_global)
+    : sys_var(&all_sys_vars, name, comment, sys_var::READONLY+sys_var::GLOBAL, 0, NO_GETOPT,
+              NO_ARG, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
+              NULL, NULL, NULL), opt_id(getopt_id),
+      m_access_global(access_global)
+  {
+    option.var_type|= GET_STR;
+  }
+
+  bool do_check(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+  void session_save_default(THD *, set_var *) override
+  { DBUG_ASSERT(FALSE); }
+
+  void global_save_default(THD *thd, set_var *var) override
+  { DBUG_ASSERT(FALSE); }
+
+  bool session_update(THD *, set_var *) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    DBUG_ASSERT(FALSE);
+    return true;
+  }
+
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, m_access_global);
+  }
+
+  protected:
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
 };
 
 /**
   The class for string variables. Useful for strings that aren't necessarily
   \0-terminated. Otherwise the same as Sys_var_charptr.
 
-  Class specific constructor arguments:
-    enum charset_enum is_os_charset_arg
-
   Backing store: LEX_CSTRING
 
   @note
-  Behaves exactly as Sys_var_charptr, only the backing store is different.
+  Behaves exactly as Sys_var_charptr, only the backing store is
+  different.
+
+  Note that for global variables handle_options() only sets the
+  pointer, whereas the length must be updated manually to match, which
+  is done in mysqld.cc. See e.g. opt_init_connect. TODO: it should be
+  done automatically when we'll have more Sys_var_lexstring variables
+  to justify it. Maybe some kind of a loop over all variables, like
+  sys_var_end() in set_var.cc?
+
+  Note that as a subclass of Sys_var_charptr, the memory management
+  for session Sys_var_lexstring's is manual too, see notes of
+  Sys_var_charptr and for example default_master_connection.
 */
 class Sys_var_lexstring: public Sys_var_charptr
 {
@@ -767,109 +878,34 @@ public:
   Sys_var_lexstring(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          enum charset_enum is_os_charset_arg,
           const char *def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
           const char *substitute=0)
     : Sys_var_charptr(name_arg, comment, flag_args, off, sizeof(char*),
-              getopt, is_os_charset_arg, def_val, lock, binlog_status_arg,
+              getopt, def_val, lock, binlog_status_arg,
               on_check_func, on_update_func, substitute)
   {
     global_var(LEX_CSTRING).length= strlen(def_val);
     SYSVAR_ASSERT(size == sizeof(LEX_CSTRING));
     *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     if (Sys_var_charptr::global_update(thd, var))
       return true;
     global_var(LEX_CSTRING).length= var->save_result.string_value.length;
     return false;
   }
-};
-
-
-/*
-  A LEX_CSTRING stored only in thd->variables
-  Only to be used for small buffers
-*/
-
-class Sys_var_session_lexstring: public sys_var
-{
-  size_t max_length;
-public:
-  Sys_var_session_lexstring(const char *name_arg,
-                            const char *comment, int flag_args,
-                            ptrdiff_t off, size_t size, CMD_LINE getopt,
-                            enum charset_enum is_os_charset_arg,
-                            const char *def_val, size_t max_length_arg,
-                            on_check_function on_check_func=0,
-                            on_update_function on_update_func=0)
-    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
-              getopt.arg_type, SHOW_CHAR, (intptr)def_val,
-              0, VARIABLE_NOT_IN_BINLOG, on_check_func, on_update_func,
-              0),max_length(max_length_arg)
+  bool session_update(THD *thd, set_var *var) override
   {
-    option.var_type|= GET_STR;
-    SYSVAR_ASSERT(scope() == ONLY_SESSION)
-    *const_cast<SHOW_TYPE*>(&show_val_type)= SHOW_LEX_STRING;
-  }
-  bool do_check(THD *thd, set_var *var)
-  {
-    char buff[STRING_BUFFER_USUAL_SIZE];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-
-    if (!(res=var->value->val_str(&str)))
-    {
-      var->save_result.string_value.str= 0;     /* NULL */
-      var->save_result.string_value.length= 0;
-    }
-    else
-    {
-      if (res->length() > max_length)
-      {
-        my_error(ER_WRONG_STRING_LENGTH, MYF(0),
-                 res->ptr(), name.str, (int) max_length);
-        return true;
-      }
-      var->save_result.string_value.str= thd->strmake(res->ptr(),
-                                                      res->length());
-      var->save_result.string_value.length= res->length();
-    }
+    if (Sys_var_charptr::session_update(thd, var))
+      return true;
+    session_var(thd, LEX_CSTRING).length= var->save_result.string_value.length;
     return false;
-  }
-  bool session_update(THD *thd, set_var *var)
-  {
-    LEX_CSTRING *tmp= &session_var(thd, LEX_CSTRING);
-    tmp->length= var->save_result.string_value.length;
-    /* Store as \0 terminated string (just to be safe) */
-    strmake((char*) tmp->str, var->save_result.string_value.str, tmp->length);
-    return false;
-  }
-  bool global_update(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-    return false;
-  }
-  void session_save_default(THD *thd, set_var *var)
-  {
-    char *ptr= (char*)(intptr)option.def_value;
-    var->save_result.string_value.str= ptr;
-    var->save_result.string_value.length= strlen(ptr);
-  }
-  void global_save_default(THD *thd, set_var *var)
-  {
-    DBUG_ASSERT(FALSE);
-  }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
-  {
-    DBUG_ASSERT(FALSE);
-    return NULL;
   }
 };
-
 
 #ifndef DBUG_OFF
 /**
@@ -900,25 +936,14 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   { option.var_type|= GET_STR; }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
-    char buff[STRING_BUFFER_USUAL_SIZE];
-    String str(buff, sizeof(buff), system_charset_info), *res;
-
-    if (!(res=var->value->val_str(&str)))
-    {
+    bool rc= Sys_var_charptr::do_string_check(thd, var, charset(thd));
+    if (var->save_result.string_value.str == nullptr)
       var->save_result.string_value.str= const_cast<char*>("");
-      var->save_result.string_value.length= 0;
-    }
-    else
-    {
-      size_t len= res->length();
-      var->save_result.string_value.str= thd->strmake(res->ptr(), len);
-      var->save_result.string_value.length= len;
-    }
-    return false;
+    return rc;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     const char *val= var->save_result.string_value.str;
     if (!var->value)
@@ -927,33 +952,33 @@ public:
       DBUG_SET(val);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     const char *val= var->save_result.string_value.str;
     DBUG_SET_INITIAL(val);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     char *ptr= (char*)(intptr)option.def_value;
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= safe_strlen(ptr);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     char buf[256];
     DBUG_EXPLAIN(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     char buf[256];
     DBUG_EXPLAIN_INITIAL(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return (uchar*)""; }
 };
 #endif
@@ -999,7 +1024,7 @@ public:
     offset= global_var_ptr() - (uchar*)dflt_key_cache;
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     ulonglong new_value= var->save_result.ulonglong_value;
     LEX_CSTRING *base_name= &var->base;
@@ -1007,7 +1032,7 @@ public:
 
     /* If no basename, assume it's for the key cache named 'default' */
     if (!base_name->length)
-      base_name= &default_key_cache_base;
+      base_name= &default_base;
 
     key_cache= get_key_cache(base_name);
 
@@ -1029,7 +1054,7 @@ public:
 
     return keycache_update(thd, key_cache, offset, new_value);
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     KEY_CACHE *key_cache= get_key_cache(base);
     if (!key_cache)
@@ -1157,13 +1182,12 @@ public:
     option.var_type|= GET_DOUBLE;
     option.min_value= (longlong) getopt_double2ulonglong(min_val);
     option.max_value= (longlong) getopt_double2ulonglong(max_val);
-    global_var(double)= (double)option.def_value;
     SYSVAR_ASSERT(min_val < max_val);
     SYSVAR_ASSERT(min_val <= def_val);
     SYSVAR_ASSERT(max_val >= def_val);
     SYSVAR_ASSERT(size == sizeof(double));
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     my_bool fixed;
     double v= var->value->val_real();
@@ -1171,21 +1195,155 @@ public:
 
     return throw_bounds_warning(thd, name.str, fixed, v);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, double)= var->save_result.double_value;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(double)= var->save_result.double_value;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.double_value= global_var(double); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.double_value= getopt_ulonglong2double(option.def_value); }
 };
+
+
+/*
+  Optimizer costs
+  Stored as cost factor (1 cost = 1 ms).
+  Given and displayed as microsconds (as most values are very small)
+*/
+
+class Sys_var_optimizer_cost: public Sys_var_double
+{
+public:
+  double cost_adjust;
+  Sys_var_optimizer_cost(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          double min_val, double max_val, double def_val,
+          ulong arg_cost_adjust, PolyLock *lock=0,
+          enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func=0,
+          on_update_function on_update_func=0,
+          const char *substitute=0)
+    :Sys_var_double(name_arg, comment, flag_args, off, size, getopt,
+                   min_val, max_val, def_val * arg_cost_adjust, lock,
+                   binlog_status_arg,
+                   on_check_func,
+                   on_update_func,
+                   substitute)
+  {
+    cost_adjust= (double) arg_cost_adjust;
+  }
+  bool session_update(THD *thd, set_var *var) override
+  {
+    session_var(thd, double)= var->save_result.double_value/cost_adjust;
+    return false;
+  }
+  bool global_update(THD *thd, set_var *var) override
+  {
+    global_var(double)= var->save_result.double_value/cost_adjust;
+    return false;
+  }
+  void session_save_default(THD *thd, set_var *var) override
+  { var->save_result.double_value= global_var(double) * cost_adjust; }
+
+  void global_save_default(THD *thd, set_var *var) override
+  {
+    var->save_result.double_value= getopt_ulonglong2double(option.def_value);
+  }
+  const uchar *tmp_ptr(THD *thd) const
+  {
+    if (thd->sys_var_tmp.double_value > 0)
+      thd->sys_var_tmp.double_value*= cost_adjust;
+    return (uchar*) &thd->sys_var_tmp.double_value;
+  }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    thd->sys_var_tmp.double_value= session_var(thd, double);
+    return tmp_ptr(thd);
+  }
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    thd->sys_var_tmp.double_value= global_var(double);
+    return tmp_ptr(thd);
+  }
+};
+
+
+/*
+   The class for optimizer costs with structured names, unique for each engine.
+   Used as 'engine.variable_name'
+
+   Class specific constructor arguments:
+   everything derived from Sys_var_optimizer_cost
+
+  Backing store: double
+
+  @note these variables can be only GLOBAL
+*/
+
+#define COST_VAR(X) GLOBAL_VAR(default_optimizer_costs.X)
+#define cost_var_ptr(KC, OFF) (((uchar*)(KC))+(OFF))
+#define cost_var(KC, OFF) (*(double*)cost_var_ptr(KC, OFF))
+
+class Sys_var_engine_optimizer_cost: public Sys_var_optimizer_cost
+{
+  public:
+  Sys_var_engine_optimizer_cost(const char *name_arg,
+          const char *comment, int flag_args, ptrdiff_t off, size_t size,
+          CMD_LINE getopt,
+          double min_val, double max_val, double def_val,
+          long cost_adjust, PolyLock *lock= 0,
+          const char *substitute=0)
+    : Sys_var_optimizer_cost(name_arg, comment, flag_args, off, size,
+                             getopt, min_val, max_val, def_val, cost_adjust,
+                             lock, VARIABLE_NOT_IN_BINLOG, 0,
+                             0, substitute)
+  {
+    option.var_type|= GET_ASK_ADDR;
+    option.value= (uchar**)1; // crash me, please
+    // fix an offset from global_system_variables to be an offset in OPTIMIZER_COSTS
+    offset= global_var_ptr() - (uchar*) &default_optimizer_costs;
+    SYSVAR_ASSERT(scope() == GLOBAL);
+  }
+  bool global_update(THD *thd, set_var *var) override
+  {
+    double new_value= var->save_result.double_value;
+    LEX_CSTRING *base_name= &var->base;
+    OPTIMIZER_COSTS *optimizer_costs;
+
+    /* If no basename, assume it's for the default costs */
+    if (!base_name->length)
+      base_name= &default_base;
+
+    mysql_mutex_lock(&LOCK_optimizer_costs);
+    if (!(optimizer_costs= get_or_create_optimizer_costs(base_name->str,
+                                                         base_name->length)))
+    {
+      mysql_mutex_unlock(&LOCK_optimizer_costs);
+      return true;
+    }
+    cost_var(optimizer_costs, offset)= new_value / cost_adjust;
+    mysql_mutex_unlock(&LOCK_optimizer_costs);
+    return 0;
+  }
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  override
+  {
+    OPTIMIZER_COSTS *optimizer_costs= get_optimizer_costs(base);
+    if (!optimizer_costs)
+      optimizer_costs= &default_optimizer_costs;
+    thd->sys_var_tmp.double_value= cost_var(optimizer_costs, offset);
+    return tmp_ptr(thd);
+  }
+};
+
 
 /**
   The class for the @max_user_connections.
@@ -1214,7 +1372,7 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   { }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     if (thd->user_connect && thd->user_connect->user_resources.user_conn)
       return (uchar*) &(thd->user_connect->user_resources.user_conn);
@@ -1260,7 +1418,7 @@ public:
     SYSVAR_ASSERT(strcmp(values[typelib.count-1], "default") == 0);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff, sizeof(buff), system_charset_info), *res;
@@ -1312,27 +1470,27 @@ public:
 
     return false;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= global_var(ulonglong); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
   const uchar *valptr(THD *thd, ulonglong val) const
   { return (uchar*)flagset_to_string(thd, 0, val, typelib.type_names); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, ulonglong)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(ulonglong)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, option.def_value); }
 };
 
@@ -1345,6 +1503,10 @@ public:
 
   Backing store: ulonglong
 */
+
+static const LEX_CSTRING all_clex_str= {STRING_WITH_LEN("all")};
+
+
 class Sys_var_set: public Sys_var_typelib
 {
 public:
@@ -1375,7 +1537,7 @@ public:
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
   bool check_maximum(THD *thd, set_var *var,
-                     const char *c_val, longlong i_val)
+                     const char *c_val, longlong i_val) override
   {
     if (!max_var_ptr() ||
         (var->save_result.ulonglong_value & ~(get_max_var())) == 0)
@@ -1386,7 +1548,7 @@ public:
                    throw_bounds_warning(thd, name.str, TRUE,
                                         var->value->unsigned_flag, i_val);
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff, sizeof(buff), system_charset_info), *res;
@@ -1404,6 +1566,12 @@ public:
       var->save_result.ulonglong_value=
             find_set(&typelib, res->ptr(), res->length(), NULL,
                     &error, &error_len, &not_used);
+      if (error_len &&
+          !my_charset_latin1.strnncollsp(res->to_lex_cstring(), all_clex_str))
+      {
+        var->save_result.ulonglong_value= ((1ULL << (typelib.count)) -1);
+        error_len= 0;
+      }
       /*
         note, we only issue an error if error_len > 0.
         That is even while empty (zero-length) values are considered
@@ -1426,27 +1594,27 @@ public:
     var->save_result.ulonglong_value= tmp;
     return check_maximum(thd, var, 0, tmp);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(ulonglong)= var->save_result.ulonglong_value;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= global_var(ulonglong); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
   const uchar *valptr(THD *thd, ulonglong val) const
   { return reinterpret_cast<const uchar*>(set_to_string(thd, 0, val, typelib.type_names)); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, ulonglong)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(ulonglong)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, option.def_value); }
 
   ulonglong get_max_var() { return *((ulonglong*) max_var_ptr()); }
@@ -1472,7 +1640,7 @@ public:
   Sys_var_plugin(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt,
-          int plugin_type_arg, char **def_val, PolyLock *lock=0,
+          int plugin_type_arg, const char **def_val, PolyLock *lock=0,
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
@@ -1487,7 +1655,7 @@ public:
     SYSVAR_ASSERT(size == sizeof(plugin_ref));
     SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff,sizeof(buff), system_charset_info), *res;
@@ -1526,19 +1694,19 @@ public:
       plugin_unlock(NULL, oldval);
     }
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     do_update((plugin_ref*)session_var_ptr(thd),
               var->save_result.plugin);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     do_update((plugin_ref*)global_var_ptr(),
               var->save_result.plugin);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     plugin_ref plugin= global_var(plugin_ref);
     var->save_result.plugin= plugin ? my_plugin_lock(thd, plugin) : 0;
@@ -1560,7 +1728,7 @@ public:
     return my_plugin_lock(thd, plugin);
   }
 
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     var->save_result.plugin= get_default(thd);
   }
@@ -1570,11 +1738,11 @@ public:
     return (uchar*)(plugin ? thd->strmake(plugin_name(plugin)->str,
                                           plugin_name(plugin)->length) : 0);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, plugin_ref)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(plugin_ref)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, get_default(thd)); }
 };
 
@@ -1623,7 +1791,7 @@ public:
     SYSVAR_ASSERT(size == sizeof(plugin_ref));
     SYSVAR_ASSERT(getopt.id < 0); // force NO_CMD_LINE
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff,sizeof(buff), system_charset_info), *res;
@@ -1644,19 +1812,19 @@ public:
     *valptr= copy_engine_list(newval);
     free_engine_list(oldval);
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     do_update((plugin_ref**)session_var_ptr(thd),
               var->save_result.plugins);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     do_update((plugin_ref**)global_var_ptr(),
               var->save_result.plugins);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     plugin_ref* plugins= global_var(plugin_ref *);
     var->save_result.plugins= plugins ? temp_copy_engine_list(thd, plugins) : 0;
@@ -1670,7 +1838,7 @@ public:
                                false, true);
   }
 
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     var->save_result.plugins= get_default(thd);
   }
@@ -1679,11 +1847,11 @@ public:
   {
     return reinterpret_cast<uchar*>(pretty_print_engine_list(thd, plugins));
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, plugin_ref*)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(plugin_ref*)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, get_default(thd)); }
 };
 
@@ -1713,7 +1881,7 @@ public:
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[STRING_BUFFER_USUAL_SIZE];
     String str(buff, sizeof(buff), system_charset_info), *res;
@@ -1728,35 +1896,35 @@ public:
     }
     return false;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     return debug_sync_update(thd, var->save_result.string_value.str,
                                   var->save_result.string_value.length);
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     var->save_result.string_value.str= const_cast<char*>("");
     var->save_result.string_value.length= 0;
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     return debug_sync_value_ptr(thd);
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return (uchar*)""; }
 };
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -1814,22 +1982,22 @@ public:
     SYSVAR_ASSERT(def_val < 2);
     SYSVAR_ASSERT(size == sizeof(ulonglong));
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     set(session_var_ptr(thd), var->save_result.ulonglong_value);
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     set(global_var_ptr(), var->save_result.ulonglong_value);
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     var->save_result.ulonglong_value=
       (reverse_semantics == !(global_var(ulonglong) & bitmask));
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { var->save_result.ulonglong_value= option.def_value; }
 
   uchar *valptr(THD *thd, ulonglong val) const
@@ -1837,11 +2005,11 @@ public:
     thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & bitmask));
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, ulonglong)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(ulonglong)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   {
     thd->sys_var_tmp.my_bool_value= option.def_value != 0;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
@@ -1889,28 +2057,28 @@ public:
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   { return update_func(thd, var); }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->value= 0; }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { DBUG_ASSERT(FALSE); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     thd->sys_var_tmp.ulonglong_value= read_func(thd);
     return (uchar*) &thd->sys_var_tmp.ulonglong_value;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   {
     thd->sys_var_tmp.ulonglong_value= 0;
     return (uchar*) &thd->sys_var_tmp.ulonglong_value;
@@ -1942,7 +2110,7 @@ public:
     SYSVAR_ASSERT(scope() == ONLY_SESSION);
     SYSVAR_ASSERT(getopt.id < 0); // NO_CMD_LINE, because the offset is fake
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     if (var->value)
     {
@@ -1953,35 +2121,36 @@ public:
       thd->user_time.val= 0;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  bool session_is_default(THD *thd)
+  bool session_is_default(THD *thd) override
   {
     return thd->user_time.val == 0;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->value= 0; }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   { DBUG_ASSERT(FALSE); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     thd->sys_var_tmp.double_value= thd->start_time +
           thd->start_time_sec_part/(double)TIME_SECOND_PART_FACTOR;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   {
     thd->sys_var_tmp.double_value= 0;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
+  bool on_check_access_session(THD *thd) const override;
 };
 
 
@@ -2020,28 +2189,28 @@ public:
     SYSVAR_ASSERT(size == sizeof(enum SHOW_COMP_OPTION));
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var) {
+  bool do_check(THD *thd, set_var *var) override {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(FALSE);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var) { }
-  void global_save_default(THD *thd, set_var *var) { }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  void session_save_default(THD *thd, set_var *var) override { }
+  void global_save_default(THD *thd, set_var *var) override { }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     return (uchar*)show_comp_option_name[global_var(enum SHOW_COMP_OPTION)];
   }
@@ -2092,34 +2261,59 @@ public:
     SYSVAR_ASSERT(getopt.id < 0);
     SYSVAR_ASSERT(size == sizeof(void *));
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   { return false; }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, const void*)= var->save_result.ptr;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(const void*)= var->save_result.ptr;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   { var->save_result.ptr= global_var(void*); }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     void **default_value= reinterpret_cast<void**>(option.def_value);
     var->save_result.ptr= *default_value;
   }
   uchar *valptr(THD *thd, uchar *val) const
   { return val ? *(uchar**)(val+name_offset) : 0; }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, session_var(thd, uchar*)); }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(uchar*)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, *(uchar**)option.def_value); }
 };
+
+
+/**
+  The class to store character sets.
+*/
+class Sys_var_charset: public Sys_var_struct
+{
+public:
+  using Sys_var_struct::Sys_var_struct;
+  void global_save_default(THD *, set_var *var) override
+  {
+    /*
+      The default value can point to an arbitrary collation,
+      e.g. default_charset_info.
+      Let's convert it to the compiled default collation.
+      This makes the code easier in various places such as SET NAMES.
+    */
+    void **default_value= reinterpret_cast<void**>(option.def_value);
+    var->save_result.ptr=
+      Lex_exact_charset_opt_extended_collate((CHARSET_INFO *) *default_value,
+                                             true).
+        find_compiled_default_collation();
+  }
+};
+
 
 /**
   The class for variables that store time zones
@@ -2151,7 +2345,7 @@ public:
     SYSVAR_ASSERT(size == sizeof(Time_zone *));
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     char buff[MAX_TIME_ZONE_NAME_LENGTH];
     String str(buff, sizeof(buff), &my_charset_latin1);
@@ -2168,28 +2362,28 @@ public:
     }
     return false;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     session_var(thd, Time_zone*)= var->save_result.time_zone;
     return false;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     global_var(Time_zone*)= var->save_result.time_zone;
     return false;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     var->save_result.time_zone= global_var(Time_zone*);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     var->save_result.time_zone=
       *(Time_zone**)(intptr)option.def_value;
   }
   const uchar *valptr(THD *thd, Time_zone *val) const
   { return reinterpret_cast<const uchar*>(val->get_name()->ptr()); }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     /*
       This is an ugly fix for replication: we don't replicate properly queries
@@ -2199,12 +2393,12 @@ public:
       timezone). If it's the global value which was used we can't replicate
       (binlog code stores session value only).
     */
-    thd->time_zone_used= 1;
+    thd->used|= THD::TIME_ZONE_USED;
     return valptr(thd, session_var(thd, Time_zone *));
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return valptr(thd, global_var(Time_zone*)); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return valptr(thd, *(Time_zone**)option.def_value); }
 };
 
@@ -2226,11 +2420,14 @@ public:
           CMD_LINE getopt,
           const char *values[], uint def_val, PolyLock *lock,
           enum binlog_status_enum binlog_status_arg,
-          on_check_function on_check_func)
+          on_check_function on_check_func,
+          on_update_function on_update_func=0,
+          const char *substitute=0)
     :Sys_var_enum(name_arg, comment, flag_args, off, size, getopt,
-                  values, def_val, lock, binlog_status_arg, on_check_func)
+                  values, def_val, lock, binlog_status_arg, on_check_func,
+                  on_update_func, substitute)
   {}
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     if (var->type == OPT_SESSION && Sys_var_enum::session_update(thd, var))
       return TRUE;
@@ -2272,7 +2469,7 @@ public:
 
 
 /**
-  Class representing the tx_read_only system variable for setting
+  Class representing the transaction_read_only system variable for setting
   default transaction access mode.
 
   Note that there is a special syntax - SET TRANSACTION READ ONLY
@@ -2287,11 +2484,14 @@ public:
                        ptrdiff_t off, size_t size, CMD_LINE getopt,
                        my_bool def_val, PolyLock *lock,
                        enum binlog_status_enum binlog_status_arg,
-                       on_check_function on_check_func)
+                       on_check_function on_check_func,
+                       on_update_function on_update_func=0,
+                       const char *substitute=0)
     :Sys_var_mybool(name_arg, comment, flag_args, off, size, getopt,
-                    def_val, lock, binlog_status_arg, on_check_func)
+                    def_val, lock, binlog_status_arg, on_check_func,
+                    on_update_func, substitute)
   {}
-  virtual bool session_update(THD *thd, set_var *var);
+  bool session_update(THD *thd, set_var *var) override;
 };
 
 /*
@@ -2310,7 +2510,7 @@ public:
     :Sys_var_enum(name_arg, comment, flag_args, off, size, getopt,
                   values, def_val, lock, binlog_status_arg)
   {}
-  bool global_update(THD *thd, set_var *var);
+  bool global_update(THD *thd, set_var *var) override;
 };
 
 /*
@@ -2351,16 +2551,16 @@ public:
     mi_accessor_func(mi_accessor_arg),
     update_multi_source_variable_func(on_update_func)
   { }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     return session_update(thd, var);
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     /* Use value given in variable declaration */
     global_save_default(thd, var);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     ulonglong *tmp, res;
     tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
@@ -2368,7 +2568,7 @@ public:
     *tmp= res;
     return (uchar*) tmp;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     return session_value_ptr(thd, base);
   }
@@ -2397,35 +2597,35 @@ public:
     SYSVAR_ASSERT(is_readonly());
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
 };
 
 
@@ -2446,35 +2646,35 @@ public:
     SYSVAR_ASSERT(is_readonly());
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
 };
 
 
@@ -2493,30 +2693,34 @@ public:
   {
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var);
-  bool session_update(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override;
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool global_update(THD *thd, set_var *var);
-  void session_save_default(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override;
+  void session_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     /* Record the attempt to use default so we can error. */
     var->value= 0;
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
+  const uchar *default_value_ptr(THD *thd) const override
   { return 0; }
+  bool on_check_access_global(THD *thd) const override
+  {
+    return check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_SLAVE_POS);
+  }
 };
 
 
@@ -2535,30 +2739,35 @@ public:
   {
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var);
-  bool session_update(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override;
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool global_update(THD *thd, set_var *var);
-  void session_save_default(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override;
+  void session_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     /* Record the attempt to use default so we can error. */
     var->value= 0;
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
+  const uchar *default_value_ptr(THD *thd) const override
   { return 0; }
+  bool on_check_access_global(THD *thd) const override
+  {
+    return
+      check_global_access(thd, PRIV_SET_SYSTEM_GLOBAL_VAR_GTID_BINLOG_STATE);
+  }
 };
 
 
@@ -2578,31 +2787,31 @@ public:
     SYSVAR_ASSERT(is_readonly());
     option.var_type|= GET_STR;
   }
-  bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
     return true;
   }
-  void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     DBUG_ASSERT(false);
   }
-  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   {
     DBUG_ASSERT(false);
     return NULL;
@@ -2627,8 +2836,8 @@ public:
     option.value= (uchar**)1; // crash me, please
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
-  bool global_update(THD *thd, set_var *var);
-  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  bool global_update(THD *thd, set_var *var) override;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override;
 };
 
 
@@ -2649,7 +2858,7 @@ public:
   {
     option.var_type= GET_STR;
   }
-  virtual bool do_check(THD *thd, set_var *var)
+  bool do_check(THD *thd, set_var *var) override
   {
     if (!var->value)
       return false;
@@ -2688,26 +2897,26 @@ private:
   }
 
 public:
-  virtual bool global_update(THD *thd, set_var *var)
+  bool global_update(THD *thd, set_var *var) override
   {
     return update(thd, var, &global_var(vers_asof_timestamp_t));
   }
-  virtual bool session_update(THD *thd, set_var *var)
+  bool session_update(THD *thd, set_var *var) override
   {
     return update(thd, var, &session_var(thd, vers_asof_timestamp_t));
   }
 
-  virtual bool session_is_default(THD *thd)
+  bool session_is_default(THD *thd) override
   {
     const vers_asof_timestamp_t &var= session_var(thd, vers_asof_timestamp_t);
     return var.type == SYSTEM_TIME_UNSPECIFIED;
   }
 
-  virtual void session_save_default(THD *thd, set_var *var)
+  void session_save_default(THD *thd, set_var *var) override
   {
     save_default(var, &session_var(thd, vers_asof_timestamp_t));
   }
-  virtual void global_save_default(THD *thd, set_var *var)
+  void global_save_default(THD *thd, set_var *var) override
   {
     save_default(var, &global_var(vers_asof_timestamp_t));
   }
@@ -2745,8 +2954,109 @@ private:
   }
 
 public:
-  virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return value_ptr(thd, session_var(thd, vers_asof_timestamp_t)); }
-  virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return value_ptr(thd, global_var(vers_asof_timestamp_t)); }
+};
+
+
+class Sys_var_charset_collation_map: public sys_var
+{
+public:
+  Sys_var_charset_collation_map(const char *name_arg, const char *comment,
+                                int flag_args, ptrdiff_t off, size_t size,
+                                CMD_LINE getopt,
+                                enum binlog_status_enum binlog_status_arg)
+   :sys_var(&all_sys_vars, name_arg, comment,
+            flag_args, off, getopt.id, getopt.arg_type,
+            SHOW_CHAR,
+            DEFAULT(0), nullptr, binlog_status_arg,
+            nullptr, nullptr, nullptr)
+  {
+    option.var_type|= GET_STR;
+  }
+
+private:
+
+  static bool charset_collation_map_from_item(Charset_collation_map_st *map,
+                                              Item *item,
+                                              myf utf8_flag)
+  {
+    String *value, buffer;
+    if (!(value= item->val_str_ascii(&buffer)))
+      return true;
+    return map->from_text(value->to_lex_cstring(), utf8_flag);
+  }
+
+  static const uchar *make_value_ptr(THD *thd,
+                                     const Charset_collation_map_st &map)
+  {
+    size_t nbytes= map.text_format_nbytes_needed();
+    char *buf= (char *) thd->alloc(nbytes + 1);
+    size_t length= map.print(buf, nbytes);
+    buf[length]= '\0';
+    return (uchar *) buf;
+  }
+
+private:
+
+  bool do_check(THD *thd, set_var *var) override
+  {
+    Charset_collation_map_st *map= (Charset_collation_map_st*)
+                                   thd->alloc(sizeof(Charset_collation_map_st));
+    if (!map || charset_collation_map_from_item(map, var->value,
+                                                thd->get_utf8_flag()))
+      return true;
+    var->save_result.ptr= map;
+    return false;
+  }
+
+  void session_save_default(THD *thd, set_var *var) override
+  {
+    thd->variables.character_set_collations.set(
+      global_system_variables.character_set_collations, 1);
+  }
+
+  void global_save_default(THD *thd, set_var *var) override
+  {
+    global_system_variables.character_set_collations.init();
+  }
+
+  bool session_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      session_save_default(thd, var);
+      return false;
+    }
+    thd->variables.character_set_collations.
+      set(*(Charset_collation_map_st*) var->save_result.ptr, 1);
+    return false;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      global_save_default(thd, var);
+      return false;
+    }
+    global_system_variables.character_set_collations=
+      *(Charset_collation_map_st*) var->save_result.ptr;
+    return false;
+  }
+
+  const uchar *
+  session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, thd->variables.character_set_collations);
+  }
+
+  const uchar *
+  global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, global_system_variables.
+                                 character_set_collations);
+  }
 };

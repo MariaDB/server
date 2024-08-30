@@ -1,0 +1,69 @@
+#
+# Bug#28928: UNIX_TIMESTAMP() should be considered unary monotonic
+#            by partition pruning
+#            Testing end ranges
+SET @old_time_zone= @@session.time_zone;
+SET @@session.time_zone = 'UTC';
+# Using MyISAM to get stable values on TABLE_ROWS in I_S.PARTITIONS
+CREATE TABLE t1
+(a TIMESTAMP NULL,
+tz varchar(16))
+ENGINE = MyISAM;
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 PARTITION BY RANGE (UNIX_TIMESTAMP(a))
+(PARTITION `p0` VALUES LESS THAN (0),
+PARTITION `p-2000` VALUES LESS THAN (UNIX_TIMESTAMP(20000101)),
+PARTITION `p-2011-MSK` VALUES LESS THAN (UNIX_TIMESTAMP(20110326230000)),
+PARTITION `p-2011-MSD-1` VALUES LESS THAN (UNIX_TIMESTAMP(20111029220000)),
+PARTITION `p-2011-MSD-2` VALUES LESS THAN (UNIX_TIMESTAMP(20111029230000)),
+PARTITION `p-2012-MSK-1` VALUES LESS THAN (UNIX_TIMESTAMP(20111030000000)),
+PARTITION `p-2012-MSK-2` VALUES LESS THAN (UNIX_TIMESTAMP(20120324230000)),
+PARTITION `pEnd` VALUES LESS THAN (UNIX_TIMESTAMP(20380119031407)),
+PARTITION `pMax` VALUES LESS THAN MAXVALUE);
+# Test invalid values
+INSERT IGNORE INTO t1 VALUES ('2038-01-19 03:14:08', 'UTCI');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+# Test end range
+INSERT INTO t1 VALUES ('2038-01-19 03:14:07', 'UTCI');
+SET @@session.time_zone = 'Europe/Moscow';
+# Test invalid values
+INSERT IGNORE INTO t1 VALUES ('2038-01-19 06:14:08', 'Moscow');
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
+# Test end range
+INSERT INTO t1 VALUES ('2038-01-19 06:14:07', 'Moscow');
+SELECT * FROM t1 ORDER BY a, tz;
+a	tz
+0000-00-00 00:00:00	Moscow
+0000-00-00 00:00:00	UTCI
+2038-01-19 06:14:07	Moscow
+2038-01-19 06:14:07	UTCI
+SET @@session.time_zone = 'UTC';
+INSERT INTO t2 SELECT * FROM t1;
+SELECT * FROM t2 ORDER BY a DESC,tz;
+a	tz
+2038-01-19 03:14:07	Moscow
+2038-01-19 03:14:07	UTCI
+0000-00-00 00:00:00	Moscow
+0000-00-00 00:00:00	UTCI
+SELECT MIN(a), MAX(a) FROM t2;
+MIN(a)	MAX(a)
+0000-00-00 00:00:00	2038-01-19 03:14:07
+UPDATE IGNORE t2 SET a = TIMESTAMPADD(SECOND, 1, a);
+Warnings:
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1292	Incorrect datetime value: '0000-00-00 00:00:00'
+Warning	1264	Out of range value for column 'a' at row 3
+Warning	1264	Out of range value for column 'a' at row 4
+SELECT MIN(a), MAX(a) FROM t2;
+MIN(a)	MAX(a)
+0000-00-00 00:00:00	0000-00-00 00:00:00
+SELECT * FROM t2 ORDER BY a, tz;
+a	tz
+NULL	Moscow
+NULL	UTCI
+0000-00-00 00:00:00	Moscow
+0000-00-00 00:00:00	UTCI
+DROP TABLE t1,t2;
+SET @@session.time_zone= @old_time_zone;

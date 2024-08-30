@@ -22,7 +22,9 @@
 #include "sql_acl.h"     // acl_reload
 #include "sql_servers.h" // servers_reload
 #include "sql_connect.h" // reset_mqh
+#include "thread_cache.h"
 #include "sql_base.h"    // close_cached_tables
+#include "sql_parse.h"   // check_single_table_access
 #include "sql_db.h"      // my_dbopt_cleanup
 #include "hostname.h"    // hostname_cache_refresh
 #include "sql_repl.h"    // reset_master, reset_slave
@@ -66,6 +68,15 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   bool result=0;
   select_errors=0;				/* Write if more errors */
   int tmp_write_to_binlog= *write_to_binlog= 1;
+#ifndef DBUG_OFF
+  /*
+    When invoked for handling a SIGHUP by rpl_shutdown_sighup.test, we need to
+    force the signal handler to wait after REFRESH_TABLES, as that will check
+    for a killed server, and we need to call hostname_cache_refresh after
+    server cleanup has happened to trigger MDEV-30260.
+  */
+  int do_dbug_sleep= 0;
+#endif
 
   DBUG_ASSERT(!thd || !thd->in_sub_stmt);
 
@@ -81,6 +92,8 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     {
       thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();
+      thd->set_query_inner((char*) STRING_WITH_LEN("intern:reload_acl"),
+                           default_charset_info);
     }
 
     if (likely(thd))
@@ -98,6 +111,15 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         */
         my_error(ER_UNKNOWN_ERROR, MYF(0));
       }
+
+#ifndef DBUG_OFF
+      DBUG_EXECUTE_IF("hold_sighup_log_refresh", {
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN("now SIGNAL in_reload_acl_and_cache "
+                                 "WAIT_FOR refresh_logs")));
+        do_dbug_sleep= 1;
+      });
+#endif
     }
     opt_noacl= 0;
 
@@ -136,7 +158,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     logger.flush_general_log();
 
   if (options & REFRESH_ENGINE_LOG)
-    if (ha_flush_logs(NULL))
+    if (ha_flush_logs())
       result= 1;
 
   if (options & REFRESH_BINARY_LOG)
@@ -350,12 +372,21 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
     my_dbopt_cleanup();
   }
+
+#ifndef DBUG_OFF
+  if (do_dbug_sleep)
+    my_sleep(3000000); // 3s
+#endif
   if (options & REFRESH_HOSTS)
     hostname_cache_refresh();
   if (thd && (options & REFRESH_STATUS))
-    refresh_status(thd);
+    refresh_status_legacy(thd);
+  if (thd && (options & REFRESH_SESSION_STATUS))
+    refresh_session_status(thd);
+  if ((options & REFRESH_GLOBAL_STATUS))
+    refresh_global_status();
   if (options & REFRESH_THREADS)
-    flush_thread_cache();
+    thread_cache.flush();
 #ifdef HAVE_REPLICATION
   if (options & REFRESH_MASTER)
   {
@@ -368,7 +399,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
   }
 #endif
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
    if (options & REFRESH_DES_KEY_FILE)
    {
      if (des_key_file && load_des_key_file(des_key_file))
@@ -404,7 +435,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
        /* If not default connection and 'all' is used */
        mi->release();
        mysql_mutex_lock(&LOCK_active_mi);
-       if (master_info_index->remove_master_info(mi))
+       if (master_info_index->remove_master_info(mi, 0))
          result= 1;
        mysql_mutex_unlock(&LOCK_active_mi);
      }
@@ -526,7 +557,6 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
 bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 {
   Lock_tables_prelocking_strategy lock_tables_prelocking_strategy;
-  TABLE_LIST *table_list;
 
   /*
     This is called from SQLCOM_FLUSH, the transaction has
@@ -566,16 +596,10 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
 
     DEBUG_SYNC(thd,"flush_tables_with_read_lock_after_acquire_locks");
 
-    for (table_list= all_tables; table_list;
+    /* Reset ticket to satisfy asserts in open_tables(). */
+    for (auto table_list= all_tables; table_list;
          table_list= table_list->next_global)
-    {
-      /* Request removal of table from cache. */
-      tdc_remove_table(thd, TDC_RT_REMOVE_UNUSED,
-                       table_list->db.str,
-                       table_list->table_name.str, FALSE);
-      /* Reset ticket to satisfy asserts in open_tables(). */
       table_list->mdl_request.ticket= NULL;
-    }
   }
 
   thd->variables.option_bits|= OPTION_TABLE_LOCK;
@@ -595,18 +619,31 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
                            &lock_tables_prelocking_strategy))
     goto error_reset_bits;
 
-  if (thd->lex->type & REFRESH_FOR_EXPORT)
+  if (thd->lex->type & (REFRESH_FOR_EXPORT|REFRESH_READ_LOCK))
   {
-    // Check if all storage engines support FOR EXPORT.
     for (TABLE_LIST *table_list= all_tables; table_list;
          table_list= table_list->next_global)
     {
-      if (!(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
+      if (table_list->belong_to_view &&
+          check_single_table_access(thd, PRIV_LOCK_TABLES, table_list, FALSE))
+      {
+        table_list->hide_view_error(thd);
+        goto error_reset_bits;
+      }
+      if (table_list->is_view_or_derived())
+        continue;
+      if (thd->lex->type & REFRESH_FOR_EXPORT &&
+          table_list->table &&
+          !(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db.str, table_list->table_name.str);
         goto error_reset_bits;
       }
+      if (thd->lex->type & REFRESH_READ_LOCK &&
+          table_list->table &&
+          table_list->table->file->extra(HA_EXTRA_FLUSH))
+        goto error_reset_bits;
     }
   }
 

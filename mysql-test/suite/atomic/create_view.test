@@ -1,0 +1,98 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic create view with crashes in a lot of different places
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+--enable_query_log
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $crash_count=6;
+let $crash_points='ddl_log_create_before_copy_view', 'ddl_log_create_before_create_view', 'definition_file_after_create','ddl_log_create_after_create_view', 'ddl_log_create_before_binlog', 'ddl_log_create_after_binlog';
+
+let $statement_count=3;
+let $statements='CREATE VIEW t1 as select "new"',
+                'CREATE OR REPLACE VIEW t1 as select "new"',
+                'CREATE OR REPLACE VIEW t2 as select "new"';
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=CREATE|DROP;
+--disable_query_log
+
+while ($e < 1)
+{
+  inc $e;
+
+  let $r=0;
+  while ($r < $statement_count)
+  {
+    inc $r;
+
+    let $statement=`select ELT($r, $statements)`;
+    --echo query: $statement
+
+    let $c=0;
+    while ($c < $crash_count)
+    {
+      inc $c;
+      let $crash=`select ELT($c, $crash_points)`;
+
+      create view t2 as select "old";
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      --echo crash point: $crash
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+      let $errno=0;
+      --error 0,2013
+      --eval $statement;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      # Check which tables still exists
+      --list_files $MYSQLD_DATADIR/test t*
+      --list_files $MYSQLD_DATADIR/test *sql*
+      select * from t2;
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      --source include/show_binlog_events.inc
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.00c0002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Drop the tables. The warnings will show what was dropped
+      --disable_warnings
+      drop view if exists t1,t2;
+      --enable_warnings
+    }
+  }
+}
+drop view if exists t1,t2;
+
+--enable_query_log

@@ -1,0 +1,18 @@
+#
+# MDEV-19585  Assertion `!is_set() || (m_status == DA_OK_BULK &&
+# is_bulk_op())' failed upon SELECT from S3 table with concurrent
+# BACKUP stage
+#
+CREATE TABLE t1 (a INT);
+ALTER TABLE t1 ENGINE=S3;
+connect  con1,localhost,root,,test;
+BACKUP STAGE START;
+connection default;
+SELECT * FROM t1;
+connection con1;
+BACKUP STAGE BLOCK_COMMIT;
+BACKUP STAGE END;
+disconnect con1;
+connection default;
+a
+DROP TABLE t1;

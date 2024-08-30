@@ -1,0 +1,105 @@
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2);
+explain format=json
+select * from t1 where a=name_const('varname',1);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "t1.a = 1"
+        }
+      }
+    ]
+  }
+}
+explain format=json
+select * from t1 left join t1 as t2 on t1.a=name_const('varname',1) and t1.b=t2.b;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 2,
+          "cost": "COST_REPLACED",
+          "filtered": 100
+        }
+      },
+      {
+        "block-nl-join": {
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "loops": 2,
+            "rows": 2,
+            "cost": "COST_REPLACED",
+            "filtered": 100
+          },
+          "buffer_type": "flat",
+          "buffer_size": "141",
+          "join_type": "BNL",
+          "attached_condition": "trigcond(t2.b = t1.b and trigcond(t1.a = 1))"
+        }
+      }
+    ]
+  }
+}
+create table t2 (
+a varchar(100) collate utf8_unicode_ci,
+b int
+);
+insert into t2 values ('foo', 1),('bar', 1);
+create procedure p1(var1 varchar(10))
+update t2 set b=b+1 where a=var1;
+call p1('foo');
+call p1('foo');
+call p1('foo');
+select * from t2;
+a	b
+foo	4
+bar	1
+create table t3 (
+a varchar(100) collate utf8_unicode_ci,
+b int
+);
+insert into t3 values ('foo', 1),('bar', 1);
+select * from t3;
+a	b
+foo	1
+bar	1
+explain format=json
+update t3 set b=b+1 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "update": 1,
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 2,
+      "attached_condition": "t3.a = convert(_latin1'foo' collate latin1_swedish_ci using utf8mb3)"
+    }
+  }
+}
+select * from t3 where a= NAME_CONST('var1',_latin1'foo' COLLATE 'latin1_swedish_ci');
+a	b
+foo	1
+drop procedure p1;
+drop table t1, t2, t3;

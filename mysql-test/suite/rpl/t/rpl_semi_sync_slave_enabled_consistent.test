@@ -1,0 +1,76 @@
+#
+# MDEV-32551: "Read semi-sync reply magic number error" warnings on master
+#
+# Test that changing rpl_semi_sync_master_enabled after startup does not
+# cause problems with semi-sync cleanup.
+#
+
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+# Test is binlog format independent, so save resources
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+call mtr.add_suppression("Replication event checksum verification failed");
+call mtr.add_suppression("could not queue event from master");
+call mtr.add_suppression("Semisync ack receiver.*error reading communication packets");
+call mtr.add_suppression("Semisync ack receiver got hangup");
+--sync_slave_with_master
+
+--echo #
+--echo # Set up a semisync connection
+--connection master
+set @@global.rpl_semi_sync_master_enabled= ON;
+
+--connection slave
+stop slave io_thread;
+set @@global.rpl_semi_sync_slave_enabled= ON;
+set @old_dbug= @@global.debug_dbug;
+
+# Force an error to abort out of the main IO thread loop
+set @@global.debug_dbug= "+d,corrupt_queue_event";
+
+# Pause the IO thread as soon as the main loop starts. Note we can't use
+# processlist where "Waiting for master to send event" because the
+# "corrupt_queue_event" will trigger before we can turn semisync OFF
+set @@global.debug_dbug= "+d,pause_before_io_read_event";
+
+# Because the other debug_dbug points are automatically negated when they are
+# run, and there is a bug that if "-d" takes us to an empty debug string state,
+# _all_ debug_print statements are output
+set @@global.debug_dbug= "+d,placeholder";
+
+start slave io_thread;
+
+--echo # Disable semi-sync on the slave while the IO thread is active
+set debug_sync='now wait_for io_thread_at_read_event';
+set @@global.rpl_semi_sync_slave_enabled= OFF;
+set debug_sync='now signal io_thread_continue_read_event';
+
+--echo # Waiting for the slave to stop with the error from corrupt_queue_event
+--connection slave
+--let $slave_io_errno= 1595,1743
+--source include/wait_for_slave_io_error.inc
+
+--echo # Sleep 1 to give time for Ack_receiver to receive COM_QUIT
+--sleep 1
+
+--let $assert_text= Check that there is no 'Read semi-sync reply magic number error' in error log.
+--let $assert_select=magic number error
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_count= 0
+--let $assert_only_after=CURRENT_TEST
+--source include/assert_grep.inc
+
+--echo #
+--echo # Cleanup
+--connection slave
+--source include/stop_slave.inc
+set @@global.debug_dbug= @old_dbug;
+--source include/start_slave.inc
+--connection master
+set @@global.rpl_semi_sync_master_enabled= default;
+
+--source include/rpl_end.inc
+--echo # End of rpl_semi_sync_slave_enabled_consistent.test

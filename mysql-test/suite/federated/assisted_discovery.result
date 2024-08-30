@@ -23,7 +23,7 @@ t1	CREATE TABLE `t1` (
   `a\\` int(10) unsigned DEFAULT NULL,
   `name` varchar(32) DEFAULT 'name',
   PRIMARY KEY (`id`)
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
 INSERT INTO t1 (id, name) VALUES (1, 'foo');
 INSERT INTO t1 (id, name) VALUES (2, 'fee');
 SELECT * FROM t1;
@@ -46,7 +46,7 @@ b bigint(20) not null,
 c tinyint(4) not null,
 d varchar(4096) not null,
 primary key (a),
-key (b,c,d(255))
+key (b,c,d(200))
 );
 show create table t1;
 Table	Create Table
@@ -56,8 +56,8 @@ t1	CREATE TABLE `t1` (
   `c` tinyint(4) NOT NULL,
   `d` varchar(4096) NOT NULL,
   PRIMARY KEY (`a`),
-  KEY `b` (`b`,`c`,`d`(255))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `b` (`b`,`c`,`d`(200))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection master;
 create table t1 engine=federated connection='mysql://root@127.0.0.1:$SLAVE_MYPORT/test/t1';
 show create table t1;
@@ -68,8 +68,8 @@ t1	CREATE TABLE `t1` (
   `c` tinyint(4) NOT NULL,
   `d` varchar(4096) NOT NULL,
   PRIMARY KEY (`a`),
-  KEY `b` (`b`,`c`,`d`(255))
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
+  KEY `b` (`b`,`c`,`d`(200))
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1'
 drop table t1;
 connection slave;
 drop table t1;

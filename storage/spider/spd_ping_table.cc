@@ -1,4 +1,5 @@
-/* Copyright (C) 2009-2018 Kentoku Shiba
+/* Copyright (C) 2009-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -104,9 +105,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   SPIDER_TABLE_MON_LIST *table_mon_list;
   MEM_ROOT mem_root;
   ulonglong mon_table_cache_version;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value;
-#endif
   DBUG_ENTER("spider_get_ping_table_mon_list");
   /* Reset the cache if the version does not match the requirement */
   if (spider_mon_table_cache_version != spider_mon_table_cache_version_req)
@@ -124,31 +123,21 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
   /* Search for the table mon list in the hash, if one is not found or
   if it is found but has the wrong cache version, create and
   initialise a new one. */
-  mutex_hash = spider_udf_calc_hash(str->c_ptr(),
-    spider_param_udf_table_mon_mutex_count());
+  mutex_hash=
+      spider_udf_calc_hash(str->c_ptr(), spider_udf_table_mon_mutex_count);
   DBUG_PRINT("info",("spider hash key=%s", str->c_ptr()));
   DBUG_PRINT("info",("spider hash key length=%u", str->length()));
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   hash_value = my_calc_hash(
     &spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) str->c_ptr(), str->length());
-#endif
   pthread_mutex_lock(&spider_udf_table_mon_mutexes[mutex_hash]);
   mon_table_cache_version = (ulonglong) spider_mon_table_cache_version;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *)
     my_hash_search_using_hash_value(
       &spider_udf_table_mon_list_hash[mutex_hash], hash_value,
       (uchar*) str->c_ptr(), str->length())) ||
       table_mon_list->mon_table_cache_version != mon_table_cache_version
   )
-#else
-  if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_search(
-    &spider_udf_table_mon_list_hash[mutex_hash],
-    (uchar*) str->c_ptr(), str->length())) ||
-    table_mon_list->mon_table_cache_version != mon_table_cache_version
-  )
-#endif
   {
     /* If table_mon_list is found but the cache version does not
     match, remove it from the hash and free it. */
@@ -170,17 +159,9 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_mon_list(
     table_mon_list->mon_table_cache_version = mon_table_cache_version;
     uint old_elements =
       spider_udf_table_mon_list_hash[mutex_hash].array.max_element;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     table_mon_list->key_hash_value = hash_value;
-#endif
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(
-      &spider_udf_table_mon_list_hash[mutex_hash],
-      hash_value, (uchar*) table_mon_list))
-#else
     if (my_hash_insert(&spider_udf_table_mon_list_hash[mutex_hash],
       (uchar*) table_mon_list))
-#endif
     {
       spider_ping_table_free_mon_list(table_mon_list);
       *error_num = HA_ERR_OUT_OF_MEM;
@@ -229,13 +210,8 @@ void spider_release_ping_table_mon_list_loop(
   SPIDER_TABLE_MON_LIST *table_mon_list
 ) {
   DBUG_ENTER("spider_release_ping_table_mon_list_loop");
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  my_hash_delete_with_hash_value(&spider_udf_table_mon_list_hash[mutex_hash],
-    table_mon_list->key_hash_value, (uchar*) table_mon_list);
-#else
   my_hash_delete(&spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) table_mon_list);
-#endif
   while (TRUE)
   {
     if (table_mon_list->use_count)
@@ -277,24 +253,16 @@ int spider_release_ping_table_mon_list(
   conv_name_str.q_append(conv_name, conv_name_length);
   conv_name_str.q_append(link_idx_str, link_idx_str_length);
 
-  mutex_hash = spider_udf_calc_hash(conv_name_str.c_ptr_safe(),
-    spider_param_udf_table_mon_mutex_count());
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
+  mutex_hash= spider_udf_calc_hash(conv_name_str.c_ptr_safe(),
+                                   spider_udf_table_mon_mutex_count);
   my_hash_value_type hash_value = my_calc_hash(
     &spider_udf_table_mon_list_hash[mutex_hash],
     (uchar*) conv_name_str.c_ptr(), conv_name_str.length());
-#endif
   pthread_mutex_lock(&spider_udf_table_mon_mutexes[mutex_hash]);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((table_mon_list = (SPIDER_TABLE_MON_LIST *)
     my_hash_search_using_hash_value(
       &spider_udf_table_mon_list_hash[mutex_hash], hash_value,
       (uchar*) conv_name_str.c_ptr(), conv_name_str.length())))
-#else
-  if ((table_mon_list = (SPIDER_TABLE_MON_LIST *) my_hash_search(
-    &spider_udf_table_mon_list_hash[mutex_hash],
-    (uchar*) conv_name_str.c_ptr(), conv_name_str.length())))
-#endif
     spider_release_ping_table_mon_list_loop(mutex_hash, table_mon_list);
   pthread_mutex_unlock(&spider_udf_table_mon_mutexes[mutex_hash]);
   my_afree(buf);
@@ -321,7 +289,7 @@ int spider_get_ping_table_mon(
 ) {
   int error_num;
   TABLE *table_link_mon = NULL;
-  Open_tables_backup open_tables_backup;
+  SPIDER_Open_tables_backup open_tables_backup;
   char table_key[MAX_KEY_LENGTH];
   SPIDER_TABLE_MON *table_mon, *table_mon_prev = NULL;
   SPIDER_SHARE *tmp_share;
@@ -336,7 +304,7 @@ int spider_get_ping_table_mon(
     !(table_link_mon = spider_open_sys_table(
       thd, SPIDER_SYS_LINK_MON_TABLE_NAME_STR,
       SPIDER_SYS_LINK_MON_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     my_error(error_num, MYF(0));
     goto error;
@@ -400,12 +368,15 @@ create_table_mon:
   do {
     if (!(table_mon = (SPIDER_TABLE_MON *)
       spider_bulk_malloc(spider_current_trx, SPD_MID_GET_PING_TABLE_MON_1, MYF(MY_WME | MY_ZEROFILL),
-        &table_mon, sizeof(SPIDER_TABLE_MON),
-        &tmp_share, sizeof(SPIDER_SHARE),
-        &tmp_connect_info, sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT,
-        &tmp_connect_info_length, sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT,
-        &tmp_long, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT,
-        &tmp_longlong, sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT,
+        &table_mon, (uint) (sizeof(SPIDER_TABLE_MON)),
+        &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
+        &tmp_connect_info,
+          (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
+        &tmp_connect_info_length,
+          (uint) (sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT),
+        &tmp_long, (uint) (sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT),
+        &tmp_longlong,
+          (uint) (sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT),
         NullS))
     ) {
       spider_sys_index_end(table_link_mon);
@@ -436,10 +407,8 @@ create_table_mon:
     if (
       (error_num = spider_set_connect_info_default(
         tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
         NULL,
         NULL,
-#endif
         NULL
       )) ||
       (error_num = spider_set_connect_info_default_dbtable(
@@ -459,8 +428,7 @@ create_table_mon:
     error_num = spider_sys_index_next_same(table_link_mon, table_key);
   } while (error_num == 0);
   spider_sys_index_end(table_link_mon);
-  spider_close_sys_table(thd, table_link_mon,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_link_mon = NULL;
   table_mon_list->list_size = list_size;
 
@@ -476,8 +444,7 @@ create_table_mon:
 
 error:
   if (table_link_mon)
-    spider_close_sys_table(thd, table_link_mon,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   table_mon = table_mon_list->first;
   table_mon_list->first = NULL;
   table_mon_list->current = NULL;
@@ -510,7 +477,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   int *error_num
 ) {
   TABLE *table_tables = NULL;
-  Open_tables_backup open_tables_backup;
+  SPIDER_Open_tables_backup open_tables_backup;
   char table_key[MAX_KEY_LENGTH];
 
   SPIDER_TABLE_MON_LIST *table_mon_list = NULL;
@@ -526,13 +493,17 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   SPD_INIT_ALLOC_ROOT(&mem_root, 4096, 0, MYF(MY_WME));
   if (!(table_mon_list = (SPIDER_TABLE_MON_LIST *)
     spider_bulk_malloc(spider_current_trx, SPD_MID_GET_PING_TABLE_TGT_1, MYF(MY_WME | MY_ZEROFILL),
-      &table_mon_list, sizeof(SPIDER_TABLE_MON_LIST),
-      &tmp_share, sizeof(SPIDER_SHARE),
-      &tmp_connect_info, sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT,
-      &tmp_connect_info_length, sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT,
-      &tmp_long, sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT,
-      &tmp_longlong, sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT,
-      &key_str, str->length() + 1,
+      &table_mon_list, (uint) (sizeof(SPIDER_TABLE_MON_LIST)),
+      &tmp_share, (uint) (sizeof(SPIDER_SHARE)),
+      &tmp_connect_info,
+        (uint) (sizeof(char *) * SPIDER_TMP_SHARE_CHAR_PTR_COUNT),
+      &tmp_connect_info_length,
+        (uint) (sizeof(uint) * SPIDER_TMP_SHARE_UINT_COUNT),
+      &tmp_long,
+        (uint) (sizeof(long) * SPIDER_TMP_SHARE_LONG_COUNT),
+      &tmp_longlong,
+        (uint) (sizeof(longlong) * SPIDER_TMP_SHARE_LONGLONG_COUNT),
+      &key_str, (uint) (str->length() + 1),
       NullS))
   ) {
     my_error(HA_ERR_OUT_OF_MEM, MYF(0));
@@ -550,7 +521,7 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
-      SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup, need_lock,
+      SPIDER_SYS_TABLES_TABLE_NAME_LEN, FALSE, &open_tables_backup,
       error_num))
   ) {
     my_error(*error_num, MYF(0));
@@ -586,22 +557,19 @@ SPIDER_TABLE_MON_LIST *spider_get_ping_table_tgt(
     (*error_num = spider_get_sys_tables_connect_info(
       table_tables, tmp_share, &mem_root)) ||
     (*error_num = spider_get_sys_tables_link_status(
-      table_tables, tmp_share, 0, &mem_root))
+      table_tables, tmp_share->link_statuses, &mem_root))
   ) {
     table_tables->file->print_error(*error_num, MYF(0));
     goto error;
   }
-  spider_close_sys_table(thd, table_tables,
-    &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   table_tables = NULL;
 
   if (
     (*error_num = spider_set_connect_info_default(
       tmp_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
       NULL,
       NULL,
-#endif
       NULL
     )) ||
     (*error_num = spider_set_connect_info_default_dbtable(
@@ -656,8 +624,7 @@ error_receptor_mutex_init:
 error_caller_mutex_init:
 error:
   if (table_tables)
-    spider_close_sys_table(thd, table_tables,
-      &open_tables_backup, need_lock);
+    spider_sys_close_table(thd, &open_tables_backup);
   free_root(&mem_root, MYF(0));
   if (table_mon_list)
   {
@@ -674,11 +641,9 @@ SPIDER_CONN *spider_get_ping_table_tgt_conn(
 ) {
   SPIDER_CONN *conn;
   DBUG_ENTER("spider_get_ping_table_tgt_conn");
-  if (
-    !(conn = spider_get_conn(
-      share, 0, share->conn_keys[0], trx, NULL, FALSE, FALSE,
-      SPIDER_CONN_KIND_MYSQL, error_num))
-  ) {
+  if (!(conn= spider_get_conn(share, 0, share->conn_keys[0], trx, NULL, FALSE,
+                              FALSE, error_num)))
+  {
     my_error(ER_CONNECT_TO_FOREIGN_DATA_SOURCE, MYF(0),
       share->server_names[0]);
     *error_num = ER_CONNECT_TO_FOREIGN_DATA_SOURCE;
@@ -711,8 +676,10 @@ int spider_get_ping_table_gtid_pos(
   int error_num, source_link_idx, need_mon;
   char table_key[MAX_KEY_LENGTH];
   TABLE *table_tables, *table_gtid_pos;
-  Open_tables_backup open_tables_backup_tables;
-  Open_tables_backup open_tables_backup_gtid_pos;
+  SPIDER_Open_tables_backup open_tables_backup_tables;
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  SPIDER_Open_tables_backup open_tables_backup_gtid_pos;
+#endif
   MEM_ROOT mem_root;
   long link_status;
   long monitoring_binlog_pos_at_failing;
@@ -729,6 +696,7 @@ int spider_get_ping_table_gtid_pos(
       db_name = setted db_name and
       table_name = setted table_name
   */
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
   if (
     !(table_tables = spider_open_sys_table(
       thd, SPIDER_SYS_TABLES_TABLE_NAME_STR,
@@ -744,6 +712,45 @@ int spider_get_ping_table_gtid_pos(
       &open_tables_backup_gtid_pos, need_lock, &error_num))
   )
     goto error_open_table_gtid_pos;
+#else
+  TABLE_LIST tables_tables;
+  TABLE_LIST tables_gtid_pos;
+  TABLE_LIST *tables = &tables_tables;
+  LEX_CSTRING db_name =
+  {
+    "mysql",
+    sizeof("mysql") - 1
+  };
+  LEX_CSTRING tbl_name_tables =
+  {
+    SPIDER_SYS_TABLES_TABLE_NAME_STR,
+    SPIDER_SYS_TABLES_TABLE_NAME_LEN
+  };
+  LEX_CSTRING tbl_name_gtid_pos =
+  {
+    SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_STR,
+    SPIDER_SYS_POS_FOR_RECOVERY_TABLE_NAME_LEN
+  };
+  tables_tables.init_one_table(&db_name, &tbl_name_tables, 0, TL_READ);
+  tables_gtid_pos.init_one_table(&db_name, &tbl_name_gtid_pos, 0, TL_READ);
+  MDL_REQUEST_INIT(&tables_tables.mdl_request, MDL_key::TABLE,
+    SPIDER_TABLE_LIST_db_str(&tables_tables),
+    SPIDER_TABLE_LIST_table_name_str(&tables_tables),
+    MDL_SHARED_READ, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&tables_gtid_pos.mdl_request, MDL_key::TABLE,
+    SPIDER_TABLE_LIST_db_str(&tables_gtid_pos),
+    SPIDER_TABLE_LIST_table_name_str(&tables_gtid_pos),
+    MDL_SHARED_READ, MDL_TRANSACTION);
+  tables_tables.next_global = &tables_gtid_pos;
+  if (spider_sys_open_and_lock_tables(thd, &tables,
+    &open_tables_backup_tables))
+  {
+    error_num = my_errno;
+    goto error_open_table_tables;
+  }
+  table_tables = tables_tables.table;
+  table_gtid_pos = tables_gtid_pos.table;
+#endif
 
   table_tables->use_all_columns();
   table_gtid_pos->use_all_columns();
@@ -830,10 +837,11 @@ int spider_get_ping_table_gtid_pos(
   {
     goto error_sys_index_end;
   }
-  spider_close_sys_table(thd, table_gtid_pos, &open_tables_backup_gtid_pos,
-    need_lock);
-  spider_close_sys_table(thd, table_tables, &open_tables_backup_tables,
-    need_lock);
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  spider_sys_close_table(thd, table_gtid_pos,
+    &open_tables_backup_gtid_pos, need_lock);
+#endif
+  spider_sys_close_table(thd, &open_tables_backup_tables);
 
   DBUG_RETURN(0);
 
@@ -843,11 +851,13 @@ error_get_sys_tables_link_status:
   spider_sys_index_end(table_tables);
 error_sys_index_end:
 error_get_sys_table_by_idx:
-  spider_close_sys_table(thd, table_gtid_pos, &open_tables_backup_gtid_pos,
+#ifdef SPIDER_REQUIRE_DEFINE_FOR_SECONDARY_OPEN_TABLES_BACKUP
+  spider_sys_close_table(thd, table_gtid_pos,
+    &open_tables_backup_gtid_pos,
     need_lock);
 error_open_table_gtid_pos:
-  spider_close_sys_table(thd, table_tables, &open_tables_backup_tables,
-    need_lock);
+#endif
+  spider_sys_close_table(thd, &open_tables_backup_tables);
 error_open_table_tables:
   DBUG_RETURN(error_num);
 }
@@ -863,8 +873,9 @@ int spider_init_ping_table_mon_cache(
   bool need_lock
 ) {
   int error_num, same;
+  uint old_elements;
   TABLE *table_link_mon = NULL;
-  Open_tables_backup open_tables_backup;
+  SPIDER_Open_tables_backup open_tables_backup;
   SPIDER_MON_KEY mon_key;
   DBUG_ENTER("spider_init_ping_table_mon_cache");
 
@@ -872,7 +883,7 @@ int spider_init_ping_table_mon_cache(
     !(table_link_mon = spider_open_sys_table(
       thd, SPIDER_SYS_LINK_MON_TABLE_NAME_STR,
       SPIDER_SYS_LINK_MON_TABLE_NAME_LEN, FALSE, &open_tables_backup,
-      need_lock, &error_num))
+      &error_num))
   ) {
     my_error(error_num, MYF(0));
     goto error_open_sys_table;
@@ -915,10 +926,22 @@ int spider_init_ping_table_mon_cache(
         {
           mon_key.sort = spider_calc_for_sort(3, mon_key.db_name,
             mon_key.table_name, mon_key.link_id);
+          old_elements = spider_mon_table_cache.max_element;
           if (push_dynamic(&spider_mon_table_cache, (uchar *) &mon_key))
           {
             error_num = HA_ERR_OUT_OF_MEM;
             goto error_push_dynamic;
+          }
+          if (spider_mon_table_cache.max_element != old_elements)
+          {
+            spider_free_mem_calc(spider_current_trx,
+              spider_mon_table_cache_id,
+              old_elements *
+              spider_mon_table_cache.size_of_element);
+            spider_alloc_calc_mem(spider_current_trx,
+              spider_mon_table_cache,
+              spider_mon_table_cache.max_element *
+              spider_mon_table_cache.size_of_element);
           }
         }
 
@@ -939,19 +962,23 @@ int spider_init_ping_table_mon_cache(
       (uchar *) dynamic_element(&spider_mon_table_cache, 0, SPIDER_MON_KEY *),
       spider_mon_table_cache.elements, sizeof(SPIDER_MON_KEY),
       (qsort_cmp) spider_compare_for_sort);
-    uint old_elements = spider_mon_table_cache.max_element;
+    old_elements = spider_mon_table_cache.max_element;
     freeze_size(&spider_mon_table_cache);
-    if (spider_mon_table_cache.max_element < old_elements)
+    if (spider_mon_table_cache.max_element != old_elements)
     {
       spider_free_mem_calc(spider_current_trx,
         spider_mon_table_cache_id,
+        old_elements *
+        spider_mon_table_cache.size_of_element);
+      spider_alloc_calc_mem(spider_current_trx,
+        spider_mon_table_cache,
         spider_mon_table_cache.max_element *
         spider_mon_table_cache.size_of_element);
     }
     spider_mon_table_cache_version = spider_mon_table_cache_version_req;
   }
   pthread_mutex_unlock(&spider_mon_table_cache_mutex);
-  spider_close_sys_table(thd, table_link_mon, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
   DBUG_RETURN(0);
 
 error_push_dynamic:
@@ -960,7 +987,7 @@ error_sys_index_next:
   spider_sys_index_end(table_link_mon);
 error_sys_index_first:
   pthread_mutex_unlock(&spider_mon_table_cache_mutex);
-  spider_close_sys_table(thd, table_link_mon, &open_tables_backup, need_lock);
+  spider_sys_close_table(thd, &open_tables_backup);
 error_open_sys_table:
   DBUG_RETURN(error_num);
 }
@@ -1257,9 +1284,9 @@ long long spider_ping_table_body(
               conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
             spider_sys_update_tables_link_status(trx->thd,
               conv_name.c_ptr(), conv_name_length, link_idx,
-              SPIDER_LINK_STATUS_NG, TRUE);
+              SPIDER_LINK_STATUS_NG);
             spider_sys_log_tables_link_failed(trx->thd,
-              conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+              conv_name.c_ptr(), conv_name_length, link_idx);
             status_changed_to_ng = TRUE;
           }
           pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
@@ -1324,9 +1351,9 @@ long long spider_ping_table_body(
                 conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
               spider_sys_update_tables_link_status(trx->thd,
                 conv_name.c_ptr(), conv_name_length, link_idx,
-                SPIDER_LINK_STATUS_NG, TRUE);
+                SPIDER_LINK_STATUS_NG);
               spider_sys_log_tables_link_failed(trx->thd,
-                conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+                conv_name.c_ptr(), conv_name_length, link_idx);
               status_changed_to_ng = TRUE;
             }
             pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
@@ -1381,9 +1408,9 @@ long long spider_ping_table_body(
                 conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
               spider_sys_update_tables_link_status(trx->thd,
                 conv_name.c_ptr(), conv_name_length, link_idx,
-                SPIDER_LINK_STATUS_NG, TRUE);
+                SPIDER_LINK_STATUS_NG);
               spider_sys_log_tables_link_failed(trx->thd,
-                conv_name.c_ptr(), conv_name_length, link_idx, TRUE);
+                conv_name.c_ptr(), conv_name_length, link_idx);
               status_changed_to_ng = TRUE;
             }
             pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
@@ -1731,9 +1758,9 @@ int spider_ping_table_mon_from_table(
                   link_idx));
                 share->link_statuses[link_idx] = SPIDER_LINK_STATUS_NG;
                 spider_sys_update_tables_link_status(thd, conv_name,
-                  conv_name_length, link_idx, SPIDER_LINK_STATUS_NG, need_lock);
+                  conv_name_length, link_idx, SPIDER_LINK_STATUS_NG);
                 spider_sys_log_tables_link_failed(thd, conv_name,
-                  conv_name_length, link_idx, need_lock);
+                  conv_name_length, link_idx);
               }
               pthread_mutex_unlock(&spider_udf_table_mon_mutexes[table_mon_list->mutex_hash]);
             }

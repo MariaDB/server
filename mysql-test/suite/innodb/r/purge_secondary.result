@@ -1,5 +1,6 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 CREATE TABLE t1 (
 a SERIAL, b CHAR(255) NOT NULL DEFAULT '', c BOOLEAN DEFAULT false,
 l LINESTRING NOT NULL DEFAULT ST_linefromtext('linestring(448 -689,
@@ -141,26 +142,13 @@ WHERE NAME='test/t1';
 OTHER_INDEX_SIZE
 1
 ALTER TABLE t1 DROP INDEX `sidx`;
-INSERT INTO t1 () VALUES (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
-INSERT INTO t1 (a) SELECT NULL FROM t1;
+INSERT INTO t1 (a) SELECT * FROM seq_1_to_544;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
 ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
-SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="buffer_LRU_batch_flush_total_pages" AND COUNT > 0;
-NAME	SUBSYSTEM
-buffer_LRU_batch_flush_total_pages	buffer
 SELECT (variable_value > 0) FROM information_schema.global_status
 WHERE LOWER(variable_name) LIKE 'INNODB_BUFFER_POOL_PAGES_FLUSHED';
 (variable_value > 0)
 1
-SELECT NAME, SUBSYSTEM FROM INFORMATION_SCHEMA.INNODB_METRICS
-WHERE NAME="buffer_LRU_batch_evict_total_pages" AND COUNT > 0;
-NAME	SUBSYSTEM
-buffer_LRU_batch_evict_total_pages	buffer
 # Note: The OTHER_INDEX_SIZE does not cover any SPATIAL INDEX.
 # To test that all indexes were emptied, replace DROP TABLE
 # with the following, and examine the root pages in t1.ibd:
@@ -182,4 +170,6 @@ page 5: N_RECS=0x0001
 UNLOCK TABLES;
 DROP TABLE t1;
 # End of 10.3 tests
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+# End of 10.6 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

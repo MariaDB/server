@@ -75,8 +75,6 @@ set autocommit=1;
 
 -- source include/start_mysqld.inc
 
-SET GLOBAL innodb_file_per_table = ON;
-
 ALTER TABLE t1 ADD COLUMN b int default 2;
 ALTER TABLE t2 ADD COLUMN b int default 2;
 ALTER TABLE t7 ADD COLUMN b int default 2;

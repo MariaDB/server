@@ -34,11 +34,11 @@ copy_file $MYSQL_TEST_DIR/std_data/server-cert.crl $MYSQL_TMP_DIR/ed1f42db.r0;
 let $admin_suffix = --default-character-set=latin1 -S $MASTER_MYSOCK -P $MASTER_MYPORT -u root --password= ping;
 
 --echo # Test mysqladmin connecting to a server with a certificate revoked by -crl
---replace_regex /.*mysqladmin.*:/mysqladmin:/ /TLS\/SSL error: .*CRYPT_E_REVOKED./TLS\/SSL error: certificate revoked/
+--replace_regex /.*mariadb-admin.*:/mariadb-admin:/ /TLS\/SSL error: .*CRYPT_E_REVOKED./TLS\/SSL error: certificate revoked/
 --error 1
 --exec $MYSQLADMIN $ssl_crl $admin_suffix 2>&1
 
 --echo # Test mysqladmin connecting to a server with a certificate revoked by -crlpath
---replace_regex /.*mysqladmin.*:/mysqladmin:/ /TLS\/SSL error: .*CRYPT_E_REVOKED./TLS\/SSL error: certificate revoked/
+--replace_regex /.*mariadb-admin.*:/mariadb-admin:/ /TLS\/SSL error: .*CRYPT_E_REVOKED./TLS\/SSL error: certificate revoked/
 --error 1
 --exec $MYSQLADMIN $ssl_crlpath $admin_suffix 2>&1

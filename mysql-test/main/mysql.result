@@ -137,6 +137,10 @@ c	int(11)	YES		NULL
 drop table t1;
 1
 1
+--------------
+ use
+--------------
+
 ERROR 1064 (42000) at line 3: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '' at line 1
 ERROR at line 1: USE must be followed by a database name
 1  +1
@@ -166,20 +170,24 @@ count(*)
 drop table t17583;
 Test connect without db- or host-name => reconnect
 Test connect with dbname only => new dbname, old hostname
+--------------
+connecttest
+--------------
+
 ERROR 1064 (42000) at line 1: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'connecttest' at line 1
 Test connect with _invalid_ dbname only => new invalid dbname, old hostname
 ERROR 1049 (42000) at line 1: Unknown database 'invalid'
 ERROR 1049 (42000) at line 1: Unknown database 'invalid'
 Test connect with dbname + hostname
 Test connect with dbname + _invalid_ hostname
-ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errno)
-ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errno)
+ERROR 2005 (HY000) at line 1: Unknown server host 'invalid_hostname' (errno)
+ERROR 2005 (HY000) at line 1: Unknown server host 'invalid_hostname' (errno)
 The commands reported in the bug report
-ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'cyril has found a bug :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
+ERROR 2005 (HY000) at line 1: Unknown server host 'cyril has found a bug :)XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
 Too long dbname
 ERROR 1102 (42000) at line 1: Incorrect database name 'test_really_long_dbnamexxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx...'
 Too long hostname
-ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'cyrils_superlonghostnameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
+ERROR 2005 (HY000) at line 1: Unknown server host 'cyrils_superlonghostnameXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX' (errno)
 1
 1
 ERROR at line 1: DELIMITER cannot contain a backslash character
@@ -208,7 +216,7 @@ COUNT (*)
 1
 COUNT (*)
 1
-ERROR 2005 (HY000) at line 1: Unknown MySQL server host 'invalid_hostname' (errno)
+ERROR 2005 (HY000) at line 1: Unknown server host 'invalid_hostname' (errno)
 End of 5.0 tests
 WARNING: --server-arg option not supported in this configuration.
 *************************** 1. row ***************************
@@ -538,7 +546,7 @@ a
 #
 # End of 10.1 tests
 #
-ERROR 1300 (HY000) at line 2: Invalid utf8 character string: 'test\xF0\x9F\x98\x81'
+ERROR 1300 (HY000) at line 2: Invalid utf8mb3 character string: 'test\xF0\x9F\x98\x81'
 set GLOBAL sql_mode=default;
 
 End of tests
@@ -551,20 +559,23 @@ show create table `a1\``b1`;
 Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO `a1\``b1` VALUES (1),(2);
+INSERT INTO `a1\``b1` VALUES
+(1),
+(2);
 insert `a1\``b1` values (4),(5);
 show create table `a1\``b1`;
 Table	Create Table
 a1\`b1	CREATE TABLE `a1\``b1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from `a1\``b1`;
 a
 1
@@ -580,20 +591,23 @@ show create table "a1\""b1";
 Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
 );
 /*!40101 SET character_set_client = @saved_cs_client */;
-INSERT INTO "a1\""b1" VALUES (1),(2);
+INSERT INTO "a1\""b1" VALUES
+(1),
+(2);
 insert "a1\""b1" values (4),(5);
 show create table "a1\""b1";
 Table	Create Table
 a1\"b1	CREATE TABLE "a1\""b1" (
   "a" int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from "a1\""b1";
 a
 1
@@ -603,15 +617,11 @@ set sql_mode=default;
 create table t1 (a text);
 select count(*) from t1;
 count(*)
-41
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
-41
-truncate table t1;
-select count(*) from t1;
-count(*)
-0
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -619,7 +629,11 @@ count(*)
 truncate table t1;
 select count(*) from t1;
 count(*)
-41
+0
+truncate table t1;
+select count(*) from t1;
+count(*)
+44
 truncate table t1;
 select count(*) from t1;
 count(*)
@@ -630,6 +644,68 @@ drop table t1;
 # MDEV-15538 '-N' Produce html output wrong
 #
 <TABLE BORDER=1><TR><TD>1</TD></TR></TABLE>
-WARNING: option '--enable-cleartext-plugin' is obsolete.
+WARNING: option --enable-cleartext-plugin is obsolete.
 1
 1
+# End of 10.3 tests
+#
+# MDEV-21778 Disable system commands in mysql/mariadb client
+#
+ERROR at line 1: Not allowed in the sandbox mode
+1
+ERROR at line 1: Not allowed in the sandbox mode
+2
+ERROR at line 1: Not allowed in the sandbox mode
+3
+1
+entering sandbox
+system
+tee
+source
+^^^
+2
+entering sandbox
+system
+tee
+source
+^^^
+3
+#
+# MDEV-34203: Sandbox mode \- is not compatible with --binary-mode
+#
+create table t1 (a int);
+drop table t1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;
+# End of 10.5 tests
+#
+# MDEV-30327 Client crashes in print_last_query_cost
+#
+# End of 11.0 tests
+#
+# show whether server cert was verified
+#
+create user ser@localhost identified by "ass";
+MYSQL --disable-ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is UNKNOWN
+
+
+MYSQL --ssl-verify-server-cert -e "\s"
+
+SSL:			Cipher in use is XXX, cert is OK
+
+
+drop user ser@localhost;
+#
+# MDEV-32473 --disable-ssl doesn't disable it
+#
+MYSQL --ssl-verify-server-cert --disable-ssl -e "\s"
+
+SSL:			Not in use
+
+

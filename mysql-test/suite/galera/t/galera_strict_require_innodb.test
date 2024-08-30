@@ -1,0 +1,117 @@
+#
+# Write a warning to error log if Galera replicates table with storage engine
+# not supported by Galera
+#
+# For MyISAM
+# * push warning to client if wsrep_mode == STRICT_REPLICATION,REPLICATE_MYISAM
+# * push warning to error log if log_warnings > 1
+# For Aria
+# * push warning to client if wsrep_mode == STRICT_REPLICATION,REPLICATE_ARIA
+# * push warning to error log if log_warnings > 1
+# For Memory
+# * push warning to client if wsrep_mode == STRICT_REPLICATION
+# * push warning to error log if log_warnings > 1
+#
+# In both cases apply flood control if >= 10 same warning
+#
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine .*");
+
+CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
+CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
+CREATE TABLE t3(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=ARIA;
+CREATE TABLE t4(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MEMORY;
+
+SET GLOBAL log_warnings=2;
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_MYISAM,REPLICATE_ARIA";
+
+INSERT INTO t1 values (1,'innodb1');
+INSERT INTO t2 values (1,'myisam1');
+INSERT INTO t3 values (1,'aria1');
+INSERT INTO t4 values (1,'memory1');
+
+# these should not replicate
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_ARIA";
+INSERT INTO t2 values (2,'myisam2');
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_MYISAM";
+INSERT INTO t3 values (2,'aria2');
+
+# no warning to error log
+SET GLOBAL log_warnings=1;
+INSERT INTO t1 values (3,'innodb3');
+INSERT INTO t2 values (3,'myisam3');
+INSERT INTO t3 values (3,'aria3');
+INSERT INTO t4 values (3,'memory3');
+
+# test warnings
+--let $assert_count = 3
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
+--let $assert_select = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
+--source include/assert_grep.inc
+
+# force flood
+SET GLOBAL log_warnings=2;
+INSERT INTO t2 values (4,'myisam3');
+INSERT INTO t3 values (4,'aria2');
+INSERT INTO t4 values (4,'memory2');
+INSERT INTO t2 values (5,'myisam3');
+INSERT INTO t3 values (5,'aria2');
+INSERT INTO t4 values (5,'memory2');
+INSERT INTO t2 values (6,'myisam3');
+INSERT INTO t3 values (6,'aria2');
+INSERT INTO t4 values (6,'memory2');
+INSERT INTO t2 values (7,'myisam3');
+INSERT INTO t3 values (7,'aria2');
+INSERT INTO t4 values (7,'memory2');
+INSERT INTO t2 values (8,'myisam3');
+INSERT INTO t3 values (8,'aria2');
+INSERT INTO t4 values (8,'memory2');
+INSERT INTO t2 values (9,'myisam3');
+INSERT INTO t3 values (9,'aria2');
+INSERT INTO t4 values (9,'memory2');
+INSERT INTO t2 values (10,'myisam3');
+INSERT INTO t3 values (10,'aria2');
+INSERT INTO t4 values (10,'memory2');
+INSERT INTO t2 values (11,'myisam3');
+INSERT INTO t3 values (11,'aria2');
+INSERT INTO t4 values (11,'memory2');
+
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM t2;
+SELECT COUNT(*) AS EXPECT_10 FROM t3;
+SELECT COUNT(*) AS EXPECT_10 FROM t4;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM t2;
+SELECT COUNT(*) AS EXPECT_1 FROM t3;
+SELECT COUNT(*) AS EXPECT_0 FROM t4;
+
+--connection node_1
+SET GLOBAL wsrep_mode= DEFAULT;
+DROP TABLE t1,t2,t3,t4;
+
+#
+# Verify no flood
+#
+--let $assert_count = 
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
+--let $assert_select = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
+--let $assert_match = WSREP: wsrep_mode = STRICT_REPLICATION enabled.
+--source include/assert_grep.inc
+--let $assert_count = 1
+--let $assert_text = WSREP: Suppressing warnings of type 'WSREP_REQUIRE_INNODB' for up to 300 seconds because of flooding
+--let $assert_select = WSREP: Suppressing warnings of type 'WSREP_REQUIRE_INNODB' for up to 300 seconds because of flooding
+--let $assert_match =
+--source include/assert_grep.inc
+
+# reset env
+--disable_query_log
+SET GLOBAL log_warnings=DEFAULT;
+SET GLOBAL wsrep_mode=DEFAULT;
+--disable_query_log
+

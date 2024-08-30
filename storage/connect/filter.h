@@ -34,11 +34,11 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
   FILTER(PFIL fil1);
 
   // Implementation
-  virtual int    GetType(void) {return TYPE_FILTER;}
-  virtual int    GetResultType(void) {return TYPE_INT;}
-  virtual int    GetLength(void) {return 1;}
-  virtual int    GetLengthEx(void) {assert(FALSE); return 0;}
-  virtual int    GetScale() {return 0;};
+  int    GetType(void) override {return TYPE_FILTER;}
+  int    GetResultType(void) override {return TYPE_INT;}
+  int    GetLength(void) override {return 1;}
+  int    GetLengthEx(void) override {assert(FALSE); return 0;}
+  int    GetScale() override {return 0;};
           PFIL   GetNext(void) {return Next;}
           OPVAL  GetOpc(void) {return Opc;}
           int    GetOpm(void) {return Opm;}
@@ -50,19 +50,19 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
           void   SetNext(PFIL filp) {Next = filp;}
 
   // Methods
-  virtual void   Reset(void);
-  virtual bool   Compare(PXOB) {return FALSE;}          // Not used yet
-  virtual bool   Init(PGLOBAL);
-  virtual bool   Eval(PGLOBAL);
-  virtual bool   SetFormat(PGLOBAL, FORMAT&) {return TRUE;}      // NUY
+  void   Reset(void) override;
+  bool   Compare(PXOB) override {return FALSE;}          // Not used yet
+  bool   Init(PGLOBAL) override;
+  bool   Eval(PGLOBAL) override;
+  bool   SetFormat(PGLOBAL, FORMAT&) override {return TRUE;}      // NUY
 //virtual int    CheckColumn(PGLOBAL g, PSQL sqlp, PXOB &xp, int &ag);
 //virtual int    RefNum(PSQL);
 //virtual PXOB   SetSelect(PGLOBAL, PSQL, bool) {return NULL;}   // NUY
 //virtual PXOB   CheckSubQuery(PGLOBAL, PSQL);
 //virtual bool   CheckLocal(PTDB);
 //virtual int    CheckSpcCol(PTDB tdbp, int n);
-	virtual void   Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void   Prints(PGLOBAL g, char *ps, uint z);
+	void   Printf(PGLOBAL g, FILE *f, uint n) override;
+  void   Prints(PGLOBAL g, char *ps, uint z) override;
 //        PFIL   Linearize(bool nosep);
 //        PFIL   Link(PGLOBAL g, PFIL fil2);
 //        PFIL   RemoveLastSep(void);
@@ -102,7 +102,7 @@ class DllExport FILTER : public XOBJECT { /* Filter description block  */
 class FILTERX : public FILTER {
  public:
   // Methods
-  virtual bool Eval(PGLOBAL) = 0; // just to prevent direct FILTERX use
+  bool Eval(PGLOBAL) override = 0; // just to prevent direct FILTERX use
 
   // Fake operator new used to change a filter into a derived filter
   void * operator new(size_t, PFIL filp) {return filp;}
@@ -123,7 +123,7 @@ class FILTERCMP : public FILTERX {
   FILTERCMP(PGLOBAL g);
 
   // Methods
-  virtual bool Eval(PGLOBAL);
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTEREQ
 
 /***********************************************************************/
@@ -132,7 +132,7 @@ class FILTERCMP : public FILTERX {
 class FILTERAND : public FILTERX {
  public:
   // Methods
-  virtual bool Eval(PGLOBAL);
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTERAND
 
 /***********************************************************************/
@@ -141,7 +141,7 @@ class FILTERAND : public FILTERX {
 class FILTEROR : public FILTERX {
  public:
   // Methods
-  virtual bool Eval(PGLOBAL);
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTEROR
 
 /***********************************************************************/
@@ -150,7 +150,7 @@ class FILTEROR : public FILTERX {
 class FILTERNOT : public FILTERX {
  public:
   // Methods
-  virtual bool Eval(PGLOBAL);
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTERNOT
 
 /***********************************************************************/
@@ -159,7 +159,7 @@ class FILTERNOT : public FILTERX {
 class FILTERIN : public FILTERX {
  public:
   // Methods
-  virtual bool Eval(PGLOBAL);
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTERIN
 
 /***********************************************************************/
@@ -171,8 +171,8 @@ class FILTERTRUE : public FILTERX {
   FILTERTRUE(PVAL valp) {Value = valp; Value->SetValue_bool(TRUE);}
 
   // Methods
-  virtual void Reset(void);
-  virtual bool Eval(PGLOBAL);
+  void Reset(void) override;
+  bool Eval(PGLOBAL) override;
   }; // end of class FILTERTRUE
 
 #endif // __FILTER__

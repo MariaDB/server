@@ -27,4 +27,3 @@ DROP TABLE t1;
 --let $assert_text = No BF-BF log line found
 --let $assert_only_after = CURRENT_TEST
 --source include/assert_grep.inc
-

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2021, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,14 +28,14 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
+#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
-#include "rem0types.h"
 #include "btr0types.h"
 #include "lock0types.h"
 #include "que0types.h"
-#include "sync0rw.h"
+#include "sux_lock.h"
 #include "ut0mem.h"
 #include "ut0rnd.h"
 #include "ut0byte.h"
@@ -43,9 +43,12 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0types.h"
 #include "fts0fts.h"
 #include "buf0buf.h"
+#include "mtr0mtr.h"
 #include "gis0type.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "mysql_com.h"
+#include "lex_ident.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -63,7 +66,6 @@ combination of types */
 				auto-generated clustered indexes,
 				also DICT_UNIQUE will be set */
 #define DICT_UNIQUE	2	/*!< unique index */
-#define	DICT_IBUF	8	/*!< insert buffer tree */
 #define	DICT_CORRUPT	16	/*!< bit to store the corrupted flag
 				in SYS_INDEXES.TYPE */
 #define	DICT_FTS	32	/* FTS index; can't be combined with the
@@ -111,7 +113,7 @@ are described in fsp0fsp.h. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
-#define DICT_N_COLS_COMPACT	0x80000000UL
+constexpr uint32_t DICT_N_COLS_COMPACT= 1U << 31;
 
 /** Width of the COMPACT flag */
 #define DICT_TF_WIDTH_COMPACT		1
@@ -264,7 +266,8 @@ use its own tablespace instead of the system tablespace. */
 #define DICT_TF2_USE_FILE_PER_TABLE	16U
 
 /** Set when we discard/detach the tablespace */
-#define DICT_TF2_DISCARDED		32U
+constexpr unsigned DICT_TF2_POS_DISCARDED= 5;
+constexpr unsigned DICT_TF2_DISCARDED= 1U << DICT_TF2_POS_DISCARDED;
 
 /** This bit is set if all aux table names (both common tables and
 index tables) of a FTS table are in HEX format. */
@@ -279,7 +282,7 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 & (flag))
 
 #define DICT_TF2_FLAG_UNSET(table, flag)	\
-	(table->flags2 &= ~(flag))
+	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
 first load the parent table, we would load all of its descedents.
@@ -297,25 +300,8 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/** Create a table memory object.
-@param name     table name
-@param space    tablespace
-@param n_cols   total number of columns (both virtual and non-virtual)
-@param n_v_cols number of virtual columns
-@param flags    table flags
-@param flags2   table flags2
-@return own: table object */
-dict_table_t*
-dict_mem_table_create(
-	const char*	name,
-	fil_space_t*	space,
-	ulint		n_cols,
-	ulint		n_v_cols,
-	ulint		flags,
-	ulint		flags2);
-
-/****************************************************************//**
-Free a table memory object. */
+/****************************************************************/ /**
+ Free a table memory object. */
 void
 dict_mem_table_free(
 /*================*/
@@ -372,8 +358,8 @@ dict_mem_table_col_rename(
 /*======================*/
 	dict_table_t*	table,	/*!< in/out: table */
 	ulint		nth_col,/*!< in: column index */
-	const char*	from,	/*!< in: old column name */
-	const char*	to,	/*!< in: new column name */
+	const LEX_CSTRING &from,/*!< in: old column name */
+	const LEX_CSTRING &to,	/*!< in: new column name */
 	bool		is_virtual);
 				/*!< in: if this is a virtual column */
 /**********************************************************************//**
@@ -412,18 +398,7 @@ dict_mem_index_create(
 	ulint		type,		/*!< in: DICT_UNIQUE,
 					DICT_CLUSTERED, ... ORed */
 	ulint		n_fields);	/*!< in: number of fields */
-/**********************************************************************//**
-Adds a field definition to an index. NOTE: does not take a copy
-of the column name if the field is a column. The memory occupied
-by the column name may be released only after publishing the index. */
-void
-dict_mem_index_add_field(
-/*=====================*/
-	dict_index_t*	index,		/*!< in: index */
-	const char*	name,		/*!< in: column name */
-	ulint		prefix_len);	/*!< in: 0 or the column prefix length
-					in a MySQL index like
-					INDEX (textcol(25)) */
+
 /**********************************************************************//**
 Frees an index memory object. */
 void
@@ -436,28 +411,6 @@ Creates and initializes a foreign constraint memory object.
 dict_foreign_t*
 dict_mem_foreign_create(void);
 /*=========================*/
-
-/**********************************************************************//**
-Sets the foreign_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
-will point to foreign_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_foreign_table_name_lookup_set(
-/*===================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
-
-/**********************************************************************//**
-Sets the referenced_table_name_lookup pointer based on the value of
-lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
-will point to referenced_table_name.  If 2, then another string is
-allocated from the heap and set to lower case. */
-void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
 
 /** Fills the dependent virtual columns in a set.
 Reason for being dependent are
@@ -597,7 +550,7 @@ public:
 
   /** Retrieve the column name.
   @param table  the table of this column */
-  const char *name(const dict_table_t &table) const;
+  Lex_ident_column name(const dict_table_t &table) const;
 
   /** @return whether this is a virtual column */
   bool is_virtual() const { return prtype & DATA_VIRTUAL; }
@@ -644,7 +597,7 @@ public:
     if (fixed)
     {
       mtype= DATA_FIXBINARY;
-      len= fixed;
+      len= static_cast<uint16_t>(fixed);
     }
     else
     {
@@ -902,9 +855,11 @@ struct dict_field_t{
 	unsigned	fixed_len:10;	/*!< 0 or the fixed length of the
 					column if smaller than
 					DICT_ANTELOPE_MAX_INDEX_COL_LEN */
+	/** 1=DESC, 0=ASC */
+	unsigned	descending:1;
 
 	/** Zero-initialize all fields */
-	dict_field_t() : col(NULL), name(NULL), prefix_len(0), fixed_len(0) {}
+	dict_field_t() { memset((void*) this, 0, sizeof *this); }
 
 	/** Check whether two index fields are equivalent.
 	@param[in]	old	the other index field
@@ -971,17 +926,37 @@ struct zip_pad_info_t {
 				rounds */
 };
 
-/** Number of samples of data size kept when page compression fails for
-a certain index.*/
-#define STAT_DEFRAG_DATA_SIZE_N_SAMPLE	10
-
 /** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
 system clustered index when there is no primary key. */
-const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
+static constexpr
+Lex_cstring GEN_CLUST_INDEX = "GEN_CLUST_INDEX"_LEX_CSTRING;
 
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
+  /** Columns whose character-set collation is being changed */
+  struct col_info
+  {
+    /** number of columns whose charset-collation is being changed */
+    unsigned n_cols;
+    /** columns with changed charset-collation */
+    dict_col_t *cols;
+
+    /** Add a column with changed collation. */
+    dict_col_t *add(mem_heap_t *heap, const dict_col_t &col, unsigned offset)
+    {
+      ut_ad(offset < n_cols);
+      if (!cols)
+        cols= static_cast<dict_col_t*>
+          (mem_heap_alloc(heap, n_cols * sizeof col));
+      new (&cols[offset]) dict_col_t(col);
+      return &cols[offset];
+    }
+  };
+
+  /** Maximum number of fields */
+  static constexpr unsigned MAX_N_FIELDS= (1U << 10) - 1;
+
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
@@ -997,7 +972,7 @@ struct dict_index_t {
 # define DICT_INDEX_MERGE_THRESHOLD_DEFAULT 50
 	unsigned	type:DICT_IT_BITS;
 				/*!< index type (DICT_CLUSTERED, DICT_UNIQUE,
-				DICT_IBUF, DICT_CORRUPT) */
+				DICT_CORRUPT) */
 #define MAX_KEY_LENGTH_BITS 12
 	unsigned	trx_id_offset:MAX_KEY_LENGTH_BITS;
 				/*!< position of the trx id column
@@ -1011,15 +986,6 @@ struct dict_index_t {
 				/*!< number of columns the user defined to
 				be in the index: in the internal
 				representation we add more columns */
-#ifdef BTR_CUR_HASH_ADAPT
-#ifdef MYSQL_INDEX_DISABLE_AHI
- 	unsigned	disable_ahi:1;
-				/*!< whether to disable the
-				adaptive hash index.
-				Maybe this could be disabled for
-				temporary tables? */
-#endif
-#endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -1046,13 +1012,13 @@ struct dict_index_t {
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_sys.latch and
-				dict_sys.mutex. Other changes are
+				by dict_sys.latch. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
 				that have not been committed to the
-				data dictionary yet */
+				data dictionary yet. Protected by
+				MDL */
 
 #ifdef UNIV_DEBUG
 	/** whether this is a dummy index object */
@@ -1073,9 +1039,15 @@ struct dict_index_t {
 	while removing the index from table. */
 	dict_add_v_col_info* new_vcol_info;
 
-	bool            index_fts_syncing;/*!< Whether the fts index is
-					still syncing in the background;
-					FIXME: remove this and use MDL */
+	/** During ALTER TABLE, columns that a being-added index depends on
+	and whose encoding or collation is being changed to something
+	that is compatible with the clustered index.
+	Allocated from dict_index_t::heap.
+
+	@see rollback_inplace_alter_table()
+	@see ha_innobase_inplace_ctx::col_collations */
+	col_info* change_col_info;
+
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
@@ -1120,23 +1092,6 @@ struct dict_index_t {
 				/*!< has persistent statistics error printed
 				for this index ? */
 	/* @} */
-	/** Statistics for defragmentation, these numbers are estimations and
-	could be very inaccurate at certain times, e.g. right after restart,
-	during defragmentation, etc. */
-	/* @{ */
-	ulint		stat_defrag_modified_counter;
-	ulint		stat_defrag_n_pages_freed;
-				/* number of pages freed by defragmentation. */
-	ulint		stat_defrag_n_page_split;
-				/* number of page splits since last full index
-				defragmentation. */
-	ulint		stat_defrag_data_size_sample[STAT_DEFRAG_DATA_SIZE_N_SAMPLE];
-				/* data size when compression failure happened
-				the most recent 10 times. */
-	ulint		stat_defrag_sample_next_slot;
-				/* in which slot the next sample should be
-				saved. */
-	/* @} */
 private:
   /** R-tree split sequence number */
   Atomic_relaxed<node_seq_t> rtr_ssn;
@@ -1152,8 +1107,8 @@ public:
 				when InnoDB was started up */
 	zip_pad_info_t	zip_pad;/*!< Information about state of
 				compression failures and successes */
-	mutable rw_lock_t	lock;	/*!< read-write lock protecting the
-				upper levels of the index tree */
+  /** lock protecting the non-leaf index pages */
+  mutable index_lock lock;
 
 	/** Determine if the index has been committed to the
 	data dictionary.
@@ -1170,6 +1125,7 @@ public:
 	{
 		ut_ad(!to_be_dropped);
 		ut_ad(committed || !(type & DICT_CLUSTERED));
+		ut_ad(!committed || !change_col_info);
 		uncommitted = !committed;
 	}
 
@@ -1187,12 +1143,8 @@ public:
 	/** @return whether instant ALTER TABLE is in effect */
 	inline bool is_instant() const;
 
-	/** @return whether the index is the primary key index
-	(not the clustered index of the change buffer) */
-	bool is_primary() const
-	{
-		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
-	}
+	/** @return whether the index is the primary key index */
+	bool is_primary() const { return is_clust(); }
 
 	/** @return whether this is a generated clustered index */
 	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
@@ -1206,25 +1158,38 @@ public:
 	/** @return whether this is a spatial index */
 	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }
 
-	/** @return whether this is the change buffer */
-	bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+	/** @return whether this index requires locking */
+	static constexpr bool has_locking() { return true; }
+
+	/** @return whether this is a normal B-tree index
+        (not the change buffer, not SPATIAL or FULLTEXT) */
+	bool is_btree() const {
+		return UNIV_LIKELY(!(type & (DICT_SPATIAL
+					     | DICT_FTS | DICT_CORRUPT)));
+	}
 
 	/** @return whether the index includes virtual columns */
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
 	/** @return the position of DB_TRX_ID */
-	unsigned db_trx_id() const {
+	uint16_t db_trx_id() const {
 		DBUG_ASSERT(is_primary());
 		DBUG_ASSERT(n_uniq);
 		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
 		return n_uniq;
 	}
 	/** @return the position of DB_ROLL_PTR */
-	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+	uint16_t db_roll_ptr() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 1);
+	}
 
 	/** @return the offset of the metadata BLOB field,
 	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
-	unsigned first_user_field() const { return db_trx_id() + 2; }
+	uint16_t first_user_field() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 2);
+	}
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
@@ -1319,6 +1284,16 @@ public:
   ulint get_new_n_vcol() const
   { return new_vcol_info ? new_vcol_info->n_v_col : 0; }
 
+  /** Assign the number of collation change fields as a part of the index
+  @param  n_cols   number of columns whose collation is changing */
+  void init_change_cols(unsigned n_cols)
+  {
+    ut_ad(n_fields > n_cols || type & DICT_FTS);
+    change_col_info= static_cast<col_info*>
+      (mem_heap_zalloc(heap, sizeof(col_info)));
+    change_col_info->n_cols= n_cols;
+  }
+
   /** Reconstruct the clustered index fields.
   @return whether metadata is incorrect */
   inline bool reconstruct_fields();
@@ -1343,6 +1318,16 @@ public:
   /** Note that the index is waiting for btr_search_lazy_free() */
   void set_freed() { ut_ad(!freed()); page= 1; }
 #endif /* BTR_CUR_HASH_ADAPT */
+
+  /** @return whether it is forbidden to invoke clear_instant_add() */
+  bool must_avoid_clear_instant_add() const
+  {
+    if (is_instant())
+      for (auto i= this; (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+        if (i->to_be_dropped /* || i->online_log*/)
+          return true;
+    return false;
+  }
 
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
@@ -1403,6 +1388,26 @@ public:
 	everything in overflow) size of the longest possible row and index
 	of a field which made index records too big to fit on a page.*/
 	inline record_size_info_t record_size_info() const;
+
+  /** Clear the index tree and reinitialize the root page, in the
+  rollback of TRX_UNDO_EMPTY. The BTR_SEG_LEAF is freed and reinitialized.
+  @param thr query thread
+  @return error code */
+  dberr_t clear(que_thr_t *thr);
+
+  /** Check whether the online log is dummy value to indicate
+  whether table undergoes active DDL.
+  @retval true if online log is dummy value */
+  bool online_log_is_dummy() const
+  {
+    return online_log == reinterpret_cast<const row_log_t*>(this);
+  }
+
+  /** Assign clustered index online log to dummy value */
+  void online_log_make_dummy()
+  {
+    online_log= reinterpret_cast<row_log_t*>(this);
+  }
 };
 
 /** Detach a virtual column from an index.
@@ -1411,6 +1416,21 @@ inline void dict_col_t::detach(const dict_index_t &index)
 {
   if (is_virtual())
     reinterpret_cast<dict_v_col_t*>(this)->detach(index);
+}
+
+/** Add a field definition to an index.
+@param index         index
+@param name          pointer to column name
+@param prefix_len    column prefix length, or 0
+@param descending    whether to use descending order */
+inline void dict_mem_index_add_field(dict_index_t *index, const char *name,
+                                     ulint prefix_len, bool descending= false)
+{
+  ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
+  dict_field_t &field= index->fields[index->n_def++];
+  field.name= name;
+  field.prefix_len= prefix_len & ((1U << 12) - 1);
+  field.descending= descending;
 }
 
 /** The status of online index creation */
@@ -1480,6 +1500,20 @@ struct dict_foreign_t{
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
 	bool affects_fulltext() const;
+
+	/**********************************************************************//**
+	Sets the foreign_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, foreign_table_name_lookup
+	will point to foreign_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void foreign_table_name_lookup_set();
+
+	/**********************************************************************//**
+	Sets the referenced_table_name_lookup pointer based on the value of
+	lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
+	will point to referenced_table_name.  If 2, then another string is
+	allocated from the heap and set to lower case. */
+	void referenced_table_name_lookup_set();
 };
 
 std::ostream&
@@ -1508,7 +1542,7 @@ struct dict_foreign_compare {
 		const dict_foreign_t*	lhs,
 		const dict_foreign_t*	rhs) const
 	{
-		return(ut_strcmp(lhs->id, rhs->id) < 0);
+		return strcmp(lhs->id, rhs->id) < 0;
 	}
 };
 
@@ -1527,24 +1561,6 @@ struct dict_foreign_with_index {
 
 	const dict_index_t*	m_index;
 };
-
-#ifdef WITH_WSREP
-/** A function object to find a foreign key with the given index as the
-foreign index. Return the foreign key with matching criteria or NULL */
-struct dict_foreign_with_foreign_index {
-
-	dict_foreign_with_foreign_index(const dict_index_t*	index)
-	: m_index(index)
-	{}
-
-	bool operator()(const dict_foreign_t*	foreign) const
-	{
-		return(foreign->foreign_index == m_index);
-	}
-
-	const dict_index_t*	m_index;
-};
-#endif
 
 /* A function object to check if the foreign constraint is between different
 tables.  Returns true if foreign key constraint is between different tables,
@@ -1569,11 +1585,12 @@ struct dict_foreign_matches_id {
 
 	bool operator()(const dict_foreign_t*	foreign) const
 	{
-		if (0 == innobase_strcasecmp(foreign->id, m_id)) {
+		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
+		if (ident.streq(Lex_cstring_strlen(foreign->id))) {
 			return(true);
 		}
 		if (const char* pos = strchr(foreign->id, '/')) {
-			if (0 == innobase_strcasecmp(m_id, pos + 1)) {
+			if (ident.streq(Lex_cstring_strlen(pos + 1))) {
 				return(true);
 			}
 		}
@@ -1751,7 +1768,7 @@ class field_map_element_t
 	/** Field metadata */
 	uint16_t data;
 
-	void clear_not_null() { data &= ~NOT_NULL; }
+	void clear_not_null() { data &= uint16_t(~NOT_NULL); }
 public:
 	bool is_dropped() const { return data & DROPPED; }
 	void set_dropped() { data |= DROPPED; }
@@ -1800,7 +1817,7 @@ typedef enum {
 } dict_frm_t;
 
 /** Data structure for a database table.  Most fields will be
-initialized to 0, NULL or FALSE in dict_mem_table_create(). */
+zero-initialized in dict_table_t::create(). */
 struct dict_table_t {
 
 	/** Get reference count.
@@ -1839,11 +1856,18 @@ struct dict_table_t {
 		return(UNIV_LIKELY(!file_unreadable));
 	}
 
+	/** @return whether the table is accessible */
+	bool is_accessible() const
+	{
+		return UNIV_LIKELY(is_readable() && !corrupted && space)
+			&& !space->is_stopping();
+	}
+
 	/** Check if a table name contains the string "/#sql"
 	which denotes temporary or intermediate tables in MariaDB. */
 	static bool is_temporary_name(const char* name)
 	{
-		return strstr(name, "/" TEMP_FILE_PREFIX) != NULL;
+		return strstr(name, "/#sql");
 	}
 
 	/** @return whether instant ALTER TABLE is in effect */
@@ -1946,25 +1970,75 @@ struct dict_table_t {
 		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
-	void inc_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running++;
-		ut_ad(fk_checks >= 0);
-	}
-	void dec_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running--;
-		ut_ad(fk_checks > 0);
-	}
-
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
+
+  /** Parse the table file name into table name and database name.
+  @tparam        dict_frozen  whether the caller holds dict_sys.latch
+  @param[in,out] db_name      database name buffer
+  @param[in,out] tbl_name     table name buffer
+  @param[out] db_name_len     database name length
+  @param[out] tbl_name_len    table name length
+  @return whether the table name is visible to SQL */
+  template<bool dict_frozen= false>
+  bool parse_name(char (&db_name)[NAME_LEN + 1],
+                  char (&tbl_name)[NAME_LEN + 1],
+                  size_t *db_name_len, size_t *tbl_name_len) const;
+
+  /** Clear the table when rolling back TRX_UNDO_EMPTY
+  @return error code */
+  dberr_t clear(que_thr_t *thr);
+
+#ifdef UNIV_DEBUG
+  /** @return whether the current thread holds the lock_mutex */
+  bool lock_mutex_is_owner() const { return lock_latch.have_wr(); }
+  /** @return whether the current thread holds the stats_mutex (lock_mutex) */
+  bool stats_mutex_is_owner() const { return lock_latch.have_wr(); }
+#endif /* UNIV_DEBUG */
+  void lock_mutex_init()
+  {
+#ifdef UNIV_DEBUG
+    lock_latch.SRW_LOCK_INIT(0);
+#else
+    lock_latch.init();
+#endif
+  }
+  void lock_mutex_destroy() { lock_latch.destroy(); }
+  /** Acquire exclusive lock_latch */
+  void lock_mutex_lock() { lock_latch.wr_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Try to acquire exclusive lock_latch */
+  bool lock_mutex_trylock() { return lock_latch.wr_lock_try(); }
+  /** Release exclusive lock_latch */
+  void lock_mutex_unlock() { lock_latch.wr_unlock(); }
+  /** Acquire shared lock_latch */
+  void lock_shared_lock() { lock_latch.rd_lock(ut_d(SRW_LOCK_CALL)); }
+  /** Release shared lock_latch */
+  void lock_shared_unlock() { lock_latch.rd_unlock(); }
+
+#ifndef SUX_LOCK_GENERIC
+  /** @return whether an exclusive lock_latch is held by some thread */
+  bool lock_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
+  bool stats_mutex_is_locked() const noexcept
+  { return lock_latch.is_write_locked(); }
+#endif
+
+  /* stats mutex lock currently defaults to lock_mutex but in the future,
+  there could be a use-case to have separate mutex for stats.
+  extra indirection (through inline so no performance hit) should
+  help simplify code and increase long-term maintainability */
+  void stats_mutex_init() { lock_mutex_init(); }
+  void stats_mutex_destroy() { lock_mutex_destroy(); }
+  void stats_mutex_lock() { lock_mutex_lock(); }
+  void stats_mutex_unlock() { lock_mutex_unlock(); }
+  void stats_shared_lock() { lock_shared_lock(); }
+  void stats_shared_unlock() { lock_shared_unlock(); }
+
+  /** Rename the data file.
+  @param new_name     name of the table
+  @param replace      whether to replace the file with the new name
+                      (as part of rolling back TRUNCATE) */
+  dberr_t rename_tablespace(span<const char> new_name, bool replace) const;
 
 private:
 	/** Initialize instant->field_map.
@@ -1973,12 +2047,12 @@ private:
 public:
 	/** Id of the table. */
 	table_id_t				id;
-	/** Hash chain node. */
-	hash_node_t				id_hash;
-	/** Table name. */
+	/** dict_sys.id_hash chain node */
+	dict_table_t*				id_hash;
+	/** Table name in name_hash */
 	table_name_t				name;
-	/** Hash chain node. */
-	hash_node_t				name_hash;
+	/** dict_sys.name_hash chain node */
+	dict_table_t*				name_hash;
 
 	/** Memory heap */
 	mem_heap_t*				heap;
@@ -1989,7 +2063,7 @@ public:
 	/** The tablespace of the table */
 	fil_space_t*				space;
 	/** Tablespace ID */
-	ulint					space_id;
+	uint32_t				space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),
@@ -2019,18 +2093,13 @@ public:
 	process of altering partitions */
 	unsigned                                skip_alter_undo:1;
 
-	/*!< whether this is in a single-table tablespace and the .ibd
-	file is missing or page decryption failed and page is corrupted */
+	/** whether this is in a single-table tablespace and the .ibd file
+	is believed to be missing or page decryption failed and page is
+	corrupted */
 	unsigned				file_unreadable:1;
 
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
-
-	/** TRUE if the table is to be dropped, but not yet actually dropped
-	(could in the background drop list). It is turned on at the beginning
-	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by dict_sys.latch. */
-	unsigned				to_be_dropped:1;
 
 	/** Number of non-virtual columns defined so far. */
 	unsigned				n_def:10;
@@ -2082,6 +2151,13 @@ public:
 	/** Instantly dropped or reordered columns, or NULL if none */
 	dict_instant_t*				instant;
 
+	/** Retrieve a column name from a 0-separated list
+	@param str     the list in the format "name1\0name2\0...nameN\0"
+	@param col_nr  the position
+	*/
+	static Lex_ident_column get_name_from_z_list(const char *str,
+							size_t col_nr);
+
 	/** Column names packed in a character string
 	"name1\0name2\0...nameN\0". Until the string contains n_cols, it will
 	be allocated from a temporary heap. The final string will be allocated
@@ -2127,23 +2203,24 @@ public:
 	/** Maximum recursive level we support when loading tables chained
 	together with FK constraints. If exceeds this level, we will stop
 	loading child table into memory along with its parent table. */
-	unsigned				fk_max_recusive_level:8;
+	byte					fk_max_recusive_level;
 
-	/** Count of how many foreign key check operations are currently being
-	performed on the table. We cannot drop the table while there are
-	foreign key checks running on it. */
-	Atomic_counter<int32_t>			n_foreign_key_checks_running;
+  /** DDL transaction that last touched the table definition, or 0 if
+  no history is available. This includes possible changes in
+  ha_innobase::prepare_inplace_alter_table() and
+  ha_innobase::commit_inplace_alter_table(). */
+  trx_id_t def_trx_id;
 
-	/** Transactions whose view low limit is greater than this number are
-	not allowed to store to the MySQL query cache or retrieve from it.
-	When a trx with undo logs commits, it sets this to the value of the
-	transaction id. */
-	trx_id_t				query_cache_inv_trx_id;
+  /** Last transaction that inserted into an empty table.
+  Updated while holding exclusive table lock and an exclusive
+  latch on the clustered index root page (which must also be
+  an empty leaf page), and an ahi_latch (if btr_search_enabled). */
+  Atomic_relaxed<trx_id_t> bulk_trx_id;
 
-	/** Transaction id that last touched the table definition. Either when
-	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
-	commit, and rollback phases). */
-	trx_id_t				def_trx_id;
+  /** Original table name, for MDL acquisition in purge. Normally,
+  this points to the same as name. When is_temporary_name(name.m_name) holds,
+  this should be a copy of the original table name, allocated from heap. */
+  table_name_t mdl_name;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
@@ -2153,7 +2230,7 @@ public:
 	dict_foreign_set			referenced_set;
 
 	/** Statistics for query optimization. Mostly protected by
-	dict_sys.mutex. @{ */
+	dict_sys.latch and stats_mutex_lock(). @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
@@ -2220,40 +2297,6 @@ public:
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
 
-	/** Background stats thread is not working on this table. */
-	#define BG_STAT_NONE			0
-
-	/** Set in 'stats_bg_flag' when the background stats code is working
-	on this table. The DROP TABLE code waits for this to be cleared before
-	proceeding. */
-	#define BG_STAT_IN_PROGRESS		(1 << 0)
-
-	/** Set in 'stats_bg_flag' when DROP TABLE starts waiting on
-	BG_STAT_IN_PROGRESS to be cleared. The background stats thread will
-	detect this and will eventually quit sooner. */
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
-
-	#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
-				/*!< BG_SCRUB_IN_PROGRESS is set in
-				stats_bg_flag when the background
-				scrub code is working on this table. The DROP
-				TABLE code waits for this to be cleared
-				before proceeding. */
-
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
-
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
-	byte					stats_bg_flag;
-
 	bool		stats_error_printed;
 				/*!< Has persistent stats error beein
 				already printed for this table ? */
@@ -2265,7 +2308,7 @@ public:
 	kept in trx_t. In order to quickly determine whether a transaction has
 	locked the AUTOINC lock we keep a pointer to the transaction here in
 	the 'autoinc_trx' member. This is to avoid acquiring the
-	lock_sys_t::mutex and scanning the vector in trx_t.
+	lock_sys.latch and scanning the vector in trx_t.
 	When an AUTOINC lock has to wait, the corresponding lock instance is
 	created on the trx lock heap rather than use the pre-allocated instance
 	in autoinc_lock below. */
@@ -2277,25 +2320,43 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-	/** Mutex protecting the autoinc counter and freed_indexes. */
-	std::mutex				autoinc_mutex;
+  /** Mutex protecting autoinc and freed_indexes. */
+  srw_spin_mutex autoinc_mutex;
+private:
+#ifdef UNIV_DEBUG
+  typedef srw_lock_debug lock_latch_type;
+#else
+  typedef srw_spin_lock_low lock_latch_type;
+#endif
+  /** RW-lock protecting locks and statistics on this table */
+  lock_latch_type lock_latch;
+public:
+  /** The next DB_ROW_ID value */
+  Atomic_counter<uint64_t> row_id{0};
+  /** Autoinc counter value to give to the next inserted row. */
+  uint64_t autoinc;
 
-	/** Autoinc counter value to give to the next inserted row. */
-	ib_uint64_t				autoinc;
+  /** The transaction that currently holds the the AUTOINC lock on this table.
+  Protected by lock_latch.
+  The thread that is executing autoinc_trx may read this field without
+  holding a latch, in row_lock_table_autoinc_for_mysql().
+  Only the autoinc_trx thread may clear this field; it cannot be
+  modified on the behalf of a transaction that is being handled by a
+  different thread. */
+  Atomic_relaxed<const trx_t*> autoinc_trx;
 
-	/** This counter is used to track the number of granted and pending
-	autoinc locks on this table. This value is set after acquiring the
-	lock_sys_t::mutex but we peek the contents to determine whether other
-	transactions have acquired the AUTOINC lock or not. Of course only one
-	transaction can be granted the lock but there can be multiple
-	waiters. */
-	ulong					n_waiting_or_granted_auto_inc_locks;
-
-	/** The transaction that currently holds the the AUTOINC lock on this
-	table. Protected by lock_sys.mutex. */
-	const trx_t*				autoinc_trx;
+  /** Number of granted or pending autoinc_lock on this table. This
+  value is set after acquiring lock_sys.latch but
+  in innodb_autoinc_lock_mode=1 (the default),
+  ha_innobase::innobase_lock_autoinc() will perform a dirty read
+  to determine whether other transactions have acquired the autoinc_lock. */
+  uint32_t n_waiting_or_granted_auto_inc_locks;
 
 	/* @} */
+
+  /** Number of granted or pending LOCK_S or LOCK_X on the table.
+  Protected by lock_sys.assert_locked(*this). */
+  uint32_t n_lock_x_or_s;
 
 	/** FTS specific state variables. */
 	fts_t*					fts;
@@ -2305,22 +2366,28 @@ public:
 	in X mode of this table's indexes. */
 	ib_quiesce_t				quiesce;
 
-	/** Count of the number of record locks on this table. We use this to
-	determine whether we can evict the table from the dictionary cache.
-	It is protected by lock_sys.mutex. */
-	ulint					n_rec_locks;
+  /** Count of the number of record locks on this table. We use this to
+  determine whether we can evict the table from the dictionary cache.
+  Modified when lock_sys.is_writer(), or
+  lock_sys.assert_locked(page_id) and trx->mutex_is_owner() hold.
+  @see trx_lock_t::trx_locks */
+  Atomic_counter<uint32_t> n_rec_locks;
 private:
-	/** Count of how many handles are opened to this table. Dropping of the
-	table is NOT allowed until this count gets to zero. MySQL does NOT
-	itself check the number of open handles at DROP. */
-	Atomic_counter<uint32_t>		n_ref_count;
-
+  /** Count of how many handles are opened to this table. Dropping of the
+  table is NOT allowed until this count gets to zero. MySQL does NOT
+  itself check the number of open handles at DROP. */
+  Atomic_counter<uint32_t> n_ref_count;
 public:
-	/** List of locks on the table. Protected by lock_sys.mutex. */
-	table_lock_list_t			locks;
+  /** List of locks on the table. Protected by lock_sys.assert_locked(lock). */
+  table_lock_list_t locks;
 
-	/** Timestamp of the last modification of this table. */
-	time_t					update_time;
+  /** Timestamp of the last modification of this table. */
+  Atomic_relaxed<time_t> update_time;
+  /** Transactions whose view low limit is greater than this number are
+  not allowed to access the MariaDB query cache.
+  @see innobase_query_caching_table_check_low()
+  @see trx_t::commit_tables() */
+  Atomic_relaxed<trx_id_t> query_cache_inv_trx_id;
 
 #ifdef UNIV_DEBUG
 	/** Value of 'magic_n'. */
@@ -2329,9 +2396,9 @@ public:
 	/** Magic number. */
 	ulint					magic_n;
 #endif /* UNIV_DEBUG */
-	/** mysql_row_templ_t for base columns used for compute the virtual
-	columns */
-	dict_vcol_templ_t*			vc_templ;
+  /** mysql_row_templ_t for base columns used for compute the virtual
+  columns; protected by lock_latch */
+  dict_vcol_templ_t *vc_templ;
 
   /* @return whether the table has any other transcation lock
   other than the given transaction */
@@ -2344,13 +2411,43 @@ public:
     return false;
   }
 
-  /** Check whether the table name is same as mysql/innodb_stats_table
-  or mysql/innodb_index_stats.
-  @return true if the table name is same as stats table */
+  /** @return whether a DDL operation is in progress on this table */
+  bool is_native_online_ddl() const
+  {
+    return UT_LIST_GET_FIRST(indexes)->online_log;
+  }
+
+  /** @return whether the name is
+  mysql.innodb_index_stats or mysql.innodb_table_stats */
   bool is_stats_table() const;
 
   /** @return number of unique columns in FTS_DOC_ID index */
   unsigned fts_n_uniq() const { return versioned() ? 2 : 1; }
+
+  /** @return the index for that starts with a specific column */
+  dict_index_t *get_index(const dict_col_t &col) const;
+
+  /** Create metadata.
+  @param name     table name
+  @param space    tablespace
+  @param n_cols   total number of columns (both virtual and non-virtual)
+  @param n_v_cols number of virtual columns
+  @param flags    table flags
+  @param flags2   table flags2
+  @return newly allocated table object */
+  static dict_table_t *create(const span<const char> &name, fil_space_t *space,
+                              ulint n_cols, ulint n_v_cols, ulint flags,
+                              ulint flags2);
+
+  /** Check whether the table has any spatial indexes */
+  bool has_spatial_index() const
+  {
+    for (auto i= UT_LIST_GET_FIRST(indexes);
+         (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+      if (i->is_spatial())
+        return true;
+    return false;
+  }
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
@@ -2388,14 +2485,14 @@ inline bool dict_index_t::is_corrupted() const
 
 inline void dict_index_t::clear_instant_add()
 {
-	DBUG_ASSERT(is_primary());
-	DBUG_ASSERT(is_instant());
-	DBUG_ASSERT(!table->instant);
-	for (unsigned i = n_core_fields; i < n_fields; i++) {
-		fields[i].col->clear_instant();
-	}
-	n_core_fields = n_fields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+  DBUG_ASSERT(is_primary());
+  DBUG_ASSERT(is_instant());
+  DBUG_ASSERT(!table->instant);
+  for (unsigned i= n_core_fields; i < n_fields; i++)
+    fields[i].col->clear_instant();
+  n_core_fields= n_fields;
+  n_core_null_bytes= static_cast<byte>
+    (UT_BITS_IN_BYTES(static_cast<unsigned>(n_nullable)));
 }
 
 inline void dict_index_t::clear_instant_alter()
@@ -2436,8 +2533,9 @@ inline void dict_index_t::clear_instant_alter()
 	}
 
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
-	n_core_fields = n_fields = n_def = end - fields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	n_core_fields = n_fields = n_def
+		= static_cast<unsigned>(end - fields) & MAX_N_FIELDS;
+	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_nullable));
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
@@ -2445,7 +2543,10 @@ inline void dict_index_t::clear_instant_alter()
 		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
-		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+		table->persistent_autoinc = (a == end)
+			? 0
+			: (1 + static_cast<unsigned>(a - fields))
+			& MAX_N_FIELDS;
 	}
 }
 
@@ -2507,19 +2608,6 @@ dict_col_get_spatial_status(
 	}
 
 	return(spatial_status);
-}
-
-/** Clear defragmentation summary. */
-inline void dict_stats_empty_defrag_summary(dict_index_t* index)
-{
-	index->stat_defrag_n_pages_freed = 0;
-}
-
-/** Clear defragmentation related index stats. */
-inline void dict_stats_empty_defrag_stats(dict_index_t* index)
-{
-	index->stat_defrag_modified_counter = 0;
-	index->stat_defrag_n_page_split = 0;
 }
 
 #include "dict0mem.inl"

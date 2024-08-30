@@ -32,7 +32,6 @@ Created 5/11/1994 Heikki Tuuri
 
 #ifndef UNIV_INNOCHECKSUM
 #include <mysql_com.h>
-#include "os0thread.h"
 #include "ut0ut.h"
 #include "trx0trx.h"
 #include <string>
@@ -62,42 +61,39 @@ ut_print_timestamp(
 /*===============*/
 	FILE*  file) /*!< in: file where to print */
 {
-	ulint thread_id = 0;
-
-#ifndef UNIV_INNOCHECKSUM
-	thread_id = os_thread_pf(os_thread_get_curr_id());
-#endif /* !UNIV_INNOCHECKSUM */
-
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
-
 	GetLocalTime(&cal_tm);
-
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
-		(int) cal_tm.wYear,
-		(int) cal_tm.wMonth,
-		(int) cal_tm.wDay,
-		(int) cal_tm.wHour,
-		(int) cal_tm.wMinute,
-		(int) cal_tm.wSecond,
-		thread_id);
 #else
-	struct tm* cal_tm_ptr;
 	time_t	   tm;
-
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
-	fprintf(file, "%d-%02d-%02d %02d:%02d:%02d %#zx",
-		cal_tm_ptr->tm_year + 1900,
-		cal_tm_ptr->tm_mon + 1,
-		cal_tm_ptr->tm_mday,
-		cal_tm_ptr->tm_hour,
-		cal_tm_ptr->tm_min,
-		cal_tm_ptr->tm_sec,
-		thread_id);
 #endif
+	fprintf(file,
+		IF_WIN("%u-%02u-%02u %02u:%02u:%02u %#zx",
+		       "%d-%02d-%02d %02d:%02d:%02d %#zx"),
+#ifdef _WIN32
+		cal_tm.wYear,
+		cal_tm.wMonth,
+		cal_tm.wDay,
+		cal_tm.wHour,
+		cal_tm.wMinute,
+		cal_tm.wSecond,
+#else
+		cal_tm.tm_year + 1900,
+		cal_tm.tm_mon + 1,
+		cal_tm.tm_mday,
+		cal_tm.tm_hour,
+		cal_tm.tm_min,
+		cal_tm.tm_sec,
+#endif
+#ifdef UNIV_INNOCHECKSUM
+		ulint{0}
+#else
+		ulint(pthread_self())
+#endif
+		);
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -111,31 +107,27 @@ ut_sprintf_timestamp(
 {
 #ifdef _WIN32
 	SYSTEMTIME cal_tm;
-
 	GetLocalTime(&cal_tm);
 
-	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		(int) cal_tm.wYear % 100,
-		(int) cal_tm.wMonth,
-		(int) cal_tm.wDay,
-		(int) cal_tm.wHour,
-		(int) cal_tm.wMinute,
-		(int) cal_tm.wSecond);
+	sprintf(buf, "%02u%02u%02u %2u:%02u:%02u",
+		cal_tm.wYear % 100,
+		cal_tm.wMonth,
+		cal_tm.wDay,
+		cal_tm.wHour,
+		cal_tm.wMinute,
+		cal_tm.wSecond);
 #else
-	struct tm* cal_tm_ptr;
 	time_t	   tm;
-
 	struct tm  cal_tm;
 	time(&tm);
 	localtime_r(&tm, &cal_tm);
-	cal_tm_ptr = &cal_tm;
 	sprintf(buf, "%02d%02d%02d %2d:%02d:%02d",
-		cal_tm_ptr->tm_year % 100,
-		cal_tm_ptr->tm_mon + 1,
-		cal_tm_ptr->tm_mday,
-		cal_tm_ptr->tm_hour,
-		cal_tm_ptr->tm_min,
-		cal_tm_ptr->tm_sec);
+		cal_tm.tm_year % 100,
+		cal_tm.tm_mon + 1,
+		cal_tm.tm_mday,
+		cal_tm.tm_hour,
+		cal_tm.tm_min,
+		cal_tm.tm_sec);
 #endif
 }
 
@@ -215,27 +207,6 @@ ut_print_buf(
 	ut_print_buf_hex(o, buf, len);
 }
 
-/*************************************************************//**
-Calculates fast the number rounded up to the nearest power of 2.
-@return first power of 2 which is >= n */
-ulint
-ut_2_power_up(
-/*==========*/
-	ulint	n)	/*!< in: number != 0 */
-{
-	ulint	res;
-
-	res = 1;
-
-	ut_ad(n > 0);
-
-	while (res < n) {
-		res = res * 2;
-	}
-
-	return(res);
-}
-
 /** Get a fixed-length string, quoted as an SQL identifier.
 If the string contains a slash '/', the string will be
 output as two identifiers separated by a period (.),
@@ -285,47 +256,6 @@ ut_print_name(
 	if (fwrite(buf, 1, size_t(bufend - buf), f) != size_t(bufend - buf)) {
 		perror("fwrite");
 	}
-}
-
-/** Format a table name, quoted as an SQL identifier.
-If the name contains a slash '/', the result will contain two
-identifiers separated by a period (.), as in SQL
-database_name.table_name.
-@see table_name_t
-@param[in]	name		table or index name
-@param[out]	formatted	formatted result, will be NUL-terminated
-@param[in]	formatted_size	size of the buffer in bytes
-@return pointer to 'formatted' */
-char*
-ut_format_name(
-	const char*	name,
-	char*		formatted,
-	ulint		formatted_size)
-{
-	switch (formatted_size) {
-	case 1:
-		formatted[0] = '\0';
-		/* FALL-THROUGH */
-	case 0:
-		return(formatted);
-	}
-
-	char*	end;
-
-	end = innobase_convert_name(formatted, formatted_size,
-				    name, strlen(name), NULL);
-
-	/* If the space in 'formatted' was completely used, then sacrifice
-	the last character in order to write '\0' at the end. */
-	if ((ulint) (end - formatted) == formatted_size) {
-		end--;
-	}
-
-	ut_a((ulint) (end - formatted) < formatted_size);
-
-	*end = '\0';
-
-	return(formatted);
 }
 
 /**********************************************************************//**
@@ -382,20 +312,18 @@ ut_strerr(
 		return("Lock wait");
 	case DB_DEADLOCK:
 		return("Deadlock");
+	case DB_RECORD_CHANGED:
+		return("Record changed");
+#ifdef WITH_WSREP
 	case DB_ROLLBACK:
 		return("Rollback");
+#endif
 	case DB_DUPLICATE_KEY:
 		return("Duplicate key");
 	case DB_MISSING_HISTORY:
 		return("Required history data has been deleted");
-	case DB_CLUSTER_NOT_FOUND:
-		return("Cluster not found");
 	case DB_TABLE_NOT_FOUND:
 		return("Table not found");
-	case DB_MUST_GET_MORE_FILE_SPACE:
-		return("More file space needed");
-	case DB_TABLE_IS_BEING_USED:
-		return("Table is being used");
 	case DB_TOO_BIG_RECORD:
 		return("Record too big");
 	case DB_TOO_BIG_INDEX_COL:
@@ -460,8 +388,6 @@ ut_strerr(
 		return("End of index");
 	case DB_IO_ERROR:
 		return("I/O error");
-	case DB_TABLE_IN_FK_CHECK:
-		return("Table is being used in foreign key check");
 	case DB_NOT_FOUND:
 		return("not found");
 	case DB_ONLINE_LOG_TOO_BIG:
@@ -481,7 +407,7 @@ ut_strerr(
 	case DB_FTS_TOO_MANY_WORDS_IN_PHRASE:
 		return("Too many words in a FTS phrase or proximity search");
 	case DB_DECRYPTION_FAILED:
-		return("Table is encrypted but decrypt failed.");
+		return("Table is compressed or encrypted but uncompress or decrypt failed.");
 	case DB_IO_PARTIAL_FAILED:
 		return("Partial IO failed");
 	case DB_COMPUTE_VALUE_FAILED:
@@ -507,58 +433,19 @@ ut_strerr(
 	return("Unknown error");
 }
 
-#ifdef UNIV_PFS_MEMORY
-
-/** Extract the basename of a file without its extension.
-For example, extract "foo0bar" out of "/path/to/foo0bar.cc".
-@param[in]	file		file path, e.g. "/path/to/foo0bar.cc"
-@param[out]	base		result, e.g. "foo0bar"
-@param[in]	base_size	size of the output buffer 'base', if there
-is not enough space, then the result will be truncated, but always
-'\0'-terminated
-@return number of characters that would have been printed if the size
-were unlimited (not including the final ‘\0’) */
-size_t
-ut_basename_noext(
-	const char*	file,
-	char*		base,
-	size_t		base_size)
-{
-	/* Assuming 'file' contains something like the following,
-	extract the file name without the extenstion out of it by
-	setting 'beg' and 'len'.
-	...mysql-trunk/storage/innobase/dict/dict0dict.cc:302
-                                             ^-- beg, len=9
-	*/
-
-	const char*	beg = strrchr(file, OS_PATH_SEPARATOR);
-
-	if (beg == NULL) {
-		beg = file;
-	} else {
-		beg++;
-	}
-
-	size_t		len = strlen(beg);
-
-	const char*	end = strrchr(beg, '.');
-
-	if (end != NULL) {
-		len = end - beg;
-	}
-
-	const size_t	copy_len = std::min(len, base_size - 1);
-
-	memcpy(base, beg, copy_len);
-
-	base[copy_len] = '\0';
-
-	return(len);
-}
-
-#endif /* UNIV_PFS_MEMORY */
-
 namespace ib {
+
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs)
+{
+  static const char *sizes[]= {"B", "KiB", "MiB", "GiB", "TiB", "PiB",
+                              "EiB", "ZiB", "YiB"};
+  size_t i= 0;
+  double d= rhs.get_double();
+  for (; d > 512.0 && i < array_elements(sizes); i++, d/= 1024.0);
+  lhs.precision(3);
+  lhs << std::fixed << d << sizes[i];
+  return lhs;
+}
 
 ATTRIBUTE_COLD logger& logger::operator<<(dberr_t err)
 {

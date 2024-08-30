@@ -1,0 +1,17 @@
+========= Set server_id to 99 and prepare test table.
+SET GLOBAL server_id= 99;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+========= Crash the server.
+SET SESSION debug_dbug="+d,crash_commit_after_log";
+INSERT INTO t1 VALUES (1, NULL);
+Got one of the listed errors
+========= Restart the server with default config file in which server_id= 1.
+========= Check that recover succeeds and server is up.
+connection default;
+========= Check that all transactions are recovered.
+SELECT a FROM t1 ORDER BY a;
+a
+1
+========= Cleanup.
+connection default;
+DROP TABLE t1;

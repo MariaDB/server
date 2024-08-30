@@ -1,5 +1,5 @@
 -- source include/have_innodb.inc
--- source include/have_ssl_crypto_functs.inc
+-- source include/have_des.inc
 
 CREATE TABLE t1(a int) engine=innodb;
 INSERT INTO t1 VALUES (1);

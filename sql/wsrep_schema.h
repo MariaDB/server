@@ -37,6 +37,7 @@ typedef struct st_mysql_lex_string LEX_STRING;
 #define WSREP_STREAMING_TABLE "wsrep_streaming_log"
 #define WSREP_CLUSTER_TABLE   "wsrep_cluster"
 #define WSREP_MEMBERS_TABLE   "wsrep_cluster_members"
+#define WSREP_ALLOWLIST_TABLE "wsrep_allowlist"
 
 /** Name of the table in `wsrep_schema_str` used for storing streaming
 replication data. In an InnoDB full format, e.g. "database/tablename". */
@@ -137,6 +138,28 @@ class Wsrep_schema
      @return Zero on success, non-zero on failure.
   */
   int recover_sr_transactions(THD* orig_thd);
+
+
+  /**
+     Delete all rows on bootstrap from `wsrep_allowlist` variable
+  */
+  void clear_allowlist();
+
+  /**
+     Store allowlist ip on bootstrap from `wsrep_allowlist` variable
+  */
+  void store_allowlist(std::vector<std::string>& ip_allowlist);
+
+  /**
+     Scan white list table against accepted connection. Allow if ip
+     is found in table or if table is empty.
+
+     @param key   Which allowlist column to compare
+     @param value Value to be checked against allowlist
+     
+     @return True if found or empty table, false on not found 
+  */
+  bool allowlist_check(Wsrep_allowlist_key key, const std::string& val);
 
  private:
   /* Non-copyable */

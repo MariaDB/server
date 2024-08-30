@@ -1,0 +1,22 @@
+#
+# These groups are read by MariaDB command-line tools
+# Use it for options that affect only one utility
+#
+
+[mariadb-client]
+
+[mariadb-upgrade]
+
+[mariadb-admin]
+
+[mariadb-binlog]
+
+[mariadb-check]
+
+[mariadb-dump]
+
+[mariadb-import]
+
+[mariadb-show]
+
+[mariadb-slap]

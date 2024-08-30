@@ -597,9 +597,8 @@ pars_resolve_exp_variables_and_types(
 			|| (node->token_type == SYM_CURSOR)
 			|| (node->token_type == SYM_FUNCTION))
 		    && node->name
-		    && (sym_node->name_len == node->name_len)
-		    && (ut_memcmp(sym_node->name, node->name,
-				  node->name_len) == 0)) {
+		    && sym_node->name_len == node->name_len
+		    && !memcmp(sym_node->name, node->name, node->name_len)) {
 
 			/* Found a variable or a cursor declared with
 			the same name */
@@ -704,12 +703,12 @@ pars_resolve_exp_columns(
 		for (i = 0; i < n_cols; i++) {
 			const dict_col_t*	col
 				= dict_table_get_nth_col(table, i);
-			const char*		col_name
+			const Lex_ident_column col_name
 				= dict_table_get_col_name(table, i);
 
-			if ((sym_node->name_len == ut_strlen(col_name))
-			    && (0 == ut_memcmp(sym_node->name, col_name,
-					       sym_node->name_len))) {
+			if (sym_node->name_len == col_name.length
+			    && !memcmp(sym_node->name, col_name.str,
+				       sym_node->name_len)) {
 				/* Found */
 				sym_node->resolved = TRUE;
 				sym_node->token_type = SYM_COLUMN;
@@ -767,7 +766,7 @@ pars_retrieve_table_def(
 		sym_node->token_type = SYM_TABLE_REF_COUNTED;
 
 		sym_node->table = dict_table_open_on_name(
-			sym_node->name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+			sym_node->name, true, DICT_ERR_IGNORE_NONE);
 
 		ut_a(sym_node->table != NULL);
 	}
@@ -823,12 +822,12 @@ pars_select_all_columns(
 		table = table_node->table;
 
 		for (i = 0; i < dict_table_get_n_user_cols(table); i++) {
-			const char*	col_name = dict_table_get_col_name(
+			const Lex_ident_column col_name = dict_table_get_col_name(
 				table, i);
 
 			col_node = sym_tab_add_id(pars_sym_tab_global,
-						  (byte*) col_name,
-						  ut_strlen(col_name));
+						  (byte*) col_name.str,
+						  col_name.length);
 
 			select_node->select_list = que_node_list_add_last(
 				select_node->select_list, col_node);
@@ -1132,9 +1131,11 @@ pars_process_assign_list(
 
 		col_sym = assign_node->col;
 
-		upd_field_set_field_no(upd_field, dict_index_get_nth_col_pos(
-						clust_index, col_sym->col_no,
-						NULL),
+		ulint field_no = dict_index_get_nth_col_pos(
+			clust_index, col_sym->col_no, NULL);
+		ut_ad(field_no < clust_index->n_fields);
+		upd_field_set_field_no(upd_field,
+				       static_cast<uint16_t>(field_no),
 				       clust_index);
 		upd_field->exp = assign_node->val;
 
@@ -1779,8 +1780,9 @@ pars_create_table(
 
 	n_cols = que_node_list_get_len(column_defs);
 
-	table = dict_mem_table_create(
-		table_sym->name, NULL, n_cols, 0, flags, flags2);
+	table = dict_table_t::create(
+		{table_sym->name, strlen(table_sym->name)},
+		nullptr, n_cols, 0, flags, flags2);
 
 	mem_heap_t* heap = pars_sym_tab_global->heap;
 	column = column_defs;
@@ -1798,9 +1800,7 @@ pars_create_table(
 	}
 
 	dict_table_add_system_columns(table, heap);
-	node = tab_create_graph_create(table, heap,
-				       FIL_ENCRYPTION_DEFAULT,
-				       FIL_DEFAULT_ENCRYPTION_KEY);
+	node = tab_create_graph_create(table, heap);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;
@@ -1854,7 +1854,9 @@ pars_create_index(
 	}
 
 	node = ind_create_graph_create(index, table_sym->name,
-				       pars_sym_tab_global->heap);
+				       pars_sym_tab_global->heap,
+				       FIL_ENCRYPTION_DEFAULT,
+				       FIL_DEFAULT_ENCRYPTION_KEY);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;
@@ -1882,7 +1884,7 @@ pars_procedure_definition(
 
 	heap = pars_sym_tab_global->heap;
 
-	fork = que_fork_create(NULL, NULL, QUE_FORK_PROCEDURE, heap);
+	fork = que_fork_create(heap);
 	fork->trx = NULL;
 
 	thr = que_thr_create(fork, heap, NULL);
@@ -1911,24 +1913,8 @@ pars_procedure_definition(
 }
 
 /*************************************************************//**
-Parses a stored procedure call, when this is not within another stored
-procedure, that is, the client issues a procedure call directly.
-In MySQL/InnoDB, stored InnoDB procedures are invoked via the
-parsed procedure tree, not via InnoDB SQL, so this function is not used.
-@return query graph */
-que_fork_t*
-pars_stored_procedure_call(
-/*=======================*/
-	sym_node_t*	sym_node MY_ATTRIBUTE((unused)))
-					/*!< in: stored procedure name */
-{
-	ut_error;
-	return(NULL);
-}
-
-/*************************************************************//**
 Retrieves characters to the lexical analyzer. */
-size_t
+int
 pars_get_lex_chars(
 /*===============*/
 	char*	buf,		/*!< in/out: buffer where to copy */
@@ -1950,7 +1936,7 @@ pars_get_lex_chars(
 
 	pars_sym_tab_global->next_char_pos += len;
 
-	return(len);
+	return static_cast<int>(len);
 }
 
 /*************************************************************//**
@@ -1984,7 +1970,7 @@ pars_sql(
 	heap = mem_heap_create(16000);
 
 	/* Currently, the parser is not reentrant: */
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(dict_sys.locked());
 
 	pars_sym_tab_global = sym_tab_create(heap);
 
@@ -2017,8 +2003,7 @@ pars_sql(
 }
 
 /** Completes a query graph by adding query thread and fork nodes
-above it and prepares the graph for running. The fork created is of
-type QUE_FORK_MYSQL_INTERFACE.
+above it and prepares the graph for running.
 @param[in]	node		root node for an incomplete query
 				graph, or NULL for dummy graph
 @param[in]	trx		transaction handle
@@ -2035,7 +2020,7 @@ pars_complete_graph_for_exec(
 	que_fork_t*	fork;
 	que_thr_t*	thr;
 
-	fork = que_fork_create(NULL, NULL, QUE_FORK_MYSQL_INTERFACE, heap);
+	fork = que_fork_create(heap);
 	fork->trx = trx;
 
 	thr = que_thr_create(fork, heap, prebuilt);
@@ -2063,25 +2048,11 @@ pars_info_create(void)
 
 	heap = mem_heap_create(512);
 
-	info = static_cast<pars_info_t*>(mem_heap_alloc(heap, sizeof(*info)));
+	info = static_cast<pars_info_t*>(mem_heap_zalloc(heap, sizeof(*info)));
 
 	info->heap = heap;
-	info->funcs = NULL;
-	info->bound_lits = NULL;
-	info->bound_ids = NULL;
-	info->graph_owns_us = TRUE;
 
 	return(info);
-}
-
-/****************************************************************//**
-Free info struct and everything it contains. */
-void
-pars_info_free(
-/*===========*/
-	pars_info_t*	info)	/*!< in, own: info struct */
-{
-	mem_heap_free(info->heap);
 }
 
 /****************************************************************//**

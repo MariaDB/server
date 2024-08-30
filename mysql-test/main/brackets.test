@@ -117,24 +117,28 @@ let $q1=
 select a from t1 order by a desc limit 1;
 eval $q1;
 eval explain extended $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 
 let $q2=
 (select a from t1 order by a desc) limit 1;
 eval $q2;
 eval explain extended $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 
 let $q1=
 (select a from t1 where a=20 union select a from t1) order by a desc limit 1;
 eval $q1;
 eval explain extended $q1;
+--source include/explain-no-costs.inc
 eval explain format=json $q1;
 
 let $q2=
 ((select a from t1 where a=20 union select a from t1) order by a desc) limit 1;
 eval $q2;
 eval explain extended $q2;
+--source include/explain-no-costs.inc
 eval explain format=json $q2;
 
 drop table t1;
@@ -150,6 +154,7 @@ let $q=
 ((select * from t1 order by pk) limit 2) union (select * from t1 where pk > 4);
 eval $q;
 eval explain extended $q;
+--source include/explain-no-costs.inc
 eval explain format=json $q;
 
 drop table t1;

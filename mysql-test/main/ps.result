@@ -1,4 +1,5 @@
 call mtr.add_suppression('Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT.');
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 drop table if exists t1,t2,t3,t4;
 drop database if exists mysqltest1;
 drop database if exists client_test_db;
@@ -244,8 +245,6 @@ prepare stmt1 from "insert into t1 select i from t1";
 execute stmt1;
 execute stmt1;
 prepare stmt1 from "select * from t1 into outfile '<MYSQLTEST_VARDIR>/tmp/f1.txt'";
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 execute stmt1;
 deallocate prepare stmt1;
 drop table t1;
@@ -698,21 +697,21 @@ set @@time_zone:='Japan';
 execute stmt;
 @@time_zone
 Japan
-prepare stmt from "select @@tx_isolation";
+prepare stmt from "select @@transaction_isolation";
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 set transaction isolation level read committed;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 set transaction isolation level serializable;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
-set @@tx_isolation=default;
+set @@transaction_isolation=default;
 execute stmt;
-@@tx_isolation
+@@transaction_isolation
 REPEATABLE-READ
 deallocate prepare stmt;
 prepare stmt from "create temporary table t1 (letter enum('','a','b','c')
@@ -1109,12 +1108,12 @@ show create table mysqltest.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` char(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 show create table mysqltest.t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `test` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 drop table mysqltest.t1;
 drop table mysqltest.t2;
 alter database mysqltest character set latin1;
@@ -1728,7 +1727,7 @@ set @@character_set_server= utf8;
 execute stmt;
 show create database mysqltest_1;
 Database	Create Database
-mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8 COLLATE utf8_general_ci */
+mysqltest_1	CREATE DATABASE `mysqltest_1` /*!40100 DEFAULT CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci */
 drop database mysqltest_1;
 deallocate prepare stmt;
 set @@character_set_server= @old_character_set_server;
@@ -2147,11 +2146,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2161,11 +2157,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2175,11 +2168,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 call proc_1();
 show open tables from mysql;
@@ -2189,11 +2179,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 create function func_1() returns int begin flush tables; return 1; end|
@@ -2208,11 +2195,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 prepare abc from "flush tables";
 execute abc;
@@ -2223,11 +2207,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2237,11 +2218,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 execute abc;
 show open tables from mysql;
@@ -2251,11 +2229,8 @@ select Host, User from mysql.user limit 0;
 Host	User
 show open tables from mysql;
 Database	Table	In_use	Name_locked
-mysql	column_stats	0	0
 mysql	general_log	0	0
 mysql	global_priv	0	0
-mysql	index_stats	0	0
-mysql	table_stats	0	0
 mysql	user	0	0
 flush tables;
 deallocate prepare abc;
@@ -2726,9 +2701,7 @@ ERROR 42000: FUNCTION test.func_1 does not exist
 drop function func_1;
 ERROR 42000: FUNCTION test.func_1 does not exist
 prepare abc from "create event xyz on schedule at now() do select 123";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop event if exists xyz;
 create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() alter event xyz comment 'xyz';
@@ -2748,9 +2721,7 @@ drop procedure proc_1;
 create function func_1() returns int begin alter event xyz comment 'xyz'; return 1; end|
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "alter event xyz comment 'xyz'";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop event if exists xyz;
 create event xyz on schedule every 5 minute disable do select 123;
 create procedure proc_1() drop event xyz;
@@ -2765,9 +2736,7 @@ drop procedure proc_1;
 create function func_1() returns int begin drop event xyz; return 1; end|
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
 prepare abc from "drop event xyz";
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 deallocate prepare abc;
-ERROR HY000: Unknown prepared statement handler (abc) given to DEALLOCATE PREPARE
 drop table if exists t1;
 create table t1 (a int, b char(5)) engine=myisam;
 insert into t1 values (1, "one"), (2, "two"), (3, "three");
@@ -2856,12 +2825,10 @@ Level	Code	Message
 Note	1051	Unknown table 'test.t2'
 drop table if exists t1, t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 call proc_1();
 Level	Code	Message
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 drop procedure proc_1;
 create function func_1() returns int begin show warnings; return 1; end|
 ERROR 0A000: Not allowed to return a result set from a function
@@ -2880,12 +2847,10 @@ Level	Code	Message
 Note	1051	Unknown table 'test.t2'
 drop table if exists t1, t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 execute abc;
 Level	Code	Message
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 deallocate prepare abc;
 set @my_password="password";
 set @my_data="clear text to encode";
@@ -2983,7 +2948,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -2991,7 +2956,7 @@ execute stmt;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c` char(100) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL,
+  `c` char(100) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL,
   KEY `c` (`c`(10))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
@@ -3091,15 +3056,15 @@ DROP TABLE t1;
 CREATE TABLE t1(f1 INT);
 INSERT INTO t1 VALUES (1),(1);
 PREPARE stmt FROM 'EXPLAIN SELECT 1 FROM t1 WHERE (SELECT (SELECT 1 FROM t1 GROUP BY f1))';
+Warnings:
+Note	1249	Select 2 was reduced during optimization
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using temporary; Using filesort
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
@@ -4104,9 +4069,16 @@ DROP TABLE t1, t2;
 #
 CREATE TABLE t1 (a INT);
 PREPARE stmt FROM "SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1";
+execute stmt;
+1
+SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
+1
+insert into t1 values(1),(2);
+execute stmt;
 ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
 SELECT 1 FROM t1 GROUP BY 0 OR 18446744073709551615+1;
 ERROR 22003: BIGINT UNSIGNED value is out of range in '18446744073709551615 + 1'
+deallocate prepare stmt;
 drop table t1;
 # End of 5.3 tests
 #
@@ -4948,7 +4920,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 PREPARE stmt FROM CONCAT(NULL);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
 EXECUTE IMMEDIATE ? USING 'SELECT 1';
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '? USING 'SELECT 1'' at line 1
+Got one of the listed errors
 EXECUTE IMMEDIATE 10;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '10' at line 1
 EXECUTE IMMEDIATE TIME'10:20:30';
@@ -5180,19 +5152,19 @@ CHARSET(CONCAT(?,_latin1'a'))
 latin1
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5;
 COERCIBILITY(?)
-5
+6
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5;
 COERCIBILITY(?)
-5
+6
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING 5.5e0;
 COERCIBILITY(?)
-5
+6
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIME'10:20:30';
 COERCIBILITY(?)
-5
+6
 EXECUTE IMMEDIATE "SELECT COERCIBILITY(?)" USING TIMESTAMP'2001-01-01 10:20:30';
 COERCIBILITY(?)
-5
+6
 #
 # MDEV-14435 Different UNSIGNED flag of out user variable for YEAR parameter for direct vs prepared CALL
 #
@@ -5251,13 +5223,13 @@ DECLARE a DATETIME;
 CALL p1(a);
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 EXECUTE IMMEDIATE 'CALL p1(?)' USING a;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 BEGIN NOT ATOMIC
 DECLARE a DATETIME;
 PREPARE stmt FROM 'CALL p1(?)';
@@ -5265,7 +5237,7 @@ EXECUTE stmt  USING a;
 DEALLOCATE PREPARE stmt;
 END;
 $$
-ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 1
+ERROR 22007: Incorrect datetime value: '10' for column ``.``.`a` at row 0
 DROP PROCEDURE p1;
 #
 # MDEV-14454 Binary protocol returns wrong collation ID for SP OUT parameters
@@ -5277,7 +5249,7 @@ CREATE TABLE t1 AS SELECT @a AS c1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `c1` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -5564,15 +5536,13 @@ CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
 CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
 EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
 PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	0	100.00	
-2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 Warnings:
 Note	1003	/* select#1 */ update `test`.`t3` set `test`.`t3`.`c3` = (/* select#2 */ select count(NULL) from `test`.`t1` `a11` straight_join `test`.`t2` `a21` join `test`.`t1` `a12` where 0)
 DEALLOCATE PREPARE stmt;
@@ -5998,3 +5968,4 @@ DROP VIEW t1;
 #
 # End of 10.4 tests
 #
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

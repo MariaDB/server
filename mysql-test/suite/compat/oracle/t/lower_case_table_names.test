@@ -1,0 +1,9 @@
+SELECT @@lower_case_table_names;
+
+--echo #
+--echo # MDEV-33050 Build-in schemas like oracle_schema are accent insensitive
+--echo #
+
+SET NAMES utf8;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE TABLE t1 (a öracle_schema.date);

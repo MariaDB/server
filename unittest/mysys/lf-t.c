@@ -196,4 +196,3 @@ void do_tests()
   lf_hash_destroy(&lf_hash);
   lf_alloc_destroy(&lf_allocator);
 }
-

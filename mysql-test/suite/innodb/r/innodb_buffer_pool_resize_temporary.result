@@ -1,0 +1,13 @@
+SET @save_limit=@@GLOBAL.innodb_limit_optimistic_insert_debug;
+SET @save_size=@@GLOBAL.innodb_buffer_pool_size;
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+SET GLOBAL innodb_buffer_pool_size=16777216;
+CREATE TEMPORARY TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq FROM seq_1_to_200;
+SET GLOBAL innodb_buffer_pool_size=8388608;
+SELECT COUNT(*),MIN(a),MAX(a) FROM t1;
+COUNT(*)	MIN(a)	MAX(a)
+200	1	200
+DROP TEMPORARY TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
+SET GLOBAL innodb_buffer_pool_size=@save_size;

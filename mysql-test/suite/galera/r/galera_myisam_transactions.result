@@ -38,7 +38,7 @@ COUNT(*) = 0
 1
 DROP TABLE t1, t2, t3;
 SET SESSION lock_wait_timeout=2;
-SET GLOBAL wsrep_replicate_myisam= ON;
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 CREATE TEMPORARY TABLE t1 (i INT, PRIMARY KEY pk (i)) ENGINE=MyISAM;
 Warnings:
 Warning	1280	Name 'pk' ignored for PRIMARY key.
@@ -47,4 +47,4 @@ INSERT INTO t1 VALUES(4);
 DEALLOCATE PREPARE stmt;
 COMMIT;
 DROP TABLE t1;
-SET GLOBAL wsrep_replicate_myisam=OFF;
+SET GLOBAL wsrep_mode = DEFAULT;

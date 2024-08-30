@@ -63,6 +63,9 @@
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 --connection slave
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
 --connection master
 
 
@@ -188,6 +191,12 @@ INSERT INTO t1 VALUES ('Syncing slave', 5);
 eval CHANGE MASTER TO MASTER_DELAY = $time2;
 --enable_query_log
 --source include/start_slave.inc
+
+# Ensure that slave has started properly
+--connection master
+INSERT INTO t1 VALUES ('Syncing slave', 5);
+--save_master_pos
+--sync_slave_with_master
 
 --connection master
 INSERT INTO t1 VALUES (delay_on_slave(1), 6);
@@ -371,7 +380,8 @@ CHANGE MASTER TO MASTER_DELAY = 71;
 --source include/rpl_assert.inc
 
 --source include/stop_slave.inc
-RESET SLAVE;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 --echo [on master]
 --connection master
 RESET MASTER;

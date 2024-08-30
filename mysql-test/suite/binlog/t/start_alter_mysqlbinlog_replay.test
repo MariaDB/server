@@ -1,0 +1,61 @@
+#
+# MENT-662: Lag Free Alter On Slave
+#
+
+--echo #
+--echo # Test verifies replay of binary logs which contain
+--echo # SA/RA/CA works fine.
+--echo # Generate a binary log with alter events and use mysqlbinlog tool to
+--echo # generate a sql file for replay. Source it on an clean master and
+--echo # verify the correctness. Use the latest binlog and repeat the same
+--echo # process mentioned above and observe replay works fine.
+--echo #
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_statement.inc
+
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+
+create table t1 (f1 int primary key) engine=InnoDB;
+create table t2 (f1 int primary key, constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
+
+--error ER_CANT_CREATE_TABLE
+alter table t2 add constraint c1 foreign key (f1) references t1(f1);
+
+drop table t2, t1;
+select @@gtid_binlog_state;
+FLUSH LOGS;
+
+let MYSQLD_DATADIR= `select @@datadir;`;
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_1.sql
+
+--echo # reset the binlog
+RESET MASTER;
+--echo # execute the binlog
+--exec $MYSQL --port=$MASTER_MYPORT --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_1.sql"
+SELECT @@gtid_binlog_state;
+FLUSH LOGS;
+--echo # Replay 1: One more time to simulate S->S case
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_2.sql
+
+RESET MASTER;
+--echo # execute the binlog
+--exec $MYSQL --port=$MASTER_MYPORT --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_2.sql"
+SELECT @@gtid_binlog_state;
+FLUSH LOGS;
+--echo # Replay 2: One more time to simulate S->S case
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/slave_3.sql
+RESET MASTER;
+--echo # execute the binlog
+--exec $MYSQL --port=$MASTER_MYPORT --host=127.0.0.1 -e "source $MYSQLTEST_VARDIR/tmp/slave_3.sql"
+SELECT @@gtid_binlog_state;
+
+--echo # clean up
+remove_file $MYSQLTEST_VARDIR/tmp/slave_1.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/slave_2.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/slave_3.sql;
+RESET MASTER;
+
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase

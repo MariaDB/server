@@ -1,0 +1,110 @@
+--source include/have_debug.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic drop of view with crashes in a lot of different places
+#
+
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $engine_count=1;
+let $engines='aria';
+
+let $crash_count=4;
+let $crash_points='ddl_log_drop_before_delete_view', 'ddl_log_drop_after_delete_view', 'ddl_log_drop_before_binlog', 'ddl_log_drop_after_binlog';
+
+# Number of drops in the tested statement
+let $drops=2;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=DROP ;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+
+  --eval set @@default_storage_engine=$default_engine
+  --eval create table t1 (a int not null) $extra_option;
+  --eval create table t2 (b int not null) $extra_option;
+  insert into t1 values(1);
+  insert into t2 values(2);
+  flush tables;
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+    let $r=0;
+    while ($r < $drops)
+    {
+      inc $r;
+      create view v1 as select * from t1;
+      create view v2 as select * from t1;
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      echo "engine: $engine  crash point: $crash  position: $r";
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
+      let $errno=0;
+      --error 0,2013
+      DROP VIEW v1,v2;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      # Check which tables still exists
+      --list_files $MYSQLD_DATADIR/test v*
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      --source include/show_binlog_events.inc
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Really drop the views
+      --disable_warnings
+      drop view if exists v1,v2;
+      --enable_warnings
+    }
+  }
+  drop table t1,t2;
+}
+
+--enable_query_log

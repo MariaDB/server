@@ -1,0 +1,23 @@
+--echo #
+--echo # MDEV-32525 Server startup fails to validate invalid redirect_url
+--echo #
+--source include/not_embedded.inc
+
+let $error_log= $MYSQLTEST_VARDIR/log/mdev_32525.err;
+let SEARCH_FILE= $error_log;
+--source include/shutdown_mysqld.inc
+# Server start should fail with an invalid --redirect_url
+--error 1
+--exec $MYSQLD_LAST_CMD --redirect_url="mariadbaaa://test" > $error_log 2>&1
+let SEARCH_PATTERN= \[ERROR\].*Invalid redirect_url: mariadbaaa://test;
+--source include/search_pattern_in_file.inc
+
+# Test empty --redirect_url to avoid similar problems as in
+# MDEV-32254.
+--let restart_parameter=--redirect_url=
+--source include/start_mysqld.inc
+select @@redirect_url;
+
+--echo #
+--echo # end of test mdev_32525
+--echo #

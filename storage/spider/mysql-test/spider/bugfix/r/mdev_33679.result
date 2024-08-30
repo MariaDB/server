@@ -10,9 +10,13 @@ CREATE TABLE `t1` (`c` INT(10) UNSIGNED NOT NULL, `b` VARCHAR(255) NOT NULL , PR
 CREATE TABLE `t2` (`a` INT(10) UNSIGNED NOT NULL, `c` INT(10) UNSIGNED NOT NULL ) ENGINE=MYISAM;
 SET spider_same_server_link= on;
 CREATE TABLE `t1_spider` (`c` INT(10) UNSIGNED NOT NULL, `b` VARCHAR(255) NOT NULL , PRIMARY KEY (`c`) USING BTREE ) COMMENT='wrapper "mysql",srv "srv", table "t1"' ENGINE=SPIDER;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE `t2_spider` (`a` INT(10) UNSIGNED NOT NULL, `c` INT(10) UNSIGNED NOT NULL
 , PRIMARY KEY (`a`) USING BTREE
 ) COMMENT='wrapper "mysql",srv "srv",table "t2"' ENGINE=SPIDER;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t1_spider VALUES(1,'oooo');
 INSERT INTO t2_spider VALUES(1,1);
 SELECT t2_spider.a,t1_spider.c FRoM t2_spider LEFT join t1_spider ON (t2_spider.c = t1_spider.c) WHERE t2_spider.a = 1;

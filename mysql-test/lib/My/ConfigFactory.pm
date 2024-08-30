@@ -216,6 +216,7 @@ my @mysqld_rules=
 my @client_rules=
 (
  { 'character-sets-dir' => \&fix_charset_dir },
+ { 'plugin-dir' => sub { $::client_plugindir } },
 );
 
 
@@ -347,7 +348,14 @@ sub resolve_at_variable {
       "can be used to resolve '$option_name' for test '$self->{testname}'";
 
     my $value= $from_group->value($option_name);
-    $res .= $before.$value;
+    if (!defined($value))
+    {
+      ::mtr_verbose("group: $group_name  option_name: $option_name is undefined");
+    }
+    else
+    {
+      $res .= $before.$value;
+    }
   }
   $res .= $after;
 

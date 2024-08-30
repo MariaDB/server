@@ -1,5 +1,5 @@
 /* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+   Copyright (C) 2019-2022 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -53,19 +53,11 @@ uchar *spider_tbl_get_key(
   my_bool not_used __attribute__ ((unused))
 );
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-uchar *spider_pt_share_get_key(
-  SPIDER_PARTITION_SHARE *share,
+uchar *spider_wide_share_get_key(
+  SPIDER_WIDE_SHARE *share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
-
-uchar *spider_pt_handler_share_get_key(
-  SPIDER_PARTITION_HANDLER_SHARE *share,
-  size_t *length,
-  my_bool not_used __attribute__ ((unused))
-);
-#endif
 
 uchar *spider_link_get_key(
   SPIDER_LINK_FOR_HASH *link_for_hash,
@@ -141,18 +133,14 @@ int spider_increase_longlong_list(
 int spider_parse_connect_info(
   SPIDER_SHARE *share,
   TABLE_SHARE *table_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
-#endif
   uint create_table
 );
 
 int spider_set_connect_info_default(
   SPIDER_SHARE *share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_element *part_elem,
   partition_element *sub_elem,
-#endif
   TABLE_SHARE *table_share
 );
 
@@ -177,11 +165,12 @@ void spider_print_keys(
 );
 #endif
 
+void spider_create_conn_key_add_one(int* counter, char** target, char* src);
+
 int spider_create_conn_keys(
   SPIDER_SHARE *share
 );
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   const char *table_name,
   uint table_name_length,
@@ -190,15 +179,6 @@ SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
   bool need_to_create,
   int *error_num
 );
-#else
-SPIDER_LGTM_TBLHND_SHARE *spider_get_lgtm_tblhnd_share(
-  const char *table_name,
-  uint table_name_length,
-  bool locked,
-  bool need_to_create,
-  int *error_num
-);
-#endif
 
 void spider_free_lgtm_tblhnd_share_alloc(
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share,
@@ -208,12 +188,8 @@ void spider_free_lgtm_tblhnd_share_alloc(
 SPIDER_SHARE *spider_create_share(
   const char *table_name,
   TABLE_SHARE *table_share,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   partition_info *part_info,
-#endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value,
-#endif
   int *error_num
 );
 
@@ -240,39 +216,15 @@ void spider_update_link_status_for_share(
   long link_status
 );
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-SPIDER_PARTITION_SHARE *spider_get_pt_share(
+SPIDER_WIDE_SHARE *spider_get_wide_share(
   SPIDER_SHARE *share,
   TABLE_SHARE *table_share,
   int *error_num
 );
 
-int spider_free_pt_share(
-  SPIDER_PARTITION_SHARE *partition_share
+int spider_free_wide_share(
+  SPIDER_WIDE_SHARE *wide_share
 );
-
-void spider_copy_sts_to_pt_share(
-  SPIDER_PARTITION_SHARE *partition_share,
-  SPIDER_SHARE *share
-);
-
-void spider_copy_sts_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_PARTITION_SHARE *partition_share
-);
-
-void spider_copy_crd_to_pt_share(
-  SPIDER_PARTITION_SHARE *partition_share,
-  SPIDER_SHARE *share,
-  int fields
-);
-
-void spider_copy_crd_to_share(
-  SPIDER_SHARE *share,
-  SPIDER_PARTITION_SHARE *partition_share,
-  int fields
-);
-#endif
 
 int spider_open_all_tables(
   SPIDER_TRX *trx,
@@ -325,7 +277,6 @@ char *spider_create_table_name_string(
   const char *sub_name
 );
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
 void spider_get_partition_info(
   const char *table_name,
   uint table_name_length,
@@ -334,7 +285,6 @@ void spider_get_partition_info(
   partition_element **part_elem,
   partition_element **sub_elem
 );
-#endif
 
 int spider_get_sts(
   SPIDER_SHARE *share,
@@ -343,9 +293,7 @@ int spider_get_sts(
   ha_spider *spider,
   double sts_interval,
   int sts_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int sts_sync,
-#endif
   int sts_sync_level,
   uint flag
 );
@@ -358,9 +306,7 @@ int spider_get_crd(
   TABLE *table,
   double crd_interval,
   int crd_mode,
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   int crd_sync,
-#endif
   int crd_sync_level
 );
 
@@ -381,15 +327,6 @@ void spider_delete_init_error_table(
 bool spider_check_pk_update(
   TABLE *table
 );
-
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-bool spider_check_hs_pk_update(
-  ha_spider *spider,
-  key_range *key
-);
-#endif
-#endif
 
 void spider_set_tmp_share_pointer(
   SPIDER_SHARE *tmp_share,
@@ -459,7 +396,6 @@ bool spider_check_direct_order_limit(
   ha_spider *spider
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 bool spider_all_part_in_order(
   ORDER *order,
   TABLE *table
@@ -469,11 +405,10 @@ Field *spider_field_exchange(
   handler *handler,
   Field *field
 );
-#endif
 
 int spider_set_direct_limit_offset(
-                                   ha_spider*		spider
-                                   );
+  ha_spider *spider
+);
 
 bool spider_check_index_merge(
   TABLE *table,
@@ -494,7 +429,6 @@ double spider_rand(
   uint32 rand_source
 );
 
-#ifdef SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 int spider_discover_table_structure_internal(
   SPIDER_TRX *trx,
   SPIDER_SHARE *spider_share,
@@ -507,9 +441,7 @@ int spider_discover_table_structure(
   TABLE_SHARE *share,
   HA_CREATE_INFO *info
 );
-#endif
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_create_spider_object_for_share(
   SPIDER_TRX *trx,
   SPIDER_SHARE *share,
@@ -559,4 +491,9 @@ void spider_table_remove_share_from_sts_thread(
 void spider_table_remove_share_from_crd_thread(
   SPIDER_SHARE *share
 );
-#endif
+uchar *spider_duplicate_char(
+  uchar *dst,
+  uchar esc,
+  uchar *src,
+  uint src_lgt
+);

@@ -43,9 +43,12 @@ int my_delete(const char *name, myf MyFlags)
     err= unlink(name);
 #endif
 
-  if(err)
+  if ((MyFlags & MY_IGNORE_ENOENT) && errno == ENOENT)
+    DBUG_RETURN(0);
+
+  if (err)
   {
-    my_errno=errno;
+    my_errno= errno;
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_DELETE, MYF(ME_BELL), name, errno);
   }
@@ -78,6 +81,7 @@ int my_delete(const char *name, myf MyFlags)
 
   Symbolic link are deleted without renaming. Directories are not deleted.
 */
+#include <my_rdtsc.h>
 
 static int my_win_unlink(const char *name)
 {
@@ -172,7 +176,7 @@ static int my_win_unlink(const char *name)
       goto error;
     }
 
-    tsc= __rdtsc();
+    tsc= my_timer_cycles();
     my_snprintf(unique_filename, sizeof(unique_filename), "%s.%llx.deleted",
                 name, tsc);
     if (!MoveFile(name, unique_filename))
@@ -204,7 +208,7 @@ int my_rmtree(const char *dir, myf MyFlags)
   char path[FN_REFLEN];
   char sep[] = { FN_LIBCHAR, 0 };
   int err = 0;
-  uint i;
+  size_t i;
 
   MY_DIR *dir_info = my_dir(dir, MYF(MY_DONT_SORT | MY_WANT_STAT));
   if (!dir_info)

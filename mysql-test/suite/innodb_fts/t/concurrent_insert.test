@@ -48,5 +48,33 @@ connection con1;
 reap;
 drop table t1, t2;
 connection default;
-set DEBUG_SYNC=RESET;
 SET @@GLOBAL.debug_dbug = @saved_dbug;
+disconnect con1;
+
+--echo #
+--echo #  MDEV-25984  Assertion `max_doc_id > 0' failed in fts_init_doc_id()
+--echo #
+call mtr.add_suppression("InnoDB: \\(Lock wait timeout\\) while getting next doc id for table `test`.`t1`");
+
+CREATE TABLE t1(f1 CHAR(100), f2 INT, fulltext(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES("mariadb", 1), ("innodb", 1);
+--source include/restart_mysqld.inc
+SET DEBUG_SYNC='innodb_rollback_after_fts_lock SIGNAL insert_dml WAIT_FOR ddl_continue';
+SEND ALTER TABLE t1 ADD UNIQUE INDEX(f2);
+
+connect(con1,localhost,root,,,);
+SET DEBUG_SYNC='now WAIT_FOR insert_dml';
+SET DEBUG_SYNC='fts_cmp_set_sync_doc_id_retry SIGNAL ddl_continue WAIT_FOR dml_finish';
+send INSERT INTO t1 VALUES("index", 2);
+
+connection default;
+--error ER_DUP_ENTRY
+reap;
+SET DEBUG_SYNC="now SIGNAL dml_finish";
+connection con1;
+reap;
+SHOW CREATE TABLE t1;
+connection default;
+disconnect con1;
+DROP TABLE t1;
+set DEBUG_SYNC=RESET;

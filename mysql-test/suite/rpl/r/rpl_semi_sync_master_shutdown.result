@@ -4,7 +4,7 @@ connection master;
 SET @@GLOBAL.rpl_semi_sync_master_enabled = 1;
 connection slave;
 include/stop_slave.inc
-SET @@GLOBAL. rpl_semi_sync_slave_enabled = 1;
+SET @@GLOBAL.rpl_semi_sync_slave_enabled = 1;
 include/start_slave.inc
 connection master;
 CREATE TABLE t1 (a INT);
@@ -21,7 +21,6 @@ connection slave;
 include/wait_for_slave_sql_to_start.inc
 include/wait_for_slave_io_to_start.inc
 connection master;
-SET @@GLOBAL.debug_dbug="";
 SET @@GLOBAL. rpl_semi_sync_master_enabled = 0;
 connection master;
 DROP TABLE t1;

@@ -44,3 +44,23 @@ NEXTVAL(s1)
 COMMIT;
 DROP TABLE t1;
 DROP SEQUENCE s1;
+#
+# MDEV-28152 Features for sequence
+#
+CREATE SEQUENCE s1 as mediumint unsigned ENGINE=InnoDB;
+PREPARE stmt FROM "CREATE TABLE s2 LIKE s1";
+execute stmt;
+drop table s2;
+execute stmt;
+show create sequence s2;
+Table	Create Table
+s2	CREATE SEQUENCE `s2` as mediumint unsigned start with 1 minvalue 1 maxvalue 16777214 increment by 1 cache 1000 nocycle ENGINE=InnoDB
+drop table s2;
+execute stmt;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	16777214	1	1	1000	0	0
+DROP SEQUENCE s1, s2;
+#
+# End of 11.5 tests
+#

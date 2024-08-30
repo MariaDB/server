@@ -1,0 +1,98 @@
+#
+#   This test ensures that a table share's database name is not freed when
+# using row based replication with triggers that open different databases
+#
+#
+# References:
+#   MDEV-29894: Calling a function from a different database in a slave side
+#               trigger crashes
+#
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+--connection slave
+--let $old_slave_run_triggers= `SELECT @@global.slave_run_triggers_for_rbr`
+set global slave_run_triggers_for_rbr=1;
+
+--connection master
+CREATE TABLE t1 (a int);
+--sync_slave_with_master
+
+--connection slave
+CREATE DATABASE db2;
+CREATE FUNCTION db2.get_value(a INT) RETURNS int(2)  RETURN 0;
+
+--echo #
+--echo # Test Insert_rows_log_event
+
+--connection slave
+DELIMITER //;
+CREATE TRIGGER tr_ins BEFORE INSERT ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+DELIMITER ;//
+
+--connection master
+INSERT INTO t1 VALUES (1);
+--sync_slave_with_master
+
+--connection slave
+DROP TRIGGER tr_ins;
+
+
+--echo #
+--echo # Test Update_rows_log_event
+--connection master
+--let $row_val=5
+--eval INSERT INTO t1 VALUES ($row_val)
+--sync_slave_with_master
+
+--connection slave
+DELIMITER //;
+CREATE TRIGGER tr_upd BEFORE UPDATE ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+DELIMITER ;//
+
+--connection master
+--eval UPDATE t1 SET a=a+1 WHERE a=$row_val
+--sync_slave_with_master
+
+--connection slave
+DROP TRIGGER tr_upd;
+
+
+--echo #
+--echo # Test Delete_rows_log_event
+--connection master
+--let $row_val=7
+--eval INSERT INTO t1 VALUES ($row_val)
+--sync_slave_with_master
+
+--connection slave
+DELIMITER //;
+CREATE TRIGGER tr_del BEFORE DELETE ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+DELIMITER ;//
+
+--connection master
+--eval DELETE FROM t1 WHERE a=$row_val
+--sync_slave_with_master
+
+--connection slave
+DROP TRIGGER tr_del;
+
+
+--echo #
+--echo # Cleanup
+--connection slave
+--eval SET GLOBAL slave_run_triggers_for_rbr=$old_slave_run_triggers
+DROP DATABASE db2;
+--connection master
+DROP TABLE t1;
+
+--source include/rpl_end.inc

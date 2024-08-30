@@ -70,6 +70,9 @@ extern struct wsrep_service_st {
   void                        (*wsrep_thd_self_abort_func)(MYSQL_THD thd);
   int                         (*wsrep_thd_append_key_func)(MYSQL_THD thd, const struct wsrep_key* key,
                                                            int n_keys, enum Wsrep_service_key_type);
+  int                         (*wsrep_thd_append_table_key_func)(MYSQL_THD thd, const char* db,
+                                                           const char* table, enum Wsrep_service_key_type);
+  my_bool                     (*wsrep_thd_is_local_transaction)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_client_state_str_func)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_client_mode_str_func)(const MYSQL_THD thd);
   const char*                 (*wsrep_thd_transaction_state_str_func)(const MYSQL_THD thd);
@@ -84,11 +87,15 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_get_debug_func)();
   void                        (*wsrep_commit_ordered_func)(MYSQL_THD thd);
   my_bool                     (*wsrep_thd_is_applying_func)(const MYSQL_THD thd);
+  ulong                       (*wsrep_OSU_method_get_func)(const MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_has_ignored_error_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_set_ignored_error_func)(MYSQL_THD thd, my_bool val);
   void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
                                                                 unsigned long long trx_id);
   void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_kill_UNLOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_set_wsrep_PA_unsafe_func)(MYSQL_THD thd);
+  uint32                      (*wsrep_get_domain_id_func)();
 } *wsrep_service;
 
 #define MYSQL_SERVICE_WSREP_INCLUDED
@@ -119,6 +126,8 @@ extern struct wsrep_service_st {
 #define wsrep_thd_is_local(T) wsrep_service->wsrep_thd_is_local_func(T)
 #define wsrep_thd_self_abort(T) wsrep_service->wsrep_thd_self_abort_func(T)
 #define wsrep_thd_append_key(T,W,N,K) wsrep_service->wsrep_thd_append_key_func(T,W,N,K)
+#define wsrep_thd_append_table_key(T,D,B,K) wsrep_service->wsrep_thd_append_table_key_func(T,D,B,K)
+#define wsrep_thd_is_local_transaction(T) wsrep_service->wsrep_thd_is_local_transaction_func(T)
 #define wsrep_thd_client_state_str(T) wsrep_service->wsrep_thd_client_state_str_func(T)
 #define wsrep_thd_client_mode_str(T) wsrep_service->wsrep_thd_client_mode_str_func(T)
 #define wsrep_thd_transaction_state_str(T) wsrep_service->wsrep_thd_transaction_state_str_func(T)
@@ -131,8 +140,12 @@ extern struct wsrep_service_st {
 #define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
 #define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
+#define wsrep_OSU_method_get(T) wsrep_service->wsrep_OSU_method_get_func(T)
+#define wsrep_thd_has_ignored_error(T) wsrep_service->wsrep_thd_has_ignored_error_func(T)
+#define wsrep_thd_set_ignored_error(T,V) wsrep_service->wsrep_thd_set_ignored_error_func(T,V)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
 #define wsrep_thd_set_PA_unsafe(T) wsrep_service->wsrep_thd_set_PA_unsafe_func(T)
+#define wsrep_get_domain_id(T) wsrep_service->wsrep_get_domain_id_func(T)
 #else
 
 #define MYSQL_SERVICE_WSREP_STATIC_INCLUDED
@@ -220,6 +233,13 @@ extern "C" int wsrep_thd_append_key(MYSQL_THD thd,
                                     int n_keys,
                                     enum Wsrep_service_key_type);
 
+extern "C" int wsrep_thd_append_table_key(MYSQL_THD thd,
+                                    const char* db,
+                                    const char* table,
+                                    enum Wsrep_service_key_type);
+
+extern "C" my_bool wsrep_thd_is_local_transaction(const MYSQL_THD thd);
+
 extern const char* wsrep_sr_table_name_full;
 
 extern "C" const char* wsrep_get_sr_table_name();
@@ -228,9 +248,13 @@ extern "C" my_bool wsrep_get_debug();
 
 extern "C" void wsrep_commit_ordered(MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
+extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd);
+extern "C" my_bool wsrep_thd_has_ignored_error(const MYSQL_THD thd);
+extern "C" void wsrep_thd_set_ignored_error(MYSQL_THD thd, my_bool val);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);
 /* declare parallel applying unsafety for the THD */
 extern "C" void wsrep_thd_set_PA_unsafe(MYSQL_THD thd);
+extern "C" uint32 wsrep_get_domain_id();
 #endif
 #endif /* MYSQL_SERVICE_WSREP_INCLUDED */

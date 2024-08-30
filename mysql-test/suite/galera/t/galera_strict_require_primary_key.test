@@ -1,0 +1,143 @@
+#
+# Write a warning to error log if Galera replicates table with no primary key
+#
+# For InnoDB
+# * push warning to client if wsrep_mode == REQUIRED_PRIMARY_KEY
+# * push warning to error log if log_warnings > 1
+# For MyIsam
+# * push warning to client if wsrep_mode == REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM
+# * push warning to error log if log_warnings > 1
+# For Aria
+# * push warning to client if wsrep_mode == REQUIRED_PRIMARY_KEY,REPLICATE_ARIA
+# * push warning to error log if log_warnings > 1
+#
+# In both cases apply flood control if >= 10 same warning
+#
+--source include/galera_cluster.inc
+--source include/have_aria.inc
+
+call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table .*");
+
+CREATE TABLE t1(a int, b varchar(50)) ENGINE=INNODB;
+CREATE TABLE t2(a int, b varchar(50)) ENGINE=MYISAM;
+CREATE TABLE t3(a int, b varchar(50)) ENGINE=MEMORY;
+CREATE TABLE t4(a int, b varchar(50)) ENGINE=ARIA;
+
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA";
+SET GLOBAL log_warnings=2;
+
+INSERT INTO t1 values (1,'test1');
+INSERT INTO t2 values (1,'myisam1');
+INSERT INTO t3 values (1,'memory1');
+INSERT INTO t4 values (1,'aria1');
+
+# these will not replicate
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_ARIA";
+INSERT INTO t2 values (2,'myisam2');
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM";
+INSERT INTO t4 values (2,'ARIA2');
+
+# these should not write warning to error log
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA";
+SET GLOBAL log_warnings=1;
+INSERT INTO t1 values (21,'not1');
+INSERT INTO t1 values (22,'not2');
+INSERT INTO t2 values (21,'not1');
+INSERT INTO t2 values (22,'not2');
+INSERT INTO t4 values (21,'not1');
+INSERT INTO t4 values (22,'not2');
+
+--let $assert_count = 3
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.
+--let $assert_select = WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.
+--source include/assert_grep.inc
+
+# force flood
+SET GLOBAL log_warnings=2;
+INSERT INTO t1 values (6,'test6');
+INSERT INTO t1 values (7,'test7');
+INSERT INTO t1 values (8,'test8');
+INSERT INTO t1 values (9,'test9');
+INSERT INTO t1 values (10,'test10');
+INSERT INTO t1 values (11,'test11');
+INSERT INTO t1 values (12,'test12');
+INSERT INTO t1 values (13,'test13');
+
+INSERT INTO t1 values (33,'test13');
+INSERT INTO t1 values (34,'test13');
+INSERT INTO t1 values (35,'test13');
+INSERT INTO t1 values (36,'test13');
+INSERT INTO t1 values (37,'test13');
+INSERT INTO t1 values (38,'test13');
+INSERT INTO t1 values (39,'test13');
+
+INSERT INTO t2 values (6,'test6');
+INSERT INTO t2 values (7,'test7');
+INSERT INTO t2 values (8,'test8');
+INSERT INTO t2 values (9,'test9');
+INSERT INTO t2 values (10,'test10');
+INSERT INTO t2 values (11,'test11');
+INSERT INTO t2 values (12,'test12');
+INSERT INTO t2 values (13,'test13');
+
+INSERT INTO t2 values (33,'test13');
+INSERT INTO t2 values (34,'test13');
+INSERT INTO t2 values (35,'test13');
+INSERT INTO t2 values (36,'test13');
+INSERT INTO t2 values (37,'test13');
+INSERT INTO t2 values (38,'test13');
+INSERT INTO t2 values (39,'test13');
+
+INSERT INTO t4 values (6,'test6');
+INSERT INTO t4 values (7,'test7');
+INSERT INTO t4 values (8,'test8');
+INSERT INTO t4 values (9,'test9');
+INSERT INTO t4 values (10,'test10');
+INSERT INTO t4 values (11,'test11');
+INSERT INTO t4 values (12,'test12');
+INSERT INTO t4 values (13,'test13');
+
+INSERT INTO t4 values (33,'test13');
+INSERT INTO t4 values (34,'test13');
+INSERT INTO t4 values (35,'test13');
+INSERT INTO t4 values (36,'test13');
+INSERT INTO t4 values (37,'test13');
+INSERT INTO t4 values (38,'test13');
+INSERT INTO t4 values (39,'test13');
+
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+SELECT COUNT(*) AS EXPECT_19 FROM t2;
+SELECT COUNT(*) AS EXPECT_1 FROM t3;
+SELECT COUNT(*) AS EXPECT_19 FROM t4;
+
+--connection node_2
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+SELECT COUNT(*) AS EXPECT_18 FROM t2;
+SELECT COUNT(*) AS EXPECT_0 FROM t3;
+SELECT COUNT(*) AS EXPECT_18 FROM t4;
+
+--connection node_1
+DROP TABLE t1,t2,t3,t4;
+
+#
+# Verify warning is on error log and check that no flood
+#
+--let $assert_count = 
+--let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_text = WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.
+--let $assert_select = WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.
+--let $assert_match = WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.
+--source include/assert_grep.inc
+--let $assert_count = 1
+--let $assert_text = WSREP: Suppressing warnings of type 'WSREP_REQUIRE_PRIMARY_KEY' for up to 300 seconds because of flooding
+--let $assert_select = WSREP: Suppressing warnings of type 'WSREP_REQUIRE_PRIMARY_KEY' for up to 300 seconds because of flooding
+--let $assert_match = 
+--source include/assert_grep.inc
+
+# reset env
+--disable_query_log
+SET GLOBAL log_warnings=DEFAULT;
+SET GLOBAL wsrep_mode=DEFAULT;
+--disable_query_log
+

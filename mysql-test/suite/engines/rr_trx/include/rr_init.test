@@ -1,23 +1,22 @@
 #
 # Specify storage engine to use. Variable $engine is set in wrapper test.
 #
-eval SET @@storage_engine = $engine;
-if (`SELECT @@storage_engine LIKE 'InnoDB' AND @@version LIKE '%6.%'`)
+eval SET @@default_storage_engine = $engine;
+if (`SELECT @@default_storage_engine LIKE 'InnoDB' AND @@version LIKE '%6.%'`)
 {
     # Need this due to Bug#43447 - Crash when executing SELECT ... LIMIT n FOR UPDATE query
     # Hopefully temporary...
     # Not applicable to 5.1 server or earlier.
     --disable_query_log
     SET GLOBAL optimizer_use_mrr='disable';
-    SET GLOBAL engine_condition_pushdown=off;
     --enable_query_log
 }
 
 # Verify default storage engine.
-SHOW VARIABLES LIKE 'storage_engine';
+SHOW VARIABLES LIKE 'default_storage_engine';
 
 # Verify default isolation level
-SHOW VARIABLES LIKE 'tx_isolation';
+SHOW VARIABLES LIKE 'transaction_isolation';
 
 #
 # Create table for keeping track of test metadata/statistics (counters etc.).

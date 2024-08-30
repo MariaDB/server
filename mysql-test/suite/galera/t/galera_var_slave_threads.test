@@ -19,7 +19,7 @@ CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=InnoDB;
 CREATE TABLE t2 (f1 INT AUTO_INCREMENT PRIMARY KEY) Engine=InnoDB;
 
 --connection node_2
-CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread.");
+CALL mtr.add_suppression("WSREP: Refusing exit for the last slave thread\\.");
 # Setting wsrep_slave_threads to zero triggers a warning
 SET GLOBAL wsrep_slave_threads = 0;
 SHOW WARNINGS;

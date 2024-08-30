@@ -25,6 +25,11 @@ connect (con3,localhost,root,,);
 connection con1;
 set @@autocommit=0;
 CREATE TABLE t1(s1 INT UNIQUE) ENGINE=innodb;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent DML won't happen on the table
+INSERT INTO t1 VALUES (100);
+COMMIT;
+
 INSERT INTO t1 VALUES (1);
 
 connection con2;

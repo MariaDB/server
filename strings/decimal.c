@@ -225,9 +225,10 @@ static inline int ROUND_UP(int x)
                       to->buf and to->len must be set.
 */
 
-void max_decimal(int precision, int frac, decimal_t *to)
+void max_decimal(decimal_digits_t precision, decimal_digits_t frac,
+                 decimal_t *to)
 {
-  int intpart;
+  decimal_digits_t intpart;
   dec1 *buf= to->buf;
   DBUG_ASSERT(precision && precision >= frac);
 
@@ -252,9 +253,10 @@ void max_decimal(int precision, int frac, decimal_t *to)
 }
 
 
-static dec1 *remove_leading_zeroes(const decimal_t *from, int *intg_result)
+static dec1 *remove_leading_zeroes(const decimal_t *from,
+                                   decimal_digits_t *intg_result)
 {
-  int intg= from->intg, i;
+  decimal_digits_t intg= from->intg, i;
   dec1 *buf0= from->buf;
   i= ((intg - 1) % DIG_PER_DEC1) + 1;
   while (intg > 0 && *buf0 == 0)
@@ -283,9 +285,9 @@ static dec1 *remove_leading_zeroes(const decimal_t *from, int *intg_result)
     from    number for processing
 */
 
-int decimal_actual_fraction(const decimal_t *from)
+decimal_digits_t decimal_actual_fraction(const decimal_t *from)
 {
-  int frac= from->frac, i;
+  decimal_digits_t frac= from->frac, i;
   dec1 *buf0= from->buf + ROUND_UP(from->intg) + ROUND_UP(frac) - 1;
 
   if (frac == 0)
@@ -331,11 +333,13 @@ int decimal_actual_fraction(const decimal_t *from)
 */
 
 int decimal2string(const decimal_t *from, char *to, int *to_len,
-                   int fixed_precision, int fixed_decimals,
+                   decimal_digits_t fixed_precision,
+                   decimal_digits_t fixed_decimals,
                    char filler)
 {
   /* {intg_len, frac_len} output widths; {intg, frac} places in input */
-  int len, intg, frac= from->frac, i, intg_len, frac_len, fill;
+  int len, frac= from->frac, i, intg_len, frac_len, fill, intg;
+  decimal_digits_t intg_tmp;
   /* number digits before decimal point */
   int fixed_intg= (fixed_precision ?
                    (fixed_precision - fixed_decimals) : 0);
@@ -346,7 +350,8 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
   DBUG_ASSERT(*to_len >= 2+ (int) from->sign);
 
   /* removing leading zeroes */
-  buf0= remove_leading_zeroes(from, &intg);
+  buf0= remove_leading_zeroes(from, &intg_tmp);
+  intg= (int) intg_tmp;               /* intg can be negative later */
   if (unlikely(intg+frac==0))
   {
     intg=1;
@@ -415,7 +420,10 @@ int decimal2string(const decimal_t *from, char *to, int *to_len,
 
   fill= intg_len - intg;
   if (intg == 0)
+  {
+    DBUG_ASSERT(fill > 0);
     fill--; /* symbol 0 before digital point */
+  }
   for(; fill; fill--)
     *s++=filler;
   if (intg)
@@ -1276,11 +1284,12 @@ int decimal2longlong(const decimal_t *from, longlong *to)
 
                 7E F2 04 C7 2D FB 2D
 */
-int decimal2bin(const decimal_t *from, uchar *to, int precision, int frac)
+int decimal2bin(const decimal_t *from, uchar *to, decimal_digits_t precision,
+                decimal_digits_t frac)
 {
   dec1 mask=from->sign ? -1 : 0, *buf1=from->buf, *stop1;
   int error=E_DEC_OK, intg=precision-frac,
-      isize1, intg1, intg1x, from_intg,
+      isize1, intg1, intg1x,
       intg0=intg/DIG_PER_DEC1,
       frac0=frac/DIG_PER_DEC1,
       intg0x=intg-intg0*DIG_PER_DEC1,
@@ -1290,6 +1299,7 @@ int decimal2bin(const decimal_t *from, uchar *to, int precision, int frac)
       isize0=intg0*sizeof(dec1)+dig2bytes[intg0x],
       fsize0=frac0*sizeof(dec1)+dig2bytes[frac0x],
       fsize1=frac1*sizeof(dec1)+dig2bytes[frac1x];
+  decimal_digits_t from_intg;
   const int orig_isize0= isize0;
   const int orig_fsize0= fsize0;
   uchar *orig_to= to;
@@ -1411,7 +1421,8 @@ int decimal2bin(const decimal_t *from, uchar *to, int precision, int frac)
     E_DEC_OK/E_DEC_TRUNCATED/E_DEC_OVERFLOW
 */
 
-int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale)
+int bin2decimal(const uchar *from, decimal_t *to, decimal_digits_t precision,
+                decimal_digits_t scale)
 {
   int error=E_DEC_OK, intg=precision-scale,
       intg0=intg/DIG_PER_DEC1, frac0=scale/DIG_PER_DEC1,
@@ -1530,9 +1541,9 @@ err:
     (multiply by sizeof(dec1) to get the size if bytes)
 */
 
-int decimal_size(int precision, int scale)
+uint decimal_size(decimal_digits_t precision, decimal_digits_t scale)
 {
-  DBUG_ASSERT(scale >= 0 && precision > 0 && scale <= precision);
+  DBUG_ASSERT(precision > 0 && scale <= precision);
   return ROUND_UP(precision-scale)+ROUND_UP(scale);
 }
 
@@ -1543,13 +1554,12 @@ int decimal_size(int precision, int scale)
     size in bytes
 */
 
-int decimal_bin_size(int precision, int scale)
+uint decimal_bin_size(decimal_digits_t precision, decimal_digits_t scale)
 {
   int intg=precision-scale,
       intg0=intg/DIG_PER_DEC1, frac0=scale/DIG_PER_DEC1,
       intg0x=intg-intg0*DIG_PER_DEC1, frac0x=scale-frac0*DIG_PER_DEC1;
 
-  DBUG_ASSERT(scale >= 0);
   DBUG_ASSERT(precision > 0);
   DBUG_ASSERT(scale <= precision);
   return intg0*sizeof(dec1)+dig2bytes[intg0x]+
@@ -1796,7 +1806,7 @@ done:
     multiply by sizeof(dec1)
 */
 
-int decimal_result_size(decimal_t *from1, decimal_t *from2, char op, int param)
+uint decimal_result_size(decimal_t *from1, decimal_t *from2, char op, int param)
 {
   switch (op) {
   case '-':
@@ -1812,7 +1822,7 @@ int decimal_result_size(decimal_t *from1, decimal_t *from2, char op, int param)
     return ROUND_UP(from1->intg+from2->intg+1+from1->frac+from2->frac+param);
   default: DBUG_ASSERT(0);
   }
-  return -1; /* shut up the warning */
+  return 0; /* shut up the warning */
 }
 
 static int do_add(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
@@ -2033,9 +2043,9 @@ static int do_sub(const decimal_t *from1, const decimal_t *from2, decimal_t *to)
   return error;
 }
 
-int decimal_intg(const decimal_t *from)
+decimal_digits_t decimal_intg(const decimal_t *from)
 {
-  int res;
+  decimal_digits_t res;
   remove_leading_zeroes(from, &res);
   return res;
 }
@@ -2633,7 +2643,8 @@ void test_d2f(const char *s, int ex)
 
 void test_d2b2d(const char *str, int p, int s, const char *orig, int ex)
 {
-  char s1[100], buf[100], *end;
+  char s1[100], *end;
+  uchar buf[100];
   int res, i, size=decimal_bin_size(p, s);
 
   sprintf(s1, "'%s'", str);
@@ -2951,27 +2962,27 @@ int main()
   test_f2d(1234500009876.5, 0);
 
   printf("==== ulonglong2decimal ====\n");
-  test_ull2d(ULL(12345), "12345", 0);
-  test_ull2d(ULL(0), "0", 0);
-  test_ull2d(ULL(18446744073709551615), "18446744073709551615", 0);
+  test_ull2d(12345ULL, "12345", 0);
+  test_ull2d(0ULL, "0", 0);
+  test_ull2d(18446744073709551615ULL, "18446744073709551615", 0);
 
   printf("==== decimal2ulonglong ====\n");
   test_d2ull("12345", "12345", 0);
   test_d2ull("0", "0", 0);
   test_d2ull("18446744073709551615", "18446744073709551615", 0);
-  test_d2ull("18446744073709551616", "18446744073", 2);
+  test_d2ull("18446744073709551616", "18446744073709551615", 2);
   test_d2ull("-1", "0", 2);
   test_d2ull("1.23", "1", 1);
-  test_d2ull("9999999999999999999999999.000", "9999999999999999", 2);
+  test_d2ull("9999999999999999999999999.000", "18446744073709551615", 2);
 
   printf("==== longlong2decimal ====\n");
-  test_ll2d(LL(-12345), "-12345", 0);
-  test_ll2d(LL(-1), "-1", 0);
-  test_ll2d(LL(-9223372036854775807), "-9223372036854775807", 0);
-  test_ll2d(ULL(9223372036854775808), "-9223372036854775808", 0);
+  test_ll2d(-12345LL, "-12345", 0);
+  test_ll2d(-1LL, "-1", 0);
+  test_ll2d(-9223372036854775807LL, "-9223372036854775807", 0);
+  test_ll2d(9223372036854775808ULL, "-9223372036854775808", 0);
 
   printf("==== decimal2longlong ====\n");
-  test_d2ll("18446744073709551615", "18446744073", 2);
+  test_d2ll("18446744073709551615", "9223372036854775807", 2);
   test_d2ll("-1", "-1", 0);
   test_d2ll("-1.23", "-1", 1);
   test_d2ll("-9223372036854775807", "-9223372036854775807", 0);
@@ -3145,12 +3156,12 @@ int main()
 
   printf("==== decimal2string ====\n");
   test_pr("123.123", 0, 0, 0, "123.123", 0);
-  test_pr("123.123", 7, 3, '0', "123.123", 0);
-  test_pr("123.123", 9, 3, '0', "00123.123", 0);
-  test_pr("123.123", 9, 4, '0', "0123.1230", 0);
-  test_pr("123.123", 9, 5, '0', "123.12300", 0);
-  test_pr("123.123", 9, 2, '0', "000123.12", 1);
-  test_pr("123.123", 9, 6, '0', "23.123000", 2);
+  test_pr("123.123", 7, 3, '0', "0123.123", 0);
+  test_pr("123.123", 9, 3, '0', "000123.123", 0);
+  test_pr("123.123", 9, 4, '0', "00123.1230", 0);
+  test_pr("123.123", 9, 5, '0', "0123.12300", 0);
+  test_pr("123.123", 9, 2, '0', "0000123.12", 1);
+  test_pr("123.123", 8, 6, '0', "23.123000", 2);
 
   printf("==== decimal_shift ====\n");
   test_sh("123.123", 1, "1231.23", 0);

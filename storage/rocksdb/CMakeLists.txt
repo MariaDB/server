@@ -10,6 +10,7 @@ SET(CPACK_RPM_rocksdb-engine_PACKAGE_DESCRIPTION "The RocksDB storage engine is 
 at maximising storage efficiency while maintaining InnoDB-like performance." PARENT_SCOPE)
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-range-loop-construct)
+MY_CHECK_AND_SET_COMPILER_FLAG(-Wno-invalid-offsetof)
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
@@ -58,6 +59,9 @@ endif()
 #
 IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
+ENDIF()
+IF(MSVC_ARM64)
+ SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
 ENDIF()
 
 #
@@ -148,8 +152,12 @@ else()
   SET(ATOMIC_EXTRA_LIBS)
 endif()
 
+# don't use compression providers, there are standalone executables below
+GET_PROPERTY(dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
+LIST(REMOVE_ITEM dirs ${CMAKE_SOURCE_DIR}/include/providers)
+SET_PROPERTY(DIRECTORY PROPERTY INCLUDE_DIRECTORIES "${dirs}")
+
 MYSQL_ADD_PLUGIN(rocksdb ${ROCKSDB_SE_SOURCES} MODULE_ONLY STORAGE_ENGINE
-                 MODULE_OUTPUT_NAME ha_rocksdb
                  LINK_LIBRARIES ${ATOMIC_EXTRA_LIBS}
                  COMPONENT rocksdb-engine)
 
@@ -158,7 +166,7 @@ IF(NOT TARGET rocksdb)
   RETURN()
 ENDIF()
 
-
+INSTALL_MANPAGES(rocksdb-engine mariadb-ldb.1 myrocks_hotbackup.1)
 
 CHECK_CXX_SOURCE_COMPILES("
 #if defined(_MSC_VER) && !defined(__thread)
@@ -197,7 +205,7 @@ ADD_CONVENIENCE_LIBRARY(rocksdb_aux_lib
 ADD_DEPENDENCIES(rocksdb_aux_lib GenError)
 
 # MARIAROCKS-TODO: how to properly depend on -lrt ?
-TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARY})
+TARGET_LINK_LIBRARIES(rocksdb_aux_lib rocksdblib ${ZLIB_LIBRARIES})
 if (UNIX AND NOT APPLE AND NOT CMAKE_SYSTEM_NAME STREQUAL "OpenBSD")
   TARGET_LINK_LIBRARIES(rocksdb_aux_lib -lrt)
 endif()
@@ -263,8 +271,8 @@ ADD_LIBRARY(rocksdb_tools STATIC
 MYSQL_ADD_EXECUTABLE(sst_dump rocksdb/tools/sst_dump.cc COMPONENT rocksdb-engine)
 TARGET_LINK_LIBRARIES(sst_dump rocksdblib)
 
-MYSQL_ADD_EXECUTABLE(mysql_ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
-TARGET_LINK_LIBRARIES(mysql_ldb rocksdb_tools rocksdb_aux_lib dbug)
+MYSQL_ADD_EXECUTABLE(mariadb-ldb tools/mysql_ldb.cc COMPONENT rocksdb-engine)
+TARGET_LINK_LIBRARIES(mariadb-ldb rocksdb_tools rocksdb_aux_lib dbug)
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/myrocks_hotbackup.py
   ${CMAKE_CURRENT_BINARY_DIR}/myrocks_hotbackup @ONLY)
@@ -283,7 +291,7 @@ IF(MSVC)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
   ENDIF()
 ELSEIF(CMAKE_CXX_COMPILER_ID MATCHES "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mysql_ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
+  SET_TARGET_PROPERTIES(rocksdb_tools sst_dump mariadb-ldb PROPERTIES COMPILE_FLAGS "-Wno-error")
 ENDIF()
 
 IF(GIT_EXECUTABLE AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/rocksdb/.git)

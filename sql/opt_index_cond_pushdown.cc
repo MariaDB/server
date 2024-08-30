@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "sql_test.h"
+#include "opt_trace.h"
 
 /****************************************************************************
  * Index Condition Pushdown code starts
@@ -152,7 +153,6 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
   }
 }
 
-#define ICP_COND_USES_INDEX_ONLY 10
 
 /*
   Get a part of the condition that can be checked using only index fields
@@ -161,8 +161,8 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
     make_cond_for_index()
       cond           The source condition
       table          The table that is partially available
-      keyno          The index in the above table. Only fields covered by the index
-                     are available
+      keyno          The index in the above table. Only fields covered by the
+                     index are available
       other_tbls_ok  TRUE <=> Fields of other non-const tables are allowed
 
   DESCRIPTION
@@ -173,8 +173,8 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
 
     Example:
       make_cond_for_index(
-         "cond(t1.field) AND cond(t2.key1) AND cond(t2.non_key) AND cond(t2.key2)",
-          t2, keyno(t2.key1)) 
+       "cond(t1.field) AND cond(t2.key1) AND cond(t2.non_key) AND cond(t2.key2)",
+        t2, keyno(t2.key1))
       will return
         "cond(t1.field) AND cond(t2.key2)"
 
@@ -185,11 +185,10 @@ bool uses_index_fields_only(Item *item, TABLE *tbl, uint keyno,
 static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
                                  bool other_tbls_ok)
 {
-  if (!cond)
-    return NULL;
+  if (!cond || cond->basic_const_item())
+    return cond;
   if (cond->type() == Item::COND_ITEM)
   {
-    uint n_marked= 0;
     if (((Item_cond*) cond)->functype() == Item_func::COND_AND_FUNC)
     {
       table_map used_tables= 0;
@@ -206,19 +205,12 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 	  new_cond->argument_list()->push_back(fix, thd->mem_root);
           used_tables|= fix->used_tables();
         }
-        if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
-        {
-          n_marked++;
-          item->marker= 0;
-        } 
       }
-      if (n_marked ==((Item_cond*)cond)->argument_list()->elements)
-        cond->marker= ICP_COND_USES_INDEX_ONLY;
       switch (new_cond->argument_list()->elements) {
       case 0:
 	return (COND*) 0;
       case 1:
-        new_cond->used_tables_cache= used_tables;
+        /* remove AND level if there is only one argument */
 	return new_cond->argument_list()->head();
       default:
 	new_cond->quick_fix_field();
@@ -239,14 +231,7 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 	if (!fix)
 	  return (COND*) 0;
 	new_cond->argument_list()->push_back(fix, thd->mem_root);
-        if (MY_TEST(item->marker == ICP_COND_USES_INDEX_ONLY))
-        {
-          n_marked++;
-          item->marker= 0;
-        } 
       }
-      if (n_marked ==((Item_cond*)cond)->argument_list()->elements)
-        cond->marker= ICP_COND_USES_INDEX_ONLY;
       new_cond->quick_fix_field();
       new_cond->used_tables_cache= ((Item_cond_or*) cond)->used_tables_cache;
       new_cond->top_level_item();
@@ -256,7 +241,6 @@ static Item *make_cond_for_index(THD *thd, Item *cond, TABLE *table, uint keyno,
 
   if (!uses_index_fields_only(cond, table, keyno, other_tbls_ok))
     return (COND*) 0;
-  cond->marker= ICP_COND_USES_INDEX_ONLY;
   return cond;
 }
 
@@ -351,15 +335,12 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
        than on a non-clustered key. This restriction should be 
        re-evaluated when WL#6061 is implemented.
   */
-  if ((tab->table->file->index_flags(keyno, 0, 1) &
-      HA_DO_INDEX_COND_PUSHDOWN) &&
-     optimizer_flag(tab->join->thd, OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN) &&
-     tab->join->thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
-     tab->join->thd->lex->sql_command != SQLCOM_DELETE_MULTI &&
-     tab->type != JT_CONST && tab->type != JT_SYSTEM &&
-     !(keyno == tab->table->s->primary_key &&             // (6)
-       tab->table->file->primary_key_is_clustered()))     // (6)
-
+  if ((tab->table->key_info[keyno].index_flags & HA_DO_INDEX_COND_PUSHDOWN) &&
+      optimizer_flag(tab->join->thd, OPTIMIZER_SWITCH_INDEX_COND_PUSHDOWN) &&
+      tab->join->thd->lex->sql_command != SQLCOM_UPDATE_MULTI &&
+      tab->join->thd->lex->sql_command != SQLCOM_DELETE_MULTI &&
+      tab->type != JT_CONST && tab->type != JT_SYSTEM &&
+      !tab->table->is_clustering_key(keyno)) // 6
   {
     DBUG_EXECUTE("where",
                  print_where(tab->select_cond, "full cond", QT_ORDINARY););
@@ -374,6 +355,8 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
     {
       Item *idx_remainder_cond= 0;
       tab->pre_idx_push_select_cond= tab->select_cond;
+      Json_writer_object trace(tab->join->thd);
+      trace.add_table_name(tab);
       /*
         For BKA cache we store condition to special BKA cache field
         because evaluation of the condition requires additional operations
@@ -406,6 +389,7 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
           idx_remainder_cond= NULL;
         }
       }
+      trace.add("index_condition", idx_cond);
 
       /*
         Disable eq_ref's "lookup cache" if we've pushed down an index
@@ -443,6 +427,10 @@ void push_index_cond(JOIN_TAB *tab, uint keyno)
       }
       else
         tab->select_cond= idx_remainder_cond;
+
+      if (tab->select_cond)
+        trace.add("row_condition", tab->select_cond);
+
       if (tab->select)
       {
         DBUG_EXECUTE("where",

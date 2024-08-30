@@ -1,0 +1,32 @@
+--let $MYSQLD_DATADIR= `select @@datadir`
+
+--echo #
+--echo # MDEV-19906 Port show_old_temporals from MySQL 5.6
+--echo #
+
+--copy_file $MYSQL_TEST_DIR/std_data/mariadb53_temporal/mariadb5312_datetime.frm $MYSQLD_DATADIR/test/mariadb5312_datetime.frm
+TRUNCATE TABLE mariadb5312_datetime;
+SHOW CREATE TABLE mariadb5312_datetime;
+--vertical_results
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_datetime';
+DESCRIBE mariadb5312_datetime;
+--horizontal_results
+DROP TABLE mariadb5312_datetime;
+
+--copy_file $MYSQL_TEST_DIR/std_data/mariadb53_temporal/mariadb5312_timestamp.frm $MYSQLD_DATADIR/test/mariadb5312_timestamp.frm
+TRUNCATE TABLE mariadb5312_timestamp;
+SHOW CREATE TABLE mariadb5312_timestamp;
+--vertical_results
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_timestamp';
+DESCRIBE mariadb5312_timestamp;
+--horizontal_results
+DROP TABLE mariadb5312_timestamp;
+
+--copy_file $MYSQL_TEST_DIR/std_data/mariadb53_temporal/mariadb5312_time.frm $MYSQLD_DATADIR/test/mariadb5312_time.frm
+TRUNCATE TABLE mariadb5312_time;
+SHOW CREATE TABLE mariadb5312_time;
+--vertical_results
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_time';
+DESCRIBE mariadb5312_time;
+--horizontal_results
+DROP TABLE mariadb5312_time;

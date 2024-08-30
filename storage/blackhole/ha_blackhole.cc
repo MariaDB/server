@@ -182,6 +182,17 @@ int ha_blackhole::info(uint flag)
   DBUG_ENTER("ha_blackhole::info");
 
   bzero((char*) &stats, sizeof(stats));
+  /*
+    The following is required to get replication to work as otherwise
+    test_quick_select() will think the table is empty and thus any
+    update/delete will not have any rows to update.
+  */
+  stats.records= 2;
+  /*
+    Block size should not be 0 as this will cause division by zero
+    in scan_time()
+  */
+  stats.block_size= 8192;
   if (flag & HA_STATUS_AUTO)
     stats.auto_increment_value= 1;
   DBUG_RETURN(0);
@@ -323,9 +334,8 @@ static st_blackhole_share *get_share(const char *table_name)
         my_hash_search(&blackhole_open_tables,
                        (uchar*) table_name, length)))
   {
-    if (!(share= (st_blackhole_share*) my_malloc(sizeof(st_blackhole_share) +
-                                                 length,
-                                                 MYF(MY_WME | MY_ZEROFILL))))
+    if (!(share= (st_blackhole_share*) my_malloc(PSI_INSTRUMENT_ME,
+              sizeof(st_blackhole_share) + length, MYF(MY_WME | MY_ZEROFILL))))
       goto error;
 
     share->table_name_length= length;
@@ -398,14 +408,16 @@ static int blackhole_init(void *p)
 #endif
 
   blackhole_hton= (handlerton *)p;
-  blackhole_hton->state= SHOW_OPTION_YES;
   blackhole_hton->db_type= DB_TYPE_BLACKHOLE_DB;
   blackhole_hton->create= blackhole_create_handler;
+  blackhole_hton->drop_table= [](handlerton *, const char*) { return -1; };
   blackhole_hton->flags= HTON_CAN_RECREATE;
 
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(&blackhole_open_tables, system_charset_info,32,0,0,
+  (void) my_hash_init(PSI_INSTRUMENT_ME, &blackhole_open_tables,
+                      Lex_ident_table::charset_info(),
+                      32, 0, 0,
                       (my_hash_get_key) blackhole_get_key,
                       (my_hash_free_key) blackhole_free_key, 0);
 
@@ -423,23 +435,6 @@ static int blackhole_fini(void *p)
 struct st_mysql_storage_engine blackhole_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(blackhole)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &blackhole_storage_engine,
-  "BLACKHOLE",
-  "MySQL AB",
-  "/dev/null storage engine (anything you write to it disappears)",
-  PLUGIN_LICENSE_GPL,
-  blackhole_init, /* Plugin Init */
-  blackhole_fini, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(blackhole)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,

@@ -29,12 +29,12 @@ class DllExport VCTDEF : public DOSDEF {  /* Logical table description */
   VCTDEF(void) {Split = false; Estimate = Header = 0;}
 
   // Implementation
-  virtual const char *GetType(void) {return "VCT";}
+  const char *GetType(void) override {return "VCT";}
   int  GetEstimate(void) {return Estimate;}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
 
  protected:
           int  MakeFnPattern(char *fpat);
@@ -62,20 +62,20 @@ class DllExport TDBVCT : public TDBFIX {
   TDBVCT(PGLOBAL g, PTDBVCT tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_VCT;}
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_VCT;}
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBVCT(g, this);}
           bool IsSplit(void) {return ((VCTDEF*)To_Def)->Split;}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
-  virtual bool IsUsingTemp(PGLOBAL g);
+  PTDB Clone(PTABS t) override;
+  bool IsUsingTemp(PGLOBAL g) override;
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual void CloseDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
   // Members
@@ -98,13 +98,13 @@ class DllExport VCTCOL : public DOSCOL {
   VCTCOL(VCTCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_VCT;}
+  int  GetAmType(void) override {return TYPE_AM_VCT;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void SetOk(void);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
+  bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+  void SetOk(void) override;
 
  protected:
   virtual void ReadBlock(PGLOBAL g);

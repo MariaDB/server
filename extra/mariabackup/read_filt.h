@@ -25,42 +25,27 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #ifndef XB_READ_FILT_H
 #define XB_READ_FILT_H
 
-#include "changed_page_bitmap.h"
-
-typedef ulint space_id_t;
+#include <cstdint>
+#include <cstddef>
 
 struct xb_fil_cur_t;
 
 /* The read filter context */
 struct xb_read_filt_ctxt_t {
-	ib_int64_t		offset;		/*!< current file offset */
-	ib_int64_t		data_file_size;	/*!< data file size */
+	int64_t		offset;		/*!< current file offset */
+	int64_t		data_file_size;	/*!< data file size */
 	size_t		buffer_capacity;/*!< read buffer capacity */
-	space_id_t	space_id;	/*!< space id */
-	/* The following fields used only in bitmap filter */
-	/* Move these to union if any other filters are added in future */
-	xb_page_bitmap_range	*bitmap_range;	/*!< changed page bitmap range
-						iterator for space_id */
-	ulint		page_size;		/*!< page size */
-	ulint		filter_batch_end;/*!< the ending page id of the
-						 current changed page block in
-						 the bitmap */
-	/** TODO: remove this default constructor */
-	xb_read_filt_ctxt_t() : page_size(0) {}
 };
 
 /* The read filter */
 struct xb_read_filt_t {
 	void (*init)(xb_read_filt_ctxt_t* ctxt,
-		     const xb_fil_cur_t* cursor,
-		     ulint space_id);
+		     const xb_fil_cur_t* cursor);
 	void (*get_next_batch)(xb_read_filt_ctxt_t* ctxt,
-			       ib_int64_t* read_batch_start,
-			       ib_int64_t* read_batch_len);
-	void (*deinit)(xb_read_filt_ctxt_t* ctxt);
+			       int64_t* read_batch_start,
+			       int64_t* read_batch_len);
 };
 
 extern xb_read_filt_t rf_pass_through;
-extern xb_read_filt_t rf_bitmap;
 
 #endif

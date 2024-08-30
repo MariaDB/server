@@ -1,10 +1,27 @@
 #--source include/innodb_page_size.inc
 
+--disable_warnings
+DROP TABLE IF EXISTS mysql.mariadb_backup_history;
+--enable_warnings
+
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history=foo --backup --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history=foo --backup --parallel=10 --target-dir=$targetdir;
 --enable_result_log
-SELECT COUNT(*) FROM PERCONA_SCHEMA.xtrabackup_history;
-DROP TABLE PERCONA_SCHEMA.xtrabackup_history;
-DROP DATABASE PERCONA_SCHEMA;
 rmdir $targetdir;
+
+SHOW CREATE TABLE mysql.mariadb_backup_history;
+SELECT COUNT(*) FROM mysql.mariadb_backup_history;
+SELECT name FROM mysql.mariadb_backup_history;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --history --backup --target-dir=$targetdir;
+--enable_result_log
+rmdir $targetdir;
+
+SELECT COUNT(*) FROM mysql.mariadb_backup_history;
+--sorted_result
+SELECT name FROM mysql.mariadb_backup_history;
+
+DROP TABLE mysql.mariadb_backup_history;

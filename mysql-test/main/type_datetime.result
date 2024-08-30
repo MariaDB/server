@@ -184,28 +184,28 @@ a
 2006-06-06 15:55:55
 DROP PREPARE s;
 DROP TABLE t1;
-SELECT CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6));
-CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6))
+SELECT CAST(CAST('2006-08-10' AS DATE) AS DECIMAL(20,6)) as exp;
+exp
 20060810.000000
-SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6));
-CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6))
+SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) AS DECIMAL(20,6)) as exp;
+exp
 20060810101112.000000
-SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6));
-CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6))
+SELECT CAST(CAST('2006-08-10 10:11:12' AS DATETIME(6)) + INTERVAL 14 MICROSECOND AS DECIMAL(20,6)) as exp;
+exp
 20060810101112.000014
-SELECT CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6));
-CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6))
+SELECT CAST(CAST('10:11:12.098700' AS TIME(6)) AS DECIMAL(20,6)) as exp;
+exp
 101112.098700
 set @org_mode=@@sql_mode;
 create table t1 (da date default '1962-03-03 23:33:34', dt datetime default '1962-03-03');
 Warnings:
-Note	1265	Data truncated for column 'da' at row 1
+Note	1265	Data truncated for column 'da' at row 0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `da` date DEFAULT '1962-03-03',
   `dt` datetime DEFAULT '1962-03-03 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ();
 insert into t1 values ('2007-03-23 13:49:38','2007-03-23 13:49:38');
 Warnings:
@@ -351,26 +351,26 @@ select f1 from t1 where ('1',f1) in (('1','01-01-01'),('1','2001-1-1 0:0:0'),('1
 f1
 2001-01-01
 drop table t1,t2,t3;
-select least(cast('01-01-01' as date), '01-01-02');
-least(cast('01-01-01' as date), '01-01-02')
+select least(cast('01-01-01' as date), '01-01-02') as exp;
+exp
 2001-01-01
-select greatest(cast('01-01-01' as date), '01-01-02');
-greatest(cast('01-01-01' as date), '01-01-02')
+select greatest(cast('01-01-01' as date), '01-01-02') as exp;
+exp
 2001-01-02
-select least(cast('01-01-01' as date), '01-01-02') + 0;
-least(cast('01-01-01' as date), '01-01-02') + 0
+select least(cast('01-01-01' as date), '01-01-02') + 0 as exp;
+exp
 20010101
-select greatest(cast('01-01-01' as date), '01-01-02') + 0;
-greatest(cast('01-01-01' as date), '01-01-02') + 0
+select greatest(cast('01-01-01' as date), '01-01-02') + 0 as exp;
+exp
 20010102
-select least(cast('01-01-01' as datetime), '01-01-02') + 0;
-least(cast('01-01-01' as datetime), '01-01-02') + 0
+select least(cast('01-01-01' as datetime), '01-01-02') + 0 as exp;
+exp
 20010101000000
-select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed);
-cast(least(cast('01-01-01' as datetime), '01-01-02') as signed)
+select cast(least(cast('01-01-01' as datetime), '01-01-02') as signed) as exp;
+exp
 20010101000000
-select cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2));
-cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2))
+select cast(least(cast('01-01-01' as datetime), '01-01-02') as decimal(16,2)) as exp;
+exp
 20010101000000.00
 DROP PROCEDURE IF EXISTS test27759 ;
 CREATE PROCEDURE test27759()
@@ -545,7 +545,7 @@ select * from t1
 where id in (select id from t1 as x1 where (t1.cur_date is null));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(t1)
 Warnings:
 Note	1276	Field or reference 'test.t1.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t1`.`id` AS `id`,`test`.`t1`.`cur_date` AS `cur_date` from `test`.`t1` semi join (`test`.`t1` `x1`) where `test`.`x1`.`id` = `test`.`t1`.`id` and `test`.`t1`.`cur_date` = 0
@@ -557,7 +557,7 @@ select * from t2
 where id in (select id from t2 as x1 where (t2.cur_date is null));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
-1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary; End temporary
+1	PRIMARY	x1	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(t2)
 Warnings:
 Note	1276	Field or reference 'test.t2.cur_date' of SELECT #2 was resolved in SELECT #1
 Note	1003	select `test`.`t2`.`id` AS `id`,`test`.`t2`.`cur_date` AS `cur_date` from `test`.`t2` semi join (`test`.`t2` `x1`) where `test`.`x1`.`id` = `test`.`t2`.`id` and `test`.`t2`.`cur_date` = 0
@@ -595,13 +595,13 @@ End of 5.0 tests
 set @org_mode=@@sql_mode;
 create table t1 (da date default '1962-03-03 23:33:34', dt datetime default '1962-03-03');
 Warnings:
-Note	1265	Data truncated for column 'da' at row 1
+Note	1265	Data truncated for column 'da' at row 0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `da` date DEFAULT '1962-03-03',
   `dt` datetime DEFAULT '1962-03-03 00:00:00'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ();
 insert into t1 values ('2007-03-23 13:49:38','2007-03-23 13:49:38');
 Warnings:
@@ -627,21 +627,21 @@ ERROR 42000: Invalid default value for 'da'
 create table t1 (t time default '916:00:00 a');
 ERROR 42000: Invalid default value for 't'
 set @@sql_mode= @org_mode;
-SELECT CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7));
-CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7))
+SELECT CAST(CAST('2006-08-10 10:11:12.0123450' AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
+exp
 20060810101112.0123450
 Warnings:
 Note	1292	Truncated incorrect datetime value: '2006-08-10 10:11:12.0123450'
-SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS DATETIME(6)) AS DECIMAL(30,7));
-CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS DATETIME(6)) AS DECIMAL(30,7))
+SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.0123450' AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
+exp
 20060810101112.0123450
 Warnings:
 Note	1292	Truncated incorrect datetime value: '00000002006-000008-0000010 000010:0000011:00000012.0123450'
-SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7));
-CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7))
+SELECT CAST(CAST('00000002006-000008-0000010 000010:0000011:00000012.012345'  AS DATETIME(6)) AS DECIMAL(30,7)) as exp;
+exp
 20060810101112.0123450
-SELECT CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7));
-CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7))
+SELECT CAST(CAST('2008-07-29T10:42:51.1234567' AS DateTime(6)) AS DECIMAL(30,7)) as exp;
+exp
 20080729104251.1234560
 Warnings:
 Note	1292	Truncated incorrect datetime value: '2008-07-29T10:42:51.1234567'
@@ -685,8 +685,8 @@ drop table t1,t2;
 #
 # MDEV-4634 Crash in CONVERT_TZ
 #
-SELECT CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5');
-CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5')
+SELECT CONVERT_TZ(GREATEST(TIMESTAMP('2021-00-00'),TIMESTAMP('2022-00-00')),'+00:00','+7:5') as exp;
+exp
 NULL
 Warnings:
 Warning	1292	Incorrect datetime value: '2022-00-00 00:00:00'
@@ -936,6 +936,8 @@ SELECT STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f');
 STR_TO_DATE('0000-00-00 00:00:00.000001','%Y-%m-%d %H:%i:%s.%f')
 0000-00-00 00:00:00.000001
 SET old_mode=zero_date_time_cast;
+Warnings:
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
 SELECT CAST(TIME'10:20:30' AS DATETIME);
 CAST(TIME'10:20:30' AS DATETIME)
 0000-00-00 10:20:30
@@ -951,8 +953,8 @@ CAST(CAST('00:00:00.000001' AS TIME(6)) AS DATETIME(6))
 SELECT CAST(CAST(TIMESTAMP'0000-00-00 10:20:30' AS TIME) AS DATETIME);
 CAST(CAST(TIMESTAMP'0000-00-00 10:20:30' AS TIME) AS DATETIME)
 0000-00-00 10:20:30
-SELECT CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6));
-CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6))
+SELECT CAST(CAST(TIMESTAMP'0000-00-00 00:00:00.000001' AS TIME(6)) AS DATETIME(6)) as exp;
+exp
 0000-00-00 00:00:00.000001
 SET old_mode=DEFAULT;
 SET sql_mode=DEFAULT;
@@ -1122,7 +1124,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `MAX(CAST(a AS DATETIME))` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET timestamp=DEFAULT;
@@ -1340,7 +1342,7 @@ CREATE  TABLE t1 (f DATETIME, KEY(f));
 INSERT INTO t1 VALUES ('2020-01-01 00:00:00'),('2020-01-02 00:00:00');
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE 1995.0000000 BETWEEN f AND '2012-12-12';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	index	f	f	6	NULL	2	50.00	Using where; Using index
+1	SIMPLE	t1	range	f	f	6	NULL	1	100.00	Using where; Using index
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '1995.0000000'
 Note	1003	select `test`.`t1`.`f` AS `f` from `test`.`t1` where '0000-00-00 00:00:00.000000' between `test`.`t1`.`f` and <cache>('2012-12-12')
@@ -1585,3 +1587,125 @@ DROP TABLE t1;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col DATETIME, KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+2023-01-01 00:00:00
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '10:20:30'
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '\x00'
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Warning	1292	Truncated incorrect datetime value: '0'
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01 00:00:00	20230101
+2023-01-02 00:00:00	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01 00:00:00	20230101
+2023-01-02 00:00:00	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01 00:00:00	2023-01-01
+2023-01-02 00:00:00	2023-01-02
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01 00:00:00	2023-01-01 00:00:00
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+2023-01-01 00:00:00	2023-01-01 00:00:00
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Incorrect datetime value: '0'
+Warning	1292	Incorrect datetime value: '1'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

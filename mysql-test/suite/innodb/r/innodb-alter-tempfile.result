@@ -1,7 +1,7 @@
 call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
-call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table .*");
-call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB  .*");
-call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table .*");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
+call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
+call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table");
 #
 # Bug #18734396	INNODB IN-PLACE ALTER FAILURES BLOCK FUTURE ALTERS
 #
@@ -11,14 +11,14 @@ call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict 
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # restart
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 # Consecutive Alter table does not create same temporary file name
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 show create table t1;
@@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL,
   `f2` int(11) NOT NULL,
   PRIMARY KEY (`f2`,`f1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-22928 InnoDB fails to fetch index type
@@ -44,14 +44,6 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 # restart
 disconnect con1;
 SHOW KEYS FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	f1	1	f1	A	2	NULL	NULL		BTREE		
-t1	1	f2	1	f2	A	NULL	NULL	NULL		Corrupted		
-Warnings:
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
 DROP TABLE t1;
 #
 # MDEV-25503 InnoDB hangs on startup during recovery

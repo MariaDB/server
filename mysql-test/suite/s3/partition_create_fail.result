@@ -1,0 +1,15 @@
+SET @saved_dbug = @@debug_dbug;
+CREATE TABLE p0 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB;
+insert into p0 select seq,seq from seq_1_to_10;
+SET debug_dbug='+d,failed_create_partitioning_metadata';
+alter table p0 engine=s3
+PARTITION BY RANGE (c1)
+(PARTITION p0 VALUES LESS THAN (100));
+ERROR HY000: Simulated crash
+SET debug_dbug=@saved_dbug;
+drop table p0;
+drop table p0;
+ERROR 42S02: Unknown table 's3.p0'

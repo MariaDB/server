@@ -1,0 +1,42 @@
+#
+# MDEV-30680 Warning: Memory not freed: 280 on mangled query, LeakSanitizer: detected memory leaks
+#
+BEGIN NOT ATOMIC
+IF SCALAR() expected_THEN_here;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'expected_THEN_here;
+END' at line 2
+BEGIN NOT ATOMIC
+WHILE SCALAR() expected_DO_here;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'expected_DO_here;
+END' at line 2
+BEGIN NOT ATOMIC
+REPEAT SELECT 1; UNTIL SCALAR() expected_END_here;
+END
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'expected_END_here;
+END' at line 2
+#
+# MDEV-31578 DECLARE CURSOR: "Memory not freed: 280 bytes lost" on syntax error
+#
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR (a INT) FOR SELECT a+1;
+OPEN cur(sp_followed_by_syntax_error();
+CLOSE cur;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+CLOSE cur;
+END' at line 3
+BEGIN NOT ATOMIC
+DECLARE cur CURSOR (a INT) FOR SELECT a+1;
+OPEN cur(1,sp_followed_by_syntax_error();
+CLOSE cur;
+END;
+$$
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ';
+CLOSE cur;
+END' at line 3

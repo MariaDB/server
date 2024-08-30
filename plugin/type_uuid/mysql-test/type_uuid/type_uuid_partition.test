@@ -1,0 +1,104 @@
+--source include/have_partition.inc
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+SET NAMES utf8;
+
+--error ER_WRONG_TYPE_COLUMN_VALUE_ERROR
+CREATE TABLE t1 (a UUID)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN (10));
+
+--error ER_WRONG_TYPE_COLUMN_VALUE_ERROR
+CREATE TABLE t1 (a UUID)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN (TIME'10:20:30'));
+
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE t1 (a UUID)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN ('€'));
+
+CREATE TABLE t1 (a UUID)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN ('123e4567-e89b-12d3-a456-426655440000'),
+     PARTITION pFF VALUES IN (0xffff000000000000000000000000ffff));
+INSERT INTO t1 VALUES ('123e4567-e89b-12d3-a456-426655440000');
+INSERT INTO t1 VALUES ('ffff0000-0000-0000-0000-00000000ffff');
+SELECT * FROM t1 PARTITION (p00);
+SELECT * FROM t1 PARTITION (pFF);
+DROP TABLE t1;
+
+
+CREATE TABLE t0 (a UUID);
+DELIMITER $$;
+FOR i IN 0..255
+DO
+  INSERT INTO t0 VALUES (REPLACE('XXfd306d-307f-11ec-8d10-d20bbc909b57','XX',LPAD(HEX(i),2,'0')));
+  INSERT INTO t0 VALUES (REPLACE('9cfd306d-XX7f-12ec-8d10-d20bbc909b57','XX',LPAD(HEX(i),2,'0')));
+  INSERT INTO t0 VALUES (REPLACE('9cfd306d-307f-13XX-8d10-d20bbc909b57','XX',LPAD(HEX(i),2,'0')));
+  INSERT INTO t0 VALUES (REPLACE('9cfd306d-307f-14ec-8dXX-d20bbc909b57','XX',LPAD(HEX(i),2,'0')));
+  INSERT INTO t0 VALUES (REPLACE('9cfd306d-307f-15ec-8d10-XX0bbc909b57','XX',LPAD(HEX(i),2,'0')));
+  INSERT INTO t0 VALUES (REPLACE('9cfd306d-307f-16ec-8d10-d20bbc909bXX','XX',LPAD(HEX(i),2,'0')));
+END FOR;
+$$
+--echo # Test that UUID and BINARY(16) implement the same distribution by key
+CREATE PROCEDURE test_partition_by_key_uuid_vs_binary(parts INT)
+BEGIN
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a UUID) PARTITION BY KEY (a) PARTITIONS 7','7',parts);
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t2 (a BINARY(16)) PARTITION BY KEY (a) PARTITIONS 7','7',parts);
+  INSERT INTO t1 SELECT * FROM t0;
+  INSERT INTO t2 SELECT * FROM t0;
+  FOR i IN 0..(parts-1)
+  DO
+    BEGIN
+      DECLARE query_template TEXT DEFAULT 'SELECT a_p0, COUNT(*) FROM ('
+                                          'SELECT a AS a_p0 FROM t1 PARTITION(p0) '
+                                          'UNION ALL '
+                                          'SELECT CAST(a AS UUID) AS a_p0 FROM t2 PARTITION(p0)) td '
+                                          'GROUP BY a_p0';
+      DECLARE query TEXT DEFAULT REPLACE(query_template,'p0',CONCAT('p',i));
+      SELECT query;
+      EXECUTE IMMEDIATE query;
+    END;
+  END FOR;
+  DROP TABLE t1,t2;
+END;
+$$
+--echo # Display statistics how records are distributed between partitions
+CREATE PROCEDURE test_partition_by_key_pstat(parts INT)
+BEGIN
+  EXECUTE IMMEDIATE REPLACE('CREATE TABLE t1 (a UUID) PARTITION BY KEY (a) PARTITIONS 7','7',parts);
+  CREATE TABLE t1_pstat (pname VARCHAR(32), pcount int);
+  INSERT INTO t1 SELECT * FROM t0;
+  FOR i IN 0..(parts-1)
+  DO
+    BEGIN
+      DECLARE query_template TEXT DEFAULT 'INSERT INTO t1_pstat VALUES (''p0'',(SELECT COUNT(*) FROM t1 PARTITION (p0)))';
+      EXECUTE IMMEDIATE REPLACE(query_template,'p0',CONCAT('p',i));
+    END;
+  END FOR;
+  SELECT * FROM t1_pstat ORDER BY CAST(SUBSTR(pname,2,100) AS UNSIGNED);
+  DROP TABLE t1,t1_pstat;
+END;
+$$
+DELIMITER ;$$
+CALL test_partition_by_key_uuid_vs_binary(7);
+CALL test_partition_by_key_pstat(7);
+CALL test_partition_by_key_pstat(4);
+CALL test_partition_by_key_pstat(5);
+CALL test_partition_by_key_pstat(6);
+CALL test_partition_by_key_pstat(8);
+CALL test_partition_by_key_pstat(9);
+CALL test_partition_by_key_pstat(10);
+CALL test_partition_by_key_pstat(11);
+CALL test_partition_by_key_pstat(12);
+CALL test_partition_by_key_pstat(13);
+CALL test_partition_by_key_pstat(14);
+CALL test_partition_by_key_pstat(15);
+CALL test_partition_by_key_pstat(16);
+DROP PROCEDURE test_partition_by_key_uuid_vs_binary;
+DROP PROCEDURE test_partition_by_key_pstat;
+DROP TABLE t0;

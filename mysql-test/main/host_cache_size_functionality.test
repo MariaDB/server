@@ -43,10 +43,10 @@ select @@global.Host_Cache_Size > 0;
 --echo # Restart server with Host_Cache_Size 1
 
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --shutdown_server
 --source include/wait_until_disconnected.inc
--- exec echo "restart:--host_cache_size=1  " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--host_cache_size=1  " $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 -- enable_reconnect
 -- source include/wait_until_connected_again.inc
 
@@ -142,10 +142,10 @@ SELECT Host_Cache_Size = @@SESSION.Host_Cache_Size;
 #--remove_file $MYSQL_TMP_DIR/bind_ip
 
 #let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
-#--exec echo "wait" > $restart_file
+#--write_line wait $restart_file
 #--shutdown_server
 #--source include/wait_until_disconnected.inc
-#-- exec echo "restart:--bind-address=$bind_ip  " > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+#-- write_line "restart:--bind-address=$bind_ip  " $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 #-- enable_reconnect
 #-- source include/wait_until_connected_again.inc
 

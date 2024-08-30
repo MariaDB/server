@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -49,6 +49,7 @@ struct row_accounts
 class table_accounts : public cursor_by_account
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   /** Table builder */
@@ -56,10 +57,10 @@ public:
   static int delete_all_rows();
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
 
 protected:
@@ -69,7 +70,7 @@ public:
   ~table_accounts() = default;
 
 private:
-  virtual void make_row(PFS_account *pfs);
+  void make_row(PFS_account *pfs) override;
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;

@@ -22,6 +22,7 @@ CREATE TABLE t2 (a int  NOT NULL auto_increment, b int, PRIMARY KEY (a)) ENGINE=
 
 insert into t2 values (1,1)|
 
+--enable_prepare_warnings
 create function bug23333() 
 RETURNS int(11)
 DETERMINISTIC
@@ -31,6 +32,7 @@ begin
   return @a;
 end|
 delimiter ;|
+--disable_prepare_warnings
 
 reset master;
 --error ER_DUP_ENTRY

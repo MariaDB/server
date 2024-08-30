@@ -2,13 +2,6 @@
 
 call mtr.add_suppression('InnoDB: Cannot add field.*because after adding it, the row size is');
 
-let $file_per_table=`select @@innodb_file_per_table`;
-
-SET GLOBAL innodb_file_per_table=on;
-SET GLOBAL innodb_strict_mode=on;
-
-set old_alter_table=0;
-
 CREATE TABLE bug53591(a text charset utf8 not null)
 ENGINE=InnoDB KEY_BLOCK_SIZE=1;
 -- replace_result 8126 {checked_valid} 4030 {checked_valid} 1982 {checked_valid}
@@ -18,6 +11,3 @@ ALTER TABLE bug53591 ADD PRIMARY KEY(a(220));
 SHOW WARNINGS;
 
 DROP TABLE bug53591;
-
-EVAL SET GLOBAL innodb_file_per_table=$file_per_table;
-SET GLOBAL innodb_strict_mode=DEFAULT;

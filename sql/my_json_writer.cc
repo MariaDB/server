@@ -1,4 +1,4 @@
-/* Copyright (C) 2014 SkySQL Ab, MariaDB Corporation Ab
+/* Copyright (C) 2014, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,12 +13,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "mariadb.h"
-#include "sql_priv.h"
-#include "sql_string.h"
+#include "my_global.h"
 #include "my_json_writer.h"
 
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
+
 bool Json_writer::named_item_expected() const
 {
   return named_items_expectation.size()
@@ -39,7 +38,13 @@ inline void Json_writer::on_start_object()
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if(!fmt_helper.is_making_writer_calls())
   {
-    VALIDITY_ASSERT(got_name == named_item_expected());
+    if (got_name != named_item_expected())
+    {
+      sql_print_error(got_name
+                      ? "Json_writer got a member name which is not expected.\n"
+                      : "Json_writer: a member name was expected.\n");
+      VALIDITY_ASSERT(got_name == named_item_expected());
+    }
     named_items_expectation.push_back(true);
   }
 #endif
@@ -53,13 +58,14 @@ void Json_writer::start_object()
   if (!element_started)
     start_element();
 
-  output.append("{");
+  output.append('{');
   indent_level+=INDENT_SIZE;
   first_child=true;
   element_started= false;
   document_start= false;
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   got_name= false;
+  named_items.emplace();
 #endif
 }
 
@@ -71,6 +77,8 @@ void Json_writer::start_array()
     VALIDITY_ASSERT(got_name == named_item_expected());
     named_items_expectation.push_back(false);
     got_name= false;
+    if (document_start)
+      named_items.emplace();
   }
 #endif
 
@@ -80,7 +88,7 @@ void Json_writer::start_array()
   if (!element_started)
     start_element();
 
-  output.append("[");
+  output.append('[');
   indent_level+=INDENT_SIZE;
   first_child=true;
   element_started= false;
@@ -95,12 +103,14 @@ void Json_writer::end_object()
   named_items_expectation.pop_back();
   VALIDITY_ASSERT(!got_name);
   got_name= false;
+  VALIDITY_ASSERT(named_items.size());
+  named_items.pop();
 #endif
   indent_level-=INDENT_SIZE;
   if (!first_child)
     append_indent();
   first_child= false;
-  output.append("}");
+  output.append('}');
 }
 
 
@@ -116,7 +126,7 @@ void Json_writer::end_array()
   indent_level-=INDENT_SIZE;
   if (!first_child)
     append_indent();
-  output.append("]");
+  output.append(']');
 }
 
 
@@ -136,11 +146,23 @@ Json_writer& Json_writer::add_member(const char *name, size_t len)
 
     output.append('"');
     output.append(name, len);
-    output.append("\": ", 3);
+    output.append(STRING_WITH_LEN("\": "));
   }
 #if !defined(NDEBUG) || defined(JSON_WRITER_UNIT_TEST)
   if (!fmt_helper.is_making_writer_calls())
+  {
+    VALIDITY_ASSERT(!got_name);
     got_name= true;
+    VALIDITY_ASSERT(named_items.size());
+    auto& named_items_keys= named_items.top();
+    auto emplaced= named_items_keys.emplace(name, len);
+    auto is_uniq_key= emplaced.second;
+    if(!is_uniq_key)
+    {
+      sql_print_error("Duplicated key: %s\n", emplaced.first->c_str());
+      VALIDITY_ASSERT(is_uniq_key);
+    }
+  }
 #endif
   return *this;
 }
@@ -190,7 +212,7 @@ void Json_writer::add_ull(ulonglong val)
 }
 
 
-/* Add a memory size, printing in Kb, Kb, Gb if necessary */
+/* Add a memory size, printing in Kb, Mb if necessary */
 void Json_writer::add_size(longlong val)
 {
   char buf[64];
@@ -198,18 +220,10 @@ void Json_writer::add_size(longlong val)
   if (val < 1024) 
     len= my_snprintf(buf, sizeof(buf), "%lld", val);
   else if (val < 1024*1024*16)
-  {
     /* Values less than 16MB are specified in KB for precision */
-    len= my_snprintf(buf, sizeof(buf), "%lld", val/1024);
-    strcpy(buf + len, "Kb");
-    len+= 2;
-  }
+    len= my_snprintf(buf, sizeof(buf), "%lldKb", val/1024);
   else
-  {
-    len= my_snprintf(buf, sizeof(buf), "%lld", val/(1024*1024));
-    strcpy(buf + len, "Mb");
-    len+= 2;
-  }
+    len= my_snprintf(buf, sizeof(buf), "%lldMb", val/(1024*1024));
   add_str(buf, len);
 }
 
@@ -217,7 +231,7 @@ void Json_writer::add_size(longlong val)
 void Json_writer::add_double(double val)
 {
   char buf[64];
-  size_t len= my_snprintf(buf, sizeof(buf), "%lg", val);
+  size_t len= my_snprintf(buf, sizeof(buf), "%-.11lg", val);
   add_unquoted_str(buf, len);
 }
 
@@ -293,6 +307,10 @@ void Json_writer::add_str(const String &str)
 {
   add_str(str.ptr(), str.length());
 }
+
+#ifdef ENABLED_JSON_WRITER_CONSISTENCY_CHECKS
+thread_local std::vector<bool> Json_writer_struct::named_items_expectation;
+#endif
 
 Json_writer_temp_disable::Json_writer_temp_disable(THD *thd_arg)
 {
@@ -410,13 +428,13 @@ void Single_line_formatting_helper::flush_on_one_line()
     {
       owner->output.append('"');
       owner->output.append(str);
-      owner->output.append("\": ");
+      owner->output.append(STRING_WITH_LEN("\": "));
       owner->output.append('[');
     }
     else
     {
       if (nr != 1)
-        owner->output.append(", ");
+        owner->output.append(STRING_WITH_LEN(", "));
       owner->output.append('"');
       owner->output.append(str);
       owner->output.append('"');

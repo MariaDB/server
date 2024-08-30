@@ -1,0 +1,14 @@
+CREATE TABLE t1 (pk INT PRIMARY KEY, a YEAR UNSIGNED) ENGINE=InnoDB
+ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 VALUES (1,2021),(2,21),(3,0);
+UPDATE t1 SET a = NULL;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t1;
+pk	a
+1	NULL
+2	NULL
+3	NULL
+DROP TABLE t1;

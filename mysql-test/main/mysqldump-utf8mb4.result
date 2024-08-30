@@ -18,7 +18,7 @@ Testing XML format output
 		<field Field="point" Type="varchar(10)" Null="NO" Key="PRI" Extra="" Comment="" />
 		<field Field="data" Type="varchar(10)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
 		<field Field="comment" Type="varchar(64)" Null="YES" Key="" Default="NULL" Extra="" Comment="" />
-		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="point" Collation="A" Cardinality="1" Null="" Index_type="BTREE" Comment="" Index_comment="" />
+		<key Table="t1" Non_unique="0" Key_name="PRIMARY" Seq_in_index="1" Column_name="point" Collation="A" Cardinality="1" Null="" Index_type="BTREE" Comment="" Index_comment="" Ignored="NO" />
 	</table_structure>
 	<table_data name="t1">
 	<row>
@@ -32,6 +32,7 @@ Testing XML format output
 ----
 Testing text format output
 ----
+/*M!999999\- enable the sandbox mode */ 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -42,7 +43,7 @@ Testing text format output
 /*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+/*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 DROP TABLE IF EXISTS `t1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -56,7 +57,8 @@ CREATE TABLE `t1` (
 
 LOCK TABLES `t1` WRITE;
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT INTO `t1` VALUES ('01f300','🌀','U+1F300 CYCLONE');
+INSERT INTO `t1` VALUES
+('01f300','🌀','U+1F300 CYCLONE');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -67,7 +69,7 @@ UNLOCK TABLES;
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+/*M!100616 SET NOTE_VERBOSITY=@OLD_NOTE_VERBOSITY */;
 
 DROP TABLE t1;
 ----

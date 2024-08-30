@@ -1,0 +1,101 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) NOT NULL, FULLTEXT f_idx(f2),
+		f3 INT as (f1) VIRTUAL, INDEX(f3))ENGINE=InnoDB;
+INSERT INTO t1(f1, f2) VALUES(1, "on");
+ALTER TABLE t1 DROP INDEX f_idx;
+FLUSH TABLE t1 FOR EXPORT;
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) NOT NULL,
+		f3 CHAR(2) NOT NULL,
+		f4 INT AS (f1) VIRTUAL, INDEX(f4))ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) NOT NULL,
+		f3 INT as (f1) VIRTUAL, INDEX(f3))ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+--disable_warnings
+SET DEBUG_DBUG="+d,ib_import_set_index_root_failure";
+--error ER_TOO_MANY_CONCURRENT_TRXS
+ALTER TABLE t1 IMPORT TABLESPACE;
+SET DEBUG_DBUG="-d,ib_import_set_index_root_failure";
+
+SET DEBUG_DBUG="+d,ib_import_vcol_update_fail";
+--error ER_DUP_KEY
+ALTER TABLE t1 IMPORT TABLESPACE;
+SET DEBUG_DBUG="-d,ib_import_vcol_update_fail";
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+
+SET DEBUG_DBUG="+d,ib_import_fts_error";
+--error ER_DUP_KEY
+ALTER TABLE t1 IMPORT TABLESPACE;
+SET DEBUG_DBUG="-d,ib_import_fts_error";
+--enable_warnings
+
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_unlink_tablespace("test", "t1");
+EOF
+
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS
+WHERE table_id IN (SELECT table_id FROM information_schema.innodb_sys_tables where name="test/t1");
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+# Manually add the FTS_DOC_ID Column with mismatched data type
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		FTS_DOC_ID BIGINT SIGNED NOT NULL,
+		f2 CHAR(2) NOT NULL,
+		FULLTEXT f_idx(f2))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 1, "on");
+ALTER TABLE t1 DROP INDEX f_idx;
+FLUSH TABLE t1 FOR EXPORT;
+let MYSQLD_DATADIR =`SELECT @@datadir`;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_backup_tablespaces("test", "t1");
+EOF
+UNLOCK TABLES;
+DROP TABLE t1;
+
+CREATE TABLE t1(f1 INT NOT NULL PRIMARY KEY,
+		f2 CHAR(2) NOT NULL)ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+perl;
+do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
+ib_discard_tablespaces("test", "t1");
+ib_restore_tablespaces("test", "t1");
+EOF
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE t1 IMPORT TABLESPACE;
+DROP TABLE t1;

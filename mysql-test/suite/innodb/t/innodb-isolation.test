@@ -162,28 +162,30 @@ COMMIT;
 --echo #
 --echo # Show The EXPLAIN output for these queries;
 --echo #
-# column 10 is the row count provided by handler::info().  In InnoDB, this is
+# column 9 is the row count provided by handler::info().  In InnoDB, this is
 # a statistical estimate.  After the multi-transactional changes above,
 # Solaris reports 10 rows which is correct, but other OSes report 9.
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT * FROM t1;
+--replace_column 9 #
 EXPLAIN SELECT COUNT(*) FROM t1;
+--replace_column 9 #
 EXPLAIN SELECT COUNT(c1) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT COUNT(c2) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT COUNT(c3) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT SUM(c1) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT SUM(c2) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT AVG(c1), MAX(c1), MIN(c2), AVG(c3), SUM(c4) FROM t1;
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT c1, c2 FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t1) / 2);
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT COUNT(c2) FROM t1 WHERE c1 > ((SELECT COUNT(*) FROM t1) / 2);
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT COUNT(*) FROM t1 WHERE c1 > (SELECT AVG(c1) FROM t1);
 
 --echo #
@@ -334,13 +336,13 @@ eval set global innodb_lock_wait_timeout=$initial_timeout;
 CREATE TABLE t1(c1 INT NOT NULL PRIMARY KEY,
                 c2 INT NOT NULL DEFAULT 1,
                 c3 char(20) DEFAULT '',
-                KEY c2_idx (c2)) ENGINE=InnoDB;
+                KEY c2_idx (c2)) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO t1(c1) VALUES (1), (2), (3);
 INSERT INTO t1(c1) SELECT c1 + 10 FROM t1;
 INSERT INTO t1(c1) SELECT c1 + 100 FROM t1;
 
-CREATE TABLE t2 SELECT * FROM t1;
+CREATE TABLE t2 STATS_PERSISTENT=0 SELECT * FROM t1;
 
 let query1= SELECT COUNT(*) FROM t1;
 let query2= SELECT COUNT(*) FROM t1 FORCE INDEX(c2_idx);

@@ -7,5 +7,6 @@ PARTITION p1 VALUES LESS THAN (1995),
 PARTITION p2 VALUES LESS THAN (2000),
 PARTITION p3 VALUES LESS THAN (2005)
 ) ;
+set global innodb_log_checkpoint_now = 1;
 DROP TABLE t;
 DROP TABLE `bobby``tables`;

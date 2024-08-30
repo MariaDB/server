@@ -40,24 +40,31 @@ General streaming interface */
 
 static ds_ctxt_t *xbstream_init(const char *root);
 static ds_file_t *xbstream_open(ds_ctxt_t *ctxt, const char *path,
-			      MY_STAT *mystat);
+			const MY_STAT *mystat, bool rewrite);
 static int xbstream_write(ds_file_t *file, const uchar *buf, size_t len);
+static int xbstream_seek_set(ds_file_t *file, my_off_t offset);
 static int xbstream_close(ds_file_t *file);
 static void xbstream_deinit(ds_ctxt_t *ctxt);
+
+static int xbstream_rename(
+	ds_ctxt_t *ctxt, const char *old_path, const char *new_path);
+static int xbstream_mremove(ds_ctxt_t *ctxt, const char *path);
 
 datasink_t datasink_xbstream = {
 	&xbstream_init,
 	&xbstream_open,
 	&xbstream_write,
+	&xbstream_seek_set,
 	&xbstream_close,
 	&dummy_remove,
+	&xbstream_rename,
+	&xbstream_mremove,
 	&xbstream_deinit
 };
 
 static
 ssize_t
-my_xbstream_write_callback(xb_wstream_file_t *f __attribute__((unused)),
-		       void *userdata, const void *buf, size_t len)
+my_xbstream_write_callback(void *userdata, const void *buf, size_t len)
 {
 	ds_stream_ctxt_t	*stream_ctxt;
 
@@ -80,8 +87,8 @@ xbstream_init(const char *root __attribute__((unused)))
 	ds_stream_ctxt_t	*stream_ctxt;
 	xb_wstream_t *xbstream;
 
-	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t),
-			 MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED,
+                    sizeof(ds_ctxt_t) + sizeof(ds_stream_ctxt_t), MYF(MY_FAE));
 	stream_ctxt = (ds_stream_ctxt_t *)(ctxt + 1);
 
 	if (pthread_mutex_init(&stream_ctxt->mutex, NULL)) {
@@ -89,7 +96,7 @@ xbstream_init(const char *root __attribute__((unused)))
 		goto err;
 	}
 
-	xbstream = xb_stream_write_new();
+	xbstream = xb_stream_write_new(my_xbstream_write_callback, stream_ctxt);
 	if (xbstream == NULL) {
 		msg("xb_stream_write_new() failed.");
 		goto err;
@@ -108,7 +115,8 @@ err:
 
 static
 ds_file_t *
-xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
+xbstream_open(ds_ctxt_t *ctxt, const char *path,
+	const MY_STAT *mystat, bool rewrite)
 {
 	ds_file_t		*file;
 	ds_stream_file_t	*stream_file;
@@ -132,7 +140,8 @@ xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 		return NULL;
 	}
 
-	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
+	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED,
+				       sizeof(ds_file_t) +
 				       sizeof(ds_stream_file_t),
 				       MYF(MY_FAE));
 	if (!file) {
@@ -143,9 +152,7 @@ xbstream_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 
 	xbstream = stream_ctxt->xbstream;
 
-	xbstream_file = xb_stream_write_open(xbstream, path, mystat,
-		                             stream_ctxt,
-					     my_xbstream_write_callback);
+	xbstream_file = xb_stream_write_open(xbstream, path, mystat, rewrite);
 
 	if (xbstream_file == NULL) {
 		msg("xb_stream_write_open() failed.");
@@ -187,6 +194,45 @@ xbstream_write(ds_file_t *file, const uchar *buf, size_t len)
 	}
 
 	return 0;
+}
+
+static
+int
+xbstream_seek_set(ds_file_t *file, my_off_t offset)
+{
+	ds_stream_file_t	*stream_file;
+	xb_wstream_file_t	*xbstream_file;
+
+
+	stream_file = (ds_stream_file_t *) file->ptr;
+
+	xbstream_file = stream_file->xbstream_file;
+
+	if (xb_stream_write_seek_set(xbstream_file, offset)) {
+		msg("xb_stream_write_seek_set() failed.");
+		return 1;
+	}
+
+	return 0;
+}
+
+static
+int
+xbstream_mremove(ds_ctxt_t *ctxt, const char *path) {
+	ds_stream_ctxt_t	*stream_ctxt =
+		reinterpret_cast<ds_stream_ctxt_t *>(ctxt->ptr);
+	xb_wstream_t		*xbstream = stream_ctxt->xbstream;
+	return xb_stream_write_remove(xbstream, path);
+}
+
+static
+int
+xbstream_rename(
+	ds_ctxt_t *ctxt, const char *old_path, const char *new_path) {
+	ds_stream_ctxt_t	*stream_ctxt =
+		reinterpret_cast<ds_stream_ctxt_t *>(ctxt->ptr);
+	xb_wstream_t		*xbstream = stream_ctxt->xbstream;
+	return xb_stream_write_rename(xbstream, old_path, new_path);
 }
 
 static

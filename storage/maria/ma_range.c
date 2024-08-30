@@ -22,8 +22,9 @@
 #include "ma_rt_index.h"
 
 static ha_rows _ma_record_pos(MARIA_HA *,const uchar *, key_part_map,
-			      enum ha_rkey_function);
-static double _ma_search_pos(MARIA_HA *, MARIA_KEY *, uint32, my_off_t);
+			      enum ha_rkey_function, ulonglong *);
+static double _ma_search_pos(MARIA_HA *, MARIA_KEY *, uint32, my_off_t,
+                             ulonglong *page);
 static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key);
 
 
@@ -43,8 +44,9 @@ static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key);
      @retval number        Estimated number of rows
 */
 
-ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
-                            key_range *max_key)
+ha_rows maria_records_in_range(MARIA_HA *info, int inx,
+                               const key_range *min_key,
+                               const key_range *max_key, page_range *pages)
 {
   ha_rows start_pos,end_pos,res;
   MARIA_SHARE *share= info->s;
@@ -96,11 +98,11 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
   default:
     start_pos= (min_key ?
                 _ma_record_pos(info, min_key->key, min_key->keypart_map,
-                               min_key->flag) :
+                               min_key->flag, &pages->first_page) :
                 (ha_rows) 0);
     end_pos=   (max_key ?
                 _ma_record_pos(info, max_key->key, max_key->keypart_map,
-                               max_key->flag) :
+                               max_key->flag, &pages->last_page) :
                 info->state->records + (ha_rows) 1);
     res= (end_pos < start_pos ? (ha_rows) 0 :
           (end_pos == start_pos ? (ha_rows) 1 : end_pos-start_pos));
@@ -128,7 +130,8 @@ ha_rows maria_records_in_range(MARIA_HA *info, int inx, key_range *min_key,
 
 static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
                               key_part_map keypart_map,
-			      enum ha_rkey_function search_flag)
+                              enum ha_rkey_function search_flag,
+                              ulonglong *final_page)
 {
   uint inx= (uint) info->lastinx;
   uint32 nextflag;
@@ -185,11 +188,11 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
   */
   pos= _ma_search_pos(info, &key,
                       nextflag | SEARCH_SAVE_BUFF | SEARCH_UPDATE,
-                      info->s->state.key_root[inx]);
+                      info->s->state.key_root[inx], final_page);
   if (pos >= 0.0)
   {
-    DBUG_PRINT("exit",("pos: %ld",(ulong) (pos*info->state->records)));
-    DBUG_RETURN((ulong) (pos*info->state->records+0.5));
+    DBUG_PRINT("exit",("pos: %lld",(longlong) (pos*info->state->records)));
+    DBUG_RETURN((ha_rows) (pos*info->state->records+0.5));
   }
   DBUG_RETURN(HA_POS_ERROR);
 }
@@ -206,11 +209,12 @@ static ha_rows _ma_record_pos(MARIA_HA *info, const uchar *key_data,
 */
 
 static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
-			     uint32 nextflag, my_off_t pos)
+                             uint32 nextflag, my_off_t pos,
+                             ulonglong *final_page)
 {
   int flag;
   uint keynr, UNINIT_VAR(max_keynr);
-  my_bool after_key;
+  my_bool last_key_on_page;
   uchar *keypos;
   double offset;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
@@ -224,8 +228,9 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
                         PAGECACHE_LOCK_LEFT_UNLOCKED, DFLT_INIT_HITS,
                         info->buff, 1))
     goto err;
+  *final_page= pos;
   flag= (*keyinfo->bin_search)(key, &page, nextflag, &keypos,
-                               info->lastkey_buff, &after_key);
+                               info->lastkey_buff, &last_key_on_page);
   keynr= _ma_keynr(&page, keypos, &max_keynr);
 
   if (flag)
@@ -240,7 +245,8 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
     if (! page.node)
       offset= 0.0;
     else if ((offset= _ma_search_pos(info, key, nextflag,
-                                     _ma_kpos(page.node,keypos))) < 0)
+                                     _ma_kpos(page.node,keypos),
+                                     final_page)) < 0)
       DBUG_RETURN(offset);
   }
   else
@@ -252,7 +258,7 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
       pages we are counting keys.
 
       If this is a node then we have to search backwards to find the
-      first occurence of the key.  The row position in a node tree
+      first occurrence of the key.  The row position in a node tree
       is keynr (starting from 0) + offset for sub tree.  If there is
       no sub tree to search, then we are at start of next sub tree.
 
@@ -268,8 +274,9 @@ static double _ma_search_pos(MARIA_HA *info, MARIA_KEY *key,
         There may be identical keys in the tree. Try to match on of those.
         Matches keynr + [0-1]
       */
-      if ((offset= _ma_search_pos(info, key, SEARCH_FIND,
-                                  _ma_kpos(page.node,keypos))) < 0)
+      if ((offset= _ma_search_pos(info, key, nextflag,
+                                  _ma_kpos(page.node,keypos),
+                                  final_page)) < 0)
 	DBUG_RETURN(offset);			/* Read error */
     }
   }
@@ -283,9 +290,10 @@ err:
 
 
 /*
-  Get keynummer of current key and max number of keys in nod
+  Get keynumber of current key and max number of keys in nod
 
-  keynr >= 0 && key_nr <= max_key
+  @return key position on page (0 - (ret_max_key - 1))
+          ret_max_key contains how many keys there was on the page
 */
 
 static uint _ma_keynr(MARIA_PAGE *page, uchar *keypos, uint *ret_max_key)

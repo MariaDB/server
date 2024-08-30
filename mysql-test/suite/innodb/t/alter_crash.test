@@ -70,23 +70,10 @@ let $orig_table_id = `SELECT table_id
 	WHERE name = 'test/t1'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
-
-let TABLENAME_INC= $MYSQLTEST_VARDIR/tmp/tablename.inc;
-perl;
-die unless open OUT, ">$ENV{TABLENAME_INC}";
-chdir "$ENV{'datadir'}/test";
-my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
-print OUT 'let $tablename=', $frm_file[0], ';';
-close OUT or die;
-EOF
-source $TABLENAME_INC;
-remove_file $TABLENAME_INC;
-
-move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
@@ -123,12 +110,10 @@ let $orig_table_id = `SELECT table_id
 	WHERE name = 'test/t2'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
-
-remove_files_wildcard $datadir/test #sql-*.frm;
 
 --echo # Startup the server after the crash
 --source include/start_mysqld.inc
@@ -165,22 +150,10 @@ let $orig_table_id = `select table_id from
   information_schema.innodb_sys_tables where name = 'test/t1'`;
 
 # Write file to make mysql-test-run.pl expect crash
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 #
 --error 2013
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
-
-perl;
-die unless open OUT, ">$ENV{TABLENAME_INC}";
-chdir "$ENV{'datadir'}/test";
-my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
-print OUT 'let $tablename=', $frm_file[0], ';';
-close OUT or die;
-EOF
-source $TABLENAME_INC;
-remove_file $TABLENAME_INC;
-
-move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
@@ -189,7 +162,6 @@ move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 eval SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = $orig_table_id;
 
---echo # Files in datadir after manual recovery.
 --list_files $MYSQLD_DATADIR/test
 
 SHOW TABLES;
@@ -224,3 +196,34 @@ disconnect con1;
 DROP TABLE t1;
 SET DEBUG_SYNC = 'RESET';
 SET SQL_MODE=DEFAULT;
+
+--echo #
+--echo # MDEV-26936 Recovery crash on rolling back DELETE FROM SYS_INDEXES
+--echo #
+
+CREATE TABLE t1(a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1);
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC = 'row_merge_after_scan SIGNAL scanned WAIT_FOR commit';
+SET DEBUG_SYNC = 'before_commit_rollback_inplace SIGNAL c WAIT_FOR ever';
+send ALTER TABLE t1 ADD UNIQUE INDEX(b), ALGORITHM=INPLACE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR scanned';
+BEGIN;
+INSERT INTO t1 VALUES(2,1);
+COMMIT;
+SET DEBUG_SYNC = 'now SIGNAL commit';
+SET DEBUG_SYNC = 'now WAIT_FOR c';
+# Make all pending changes durable for recovery.
+SET GLOBAL innodb_fil_make_page_dirty_debug=0;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+CHECK TABLE t1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;

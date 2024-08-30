@@ -7,6 +7,8 @@
 # 2. Set $engine_type
 let $engine_type= innodb;
 
+--source include/test_db_charset_latin1.inc
+
 # Create some objects needed in many testcases
 USE test;
 --source suite/funcs_1/include/innodb_tb2.inc
@@ -22,3 +24,4 @@ USE test;
 DROP DATABASE test1;
 DROP TABLE test.tb2;
 
+--source include/test_db_charset_restore.inc

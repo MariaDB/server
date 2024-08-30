@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2017, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -22,7 +22,6 @@
 
 #include <my_global.h>
 #include <my_pthread.h>
-#include <pfs_atomic.h>
 #include <pfs_timer.h>
 #include "my_sys.h"
 #include <tap.h>

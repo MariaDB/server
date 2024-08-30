@@ -38,6 +38,7 @@
 #include "grn_util.h"
 #include "grn_cache.h"
 #include "grn_window_functions.h"
+#include <my_attribute.h>
 #include <string.h>
 #include <math.h>
 
@@ -1060,6 +1061,8 @@ grn_table_create_validate(grn_ctx *ctx, const char *name, unsigned int name_size
   return ctx->rc;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static grn_obj *
 grn_table_create_with_max_n_subrecs(grn_ctx *ctx, const char *name,
                                     unsigned int name_size, const char *path,
@@ -1238,6 +1241,7 @@ grn_table_create_with_max_n_subrecs(grn_ctx *ctx, const char *name,
   }
   return res;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_obj *
 grn_table_create(grn_ctx *ctx, const char *name, unsigned int name_size,
@@ -1302,7 +1306,7 @@ grn_table_get_subrecs(grn_ctx *ctx, grn_obj *table, grn_id id,
       byte *psubrec = (byte *)ri->subrecs;
       uint32_t n_subrecs = (uint32_t)GRN_RSET_N_SUBRECS(ri);
       uint32_t limit = value_size / (GRN_RSET_SCORE_SIZE + subrec_size);
-      if (limit > buf_size) {
+      if ((int) limit > buf_size) {
         limit = buf_size;
       }
       if (limit > n_subrecs) {
@@ -1525,7 +1529,7 @@ grn_table_add(grn_ctx *ctx, grn_obj *table, const void *key, unsigned int key_si
       if (hooks) {
         // todo : grn_proc_ctx_open()
         grn_obj id_, flags_, oldvalue_, value_;
-        grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4};
+        grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4, {{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0}}};
         GRN_UINT32_INIT(&id_, 0);
         GRN_UINT32_INIT(&flags_, 0);
         GRN_TEXT_INIT(&oldvalue_, 0);
@@ -1751,7 +1755,7 @@ grn_table_get_key(grn_ctx *ctx, grn_obj *table, grn_id id, void *keybuf, int buf
       {
         grn_array *a = (grn_array *)table;
         if (a->obj.header.domain) {
-          if (buf_size >= a->value_size) {
+          if ((unsigned int) buf_size >= a->value_size) {
             r = grn_array_get_value(ctx, a, id, keybuf);
           } else {
             r = a->value_size;
@@ -1826,7 +1830,7 @@ call_delete_hook(grn_ctx *ctx, grn_obj *table, grn_id rid, const void *key, unsi
     if (hooks) {
       // todo : grn_proc_ctx_open()
       grn_obj id_, flags_, oldvalue_, value_;
-      grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4};
+      grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4,  {{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0}}};
       GRN_UINT32_INIT(&id_, 0);
       GRN_UINT32_INIT(&flags_, 0);
       GRN_TEXT_INIT(&oldvalue_, GRN_OBJ_DO_SHALLOW_COPY);
@@ -2466,7 +2470,7 @@ grn_table_cursor_open(grn_ctx *ctx, grn_obj *table,
     if (offset < 0) {
       ERR(GRN_TOO_SMALL_OFFSET,
           "can't use negative offset with GRN_CURSOR_PREFIX: %d", offset);
-    } else if (offset != 0 && offset >= table_size) {
+    } else if (offset != 0 && offset >= (int) table_size) {
       ERR(GRN_TOO_LARGE_OFFSET,
           "offset is not less than table size: offset:%d, table_size:%d",
           offset, table_size);
@@ -4776,6 +4780,9 @@ _grn_table_key(grn_ctx *ctx, grn_obj *table, grn_id id, uint32_t *key_size)
 
 /* column */
 
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 grn_obj *
 grn_column_create(grn_ctx *ctx, grn_obj *table,
                   const char *name, unsigned int name_size,
@@ -4978,6 +4985,7 @@ exit :
   if (!res && id) { grn_obj_delete_by_id(ctx, db, id, GRN_TRUE); }
   GRN_API_RETURN(res);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 grn_obj *
 grn_column_open(grn_ctx *ctx, grn_obj *table,
@@ -5235,7 +5243,7 @@ grn_vector_get_element(grn_ctx *ctx, grn_obj *vector,
     ERR(GRN_INVALID_ARGUMENT, "invalid vector");
     goto exit;
   }
-  if (vector->u.v.n_sections <= offset) {
+  if ((unsigned int) vector->u.v.n_sections <= offset) {
     ERR(GRN_RANGE_ERROR, "offset out of range");
     goto exit;
   }
@@ -7141,7 +7149,7 @@ call_hook(grn_ctx *ctx, grn_obj *obj, grn_id id, grn_obj *value, int flags)
     if (hooks) {
       // todo : grn_proc_ctx_open()
       grn_obj id_, flags_;
-      grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4};
+      grn_proc_ctx pctx = {{0}, hooks->proc, NULL, hooks, hooks, PROC_INIT, 4, 4, {{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0},{0}}};
       GRN_UINT32_INIT(&id_, 0);
       GRN_UINT32_INIT(&flags_, 0);
       GRN_UINT32_SET(ctx, &id_, id);
@@ -7974,11 +7982,11 @@ grn_obj_get_values(grn_ctx *ctx, grn_obj *obj, grn_id offset, void **values)
     grn_obj *domain = grn_column_table(ctx, obj);
     if (domain) {
       int table_size = (int)grn_table_size(ctx, domain);
-      if (0 < offset && offset <= table_size) {
+      if (0 < offset && offset <= (grn_id) table_size) {
         grn_ra *ra = (grn_ra *)obj;
         void *p = grn_ra_ref(ctx, ra, offset);
         if (p) {
-          if ((offset >> ra->element_width) == (table_size >> ra->element_width)) {
+          if ((offset >> ra->element_width) == ((unsigned int) table_size >> ra->element_width)) {
             nrecords = (table_size & ra->element_mask) + 1 - (offset & ra->element_mask);
           } else {
             nrecords = ra->element_mask + 1 - (offset & ra->element_mask);
@@ -8540,6 +8548,8 @@ grn_obj_spec_save(grn_ctx *ctx, grn_db_obj *obj)
   grn_obj_close(ctx, &v);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 inline static void
 grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
                                               const char *message,
@@ -8590,6 +8600,8 @@ grn_obj_set_info_source_invalid_lexicon_error(grn_ctx *ctx,
       source_name_size, source_name);
 }
 
+PRAGMA_REENABLE_CHECK_STACK_FRAME
+
 inline static grn_rc
 grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
 {
@@ -8597,7 +8609,7 @@ grn_obj_set_info_source_validate(grn_ctx *ctx, grn_obj *obj, grn_obj *value)
   grn_obj *lexicon = NULL;
   grn_id lexicon_domain_id;
   grn_obj *lexicon_domain = NULL;
-  grn_bool lexicon_domain_is_table;
+  grn_bool lexicon_domain_is_table __attribute__((unused));
   grn_bool lexicon_have_tokenizer;
   grn_id *source_ids;
   int i, n_source_ids;
@@ -9330,7 +9342,7 @@ remove_reference_tables(grn_ctx *ctx, grn_obj *table, grn_obj *db)
   grn_bool is_close_opened_object_mode = GRN_FALSE;
   grn_id table_id;
   char table_name[GRN_TABLE_MAX_KEY_SIZE];
-  int table_name_size;
+  int table_name_size __attribute__((unused));
   grn_table_cursor *cursor;
 
   if (grn_thread_get_limit() == 1) {
@@ -10317,12 +10329,10 @@ grn_db_spec_unpack(grn_ctx *ctx,
                    const char *error_message_tag)
 {
   grn_obj *db;
-  grn_db *db_raw;
   grn_rc rc;
   uint32_t spec_size;
 
   db = ctx->impl->db;
-  db_raw = (grn_db *)db;
 
   rc = grn_vector_decode(ctx,
                          decoded_spec,
@@ -12579,7 +12589,7 @@ grn_column_find_index_data_column_equal(grn_ctx *ctx, grn_obj *obj,
     if (n < buf_size) {
       *ip++ = target;
     }
-    if (n < n_index_data) {
+    if ((unsigned int) n < n_index_data) {
       index_data[n].index = target;
       index_data[n].section = section;
     }
@@ -12641,7 +12651,7 @@ grn_column_find_index_data_column_match(grn_ctx *ctx, grn_obj *obj,
       if (n < buf_size) {
         *ip++ = target;
       }
-      if (n < n_index_data) {
+      if ((unsigned int) n < n_index_data) {
         index_data[n].index = target;
         index_data[n].section = section;
       }
@@ -12668,7 +12678,7 @@ grn_column_find_index_data_column_match(grn_ctx *ctx, grn_obj *obj,
     if (n < buf_size) {
       *ip++ = target;
     }
-    if (n < n_index_data) {
+    if ((unsigned int) n < n_index_data) {
       index_data[n].index = target;
       index_data[n].section = section;
     }
@@ -12722,7 +12732,7 @@ grn_column_find_index_data_column_range(grn_ctx *ctx, grn_obj *obj,
     if (n < buf_size) {
       *ip++ = target;
     }
-    if (n < n_index_data) {
+    if ((unsigned int) n < n_index_data) {
       index_data[n].index = target;
       index_data[n].section = section;
     }
@@ -12957,7 +12967,7 @@ grn_column_find_index_data_accessor_match(grn_ctx *ctx, grn_obj *obj,
         if (n < buf_size) {
           *ip++ = target;
         }
-        if (n < n_index_data) {
+        if ((unsigned int) n < n_index_data) {
           index_data[n].index = target;
           index_data[n].section = section;
         }
@@ -12983,7 +12993,7 @@ grn_column_find_index_data_accessor_match(grn_ctx *ctx, grn_obj *obj,
       if (n < buf_size) {
         *ip++ = index;
       }
-      if (n < n_index_data) {
+      if ((unsigned int) n < n_index_data) {
         index_data[n].index = index;
         index_data[n].section = section;
       }
@@ -13004,7 +13014,7 @@ grn_column_find_index_data_accessor_match(grn_ctx *ctx, grn_obj *obj,
       if (n < buf_size) {
         *ip++ = index;
       }
-      if (n < n_index_data) {
+      if ((unsigned int) n < n_index_data) {
         index_data[n].index = index;
         index_data[n].section = section;
       }
@@ -13615,7 +13625,7 @@ grn_table_sort_key_from_str(grn_ctx *ctx, const char *str, unsigned int str_size
 grn_rc
 grn_table_sort_key_close(grn_ctx *ctx, grn_table_sort_key *keys, unsigned int nkeys)
 {
-  int i;
+  unsigned int i;
   if (keys) {
     for (i = 0; i < nkeys; i++) {
       grn_obj *key = keys[i].key;
@@ -14020,7 +14030,7 @@ grn_ctx_merge_temporary_open_space(grn_ctx *ctx)
   GRN_API_ENTER;
 
   stack = &(ctx->impl->temporary_open_spaces.stack);
-  if (GRN_BULK_VSIZE(stack) < sizeof(grn_obj) * 2) {
+  if ((unsigned long) GRN_BULK_VSIZE(stack) < (unsigned long) sizeof(grn_obj) * 2) {
     ERR(GRN_INVALID_ARGUMENT,
         "[ctx][temporary-open-spaces][merge] "
         "merge requires at least two spaces");

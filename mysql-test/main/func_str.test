@@ -1,10 +1,10 @@
 # Description
 # -----------
 # Testing string functions
+--source include/have_sequence.inc
 
---disable_warnings
-drop table if exists t1,t2;
---enable_warnings
+--source include/test_db_charset_latin1.inc
+
 
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 set global max_allowed_packet=1048576;
@@ -31,14 +31,11 @@ select position(binary 'll' in 'hello'),position('a' in binary 'hello');
 # strange undocumented behaviour, strict mode
 #
 select left('hello',null), right('hello',null);
-select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5) ;
-#enable after fix MDEV-27871
---disable_view_protocol
-select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) ;
+select left('hello',2),right('hello',2),substring('hello',2,2),mid('hello',1,5);
+select concat('',left(right(concat('what ',concat('is ','happening')),9),4),'',substring('monty',5,1)) as exp;
 select substring_index('www.tcx.se','.',-2),substring_index('www.tcx.se','.',1);
 select substring_index('www.tcx.se','tcx',1),substring_index('www.tcx.se','tcx',-1);
 select substring_index('.tcx.se','.',-2),substring_index('.tcx.se','.tcx',-1);
---enable_view_protocol
 select substring_index('aaaaaaaaa1','a',1);
 select substring_index('aaaaaaaaa1','aa',1);
 select substring_index('aaaaaaaaa1','aa',2);
@@ -53,11 +50,14 @@ select substring_index('aaaaaaaaa1','aaaa',1);
 select substring_index('aaaaaaaaa1','aaaa',2);
 select substring_index('aaaaaaaaa1','1',1);
 select substring_index('aaaaaaaaa1','a',-1);
+#enable after fix MDEV-29601
+--disable_service_connection
 select substring_index('aaaaaaaaa1','aa',-1);
 select substring_index('aaaaaaaaa1','aa',-2);
 select substring_index('aaaaaaaaa1','aa',-3);
 select substring_index('aaaaaaaaa1','aa',-4);
 select substring_index('aaaaaaaaa1','aa',-5);
+--enable_service_connection
 select substring_index('aaaaaaaaa1','aaa',-1);
 select substring_index('aaaaaaaaa1','aaa',-2);
 select substring_index('aaaaaaaaa1','aaa',-3);
@@ -79,29 +79,28 @@ select substring_index('the king of the the hill','the',1);
 select substring_index('the king of the the hill','the',2);
 select substring_index('the king of the the hill','the',3);
 
-select concat(':',ltrim('  left  '),':',rtrim('  right  '),':');
-#enable after fix MDEV-27871
---disable_view_protocol
-select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':');
-select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':');
-select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':');
-select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':');
-select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':');
+select concat(':',ltrim('  left  '),':',rtrim('  right  '),':') as exp;
+select concat(':',trim(leading from '  left  '),':',trim(trailing from '  right  '),':') as exp;
+select concat(':',trim(LEADING FROM ' left'),':',trim(TRAILING FROM ' right '),':') as exp;
+select concat(':',trim(' m '),':',trim(BOTH FROM ' y '),':',trim('*' FROM '*s*'),':') as exp;
+select concat(':',trim(BOTH 'ab' FROM 'ababmyabab'),':',trim(BOTH '*' FROM '***sql'),':') as exp;
+select concat(':',trim(LEADING '.*' FROM '.*my'),':',trim(TRAILING '.*' FROM 'sql.*.*'),':') as exp;
 select TRIM("foo" FROM "foo"), TRIM("foo" FROM "foook"), TRIM("foo" FROM "okfoo");
---enable_view_protocol
 
 select concat_ws(', ','monty','was here','again');
 select concat_ws(NULL,'a'),concat_ws(',',NULL,'');
 select concat_ws(',','',NULL,'a');
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"');
+SELECT CONCAT('"',CONCAT_WS('";"',repeat('a',60),repeat('b',60),repeat('c',60),repeat('d',100)), '"') as exp;
 
 select insert('txs',2,1,'hi'),insert('is ',4,0,'a'),insert('txxxxt',2,4,'es');
 select replace('aaaa','a','b'),replace('aaaa','aa','b'),replace('aaaa','a','bb'),replace('aaaa','','b'),replace('bbbb','a','c');
-select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') ;
-select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
+--disable_view_protocol
+--enable_metadata
+select replace('aaaa','a','bbbb');
+--disable_metadata
 --enable_view_protocol
+select replace(concat(lcase(concat('THIS',' ','IS',' ','A',' ')),ucase('false'),' ','test'),'FALSE','REAL') as exp;
+select soundex(''),soundex('he'),soundex('hello all folks'),soundex('#3556 in bugdb');
 select 'mood' sounds like 'mud';
 select 'Glazgo' sounds like 'Liverpool';
 select null sounds like 'null';
@@ -134,32 +133,22 @@ select rpad('abcd',7),lpad('abcd',7);
 select LEAST(NULL,'HARRY','HARRIOT',NULL,'HAROLD'),GREATEST(NULL,'HARRY','HARRIOT',NULL,'HAROLD');
 select least(1,2,3) | greatest(16,32,8), least(5,4)*1,greatest(-1.0,1.0)*1,least(3,2,1)*1.0,greatest(1,1.1,1.0),least("10",9),greatest("A","B","0");
 
-#enable after fix MDEV-27871
---disable_view_protocol
-select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000);
---enable_view_protocol
-select decode(encode("abcdef","monty"),"monty")="abcdef";
+select decode(encode(repeat("a",100000),"monty"),"monty")=repeat("a",100000) as exp;
+select decode(encode("abcdef","monty"),"monty")="abcdef" as exp;
 
 select quote('\'\"\\test');
 select quote(concat('abc\'', '\\cba'));
 select quote(1/0), quote('\0\Z');
 select length(quote(concat(char(0),"test")));
-#enable after fix MDEV-27871
---disable_view_protocol
-select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235))));
-select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL);
---enable_view_protocol
+select hex(quote(concat(char(224),char(227),char(230),char(231),char(232),char(234),char(235)))) as exp;
+select unhex(hex("foobar")), hex(unhex("1234567890ABCDEF")), unhex("345678"), unhex(NULL) as exp;
 select hex(unhex("1")), hex(unhex("12")), hex(unhex("123")), hex(unhex("1234")), hex(unhex("12345")), hex(unhex("123456"));
 select length(unhex(md5("abrakadabra")));
 
 #
 # Bug #6564: QUOTE(NULL
 #
-
-#enable after fix MDEV-28651
---disable_view_protocol
 select concat('a', quote(NULL));
---enable_view_protocol
 
 #
 # Wrong usage of functions
@@ -208,14 +197,11 @@ CREATE TABLE t1 (
   submitter int(10) unsigned default NULL
 ) ENGINE=MyISAM;
 
-#enable after fix MDEV-27871
---disable_view_protocol
 INSERT INTO t1 VALUES (1,'Link',1,1,1,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','2001-02-28 08:40:16',20010228084016,0,4);
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') FROM t1;
-SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') FROM t1;
-SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) FROM t1;
-SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') from t1 group by bugdesc;
---enable_view_protocol
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter), '"') as exp FROM t1;
+SELECT CONCAT('"',CONCAT_WS('";"',title,prio,category,program,bugstatus,submitter), '"') as exp FROM t1;
+SELECT CONCAT_WS('";"',title,prio,category,program,bugdesc,created,modified+0,bugstatus,submitter) as exp FROM t1;
+SELECT bugdesc, REPLACE(bugdesc, 'xxxxxxxxxxxxxxxxxxxx', 'bbbbbbbbbbbbbbbbbbbb') as exp from t1 group by bugdesc;
 drop table t1;
 
 #
@@ -318,10 +304,13 @@ select FIELD('b','A','B');
 select FIELD('B','A','B');
 select FIELD('b' COLLATE latin1_bin,'A','B');
 select FIELD('b','A' COLLATE latin1_bin,'B');
+#enable after fix MDEV-29601
+--disable_service_connection
 --error 1270
 select FIELD(_latin2'b','A','B');
 --error 1270
 select FIELD('b',_latin2'A','B');
+--enable_service_connection
 select FIELD('1',_latin2'3','2',1);
 
 select POSITION(_latin1'B' IN _latin1'abcd');
@@ -479,7 +468,7 @@ where collation(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
 where charset(t2.a) = _utf8'binary' order by t1.a,t2.a;
 select t1.*,t2.* from t1 left join t2 on (t1.b=t2.b)
-where coercibility(t2.a) = 5 order by t1.a,t2.a;
+where coercibility(t2.a) = 6 order by t1.a,t2.a;
 DROP TABLE t1, t2;
 
 #
@@ -564,7 +553,7 @@ SELECT lpad(12345, 5, "#");
 #
  
 SELECT conv(71, 10, 36), conv('1Z', 36, 10);
-SELECT conv(71, 10, 37), conv('1Z', 37, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
+SELECT conv(71, 10, 63), conv('1Z', 63, 10), conv(0,1,10),conv(0,0,10), conv(0,-1,10);
 
 #
 # Bug in SUBSTRING when mixed with CONCAT and ORDER BY (Bug #3089)
@@ -992,11 +981,20 @@ select left('hello', 10);
 select left('hello', 0);
 select left('hello', -1);
 select left('hello', -4294967295);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967295);
+--enable_view_protocol
 select left('hello', -4294967296);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967296);
+--enable_view_protocol
 select left('hello', -4294967297);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select left('hello', 4294967297);
+--enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select left('hello', -18446744073709551615);
@@ -1011,11 +1009,20 @@ select right('hello', 10);
 select right('hello', 0);
 select right('hello', -1);
 select right('hello', -4294967295);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967295);
+--enable_view_protocol
 select right('hello', -4294967296);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967296);
+--enable_view_protocol
 select right('hello', -4294967297);
+#enable after fix MDEV-29552
+--disable_view_protocol
 select right('hello', 4294967297);
+--enable_view_protocol
 #view protocol generates additional warning
 --disable_view_protocol
 select right('hello', -18446744073709551615);
@@ -1114,15 +1121,12 @@ select insert('hello', -4294967296, -4294967296, 'hi');
 select insert('hello', 4294967296, 4294967296, 'hi');
 select insert('hello', -4294967297, -4294967297, 'hi');
 select insert('hello', 4294967297, 4294967297, 'hi');
-#enable after fix MDEV-27871
---disable_view_protocol
-select insert('hello', -18446744073709551615, -18446744073709551615, 'hi');
-select insert('hello', 18446744073709551615, 18446744073709551615, 'hi');
-select insert('hello', -18446744073709551616, -18446744073709551616, 'hi');
-select insert('hello', 18446744073709551616, 18446744073709551616, 'hi');
-select insert('hello', -18446744073709551617, -18446744073709551617, 'hi');
-select insert('hello', 18446744073709551617, 18446744073709551617, 'hi');
---enable_view_protocol
+select insert('hello', -18446744073709551615, -18446744073709551615, 'hi') as exp;
+select insert('hello', 18446744073709551615, 18446744073709551615, 'hi') as exp;
+select insert('hello', -18446744073709551616, -18446744073709551616, 'hi') as exp;
+select insert('hello', 18446744073709551616, 18446744073709551616, 'hi') as exp;
+select insert('hello', -18446744073709551617, -18446744073709551617, 'hi') as exp;
+select insert('hello', 18446744073709551617, 18446744073709551617, 'hi') as exp;
 
 select repeat('hello', -1);
 select repeat('hello', -4294967295);
@@ -1467,17 +1471,14 @@ CREATE TABLE t2 (a VARCHAR(20), b INT);
 INSERT INTO t1 VALUES ('ABC', 1);
 INSERT INTO t2 VALUES ('ABC', 1);
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
 
-SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', 'ABC') FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), t2.a) as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
 
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC')
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b), 'ABC') as exp
   FROM t1,t2 WHERE t1.b = t1.b > 0 GROUP BY t2.b;
---enable_view_protocol
 
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
@@ -1485,11 +1486,8 @@ TRUNCATE TABLE t2;
 INSERT INTO t1 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 INSERT INTO t2 VALUES ('EDF', 3), ('BCD', 2), ('ABC', 1);
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a)
+SELECT DECODE((SELECT ENCODE('secret', t1.a) FROM t1,t2 WHERE t1.a = t2.a GROUP BY t1.b LIMIT 1), t2.a) as exp
   FROM t2 WHERE t2.b = 1 GROUP BY t2.b;
---enable_view_protocol
 
 DROP TABLE t1, t2;
 
@@ -1524,6 +1522,7 @@ CREATE TABLE t1 ( a TEXT );
 SELECT insert( substring_index( 'a', 'a', 'b' ), 1, 0, 'x' );
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/bug58165.txt' INTO TABLE t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/bug58165.txt
 SELECT * FROM t1;
 DROP TABLE t1;
 
@@ -1654,14 +1653,11 @@ SELECT CONV(1,-2147483648,-2147483648);
 --echo # Bug#12985030 SIMPLE QUERY WITH DECIMAL NUMBERS LEAKS MEMORY
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
 SELECT (rpad(1.0,2048,1)) IS NOT FALSE;
 SELECT ((+0) IN
 ((0b111111111111111111111111111111111111111111111111111),(rpad(1.0,2048,1)),
-(32767.1)));
+(32767.1))) as exp;
 SELECT ((rpad(1.0,2048,1)) = ('4(') ^ (0.1));
---enable_view_protocol
 
 --error 1690
 SELECT
@@ -2089,10 +2085,7 @@ DROP TABLE t1;
 --echo # MDEV-24742 Server crashes in Charset::numchars / String::numchars
 --echo #
 
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux');
---enable_view_protocol
+SELECT NULL IN (RIGHT(AES_ENCRYPT('foo','bar'), LAST_INSERT_ID()), 'qux') as exp;
 
 --echo #
 --echo # Bug#31374305 - FORMAT() NOT DISPLAYING WHOLE NUMBER SIDE CORRECTLY
@@ -2248,6 +2241,7 @@ DROP TABLE t1, t2;
 CREATE TABLE t1 (i int, b int AS (RPAD(123,1)) stored);
 
 --echo # Original case from the reporter
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
 CREATE TABLE crash_test_2 (
   DATA_VALUE CHAR(10) NULL,
   HAS_DATA BIT NOT NULL,
@@ -2256,7 +2250,6 @@ CREATE TABLE crash_test_2 (
 
 --echo # Cleanup
 DROP TABLE t1;
-DROP TABLE crash_test_2;
 
 --echo #
 --echo # End of 10.3 tests
@@ -2308,3 +2301,290 @@ SELECT DECODE(NULL, NULL, NULL);
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-28651 quote(NULL) returns incorrect result in view ('NU' instead of 'NULL')
+--echo #
+
+CREATE VIEW v1 AS SELECT quote(NULL);
+SELECT * FROM v1;
+DESCRIBE v1;
+CREATE TABLE t1 AS SELECT * FROM v1;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+DROP VIEW v1;
+
+
+--echo #
+--echo # MDEV-28387 UBSAN: runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strtoll10 on SELECT
+--echo #
+
+SET @a='-9223372036854775808';  # Quite specific value; considerably varying it will not work
+CREATE TABLE t (c1 INT,c2 CHAR);
+SELECT SUBSTR(0,@a) FROM t;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-25704 Function random_bytes
+--echo #
+
+create table t1 as select random_bytes(100);
+show create table t1;
+drop table t1;
+
+--echo # The sequence starts at 17 so that the probability of test failure is small enough (about 2^(-136))
+select count(*) from seq_17_to_1024 where random_bytes(seq) <=> random_bytes(seq);
+
+select count(*) from seq_1_to_1024 where length(random_bytes(seq)) = seq;
+
+select random_bytes(`0`),`1` from (values (0,1),(null,2),(0,3)) t1;
+
+--echo #
+--echo # Test NULL output for NULL input
+--echo #
+
+SELECT random_bytes(NULL);
+
+--echo #
+--echo # Test For values outside range from 1 to 1024 return NULL
+--echo #
+
+SELECT random_bytes(0);
+SELECT random_bytes(-1);
+SELECT random_bytes(-100);
+SELECT random_bytes(-26);
+SELECT random_bytes(-132);
+SELECT random_bytes(1025);
+SELECT random_bytes(11111);
+SELECT random_bytes(2056);
+
+#double warning for view protocol 
+--disable_view_protocol
+SELECT length(random_bytes(10.0));
+SELECT length(random_bytes(10.1));
+SELECT length(random_bytes(+1e1));
+SELECT length(random_bytes(time("00:01")));
+SELECT length(random_bytes("10.0"));
+SELECT length(random_bytes("10.1"));
+SELECT length(random_bytes("+1e1"));
+SELECT length(random_bytes("10.0bunnies"));
+SELECT length(random_bytes("10.1chickens"));
+SELECT length(random_bytes("+1e1rabbits"));
+--enable_view_protocol
+
+--delimiter |
+create procedure p1()
+begin
+  declare r ROW (c1 INT);
+  set r.c1= 10;
+  select random_bytes(r);
+end|
+--delimiter ;
+--error 1241
+call p1();
+drop procedure p1;
+
+--echo #
+--echo # Test For invalid argument return NULL
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+SELECT random_bytes('s');
+SELECT random_bytes('r');
+SELECT random_bytes('res');
+SELECT random_bytes('test');
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-29108 RANDOM_BYTES - assertion in Create_tmp_table::finalize
+--echo #
+
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+SELECT RANDOM_BYTES(-10) f1, IFNULL(a,1) f2 FROM t GROUP BY f1, f2;
+
+# Cleanup
+DROP TABLE t;
+
+--echo #
+--echo # MDEV-29154 Excessive warnings upon a call to RANDOM_BYTES
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+select length(random_bytes(cast('x' as unsigned)+1));
+select repeat('.', cast('x' as unsigned)+1);
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-23149 Server crashes in my_convert / ErrConvString::ptr / Item_char_typecast::check_truncation_with_warn
+--echo #
+#double warning for view protocol 
+--disable_view_protocol
+--replace_regex /'.*'/'...random bytes...'/
+select "a" in ("abc", (convert(random_bytes(8) ,binary(2))));
+--enable_view_protocol
+--echo #
+--echo # End of 10.10 tests
+--echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-33392 Server crashes when using RANDOM_BYTES function and GROUP BY clause on a column with a negative value
+--echo #
+
+SET sql_mode='';
+CREATE TABLE t1 (a VARCHAR(255)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (9494),(9495),(9496),(9497),(9498),(9499),(9500),(9501),(9502),(9503);
+SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+CREATE TABLE t2 AS SELECT RANDOM_BYTES (-1) f1,a f2 FROM t1 GROUP BY f1,f2;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-9069 extend AES_ENCRYPT() and AES_DECRYPT() to support IV and the algorithm
+--echo #
+select aes_encrypt('foo', 'bar', '1234') = aes_encrypt('foo', 'bar') `expected 1`;
+select aes_encrypt('foo', 'bar', NULL, 'aes-128-ecb') = aes_encrypt('foo', 'bar') `expected 1`;
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1);
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt(1,2,3,4,5);
+select aes_encrypt('foo', 'bar', '0123', 'something');
+select aes_encrypt('foo', 'bar', '0123', 'aes-111-ecb');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-bar');
+select aes_encrypt('foo', 'bar', '0123', 'aes-128-cbc');
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-256-cbc')) `x`;
+select aes_decrypt(x'42A3EB91E6DFC40A900D278F99E0726E', 'bar', '0123456789abcdef###', 'AES-256-CBC') `expected foo`;
+select hex(aes_encrypt('foo', 'bar', '0123456789abcdef', 'aes-128-ctr')) `x`;
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef', 'aes-128-ctr') `expected foo`;
+
+set @@block_encryption_mode='aes-128-ctr';
+select aes_decrypt(x'C57C4B', 'bar', '0123456789abcdef');
+set @@block_encryption_mode='aes-192-cbc';
+select hex(aes_encrypt('foo', 'bar'));
+select hex(aes_encrypt('foo', 'bar', 'abcdefghabcdefgh'));
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh') `expected foo`;
+
+# wrong key
+select aes_decrypt(x'00000000000000011111111111111111', 'bar', 'abcdefghabcdefgh') `expected NULL`;
+# wrong iv
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', '0000000011111111') `expected NULL`;
+# wrong alg
+select aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ecb') `expected NULL`;
+# but ctr doesn't use padding, so:
+select hex(aes_decrypt(x'9E6F76516B4DE68FED7A77632FC0913D', 'bar', 'abcdefghabcdefgh', 'aes-128-ctr')) `expected garbage`;
+
+set @@block_encryption_mode=default;
+
+--echo #
+--echo # MDEV-31633 Assertion `!item->null_value' failed in Type_handler::Item_send_str
+--echo #
+select aes_encrypt(a,a) is null from (values('a'),(NULL),('b')) x;
+
+--echo #
+--echo # MDEV-33659: Server crashed at Create_func_aes_decrypt::create_native
+--echo #
+
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_encrypt();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select aes_decrypt();
+
+--echo #
+--echo # End of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-30879 Add conversion to based 62 for CONV function
+--echo #
+
+SELECT CONV('1z', 62, 10);
+SELECT CONV('1Z', 62, 10);
+
+SELECT CONV('-1Z', 62, 10);
+SELECT CONV('-1Z', -62, 10);
+SELECT CONV('-1Z', 62, -10);
+SELECT CONV('-1Z', -62, -10);
+
+# Check limits
+SELECT CONV('AzL8n0Y58m7', 62, 10);
+SELECT CONV('LygHa16AHYE', 62, 10);
+SELECT CONV('LygHa16AHYF', 62, 10);
+
+# Overflow doesn't appear to warn, but does overflow
+SELECT CONV('LygHa16AHZ0', 62, 10);
+
+SELECT CONV('-AzL8n0Y58m7', -62, -10);
+SELECT CONV('-AzL8n0Y58m8', -62, -10);
+SELECT CONV('-AzL8n0Y58m9', -62, -10);
+SELECT CONV('-LygHa16AHZ0', -62, -10);
+
+# Should NULL
+SELECT CONV('LygHa16AHYF', 63, 10);
+SELECT CONV(18446744073709551615, 10, 63);
+
+# Test 10 -> 62
+SELECT CONV(18446744073709551615, 10, 62);
+SELECT CONV(-9223372036854775808, -10, -62);
+
+--echo #
+--echo # End of 11.4 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+--echo #
+
+--vertical_results
+SELECT
+  coercibility(CAST(1 AS CHAR)),
+  coercibility(CONVERT('a' USING latin1));
+
+SELECT
+  coercibility(CAST(1 AS BINARY)),
+  coercibility(CONVERT('a' USING binary)),
+  coercibility(binary'a');
+--horizontal_results
+
+EXPLAIN EXTENDED SELECT
+  CAST(1 AS BINARY) AS c,
+  CONVERT('a' USING binary),
+  BINARY'a';
+
+--vertical_results
+SELECT
+  coercibility(collation('a')),
+  coercibility(charset('a')),
+  coercibility(user()),
+  coercibility(database());
+--horizontal_results
+
+--echo #
+--echo # End of 11.5 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

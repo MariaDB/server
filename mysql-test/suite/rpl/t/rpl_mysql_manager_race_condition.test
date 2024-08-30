@@ -18,8 +18,14 @@
 # associated with this test should enforce that the binlog background thread is
 # not created before the handle manager is initialized.
 #
+#   Addendum 1) This test is extended for MDEV-33799, as the original fix
+# left out the possibility that the binlog background thread can be
+# started during recovery if the binary log is used as the transaction
+# coordinator. This resulted in similar segfaults as seen by MDEV-26473.
+#
 # References:
 #  MDEV-26473 mysqld got exception 0xc0000005 (rpl_slave_state/rpl_load_gtid_slave_state)
+#  MDEV-33799 mysql_manager_submit Segfault at Startup Still Possible During Recovery
 #
 
 --source include/have_debug.inc
@@ -54,6 +60,63 @@ create table t1 (a int);
 
 
 --echo #
+--echo # MDEV-33799
+--echo # Ensure that when the binary log is used for recovery (as tc log), that
+--echo # the recovery process cannot start the binlog background thread before
+--echo # the mysql handle manager has started.
+--connection slave
+
+--echo # Add test suppresssions so crash recovery messages don't fail the test
+set session sql_log_bin=0;
+call mtr.add_suppression("mariadbd: Got error '145.*");
+call mtr.add_suppression("Checking table:.*");
+call mtr.add_suppression("mysql.gtid_slave_pos:.*hasn't closed the table properly");
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Aborting");
+set session sql_log_bin=1;
+
+--echo # Create slave-side only table
+create table t2 (a int) engine=innodb;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+wait
+EOF
+
+--echo # Crash mariadbd when binlogging transaction to corrupt database state
+--connection slave1
+set @@session.debug_dbug="+d,crash_before_writing_xid";
+--send insert into t2 values (1)
+
+--connection slave
+--source include/wait_until_disconnected.inc
+
+--connection slave1
+--error 2013,ER_CONNECTION_KILLED
+--reap
+
+--echo # Restart mariadbd in recovery mode. Note --tc-heuristic-recover
+--echo # forces mysqld to exit with error, so we run mariadbd via CLI
+--echo # MYSQLD_LAST_CMD --debug_dbug="+d,delay_start_handle_manager" --tc-heuristic-recover=COMMIT
+--error 1
+--exec $MYSQLD_LAST_CMD --debug_dbug="+d,delay_start_handle_manager" --tc-heuristic-recover=COMMIT
+
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+restart
+EOF
+
+--connection server_2
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection slave1
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--connection slave
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--source include/start_slave.inc
+
+
+--echo #
 --echo # Cleanup
 --echo #
 
@@ -63,5 +126,6 @@ drop table t1;
 
 --connection slave
 --source include/sync_with_master_gtid.inc
+drop table t2;
 
 --source include/rpl_end.inc

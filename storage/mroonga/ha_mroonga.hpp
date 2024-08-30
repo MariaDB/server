@@ -35,11 +35,8 @@ extern "C" {
 #include <mrn_operations.hpp>
 #include <mrn_database.hpp>
 
-#if __cplusplus >= 201402
-#  define mrn_override override
-#else
-#  define mrn_override
-#endif
+#define mrn_override override
+
 
 #if (MYSQL_VERSION_ID >= 50514 && MYSQL_VERSION_ID < 50600)
 #  define MRN_HANDLER_HAVE_FINAL_ADD_INDEX 1
@@ -406,7 +403,7 @@ private:
 public:
   ha_mroonga(handlerton *hton, TABLE_SHARE *share_arg);
   ~ha_mroonga();
-  const char *table_type() const;           // required
+  const char *table_type() const override;           // required
   const char *index_type(uint inx) mrn_override;
   const char **bas_ext() const;                                    // required
 
@@ -455,13 +452,14 @@ public:
   int update_row(const uchar *old_data, const uchar *new_data) mrn_override;
   int delete_row(const uchar *buf) mrn_override;
 
-  uint max_supported_record_length()   const mrn_override;
-  uint max_supported_keys()            const mrn_override;
-  uint max_supported_key_parts()       const mrn_override;
-  uint max_supported_key_length()      const mrn_override;
+  uint max_supported_record_length() const   mrn_override;
+  uint max_supported_keys() const            mrn_override;
+  uint max_supported_key_parts() const       mrn_override;
+  uint max_supported_key_length() const      mrn_override;
   uint max_supported_key_part_length() const mrn_override;
 
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key) mrn_override;
+  ha_rows records_in_range(uint inx, const key_range *min_key,
+                           const key_range *max_key, page_range *pages) mrn_override;
   int index_init(uint idx, bool sorted) mrn_override;
   int index_end() mrn_override;
 #ifndef MRN_HANDLER_HAVE_HA_INDEX_READ_MAP
@@ -504,7 +502,8 @@ public:
   ha_rows multi_range_read_info_const(uint keyno, RANGE_SEQ_IF *seq,
                                       void *seq_init_param,
                                       uint n_ranges, uint *bufsz,
-                                      uint *flags, Cost_estimate *cost) mrn_override;
+                                      uint *flags, ha_rows limit,
+                                      Cost_estimate *cost) mrn_override;
   ha_rows multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS
                                 uint key_parts,
@@ -530,8 +529,9 @@ public:
   int end_bulk_insert() mrn_override;
   int delete_all_rows() mrn_override;
   int truncate() mrn_override;
-  double scan_time() mrn_override;
-  double read_time(uint index, uint ranges, ha_rows rows) mrn_override;
+  IO_AND_CPU_COST scan_time() mrn_override;
+  IO_AND_CPU_COST rnd_pos_time(ha_rows rows) mrn_override;
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks) mrn_override;
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
   const key_map *keys_to_use_for_scanning() mrn_override;
 #endif
@@ -541,8 +541,8 @@ public:
   bool is_crashed() const mrn_override;
   bool auto_repair(int error) const mrn_override;
   bool auto_repair() const;
-  int disable_indexes(uint mode) mrn_override;
-  int enable_indexes(uint mode) mrn_override;
+  int disable_indexes(key_map map, bool persist) mrn_override;
+  int enable_indexes(key_map map, bool persist) mrn_override;
   int check(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   int repair(THD* thd, HA_CHECK_OPT* check_opt) mrn_override;
   bool check_and_repair(THD *thd) mrn_override;
@@ -612,15 +612,14 @@ protected:
   int index_last(uchar *buf) mrn_override;
 #endif
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg) mrn_override;
-  bool primary_key_is_clustered() mrn_override;
   bool is_fk_defined_on_table_or_index(uint index) mrn_override;
   char *get_foreign_key_create_info() mrn_override;
 #ifdef MRN_HANDLER_HAVE_GET_TABLESPACE_NAME
   char *get_tablespace_name(THD *thd, char *name, uint name_len);
 #endif
   bool can_switch_engines() mrn_override;
-  int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  int get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
+  int get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
   uint referenced_by_foreign_key() mrn_override;
   void init_table_handle_for_HANDLER() mrn_override;
   void free_foreign_key_create_info(char* str) mrn_override;
@@ -641,7 +640,6 @@ protected:
   bool commit_inplace_alter_table(TABLE *altered_table,
                                   Alter_inplace_info *ha_alter_info,
                                   bool commit) mrn_override;
-  void notify_table_changed() mrn_override;
 #endif
 
 private:
@@ -981,12 +979,14 @@ private:
   int storage_rnd_pos(uchar *buf, uchar *pos);
   void wrapper_position(const uchar *record);
   void storage_position(const uchar *record);
-  ha_rows wrapper_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows storage_records_in_range(uint key_nr, key_range *range_min,
-                                   key_range *range_max);
-  ha_rows generic_records_in_range_geo(uint key_nr, key_range *range_min,
-                                       key_range *range_max);
+  ha_rows wrapper_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows storage_records_in_range(uint key_nr, const key_range *range_min,
+                                   const key_range *range_max,
+                                   page_range *pages);
+  ha_rows generic_records_in_range_geo(uint key_nr, const key_range *range_min,
+                                       const key_range *range_max);
   int wrapper_index_init(uint idx, bool sorted);
   int storage_index_init(uint idx, bool sorted);
   int wrapper_index_end();
@@ -1055,6 +1055,7 @@ private:
                                               uint n_ranges,
                                               uint *bufsz,
                                               uint *flags,
+                                              ha_rows limit,
                                               Cost_estimate *cost);
   ha_rows storage_multi_range_read_info_const(uint keyno,
                                               RANGE_SEQ_IF *seq,
@@ -1062,6 +1063,7 @@ private:
                                               uint n_ranges,
                                               uint *bufsz,
                                               uint *flags,
+                                              ha_rows limit,
                                               Cost_estimate *cost);
   ha_rows wrapper_multi_range_read_info(uint keyno, uint n_ranges, uint keys,
 #ifdef MRN_HANDLER_HAVE_MULTI_RANGE_READ_INFO_KEY_PARTS
@@ -1105,10 +1107,12 @@ private:
   int wrapper_truncate_index();
   int storage_truncate();
   int storage_truncate_index();
-  double wrapper_scan_time();
-  double storage_scan_time();
-  double wrapper_read_time(uint index, uint ranges, ha_rows rows);
-  double storage_read_time(uint index, uint ranges, ha_rows rows);
+  IO_AND_CPU_COST wrapper_scan_time();
+  IO_AND_CPU_COST storage_scan_time();
+  IO_AND_CPU_COST wrapper_rnd_pos_time(ha_rows rows);
+  IO_AND_CPU_COST storage_rnd_pos_time(ha_rows rows);
+  IO_AND_CPU_COST wrapper_keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks);
+  IO_AND_CPU_COST storage_keyread_time(uint index, ulong ranges, ha_rows rows, ulonglong blocks);
 #ifdef MRN_HANDLER_HAVE_KEYS_TO_USE_FOR_SCANNING
   const key_map *wrapper_keys_to_use_for_scanning();
   const key_map *storage_keys_to_use_for_scanning();
@@ -1139,12 +1143,12 @@ private:
   bool wrapper_auto_repair(int error) const;
   bool storage_auto_repair(int error) const;
   int generic_disable_index(int i, KEY *key_info);
-  int wrapper_disable_indexes_mroonga(uint mode);
-  int wrapper_disable_indexes(uint mode);
-  int storage_disable_indexes(uint mode);
-  int wrapper_enable_indexes_mroonga(uint mode);
-  int wrapper_enable_indexes(uint mode);
-  int storage_enable_indexes(uint mode);
+  int wrapper_disable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_disable_indexes(key_map map, bool persist);
+  int storage_disable_indexes(key_map map, bool persist);
+  int wrapper_enable_indexes_mroonga(key_map map, bool persist);
+  int wrapper_enable_indexes(key_map map, bool persist);
+  int storage_enable_indexes(key_map map, bool persist);
   int wrapper_check(THD* thd, HA_CHECK_OPT* check_opt);
   int storage_check(THD* thd, HA_CHECK_OPT* check_opt);
   int wrapper_fill_indexes(THD *thd, KEY *key_info,
@@ -1201,8 +1205,6 @@ private:
   bool storage_commit_inplace_alter_table(TABLE *altered_table,
                                           Alter_inplace_info *ha_alter_info,
                                           bool commit);
-  void wrapper_notify_table_changed();
-  void storage_notify_table_changed();
 #else
   alter_table_operations wrapper_alter_table_flags(alter_table_operations flags);
   alter_table_operations storage_alter_table_flags(alter_table_operations flags);
@@ -1258,8 +1260,6 @@ private:
   int storage_start_stmt(THD *thd, thr_lock_type lock_type);
   void wrapper_change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg);
   void storage_change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg);
-  bool wrapper_primary_key_is_clustered();
-  bool storage_primary_key_is_clustered();
   bool wrapper_is_fk_defined_on_table_or_index(uint index);
   bool storage_is_fk_defined_on_table_or_index(uint index);
   char *wrapper_get_foreign_key_create_info();
@@ -1270,10 +1270,10 @@ private:
 #endif
   bool wrapper_can_switch_engines();
   bool storage_can_switch_engines();
-  int wrapper_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int wrapper_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  int storage_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int wrapper_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int wrapper_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
+  int storage_get_parent_foreign_key_list(const THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
   uint wrapper_referenced_by_foreign_key();
   uint storage_referenced_by_foreign_key();
   void wrapper_init_table_handle_for_HANDLER();
@@ -1288,8 +1288,8 @@ private:
 #ifdef MRN_HAVE_HA_REBIND_PSI
   void wrapper_unbind_psi();
   void storage_unbind_psi();
-  void wrapper_rebind_psi();
-  void storage_rebind_psi();
+  void wrapper_rebind();
+  void storage_rebind();
 #endif
   my_bool wrapper_register_query_cache_table(THD *thd,
                                              const char *table_key,

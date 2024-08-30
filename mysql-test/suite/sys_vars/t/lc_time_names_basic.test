@@ -315,8 +315,6 @@ SET @@session.lc_time_names=sl_SI;
 SELECT @@session.lc_time_names;
 SET @@session.lc_time_names=sq_AL;
 SELECT @@session.lc_time_names;
-SET @@session.lc_time_names=sr_YU;
-SELECT @@session.lc_time_names;
 SET @@session.lc_time_names=sv_FI;
 SELECT @@session.lc_time_names;
 SET @@session.lc_time_names=sr_RS;
@@ -548,8 +546,6 @@ SET @@global.lc_time_names=sl_SI;
 SELECT @@global.lc_time_names;
 SET @@global.lc_time_names=sq_AL;
 SELECT @@global.lc_time_names;
-SET @@global.lc_time_names=sr_YU;
-SELECT @@global.lc_time_names;
 SET @@global.lc_time_names=sv_FI;
 SELECT @@global.lc_time_names;
 SET @@global.lc_time_names=sr_RS;
@@ -621,8 +617,12 @@ SET @@lc_time_names = 109;
 SELECT @@lc_time_names;
 SET @@lc_time_names = 110;
 SELECT @@lc_time_names;
---Error ER_UNKNOWN_LOCALE
 SET @@lc_time_names = 111;
+SELECT @@lc_time_names;
+SET @@lc_time_names = 112;
+SELECT @@lc_time_names;
+--Error ER_UNKNOWN_LOCALE
+SET @@lc_time_names = 113;
 
 --echo '#--------------------FN_DYNVARS_060_10-------------------------#'
 #############################################################################
@@ -641,6 +641,8 @@ SET @@lc_time_names = -1;
 SET @@lc_time_names = 'en US';
 --Error ER_UNKNOWN_LOCALE
 SET @@lc_time_names = 'enUS';
+--Error ER_UNKNOWN_LOCALE
+SET @@session.lc_time_names=sr_YU;
 
 SET @@lc_time_names = true;
 SELECT @@lc_time_names AS res_with_true;

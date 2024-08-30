@@ -82,7 +82,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
 	if (end_io_cache(&info->rec_cache))
 	{
 	  error= my_errno;
-          _ma_set_fatal_error(share, error);
+          _ma_set_fatal_error(info, error);
 	}
       }
       if (!count)
@@ -129,7 +129,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
 	  else
 	    share->not_flushed=1;
 	  if (error)
-            _ma_set_fatal_error(share, error);
+            _ma_set_fatal_error(info, error);
 	}
       }
       info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
@@ -220,7 +220,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
       break;				/* Impossible */
     }
   }
-#ifdef __WIN__
+#ifdef _WIN32
   else
   {
     /*
@@ -303,6 +303,8 @@ int _ma_writeinfo(register MARIA_HA *info, uint operation)
     /* transactional tables flush their state at Checkpoint */
     if (operation)
     {					/* Two threads can't be here */
+      CRASH_IF_S3_TABLE(info->s);       /* S3 readonly doesn't come here */
+
       olderror= my_errno;               /* Remember last error */
 
 #ifdef MARIA_EXTERNAL_LOCKING
@@ -320,7 +322,7 @@ int _ma_writeinfo(register MARIA_HA *info, uint operation)
                                     &share->state,
                                     MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET)))
 	olderror=my_errno;
-#ifdef __WIN__
+#ifdef _WIN32
       if (maria_flush)
       {
 	_commit(share->kfile.file);
@@ -393,7 +395,15 @@ int _ma_mark_file_changed(register MARIA_SHARE *share)
   if (!share->base.born_transactional)
   {
     if (!_MA_ALREADY_MARKED_FILE_CHANGED)
-      return _ma_mark_file_changed_now(share);
+    {
+      int res= _ma_mark_file_changed_now(share);
+      /*
+        Ensure that STATE_NOT_ANALYZED is reset on table changes
+      */
+      share->state.changed|= (STATE_CHANGED | STATE_NOT_ANALYZED |
+                              STATE_NOT_OPTIMIZED_KEYS);
+      return res;
+    }
   }
   else
   {
@@ -407,10 +417,10 @@ int _ma_mark_file_changed(register MARIA_SHARE *share)
                         (STATE_CHANGED | STATE_NOT_ANALYZED |
                          STATE_NOT_OPTIMIZED_KEYS)))
     {
-      mysql_mutex_lock(&share->intern_lock);    
+      mysql_mutex_lock(&share->intern_lock);
       share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-                             STATE_NOT_OPTIMIZED_KEYS);
-      mysql_mutex_unlock(&share->intern_lock);    
+                            STATE_NOT_OPTIMIZED_KEYS);
+      mysql_mutex_unlock(&share->intern_lock);
     }
   }
   return 0;
@@ -428,7 +438,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
   if (! _MA_ALREADY_MARKED_FILE_CHANGED)
   {
     share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-			   STATE_NOT_OPTIMIZED_KEYS);
+                           STATE_NOT_OPTIMIZED_KEYS);
     if (!share->global_changed)
     {
       share->changed= share->global_changed= 1;
@@ -446,6 +456,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
     */
     if (!share->temporary)
     {
+      CRASH_IF_S3_TABLE(share);
       mi_int2store(buff,share->state.open_count);
       buff[2]=1;				/* Mark that it's changed */
       if (my_pwrite(share->kfile.file, buff, sizeof(buff),
@@ -458,6 +469,7 @@ int _ma_mark_file_changed_now(register MARIA_SHARE *share)
     if (share->base.born_transactional &&
         !(share->state.org_changed & STATE_NOT_MOVABLE))
     {
+      CRASH_IF_S3_TABLE(share);
       /* Lock table to current installation */
       if (_ma_set_uuid(share, 0) ||
           (share->state.create_rename_lsn == LSN_NEEDS_NEW_STATE_LSNS &&
@@ -518,6 +530,7 @@ int _ma_decrement_open_count(MARIA_HA *info, my_bool lock_tables)
     /* Its not fatal even if we couldn't get the lock ! */
     if (share->state.open_count > 0)
     {
+      CRASH_IF_S3_TABLE(share);
       share->state.open_count--;
       share->changed= 1;                        /* We have to update state */
       /*
@@ -550,7 +563,11 @@ void _ma_mark_file_crashed(MARIA_SHARE *share)
   DBUG_ENTER("_ma_mark_file_crashed");
 
   share->state.changed|= STATE_CRASHED;
+  if (share->no_status_updates)
+    DBUG_VOID_RETURN;                           /* Safety */
+
   mi_int2store(buff, share->state.changed);
+
   /*
     We can ignore the errors, as if the mark failed, there isn't anything
     else we can do;  The user should already have got an error that the
@@ -561,29 +578,6 @@ void _ma_mark_file_crashed(MARIA_SHARE *share)
                    MARIA_FILE_CHANGED_OFFSET,
                    MYF(MY_NABP));
   DBUG_VOID_RETURN;
-}
-
-/*
-  Handle a fatal error
-
-  - Mark the table as crashed
-  - Print an error message, if we had not issued an error message before
-    that the table had been crashed.
-  - set my_errno to error
-  - If 'maria_assert_if_crashed_table is set, then assert.
-*/
-
-void _ma_set_fatal_error(MARIA_SHARE *share, int error)
-{
-  DBUG_PRINT("error", ("error: %d", error));
-  maria_mark_crashed_share(share);
-  if (!(share->state.changed & STATE_CRASHED_PRINTED))
-  {
-    share->state.changed|= STATE_CRASHED_PRINTED;
-    maria_print_error(share, error);
-  }
-  my_errno= error;
-  DBUG_ASSERT(!maria_assert_if_crashed_table);
 }
 
 
@@ -606,6 +600,7 @@ my_bool _ma_set_uuid(MARIA_SHARE *share, my_bool reset_uuid)
     bzero(buff, sizeof(buff));
     uuid= buff;
   }
+  CRASH_IF_S3_TABLE(share);
   return (my_bool) my_pwrite(share->kfile.file, uuid, MY_UUID_SIZE,
                              mi_uint2korr(share->state.header.base_pos),
                              MYF(MY_NABP));

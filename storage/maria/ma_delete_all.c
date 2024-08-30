@@ -64,6 +64,7 @@ int maria_delete_all_rows(MARIA_HA *info)
     */
     LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 1];
     uchar log_data[FILEID_STORE_SIZE];
+    my_bool error;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].str=    log_data;
     log_array[TRANSLOG_INTERNAL_PARTS + 0].length= sizeof(log_data);
     if (unlikely(translog_write_record(&lsn, LOGREC_REDO_DELETE_ALL,
@@ -78,6 +79,32 @@ int maria_delete_all_rows(MARIA_HA *info)
     */
     if (_ma_mark_file_changed(share))
       goto err;
+
+    /*
+      Because LOGREC_REDO_DELETE_ALL does not operate on pages, it has the
+      following problem:
+      delete_all; inserts (redo_insert); all pages get flushed; checkpoint:
+      the dirty pages list will be empty. In recovery, delete_all is executed,
+      but redo_insert are skipped (dirty pages list is empty).
+      To avoid this, we need to set skip_redo_lsn now, and thus need to sync
+      files.
+      Also fixes the problem of:
+      bulk insert; insert; delete_all; crash:
+      "bulk insert" is skipped (no REDOs), so if "insert" would not be skipped
+      (if we didn't update skip_redo_lsn below) then "insert" would be tried
+      and fail, saying that it sees that the first page has to be created
+      though the inserted row has rownr>0.
+
+      We use lsn-1 below to ensure that the above redo will be executed
+    */
+     error= _ma_state_info_write(share,
+                                 MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
+                                 MA_STATE_INFO_WRITE_LOCK) ||
+       _ma_update_state_lsns(share, lsn-1, info->trn->trid, FALSE, FALSE) ||
+       _ma_sync_table_files(info);
+     info->trn->rec_lsn= LSN_IMPOSSIBLE;
+     if (error)
+       goto err;
   }
   else
   {
@@ -104,37 +131,25 @@ int maria_delete_all_rows(MARIA_HA *info)
 
   if (_ma_flush_table_files(info, MARIA_FLUSH_DATA|MARIA_FLUSH_INDEX,
                             FLUSH_IGNORE_CHANGED, FLUSH_IGNORE_CHANGED) ||
-      mysql_file_chsize(info->dfile.file, 0, 0, MYF(MY_WME)) ||
-      mysql_file_chsize(share->kfile.file, share->base.keystart, 0, MYF(MY_WME)))
+      mysql_file_chsize(info->dfile.file, 0, 0, MYF(MY_WME)) > 0 ||
+      mysql_file_chsize(share->kfile.file, share->base.keystart, 0,
+                        MYF(MY_WME)) > 0)
     goto err;
+
+  if (info->s->tracked)
+  {
+    _ma_update_tmp_file_size(&info->s->track_data, 0);
+    _ma_update_tmp_file_size(&info->s->track_index, share->base.keystart);
+  }
 
   if (_ma_initialize_data_file(share, info->dfile.file))
     goto err;
 
   if (log_record)
   {
-    /*
-      Because LOGREC_REDO_DELETE_ALL does not operate on pages, it has the
-      following problem:
-      delete_all; inserts (redo_insert); all pages get flushed; checkpoint:
-      the dirty pages list will be empty. In recovery, delete_all is executed,
-      but redo_insert are skipped (dirty pages list is empty).
-      To avoid this, we need to set skip_redo_lsn now, and thus need to sync
-      files.
-      Also fixes the problem of:
-      bulk insert; insert; delete_all; crash:
-      "bulk insert" is skipped (no REDOs), so if "insert" would not be skipped
-      (if we didn't update skip_redo_lsn below) then "insert" would be tried
-      and fail, saying that it sees that the first page has to be created
-      though the inserted row has rownr>0.
-    */
-    my_bool error= _ma_state_info_write(share,
-                                        MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
-                                        MA_STATE_INFO_WRITE_LOCK) ||
-      _ma_update_state_lsns(share, lsn, trnman_get_min_trid(), FALSE, FALSE) ||
-      _ma_sync_table_files(info);
-    info->trn->rec_lsn= LSN_IMPOSSIBLE;
-    if (error)
+    /* Update lsn to signal that the above redo does not have to be executed anymore */
+    if ( _ma_update_state_lsns(share, lsn, info->trn->trid, FALSE, FALSE) ||
+         _ma_sync_table_files(info))
       goto err;
   }
 

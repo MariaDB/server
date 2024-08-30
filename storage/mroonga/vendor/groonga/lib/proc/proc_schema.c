@@ -17,9 +17,8 @@
 */
 
 #include "../grn_proc.h"
-
 #include "../grn_db.h"
-
+#include <my_attribute.h>
 #include <groonga/plugin.h>
 
 typedef struct {
@@ -572,6 +571,8 @@ command_schema_table_output_token_filters(grn_ctx *ctx, grn_obj *table)
   GRN_OBJ_FIN(ctx, &token_filters);
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_table_command_collect_arguments(grn_ctx *ctx,
                                                grn_obj *table,
@@ -692,6 +693,7 @@ command_schema_table_command_collect_arguments(grn_ctx *ctx,
 #undef ADD_OBJECT_NAME
 #undef ADD
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void
 command_schema_table_output_command(grn_ctx *ctx, grn_obj *table)
@@ -875,6 +877,8 @@ command_schema_output_indexes(grn_ctx *ctx, grn_obj *object)
   }
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static void
 command_schema_column_command_collect_arguments(grn_ctx *ctx,
                                                 grn_obj *table,
@@ -973,6 +977,7 @@ command_schema_column_command_collect_arguments(grn_ctx *ctx,
 #undef ADD_OBJECT_NAME
 #undef ADD
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static void
 command_schema_column_output_command(grn_ctx *ctx,

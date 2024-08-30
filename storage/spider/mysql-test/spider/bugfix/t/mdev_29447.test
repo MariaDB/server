@@ -22,8 +22,10 @@ eval CREATE TABLE tbl_a (
     a INT
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
  
+--disable_ps_protocol
 SELECT TRIM(LEADING 'c' FROM a) FROM tbl_a;
- 
+--enable_ps_protocol
+
 --connection child2_1
 DROP DATABASE auto_test_remote;
  

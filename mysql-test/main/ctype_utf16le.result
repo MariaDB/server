@@ -104,7 +104,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `l` varchar(10) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL,
   `r` varchar(10) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(l), HEX(r) FROM t1;
 HEX(l)	HEX(r)
 2104210421042104210421042104210421042004	2004210421042104210421042104210421042104
@@ -132,7 +132,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL,
   KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
 explain select * from t1 where a like 'abc%';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -553,7 +553,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` enum('x','y','z') CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('x');
 INSERT INTO t1 VALUES ('y');
 INSERT INTO t1 VALUES ('z');
@@ -567,7 +567,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` enum('x','y','z','d','e','ä','ö','ü') CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('D');
 INSERT INTO t1 VALUES ('E ');
 INSERT INTO t1 VALUES ('ä');
@@ -589,7 +589,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` set('x','y','z','ä','ö','ü') CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('x');
 INSERT INTO t1 VALUES ('y');
 INSERT INTO t1 VALUES ('z');
@@ -805,7 +805,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16le COLLATE utf16le_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_utf8mb4 0xEFBE9D),(_utf8mb4 0xF0908E84);
 INSERT INTO t1 VALUES (_utf8mb4 0xCE85),(_utf8mb4 0xF4808080);
 SELECT HEX(a), HEX(CONVERT(a USING utf8mb4)) FROM t1 ORDER BY a;
@@ -952,14 +952,14 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `status` enum('active','passive') CHARACTER SET utf16le COLLATE utf16le_general_ci NOT NULL DEFAULT 'passive'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t1 ADD a int NOT NULL AFTER status;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `status` enum('active','passive') CHARACTER SET utf16le COLLATE utf16le_general_ci NOT NULL DEFAULT 'passive',
   `a` int(11) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Conversion FROM an UTF16LE string to a decimal column
@@ -1027,17 +1027,17 @@ text	65535	32767
 DROP TABLE t1;
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Testing cs->coll->instr()
+# Testing instr()
 #
 SELECT POSITION('bb' IN 'abba');
 POSITION('bb' IN 'abba')
 2
 #
-# Testing cs->coll->hash_sort()
+# Testing hash_sort()
 #
 SET NAMES utf8, collation_connection=utf16le_bin;
 #
-# Test that cs->coll->hash_sort() ignores trailing spaces
+# Test that hash_sort() ignores trailing spaces
 #
 SELECT @@collation_connection;
 @@collation_connection
@@ -1056,7 +1056,7 @@ a 	61002000
 DROP TABLE t1;
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Test that cs->coll->hash_sort() ignores trailing spaces
+# Test that hash_sort() ignores trailing spaces
 #
 SELECT @@collation_connection;
 @@collation_connection
@@ -1074,7 +1074,7 @@ a	HEX(a)
 a 	61002000
 DROP TABLE t1;
 #
-# Testing cs->cset->numchars()
+# Testing numchars()
 #
 SELECT CHAR_LENGTH('abcd'), OCTET_LENGTH('abcd');
 CHAR_LENGTH('abcd')	OCTET_LENGTH('abcd')
@@ -1086,7 +1086,7 @@ SELECT CHAR_LENGTH(_utf16le 0x7DD8FFDF), OCTET_LENGTH(_utf16le 0x7FD8DDDF);
 CHAR_LENGTH(_utf16le 0x7DD8FFDF)	OCTET_LENGTH(_utf16le 0x7FD8DDDF)
 1	4
 #
-# Testing cs->cset->charpos()
+# Testing charpos()
 #
 SELECT LEFT('abcd',2);
 LEFT('abcd',2)
@@ -1098,7 +1098,7 @@ SELECT HEX(RIGHT(_utf16le 0x00D800DC7FD8FFDF, 1));
 HEX(RIGHT(_utf16le 0x00D800DC7FD8FFDF, 1))
 7FD8FFDF
 #
-# Testing cs->cset->well_formed_length()
+# Testing well_formed_length()
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 # Bad sequences
@@ -1127,7 +1127,7 @@ DROP TABLE t1;
 #
 # Bug#32393 Character sets: illegal characters in utf16le columns
 #
-# Tests that cs->cset->wc_mb() doesn't accept surrogate parts
+# Tests that my_ci_wc_mb() doesn't accept surrogate parts
 #
 # via ALTER
 #
@@ -1154,7 +1154,7 @@ HEX(s2)
 3F00
 DROP TABLE t1;
 #
-# Testing cs->cset->lengthsp()
+# Testing lengthsp()
 #
 CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('a   ');
@@ -1163,7 +1163,7 @@ HEX(a)
 6100
 DROP TABLE t1;
 #
-# Testing cs->cset->caseup() and cs->cset->casedn()
+# Testing caseup() and casedn()
 #
 SELECT UPPER('abcd'), LOWER('ABCD');
 UPPER('abcd')	LOWER('ABCD')
@@ -1181,7 +1181,7 @@ a
 2007-09-16
 DROP TABLE t1;
 #
-# Testing cs->cset->ll10tostr
+# Testing ll10tostr
 #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 INSERT INTO t1 VALUES (123456);
@@ -1190,14 +1190,14 @@ a	HEX(a)
 123456	310032003300340035003600
 DROP TABLE t1;
 #
-# Testing cs->cset->fill
+# Testing fill
 # SOUNDEX fills strings with DIGIT ZERO up to four characters
 #
 SELECT SOUNDEX('a'), HEX(SOUNDEX('a'));
 SOUNDEX('a')	HEX(SOUNDEX('a'))
 A000	4100300030003000
 #
-# Testing cs->cset->strntoul
+# Testing strntoul
 #
 CREATE TABLE t1 (a enum ('a','b','c')) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('1');
@@ -1206,7 +1206,7 @@ a
 a
 DROP TABLE t1;
 #
-# Testing cs->cset->strntoll and cs->cset->strntoull
+# Testing strntoll and strntoull
 #
 SET NAMES latin1;
 SELECT HEX(CONV(CONVERT('123' USING utf16le), -10, 16));
@@ -1217,7 +1217,7 @@ HEX(CONV(CONVERT('123' USING utf16le), 10, 16))
 3742
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 #
-# Testing cs->cset->strntod
+# Testing strntod
 #
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 SELECT 1.1 + '1.2';
@@ -1229,7 +1229,7 @@ SELECT 1.1 + '1.2xxx';
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: '1.2xxx'
 #
-# Testing cs->cset->strtoll10
+# Testing strtoll10
 #
 SELECT LEFT('aaa','1');
 LEFT('aaa','1')
@@ -1303,7 +1303,7 @@ Warning	1292	Truncated incorrect INTEGER value: '-18446744073709551614'
 Warning	1292	Truncated incorrect INTEGER value: '-18446744073709551615'
 DROP TABLE t1;
 #
-# Testing cs->cset->strtoll10()
+# Testing strtoll10()
 #
 SELECT @@character_set_connection;
 @@character_set_connection
@@ -1479,7 +1479,7 @@ CAST('123456789123456789123x' AS UNSIGNED)
 Warnings:
 Warning	1292	Truncated incorrect INTEGER value: '123456789123456789123x'
 #
-# Testing cs->cset->strntoull10rnd
+# Testing strntoull10rnd
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('-1234.1e2');
@@ -1531,7 +1531,7 @@ a
 18446744073709551615
 DROP TABLE t1;
 #
-# Testing cs->cset->scan
+# Testing scan
 #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('1 ');
@@ -1556,7 +1556,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Testing that maximim possible key length is 1000 bytes
@@ -1567,7 +1567,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(250) CHARACTER SET utf16le COLLATE utf16le_general_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(334) CHARACTER SET utf16le PRIMARY KEY);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
@@ -1592,6 +1592,9 @@ DROP TABLE t1;
 # Test basic regex functionality
 #
 SET NAMES utf8, collation_connection=utf16le_general_ci;
+#
+# Bug#31081 server crash in regexp function
+#
 drop table if exists t1;
 create table t1 as
 select repeat(' ', 64) as s1, repeat(' ',64) as s2
@@ -1602,7 +1605,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `s1` varchar(64) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL,
   `s2` varchar(64) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 delete from t1;
 insert into t1 values('aaa','aaa');
 insert into t1 values('aaa|qqq','qqq');
@@ -1663,31 +1666,31 @@ CHARSET('2013-11-15 00:41:28' - INTERVAL 7 DAY)
 utf16le
 SELECT COERCIBILITY('2013-11-15 00:41:28' - INTERVAL 7 DAY);
 COERCIBILITY('2013-11-15 00:41:28' - INTERVAL 7 DAY)
-4
+5
 SELECT CHARSET(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY);
 CHARSET(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY)
 binary
 SELECT COERCIBILITY(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY);
 COERCIBILITY(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY)
-5
+6
 SELECT CHARSET(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY));
 CHARSET(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY))
 utf16le
 SELECT COERCIBILITY(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('2013-11-15 00:41:28' - INTERVAL 7 DAY))
-4
+5
 SELECT CHARSET(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY));
 CHARSET(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY))
 utf16le
 SELECT COERCIBILITY(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT(TIMESTAMP'2013-11-15 00:41:28' - INTERVAL 7 DAY))
-4
+5
 SELECT CHARSET(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 CHARSET(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
 utf16le
 SELECT COERCIBILITY(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
-4
+5
 SELECT HEX(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY));
 HEX(CONCAT('','2001-01-08 00:00:00' - INTERVAL 7 DAY))
 32003000300031002D00300031002D00300031002000300030003A00300030003A0030003000
@@ -1696,7 +1699,7 @@ CHARSET(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
 utf16le
 SELECT COERCIBILITY(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY));
 COERCIBILITY(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
-4
+5
 SELECT HEX(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY));
 HEX(CONCAT('',TIMESTAMP'2001-01-08 00:00:00' - INTERVAL 7 DAY))
 32003000300031002D00300031002D00300031002000300030003A00300030003A0030003000
@@ -1705,7 +1708,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(64) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('');
 SELECT CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY)) FROM t1;
 CHARSET(CONCAT(a,'2001-01-08 00:00:00' - INTERVAL 7 DAY))
@@ -1756,7 +1759,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `s1` varchar(2) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('ab'),('AE'),('ab'),('AE');
 SELECT * FROM t1 ORDER BY s1;
 s1
@@ -1791,7 +1794,7 @@ def	test	t1	t1	s1	s1	252	255	0	Y	16	0	56
 def	test	t1	t1	s2	s2	252	65535	0	Y	16	0	56
 def	test	t1	t1	s3	s3	252	16777215	0	Y	16	0	56
 def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	56
-def					HEX(s1)	253	6120	0	Y	0	0	33
+def					HEX(s1)	253	6120	0	Y	0	0	192
 s1	s2	s3	s4	HEX(s1)
 SET NAMES latin1;
 SELECT *, HEX(s1) FROM t1;
@@ -1805,18 +1808,18 @@ s1	s2	s3	s4	HEX(s1)
 SET NAMES utf8;
 SELECT *, HEX(s1) FROM t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	s1	s1	252	381	0	Y	16	0	33
-def	test	t1	t1	s2	s2	252	98301	0	Y	16	0	33
-def	test	t1	t1	s3	s3	252	25165821	0	Y	16	0	33
-def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	33
-def					HEX(s1)	253	6120	0	Y	0	0	33
+def	test	t1	t1	s1	s1	252	381	0	Y	16	0	192
+def	test	t1	t1	s2	s2	252	98301	0	Y	16	0	192
+def	test	t1	t1	s3	s3	252	25165821	0	Y	16	0	192
+def	test	t1	t1	s4	s4	252	4294967295	0	Y	16	0	192
+def					HEX(s1)	253	6120	0	Y	0	0	192
 s1	s2	s3	s4	HEX(s1)
 CREATE TABLE t2 AS SELECT CONCAT(s1) FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `CONCAT(s1)` varchar(255) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 #
 # Problem found by Roy during review
@@ -1831,7 +1834,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` varchar(10) CHARACTER SET utf16le COLLATE utf16le_bin NOT NULL,
   PRIMARY KEY (`c`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('abc'),('zyx'),('acb');
 SELECT UPPER(c) FROM t1 ORDER BY 1 DESC;
 UPPER(c)
@@ -1851,13 +1854,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16le COLLATE utf16le_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 0041
@@ -1871,13 +1874,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 00410041004100410041
@@ -1890,7 +1893,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 004100410041
@@ -1903,7 +1906,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 0041004100410041004100200020002000200020
@@ -2101,13 +2104,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET utf16le COLLATE utf16le_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 000061
@@ -2121,13 +2124,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET utf16le COLLATE utf16le_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 000061000061000061000061000061
@@ -2140,7 +2143,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 000061000061000061
@@ -2153,7 +2156,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(30) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 000061000061000061000061000061000020000020000020000020000020
@@ -2353,7 +2356,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` varchar(10) CHARACTER SET utf16le COLLATE utf16le_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('abcdefghi'),('ABCDEFGHI');
 SELECT CONCAT(t2,'-',t2) c2 FROM (SELECT LOWER(t) t2 FROM t1) sub;
 c2
@@ -2444,8 +2447,8 @@ Warning	1292	Truncated incorrect INTEGER value: '1Ĳ3'
 #
 # MDEV-9711 NO PAD Collatons
 #
-SET character_set_connection=utf16le;
-SET STORAGE_ENGINE=MyISAM;
+SET collation_connection=utf16le_general_nopad_ci;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2540,20 +2543,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2583,7 +2586,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2678,20 +2681,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_general_nopad_ci', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2721,8 +2724,129 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+select @@collation_connection;
+@@collation_connection
+utf16le_general_nopad_ci
+create table t1 as select repeat(' ',10) as a union select null;
+alter table t1 add key(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf16le COLLATE utf16le_general_nopad_ci DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain select * from t1 where a like 'abc%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+explain select * from t1 where a like concat('abc','%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+select * from t1 where a like "abc%";
+a
+abc
+abcd
+select * from t1 where a like concat("abc","%");
+a
+abc
+abcd
+select * from t1 where a like "ABC%";
+a
+abc
+abcd
+select * from t1 where a like "test%";
+a
+test
+select * from t1 where a like "te_t";
+a
+test
+select * from t1 where a like "%a%";
+a
+a
+abc
+abcd
+select * from t1 where a like "%abcd%";
+a
+abcd
+select * from t1 where a like "%abc\d%";
+a
+abcd
+drop table t1;
+select 'AA' like 'AA';
+'AA' like 'AA'
+1
+select 'AA' like 'A%A';
+'AA' like 'A%A'
+1
+select 'AA' like 'A%%A';
+'AA' like 'A%%A'
+1
+select 'AA' like 'AA%';
+'AA' like 'AA%'
+1
+select 'AA' like '%AA%';
+'AA' like '%AA%'
+1
+select 'AA' like '%A';
+'AA' like '%A'
+1
+select 'AA' like '%AA';
+'AA' like '%AA'
+1
+select 'AA' like 'A%A%';
+'AA' like 'A%A%'
+1
+select 'AA' like '_%_%';
+'AA' like '_%_%'
+1
+select 'AA' like '%A%A';
+'AA' like '%A%A'
+1
+select 'AAA'like 'A%A%A';
+'AAA'like 'A%A%A'
+1
+select 'AZ' like 'AZ';
+'AZ' like 'AZ'
+1
+select 'AZ' like 'A%Z';
+'AZ' like 'A%Z'
+1
+select 'AZ' like 'A%%Z';
+'AZ' like 'A%%Z'
+1
+select 'AZ' like 'AZ%';
+'AZ' like 'AZ%'
+1
+select 'AZ' like '%AZ%';
+'AZ' like '%AZ%'
+1
+select 'AZ' like '%Z';
+'AZ' like '%Z'
+1
+select 'AZ' like '%AZ';
+'AZ' like '%AZ'
+1
+select 'AZ' like 'A%Z%';
+'AZ' like 'A%Z%'
+1
+select 'AZ' like '_%_%';
+'AZ' like '_%_%'
+1
+select 'AZ' like '%A%Z';
+'AZ' like '%A%Z'
+1
+select 'AZ' like 'A_';
+'AZ' like 'A_'
+1
+select 'AZ' like '_Z';
+'AZ' like '_Z'
+1
+select 'AMZ'like 'A%M%Z';
+'AMZ'like 'A%M%Z'
+1
+SET collation_connection=utf16le_nopad_bin;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2817,20 +2941,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2860,7 +2984,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2955,20 +3079,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'utf16le_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'utf16le_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'utf16le_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 6100620063002000
-SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'utf16le_nopad_bin', 'abc  ')) as exp;
+exp
 61006200630020002000
 #
 # Collation mix
@@ -2998,7 +3122,125 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
+select @@collation_connection;
+@@collation_connection
+utf16le_nopad_bin
+create table t1 as select repeat(' ',10) as a union select null;
+alter table t1 add key(a);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(10) CHARACTER SET utf16le COLLATE utf16le_nopad_bin DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values ("a"),("abc"),("abcd"),("hello"),("test");
+explain select * from t1 where a like 'abc%';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+explain select * from t1 where a like concat('abc','%');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	43	NULL	2	Using where; Using index
+select * from t1 where a like "abc%";
+a
+abc
+abcd
+select * from t1 where a like concat("abc","%");
+a
+abc
+abcd
+select * from t1 where a like "ABC%";
+a
+select * from t1 where a like "test%";
+a
+test
+select * from t1 where a like "te_t";
+a
+test
+select * from t1 where a like "%a%";
+a
+a
+abc
+abcd
+select * from t1 where a like "%abcd%";
+a
+abcd
+select * from t1 where a like "%abc\d%";
+a
+abcd
+drop table t1;
+select 'AA' like 'AA';
+'AA' like 'AA'
+1
+select 'AA' like 'A%A';
+'AA' like 'A%A'
+1
+select 'AA' like 'A%%A';
+'AA' like 'A%%A'
+1
+select 'AA' like 'AA%';
+'AA' like 'AA%'
+1
+select 'AA' like '%AA%';
+'AA' like '%AA%'
+1
+select 'AA' like '%A';
+'AA' like '%A'
+1
+select 'AA' like '%AA';
+'AA' like '%AA'
+1
+select 'AA' like 'A%A%';
+'AA' like 'A%A%'
+1
+select 'AA' like '_%_%';
+'AA' like '_%_%'
+1
+select 'AA' like '%A%A';
+'AA' like '%A%A'
+1
+select 'AAA'like 'A%A%A';
+'AAA'like 'A%A%A'
+1
+select 'AZ' like 'AZ';
+'AZ' like 'AZ'
+1
+select 'AZ' like 'A%Z';
+'AZ' like 'A%Z'
+1
+select 'AZ' like 'A%%Z';
+'AZ' like 'A%%Z'
+1
+select 'AZ' like 'AZ%';
+'AZ' like 'AZ%'
+1
+select 'AZ' like '%AZ%';
+'AZ' like '%AZ%'
+1
+select 'AZ' like '%Z';
+'AZ' like '%Z'
+1
+select 'AZ' like '%AZ';
+'AZ' like '%AZ'
+1
+select 'AZ' like 'A%Z%';
+'AZ' like 'A%Z%'
+1
+select 'AZ' like '_%_%';
+'AZ' like '_%_%'
+1
+select 'AZ' like '%A%Z';
+'AZ' like '%A%Z'
+1
+select 'AZ' like 'A_';
+'AZ' like 'A_'
+1
+select 'AZ' like '_Z';
+'AZ' like '_Z'
+1
+select 'AMZ'like 'A%M%Z';
+'AMZ'like 'A%M%Z'
+1
 #
 # MDEV-23408 Wrong result upon query from I_S and further Assertion `!alias_arg || strlen(alias_arg->str) == alias_arg->length' failed with certain connection charset
 #

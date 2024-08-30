@@ -1,0 +1,6 @@
+-- source include/have_working_dns.inc
+-- source include/not_embedded.inc
+
+CREATE TABLE t1 (a INET6);
+--exec $MYSQL -t test --column-type-info -e "SELECT a, CAST('::' AS INET6) AS b, COALESCE(a) AS c FROM t1" 2>&1 
+DROP TABLE t1;

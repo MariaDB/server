@@ -26,13 +26,19 @@
 #include "keycaches.h"
 #include "my_json_writer.h"
 #include <hash.h>
-#include <thr_alarm.h>
-#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
+#include "sql_connect.h"
+#include "thread_cache.h"
+
 #if defined(HAVE_MALLOC_H)
 #include <malloc.h>
-#elif defined(HAVE_SYS_MALLOC_H)
+#endif
+
+#if defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
 #endif
+
+#if defined(HAVE_MALLOC_ZONE)
+#include <malloc/malloc.h>
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
@@ -49,11 +55,13 @@ static const char *lock_descriptions[] =
   /* TL_READ_WITH_SHARED_LOCKS  */  "Shared read lock",
   /* TL_READ_HIGH_PRIORITY      */  "High priority read lock",
   /* TL_READ_NO_INSERT          */  "Read lock without concurrent inserts",
+  /* TL_READ_SKIP_LOCKED        */  "Read lock without blocking if row is locked",
   /* TL_WRITE_ALLOW_WRITE       */  "Write lock that allows other writers",
   /* TL_WRITE_CONCURRENT_INSERT */  "Concurrent insert lock",
   /* TL_WRITE_DELAYED           */  "Lock used by delayed insert",
   /* TL_WRITE_DEFAULT           */  NULL,
   /* TL_WRITE_LOW_PRIORITY      */  "Low priority write lock",
+  /* TL_WRITE_SKIP_LOCKED       */  "Write lock but skip existing locked rows",
   /* TL_WRITE                   */  "High priority write lock",
   /* TL_WRITE_ONLY              */  "Highest priority write lock"
 };
@@ -80,9 +88,9 @@ print_where(COND *cond,const char *info, enum_query_type query_type)
 
 #ifdef EXTRA_DEBUG
 	/* This is for debugging purposes */
-static my_bool print_cached_tables_callback(TDC_element *element,
-                                            void *arg __attribute__((unused)))
+static my_bool print_cached_tables_callback(void *el, void*)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
   TABLE *entry;
 
   mysql_mutex_lock(&element->LOCK_table_share);
@@ -90,9 +98,8 @@ static my_bool print_cached_tables_callback(TDC_element *element,
   while ((entry= it++))
   {
     THD *in_use= entry->in_use;
-    printf("%-14.14s %-32s%6lu%8ld%6d  %s\n",
+    printf("%-14.14s %-32s%8ld%6d  %s\n",
            entry->s->db.str, entry->s->table_name.str,
-           (ulong) element->version,
            in_use ? (long) in_use->thread_id : (long) 0,
            entry->db_stat ? 1 : 0,
            in_use ? lock_descriptions[(int)entry->reginfo.lock_type] :
@@ -110,10 +117,8 @@ static void print_cached_tables(void)
   /* purecov: begin tested */
   puts("DB             Table                            Version  Thread  Open  Lock");
 
-  tdc_iterate(0, (my_hash_walk_action) print_cached_tables_callback, NULL, true);
+  tdc_iterate(0, print_cached_tables_callback, NULL, true);
 
-  printf("\nCurrent refresh version: %ld\n",
-         (long) tdc_refresh_version());
   fflush(stdout);
   /* purecov: end */
   return;
@@ -126,25 +131,26 @@ void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
   char buff[256],buff2[256];
   String str(buff,sizeof(buff),system_charset_info);
   String out(buff2,sizeof(buff2),system_charset_info);
-  const char *sep;
+  DBUG_ASSERT(s_length > 0);
   DBUG_ENTER("TEST_filesort");
 
   out.length(0);
-  for (sep=""; s_length-- ; sortorder++, sep=" ")
+  for (; s_length-- ; sortorder++)
   {
-    out.append(sep);
     if (sortorder->reverse)
       out.append('-');
     if (sortorder->field)
     {
       if (sortorder->field->table_name)
       {
-	out.append(*sortorder->field->table_name);
+        const char *table_name= *sortorder->field->table_name;
+	out.append(table_name, strlen(table_name));
 	out.append('.');
       }
-      out.append(sortorder->field->field_name.str ?
-                 sortorder->field->field_name.str :
-		 "tmp_table_column");
+      const char *name= sortorder->field->field_name.str;
+      if (!name)
+        name= "tmp_table_column";
+      out.append(name, strlen(name));
     }
     else
     {
@@ -152,7 +158,9 @@ void TEST_filesort(SORT_FIELD *sortorder,uint s_length)
       sortorder->item->print(&str, QT_ORDINARY);
       out.append(str);
     }
+    out.append(' ');
   }
+  out.chop();                                  // Remove last space
   DBUG_LOCK_FILE;
   (void) fputs("\nInfo about FILESORT\n",DBUG_FILE);
   fprintf(DBUG_FILE,"Sortorder: %s\n",out.c_ptr_safe());
@@ -185,8 +193,8 @@ TEST_join(JOIN *join)
       JOIN_TAB *tab= jt_range->start + i;
       for (ref= 0; ref < tab->ref.key_parts; ref++)
       {
-        ref_key_parts[i].append(tab->ref.items[ref]->full_name());
-        ref_key_parts[i].append("  ");
+        ref_key_parts[i].append(tab->ref.items[ref]->full_name_cstring());
+        ref_key_parts[i].append(STRING_WITH_LEN("  "));
       }
     }
 
@@ -260,7 +268,7 @@ static void print_keyuse(KEYUSE *keyuse)
 void print_keyuse_array(DYNAMIC_ARRAY *keyuse_array)
 {
   DBUG_LOCK_FILE;
-  fprintf(DBUG_FILE, "KEYUSE array (%d elements)\n", keyuse_array->elements);
+  fprintf(DBUG_FILE, "KEYUSE array (%zu elements)\n", keyuse_array->elements);
   for(uint i=0; i < keyuse_array->elements; i++)
     print_keyuse((KEYUSE*)dynamic_array_ptr(keyuse_array, i));
   DBUG_UNLOCK_FILE;
@@ -379,7 +387,7 @@ void print_sjm(SJ_MATERIALIZATION_INFO *sjm)
   }
   fprintf(DBUG_FILE, "  }\n");
   fprintf(DBUG_FILE, "  materialize_cost= %g\n",
-          sjm->materialization_cost.total_cost());
+          sjm->materialization_cost);
   fprintf(DBUG_FILE, "  rows= %g\n", sjm->rows);
   fprintf(DBUG_FILE, "}\n");
   DBUG_UNLOCK_FILE;
@@ -470,7 +478,8 @@ static void display_table_locks(void)
   void *saved_base;
   DYNAMIC_ARRAY saved_table_locks;
 
-  (void) my_init_dynamic_array(&saved_table_locks,sizeof(TABLE_LOCK_INFO),
+  (void) my_init_dynamic_array(key_memory_locked_thread_list,
+                               &saved_table_locks, sizeof(TABLE_LOCK_INFO),
                                tc_records() + 20, 50, MYF(0));
   mysql_mutex_lock(&THR_LOCK_lock);
   for (list= thr_lock_thread_list; list; list= list_rest(list))
@@ -572,7 +581,7 @@ void mysql_print_status()
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
   printf("Current dir: %s\n", current_dir);
   printf("Running threads: %d  Cached threads: %lu  Stack size: %ld\n",
-         count, cached_thread_count,
+         count, thread_cache.size(),
 	 (long) my_thread_stack_size);
 #ifdef EXTRA_DEBUG
   thr_print_locks();				// Write some debug info
@@ -606,22 +615,15 @@ Open streams:  %10lu\n",
 	 my_file_opened,
 	 my_stream_opened);
 
-#ifndef DONT_USE_THR_ALARM
-  ALARM_INFO alarm_info;
-  thr_alarm_info(&alarm_info);
-  printf("\nAlarm status:\n\
-Active alarms:   %u\n\
-Max used alarms: %u\n\
-Next alarm time: %lu\n",
-	 alarm_info.active_alarms,
-	 alarm_info.max_used_alarms,
-	(ulong)alarm_info.next_alarm_time);
-#endif
   display_table_locks();
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 info = mallinfo2();
 #elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
+#endif
+#if __has_feature(memory_sanitizer)
+  /* Work around missing MSAN instrumentation */
+  MEM_MAKE_DEFINED(&info, sizeof info);
 #endif
 #if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
@@ -649,10 +651,25 @@ Memory allocated by threads:             %s\n",
 	 llstr(info.uordblks, llbuff[4]),
 	 llstr(info.fordblks, llbuff[5]),
 	 llstr(info.keepcost, llbuff[6]),
-	 llstr((count + cached_thread_count)* my_thread_stack_size + info.hblkhd + info.arena, llbuff[7]),
+         llstr((count + thread_cache.size()) * my_thread_stack_size +
+               info.hblkhd + info.arena, llbuff[7]),
          llstr(tmp.global_memory_used, llbuff[8]),
          llstr(tmp.local_memory_used, llbuff[9]));
 
+#elif defined(HAVE_MALLOC_ZONE)
+  malloc_statistics_t info;
+  char llbuff[4][22];
+
+  malloc_zone_statistics(nullptr, &info);
+  printf("\nMemory status:\n\
+Total allocated space:                   %s\n\
+Total free space:                        %s\n\
+Global memory allocated by server:       %s\n\
+Memory allocated by threads:             %s\n",
+         llstr(info.size_allocated, llbuff[0]),
+         llstr((info.size_allocated - info.size_in_use), llbuff[1]),
+         llstr(tmp.global_memory_used, llbuff[2]),
+         llstr(tmp.local_memory_used, llbuff[3]));
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
@@ -674,14 +691,19 @@ void print_keyuse_array_for_trace(THD *thd, DYNAMIC_ARRAY *keyuse_array)
     KEYUSE *keyuse= (KEYUSE*)dynamic_array_ptr(keyuse_array, i);
     Json_writer_object keyuse_elem(thd);
     keyuse_elem.add_table_name(keyuse->table->reginfo.join_tab);
-    keyuse_elem.add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
-                                        (keyuse->is_for_hash_join() ?
-                                        keyuse->table->field[keyuse->keypart]
-                                                     ->field_name.str :
-                                        keyuse->table->key_info[keyuse->key]
-                                          .key_part[keyuse->keypart]
-                                          .field->field_name.str));
-    keyuse_elem.add("equals",keyuse->val);
-    keyuse_elem.add("null_rejecting",keyuse->null_rejecting);
+    if (keyuse->keypart != FT_KEYPART && !keyuse->is_for_hash_join())
+    {
+      keyuse_elem.add("index", keyuse->table->key_info[keyuse->key].name);
+    }
+    keyuse_elem.
+      add("field", (keyuse->keypart == FT_KEYPART) ? "<fulltext>":
+          (keyuse->is_for_hash_join() ?
+           keyuse->table->field[keyuse->keypart]
+           ->field_name.str :
+           keyuse->table->key_info[keyuse->key]
+           .key_part[keyuse->keypart]
+           .field->field_name.str)).
+      add("equals",keyuse->val).
+      add("null_rejecting",keyuse->null_rejecting);
   }
 }

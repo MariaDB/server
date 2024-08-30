@@ -79,6 +79,7 @@ roles_mapping	Host	NULL	NULL
 roles_mapping	Role	NULL	NULL
 roles_mapping	User	NULL	NULL
 servers	Server_name	NULL	NULL
+sys_config	variable	NULL	NULL
 table_stats	db_name	NULL	NULL
 table_stats	table_name	NULL	NULL
 tables_priv	Db	NULL	NULL

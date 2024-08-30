@@ -19,7 +19,7 @@
 
 #ifndef SHARED_LIBRARY
 
-const char *globerrs[GLOBERRS]=
+const char *globerrs[GLOBERRS+1]=
 {
   "Can't create/write to file '%s' (Errcode: %M)",
   "Error reading file '%s' (Errcode: %M)",
@@ -55,7 +55,15 @@ const char *globerrs[GLOBERRS]=
   "Can't change permissions of the file '%s' (Errcode: %M)",
   "Can't seek in file '%s' (Errcode: %M)",
   "Can't change mode for file '%s' to 0x%lx (Errcode: %M)",
-  "Warning: Can't copy ownership for file '%s' (Errcode: %M)"
+  "Warning: Can't copy ownership for file '%s' (Errcode: %M)",
+  "Failed to release memory pointer %p, %zu bytes (Errcode: %M)",
+  "Lock Pages in memory access rights required",
+  "Memcntl %s cmd %s error",
+  "Warning: Charset id '%d' csname '%s' trying to replace existing csname '%s'",
+  "Deprecated program name. It will be removed in a future release, use '%s' instead",
+  "Local temporary space limit reached",
+  "Global temporary space limit reached",
+  ""
 };
 
 void init_glob_errs(void)
@@ -101,8 +109,22 @@ void init_glob_errs()
   EE(EE_CANT_SEEK)      = "Can't seek in file '%s' (Errcode: %M)";
   EE(EE_CANT_CHMOD)    = "Can't change mode for file '%s' to 0x%lx (Errcode: %M)";
   EE(EE_CANT_COPY_OWNERSHIP)= "Warning: Can't copy ownership for file '%s' (Errcode: %M)";
+  EE(EE_BADMEMORYRELEASE)= "Failed to release memory pointer %p, %zu bytes (Errcode: %M)";
+  EE(EE_PERM_LOCK_MEMORY)= "Lock Pages in memory access rights required";
+  EE(EE_MEMCNTL)         = "Memcntl %s cmd %s error";
+  EE(EE_DUPLICATE_CHARSET)= "Warning: Charset id %d trying to replace csname %s with %s";
+  EE(EE_NAME_DEPRECATED)  = "Notice: %s is deprecated and will be removed in a future release, use command '%s'";
+ EE(EE_LOCAL_TMP_SPACE_FULL) = "Local temporary space limit reached";
+ EE(EE_GLOBAL_TMP_SPACE_FULL) = "Global temporary space limit reached";
 }
 #endif
+
+static void my_space_sleep(uint seconds)
+{
+  sleep(seconds);
+}
+
+void (*my_sleep_for_space)(uint seconds)= my_space_sleep;
 
 void wait_for_free_space(const char *filename, int errors)
 {
@@ -115,7 +137,7 @@ void wait_for_free_space(const char *filename, int errors)
                     MYF(ME_BELL | ME_ERROR_LOG | ME_WARNING),
                     MY_WAIT_FOR_USER_TO_FIX_PANIC,
                     MY_WAIT_GIVE_USER_A_MESSAGE * MY_WAIT_FOR_USER_TO_FIX_PANIC );
-  (void) sleep(MY_WAIT_FOR_USER_TO_FIX_PANIC);
+  my_sleep_for_space(MY_WAIT_FOR_USER_TO_FIX_PANIC);
 }
 
 const char **get_global_errmsgs(int nr __attribute__((unused)))

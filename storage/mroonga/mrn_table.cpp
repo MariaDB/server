@@ -530,7 +530,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
   char *sprit_ptr[2];
   char *tmp_ptr, *start_ptr;
 #endif
-  THD *thd = current_thd;
   MRN_DBUG_ENTER_FUNCTION();
 
 #if MYSQL_VERSION_ID >= 50500
@@ -591,13 +590,6 @@ int mrn_add_index_param(MRN_SHARE *share, KEY *key_info, int i)
     {
       case 5:
         MRN_PARAM_STR_LIST("table", index_table, i);
-        break;
-      case 6:
-        push_warning_printf(thd, MRN_SEVERITY_WARNING,
-                            ER_WARN_DEPRECATED_SYNTAX,
-                            ER(ER_WARN_DEPRECATED_SYNTAX),
-                            "parser", "tokenizer");
-        MRN_PARAM_STR_LIST("parser", key_tokenizer, i);
         break;
       case 9:
         MRN_PARAM_STR_LIST("tokenizer", key_tokenizer, i);
@@ -1080,6 +1072,7 @@ TABLE_SHARE *mrn_create_tmp_table_share(TABLE_LIST *table_list, const char *path
   if (open_table_def(thd, share, GTS_TABLE))
   {
     *error = ER_CANT_OPEN_FILE;
+    mrn_free_tmp_table_share(share);
     DBUG_RETURN(NULL);
   }
   DBUG_RETURN(share);
@@ -1140,7 +1133,7 @@ st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create)
 {
   MRN_DBUG_ENTER_FUNCTION();
   st_mrn_slot_data *slot_data =
-    (st_mrn_slot_data*) *thd_ha_data(thd, mrn_hton_ptr);
+    (st_mrn_slot_data*) thd_get_ha_data(thd, mrn_hton_ptr);
   if (slot_data == NULL) {
     slot_data = (st_mrn_slot_data*) malloc(sizeof(st_mrn_slot_data));
     slot_data->last_insert_record_id = GRN_ID_NIL;
@@ -1149,7 +1142,7 @@ st_mrn_slot_data *mrn_get_slot_data(THD *thd, bool can_create)
     slot_data->disable_keys_create_info = NULL;
     slot_data->alter_connect_string = NULL;
     slot_data->alter_comment = NULL;
-    *thd_ha_data(thd, mrn_hton_ptr) = (void *) slot_data;
+    thd_set_ha_data(thd, mrn_hton_ptr, slot_data);
     {
       mrn::Lock lock(&mrn_allocated_thds_mutex);
       if (my_hash_insert(&mrn_allocated_thds, (uchar*) thd))

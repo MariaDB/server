@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+--source include/have_innodb_16k.inc
+
+--echo #
+--echo # MDEV-28800 SIGABRT due to running out of memory for InnoDB locks
+--echo #
+
+CREATE TABLE t1 (col1 INT) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1),(2),(3),(4);
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+
+START TRANSACTION;
+
+# Insert 64K records
+INSERT INTO t1 SELECT a.* FROM t1 a, t1 b, t1 c, t1 d;
+
+# The check needs to be adjusted if we start using more memory for locks. It
+# needs 9 pages for 16k page size and we put the limit as 10.
+SELECT CASE WHEN (POOL_SIZE - (FREE_BUFFERS + DATABASE_PAGES)) <= 10 THEN "PASSED"
+            ELSE (POOL_SIZE - (FREE_BUFFERS + DATABASE_PAGES)) END
+FROM information_schema.innodb_buffer_pool_stats;
+
+COMMIT;
+
+SELECT COUNT(*) FROM t1;
+
+DROP TABLE t1;

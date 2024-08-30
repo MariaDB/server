@@ -2,6 +2,7 @@
 --source include/have_debug_sync.inc
 # The embedded server does not support restarting.
 --source include/not_embedded.inc
+--source include/have_case_sensitive_file_system.inc
 
 --echo #
 --echo # Bug #20476395 DICT_LOAD_FOREIGNS() FAILED IN
@@ -9,6 +10,11 @@
 --echo #
 
 call mtr.add_suppression("InnoDB: Failed to load table");
+
+CREATE DATABASE Bug;
+CREATE TABLE Bug.parent(a SERIAL) ENGINE=INNODB;
+CREATE TABLE Bug.child(a SERIAL, FOREIGN KEY f(a) REFERENCES Bug.parent(a))
+ENGINE=INNODB;
 
 create database bug;
 use bug;
@@ -18,6 +24,7 @@ create table child(a serial, foreign key fk (a) references parent(a))engine=inno
 
 insert into parent values(1);
 insert into child values(1);
+drop database Bug;
 
 connect (con1,localhost,root,,bug);
 SET DEBUG_SYNC='innodb_rename_table_ready SIGNAL s1 WAIT_FOR s2 EXECUTE 2';
@@ -32,6 +39,9 @@ disconnect con1;
 
 show tables;
 alter table parent row_format=dynamic;
-
+select * from child;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent;
+drop table child;
 drop table parent;
 drop database bug;

@@ -80,9 +80,21 @@ if ($binlog_limit != '')
   --let $statement= $statement limit $binlog_limit
 }
 
+if (!$binlog_database)
+{
+  --let $binlog_database="database"
+}
+
 # Execute the statement and write to $output_file
 --let $output_file= GENERATE
 --source include/write_result_to_file.inc
+
+# If requested, change the name of the binary log file in the output
+--let $modify_binlog_name=
+if ($binlog_output_name != "")
+{
+  --let $modify_binlog_name=s{$_binlog_file}{$binlog_output_name};
+}
 
 # Filter the file through the following script.
 --delimiter ||
@@ -95,6 +107,8 @@ let $script=
   s{block_len=[0-9]+}{block_len=#};
   s{Server ver:.*DOLLAR}{SERVER_VERSION, BINLOG_VERSION};
   s{GTID [0-9]+-[0-9]+-[0-9]+}{GTID #-#-#};
+  s{COMMIT ALTER id=[0-9]+}{COMMIT ALTER id=#};
+  s{ROLLBACK ALTER id=[0-9]+}{ROLLBACK ALTER id=#};
   s{\[([0-9]-[0-9]-[0-9]+,?)+\]}{[#-#-#]};
   s{cid=[0-9]+}{cid=#};
   s{SQL_LOAD-[a-z,0-9,-]*.[a-z]*}{SQL_LOAD-<SERVER UUID>-<MASTER server-id>-<file-id>.<extension>};
@@ -102,7 +116,12 @@ let $script=
   s{((?:master|slave|slave-relay)-bin\.[0-9]{6};pos=)[0-9]+DOLLAR}{DOLLAR1POS};
   s{SONAME ".*"}{SONAME "LIB"};
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
+  s{$binlog_database}{database};
+  s{2147483647.999999}{MAX_TIMESTAMP};
+  s{4294967295.999999}{MAX_TIMESTAMP};
+  $modify_binlog_name
 ||
+
 --let $pre_script= my DOLLARmysqltest_vardir = DOLLARENV{'MYSQLTEST_VARDIR'};
 
 --delimiter ;

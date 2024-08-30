@@ -12,6 +12,7 @@
 call mtr.add_suppression("Checking table:");
 call mtr.add_suppression("client is using or hasn't closed the table properly");
 call mtr.add_suppression("Table .* is marked as crashed and should be repaired");
+call mtr.add_suppression("Could not read packet:.* errno: 11");
 flush tables;
 
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
@@ -27,7 +28,7 @@ SET sql_log_bin=1;
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 
 --connection server_1
 INSERT INTO t1 VALUES (2,1);

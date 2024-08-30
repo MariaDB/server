@@ -1,0 +1,23 @@
+#
+# MDEV-34542  Assertion `lock_trx_has_sys_table_locks(trx) == __null'
+#   failed in void row_mysql_unfreeze_data_dictionary(trx_t*)
+#
+#
+CREATE TABLE t1 (c1 CHAR(1) ,c2 INT) ENGINE=INNODB
+PARTITION BY LINEAR HASH ((c2)) PARTITIONS 512;
+CREATE TABLE t2 (a INT) ENGINE=INNODB;
+set @old_table_open_cache= @@table_open_cache;
+XA START 'a';
+INSERT INTO mysql.innodb_index_stats SELECT * FROM mysql.innodb_index_stats WHERE table_name='';
+SET GLOBAL table_open_cache=10;
+INSERT into t2 (a) VALUES (1);
+SELECT * FROM t1;
+c1	c2
+XA END 'a';
+XA PREPARE 'a';
+SELECT sleep(3);
+sleep(3)
+0
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+SET GLOBAL table_open_cache=@old_table_open_cache;

@@ -1,0 +1,25 @@
+!include ../galera_2x2nodes.cnf
+
+[mysqld.1]
+wsrep_gtid_domain_id=1
+server-id=11
+query_cache_type=1
+query_cache_size=15M
+
+[mysqld.2]
+wsrep_gtid_domain_id=1
+server-id=12
+query_cache_type=1
+query_cache_size=15M
+
+[mysqld.3]
+wsrep_gtid_domain_id=2
+server-id=13
+query_cache_type=1
+query_cache_size=15M
+
+[mysqld.4]
+wsrep_gtid_domain_id=2
+server-id=21
+query_cache_type=1
+query_cache_size=15M

@@ -64,7 +64,8 @@ typedef struct {
 static int
 compute_diff_bit(uint8_t *geo_key1, uint8_t *geo_key2)
 {
-  int i, j, diff_bit = 0;
+  size_t i;
+  int j, diff_bit = 0;
 
   for (i = 0; i < sizeof(grn_geo_point); i++) {
     if (geo_key1[i] != geo_key2[i]) {

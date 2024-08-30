@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `if(0, NULL, 1.2)` decimal(2,1) DEFAULT NULL,
   `if(1, 0.22e1, 1.1)` double NOT NULL,
   `if(1E0, 1.1, 1.2)` decimal(2,1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 select nullif(1.1, 1.1), nullif(1.1, 1.2), nullif(1.1, 0.11e1), nullif(1.0, 1), nullif(1, 1.0), nullif(1, 1.1);
 select * from t1;
@@ -74,7 +74,7 @@ t1	CREATE TABLE `t1` (
   `nullif(1.0, 1)` decimal(2,1) DEFAULT NULL,
   `nullif(1, 1.0)` int(1) DEFAULT NULL,
   `nullif(1, 1.1)` int(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a decimal(4,2));
 insert ignore into t1 value (10000), (1.1e10), ("11111"), (100000.1);
@@ -178,7 +178,7 @@ t1	CREATE TABLE `t1` (
   `truncate(-5678.123451,-3)` decimal(4,0) NOT NULL,
   `abs(-1.1)` decimal(2,1) NOT NULL,
   `-(-1.1)` decimal(2,1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set session sql_mode='traditional';
 select 1e10/0e0;
@@ -772,7 +772,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `0.5` decimal(2,1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 select round(1.5),round(2.5);
 round(1.5)	round(2.5)
@@ -912,8 +912,8 @@ select * from t1;
 col1
 -9223372036854775808
 drop table t1;
-select cast('1.00000001335143196001808973960578441619873046875E-10' as decimal(30,15));
-cast('1.00000001335143196001808973960578441619873046875E-10' as decimal(30,15))
+select cast('1.00000001335143196001808973960578441619873046875E-10' as decimal(30,15)) as exp;
+exp
 0.000000000100000
 select ln(14000) c1, convert(ln(14000),decimal(5,3)) c2, cast(ln(14000) as decimal(5,3)) c3;
 c1	c2	c3
@@ -923,13 +923,13 @@ ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column
 select cast(ln(14000) as decimal(2,3)) c1;
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column '')
 create table t1 (sl decimal(70,30));
-ERROR 42000: Too big precision 70 specified for 'sl'. Maximum is 65
+ERROR 42000: Too big precision specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(32,39));
-ERROR 42000: Too big scale 39 specified for 'sl'. Maximum is 38
+ERROR 42000: Too big scale specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(67,38));
-ERROR 42000: Too big precision 67 specified for 'sl'. Maximum is 65
+ERROR 42000: Too big precision specified for 'sl'. Maximum is 65
 create table t1 (sl decimal(0,50));
-ERROR 42000: Too big scale 50 specified for 'sl'. Maximum is 38
+ERROR 42000: Too big scale specified for 'sl'. Maximum is 38
 create table t1 (sl decimal(0,30));
 ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'sl')
 create table t1 (sl decimal(5, 5));
@@ -937,14 +937,14 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `sl` decimal(5,5) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (sl decimal(65, 38));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `sl` decimal(65,38) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (
 f1 decimal unsigned not null default 17.49, 
@@ -956,14 +956,14 @@ f6 decimal unsigned not null default 199.91,
 f7 decimal unsigned not null default 999.9, 
 f8 decimal unsigned not null default 9999.99);
 Warnings:
-Note	1265	Data truncated for column 'f1' at row 1
-Note	1265	Data truncated for column 'f2' at row 1
-Note	1265	Data truncated for column 'f3' at row 1
-Note	1265	Data truncated for column 'f4' at row 1
-Note	1265	Data truncated for column 'f5' at row 1
-Note	1265	Data truncated for column 'f6' at row 1
-Note	1265	Data truncated for column 'f7' at row 1
-Note	1265	Data truncated for column 'f8' at row 1
+Note	1265	Data truncated for column 'f1' at row 0
+Note	1265	Data truncated for column 'f2' at row 0
+Note	1265	Data truncated for column 'f3' at row 0
+Note	1265	Data truncated for column 'f4' at row 0
+Note	1265	Data truncated for column 'f5' at row 0
+Note	1265	Data truncated for column 'f6' at row 0
+Note	1265	Data truncated for column 'f7' at row 0
+Note	1265	Data truncated for column 'f8' at row 0
 insert into t1 (f1) values (1);
 select * from t1;
 f1	f2	f3	f4	f5	f6	f7	f8
@@ -977,7 +977,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `f0` decimal(30,30) unsigned zerofill NOT NULL DEFAULT 0.000000000000000000000000000000,
   `f1` decimal(10,0) unsigned zerofill NOT NULL DEFAULT 0000000000
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 drop procedure if exists wg2;
 create procedure wg2()
@@ -1027,7 +1027,7 @@ t1	CREATE TABLE `t1` (
   `my_double` double DEFAULT NULL,
   `my_varchar` varchar(50) DEFAULT NULL,
   `my_decimal` decimal(65,30) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 SET my_float = 1.175494345e-32,
 my_double = 1.175494345e-32,
 my_varchar = '1.175494345e-32';
@@ -1458,8 +1458,8 @@ cast(a as DECIMAL(3,2))
 9.99
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 select cast(a as DECIMAL(3,2)), count(*)
 from (select 11.1233 as a
 UNION select 11.1234
@@ -1470,8 +1470,8 @@ cast(a as DECIMAL(3,2))	count(*)
 Warnings:
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
 Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
-Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 1
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 2
+Warning	1264	Out of range value for column 'cast(a as DECIMAL(3,2))' at row 3
 create table t1 (s varchar(100));
 insert into t1 values (0.00000000010000000000000000364321973154977415791655470655996396089904010295867919921875);
 drop table t1;
@@ -1482,12 +1482,12 @@ SELECT CAST(1 AS decimal(65,10));
 CAST(1 AS decimal(65,10))
 1.0000000000
 SELECT CAST(1 AS decimal(66,10));
-ERROR 42000: Too big precision 66 specified for '1'. Maximum is 65
+ERROR 42000: Too big precision specified for '1'. Maximum is 65
 SELECT CAST(1 AS decimal(65,38));
 CAST(1 AS decimal(65,38))
 1.00000000000000000000000000000000000000
 SELECT CAST(1 AS decimal(65,39));
-ERROR 42000: Too big scale 39 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
 SELECT a+CAST(1 AS decimal(65,30)) AS aa, SUM(b) FROM t1 GROUP BY aa;
@@ -1496,7 +1496,7 @@ aa	SUM(b)
 3.000000000000000000000000000000	10
 4.000000000000000000000000000000	30
 SELECT a+CAST(1 AS decimal(65,49)) AS aa, SUM(b) FROM t1 GROUP BY aa;
-ERROR 42000: Too big scale 49 specified for '1'. Maximum is 38
+ERROR 42000: Too big scale specified for '1'. Maximum is 38
 DROP TABLE t1;
 CREATE TABLE t1 (a int DEFAULT NULL, b int DEFAULT NULL);
 INSERT INTO t1 VALUES (3,30), (1,10), (2,10);
@@ -1527,9 +1527,8 @@ f1
 99999999999999999999999999999.999999999999999999999999999999999999
 DROP TABLE t1;
 select (1.20396873 * 0.89550000 * 0.68000000 * 1.08721696 * 0.99500000 *
-1.01500000 * 1.01500000 * 0.99500000);
-(1.20396873 * 0.89550000 * 0.68000000 * 1.08721696 * 0.99500000 *
-1.01500000 * 1.01500000 * 0.99500000)
+1.01500000 * 1.01500000 * 0.99500000) as exp;
+exp
 0.81298807395367312459230693948000000000
 create table t1 as select 5.05 / 0.014;
 Warnings:
@@ -1541,7 +1540,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `5.05 / 0.014` decimal(10,6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1;
 5.05 / 0.014
 360.714286
@@ -2035,7 +2034,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1.0 * 2.000` decimal(6,4) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-20495 Assertion `precision > 0' failed in decimal_bin_size upon CREATE .. SELECT with zerofilled decimal
@@ -2046,7 +2045,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
 CREATE TABLE t2 AS SELECT 0 MOD d AS f FROM t1;
@@ -2054,7 +2053,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE IF EXISTS t1,t2;
 CREATE TABLE t1 (d DECIMAL(1,0) ZEROFILL);
 CREATE TABLE t2 AS SELECT CAST(0 AS UNSIGNED) MOD d AS f FROM t1;
@@ -2062,7 +2061,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 CREATE TABLE t1 (d DECIMAL(1,0) UNSIGNED);
 CREATE TABLE t2 AS SELECT CAST(0 AS UNSIGNED) MOD d AS f FROM t1;
@@ -2070,7 +2069,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 #
 # MDEV-20560 Assertion `precision > 0' failed in decimal_bin_size upon SELECT with MOD short unsigned decimal
@@ -2086,7 +2085,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a DECIMAL(1,0) UNSIGNED);
 INSERT INTO t1 VALUES (1.0),(2.0);
@@ -2099,7 +2098,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `f` decimal(1,0) unsigned DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 #
 # End of 5.5 tests
@@ -2134,6 +2133,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	14	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `decimal` = "`t1`.`a`" of type `datetime`
 DROP TABLE t1,t2;
 #
 # MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
@@ -2164,6 +2165,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	14	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `decimal` = "`t1`.`a`" of type `time`
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests
@@ -2292,57 +2295,57 @@ a
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '1e-10000');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.0
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.1 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001 ');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT '0.10001');
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DECIMAL(2,1) DEFAULT 0.10001e0);
 Warnings:
-Note	1265	Data truncated for column 'a' at row 1
+Note	1265	Data truncated for column 'a' at row 0
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(2,1) DEFAULT 0.1
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-23105 Cast number string with many leading zeros to decimal gives unexpected result
@@ -2441,27 +2444,27 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(34,33) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select 1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 as a;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(39,38) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select 1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 as a;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` decimal(39,38) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # MDEV-25317 Assertion `scale <= precision' failed in
 # decimal_bin_size And Assertion `scale >= 0 && precision > 0 && scale <= precision'
 # failed in decimal_bin_size_inline/decimal_bin_size.
 #
-SELECT AVG(DISTINCT 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001);
-AVG(DISTINCT 0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+SELECT AVG(DISTINCT 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001) as exp;
+exp
 0.00000000000000000000000000000000000000
 CREATE TABLE t1 AS SELECT NULL AS v1;
 SELECT 1 FROM t1 GROUP BY v1 ORDER BY AVG ( from_unixtime ( '' ) ) ;
@@ -2512,7 +2515,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` decimal(29,0) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9999999999999999999999999999.9999999999
 fa	-10000000000000000000000000000
 ca	-9999999999999999999999999999
@@ -2531,7 +2534,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` decimal(19,0) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-999999999999999999.9999999999
 fa	-1000000000000000000
 ca	-999999999999999999
@@ -2550,7 +2553,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(19) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-99999999999999999.9999999999
 fa	-100000000000000000
 ca	-99999999999999999
@@ -2569,7 +2572,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(12) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-9999999999.9999999999
 fa	-10000000000
 ca	-9999999999
@@ -2588,7 +2591,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(11) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-999999999.9999999999
 fa	-1000000000
 ca	-999999999
@@ -2607,7 +2610,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` int(10) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-99999999.9999999999
 fa	-100000000
 ca	-99999999
@@ -2626,7 +2629,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` int(2) DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	-0.9999999999
 fa	-1
 ca	0
@@ -2645,7 +2648,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` decimal(29,0) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2664,7 +2667,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` decimal(19,0) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2683,7 +2686,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(18) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2702,7 +2705,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(11) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2721,7 +2724,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` bigint(10) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2740,7 +2743,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` int(9) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2759,7 +2762,7 @@ Create Table	CREATE TABLE `t2` (
   `ca` int(1) unsigned DEFAULT NULL,
   `LENGTH(FLOOR(a))` int(10) DEFAULT NULL,
   `LENGTH(CEILING(a))` int(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 a	0.0000000000
 fa	0
 ca	0
@@ -2795,10 +2798,212 @@ SHOW CREATE TABLE t2;
 Table	t2
 Create Table	CREATE TABLE `t2` (
   `a` decimal(38,38) DEFAULT NULL,
-  `FORMAT(a,0)` varchar(2) DEFAULT NULL,
-  `FORMAT(a,38)` varchar(41) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `FORMAT(a,0)` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `FORMAT(a,38)` varchar(41) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2,t1;
 #
 # End of 10.4 tests
 #
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20548 Unexpected error on CREATE..SELECT HEX(num)
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT HEX(-2) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFE
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(-1) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(+1) AS h;
+SELECT * FROM t1;
+h
+1
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(+2) AS h;
+SELECT * FROM t1;
+h
+2
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(41,1));
+INSERT INTO t1 VALUES (-1000000000000000000000000000000000000000);
+INSERT INTO t1 VALUES (-0x8000000000);
+INSERT INTO t1 VALUES (-0x80000000),(-0x800000),(-0x8000),(-0x80),(-2),(-1);
+INSERT INTO t1 VALUES (1),(2),(128),(0x7fff),(0x7fffff),(0x7fffffff);
+INSERT INTO t1 VALUES (+0x7fffffffff);
+INSERT INTO t1 VALUES (+1000000000000000000000000000000000000000);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	h
+-1000000000000000000000000000000000000000.0	FFFFFFFFFFFFFFFF
+-549755813888.0	FFFFFF8000000000
+-2147483648.0	FFFFFFFF80000000
+-8388608.0	FFFFFFFFFF800000
+-32768.0	FFFFFFFFFFFF8000
+-128.0	FFFFFFFFFFFFFF80
+-2.0	FFFFFFFFFFFFFFFE
+-1.0	FFFFFFFFFFFFFFFF
+1.0	1
+2.0	2
+128.0	80
+32767.0	7FFF
+8388607.0	7FFFFF
+2147483647.0	7FFFFFFF
+549755813887.0	7FFFFFFFFF
+1000000000000000000000000000000000000000.0	FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t2;
+Field	Type	Null	Key	Default	Extra
+a	decimal(41,1)	YES		NULL	
+h	varchar(16)	YES		NULL	
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col DECIMAL(30,6), KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101.000000
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "TIME'10:20:30'" of type `time`
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101.000000	20230101
+20230102.000000	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101.000000	20230101
+20230102.000000	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101.000000	2023-01-01
+20230102.000000	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "`t2`.`not_indexed_col`" of type `date`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101.000000	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "`t2`.`not_indexed_col`" of type `datetime`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101.000000	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `decimal` = "`t2`.`not_indexed_col`" of type `timestamp`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2001-01-01'
+Warning	1292	Truncated incorrect DECIMAL value: '2001-01-02'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '2001-01-01'
+Warning	1292	Truncated incorrect DECIMAL value: '2001-01-02'
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

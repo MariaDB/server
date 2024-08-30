@@ -1,4 +1,4 @@
-SET @@session.storage_engine = 'InnoDB';
+SET @@session.default_storage_engine = 'InnoDB';
 #            - UNIQUE KEY
 #            - INDEX
 #            - FULLTEXT INDEX
@@ -15,7 +15,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -30,7 +30,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -59,7 +59,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -72,7 +72,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `a` (`a`,`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -215,6 +215,25 @@ INDEX(vc(32))
 );
 DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
 DROP TABLE t1;
+SET sql_mode='';
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 FROM seq_1_to_2 ;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+1
+DROP TABLE t1;
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 UNION SELECT 1;
+Warnings:
+Warning	1906	The value specified for generated column 'a' in table 't1' has been ignored
+SELECT * FROM t1;
+a
+1
+DROP TABLE t1;
 #
 # MDEV-11737 Failing assertion: block->magic_n == MEM_BLOCK_MAGIC_N
 # 
@@ -239,7 +258,7 @@ col_dec decimal(18,9) not null default 0,
 col_enum enum('','a','b','c','d','e','f','foo','bar') not null default '',
 col_date date not null default '1900-01-01',
 col_timestamp timestamp(3) not null default '1971-01-01 00:00:00',
-vcol_datetime datetime as (col_datetime) virtual,
+vcol_datetime datetime as (truncate(col_datetime,0)) virtual,
 vcol_dec decimal(18,9) zerofill as (col_dec) virtual,
 vcol_bit bit(63) as (col_bit) virtual,
 vcol_char binary(51) as (col_char) virtual,
@@ -257,11 +276,6 @@ insert into t1 (col_varchar,col_int,col_datetime,col_time,col_blob,col_bit,col_y
 ('foo',1,'2010-05-08 13:08:12.034783','18:32:14','foo',b'0111110101001001',1992,'f',0.2,'','1994-12-26','2019-01-11 00:00:00'),
 ('bar',6,'1900-01-01 00:00:00','00:00:00','bar',b'10011000001101011000101',1985,'b',0.7,'','2028-04-06','1971-01-01 00:00:00');
 alter table t1 add index(vcol_datetime);
-Warnings:
-Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
-Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
-Warning	1901	Function or expression '`col_datetime`' cannot be used in the GENERATED ALWAYS AS clause of `vcol_datetime`
-Warning	1105	Expression depends on the @@sql_mode value TIME_ROUND_FRACTIONAL
 drop table t1;
 create table t1 (
 pk int,

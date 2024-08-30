@@ -27,10 +27,10 @@
 #define DO_SYSLOG
 #include <syslog.h>
 static const char out_type_desc[]= "Desired output type. Possible values - 'syslog', 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #else
 static const char out_type_desc[]= "Desired output type. Possible values - 'file'"
-                                   " or 'null' as no output.";
+                                   " or 'null' as no output";
 #define syslog(PRIORITY, FORMAT, INFO, MESSAGE_LEN, MESSAGE) do {}while(0)
 static void closelog() {}
 #define openlog(IDENT, LOG_NOWAIT, LOG_USER)  do {}while(0)
@@ -124,7 +124,7 @@ static char *default_home= (char *)".";
 #define my_rename(A, B, C) loc_rename(A, B)
 #define my_tell(A, B) loc_tell(A)
 #define my_write(A, B, C, D) loc_write(A, B, C)
-#define my_malloc(A, B) malloc(A)
+#define my_malloc(A, B, C) malloc(B)
 #define my_free(A) free(A)
 #ifdef my_errno
   #undef my_errno
@@ -141,6 +141,13 @@ static int loc_file_errno;
 #define logger_rotate loc_logger_rotate
 #define logger_init_mutexts loc_logger_init_mutexts
 #define logger_time_to_rotate loc_logger_time_to_rotate
+
+#ifndef HOSTNAME_LENGTH
+#define HOSTNAME_LENGTH 255
+#endif
+#ifndef USERNAME_CHAR_LENGTH
+#define USERNAME_CHAR_LENGTH 128
+#endif
 
 
 static size_t loc_write(File Filedes, const uchar *Buffer, size_t Count)
@@ -210,7 +217,7 @@ static int loc_rename(const char *from, const char *to)
 {
   int error = 0;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!MoveFileEx(from, to, MOVEFILE_COPY_ALLOWED |
                             MOVEFILE_REPLACE_EXISTING))
   {
@@ -277,8 +284,9 @@ static my_off_t loc_tell(File fd)
 #endif /*WIN32*/
 
 
-extern char server_version[];
+extern MYSQL_PLUGIN_IMPORT char server_version[];
 static const char *serv_ver= NULL;
+const char *(*thd_priv_host_ptr)(MYSQL_THD thd, size_t *length);
 static int started_mysql= 0;
 static int mysql_57_started= 0;
 static int debug_server_started= 0;
@@ -303,7 +311,7 @@ static char incl_user_buffer[1024];
 static char excl_user_buffer[1024];
 static unsigned int query_log_limit= 0;
 
-static char servhost[256];
+static char servhost[HOSTNAME_LENGTH+1];
 static uint servhost_len;
 static char *syslog_ident;
 static char syslog_ident_buffer[128]= "mysql-server_auditing";
@@ -315,9 +323,9 @@ struct connection_info
   unsigned long long query_id;
   char db[256];
   int db_length;
-  char user[64];
+  char user[USERNAME_CHAR_LENGTH+1];
   int user_length;
-  char host[64];
+  char host[HOSTNAME_LENGTH+1];
   int host_length;
   char ip[64];
   int ip_length;
@@ -326,9 +334,9 @@ struct connection_info
   char query_buffer[1024];
   time_t query_time;
   int log_always;
-  char proxy[64];
+  char proxy[USERNAME_CHAR_LENGTH+1];
   int proxy_length;
-  char proxy_host[64];
+  char proxy_host[HOSTNAME_LENGTH+1];
   int proxy_host_length;
 };
 
@@ -365,10 +373,10 @@ static void rotate_log(MYSQL_THD thd, struct st_mysql_sys_var *var,
                        void *var_ptr, const void *save);
 
 static MYSQL_SYSVAR_STR(incl_users, incl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to monitor.",
+       "Comma separated list of users to monitor",
        check_incl_users, update_incl_users, NULL);
 static MYSQL_SYSVAR_STR(excl_users, excl_users, PLUGIN_VAR_RQCMDARG,
-       "Comma separated list of users to exclude from auditing.",
+       "Comma separated list of users to exclude from auditing",
        check_excl_users, update_excl_users, NULL);
 /* bits in the event filter. */
 #define EVENT_CONNECT 1
@@ -391,7 +399,7 @@ static TYPELIB events_typelib=
 };
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
-           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
+           " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL",
        NULL, NULL, 0, &events_typelib);
 #ifdef DO_SYSLOG
 #define OUTPUT_SYSLOG 0
@@ -417,29 +425,29 @@ static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
        0, update_output_type, OUTPUT_FILE,
        &output_typelib);
 static MYSQL_SYSVAR_STR(file_path, file_path, PLUGIN_VAR_RQCMDARG,
-       "Path to the log file.", NULL, update_file_path, default_file_name);
+       "Path to the log file", NULL, update_file_path, default_file_name);
 static MYSQL_SYSVAR_ULONGLONG(file_rotate_size, file_rotate_size,
-       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation.",
+       PLUGIN_VAR_RQCMDARG, "Maximum size of the log to start the rotation",
        NULL, update_file_rotate_size,
        1000000, 100, ((long long) 0x7FFFFFFFFFFFFFFFLL), 1);
 static MYSQL_SYSVAR_UINT(file_rotations, rotations,
-       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed.",
+       PLUGIN_VAR_RQCMDARG, "Number of rotations before log is removed",
        NULL, update_file_rotations, 9, 0, 999, 1);
 static MYSQL_SYSVAR_BOOL(file_rotate_now, rotate, PLUGIN_VAR_OPCMDARG,
-       "Force log rotation now.", NULL, rotate_log, FALSE);
+       "Force log rotation now", NULL, rotate_log, FALSE);
 static MYSQL_SYSVAR_BOOL(logging, logging,
-       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging.", NULL,
+       PLUGIN_VAR_OPCMDARG, "Turn on/off the logging", NULL,
        update_logging, 0);
 static MYSQL_SYSVAR_UINT(mode, mode,
-       PLUGIN_VAR_OPCMDARG, "Auditing mode.", NULL, update_mode, 0, 0, 1, 1);
+       PLUGIN_VAR_OPCMDARG, "Auditing mode", NULL, update_mode, 0, 0, 1, 1);
 static MYSQL_SYSVAR_STR(syslog_ident, syslog_ident, PLUGIN_VAR_RQCMDARG,
-       "The SYSLOG identifier - the beginning of each SYSLOG record.",
+       "The SYSLOG identifier - the beginning of each SYSLOG record",
        NULL, update_syslog_ident, syslog_ident_buffer);
 static MYSQL_SYSVAR_STR(syslog_info, syslog_info,
        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
-       "The <info> string to be added to the SYSLOG record.", NULL, NULL, "");
+       "The <info> string to be added to the SYSLOG record", NULL, NULL, "");
 static MYSQL_SYSVAR_UINT(query_log_limit, query_log_limit,
-       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record.",
+       PLUGIN_VAR_OPCMDARG, "Limit on the length of the query string in a record",
        NULL, NULL, 1024, 0, 0x7FFFFFFF, 1);
 
 char locinfo_ini_value[sizeof(struct connection_info)+4];
@@ -486,7 +494,7 @@ static TYPELIB syslog_facility_typelib=
 };
 static MYSQL_SYSVAR_ENUM(syslog_facility, syslog_facility, PLUGIN_VAR_RQCMDARG,
        "The 'facility' parameter of the SYSLOG record."
-       " The default is LOG_USER.", 0, update_syslog_facility, 0/*LOG_USER*/,
+       " The default is LOG_USER", 0, update_syslog_facility, 0/*LOG_USER*/,
        &syslog_facility_typelib);
 
 static const char *syslog_priority_names[]=
@@ -511,7 +519,7 @@ static TYPELIB syslog_priority_typelib=
 };
 static MYSQL_SYSVAR_ENUM(syslog_priority, syslog_priority, PLUGIN_VAR_RQCMDARG,
        "The 'priority' parameter of the SYSLOG record."
-       " The default is LOG_INFO.", 0, update_syslog_priority, 6/*LOG_INFO*/,
+       " The default is LOG_INFO", 0, update_syslog_priority, 6/*LOG_INFO*/,
        &syslog_priority_typelib);
 
 
@@ -1038,9 +1046,9 @@ static int get_user_host(const char *uh_line, unsigned int uh_len,
   return 0;
 }
 
-#if defined(__WIN__) && !defined(S_ISDIR)
+#if defined(_WIN32) && !defined(S_ISDIR)
 #define S_ISDIR(x) ((x) & _S_IFDIR)
-#endif /*__WIN__ && !S_ISDIR*/
+#endif /*_WIN32 && !S_ISDIR*/
 
 static int start_logging()
 {
@@ -1144,9 +1152,9 @@ static void setup_connection_simple(struct connection_info *ci)
 }
 
 
-#define MAX_HOSTNAME 61
+#define MAX_HOSTNAME  (HOSTNAME_LENGTH + 1)	/* len+1 in mysql.user */
 
-static void setup_connection_connect(struct connection_info *cn,
+static void setup_connection_connect(MYSQL_THD thd,struct connection_info *cn,
     const struct mysql_event_connection *event)
 {
   cn->query_id= 0;
@@ -1164,17 +1172,26 @@ static void setup_connection_connect(struct connection_info *cn,
   cn->header= 0;
   if (event->proxy_user && event->proxy_user[0])
   {
-    const char *priv_host= event->proxy_user +
-            sizeof(char[MAX_HOSTNAME+USERNAME_LENGTH+5]);
+    const char *priv_host;
     size_t priv_host_length;
 
-    if (mysql_57_started)
+    if (thd_priv_host_ptr)
     {
-      priv_host+= sizeof(size_t);
-      priv_host_length= *(size_t *) (priv_host + MAX_HOSTNAME);
+      priv_host= (*thd_priv_host_ptr)(thd, &priv_host_length);
     }
     else
-      priv_host_length= strlen(priv_host);
+    {
+      // 5 is "'" around host and user and "@"
+      priv_host= event->proxy_user +
+            sizeof(char[MAX_HOSTNAME + USERNAME_LENGTH + 5]);
+      if (mysql_57_started)
+      {
+        priv_host+= sizeof(size_t);
+        priv_host_length= *(size_t *) (priv_host + MAX_HOSTNAME);
+      }
+      else
+        priv_host_length= strlen(priv_host);
+    }
 
 
     get_str_n(cn->proxy, &cn->proxy_length, sizeof(cn->proxy),
@@ -1978,7 +1995,7 @@ static struct connection_info ci_disconnect_buffer;
 #define AA_FREE_CONNECTION 1
 #define AA_CHANGE_USER 2
 
-static void update_connection_info(struct connection_info *cn,
+static void update_connection_info(MYSQL_THD thd, struct connection_info *cn,
     unsigned int event_class, const void *ev, int *after_action)
 {
   *after_action= 0;
@@ -2099,7 +2116,7 @@ static void update_connection_info(struct connection_info *cn,
     switch (event->event_subclass)
     {
       case MYSQL_AUDIT_CONNECTION_CONNECT:
-        setup_connection_connect(cn, event);
+        setup_connection_connect(thd, cn, event);
         break;
       case MYSQL_AUDIT_CONNECTION_CHANGE_USER:
         *after_action= AA_CHANGE_USER;
@@ -2157,7 +2174,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
     cn= get_loc_info(thd);
   }
 
-  update_connection_info(cn, event_class, ev, &after_action);
+  update_connection_info(thd, cn, event_class, ev, &after_action);
 
   if (!logging)
   {
@@ -2442,7 +2459,6 @@ typedef struct loc_system_variables
   ulong max_tmp_tables;
   ulong max_insert_delayed_threads;
   ulong min_examined_row_limit;
-  ulong multi_range_count;
   ulong net_buffer_length;
   ulong net_interactive_timeout;
   ulong net_read_timeout;
@@ -2482,31 +2498,39 @@ typedef struct loc_system_variables
 
 static int init_done= 0;
 
+static void* find_sym(const char *sym)
+{
+#ifdef _WIN32
+  return GetProcAddress(GetModuleHandle("server.dll"),sym);
+#else
+  return dlsym(RTLD_DEFAULT, sym);
+#endif
+}
+
 static int server_audit_init(void *p __attribute__((unused)))
 {
   if (!serv_ver)
   {
-#ifdef _WIN32
-    serv_ver= (const char *) GetProcAddress(0, "server_version");
-#else
-    serv_ver= server_version;
-#endif /*_WIN32*/
+    serv_ver= find_sym("server_version");
   }
+
   if (!mysql_57_started)
   {
-    const void *my_hash_init_ptr= dlsym(RTLD_DEFAULT, "_my_hash_init");
+    const void *my_hash_init_ptr= find_sym("_my_hash_init");
     if (!my_hash_init_ptr)
     {
       maria_above_5= 1;
-      my_hash_init_ptr= dlsym(RTLD_DEFAULT, "my_hash_init2");
+      my_hash_init_ptr= find_sym("my_hash_init2");
     }
     if (!my_hash_init_ptr)
       return 1;
+
+    thd_priv_host_ptr= dlsym(RTLD_DEFAULT, "thd_priv_host");
   }
 
-  if(!(int_mysql_data_home= dlsym(RTLD_DEFAULT, "mysql_data_home")))
+  if(!(int_mysql_data_home= find_sym("mysql_data_home")))
   {
-    if(!(int_mysql_data_home= dlsym(RTLD_DEFAULT, "?mysql_data_home@@3PADA")))
+    if(!(int_mysql_data_home= find_sym("?mysql_data_home@@3PADA")))
       int_mysql_data_home= &default_home;
   }
 
@@ -3035,7 +3059,7 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
   if (fdwReason != DLL_PROCESS_ATTACH)
     return 1;
 
-  serv_ver= (const char *) GetProcAddress(0, "server_version");
+  serv_ver= server_version;
 #else
 void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {

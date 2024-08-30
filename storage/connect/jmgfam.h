@@ -31,35 +31,35 @@ public:
 	JMGFAM(PJMGFAM txfp);
 
 	// Implementation
-	virtual AMT   GetAmType(void) { return TYPE_AM_MGO; }
-	virtual bool  GetUseTemp(void) { return false; }
-	virtual int   GetPos(void);
-	virtual int   GetNextPos(void);
-	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) JMGFAM(this); }
+	AMT   GetAmType(void) override { return TYPE_AM_MGO; }
+	bool  GetUseTemp(void) override { return false; }
+	int   GetPos(void) override;
+	int   GetNextPos(void) override;
+	PTXF  Duplicate(PGLOBAL g) override { return (PTXF)new(g) JMGFAM(this); }
 	void  SetLrecl(int lrecl) { Lrecl = lrecl; }
 
 	// Methods
-	virtual void  Reset(void);
-	virtual int   GetFileLength(PGLOBAL g);
-	virtual int   Cardinality(PGLOBAL g);
-	virtual int   MaxBlkSize(PGLOBAL g, int s);
-	virtual bool  AllocateBuffer(PGLOBAL g) { return false; }
-	virtual int   GetRowID(void);
-	virtual bool  RecordPos(PGLOBAL g);
-	virtual bool  SetPos(PGLOBAL g, int recpos);
-	virtual int   SkipRecord(PGLOBAL g, bool header);
-	virtual bool  OpenTableFile(PGLOBAL g);
-	virtual int   ReadBuffer(PGLOBAL g);
-	virtual int   WriteBuffer(PGLOBAL g);
-	virtual int   DeleteRecords(PGLOBAL g, int irc);
-	virtual void  CloseTableFile(PGLOBAL g, bool abort);
-	virtual void  Rewind(void);
+	void  Reset(void) override;
+	int   GetFileLength(PGLOBAL g) override;
+	int   Cardinality(PGLOBAL g) override;
+	int   MaxBlkSize(PGLOBAL g, int s) override;
+	bool  AllocateBuffer(PGLOBAL g) override { return false; }
+	int   GetRowID(void) override;
+	bool  RecordPos(PGLOBAL g) override;
+	bool  SetPos(PGLOBAL g, int recpos) override;
+	int   SkipRecord(PGLOBAL g, bool header) override;
+	bool  OpenTableFile(PGLOBAL g) override;
+	int   ReadBuffer(PGLOBAL g) override;
+	int   WriteBuffer(PGLOBAL g) override;
+	int   DeleteRecords(PGLOBAL g, int irc) override;
+	void  CloseTableFile(PGLOBAL g, bool abort) override;
+	void  Rewind(void) override;
 
 protected:
-	virtual bool  OpenTempFile(PGLOBAL g) { return false; }
-	virtual bool  MoveIntermediateLines(PGLOBAL g, bool *b) { return false; }
-	virtual int   RenameTempFile(PGLOBAL g) { return RC_OK; }
-	virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+	bool  OpenTempFile(PGLOBAL g) override { return false; }
+	bool  MoveIntermediateLines(PGLOBAL g, bool *b) override { return false; }
+	int   RenameTempFile(PGLOBAL g) override { return RC_OK; }
+	int   InitDelete(PGLOBAL g, int fpos, int spos) override;
 	bool  Init(PGLOBAL g);
 //bool  MakeCursor(PGLOBAL g);
 

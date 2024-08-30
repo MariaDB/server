@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
   if (argc > argcnt)
     charsets_dir = argv[argcnt++];
 
-  if (!(cs= get_charset_by_name(the_set, MYF(MY_WME))))
+  if (!(cs= get_charset_by_name(the_set, MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
     return 1;
 
   puts("CHARSET INFO:");

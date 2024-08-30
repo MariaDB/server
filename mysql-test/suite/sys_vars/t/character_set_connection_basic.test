@@ -40,6 +40,7 @@
 #                 Save initial value                        #
 #############################################################
 SET @global_start_value = @@global.character_set_connection;
+SET @global_collation_connection = @@global.collation_connection;
 SET @save_character_set_client=@@global.character_set_client;
 SET @@global.character_set_client=@@character_set_client;
 # Save initial session value
@@ -155,30 +156,42 @@ SELECT @@global.character_set_connection;
 ##############################################################
 SET @@character_set_connection = 1;
 SELECT @@character_set_connection;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_connection = 2;
-SELECT @@character_set_connection;
+
 SET @@character_set_connection = 3;
 SELECT @@character_set_connection;
 SET @@character_set_connection = 36;
 SELECT @@character_set_connection;
-SET @@character_set_connection = 99;
-SELECT @@character_set_connection;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_connection = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_connection = 100;
 
 
 SET @@global.character_set_connection = 1;
 SELECT @@global.character_set_connection;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_connection = 2;
-SELECT @@global.character_set_connection;
+
 SET @@global.character_set_connection = 3;
 SELECT @@global.character_set_connection;
 SET @@global.character_set_connection = 36;
 SELECT @@global.character_set_connection;
-SET @@global.character_set_connection = 99;
-SELECT @@global.character_set_connection;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@global.character_set_connection = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@global.character_set_connection = 100;
 
@@ -201,6 +214,10 @@ SET @@character_set_connection = 1.1;
 SET @@character_set_connection = -1;
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_connection = 'utf8 ';
+SET @@character_set_connection=cp1250;
+--Error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_connection = 'lätin2';
+SET @@character_set_connection=cp866;
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_connection = 'lätin2';
 SET @@character_set_connection = true;
@@ -259,10 +276,23 @@ SELECT @@session.character_set_connection =
  (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_VARIABLES
   WHERE VARIABLE_NAME='character_set_connection') AS res;
 
+--echo #
+--echo # MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+--echo #
+
+--error ER_UNKNOWN_CHARACTER_SET
+SET character_set_connection=2/*latin2_czech_cs*/;
+SET @@pseudo_slave_mode=1;
+SET character_set_connection=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_connection';
+SHOW VARIABLES LIKE 'collation_connection';
+SET @@pseudo_slave_mode=0;
+
+
 ####################################
 #     Restore initial value        #
 ####################################
-SET @@global.character_set_connection = @global_start_value;
+SET @@global.collation_connection = @global_collation_connection;
 SET @@global.character_set_client = @save_character_set_client;
 
 #############################################################

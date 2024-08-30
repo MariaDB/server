@@ -9,8 +9,6 @@ Variable_name	Slave_heartbeat_period
 Value	60.000
 SET @saved_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,simulate_slave_heartbeat_network_error";
-CALL mtr.add_suppression('SET @master_heartbeat_period to master failed with error');
-CALL mtr.add_suppression('Master command COM_REGISTER_SLAVE failed: failed registering on master, reconnecting to try again');
 include/start_slave.inc
 connection master;
 drop table if exists t1;

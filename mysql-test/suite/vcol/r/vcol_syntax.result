@@ -5,7 +5,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a int, b int as (a+1) virtual);
 show create table t1;
@@ -13,7 +13,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (a int, b int generated always  as (a+1) persistent);
 show create table t1;
@@ -21,7 +21,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` + 1) STORED
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set session sql_mode='ORACLE';
 create table t1 (a int, b int as (a+1));
@@ -54,22 +54,22 @@ set session sql_mode=@OLD_SQL_MODE;
 #
 create table t2 (x int);
 create table t1 (x int, y int generated always as (t2.x));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 't2.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 create table t1 (x int, y int check (y > t2.x));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `y`
 create table t1 (x int, y int default t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 't2.x' cannot be used in the DEFAULT clause of `y`
 create table t1 (x int, check (t2.x > 0));
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create table t1 (x int);
 alter table t1 add column y int generated always as (t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 't2.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 alter table t1 add column y int check (z > t2.x);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `y`
 alter table t1 add column y int default t2.x;
-ERROR 42S22: Unknown column '`t2`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 't2.x' cannot be used in the DEFAULT clause of `y`
 alter table t1 add constraint check (t2.x > 0);
-ERROR 42S22: Unknown column '`t2`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 't2.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 create or replace table t1 (x int, y int generated always as (t1.x));
 create or replace table t1 (x int, y int check (y > t1.x));
 create or replace table t1 (x int, y int default t1.x);
@@ -80,13 +80,13 @@ create or replace table t1 (x int, y int default test.t1.x);
 create or replace table t1 (x int, check (test.t1.x > 0));
 drop tables t1, t2;
 create table t1 (x int, y int generated always as (test2.t1.x));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'GENERATED ALWAYS'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the GENERATED ALWAYS AS clause of `y`
 create table t1 (x int, y int check (y > test2.t1.x));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the CHECK clause of `y`
 create table t1 (x int, y int default test2.t1.x);
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'DEFAULT'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the DEFAULT clause of `y`
 create table t1 (x int, check (test2.t1.x > 0));
-ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+ERROR HY000: Function or expression 'test2.t1.x' cannot be used in the CHECK clause of `CONSTRAINT_1`
 #
 # MDEV-25672 table alias from previous statement interferes later commands
 #
@@ -155,7 +155,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `vi` int(11) GENERATED ALWAYS AS (case 'x' when current_user() then 1 end) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (vi int as (case 'x' when current_user() then 1 end));
 select 1 from t1 where vi=1;
@@ -201,18 +201,22 @@ drop table t1;
 # MDEV-31319 Assertion const_item_cache == true failed in Item_func::fix_fields
 #
 create table t (f1 int, f2 int, fv int generated always as (case user() when 'foo' or 'bar' then f1 else f2 end) virtual);
-Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'foo'
-Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 select * from t;
 f1	f2	fv
+insert into t (f1,f2) values(1,1);
+select * from t;
+f1	f2	fv
+1	1	1
 Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'root@localhost'
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 create table tmp as select * from information_schema.tables where table_name = 't';
 select * from t;
 f1	f2	fv
+1	1	1
 Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'root@localhost'
 Warning	1292	Truncated incorrect DOUBLE value: 'foo'
 Warning	1292	Truncated incorrect DOUBLE value: 'bar'
 drop table t, tmp;

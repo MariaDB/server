@@ -94,43 +94,45 @@ show create table t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TEMPORARY TABLE `t1_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t2_tmp;
 Table	Create Table
 t2_tmp	CREATE TEMPORARY TABLE `t2_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 rename table t1 to t1_tmp;
 rename table t2_tmp to t2;
 rename table t2 to tmp, tmp to t2;
 rename table t1_tmp to tmp, tmp to t1_tmp;
 show tables;
 Tables_in_test
+t2
+t1_tmp
 t1_tmp
 t2
 SHOW CREATE TABLE t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TEMPORARY TABLE `t1_tmp` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1_tmp;
 SHOW CREATE TABLE t1_tmp;
 Table	Create Table
 t1_tmp	CREATE TABLE `t1_tmp` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1_tmp;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TEMPORARY TABLE `t2` (
   `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2;
 CREATE TABLE t1 (a INT);
 insert into t1 values (1);
@@ -147,4 +149,29 @@ drop table tmp,t2;
 create table t1 (a int) engine=memory;
 rename table t1 to non_existent.t2;
 ERROR 42000: Unknown database 'non_existent'
+drop table t1;
+#
+# Test rename IF EXISTS
+#
+rename table if exists t1 to t2;
+Warnings:
+Note	1146	Table 'test.t1' doesn't exist
+alter table if exists t1 rename to t2;
+Warnings:
+Error	1146	Table 'test.t1' doesn't exist
+create table t2 (a int);
+alter table if exists t1 rename to t2;
+Warnings:
+Error	1146	Table 'test.t1' doesn't exist
+rename table if exists t1 to t2;
+Warnings:
+Note	1146	Table 'test.t1' doesn't exist
+create table t1 (a int);
+rename table if exists t1 to t2;
+ERROR 42S01: Table 't2' already exists
+alter table if exists t1 rename to t2;
+ERROR 42S01: Table 't2' already exists
+drop table t2;
+rename table if exists t1 to t2;
+alter table if exists t2 rename to t1;
 drop table t1;

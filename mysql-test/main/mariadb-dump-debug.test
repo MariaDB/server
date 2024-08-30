@@ -1,0 +1,15 @@
+--source include/have_debug.inc
+--source include/not_embedded.inc
+# need to dump "mysql" schema
+--source include/have_innodb.inc
+
+# inject error on SELECT INTO OUTFILE
+set @save_debug_dbug=@@global.debug_dbug;
+set global debug_dbug='+d,select_export_kill';
+# This one succeeds
+--replace_result .\exe '' $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--error 2
+--exec $MYSQL_DUMP --tab=$MYSQLTEST_VARDIR/tmp/ --parallel=2 mysql global_priv 2>&1
+
+set global debug_dbug=@save_debug_dbug;
+

@@ -27,23 +27,23 @@ namespace dena {
 
 struct hstcpcli : public hstcpcli_i, private noncopyable {
   hstcpcli(const socket_args& args);
-  virtual void close();
-  virtual int reconnect();
-  virtual bool stable_point();
-  virtual void request_buf_open_index(size_t pst_id, const char *dbn,
-    const char *tbl, const char *idx, const char *retflds, const char *filflds);
-  virtual void request_buf_auth(const char *secret, const char *typ);
-  virtual void request_buf_exec_generic(size_t pst_id, const string_ref& op,
+  void close() override;
+  int reconnect() override;
+  bool stable_point() override;
+  void request_buf_open_index(size_t pst_id, const char *dbn,
+    const char *tbl, const char *idx, const char *retflds, const char *filflds) override;
+  void request_buf_auth(const char *secret, const char *typ) override;
+  void request_buf_exec_generic(size_t pst_id, const string_ref& op,
     const string_ref *kvs, size_t kvslen, uint32_t limit, uint32_t skip,
     const string_ref& mod_op, const string_ref *mvs, size_t mvslen,
     const hstcpcli_filter *fils, size_t filslen, int invalues_keypart,
-    const string_ref *invalues, size_t invalueslen);
-  virtual int request_send();
-  virtual int response_recv(size_t& num_flds_r);
-  virtual const string_ref *get_next_row();
-  virtual void response_buf_remove();
-  virtual int get_error_code();
-  virtual std::string get_error();
+    const string_ref *invalues, size_t invalueslen) override;
+  int request_send() override;
+  int response_recv(size_t& num_flds_r) override;
+  const string_ref *get_next_row() override;
+  void response_buf_remove() override;
+  int get_error_code() override;
+  std::string get_error() override;
  private:
   int read_more();
   void clear_error();

@@ -10,7 +10,7 @@
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 
 #
 # MDEV-5854

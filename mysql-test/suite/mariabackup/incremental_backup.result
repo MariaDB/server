@@ -1,6 +1,7 @@
 call mtr.add_suppression("InnoDB: New log files created");
 CREATE TABLE t_aria(i INT) ENGINE ARIA;
 CREATE TABLE t(i INT PRIMARY KEY) ENGINE INNODB;
+INSERT INTO t VALUES(100);
 BEGIN;
 INSERT INTO t VALUES(2);
 connect  con1,localhost,root,,;
@@ -17,6 +18,7 @@ SELECT * FROM t;
 i
 1
 2
+100
 # Prepare full backup, apply incremental one
 # Aria log file was updated during applying incremental backup
 disconnect con1;
@@ -29,5 +31,6 @@ SELECT * FROM t;
 i
 1
 2
+100
 DROP TABLE t;
 DROP TABLE t_aria;

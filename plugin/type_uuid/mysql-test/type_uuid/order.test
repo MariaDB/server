@@ -1,0 +1,62 @@
+# try all combinations of version and variant
+source include/have_sequence.inc;
+
+create table t1 (a uuid, b int not null, index (a));
+insert t1 select sformat('{:03}01234-5566-{:x}777-{}888-99aabbccddee',
+  (seq % 2)*100 + seq, seq div 4, elt(1+(seq % 4),0,8,'c','e')),seq from seq_0_to_63;
+select * from t1 order by b;
+select * from t1 order by a;
+show create table t1;
+
+--echo # now let's use the table as above, but created in 10.11.4
+let $datadir= `select @@datadir`;
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.frm $datadir/test/t2.frm
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYI $datadir/test/t2.MYI
+--copy_file $MTR_SUITE_DIR/std_data/mdev-29959.MYD $datadir/test/t2.MYD
+select * from t2 order by b;
+select * from t2 order by a;
+show create table t2;
+
+explain select * from t1 left join t2 on (t1.a=t2.a);
+--sorted_result
+select * from t1 left join t2 on (t1.a=t2.a);
+
+explain select * from t1 left join t2 on (t1.a<=>t2.a);
+--sorted_result
+select * from t1 left join t2 on (t1.a<=>t2.a);
+
+explain select * from t2 left join t1 on (t1.a=t2.a);
+--sorted_result
+select * from t2 left join t1 on (t1.a=t2.a);
+
+explain select * from t2 left join t1 on (t1.a<=>t2.a);
+--sorted_result
+select * from t2 left join t1 on (t1.a<=>t2.a);
+
+--sorted_result
+select * from t1 union select * from t2;
+
+--sorted_result
+select * from t1, t1 t where t1.b div 4 in (6,7) and t.b div 4 in (6,7) and t1.a > t.a;
+
+alter ignore table t2 force;
+
+drop table t2;
+
+--echo #
+--echo # MDEV-31926 UUID v7 are compared incorrectly
+--echo #
+
+# for v6 and v7 string comparison should produce the same result.
+# Quoting the standard draft:
+#
+# 6.11.  Sorting
+#
+# UUIDv6 and UUIDv7 are designed so that implementations that require
+# sorting (e.g., database indexes) sort as opaque raw bytes, without
+# need for parsing or introspection.
+#
+--sorted_result
+select * from t1, t1 t where t1.b div 4 in (6,7) and t.b div 4 in (6,7) and concat(t1.a) > concat(t.a);
+
+drop table t1;

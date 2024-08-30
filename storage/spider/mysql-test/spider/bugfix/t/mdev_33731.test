@@ -1,0 +1,16 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+CREATE TABLE t (a INT) ENGINE=Spider PARTITION BY LIST (a) PARTITIONS 2 (PARTITION p1 VALUES IN (0,1),PARTITION p2 VALUES IN (2,3));
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+DELETE FROM t PARTITION (p2);
+drop table t;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

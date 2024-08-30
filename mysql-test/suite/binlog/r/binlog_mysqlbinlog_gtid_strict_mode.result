@@ -1,0 +1,925 @@
+###############################
+#      Test Setup
+###############################
+RESET MASTER;
+####################################################
+#      Test Case Group 1
+#
+# Tests with --gtid-strict-mode should error and
+# immediately quit with error on out of order GTIDs
+####################################################
+#
+#   Test Case 1:
+#   Sequential sequence numbers results in no errors or warnings
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 2:
+#   A skipped sequence number results in no errors or warnings if all
+# numbers are monotonic (i.e. gaps in sequence number are allowed
+# provided they never decrease)
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 3:
+#   A sequence number lower than the last processed value results in a
+# warning or error
+CREATE TABLE t1 (a int);
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 1;
+INSERT INTO t1 values (1);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 4:
+#   Skipping a GTID and later receiving it results in a warning or error
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 5:
+#   Repeat sequence numbers produce a warning
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 6:
+#   Warnings from different domains are all displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t2 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t2 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t2 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+RESET MASTER;
+#
+#   Test Case 7:
+#   A decreasing seq_no before a start-position is ignored
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-4 --gtid-strict-mode > log_error_ > OUT_FILE
+NOT FOUND /ERROR/ in out.err
+# Position-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 8:
+#   A decreasing seq_no inside of a --start/--stop position window is
+# displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (4);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 6;
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 --gtid-strict-mode > log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+# Position-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --stop-position=stop_binlog_pos --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 9:
+#   Error if --stop-position is not greater than or equal to
+# --start-position
+#
+# Note: Error is only displayed in strict mode, -vvv has no effect here
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+RESET MASTER;
+#
+#   Test Case 10:
+#   Strict mode warnings should be independent of --offset option
+# specification
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --offset=8 --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 11:
+#   Strict mode warnings should be independent of --start-timestamp
+# option specification
+set @a=UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+SET timestamp=@a;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+SET timestamp=@a+1;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+SET timestamp=@a+2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+SET timestamp=@a+3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" --gtid-strict-mode 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 12:
+#   Specifying multiple binary logs with a log-position start should
+# skip GTID state verification
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 values (1);
+FLUSH LOGS;
+INSERT INTO t2 values (2);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE2 --start-position=b2_start_pos --gtid-strict-mode 2> log_error_ > OUT_FILE
+DROP TABLE t1;
+DROP TABLE t2;
+#
+#   Test Case 13:
+#   If multiple binary logs should be specified but a middle log is
+# missing, we should detect that and warn when using -vvv
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+FLUSH LOGS;
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 3;
+CREATE TABLE t3 (a int);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-1]
+show binlog events in 'master-bin.000003' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --gtid-strict-mode 2> log_error_ > OUT_FILE
+# We should have two warnings about missing data from domains 0 and 1 if
+# -vvv is specified
+NOT FOUND /WARNING: Binary logs are missing data for domain 0[^\n]+the last seen event was/ in out.err
+NOT FOUND /WARNING: Binary logs are missing data for domain 1[^\n]+neither the starting GTID position list nor any processed events/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+RESET MASTER;
+#
+#   Test Case 14:
+#   If a --stop-position GTID occurs before the first specified binlog's
+# GLLE, error
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+FLUSH LOGS;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-3]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE2 --gtid-strict-mode --stop-position=0-1-2 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: --stop-position GTID/ in out.err
+DROP TABLE t1;
+####################################################
+#      Test Case Group 2
+#
+# Test cases with --skip-gtid-strict-mode -vvv
+# should not quit early or with error when
+# encountering out of order GTIDs; however should
+# produce warnings after binlog processing
+####################################################
+#
+#   Test Case 1:
+#   Sequential sequence numbers results in no errors or warnings
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+NOT FOUND /WARNING/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 2:
+#   A skipped sequence number results in no errors or warnings if all
+# numbers are monotonic (i.e. gaps in sequence number are allowed
+# provided they never decrease)
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+NOT FOUND /WARNING/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 3:
+#   A sequence number lower than the last processed value results in a
+# warning or error
+CREATE TABLE t1 (a int);
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 1;
+INSERT INTO t1 values (1);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 4:
+#   Skipping a GTID and later receiving it results in a warning or error
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 5:
+#   Repeat sequence numbers produce a warning
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 6:
+#   Warnings from different domains are all displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t2 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t2 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t2 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 2 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+RESET MASTER;
+#
+#   Test Case 7:
+#   A decreasing seq_no before a start-position is ignored
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-4 --skip-gtid-strict-mode -vvv > log_error_ > OUT_FILE
+NOT FOUND /WARNING/ in out.err
+# Position-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+NOT FOUND /WARNING/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 8:
+#   A decreasing seq_no inside of a --start/--stop position window is
+# displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (4);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 6;
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 --skip-gtid-strict-mode -vvv > log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+# Position-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --stop-position=stop_binlog_pos --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 9:
+#   Error if --stop-position is not greater than or equal to
+# --start-position
+#
+# Note: Error is only displayed in strict mode, -vvv has no effect here
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+RESET MASTER;
+#
+#   Test Case 10:
+#   Strict mode warnings should be independent of --offset option
+# specification
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --offset=8 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 11:
+#   Strict mode warnings should be independent of --start-timestamp
+# option specification
+set @a=UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+SET timestamp=@a;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+SET timestamp=@a+1;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+SET timestamp=@a+2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+SET timestamp=@a+3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+FOUND 1 /WARNING: Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 12:
+#   Specifying multiple binary logs with a log-position start should
+# skip GTID state verification
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 values (1);
+FLUSH LOGS;
+INSERT INTO t2 values (2);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE2 --start-position=b2_start_pos --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+DROP TABLE t1;
+DROP TABLE t2;
+#
+#   Test Case 13:
+#   If multiple binary logs should be specified but a middle log is
+# missing, we should detect that and warn when using -vvv
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+FLUSH LOGS;
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 3;
+CREATE TABLE t3 (a int);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-1]
+show binlog events in 'master-bin.000003' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --skip-gtid-strict-mode -vvv 2> log_error_ > OUT_FILE
+# We should have two warnings about missing data from domains 0 and 1 if
+# -vvv is specified
+FOUND 1 /WARNING: Binary logs are missing data for domain 0[^\n]+the last seen event was/ in out.err
+FOUND 1 /WARNING: Binary logs are missing data for domain 1[^\n]+neither the starting GTID position list nor any processed events/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+RESET MASTER;
+#
+#   Test Case 14:
+#   If a --stop-position GTID occurs before the first specified binlog's
+# GLLE, error
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+FLUSH LOGS;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-3]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE2 --skip-gtid-strict-mode -vvv --stop-position=0-1-2 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: --stop-position GTID/ in out.err
+DROP TABLE t1;
+####################################################
+#      Test Case Group 3
+#
+# Run test cases with --skip-gtid-strict-mode should
+# neither produce errors nor warnings when
+# encountering out of order GTIDs
+####################################################
+#
+#   Test Case 1:
+#   Sequential sequence numbers results in no errors or warnings
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING)/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 2:
+#   A skipped sequence number results in no errors or warnings if all
+# numbers are monotonic (i.e. gaps in sequence number are allowed
+# provided they never decrease)
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING)/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 3:
+#   A sequence number lower than the last processed value results in a
+# warning or error
+CREATE TABLE t1 (a int);
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 1;
+INSERT INTO t1 values (1);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 4:
+#   Skipping a GTID and later receiving it results in a warning or error
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 5:
+#   Repeat sequence numbers produce a warning
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 6:
+#   Warnings from different domains are all displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t2 values (2);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t2 values (3);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t2 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+RESET MASTER;
+#
+#   Test Case 7:
+#   A decreasing seq_no before a start-position is ignored
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (4);
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-4 --skip-gtid-strict-mode > log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING)/ in out.err
+# Position-based start-position
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING)/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 8:
+#   A decreasing seq_no inside of a --start/--stop position window is
+# displayed
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 5;
+INSERT INTO t1 values (4);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+SET @@session.gtid_seq_no= 6;
+INSERT INTO t1 values (5);
+FLUSH LOGS;
+# GTID-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --stop-position=0-1-6 --skip-gtid-strict-mode > log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+# Position-based window
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=start_binlog_pos --stop-position=stop_binlog_pos --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 9:
+#   Error if --stop-position is not greater than or equal to
+# --start-position
+#
+# Note: Error is only displayed in strict mode, -vvv has no effect here
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2 --stop-position=0-1-1 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-2,1-2-1 --stop-position=0-1-1,1-2-2 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /ERROR: Queried GTID range is invalid in strict mode/ in out.err
+RESET MASTER;
+#
+#   Test Case 10:
+#   Strict mode warnings should be independent of --offset option
+# specification
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --offset=8 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 11:
+#   Strict mode warnings should be independent of --start-timestamp
+# option specification
+set @a=UNIX_TIMESTAMP("1970-01-21 15:32:22");
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+SET timestamp=@a;
+CREATE TABLE t1 (a int);
+SET @@session.gtid_seq_no= 3;
+SET timestamp=@a+1;
+INSERT INTO t1 values (1);
+SET @@session.gtid_seq_no= 2;
+SET timestamp=@a+2;
+INSERT INTO t1 values (2);
+SET @@session.gtid_seq_no= 4;
+SET timestamp=@a+3;
+INSERT INTO t1 values (3);
+INSERT INTO t1 values (4);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/master-bin.000001 --start-position=0-1-1 --start-datetime="1970-01-21 15:32:24" --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+NOT FOUND /(ERROR|WARNING): Found out of order GTID/ in out.err
+DROP TABLE t1;
+RESET MASTER;
+#
+#   Test Case 12:
+#   Specifying multiple binary logs with a log-position start should
+# skip GTID state verification
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+INSERT INTO t2 values (1);
+FLUSH LOGS;
+INSERT INTO t2 values (2);
+FLUSH LOGS;
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE2 --start-position=b2_start_pos --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+DROP TABLE t1;
+DROP TABLE t2;
+#
+#   Test Case 13:
+#   If multiple binary logs should be specified but a middle log is
+# missing, we should detect that and warn when using -vvv
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+FLUSH LOGS;
+INSERT INTO t1 values (1);
+SET @@session.gtid_domain_id= 1;
+SET @@session.server_id= 2;
+CREATE TABLE t2 (a int);
+FLUSH LOGS;
+SET @@session.gtid_domain_id= 2;
+SET @@session.server_id= 3;
+CREATE TABLE t3 (a int);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-1]
+show binlog events in 'master-bin.000003' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000003	#	Gtid_list	1	#	[0-1-2,1-2-1]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE1 MYSQLD_DATADIR/BINLOG_FILE3 --skip-gtid-strict-mode 2> log_error_ > OUT_FILE
+# We should have two warnings about missing data from domains 0 and 1 if
+# -vvv is specified
+NOT FOUND /WARNING: Binary logs are missing data for domain 0[^\n]+the last seen event was/ in out.err
+NOT FOUND /WARNING: Binary logs are missing data for domain 1[^\n]+neither the starting GTID position list nor any processed events/ in out.err
+DROP TABLE t1;
+DROP TABLE t2;
+DROP TABLE t3;
+RESET MASTER;
+#
+#   Test Case 14:
+#   If a --stop-position GTID occurs before the first specified binlog's
+# GLLE, error
+RESET MASTER;
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+CREATE TABLE t1 (a int);
+INSERT INTO t1 values (1);
+INSERT INTO t1 values (2);
+FLUSH LOGS;
+INSERT INTO t1 values (3);
+FLUSH LOGS;
+#
+# GLLE from each log for state reference
+show binlog events in 'master-bin.000001' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid_list	1	#	[]
+show binlog events in 'master-bin.000002' limit 1,1;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000002	#	Gtid_list	1	#	[0-1-3]
+# MYSQL_BINLOG MYSQLD_DATADIR/BINLOG_FILE2 --skip-gtid-strict-mode --stop-position=0-1-2 2> log_error_ > OUT_FILE
+FOUND 1 /ERROR: --stop-position GTID/ in out.err
+DROP TABLE t1;
+##############################
+#      Cleanup
+##############################
+SET @@global.gtid_domain_id= 0;
+SET @@global.server_id= 1;
+End of the tests

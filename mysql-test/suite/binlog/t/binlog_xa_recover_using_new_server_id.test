@@ -1,0 +1,44 @@
+# This test verifies attempt to xa recover using a new server id that
+# different from the transaction's original server_id.
+#
+
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+# Valgrind does not work well with test that crashes the server
+--source include/not_valgrind.inc
+
+
+--echo ========= Set server_id to 99 and prepare test table.
+SET GLOBAL server_id= 99;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+
+
+--echo ========= Crash the server.
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+wait-binlog_xa_recover_using_new_server_id.test
+EOF
+SET SESSION debug_dbug="+d,crash_commit_after_log";
+--error 2006,2013
+INSERT INTO t1 VALUES (1, NULL);
+
+
+--echo ========= Restart the server with default config file in which server_id= 1.
+--append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart-binlog_xa_recover_using_new_server_id.test
+EOF
+
+
+--echo ========= Check that recover succeeds and server is up.
+connection default;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+
+--echo ========= Check that all transactions are recovered.
+SELECT a FROM t1 ORDER BY a;
+
+
+--echo ========= Cleanup.
+connection default;
+DROP TABLE t1;

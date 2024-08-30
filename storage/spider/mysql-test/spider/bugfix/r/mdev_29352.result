@@ -3,7 +3,7 @@ SHOW CREATE TABLE t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `c` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 FLUSH TABLES WITH READ LOCK;
 CREATE FUNCTION spider_bg_direct_sql RETURNS INT SONAME 'ha_spider.so';
 ERROR HY000: Can't execute the query because you have a conflicting read lock

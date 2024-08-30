@@ -15,5 +15,5 @@ Warnings:
 Warning	1265	Data truncated for column 'Db' at row 1
 flush privileges;
 delete from mysql.db where db like '=>%';
-alter table mysql.db modify Db char(64) default "", modify User char(80) default "";
+alter table mysql.db modify Db char(64) default "", modify User char(128) default "";
 flush privileges;

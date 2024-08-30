@@ -257,15 +257,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x'FF32'` varbinary(2) NOT NULL,
   `CONCAT(x'FF32')` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject(x'FF32');
 ÿ2	CONCAT('ÿ2')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `ÿ2` varchar(2) NOT NULL,
-  `CONCAT('ÿ2')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `ÿ2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('ÿ2')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT x'32FF', CONCAT(x'32FF') LIMIT 0;
 x'32FF'	CONCAT(x'32FF')
 CREATE TABLE t1 AS SELECT x'32FF', CONCAT(x'32FF');
@@ -274,15 +274,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x'32FF'` varbinary(2) NOT NULL,
   `CONCAT(x'32FF')` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject(x'32FF');
 2ÿ	CONCAT('2ÿ')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `2ÿ` varchar(2) NOT NULL,
-  `CONCAT('2ÿ')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `2ÿ` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('2ÿ')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT x'0032', CONCAT(x'0032') LIMIT 0;
 x'0032'	CONCAT(x'0032')
 CREATE TABLE t1 AS SELECT x'0032', CONCAT(x'0032');
@@ -291,15 +291,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x'0032'` varbinary(2) NOT NULL,
   `CONCAT(x'0032')` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject(x'0032');
 2	CONCAT('\x002')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `2` varchar(2) NOT NULL,
-  `CONCAT('\x002')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('\x002')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT x'3200', CONCAT(x'3200') LIMIT 0;
 x'3200'	CONCAT(x'3200')
 CREATE TABLE t1 AS SELECT x'3200', CONCAT(x'3200');
@@ -308,66 +308,66 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `x'3200'` varbinary(2) NOT NULL,
   `CONCAT(x'3200')` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject(x'3200');
 2\x00	CONCAT('2\x00')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `2\x00` varchar(2) NOT NULL,
-  `CONCAT('2\x00')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `2\x00` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('2\x00')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT '0\a', CONCAT('0\a') LIMIT 0;
 0a	CONCAT('0\a')
 CREATE TABLE t1 AS SELECT '0\a', CONCAT('0\a');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `0a` varchar(2) NOT NULL,
-  `CONCAT('0\a')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `0a` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('0\a')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject('0\a');
 0a	CONCAT('0a')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `0a` varchar(2) NOT NULL,
-  `CONCAT('0a')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `0a` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('0a')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT 'a\0', CONCAT('a\0') LIMIT 0;
 a\x00	CONCAT('a\0')
 CREATE TABLE t1 AS SELECT 'a\0', CONCAT('a\0');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a\x00` varchar(2) NOT NULL,
-  `CONCAT('a\0')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a\x00` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('a\0')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject('a\0');
 a\x00	CONCAT('a\x00')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a\x00` varchar(2) NOT NULL,
-  `CONCAT('a\x00')` varchar(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a\x00` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('a\x00')` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT 'a\0b', CONCAT('a\0b') LIMIT 0;
 a\x00b	CONCAT('a\0b')
 CREATE TABLE t1 AS SELECT 'a\0b', CONCAT('a\0b');
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a\x00b` varchar(3) NOT NULL,
-  `CONCAT('a\0b')` varchar(3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a\x00b` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('a\0b')` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CALL test_inject('a\0b');
 a\x00b	CONCAT('a\x00b')
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a\x00b` varchar(3) NOT NULL,
-  `CONCAT('a\x00b')` varchar(3) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a\x00b` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL,
+  `CONCAT('a\x00b')` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE test_inject;
 #
 # MDEV-23519

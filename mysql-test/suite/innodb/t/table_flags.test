@@ -1,7 +1,6 @@
 --source include/innodb_page_size.inc
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
---source include/maybe_debug.inc
 # Slow shutdown may take more than 120 seconds under Valgrind,
 # causing the server to be (silently) killed.
 # Due to that, crash recovery could "heal" the damage that our
@@ -12,15 +11,14 @@
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
 call mtr.add_suppression("InnoDB: incorrect flags in SYS_TABLES");
-call mtr.add_suppression("InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=(129|289|3873|1232[31]) SYS_TABLES\\.N_COLS=2147483649\\r?$");
-call mtr.add_suppression("InnoDB: Table `test`\\.`tr` in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=65 SYS_TABLES\\.MIX_LEN=4294967295\\r?$");
+call mtr.add_suppression("InnoDB: Table test/t[cp] in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=(129|289|3873|1232[31]) SYS_TABLES\\.N_COLS=2147483649\\r?$");
+call mtr.add_suppression("InnoDB: Table test/tr in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=65 SYS_TABLES\\.MIX_LEN=4294967295\\r?$");
 call mtr.add_suppression("InnoDB: Refusing to load '\\..test.td\\.ibd' \\(id=3, flags=0x([2e]1)\\); dictionary contains id=3, flags=0x100\\1\\r?$");
 call mtr.add_suppression("InnoDB: Refusing to load '\\..test.td\\.ibd' \\(id=3, flags=0x(1[2ae]1)\\); dictionary contains id=3, flags=0x10\\1\\r?$");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`td` because it could not be opened\\.");
 # FIXME: Remove the following spam due to invalid flags for test.td
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file ");
 call mtr.add_suppression("InnoDB: Parent table of FTS auxiliary table .* not found.");
 FLUSH TABLES;
@@ -31,21 +29,19 @@ let MYSQLD_DATADIR=`select @@datadir`;
 
 let bugdir= $MYSQLTEST_VARDIR/tmp/table_flags;
 --mkdir $bugdir
+let undodir= $MYSQLTEST_VARDIR/tmp/undo_dir;
+--mkdir $undodir
+
 --let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err
 
 --let $d=--innodb-data-home-dir=$bugdir --innodb-log-group-home-dir=$bugdir
 --let $d=$d --innodb-data-file-path=ibdata1:1M:autoextend
 --let $d=$d --innodb-undo-tablespaces=0
---let $d=$d --innodb-purge-rseg-truncate-frequency=1
---let $d=$d --skip-innodb-fast-shutdown
-if ($have_debug) {
---let $d=$d --debug=d,create_and_drop_garbage
-}
+--let $d=$d --skip-innodb-fast-shutdown --innodb_undo_directory=$undodir
 --let $restart_noprint=1
 --let $restart_parameters=$d --innodb-stats-persistent=0
 --source include/restart_mysqld.inc
 
-SET GLOBAL innodb_file_per_table=1;
 CREATE TABLE tr(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPACT;
 CREATE TABLE td(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
@@ -163,7 +159,9 @@ SHOW CREATE TABLE tr;
 SHOW CREATE TABLE tc;
 --error ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM tc;
+--error ER_GET_ERRNO
 SHOW CREATE TABLE td;
+--error ER_GET_ERRNO
 SELECT * FROM td;
 # This table was converted to NO_ROLLBACK due to the SYS_TABLES.TYPE change.
 SHOW CREATE TABLE tz;
@@ -177,9 +175,9 @@ SHOW CREATE TABLE tp;
 --source include/shutdown_mysqld.inc
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
---let SEARCH_PATTERN= InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649
+--let SEARCH_PATTERN= InnoDB: Table test/t[cp] in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649
 --source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b
+--let SEARCH_PATTERN= InnoDB: Table test/tr in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b
 --source include/search_pattern_in_file.inc
 
 # Restore the backup of the corrupted SYS_TABLES clustered index root page
@@ -238,6 +236,7 @@ DROP TABLE tr,tc,td,tz,tp;
 --list_files $bugdir
 --remove_files_wildcard $bugdir
 --rmdir $bugdir
+--rmdir $undodir
 
 call mtr.add_suppression("ERROR HY000: Can't create table `test`.`t1`");
 --error ER_CANT_CREATE_TABLE
@@ -257,3 +256,15 @@ INSERT INTO t1 VALUES(2);
 let $shutdown_timeout = 0;
 --source include/restart_mysqld.inc
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-34222 Alter operation on redundant table aborts the server
+--echo #
+SET @df_row = @@global.INNODB_DEFAULT_ROW_FORMAT;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=REDUNDANT;
+CREATE TABLE t1 (c CHAR(1)) ENGINE=InnoDB;
+SET GLOBAL INNODB_DEFAULT_ROW_FORMAT=compact;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+ALTER TABLE t1 PAGE_COMPRESSED=1;
+DROP TABLE t1;
+SET @@global.INNODB_DEFAULT_ROW_FORMAT = @df_row;

@@ -1,0 +1,74 @@
+*** MDEV-6551: Some replication errors are ignored if slave_parallel_threads > 0 ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=1;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+SET gtid_domain_id=1;
+INSERT INTO t2 VALUES (1);
+SET gtid_domain_id=0;
+SET gtid_domain_id=2;
+INSERT INTO t2 VALUES (2);
+SET gtid_domain_id=0;
+INSERT INTO t2 VALUES (31);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads= 0;
+include/start_slave.inc
+SET sql_log_bin= 0;
+INSERT INTO t2 VALUES (32);
+SET sql_log_bin= 1;
+connection server_1;
+INSERT INTO t2 VALUES (32);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (33);
+INSERT INTO t2 VALUES (34);
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+include/save_master_gtid.inc
+connection server_2;
+include/wait_for_slave_sql_error.inc [errno=1062]
+connection server_2;
+include/stop_slave_io.inc
+SET GLOBAL slave_parallel_threads=10;
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=1062]
+START SLAVE SQL_THREAD;
+include/wait_for_slave_sql_error.inc [errno=1062]
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+SET sql_slave_skip_counter= 1;
+ERROR HY000: When using parallel replication and GTID with multiple replication domains, @@sql_slave_skip_counter can not be used. Instead, setting @@gtid_slave_pos explicitly can be used to skip to after a given GTID position
+include/stop_slave_io.inc
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a >= 30 ORDER BY a;
+a
+31
+32
+33
+34
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t2;
+include/rpl_end.inc

@@ -2243,12 +2243,13 @@ connection master;
 CREATE TABLE t1(id VARCHAR(20) NOT NULL, PRIMARY KEY(id)) ENGINE=FEDERATED 
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 # Dump table t1 using mysqldump tool
+/*M!999999\- enable the sandbox mode */ 
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `id` varchar(20) NOT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=FEDERATED DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
+) ENGINE=FEDERATED DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE t1;
 connection slave;
@@ -2325,6 +2326,54 @@ DROP TABLE federated.t1;
 connection slave;
 DROP TABLE federated.t1;
 connection default;
+#
+# MDEV-30395 Wrong result with semijoin and Federated as outer table
+#
+create server s foreign data wrapper mysql options (host "127.0.0.1", database "test", user "root", port MASTER_PORT);
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(2),(3);
+CREATE TABLE t2 (pk INT PRIMARY KEY);
+INSERT INTO t2 VALUES (1),(2),(3),(4);
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch="materialization=off";
+CREATE TABLE t2_fed ENGINE=FEDERATED CONNECTION='s/t2';
+explain SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2_fed	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
+pk
+2
+3
+SET optimizer_switch='semijoin=off';
+explain SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t2_fed	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	DEPENDENT SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+SELECT * FROM t2_fed WHERE pk IN ( SELECT a FROM t1 );
+pk
+2
+3
+DROP TABLE t2_fed, t1, t2;
+set @@optimizer_switch=@save_optimizer_switch;
+DROP SERVER s;
+# End of 10.5 tests
+#
+# MDEV-30569: Assertion ...ha_table_flags() failed in Duplicate_weedout_picker::check_qep
+#
+create server s foreign data wrapper mysql options
+(host "127.0.0.1", database "test", user "root", port $MASTER_MYPORT);
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+CREATE TABLE t1_fed ENGINE=FEDERATED CONNECTION='s/t1';
+CREATE VIEW v AS SELECT * FROM t1_fed;
+SELECT * FROM v WHERE a IN ( SELECT b FROM t2);
+a
+DROP VIEW v;
+DROP TABLE t1_fed, t1, t2;
+DROP SERVER s;
 connection master;
 DROP TABLE IF EXISTS federated.t1;
 DROP DATABASE IF EXISTS federated;

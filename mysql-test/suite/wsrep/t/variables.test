@@ -3,7 +3,7 @@
 --source include/have_innodb.inc
 --source include/galera_no_debug_sync.inc
 
---let $galera_version=26.4.9
+--let $galera_version=26.4.11
 source include/check_galera_version.inc;
 
 source include/galera_variables_ok.inc;

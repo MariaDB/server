@@ -33,7 +33,7 @@ START SLAVE IO_THREAD;
 # This query also creates a Gtid event group whose Gtid will remain in
 # ignored status for too long causing a following group split.
 
-CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb;
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY, b VARCHAR(30000)) ENGINE=innodb CHARSET=latin1;
 --sync_slave_with_master M4
 
 # This INSERT will be logged as two Write_log events which the buggy

@@ -1,3 +1,6 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 #
 # MDEV-11369: Instant ADD COLUMN for InnoDB
 #
@@ -52,8 +55,6 @@ connect analyze, localhost, root;
 connection default;
 SET timestamp = 42;
 SET time_zone='+03:00';
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET @old_instant=
 (SELECT variable_value FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column');
@@ -314,12 +315,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -979,6 +980,18 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1236,12 +1249,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -1901,6 +1914,18 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -2158,12 +2183,12 @@ ALTER TABLE t3 ADD COLUMN c7 TIME NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c7' at row 1
+Note	1265	Data truncated for column 'c7' at row 0
 ALTER TABLE t3 ADD COLUMN c8 DATE NOT NULL DEFAULT current_timestamp();
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'c8' at row 1
+Note	1265	Data truncated for column 'c8' at row 0
 SELECT id, c2, ST_AsText(c3) c3, c4, c5, c6, c7, c8 FROM t3;
 id	c2	c3	c4	c5	c6	c7	c8
 1	1	POLYGON((1 1,2 2,3 3,1 1))	1970-01-01 03:00:42	1970-01-01 03:00:42	NULL	03:00:42	1970-01-01
@@ -2823,6 +2848,18 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
+DROP TABLE t1;
 disconnect analyze;
 #
 # MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
@@ -2836,8 +2873,7 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-206
-SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
+209
 SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 #
 # MDEV-18266: Changing an index comment unnecessarily rebuilds index
@@ -2893,3 +2929,16 @@ t1	CREATE TABLE `t1` (
   KEY `f2` (`f2`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1, t2;
+#
+# MDEV-28822 Table from older version requires table rebuild when adding column to table with multi-column index
+#
+CREATE TABLE mdev28822_100427_innodb (
+id int not null primary key,
+msg varchar(10),
+index(id, msg)
+) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+FLUSH TABLES;
+ALTER TABLE mdev28822_100427_innodb ADD i1 INTEGER, ALGORITHM=INSTANT;
+DROP TABLE mdev28822_100427_innodb;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

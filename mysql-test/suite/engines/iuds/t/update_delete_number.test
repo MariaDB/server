@@ -285,8 +285,18 @@ SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
 DELETE FROM a1, a2 USING t1 AS a1 INNER JOIN t2 AS a2 WHERE a2.c1=a1.c2;
 --sorted_result
 SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
---error ER_UPDATE_TABLE_USED
-DELETE FROM t1,t2 using t1,t2 where t1.c1=(select c1 from t1);
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t2;
+INSERT INTO t1 VALUES(254,127,1),(0,-128,2),(1,127,3),(3,NULL,5);
+INSERT INTO t2 VALUES(127,255,1),(127,1,2),(-128,0,3),(-1,NULL,5);
+# After the patch for MDEV-28883 this should not report
+# ER_UPDATE_TABLE_USED anymore
+DELETE FROM t1,t2 using t1,t2
+  where t1.c1=(select c1 from t1 where c2 < 10) and t2.c2 < 10;
+--sorted_result
+SELECT * FROM t1;
+--sorted_result
+SELECT * FROM t2;
 
 # eq-ref join
 CREATE TABLE t3(c1 INT UNSIGNED NOT NULL PRIMARY KEY, c2 INT SIGNED NULL, c3 INT); 
@@ -496,7 +506,7 @@ drop table mt1, mt2, mt3;
 create table mt1 (col1 int);
 create table mt2 (col1 int);
 update mt1,mt2 set mt1.col1 = (select max(col1) from mt1) where mt1.col1 = mt2.col1;
--- error ER_UPDATE_TABLE_USED
+# -- error ER_UPDATE_TABLE_USED
 delete mt1 from mt1,mt2 where mt1.col1 < (select max(col1) from mt1) and mt1.col1 = mt2.col1;
 drop table mt1,mt2;
 
@@ -865,7 +875,6 @@ SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
 DELETE FROM a1, a2 USING t1 AS a1 INNER JOIN t2 AS a2 WHERE a2.c1=a1.c2;
 --sorted_result
 SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
---error ER_UPDATE_TABLE_USED
 DELETE FROM t1,t2 using t1,t2 where t1.c1=(select c1 from t1);
 
 # eq-ref join
@@ -1166,7 +1175,6 @@ SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
 DELETE FROM a1, a2 USING t1 AS a1 INNER JOIN t2 AS a2 WHERE a2.c1=a1.c2;
 --sorted_result
 SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
---error ER_UPDATE_TABLE_USED
 DELETE FROM t1,t2 using t1,t2 where t1.c1=(select c1 from t1);
 
 # eq-ref join
@@ -1467,7 +1475,6 @@ SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
 DELETE FROM a1, a2 USING t1 AS a1 INNER JOIN t2 AS a2 WHERE a2.c1=a1.c2;
 --sorted_result
 SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
---error ER_UPDATE_TABLE_USED
 DELETE FROM t1,t2 using t1,t2 where t1.c1=(select c1 from t1);
 
 # eq-ref join
@@ -1768,7 +1775,6 @@ SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
 DELETE FROM a1, a2 USING t1 AS a1 INNER JOIN t2 AS a2 WHERE a2.c1=a1.c2;
 --sorted_result
 SELECT * FROM t1,t2 WHERE t2.c1=t1.c2;
---error ER_UPDATE_TABLE_USED
 DELETE FROM t1,t2 using t1,t2 where t1.c1=(select c1 from t1);
 
 # eq-ref join

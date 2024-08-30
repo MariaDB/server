@@ -68,6 +68,11 @@ delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
 --error ER_PARSE_ERROR
 delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
 
+--echo # MDEV-22596 DELETE FOR PORTION does not obey
+--echo # "Expression in FOR PORTION OF must be constant" limitation, data can be easily lost
+--error ER_NOT_CONSTANT_EXPRESSION
+delete from t for portion of apptime from s to e;
+
 create or replace table t (id int, str text, s date, e date,
     period for apptime(s,e));
 
@@ -227,6 +232,15 @@ delete ignore from t
 
 drop table t;
 
+#
+# MDEV-22424 Server crashes in handler::check_duplicate_long_entry_key or Assertion `inited == NONE || lookup_handler != this' failed upon DELETE FOR PORTION on table with long unique key
+#
+create table t1 (pk int, s date, e date,  period for se (s,e), primary key (pk,se without overlaps));
+insert into t1 values (1,'2020-01-01','2020-02-20');
+delete from t1 for portion of se from '2020-01-30' to '2020-01-31';
+drop table t1;
+
+--echo # End of 10.5 tests
 --echo #
 --echo # MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in
 --echo # ha_partition::get_auto_increment

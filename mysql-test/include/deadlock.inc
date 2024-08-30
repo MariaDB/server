@@ -103,7 +103,6 @@ connection con2;
 
 # The following query should hang because con1 is locking the record
 update t2 set a=2 where b = 0;
-select * from t2;
 --send
 update t1 set x=2 where id = 0;
 --sleep 2
@@ -133,7 +132,7 @@ drop table t1, t2;
 # Bug#25164 create table `a` as select * from `A` hangs
 #
 
-set storage_engine=innodb;
+set default_storage_engine=innodb;
 
 --disable_warnings
 drop table if exists a;
@@ -150,7 +149,7 @@ drop table A;
 drop table if exists a;
 --enable_warnings
 
-set storage_engine=default;
+set default_storage_engine=default;
 
 --echo End of 5.0 tests.
 --enable_service_connection

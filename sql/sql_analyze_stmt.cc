@@ -26,13 +26,14 @@
 void Filesort_tracker::print_json_members(Json_writer *writer)
 {
   const char *varied_str= "(varied across executions)";
+  String str;
 
   if (!get_r_loops())
     writer->add_member("r_loops").add_null();
   else
     writer->add_member("r_loops").add_ll(get_r_loops());
   
-  if (get_r_loops() && time_tracker.timed)
+  if (time_tracker.has_timed_statistics())
   {
     writer->add_member("r_total_time_ms").
             add_double(time_tracker.get_time_ms());
@@ -77,6 +78,45 @@ void Filesort_tracker::print_json_members(Json_writer *writer)
       writer->add_str(varied_str);
     else
       writer->add_size(sort_buffer_size);
+  }
+
+  get_data_format(&str);
+  writer->add_member("r_sort_mode").add_str(str.ptr(), str.length());
+}
+
+void Filesort_tracker::get_data_format(String *str)
+{
+  if (r_sort_keys_packed)
+    str->append(STRING_WITH_LEN("packed_sort_key"));
+  else
+    str->append(STRING_WITH_LEN("sort_key"));
+  str->append(',');
+
+  if (r_using_addons)
+  {
+    if (r_packed_addon_fields)
+      str->append(STRING_WITH_LEN("packed_addon_fields"));
+    else
+      str->append(STRING_WITH_LEN("addon_fields"));
+  }
+  else
+    str->append(STRING_WITH_LEN("rowid"));
+}
+
+void attach_gap_time_tracker(THD *thd, Gap_time_tracker *gap_tracker,
+                             ulonglong timeval)
+{
+  thd->gap_tracker_data.bill_to= gap_tracker;
+  thd->gap_tracker_data.start_time= timeval;
+}
+
+void process_gap_time_tracker(THD *thd, ulonglong timeval)
+{
+  if (thd->gap_tracker_data.bill_to)
+  {
+    thd->gap_tracker_data.bill_to->log_time(thd->gap_tracker_data.start_time,
+                                            timeval);
+    thd->gap_tracker_data.bill_to= NULL;
   }
 }
 

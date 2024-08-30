@@ -23,6 +23,22 @@ connection node_1a;
 connection node_1b;
 connection node_2;
 connection node_2a;
+connection node_1;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+COUNT(*)
+20001
+SELECT COUNT(*) FROM child;
+COUNT(*)
+10000
+connection node_2;
+SET SESSION wsrep_sync_wait=15;
+SELECT COUNT(*) FROM parent;
+COUNT(*)
+20001
+SELECT COUNT(*) FROM child;
+COUNT(*)
+10000
 DROP TABLE child;
 DROP TABLE parent;
 DROP TABLE ten;

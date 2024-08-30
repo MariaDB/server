@@ -48,7 +48,7 @@ $firsttable  = "bench_f1";
 $start_time=new Benchmark;
 if (!$opt_skip_create)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table if exists $firsttable, ${firsttable}_1, ${firsttable}_2");
@@ -81,7 +81,7 @@ while (($pid=wait()) != -1)
 
 if (!$opt_skip_delete && !$errors)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table $firsttable");
@@ -103,7 +103,7 @@ sub test_insert
 {
   my ($dbh,$i,$error);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   for ($i=0 ; $i < $opt_loop_count; $i++)
@@ -128,7 +128,7 @@ sub test_rename
   my ($id) = @_;
   my ($dbh,$i,$error_counter,$sleep_time);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $error_counter=0;
@@ -158,7 +158,7 @@ sub test_select
 {
   my ($dbh,$i,$sth,@row,$sleep_time);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -192,7 +192,7 @@ sub test_flush
 {
   my ($dbh,$i,$sth,@row,$error_counter,$sleep_time);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 

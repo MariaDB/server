@@ -13,7 +13,7 @@ manager CHAR(5) NOT NULL,
 department CHAR(4) NOT NULL FLAG=41,
 secretary CHAR(5) NOT NULL FLAG=46,
 salary DOUBLE(8,2) NOT NULL FLAG=52
-) ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
 SELECT * FROM employee;
 
 DELIMITER //;
@@ -39,91 +39,91 @@ DELIMITER ;//
 --echo #
 --echo # Testing DOS table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing DOS table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing FIX table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing FIX table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing FIX table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing CSV table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing CSV table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing DBF table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing DBF table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing BIN table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing BIN table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing BIN table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing VEC table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing VEC table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing VEC table changes
 --echo #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
@@ -139,14 +139,14 @@ manager CHAR(5),
 department CHAR(4),
 secretary CHAR(5),
 salary DOUBLE(8,2) NOT NULL
-) ENGINE=connect TABLE_TYPE=ini;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=ini;
 INSERT INTO t1 SELECT * FROM employee;
 CALL test.tst_up();
 
 --echo #
 --echo # Testing XML table changes (must be in a separate test)
 --echo #
-#CREATE TABLE t1 ENGINE=connect TABLE_TYPE=xml option_list='rownode=dd' AS SELECT * FROM employee;
+#CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=xml option_list='rownode=dd' AS SELECT * FROM employee;
 #CALL test.tst_up();
 
 DROP PROCEDURE test.tst_up;
@@ -155,3 +155,99 @@ DROP TABLE employee;
 SET sql_mode = DEFAULT;
 
 --remove_file $MYSQLD_DATADIR/test/employee.dat
+
+--echo #
+--echo # End of 10.10 tests
+--echo #
+
+--copy_file $MTR_SUITE_DIR/std_data/boys.txt $MYSQLD_DATADIR/test/boys.txt
+--copy_file $MTR_SUITE_DIR/std_data/bios.json $MYSQLD_DATADIR/test/bios.json
+
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+
+CREATE TABLE t1
+(
+  name char(12) not null,
+  city char(11) not null,
+  birth date not null date_format='DD/MM/YYYY',
+  hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+
+CREATE TABLE t2 (
+    _id INT(2) NOT NULL,
+    name_first CHAR(9) NOT NULL JPATH='$.name.first',
+    name_aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+    name_last CHAR(10) NOT NULL JPATH='$.name.last',
+    title CHAR(12) DEFAULT NULL,
+    birth CHAR(20) DEFAULT NULL,
+    death CHAR(20) DEFAULT NULL,
+    contribs CHAR(50) NOT NULL JPATH='$.contribs',
+    awards_award CHAR(42) DEFAULT NULL JPATH='$.awards.award',
+    awards_year CHAR(4) DEFAULT NULL JPATH='$.awards.year',
+    awards_by CHAR(38) DEFAULT NULL JPATH='$.awards.by'
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=JSON FILE_NAME='bios.json';
+
+--echo # Multi-update 
+
+select t1.name, t1.city from t1;
+select t2._id, t2.name_first, t2.name_aka, t2.name_last from t2;
+
+let $c1 = where t1.name=t2.name_first and t1.birth
+          BETWEEN '1992-01-01' and '1995-01-01';
+
+eval select t1.name, t2.name_last, t2.name_aka, t1.city from t1, t2 $c1;
+eval explain update t1, t2
+  set t1.city='Washington',  t2.name_aka='von' $c1;
+eval update t1, t2
+  set t1.city='Washington',  t2.name_aka='von' $c1;
+eval select t1.name, t2.name_last, t2.name_aka, t1.city from t1, t2 $c1;
+
+--echo # Conversion to multi-update
+
+let $c2 = where t1.name in (select t2.name_first from t2);
+
+select t1.name, t1.city from t1;
+eval explain update t1
+  set t1.city='New York' $c2;
+eval update t1
+  set t1.city='New York' $c2;
+select t1.name, t1.city from t1;
+
+let $c3 = where t1.name in (select a.name from t1 as a where a.birth
+          BETWEEN '1981-01-01' and '1982-01-01');
+
+eval select t1.name, t1.city from t1 $c3;
+eval explain update t1 set t1.city='Los Angeles' $c3;
+eval update t1 set t1.city='Los Angeles' $c3;
+eval select t1.name, t1.city from t1 $c3;
+
+--echo # Multi-delete 
+
+eval explain delete t1.*, t2.*  from t1, t2 $c1;
+eval delete t1.*, t2.*  from t1, t2 $c1;
+
+select t1.name, t1.city from t1;
+select t2._id, t2.name_first, t2.name_aka, t2.name_last from t2;
+
+--echo # Conversion to multi-delete
+
+eval explain delete from t1 $c2;
+eval  delete from t1 $c2;
+
+select t1.name, t1.city from t1;
+
+eval explain delete from t1 $c3;
+eval delete from t1 $c3;
+
+select t1.name, t1.city from t1;
+
+drop tables t1, t2;
+
+SET sql_mode = DEFAULT;
+
+--remove_file $MYSQLD_DATADIR/test/boys.txt
+--remove_file $MYSQLD_DATADIR/test/bios.json
+
+--echo #
+--echo # End of 11.0 tests
+--echo #

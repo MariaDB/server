@@ -4,7 +4,7 @@
 
 --source suite/galera/include/galera_sst_set_mysqldump.inc
 
-call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to .*");
+call mtr.add_suppression("WSREP: wsrep_sst_method is set to 'mysqldump' yet mysqld bind_address is set to ");
 
 --let $node_1=node_1
 --let $node_2=node_2

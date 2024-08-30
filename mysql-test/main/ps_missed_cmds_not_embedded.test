@@ -1,0 +1,85 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
+
+SET @save_storage_engine= @@default_storage_engine;
+SET default_storage_engine= InnoDB;
+
+--echo #
+--echo # MDEV-16708: Unsupported commands for prepared statements
+--echo #
+
+--echo # Disable ps-protocol explicitly in order to test support of
+--echo # prepared statements for use case when statements passed
+--echo # to the server via text client-server protocol (in contrast
+--echo # with binary protocol used in the test file
+--echo # ps_missed_cmds_bin_prot.test)
+--disable_ps_protocol
+
+--echo # Test case 20: Check that the CREATE EVENT/ALTER EVENT/DROP EVENT
+--echo # statements can be executed as a prepared statement
+
+PREPARE stmt_1 FROM "CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP - INTERVAL 1 DAY ON COMPLETION PRESERVE DO SET @a=1";
+
+PREPARE stmt_2 FROM "ALTER EVENT e1 COMMENT 'New comment'";
+
+PREPARE stmt_3 FROM "DROP EVENT e1";
+--echo # Create the event e1 that specifies time in past. Such event is created
+--echo # just for the sake of its existence and never will be triggered.
+--echo # Disable warnings temprorary in order to hide the following warnings
+--echo # generated in result of execution the 'CREATE EVENT' statement:
+--echo #   "1544 | Event execution time is in the past. Event has been disabled"
+--echo #   "1105 | Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it."
+
+--disable_warnings
+EXECUTE stmt_1;
+
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE EVENT' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_EVENT_ALREADY_EXISTS since the event
+--echo # with the same name has just been created.
+--error ER_EVENT_ALREADY_EXISTS
+EXECUTE stmt_1;
+
+--enable_warnings
+
+--echo # Alter event e1
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER EVENT' statement
+--echo # were damaged.
+EXECUTE stmt_2;
+
+--echo # Drop event e1
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'DROP EVENT' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_EVENT_DOESNT_EXIST since the event
+--echo # with the same name has just been dropped.
+--error ER_EVENT_DOES_NOT_EXIST
+EXECUTE stmt_3;
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+
+--echo # Test case 22: Check that the 'SHOW RELAYLOG EVENTS' statement can be
+--echo # executed as a prepared statement.
+PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'SHOW RELAYLOG EVENTS'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+
+--enable_warnings
+--enable_ps_protocol
+SET default_storage_engine= @save_storage_engine;

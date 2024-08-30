@@ -128,7 +128,9 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
 
 --echo
 --echo 2.13
@@ -166,7 +168,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -210,7 +212,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -252,7 +254,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -309,7 +311,9 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY (a, b, c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT5_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l SELECT a, b, c FROM tb_l;
+--enable_ps_protocol
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -341,7 +345,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -363,7 +367,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -385,7 +389,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -407,7 +411,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -429,7 +433,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -451,7 +455,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -473,7 +477,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -495,7 +499,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -517,7 +521,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -539,7 +543,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -561,7 +565,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
     TRUNCATE TABLE mysql.general_log;
   }
   if (!$OUTPUT_CHILD_GROUP2)
@@ -583,7 +587,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -668,8 +672,10 @@ if ($HAVE_TRIGGER)
     }
   }
   --connection master_1
+  --disable_ps_protocol
   INSERT INTO ta_l_auto_inc (a, b, c) VALUES
   (NULL, 's', '2008-12-31 20:59:59');
+  --enable_ps_protocol
   if ($USE_CHILD_GROUP2)
   {
     if (!$OUTPUT_CHILD_GROUP2)
@@ -680,7 +686,7 @@ if ($HAVE_TRIGGER)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
     }
     eval $CHILD2_1_SELECT_TABLES4;
     if (!$OUTPUT_CHILD_GROUP2)
@@ -726,7 +732,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -780,7 +786,9 @@ eval CREATE TABLE ta_l_int (
   KEY idx2(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) VALUES (1, 2, 3);
+--enable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) SELECT a + 1, b + 1, c + 1 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 2, b + 2, c + 2 FROM ta_l_int;
 INSERT INTO ta_l_int (a, b, c) SELECT a + 4, b + 4, c + 4 FROM ta_l_int;
@@ -816,7 +824,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -870,7 +878,9 @@ if (!$MASTER_1_NEEDPK)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 }
 --enable_query_log
+--disable_ps_protocol
 SELECT a, b, c FROM ta_l_int ORDER BY a;
+--enable_ps_protocol
 INSERT INTO ta_l_int (a, b, c) VALUES (0, 2, 3);
 INSERT INTO ta_l_int (a, b, c) VALUES (18, 2, 3);
 if ($USE_CHILD_GROUP2)
@@ -903,8 +913,8 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
   }
   if (!$OUTPUT_CHILD_GROUP2)
   {
@@ -1079,8 +1089,10 @@ eval CREATE TABLE t1 (
   id int(11) NOT NULL AUTO_INCREMENT,
   PRIMARY KEY (id)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_INCREMENT1_1;
+--disable_ps_protocol
 eval $MASTER_1_AUTO_INCREMENT_INCREMENT2;
 eval $MASTER_1_AUTO_INCREMENT_OFFSET2;
+--enable_ps_protocol
 if ($USE_REPLICATION)
 {
   SET SESSION sql_log_bin= 1;
@@ -1099,7 +1111,9 @@ if ($USE_REPLICATION)
   --connection master_1
 }
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO t1 () VALUES ();
+--enable_ps_protocol
 SELECT LAST_INSERT_ID();
 SELECT MAX(id) FROM t1;
 INSERT INTO t1 () VALUES ();
@@ -1113,7 +1127,9 @@ SELECT LAST_INSERT_ID();
 SELECT MAX(id) FROM t1;
 INSERT INTO t1 () VALUES (),(),(),();
 SELECT LAST_INSERT_ID();
+--disable_ps_protocol
 SELECT id FROM t1 ORDER BY id;
+--enable_ps_protocol
 SET INSERT_ID=5000;
 INSERT INTO t1 () VALUES ();
 SELECT LAST_INSERT_ID();
@@ -1145,7 +1161,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
   }
   eval $CHILD2_1_SELECT_INCREMENT_TABLES1;
   if ($OUTPUT_CHILD_GROUP2)
@@ -1190,7 +1206,9 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_READONLY1_1;
   --let $MIN_VAL= `SELECT MIN(id) FROM t1`
   --enable_query_log
+  --disable_ps_protocol
   SELECT id FROM t1 ORDER BY id;
+  --enable_ps_protocol
   --error 12518
   INSERT INTO t1 (id) VALUES (1);
   --error 12518
@@ -1227,7 +1245,9 @@ if ($MASTER_1_ENGINE_IS_SPIDER)
     PRIMARY KEY (id)
   ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_ERROR_MODE1_1;
   --enable_query_log
+  --disable_ps_protocol
   SELECT id FROM t1 ORDER BY id;
+  --enable_ps_protocol
   INSERT INTO t1 (id) VALUES (1);
   DELETE FROM t1;
   TRUNCATE t1;
@@ -1286,7 +1306,9 @@ eval CREATE TABLE t1 (
   PRIMARY KEY(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_TEXT_KEY1_1;
 --enable_query_log
+--disable_ps_protocol
 insert into t1 values (null, null, '2048');
+--enable_ps_protocol
 insert into t1 values ('1', '1', '1');
 insert into t1 select a + 1,   b + 1,   c + 1   from t1;
 insert into t1 select a + 2,   b + 2,   c + 2   from t1;
@@ -1318,7 +1340,9 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps_protocol
 select a from t1 where a is null order by a limit 30;
+--enable_ps_protocol
 select b from t1 where b is null order by b limit 30;
 if ($USE_CHILD_GROUP2)
 {
@@ -1330,7 +1354,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -1374,7 +1398,9 @@ if ($USE_CHILD_GROUP2)
   }
 }
 --connection master_1
+--disable_ps_protocol
 select a, b, c from t1 where a = '10' and b <> '100' order by c desc limit 5;
+--enable_ps_protocol
 select a, c from t1 where a = '10' order by b desc limit 5;
 if ($USE_CHILD_GROUP2)
 {
@@ -1386,7 +1412,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -1414,6 +1440,21 @@ if ($USE_CHILD_GROUP2)
   --connection child2_2
   DROP DATABASE IF EXISTS auto_test_remote2;
 }
+
+
+# MDEV-27039 LOCK_global_system_variables attempted to re-acquire
+# The test proves no assert anymore.
+--connection master_1
+--let $binlog_checksum=`SELECT @@global.binlog_checksum`
+--let $expire_logs_days=`SELECT @@global.expire_logs_days`
+SET @@global.expire_logs_days=11;
+
+--connect (master_purge, localhost, root, , , $MASTER_1_MYPORT, $MASTER_1_MYSOCK)
+SET @@global.binlog_checksum=NONE;
+--evalp SET @@global.binlog_checksum=$binlog_checksum
+--evalp SET @@global.expire_logs_days=$expire_logs_days
+--disconnect master_purge
+
 --disable_query_log
 --disable_result_log
 --source slave_test_deinit.inc

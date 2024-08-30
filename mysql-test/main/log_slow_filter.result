@@ -1,0 +1,8 @@
+call mtr.add_suppression("log_slow_filter=\"\" changed to log_slow_filter=ALL");
+show variables like "log_slow_filter";
+Variable_name	Value
+log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+set @@log_slow_filter="all";
+show variables like "log_slow_filter";
+Variable_name	Value
+log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,not_using_index,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk

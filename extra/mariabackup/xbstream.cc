@@ -18,6 +18,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 *******************************************************/
 
+#define VER "1.0"
 #include <my_global.h>
 #include <my_base.h>
 #include <my_getopt.h>
@@ -26,9 +27,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "xbstream.h"
 #include "datasink.h"
-#include "crc_glue.h"
+#include <welcome_copyright_notice.h>
 
-#define XBSTREAM_VERSION "1.0"
 #define XBSTREAM_BUFFER_SIZE (10 * 1024 * 1024UL)
 
 #define START_FILE_HASH_SIZE 16
@@ -90,15 +90,13 @@ typedef struct {
 static int get_options(int *argc, char ***argv);
 static int mode_create(int argc, char **argv);
 static int mode_extract(int n_threads, int argc, char **argv);
-static my_bool get_one_option(int optid, const struct my_option *opt,
-			      char *argument);
+static my_bool get_one_option(const struct my_option *opt,
+			      const char *argument, const char *filename);
 
 int
 main(int argc, char **argv)
 {
 	MY_INIT(argv[0]);
-
-	crc_init();
 
 	if (get_options(&argc, &argv)) {
 		goto err;
@@ -141,19 +139,12 @@ get_options(int *argc, char ***argv)
 	int ho_error;
 
 	if ((ho_error= handle_options(argc, argv, my_long_options,
-				      get_one_option))) {
+				      get_one_option)))
+        {
 		exit(EXIT_FAILURE);
 	}
 
 	return 0;
-}
-
-static
-void
-print_version(void)
-{
-	printf("%s  Ver %s for %s (%s)\n", my_progname, XBSTREAM_VERSION,
-	       SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 static
@@ -194,10 +185,9 @@ set_run_mode(run_mode_t mode)
 
 static
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt, const char *, const char *)
 {
-	switch (optid) {
+	switch (opt->id) {
 	case 'c':
 		if (set_run_mode(RUN_MODE_CREATE)) {
 			return TRUE;
@@ -227,7 +217,7 @@ stream_one_file(File file, xb_wstream_file_t *xbfile)
 	posix_fadvise(file, 0, 0, POSIX_FADV_SEQUENTIAL);
 	offset = my_tell(file, MYF(MY_WME));
 
-	buf = (uchar*)(my_malloc(XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
+	buf = (uchar*)(my_malloc(PSI_NOT_INSTRUMENTED, XBSTREAM_BUFFER_SIZE, MYF(MY_FAE)));
 
 	while ((bytes = (ssize_t)my_read(file, buf, XBSTREAM_BUFFER_SIZE,
 				MYF(MY_WME))) > 0) {
@@ -265,7 +255,7 @@ mode_create(int argc, char **argv)
 		return 1;
 	}
 
-	stream = xb_stream_write_new();
+	stream = xb_stream_write_new(nullptr, nullptr);
 	if (stream == NULL) {
 		msg("%s: xb_stream_write_new() failed.", my_progname);
 		return 1;
@@ -290,7 +280,7 @@ mode_create(int argc, char **argv)
 			goto err;
 		}
 
-		file = xb_stream_write_open(stream, filepath, &mystat, NULL, NULL);
+		file = xb_stream_write_open(stream, filepath, &mystat, false);
 		if (file == NULL) {
 			goto err;
 		}
@@ -317,24 +307,26 @@ err:
 
 static
 file_entry_t *
-file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen)
+file_entry_new(extract_ctxt_t *ctxt, const char *path, uint pathlen,
+	uchar chunk_flags)
 {
 	file_entry_t	*entry;
 	ds_file_t	*file;
 
-	entry = (file_entry_t *) my_malloc(sizeof(file_entry_t),
+	entry = (file_entry_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(file_entry_t),
 					   MYF(MY_WME | MY_ZEROFILL));
 	if (entry == NULL) {
 		return NULL;
 	}
 
-	entry->path = my_strndup(path, pathlen, MYF(MY_WME));
+	entry->path = my_strndup(PSI_NOT_INSTRUMENTED, path, pathlen, MYF(MY_WME));
 	if (entry->path == NULL) {
 		goto err;
 	}
 	entry->pathlen = pathlen;
 
-	file = ds_open(ctxt->ds_ctxt, path, NULL);
+	file = ds_open(ctxt->ds_ctxt, path, NULL,
+		chunk_flags == XB_STREAM_FLAG_REWRITE);
 
 	if (file == NULL) {
 		msg("%s: failed to create file.", my_progname);
@@ -415,10 +407,50 @@ extract_worker_thread_func(void *arg)
 							(uchar *) chunk.path,
 							chunk.pathlen);
 
+		if (entry && (chunk.type == XB_CHUNK_TYPE_REMOVE ||
+			chunk.type == XB_CHUNK_TYPE_RENAME)) {
+			msg("%s: rename and remove chunks can not be applied to opened file: %s",
+				my_progname, chunk.path);
+			pthread_mutex_unlock(ctxt->mutex);
+			break;
+		}
+
+		if (chunk.type == XB_CHUNK_TYPE_REMOVE) {
+			if (ds_remove(ctxt->ds_ctxt, chunk.path)) {
+				msg("%s: error on file removing: %s", my_progname, chunk.path);
+				pthread_mutex_unlock(ctxt->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			pthread_mutex_unlock(ctxt->mutex);
+			continue;
+		}
+
+		if (chunk.type == XB_CHUNK_TYPE_RENAME) {
+			if (my_hash_search(ctxt->filehash,
+				reinterpret_cast<const uchar *>(chunk.data), chunk.length)) {
+				msg("%s: rename chunks can not be applied to opened file: %s",
+					my_progname, reinterpret_cast<const uchar *>(chunk.data));
+				pthread_mutex_unlock(ctxt->mutex);
+				break;
+			}
+			if (ds_rename(ctxt->ds_ctxt, chunk.path,
+				reinterpret_cast<const char *>(chunk.data))) {
+				msg("%s: error on file renaming: %s to %s", my_progname,
+					reinterpret_cast<const char *>(chunk.data), chunk.path);
+				pthread_mutex_unlock(ctxt->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			pthread_mutex_unlock(ctxt->mutex);
+			continue;
+		}
+
 		if (entry == NULL) {
 			entry = file_entry_new(ctxt,
 					       chunk.path,
-					       chunk.pathlen);
+					       chunk.pathlen,
+								 chunk.flags);
 			if (entry == NULL) {
 				pthread_mutex_unlock(ctxt->mutex);
 				break;
@@ -434,6 +466,18 @@ extract_worker_thread_func(void *arg)
 		pthread_mutex_lock(&entry->mutex);
 
 		pthread_mutex_unlock(ctxt->mutex);
+
+		if (chunk.type == XB_CHUNK_TYPE_SEEK) {
+			if (ds_seek_set(entry->file, chunk.offset)) {
+				msg("%s: my_seek() failed.", my_progname);
+				pthread_mutex_unlock(&entry->mutex);
+				res = XB_STREAM_READ_ERROR;
+				break;
+			}
+			entry->offset = chunk.offset;
+			pthread_mutex_unlock(&entry->mutex);
+			continue;
+		}
 
 		res = xb_stream_validate_checksum(&chunk);
 
@@ -496,8 +540,8 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	pthread_mutex_t		mutex;
 	int			ret = 0;
 
-	if (my_hash_init(&filehash, &my_charset_bin, START_FILE_HASH_SIZE,
-			  0, 0, (my_hash_get_key) get_file_entry_key,
+        if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
+                         START_FILE_HASH_SIZE, 0, 0, (my_hash_get_key) get_file_entry_key,
 			  (my_hash_free_key) file_entry_free, MYF(0))) {
 		msg("%s: failed to initialize file hash.", my_progname);
 		return 1;

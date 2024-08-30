@@ -1,11 +1,12 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/log_bin.inc
 
 #
 # This tests simple autocommit replication of MyISAM tables.
 #
 
-SET GLOBAL wsrep_replicate_myisam=ON;
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
 
 # Without a PK
 
@@ -56,6 +57,6 @@ SELECT * FROM t1 ORDER BY f1;
 SELECT * FROM t2 ORDER BY f1;
 
 --connection node_1
-SET GLOBAL wsrep_replicate_myisam=OFF;
+SET GLOBAL wsrep_mode=DEFAULT;
 DROP TABLE t1;
 DROP TABLE t2;

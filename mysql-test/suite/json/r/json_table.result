@@ -1,0 +1,1276 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+a
+1
+2
+select * from JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+a	b
+1	11
+1	111
+2	22
+2	222
+3	NULL
+SELECT *  FROM   JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'), NESTED PATH '$.b[*]' COLUMNS (c INT PATH '$') ) ) jt;
+a	b	c
+1	11	NULL
+1	111	NULL
+1	NULL	11
+1	NULL	111
+2	22	NULL
+2	222	NULL
+2	NULL	22
+2	NULL	222
+3	NULL	NULL
+create table t1 (id varchar(5), json varchar(1024));
+insert into t1 values ('j1', '[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]');
+insert into t1 values ('j2', '[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]');
+select id, json, a from t1, json_table(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a')) as tt;
+id	json	a
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	1
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	2
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	3
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	4
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	5
+select * from t1, JSON_TABLE(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+id	json	js_id	a	l_js_id	b
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	1	1	1	11
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	1	1	2	111
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	2	2	1	22
+j1	[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]	2	2	2	222
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	1	3	1	11
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	1	3	2	111
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	2	4	1	22
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	2	4	2	222
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	3	5	1	22
+j2	[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]	3	5	2	222
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+ERROR 42S22: Unknown column 't1.no_field' in 'JSON_TABLE argument'
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, a INT PATH '$'))) as jt;
+ERROR 42S21: Duplicate column name 'a'
+DROP TABLE t1;
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Laptop', '{"color": "black", "price": 1000}');
+insert into t1 values ('Jeans',  '{"color": "blue", "price": 50}');
+select * from t1 left join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+item_name	item_props	color
+Laptop	{"color": "black", "price": 1000}	black
+Jeans	{"color": "blue", "price": 50}	blue
+select * from t1 right join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+ERROR 42S22: Unknown column 't1.item_props' in 'JSON_TABLE argument'
+DROP TABLE t1;
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 101 on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+a	b
+101	11
+101	111
+2	22
+2	222
+3	NULL
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 202 on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+a	b
+NULL	11
+NULL	111
+2	22
+2	222
+3	NULL
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+a	b
+NULL	11
+NULL	111
+2	22
+2	222
+3	NULL
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+a	b
+202	11
+202	111
+2	22
+2	222
+3	NULL
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3} xx YY]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+ERROR HY000: Syntax error in JSON text in argument 1 to function 'JSON_TABLE' at position 65
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' error on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
+select * from json_table('{"a":0}',"$" columns(a decimal(1,1) path '$.a')) foo;
+a
+0.0
+connect  con1,localhost,root,,;
+select a from json_table('{"a":0}',"$" columns(a for ordinality)) foo;
+a
+1
+connection default;
+disconnect con1;
+create table t1 (
+color varchar(32),
+price int
+);
+insert into t1 values ("red", 100), ("blue", 50);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+select * from 
+json_table('[{"color": "blue", "price": 50},
+                     {"color": "red", "price": 100}]',
+'$[*]' columns( color varchar(100) path '$.color',
+price text path '$.price'
+                                                                                      )
+) as T
+where
+T.color in (select color from t1 where t1.price=T.price);
+color	price
+blue	50
+red	100
+set @@optimizer_switch=@save_optimizer_switch;
+drop table t1;
+select * from
+json_table(' [ {"color": "blue", "sizes": [1,2,3,4],  "prices" : [10,20]},
+               {"color": "red",  "sizes": [10,11,12,13,14],  "prices" : [100,200,300]} ]',
+'$[*]' columns(
+color varchar(4) path '$.color',
+seq0 for ordinality,
+nested path '$.sizes[*]'
+      columns (seq1 for ordinality,
+size int path '$'),
+nested path '$.prices[*]'
+      columns (seq2 for ordinality,
+price int path '$')
+)
+) as T;
+color	seq0	seq1	size	seq2	price
+blue	1	1	1	NULL	NULL
+blue	1	2	2	NULL	NULL
+blue	1	3	3	NULL	NULL
+blue	1	4	4	NULL	NULL
+blue	1	NULL	NULL	1	10
+blue	1	NULL	NULL	2	20
+red	2	1	10	NULL	NULL
+red	2	2	11	NULL	NULL
+red	2	3	12	NULL	NULL
+red	2	4	13	NULL	NULL
+red	2	5	14	NULL	NULL
+red	2	NULL	NULL	1	100
+red	2	NULL	NULL	2	200
+red	2	NULL	NULL	3	300
+select * from   json_table('[{"color": "blue", "price": 50},
+    {"color": "red", "price": 100},
+    {"color": "rojo", "price": 10.0},
+    {"color": "blanco", "price": 11.0}]',
+'$[*]' columns( color varchar(100) path '$.color',
+price text path '$.price', seq for ordinality)) as T order by color desc;
+color	price	seq
+rojo	10.0	3
+red	100	2
+blue	50	1
+blanco	11.0	4
+create view v as select * from json_table('{"as":"b", "x":123}',"$" columns(a varchar(8) path '$.a' default '-' on empty, x int path '$.x')) x;
+select * from v;
+a	x
+-	123
+show create table v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `x`.`a` AS `a`,`x`.`x` AS `x` from JSON_TABLE('{"as":"b", "x":123}', '$' COLUMNS (`a` varchar(8) PATH '$.a' DEFAULT '-' ON EMPTY, `x` int(11) PATH '$.x')) `x`	latin1	latin1_swedish_ci
+drop view v;
+select * from json_table('{"as":"b", "x":123}',
+"$" columns(a varchar(8) path '$.a' default '-' on empty null on error null on empty, x int path '$.x')) x;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'null on empty, x int path '$.x')) x' at line 2
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*')) as jt;
+v
+NULL
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+v
+-
+select * from json_table('{"b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+v
+bar
+create table t1 (a varchar(100));
+insert into t1 values ('1');
+select * from t1 as T, json_table(T.a, '$[*]' columns(color varchar(100) path '$.nonexistent', seq for ordinality)) as T;
+ERROR 42000: Not unique table/alias: 'T'
+drop table t1;
+prepare s from 'select * from
+json_table(?,
+    \'$[*]\' columns( color varchar(100) path \'$.color\',
+      price text path \'$.price\',
+      seq for ordinality)) as T
+order by color desc; ';
+execute s using '[{"color": "red", "price":1}, {"color":"brown", "price":2}]';
+color	price	seq
+red	1	1
+brown	2	2
+deallocate prepare s;
+create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50}]',              '$[*]' columns( color varchar(100) path '$.co\\\\lor')              ) as T;
+select * from v2;
+color
+blue
+drop view v2;
+explain format=json select * from
+json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "tt",
+          "access_type": "ALL",
+          "loops": 1,
+          "rows": 40,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "table_function": "json_table"
+        }
+      }
+    ]
+  }
+}
+explain select * from
+json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	tt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+create view v1 as select * from
+json_table('[{"color": "blue", "price": 50}]',
+'$[*]' columns(color text path '$.nonexistent',
+seq for ordinality)) as `ALIAS NOT QUOTED`;
+select * from v1;
+color	seq
+NULL	1
+drop view v1;
+create view v1 as select * from
+json_table('[{"color": "blue", "price": 50},
+               {"color": "red", "price": 100}]',
+'$[*]' columns(
+color text path "$.QUOTES \" HERE \"",
+color1 text path '$.QUOTES " HERE "',
+color2 text path "$.QUOTES ' HERE '",
+seq for ordinality)) as T;
+select * from v1;
+color	color1	color2	seq
+NULL	NULL	NULL	1
+NULL	NULL	NULL	2
+drop view v1;
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+SELECT t1.x*2 m, jt.* FROM t1,
+JSON_TABLE(m, '$[*]' COLUMNS (i INT PATH '$')) jt;
+ERROR 42S22: Unknown column 'm' in 'JSON_TABLE argument'
+DROP TABLE t1;
+select *
+from
+json_table(JS3.size, '$' columns (size INT PATH '$.size')) as JS1,
+json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS2,
+json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS3 where  1;
+ERROR 42S22: Unknown column 'JS3.size' in 'JSON_TABLE argument'
+create table t1 (json varchar(100) character set utf8);
+insert into t1 values ('{"value":"АБВ"}');
+create table tj1 as 
+select T.value
+from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
+show create table tj1;
+Table	Create Table
+tj1	CREATE TABLE `tj1` (
+  `value` varchar(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1;
+drop table tj1;
+CREATE TABLE t1(id INT, f1 JSON);
+INSERT INTO t1 VALUES
+(1, '{\"1\": 1}'),
+(2, '{\"1\": 2}'),
+(3, '{\"1\": 3}'),
+(4, '{\"1\": 4}'),
+(5, '{\"1\": 5}'),
+(6, '{\"1\": 6}');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'f1'
+test.t1	analyze	status	OK
+SELECT * FROM JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl STRAIGHT_JOIN t1 AS tt3;
+ERROR 42S22: Unknown column 'tt3.f1' in 'JSON_TABLE argument'
+SELECT * FROM t1 as jj1,
+(SELECT tt2.*
+FROM
+t1 as tt2,
+JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl
+STRAIGHT_JOIN
+t1 AS tt3
+) dt
+ORDER BY 1,3 LIMIT 10;
+ERROR 42S22: Unknown column 'tt3.f1' in 'JSON_TABLE argument'
+drop table t1;
+select collation(x) from 
+JSON_TABLE('["abc"]', '$[*]' COLUMNS (x VARCHAR(10) CHARSET latin1 PATH '$')) tbl;
+collation(x)
+latin1_swedish_ci
+SELECT * FROM  JSON_TABLE('{"x":1, "y":2}', _utf8mb4'$' COLUMNS (NESTED PATH _utf8mb4'$.x'
+  COLUMNS(y INT PATH _utf8mb4'$.y' DEFAULT _utf8mb4'1' ON EMPTY DEFAULT _utf8mb4'2' ON ERROR))) jt;
+y
+1
+select * from json_table(
+'{"name":"t-shirt", "colors": ["yellow", "blue"],"sizes":  ["small", "medium", "large"]}', 
+'$' columns(name varchar(32) path '$.name',
+nested path '$.colors[*]' columns (
+color varchar(32) path '$',
+nested path '$.sizes[*]' columns (
+size varchar(32) path '$' 
+)))) as t;
+name	color	size
+t-shirt	yellow	NULL
+t-shirt	blue	NULL
+SELECT x, length(x) FROM
+JSON_TABLE('{}', '$' COLUMNS (x VARCHAR(10) PATH '$.x' DEFAULT 'abcdefg' ON EMPTY)) jt;
+x	length(x)
+abcdefg	7
+select * from
+json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+col1
+456
+NULL
+select * from
+json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+col1
+456
+1
+select * from
+json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+col1
+456
+0
+select * from
+json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+col1
+456
+NULL
+select * from
+json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+col1
+456
+true
+select * from
+json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+col1
+456
+false
+select * from
+json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]'
+      columns (id for ordinality,
+intcol int path '$.a' default '1234' on empty default '5678' on error)
+) as tt;
+id	intcol
+1	0
+2	123
+3	5678
+4	5678
+Warnings:
+Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
+SELECT COUNT(*) FROM JSON_TABLE('[1, 2]', '$[*]' COLUMNS( I INT PATH '$')) tt;
+COUNT(*)
+2
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (js json, b int);
+insert into t2 select '[1,2,3]',A.a from t1 A, t1 B;
+explain select * from t1,
+(select * from t2, json_table(t2.js, '$[*]' columns (o for ordinality)) as jt) as TT2
+where 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	100	Using join buffer (flat, BNL join)
+1	SIMPLE	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+drop table t1, t2;
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (j JSON);
+INSERT INTO t2 (j) VALUES ('[1,2,3]');
+SELECT * FROM t1 RIGHT JOIN
+(SELECT o FROM t2, JSON_TABLE(j, '$[*]' COLUMNS (o FOR ORDINALITY)) AS jt) AS t3 ON (t3.o = t1.x);
+x	o
+1	1
+NULL	2
+NULL	3
+DROP TABLE t1, t2;
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+insert into t20 values (1),(2);
+insert into t21 values (1, '{"a":100}');
+explain select t20.a, jt1.ab
+from t20 left join t21 on t20.a=t21.a
+join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t20	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t21	eq_ref	PRIMARY	PRIMARY	4	test.t20.a	1	
+1	SIMPLE	jt1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+drop table t20, t21;
+select * from
+json_table(
+'[
+  {"name": "X",
+    "colors":["blue"], "sizes": [1,2,3,4],  "prices" : [10,20]},
+  {"name": "Y",
+    "colors":["red"], "sizes": [10,11],  "prices" : [100,200,300]}
+]',
+'$[*]' columns
+(
+seq0 for ordinality,
+name varchar(4) path '$.name',
+nested path '$.colors[*]' columns (
+seq1 for ordinality,
+color text path '$'
+  ),
+nested path '$.sizes[*]' columns (
+seq2 for ordinality,
+size int path '$'
+  ),
+nested path '$.prices[*]' columns (
+seq3 for ordinality,
+price int path '$'
+  )
+)
+) as T order by seq0, name;
+seq0	name	seq1	color	seq2	size	seq3	price
+1	X	NULL	NULL	NULL	NULL	1	10
+1	X	NULL	NULL	NULL	NULL	2	20
+1	X	NULL	NULL	1	1	NULL	NULL
+1	X	NULL	NULL	2	2	NULL	NULL
+1	X	NULL	NULL	3	3	NULL	NULL
+1	X	NULL	NULL	4	4	NULL	NULL
+1	X	1	blue	NULL	NULL	NULL	NULL
+2	Y	NULL	NULL	NULL	NULL	1	100
+2	Y	NULL	NULL	NULL	NULL	2	200
+2	Y	NULL	NULL	NULL	NULL	3	300
+2	Y	NULL	NULL	1	10	NULL	NULL
+2	Y	NULL	NULL	2	11	NULL	NULL
+2	Y	1	red	NULL	NULL	NULL	NULL
+select * from json_table('[]', '$' COLUMNS(x FOR ORDINALITY));
+ERROR HY000: Every table function must have an alias.
+select min(x) from json_table('[]', '$' COLUMNS(x FOR ORDINALITY)) a;
+min(x)
+1
+#
+# Test for the problem with 
+#   - Cross-outer-join dependency
+#   - dead-end join prefix
+#   - join order pruning
+#
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+insert into t20 select seq from seq_1_to_100;
+insert into t21 select a, '{"a":100}' from t20;
+create table t31(a int);
+create table t32(b int);
+insert into t31 values (1);
+insert into t32 values (1);
+explain
+select
+t20.a, jt1.ab
+from
+t20
+left join t21 on t20.a=t21.a
+join
+(t31 left join (t32 join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1) on t31.a<3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t31	system	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	t20	ALL	NULL	NULL	NULL	NULL	100	
+1	SIMPLE	t21	eq_ref	PRIMARY	PRIMARY	4	test.t20.a	1	
+1	SIMPLE	t32	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	jt1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+drop table t20,t21,t31,t32;
+#
+# MDEV-25142: JSON_TABLE: CREATE VIEW involving EXISTS PATH ends up with invalid frm
+#
+drop view if exists v1;
+CREATE VIEW v1 AS SELECT * FROM JSON_TABLE('[]', '$' COLUMNS (f INT EXISTS PATH '$')) a ;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `a`.`f` AS `f` from JSON_TABLE('[]', '$' COLUMNS (`f` int(11) EXISTS PATH '$')) `a`	latin1	latin1_swedish_ci
+drop view v1;
+#
+# MDEV-25145: JSON_TABLE: Assertion `fixed == 1' failed in Item_load_file::val_str on 2nd execution of PS	
+#
+PREPARE stmt FROM "SELECT * FROM (SELECT * FROM JSON_TABLE(LOAD_FILE('x'), '$' COLUMNS (a FOR ORDINALITY)) AS t) AS sq";
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+#
+# MDEV-JSON_TABLE: Server crashes in handler::print_error / hton_name upon ERROR ON EMPTY
+#
+SELECT a, b FROM JSON_TABLE('[]', '$' COLUMNS (a FOR ORDINALITY, b INT PATH '$[*]' ERROR ON EMPTY)) AS t ORDER BY a;
+ERROR HY000: Field 'b' can't be set for JSON_TABLE 't'.
+#
+# MDEV-25151 JSON_TABLE: Unexpectedly padded values in a PATH column.
+#
+SET @old_character_set_connection= @@character_set_connection;
+SET @@character_set_connection= utf8;
+select hex(a), b from json_table('["foo","bar"]','$[*]' columns (a char(3) path '$', b for ordinality)) t;
+hex(a)	b
+666F6F	1
+626172	2
+SET @@character_set_connection= @old_character_set_connection;
+#
+# MDEV-25183 JSON_TABLE: CREATE VIEW involving NESTED PATH ends up with invalid frm
+#
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$**.*' COLUMNS(a FOR ORDINALITY), b VARCHAR(8) PATH '$')) AS jt;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `jt`.`a` AS `a`,`jt`.`b` AS `b` from JSON_TABLE('{}', '$' COLUMNS (NESTED PATH '$**.*' COLUMNS (`a` FOR ORDINALITY), `b` varchar(8) PATH '$')) `jt`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+a	b
+NULL	NULL
+DROP VIEW v;
+#
+# MDEV-25178 JSON_TABLE: ASAN use-after-poison in my_fill_8bit / Json_table_column::On_response::respond
+#
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(100) PATH '$' DEFAULT "0" ON ERROR)) AS jt;
+a
+0
+#
+# MDEV-25188 JSON_TABLE: ASAN use-after-poison in Field_long::reset / Table_function_json_table::setup or malloc(): invalid size.
+#
+SELECT * FROM JSON_TABLE(CONVERT('{"x":1}' USING utf8mb4), '$' COLUMNS(a INT PATH '$', b CHAR(64) PATH '$.*', c INT EXISTS PATH '$**.*')) AS jt;
+a	b	c
+NULL	1	1
+#
+# 25192 JSON_TABLE: ASAN use-after-poison in field_conv_memcpy / Create_tmp_table::finalize upon query with derived table.
+#
+SET NAMES utf8;
+SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
+a	b	c
+NULL	NULL	NULL
+SET NAMES latin1;
+#
+# MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
+#
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
+DROP TABLE t1;
+SET NAMES latin1;
+#
+# MDEV-25230 SON_TABLE: CREATE VIEW with 2nd level NESTED PATH ends up with invalid frm, Assertion `m_status == DA_ERROR || m_status == DA_OK || m_status == DA_OK_BULK' failed.
+#
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$' COLUMNS(NESTED PATH '$.*' COLUMNS(o FOR ORDINALITY)))) AS jt;
+SELECT * FROM v;
+o
+NULL
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `jt`.`o` AS `o` from JSON_TABLE('{}', '$' COLUMNS (NESTED PATH '$.*' COLUMNS (NESTED PATH '$.*' COLUMNS (`o` FOR ORDINALITY)))) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v;
+#
+# MDEV-25229 JSON_TABLE: Server crashes in hton_name upon MATCH .. AGAINST.
+#
+SELECT val, MATCH(val) AGAINST( 'MariaDB') FROM JSON_TABLE('{"db":"xx"}', '$' COLUMNS(val VARCHAR(32) PATH '$**.*')) AS jt;
+ERROR HY000: The storage engine JSON_TABLE function doesn't support FULLTEXT indexes
+#
+# MDEV-25138 JSON_TABLE: A space between JSON_TABLE and opening bracket causes syntax error
+#
+select * from json_table ('{}', '$' COLUMNS(x FOR ORDINALITY)) a;
+x
+1
+create table json_table(id int);
+insert into json_table values (1), (2), (3);
+select * from json_table;
+id
+1
+2
+3
+drop table json_table;
+#
+# MDEV-25146 JSON_TABLE: Non-descriptive + wrong error messages upon trying to store array or object.
+#
+select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error)) t;
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
+show warnings;
+Level	Code	Message
+Error	4178	Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
+#
+# MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
+#
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{"x":1}', '$' COLUMNS(f DATE PATH '$.*')) AS jt;
+Warnings:
+Warning	1265	Data truncated for column 'f' at row 1
+SELECT * FROM t1;
+f
+0000-00-00
+DROP TABLE t1;
+#
+# MDEV-25254: JSON_TABLE: Inconsistent name resolution with right joins
+#
+CREATE TABLE t1 (a INT);
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+ERROR 42S22: Unknown column 't1.a' in 'JSON_TABLE argument'
+CREATE VIEW v AS
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+ERROR 42S22: Unknown column 't1.a' in 'JSON_TABLE argument'
+insert into t1 values (1),(2),(3);
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+ERROR 42S22: Unknown column 't1.a' in 'JSON_TABLE argument'
+drop table t1;
+#
+# MDEV-25202: JSON_TABLE: Early table reference leads to unexpected result set, server crash
+#
+CREATE TABLE t1 (o INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3),(4);
+SELECT * FROM JSON_TABLE(a, '$' COLUMNS(o FOR ORDINALITY)) AS jt1 NATURAL JOIN t1 JOIN t2;
+ERROR 42S22: Unknown column 'a' in 'JSON_TABLE argument'
+SELECT * FROM JSON_TABLE(a, '$' COLUMNS(o FOR ORDINALITY)) AS jt1 NATURAL JOIN t1 STRAIGHT_JOIN t2;
+ERROR 42S22: Unknown column 'a' in 'JSON_TABLE argument'
+drop table t1,t2;
+# Now, try a JSON_TABLE that has a subquery that has an outside reference:
+create table t1(a int, js varchar(32));
+create table t2(a varchar(100));
+insert into t2 values('');
+explain
+select *
+from
+t1 left join
+json_table(concat('',js),
+'$' columns ( color varchar(32) path '$.color')
+) as JT on 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+explain
+select *
+from
+t1 right join
+json_table(concat('',js),
+'$' columns ( color varchar(32) path '$.color')
+) as JT on 1;
+ERROR 42S22: Unknown column 'js' in 'JSON_TABLE argument'
+explain
+select *
+from
+t1 left join
+json_table((select concat(a,js) from t2),
+'$' columns ( color varchar(32) path '$.color')
+) as JT on 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+2	SUBQUERY	t2	system	NULL	NULL	NULL	NULL	1	
+explain
+select *
+from
+t1 right join
+json_table((select concat(a,js) from t2),
+'$' columns ( color varchar(32) path '$.color')
+) as JT on 1;
+ERROR 42S22: Unknown column 'js' in 'field list'
+drop table t1,t2;
+#
+# Now, a testcase with JSON_TABLEs inside NATURAL JOIN
+#
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+select * from
+t1,
+( t2
+natural join
+(
+json_table(JT2.d, '$' COLUMNS (d for ordinality)) as JT
+natural join
+json_table(JT.d, '$' COLUMNS (d for ordinality)) as JT2
+)
+);
+ERROR 42S22: Unknown column 'JT2.d' in 'JSON_TABLE argument'
+drop table t1, t2;
+#
+# MDEV-25352: JSON_TABLE: Inconsistent name resolution and ER_VIEW_INVALID ...
+# (Just the testcase)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'{}'),(2,'[]');
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+SELECT t1.*
+FROM
+t1 NATURAL JOIN t2
+RIGHT JOIN
+JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o)
+WHERE t1.a = 1;
+ERROR 42S22: Unknown column 't1.b' in 'JSON_TABLE argument'
+CREATE OR REPLACE VIEW v AS
+SELECT t1.* FROM t1 NATURAL JOIN t2 RIGHT JOIN JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o) WHERE t1.a = 1;
+ERROR 42S22: Unknown column 't1.b' in 'JSON_TABLE argument'
+drop table t1,t2;
+#
+# MDEV-25256: JSON_TABLE: Error ER_VIEW_INVALID upon running query via view
+#
+SELECT * FROM
+JSON_TABLE('[]', '$' COLUMNS(a TEXT PATH '$[*]')) AS jt1
+RIGHT JOIN JSON_TABLE(jt1.a, '$' COLUMNS(o2 FOR ORDINALITY)) AS jt2
+ON(1)
+RIGHT JOIN JSON_TABLE('[]', '$' COLUMNS(o3 FOR ORDINALITY)) AS jt3
+ON(1)
+WHERE 0;
+ERROR 42S22: Unknown column 'jt1.a' in 'JSON_TABLE argument'
+#
+# MDEV-25346: JSON_TABLE: Server crashes in Item_field::fix_outer_field upon subquery with unknown column
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+SELECT * FROM ( SELECT * FROM t1 JOIN t2 ON (b IN(SELECT x FROM (SELECT 1 AS c) AS sq1))) AS sq2;
+ERROR 42S22: Unknown column 'x' in 'field list'
+DROP TABLE t1, t2;
+#
+# Another testcase
+#
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Jeans',  '{"color": ["green", "brown"], "price": 50}');
+insert into t1 values ('Shirt',  '{"color": ["blue", "white"], "price": 20}');
+insert into t1 values ('Jeans',  '{"color": ["black"], "price": 60}');
+insert into t1 values ('Jeans',  '{"color": ["gray"], "price": 60}');
+insert into t1 values ('Laptop', '{"color": ["black"], "price": 1000}');
+insert into t1 values ('Shirt',  '{"color": ["black"], "price": 20}');
+select
+t.item_name,
+jt.*
+from
+(select
+t1.item_name,
+concat(
+concat(
+concat(
+"{\"color\": ",
+concat(
+concat("[\"",
+                      group_concat( jt.color separator "\", \"")
+                     ),
+                "\"]")
+),','
+        ),
+concat(concat("\"price\": ",jt.price),'}')
+) as item_props
+from
+t1,
+json_table(
+t1.item_props,
+'$' columns (
+nested path '$.color[*]' columns (color varchar(32) path '$'),
+price int path '$.price')
+) as jt
+group by
+t1.item_name, jt.price
+) as t,
+json_table(t.item_props,
+'$' columns (
+nested path '$.color[*]' columns (color varchar(32) path '$'),
+price int path '$.price')
+) as jt
+order by
+t.item_name, jt.price, jt.color;
+item_name	color	price
+Jeans	brown	50
+Jeans	green	50
+Jeans	black	60
+Jeans	gray	60
+Laptop	black	1000
+Shirt	black	20
+Shirt	blue	20
+Shirt	white	20
+drop table t1;
+#
+# MDEV-25380: JSON_TABLE: Assertion `join->best_read < double(1.797...) fails
+#
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'{}'),(2,'[]');
+explain
+SELECT *
+FROM t1
+WHERE
+EXISTS(SELECT *
+FROM JSON_TABLE(b, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+WHERE jt.o = t1.a);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1)
+drop table t1;
+#
+# MDEV-25381: JSON_TABLE: ER_WRONG_OUTER_JOIN upon query with LEFT and RIGHT joins and view
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c TEXT);
+INSERT INTO t2 VALUES (1,'{}'),(2,'[]');
+CREATE VIEW v2 AS SELECT * FROM t2;
+SELECT *
+FROM
+t1 RIGHT JOIN
+t2 AS tt
+LEFT JOIN
+JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+SELECT *
+FROM
+t1 RIGHT JOIN
+v2 AS tt
+LEFT JOIN
+JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+SELECT *
+FROM
+t1 RIGHT JOIN
+v2 AS tt
+LEFT JOIN
+JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+prepare s from
+"SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+ ON t1.a = tt.b";
+execute s;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+execute s;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+DROP VIEW v2;
+DROP TABLE t1, t2;
+#
+# MDEV-25259 JSON_TABLE: Illegal mix of collations upon executing query with combination of charsets via view.
+#
+CREATE VIEW v AS
+SELECT * FROM JSON_TABLE(CONVERT('[]' USING dec8),
+'$' COLUMNS(b VARCHAR(8) CHARSET utf8 PATH '$')) AS jt2
+WHERE (CONVERT('[]' USING cp1256) = b);
+SELECT * FROM v;
+b
+DROP VIEW v;
+#
+# MDEV-25397: JSON_TABLE: Unexpected ER_MIX_OF_GROUP_FUNC_AND_FIELDS upon query with JOIN
+#
+set @save_sql_mode= @@sql_mode;
+SET sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1 (a TEXT);
+SELECT SUM(o) FROM t1 JOIN JSON_TABLE(t1.a, '$' COLUMNS(o FOR ORDINALITY)) jt;
+SUM(o)
+NULL
+set sql_mode=@save_sql_mode;
+drop table t1;
+#
+# MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
+#
+SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+#
+# MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+#
+SELECT x, COUNT(*) FROM JSON_TABLE( '{}', '$' COLUMNS(
+a BIT(14) PATH '$', b CHAR(16) PATH '$', c INT PATH '$[0]', d INT PATH '$[1]', e INT PATH '$[2]',
+f INT PATH '$[3]', g INT PATH '$[4]', h INT PATH '$[5]', i INT PATH '$[6]', j INT PATH '$[7]',
+x TEXT PATH '$[9]')) AS jt GROUP BY x;
+x	COUNT(*)
+NULL	1
+#
+# MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+#
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(
+a TEXT EXISTS PATH '$', b VARCHAR(40) PATH '$', c BIT(60) PATH '$', d VARCHAR(60) PATH '$', e BIT(62) PATH '$',
+f FOR ORDINALITY, g INT PATH '$', h VARCHAR(36) PATH '$', i DATE PATH '$', j CHAR(4) PATH '$'
+      )) AS jt;
+a	b	c	d	e	f	g	h	i	j
+1	NULL	NULL	NULL	NULL	1	NULL	NULL	NULL	NULL
+#
+# MDEV-25373 JSON_TABLE: Illegal mix of collations upon executing PS once, or SP/function twice.
+#
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+a
+2
+PREPARE stmt1 FROM "
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+";
+EXECUTE stmt1;
+a
+2
+DEALLOCATE PREPARE stmt1;
+#
+# MDEV-25149 JSON_TABLE: Inconsistency in implicit data type conversion.
+#
+select * from json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]' 
+columns ( id for ordinality,
+intcol int path '$.a' default '1234' on empty default '5678' on error)
+) as tt;
+id	intcol
+1	0
+2	123
+3	5678
+4	5678
+Warnings:
+Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
+#
+# MDEV-25377 JSON_TABLE: Wrong value with implicit conversion.
+#
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt;
+converted	original
+0	foo
+1	1
+127	1000
+Warnings:
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 3
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
+converted	original
+0	foo
+1	1
+127	1000
+Warnings:
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 1
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 3
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
+converted	original
+1	1
+127	1000
+0	foo
+Warnings:
+Warning	1264	Out of range value for column 'converted' at row 2
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 3
+select * from
+json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
+               {"color": "white",   "price": "pretty low"},
+               {"color": "yellow",  "price": 256.20},
+               {"color": "red",   "price": { "high": 20, "low": 8}}]',
+'$[*]' columns(color varchar(100) path '$.color',
+price json path '$.price'
+                        )
+) as T;
+color	price
+blue	{ "high": 10, "low": 5}
+white	"pretty low"
+yellow	256.20
+red	{ "high": 20, "low": 8}
+#
+# MDEV-27696 Json table columns accept redundant COLLATE syntax
+#
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name BLOB COLLATE `binary` PATH '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE `binary` PATH '$.name'
+  )
+) AS jt' at line 3
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name VARCHAR(10) COLLATE latin1_bin COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt' at line 3
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+name VARCHAR(10) BINARY COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt' at line 3
+#
+# MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+#
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+name
+Jeans
+#
+# MDEV-28480: Assertion `0' failed in Item_row::illegal_method_call
+#             on SELECT FROM JSON_TABLE
+#
+SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
+ERROR 21000: Operand should contain 1 column(s)
+#
+# MDEV-30623 JSON_TABLE in subquery not correctly marked as correlated
+# update_correlated_cache() fails to take JSON_TABLE functions in
+# subqueries into account.
+#
+create table t1(c json);
+insert into t1 values ('[{"x":"1"},{"x":"2"}]'),
+('[{"x":"10"},{"x":"20"}]'),
+('[{"x":"100"},{"x":"200"}]');
+select c,
+(SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+AS jt) as SUBQ
+from t1;
+c	SUBQ
+[{"x":"1"},{"x":"2"}]	3
+[{"x":"10"},{"x":"20"}]	30
+[{"x":"100"},{"x":"200"}]	300
+explain select c,
+(SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+AS jt) as SUBQ
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+2	DEPENDENT SUBQUERY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
+drop table t1;
+#
+# End of 10.6 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+#  MDEV-27743 Remove Lex::charset
+#
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_general_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_uca1400_ai_ci
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+collation(name)
+utf8mb4_bin
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_general_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Jeans"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb4 COLLATE utf8mb4_bin PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+SELECT collation(name) FROM v1;
+collation(name)
+utf8mb4_bin
+DROP VIEW v1;
+#
+# MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+#
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+c1	c2
+NULL	NULL
+#
+# MDEV-29446 Change SHOW CREATE TABLE to display default collations
+#
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET latin1 COLLATE latin1_swedish_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varchar(10) CHARSET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `jt`.`name` AS `name` from JSON_TABLE('[{"name":"Laptop"}]', '$[*]' COLUMNS (`name` varbinary(10) PATH '$.name')) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v1;
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt' at line 6
+#
+# End of 10.9 tests
+#
+#
+# MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
+#
+# Multi-update with JSON_TABLE
+create table  t1 ( name  varchar(10), 
+color varchar(10),
+price decimal(8,2),
+instock BOOLEAN);
+insert into t1 values ("Laptop", "black", 20000, 1);
+insert into t1 values ("Jacket", "brown", 5000, 1);
+insert into t1 values ("Jeans", "blue", 5000, 1);
+select * from t1;
+name	color	price	instock
+Laptop	black	20000.00	1
+Jacket	brown	5000.00	1
+Jeans	blue	5000.00	1
+set @json='
+[
+  {"name":"Laptop", "color":"black", "price":"1000", "ordered":"3"},
+  {"name":"Jeans",  "color":"blue",  "ordered":"0"},
+  {"name":"Phone",  "color":"red",  "ordered":"0"}
+]';
+select * from json_table(@json, '$[*]' 
+columns(
+name  varchar(10) path '$.name', 
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered' ) 
+) as jt;
+name	color	price	ordered
+Laptop	black	1000.00	3
+Jeans	blue	NULL	0
+Phone	red	NULL	0
+explain update t1, JSON_TABLE(@json,'$[*]'  
+COLUMNS (
+name  varchar(10) path '$.name',
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered'
+    )) AS jt1
+SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	SIMPLE	jt1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where
+update t1, JSON_TABLE(@json,'$[*]'  
+COLUMNS (
+name  varchar(10) path '$.name',
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered'
+    )) AS jt1
+SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=2;
+select * from t1;
+name	color	price	instock
+Laptop	black	20000.00	1
+Jacket	brown	5000.00	1
+Jeans	blue	5000.00	1
+explain update t1
+SET t1.instock=2 where t1.name in (
+select jt1.name from json_table(@json, '$[*]' 
+columns(
+name  varchar(10) path '$.name', 
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered' ) 
+) as jt1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	
+1	PRIMARY	jt1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1)
+update t1
+SET t1.instock=2 where t1.name in (
+select jt1.name from json_table(@json, '$[*]' 
+columns(
+name  varchar(10) path '$.name', 
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered' ) 
+) as jt1);
+select * from t1;
+name	color	price	instock
+Laptop	black	20000.00	2
+Jacket	brown	5000.00	1
+Jeans	blue	5000.00	2
+update t1, JSON_TABLE(@json,'$[*]'  
+COLUMNS (
+name  varchar(10) path '$.name',
+color varchar(10) path '$.color',
+price decimal(8,2) path '$.price',
+ordered boolean path '$.ordered'
+    )) AS jt1
+SET t1.instock=0, jt1.ordered=1  where t1.name=jt1.name;
+ERROR HY000: The target table jt1 of the UPDATE is not updatable
+select * from t1;
+name	color	price	instock
+Laptop	black	20000.00	2
+Jacket	brown	5000.00	1
+Jeans	blue	5000.00	2
+drop table t1;
+#
+# End of 11.0 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

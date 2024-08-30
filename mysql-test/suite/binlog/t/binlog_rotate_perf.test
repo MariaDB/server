@@ -68,10 +68,10 @@ while ($loop_times) {
 
 # try to change the log-bin configs and restart
 --echo # ======= now try to change the log-bin config for mysqld =======
---let $restart_parameters="--log-bin=new_log_bin"
+--let $restart_parameters=--log-bin=new_log_bin
 --echo #begin to restart mysqld
 --source include/restart_mysqld.inc
---let $restart_parameters= ""
+--let $restart_parameters=
 
 --source include/show_binary_logs.inc
 let $loop_times= 10;

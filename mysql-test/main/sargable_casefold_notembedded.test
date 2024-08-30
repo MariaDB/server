@@ -1,0 +1,51 @@
+#
+# MDEV-31496 Make optimizer handle UCASE(varchar_col)=...
+#  Check the coverage in optimizer trace.
+#
+
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+
+create table t1 (
+  col1 varchar(32), 
+  col2 varchar(32), 
+  key(col1),
+  key(col2)
+) collate utf8mb3_general_ci;
+
+insert into t1
+select 
+  concat('A-', seq),
+  concat('A-', seq)
+from seq_1_to_100;
+
+set
+  @tmp_ot= @@optimizer_trace,
+  @tmp_os=@@optimizer_switch,
+  optimizer_switch='sargable_casefold=on',
+  optimizer_trace=1;
+
+explain select * from t1 where 'abc'=upper(col1);
+select 
+  json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+
+explain select * from t1 where ucase(col2)=upper(col1);
+select 
+  json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+
+explain
+select * from t1 where upper(col1) IN ('A-3','A-4','a-5');
+--echo # Will show the rewrite:
+select 
+  json_detailed(json_extract(trace, '$**.sargable_casefold_removal')) as JS
+from information_schema.optimizer_trace;
+
+set 
+  optimizer_trace=@tmp_ot,
+  optimizer_switch=@tmp_os;
+
+drop table t1;
+

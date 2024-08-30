@@ -8,6 +8,8 @@
 --source include/have_debug.inc
 --source include/big_test.inc
 --source include/not_valgrind.inc
+# This test often times out with MSAN
+--source include/not_msan.inc
 
 # Create table with R-tree index.
 create table t1 (c1 int, c2 varchar(255), c3 geometry not null, primary key(c1, c2), spatial index (c3))engine=innodb;

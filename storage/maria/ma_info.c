@@ -16,22 +16,15 @@
 /* Return useful base information for an open table */
 
 #include "maria_def.h"
-#ifdef	__WIN__
+#include <mysys_err.h>
+#ifdef	_WIN32
 #include <sys/stat.h>
 #endif
-
-	/* Get position to last record */
-
-MARIA_RECORD_POS maria_position(MARIA_HA *info)
-{
-  return info->cur_row.lastpos;
-}
-
 
 uint maria_max_key_length()
 {
   uint tmp= (_ma_max_key_length() - 8 - HA_MAX_KEY_SEG*3);
-  return MY_MIN(HA_MAX_KEY_LENGTH, tmp);
+  return MY_MIN(MARIA_MAX_KEY_LENGTH, tmp);
 }
 
 /* Get information about the table */
@@ -111,12 +104,13 @@ int maria_status(MARIA_HA *info, register MARIA_INFO *x, uint flag)
 
 
 /*
-  Write a message to the error log.
+  Write a message to the user or the error log.
 
   SYNOPSIS
     _ma_report_error()
     file_name                   Name of table file (e.g. index_file_name).
     errcode                     Error number.
+    flags                       Flags to my_error
 
   DESCRIPTION
     This function supplies my_error() with a table name. Most error
@@ -129,12 +123,12 @@ int maria_status(MARIA_HA *info, register MARIA_INFO *x, uint flag)
     void
 */
 
-void _ma_report_error(int errcode, const LEX_STRING *name)
+void _ma_report_error(int errcode, const LEX_STRING *name, myf flags)
 {
   size_t length;
   const char *file_name= name->str;
   DBUG_ENTER("_ma_report_error");
-  DBUG_PRINT("enter",("errcode %d, table '%s'", errcode, file_name));
+  DBUG_PRINT("enter",("error: %d  table: '%s'", errcode, file_name));
 
   if ((length= name->length) > 64)
   {
@@ -147,7 +141,101 @@ void _ma_report_error(int errcode, const LEX_STRING *name)
       file_name+= length - 64;
     }
   }
-
-  my_error(errcode, MYF(ME_ERROR_LOG), file_name);
+  my_printf_error(errcode, "Got error '%M' for '%s'",
+                  flags, (int) errcode, file_name);
   DBUG_VOID_RETURN;
+}
+
+
+/**
+   If standalone report all errors to the user
+   If run trough the Aria handler, only report first error to the user
+   to not spam him
+
+   @param info         Aria Handler
+   @param error        Error code
+   @apram write_to_log If set to 1, print the error to the log. This is only set
+                       when a table was found to be crashed the first time
+*/
+
+void _ma_print_error(MARIA_HA *info, int error, my_bool write_to_log)
+{
+  DBUG_ENTER("_ma_print_error");
+  DBUG_PRINT("error", ("error: %d  log: %d", error, write_to_log));
+  if (!info->error_count++ || !maria_in_ha_maria || write_to_log)
+  {
+    MARIA_SHARE *share= info->s;
+    _ma_report_error(error,
+                     (share->index_file_name.length ?
+                      &share->index_file_name :
+                      &share->unique_file_name),
+                     MYF(write_to_log ? ME_ERROR_LOG : 0));
+  }
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Handle a fatal error
+
+  - Mark the table as crashed
+  - Print an error message, if we had not issued an error message before
+    that the table had been crashed.
+  - set my_errno to error
+  - If 'maria_assert_if_crashed_table is set, then assert.
+*/
+
+void _ma_set_fatal_error(MARIA_HA *info, int error)
+{
+  MARIA_SHARE *share= info->s;
+  _ma_print_error(info, error,
+                  (share->state.changed & STATE_CRASHED_PRINTED) == 0);
+  maria_mark_crashed_share(share);
+  share->state.changed|= STATE_CRASHED_PRINTED;
+  my_errno= error;
+  DBUG_ASSERT(!maria_assert_if_crashed_table);
+}
+
+
+/*
+  Similar to the above, but only used from maria_open() where we don't have
+  an active handler object. Here we don't set a fatal error as we may
+  still want to do an automatic repair on the table
+*/
+
+void _ma_set_fatal_error_with_share(MARIA_SHARE *share, int error)
+{
+  DBUG_PRINT("error", ("error: %d", error));
+
+  if (!(share->state.changed & STATE_CRASHED_PRINTED))
+  {
+    _ma_report_error(error,
+                     (share->index_file_name.length ?
+                      &share->index_file_name :
+                      &share->unique_file_name),
+                     MYF(ME_WARNING | ME_ERROR_LOG));
+  }
+  maria_mark_crashed_share(share);
+  share->state.changed|= STATE_CRASHED_PRINTED;
+  DBUG_ASSERT(!maria_assert_if_crashed_table);
+}
+
+/*
+  Check quotas for internal temporary files
+*/
+
+int _ma_update_tmp_file_size(struct tmp_file_tracking *track,
+                             ulonglong file_size)
+{
+  int err;
+  if (track->file_size != file_size)
+  {
+    track->file_size= file_size;
+    if ((err= update_tmp_file_size(track, 0)))
+    {
+      my_errno= HA_ERR_LOCAL_TMP_SPACE_FULL + (err - EE_LOCAL_TMP_SPACE_FULL);
+      return 1;
+    }
+  }
+  return 0;
 }

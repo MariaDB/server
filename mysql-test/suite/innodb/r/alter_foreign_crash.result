@@ -3,12 +3,17 @@
 # COMMIT_INPLACE_ALTER_TABLE
 #
 call mtr.add_suppression("InnoDB: Failed to load table");
+CREATE DATABASE Bug;
+CREATE TABLE Bug.parent(a SERIAL) ENGINE=INNODB;
+CREATE TABLE Bug.child(a SERIAL, FOREIGN KEY f(a) REFERENCES Bug.parent(a))
+ENGINE=INNODB;
 create database bug;
 use bug;
 create table parent(a serial) engine=innodb;
 create table child(a serial, foreign key fk (a) references parent(a))engine=innodb;
 insert into parent values(1);
 insert into child values(1);
+drop database Bug;
 connect  con1,localhost,root,,bug;
 SET DEBUG_SYNC='innodb_rename_table_ready SIGNAL s1 WAIT_FOR s2 EXECUTE 2';
 ALTER TABLE child ROW_FORMAT=DYNAMIC, ALGORITHM=COPY;
@@ -19,9 +24,14 @@ SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
 disconnect con1;
 show tables;
 Tables_in_bug
+child
 parent
 alter table parent row_format=dynamic;
-Warnings:
-Warning	1088	failed to load FOREIGN KEY constraints
+select * from child;
+a
+1
+drop table parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table child;
 drop table parent;
 drop database bug;

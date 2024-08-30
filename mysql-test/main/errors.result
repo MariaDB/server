@@ -27,7 +27,7 @@ create table t1 (a int(256));
 ERROR 42000: Display width out of range for 'a' (max = 255)
 set sql_mode='traditional';
 create table t1 (a varchar(66000));
-ERROR 42000: Column length too big for column 'a' (max = 65532); use BLOB or TEXT instead
+ERROR 42000: Column length too big for column 'a' (max = 16383); use BLOB or TEXT instead
 set sql_mode=default;
 CREATE TABLE t1 (a INT);
 SELECT a FROM t1 WHERE a IN(1, (SELECT IF(1=0,1,2/0)));

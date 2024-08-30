@@ -66,22 +66,22 @@ class TDBWMI : public TDBASE {
   TDBWMI(PWMIDEF tdp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_WMI;}
+  AMT  GetAmType(void) override {return TYPE_AM_WMI;}
 
   // Methods
   virtual int GetRecpos(void);
   virtual int GetProgCur(void) {return N;}
-  virtual int RowNumber(PGLOBAL g, bool b = false) {return N + 1;}
+  int RowNumber(PGLOBAL g, bool b = false) override {return N + 1;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g) {return GetMaxSize(g);}
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override {return GetMaxSize(g);}
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
   // Specific routines
@@ -118,10 +118,10 @@ class WMICOL : public COLBLK {
   WMICOL(PCOLDEF cdp, PTDB tdbp, int n);
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_WMI;}
+  int  GetAmType(void) override {return TYPE_AM_WMI;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
 
  protected:
   WMICOL(void) {}              // Default constructor not to be used
@@ -143,7 +143,7 @@ class TDBWCL : public TDBCAT {
 
  protected:
   // Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g);
+  virtual PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   char   *Nsp;                         // Name space

@@ -37,7 +37,7 @@ mysqld-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
 mysqld-bin.000002	#	Query	#	#	use `test`; CREATE TABLE `ts1` (
   `f1` int(11) NOT NULL
 )
-mysqld-bin.000002	#	Xid	#	#	COMMIT /* XID */
+mysqld-bin.000002	#	Query	#	#	COMMIT
 connection node_2;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

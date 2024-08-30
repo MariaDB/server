@@ -17,7 +17,7 @@ my $DURATION= 20;
 my $stop_time= time() + $DURATION;
 
 sub my_connect {
-  my $dbh= DBI->connect("dbi:mysql:mysql_socket=/tmp/mysql.sock;database=test",
+  my $dbh= DBI->connect("DBI:MariaDB:mariadb_socket=/tmp/mysql.sock;database=test",
                         "root", undef, { RaiseError=>1, PrintError=>0, AutoCommit=>0});
   $dbh->do("SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ");
   $dbh->do("SET SESSION autocommit = 0");

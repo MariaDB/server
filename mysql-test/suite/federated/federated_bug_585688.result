@@ -28,13 +28,13 @@ a	text	YES		NULL
 connection conn_3;
 show table status from federated;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	FEDERATED	10	Dynamic	5	20	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			0	N
+t1	FEDERATED	10	Dynamic	5	20	X	X	X	X	X	X	X	X	utf8mb4_uca1400_ai_ci	NULL			0	N
 disconnect conn_2;
 connect  conn_4,127.0.0.1,root,,,$MASTER_MYPORT;
 connection conn_4;
 show table status from federated;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	FEDERATED	10	Dynamic	5	20	X	X	X	X	X	X	X	X	latin1_swedish_ci	NULL			0	N
+t1	FEDERATED	10	Dynamic	5	20	X	X	X	X	X	X	X	X	utf8mb4_uca1400_ai_ci	NULL			0	N
 disconnect conn_3;
 disconnect conn_4;
 connection master;

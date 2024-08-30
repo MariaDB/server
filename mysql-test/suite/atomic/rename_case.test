@@ -1,0 +1,54 @@
+#
+# This tests tries to cover renames with tables in different cases to ensure
+# that lower case table names works
+#
+
+create database test2;
+let $mysqld_datadir= `select @@datadir`;
+
+--echo #
+--echo # Testing rename error in different places
+--echo #
+
+create table t1 (a int);
+create table T2 (b int);
+create table t3 (c int);
+create table T4 (d int);
+
+insert into t1 values(1);
+insert into T2 values(2);
+insert into t3 values(3);
+insert into T4 values(4);
+
+create temporary table tmp1 (a int);
+create temporary table tmp2 (b int);
+create temporary table tmp3 (c int);
+create temporary table tmp4 (d int);
+
+insert into tmp1 values(11);
+insert into tmp2 values(22);
+insert into tmp3 values(33);
+insert into tmp4 values(44);
+
+--error ER_TABLE_EXISTS_ERROR
+rename table t3 to T4, t1 to t5, T2 to t1, t5 to T2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t3 to T4, T2 to t1, t5 to T2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, T2 to t1, t3 to T4, t5 to T2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, T2 to t1, t5 to T2, t3 to T4;
+
+--echo # Try failed rename using two databases
+--error ER_NO_SUCH_TABLE
+rename table test.t1 to test2.t5, test.T2 to test.t1, t5 to test.T2;
+
+select t1.a+T2.b+t3.c+T4.d from t1,T2,t3,T4;
+--error ER_NO_SUCH_TABLE
+select * from t5;
+
+--list_files $mysqld_datadir/test
+
+--echo # Cleanup
+drop table t1,T2,t3,T4;
+drop database test2;

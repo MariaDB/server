@@ -1,0 +1,16 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+
+SET default_storage_engine=MEMORY;
+--source type_inet4_engines.inc
+
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

@@ -31,3 +31,10 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 --file_exists $MYSQLD_DATADIR/my_slow_test.log
 
 --echo ## This case should pass because we have set this filename in opt file ##
+
+set @oldval= @@global.slow_query_log_file;
+evalp set global log_slow_query_file='$MYSQLTEST_VARDIR/tmp/slow-7567.log';
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+select @@global.log_slow_query_file;
+--file_exists $MYSQLTEST_VARDIR/tmp/slow-7567.log
+set @@global.log_slow_query_file=@oldval;

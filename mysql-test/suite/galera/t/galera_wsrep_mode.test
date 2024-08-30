@@ -1,0 +1,25 @@
+#
+# Test for different wsrep_mode values
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+# REQUIRED_PRIMARY_KEY
+SET GLOBAL wsrep_mode = REQUIRED_PRIMARY_KEY;
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
+SHOW WARNINGS;
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+DROP TABLE t1;
+SET GLOBAL wsrep_mode = default;
+
+
+# MDEV-25698 SIGSEGV in wsrep_should_replicate_ddl
+
+SET GLOBAL wsrep_mode = STRICT_REPLICATION;
+CREATE VIEW v AS SELECT * FROM JSON_TABLE ('{"a":0}',"$" COLUMNS (a DECIMAL(1,1) path '$.a')) foo;
+DROP VIEW v;
+SET GLOBAL wsrep_mode = default;

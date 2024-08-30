@@ -131,7 +131,3 @@ disconnect con1;
 
 select * from t1;
 drop table t1,t2;
-
-# Work around missing crash recovery at the SQL layer.
-let $datadir= `select @@datadir`;
---remove_files_wildcard $datadir/test #sql-*.frm

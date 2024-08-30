@@ -15,12 +15,14 @@
 
 /* Describe, check and repair of MyISAM tables */
 
+#define VER "2.7"
 #include "fulltext.h"
 #include "my_default.h"
 #include <m_ctype.h>
 #include <stdarg.h>
 #include <my_getopt.h>
 #include <my_bit.h>
+#include <welcome_copyright_notice.h>
 
 static uint decode_bits;
 static char **default_argv;
@@ -53,7 +55,6 @@ static const char *field_pack[]=
 static const char *myisam_stats_method_str="nulls_unequal";
 
 static void get_options(int *argc,char * * *argv);
-static void print_version(void);
 static void usage(void);
 static int myisamchk(HA_CHECK *param, char *filename);
 static void descript(HA_CHECK *param, register MI_INFO *info, char * name);
@@ -273,7 +274,7 @@ static struct my_option my_long_options[] =
   { "key_buffer_size", OPT_KEY_BUFFER_SIZE, "",
     &check_param.use_buffers, &check_param.use_buffers, 0,
     GET_ULL, REQUIRED_ARG, KEY_BUFFER_INIT, MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD,  IO_SIZE, 0},
+    SIZE_T_MAX, 0,  IO_SIZE, 0},
   { "key_cache_block_size", OPT_KEY_CACHE_BLOCK_SIZE,  "",
     &opt_key_cache_block_size,
     &opt_key_cache_block_size, 0,
@@ -287,24 +288,24 @@ static struct my_option my_long_options[] =
     &check_param.read_buffer_length,
     &check_param.read_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     READ_BUFFER_INIT, MALLOC_OVERHEAD,
-    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
+    INT_MAX32, 0, 1L, 0},
   { "write_buffer_size", OPT_WRITE_BUFFER_SIZE, "",
     &check_param.write_buffer_length,
     &check_param.write_buffer_length, 0, GET_ULONG, REQUIRED_ARG,
     READ_BUFFER_INIT, MALLOC_OVERHEAD,
-    INT_MAX32, MALLOC_OVERHEAD, 1L, 0},
+    INT_MAX32, 0, 1L, 0},
   { "sort_buffer_size", OPT_SORT_BUFFER_SIZE,
     "Deprecated. myisam_sort_buffer_size alias is being used",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
+    SIZE_T_MAX, 0, 1L, 0},
   { "myisam_sort_buffer_size", OPT_SORT_BUFFER_SIZE, 
     "Alias of sort_buffer_size parameter",
     &check_param.sort_buffer_length,
     &check_param.sort_buffer_length, 0, GET_ULL, REQUIRED_ARG,
     SORT_BUFFER_INIT, MIN_SORT_BUFFER + MALLOC_OVERHEAD,
-    SIZE_T_MAX, MALLOC_OVERHEAD, 1L, 0},
+    SIZE_T_MAX, 0, 1L, 0},
   { "sort_key_blocks", OPT_SORT_KEY_BLOCKS, "",
     &check_param.sort_key_blocks,
     &check_param.sort_key_blocks, 0, GET_ULONG, REQUIRED_ARG,
@@ -331,13 +332,6 @@ static struct my_option my_long_options[] =
 };
 
 
-static void print_version(void)
-{
-  printf("%s  Ver 2.7 for %s at %s\n", my_progname, SYSTEM_TYPE,
-	 MACHINE_TYPE);
-}
-
-
 static void usage(void)
 {
   print_version();
@@ -356,7 +350,7 @@ static void usage(void)
   -?, --help          Display this help and exit.\n\
   -t, --tmpdir=path   Path for temporary files. Multiple paths can be\n\
                       specified, separated by ");
-#if defined( __WIN__)
+#if defined( _WIN32)
    printf("semicolon (;)");
 #else
    printf("colon (:)");
@@ -429,7 +423,7 @@ static void usage(void)
   -q, --quick         Faster repair by not modifying the data file.\n\
                       One can give a second '-q' to force myisamchk to\n\
 		      modify the original datafile in case of duplicate keys.\n\
-		      NOTE: Tables where the data file is currupted can't be\n\
+		      NOTE: Tables where the data file is corrupted can't be\n\
 		      fixed with this option.\n\
   -u, --unpack        Unpack file packed with myisampack.\n\
 ");
@@ -470,11 +464,10 @@ TYPELIB myisam_stats_method_typelib= {
 	 /* Read options */
 
 static my_bool
-get_one_option(int optid,
-	       const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt,
+	       const char *argument, const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case 'a':
     if (argument == disabled_my_option)
       check_param.testflag&= ~T_STATISTICS;
@@ -795,10 +788,10 @@ static void get_options(register int *argc,register char ***argv)
 
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
-                                             MYF(MY_WME))))
+                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
       exit(1);
 
-  myisam_block_size=(uint) 1 << my_bit_log2(opt_myisam_block_size);
+  myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);
   return;
 } /* get options */
 
@@ -1428,20 +1421,25 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
       else
 	type=(enum en_fieldtype) share->rec[field].type;
       end=strmov(buff,field_pack[type]);
+      if (end != buff)
+      {
+        *(end++)=',';
+        *(end++)=' ';
+      }
       if (share->options & HA_OPTION_COMPRESS_RECORD)
       {
 	if (share->rec[field].pack_type & PACK_TYPE_SELECTED)
-	  end=strmov(end,", not_always");
+	  end=strmov(end,"not_always, ");
 	if (share->rec[field].pack_type & PACK_TYPE_SPACE_FIELDS)
-	  end=strmov(end,", no empty");
+	  end=strmov(end,"no empty, ");
 	if (share->rec[field].pack_type & PACK_TYPE_ZERO_FILL)
 	{
-	  sprintf(end,", zerofill(%d)",share->rec[field].space_length_bits);
+	  sprintf(end,"zerofill(%d), ",share->rec[field].space_length_bits);
 	  end=strend(end);
 	}
       }
-      if (buff[0] == ',')
-	strmov(buff,buff+2);
+      if (end != buff)
+        end[-2]= 0;                               /* Remove ", " */
       int10_to_str((long) share->rec[field].length,length,10);
       null_bit[0]=null_pos[0]=0;
       if (share->rec[field].null_bit)

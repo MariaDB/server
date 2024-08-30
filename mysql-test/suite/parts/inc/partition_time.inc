@@ -57,7 +57,7 @@ dec $count;
 commit;
 --enable_query_log
 select count(*) from t3;
-select * from t3;
+select a, second(a), if(second(a)<16,1,if(second(a)<31,2,if(second(a)<45,3,4))) from t3;
 drop table t3;
 
 eval create table t4 (a time not null, primary key(a)) engine=$engine 

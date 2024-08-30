@@ -127,7 +127,7 @@ include/rpl_reset.inc
 ####################################################################
 connection master;
 SET SQL_LOG_BIN=0;
-CREATE TABLE t1 (c1 CHAR(1));
+CREATE TABLE t1 (c1 CHAR(1)) CHARACTER SET latin1;
 SET SQL_LOG_BIN=1;
 connection slave;
 CREATE TABLE t1 (c1 BLOB);
@@ -147,10 +147,10 @@ include/rpl_reset.inc
 ####################################################################
 connection master;
 SET SQL_LOG_BIN=0;
-CREATE TABLE t1 (c1 CHAR(1));
+CREATE TABLE t1 (c1 CHAR(1)) CHARACTER SET latin1;
 SET SQL_LOG_BIN=1;
 connection slave;
-CREATE TABLE t1 (c1 TEXT);
+CREATE TABLE t1 (c1 TEXT) CHARACTER SET latin1;
 connection master;
 INSERT INTO t1 VALUES ('a');
 connection slave;

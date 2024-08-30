@@ -20,6 +20,9 @@
 #include "grn_ctx_impl.h"
 #include "grn_db.h"
 #include "grn_util.h"
+#include <my_attribute.h>
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static void
 grn_loader_save_error(grn_ctx *ctx, grn_loader *loader)
@@ -468,7 +471,8 @@ bracket_close(grn_ctx *ctx, grn_loader *loader)
   }
 
   for (i = 0; i < nvalues; i++, value = values_next(ctx, value)) {
-    if (i == loader->id_offset || i == loader->key_offset) {
+    if ((uint) i == (uint) loader->id_offset ||
+        (uint) i == (uint) loader->key_offset) {
        /* Skip _id and _key, because it's already used to get id. */
        continue;
     }
@@ -532,7 +536,7 @@ brace_close(grn_ctx *ctx, grn_loader *loader)
   GRN_ASSERT(value->header.domain == GRN_JSON_LOAD_OPEN_BRACE);
   GRN_UINT32_SET(ctx, value_begin, loader->values_size - begin - 1);
   value_begin++;
-  if (GRN_BULK_VSIZE(&loader->level) > sizeof(uint32_t) * loader->emit_level) {
+  if ((size_t) GRN_BULK_VSIZE(&loader->level) > sizeof(uint32_t) * loader->emit_level) {
     return;
   }
   if (!loader->table) {
@@ -1227,3 +1231,5 @@ grn_load(grn_ctx *ctx, grn_content_type input_type,
   }
   GRN_API_RETURN(ctx->rc);
 }
+
+PRAGMA_REENABLE_CHECK_STACK_FRAME

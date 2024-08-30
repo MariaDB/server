@@ -1,0 +1,2 @@
+--loose-slave-skip-errors=3,100,137,0,643,1752
+--old-mode=no_dup_key_warnings_with_ignore,compat_5_1_checksum

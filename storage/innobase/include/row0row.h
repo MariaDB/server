@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,7 +28,6 @@ Created 4/20/1996 Heikki Tuuri
 #define row0row_h
 
 #include "que0types.h"
-#include "ibuf0ibuf.h"
 #include "trx0types.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
@@ -303,13 +302,13 @@ row_build_row_ref_fast(
 /***************************************************************//**
 Searches the clustered index record for a row, if we have the row
 reference.
-@return TRUE if found */
-ibool
+@return true if found */
+bool
 row_search_on_row_ref(
 /*==================*/
 	btr_pcur_t*		pcur,	/*!< out: persistent cursor, which must
 					be closed by the caller */
-	ulint			mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const dict_table_t*	table,	/*!< in: table */
 	const dtuple_t*		ref,	/*!< in: row reference */
 	mtr_t*			mtr)	/*!< in/out: mtr */
@@ -321,7 +320,7 @@ on the secondary index record are preserved.
 rec_t*
 row_get_clust_rec(
 /*==============*/
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	const rec_t*	rec,	/*!< in: record in a secondary index */
 	dict_index_t*	index,	/*!< in: secondary index */
 	dict_index_t**	clust_index,/*!< out: clustered index */
@@ -344,32 +343,24 @@ row_parse_int(
 	ulint		mtype,
 	bool		unsigned_type);
 
-/** Result of row_search_index_entry */
-enum row_search_result {
-	ROW_FOUND = 0,		/*!< the record was found */
-	ROW_NOT_FOUND,		/*!< record not found */
-	ROW_BUFFERED,		/*!< one of BTR_INSERT, BTR_DELETE, or
-				BTR_DELETE_MARK was specified, the
-				secondary index leaf page was not in
-				the buffer pool, and the operation was
-				enqueued in the insert/delete buffer */
-	ROW_NOT_DELETED_REF	/*!< BTR_DELETE was specified, and
-				row_purge_poss_sec() failed */
-};
-
 /***************************************************************//**
 Searches an index record.
-@return whether the record was found or buffered */
-enum row_search_result
+@return whether the record was found */
+bool
 row_search_index_entry(
 /*===================*/
-	dict_index_t*	index,	/*!< in: index */
 	const dtuple_t*	entry,	/*!< in: index entry */
-	ulint		mode,	/*!< in: BTR_MODIFY_LEAF, ... */
+	btr_latch_mode	mode,	/*!< in: BTR_MODIFY_LEAF, ... */
 	btr_pcur_t*	pcur,	/*!< in/out: persistent cursor, which must
 				be closed by the caller */
 	mtr_t*		mtr)	/*!< in: mtr */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Get the byte offset of the DB_TRX_ID column
+@param[in]	rec	clustered index record
+@param[in]	index	clustered index
+@return	the byte offset of DB_TRX_ID, from the start of rec */
+ulint row_trx_id_offset(const rec_t* rec, const dict_index_t* index);
 
 #define ROW_COPY_DATA		1
 #define ROW_COPY_POINTERS	2
@@ -399,22 +390,17 @@ row_raw_format(
 						in bytes */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+#include "dict0mem.h"
+
 /** Prepare to start a mini-transaction to modify an index.
 @param[in,out]	mtr		mini-transaction
-@param[in,out]	index		possibly secondary index
-@param[in]	pessimistic	whether this is a pessimistic operation */
-inline
-void
-row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
+@param[in,out]	index		possibly secondary index */
+inline void row_mtr_start(mtr_t* mtr, dict_index_t* index)
 {
 	mtr->start();
 
 	switch (index->table->space_id) {
-	case IBUF_SPACE_ID:
-		if (pessimistic
-		    && !(index->type & (DICT_UNIQUE | DICT_SPATIAL))) {
-			ibuf_free_excess_pages();
-		}
+	case 0:
 		break;
 	case SRV_TMP_SPACE_ID:
 		mtr->set_log_mode(MTR_LOG_NO_REDO);

@@ -1,5 +1,6 @@
+
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2014, 2022, MariaDB Corporation.
+# Copyright (c) 2014, 2023, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,19 +20,9 @@
 INCLUDE(CheckFunctionExists)
 INCLUDE(CheckCSourceCompiles)
 INCLUDE(CheckCSourceRuns)
-INCLUDE(lz4.cmake)
-INCLUDE(lzo.cmake)
-INCLUDE(lzma.cmake)
-INCLUDE(bzip2.cmake)
-INCLUDE(snappy.cmake)
 INCLUDE(numa)
 INCLUDE(TestBigEndian)
 
-MYSQL_CHECK_LZ4()
-MYSQL_CHECK_LZO()
-MYSQL_CHECK_LZMA()
-MYSQL_CHECK_BZIP2()
-MYSQL_CHECK_SNAPPY()
 MYSQL_CHECK_NUMA()
 
 INCLUDE(${MYSQL_CMAKE_SCRIPT_DIR}/compile_flags.cmake)
@@ -53,43 +44,16 @@ ENDIF()
 # OS tests
 IF(UNIX)
   IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-
     ADD_DEFINITIONS("-D_GNU_SOURCE=1")
-
-    CHECK_INCLUDE_FILES (libaio.h HAVE_LIBAIO_H)
-    CHECK_LIBRARY_EXISTS(aio io_queue_init "" HAVE_LIBAIO)
-
-    IF(HAVE_LIBAIO_H AND HAVE_LIBAIO)
-      ADD_DEFINITIONS(-DLINUX_NATIVE_AIO=1)
-      LINK_LIBRARIES(aio)
-    ENDIF()
     IF(HAVE_LIBNUMA)
       LINK_LIBRARIES(numa)
     ENDIF()
-  ENDIF()
-ENDIF()
-
-SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
-
-IF(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-# After: WL#5825 Using C++ Standard Library with MySQL code
-#       we no longer use -fno-exceptions
-#	SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
-
-# Add -Wconversion if compiling with GCC
-## As of Mar 15 2011 this flag causes 3573+ warnings. If you are reading this
-## please fix them and enable the following code:
-#SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion")
-
-  IF (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" OR
-      CMAKE_SYSTEM_PROCESSOR MATCHES "i386" AND
-      CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.6)
-    INCLUDE(CheckCXXCompilerFlag)
-    CHECK_CXX_COMPILER_FLAG("-fno-builtin-memcmp" HAVE_NO_BUILTIN_MEMCMP)
-    IF (HAVE_NO_BUILTIN_MEMCMP)
-      # Work around http://gcc.gnu.org/bugzilla/show_bug.cgi?id=43052
-      SET_SOURCE_FILES_PROPERTIES(${CMAKE_CURRENT_SOURCE_DIR}/rem/rem0cmp.cc
-	PROPERTIES COMPILE_FLAGS -fno-builtin-memcmp)
+    IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
+      IF(CMAKE_SYSTEM_PROCESSOR MATCHES "(aarch|AARCH|p(ower)?pc|x86_|amd)64")
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" ON)
+      ELSE() # Disable by default on ISA that are not covered by our CI
+        OPTION(WITH_INNODB_PMEM "Support memory-mapped InnoDB redo log" OFF)
+      ENDIF()
     ENDIF()
   ENDIF()
 ENDIF()
@@ -114,17 +78,19 @@ ADD_FEATURE_INFO(INNODB_ROOT_GUESS WITH_INNODB_ROOT_GUESS
 
 OPTION(WITH_INNODB_EXTRA_DEBUG "Enable extra InnoDB debug checks" OFF)
 IF(WITH_INNODB_EXTRA_DEBUG)
-  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG)
+  ADD_DEFINITIONS(-DUNIV_ZIP_DEBUG -DLOG_LATCH_DEBUG)
 ENDIF()
 ADD_FEATURE_INFO(INNODB_EXTRA_DEBUG WITH_INNODB_EXTRA_DEBUG "Extra InnoDB debug checks")
 
-CHECK_FUNCTION_EXISTS(nanosleep HAVE_NANOSLEEP)
-IF(HAVE_NANOSLEEP)
- ADD_DEFINITIONS(-DHAVE_NANOSLEEP=1)
-ENDIF()
-
 IF(HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE)
  ADD_DEFINITIONS(-DHAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE=1)
+ENDIF()
+
+IF (CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR
+    CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wconversion -Wno-sign-conversion")
+  SET_SOURCE_FILES_PROPERTIES(fts/fts0pars.cc
+    PROPERTIES COMPILE_FLAGS -Wno-conversion)
 ENDIF()
 
 IF(NOT MSVC)
@@ -136,17 +102,6 @@ IF(NOT MSVC)
 ENDIF(NOT MSVC)
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
-
-SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
-
-IF(MUTEXTYPE MATCHES "event")
-  ADD_DEFINITIONS(-DMUTEX_EVENT)
-ELSEIF(MUTEXTYPE MATCHES "futex" AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  ADD_DEFINITIONS(-DMUTEX_FUTEX)
-ELSE()
-   ADD_DEFINITIONS(-DMUTEX_SYS)
-ENDIF()
-
 
 # Include directories under innobase
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
@@ -162,16 +117,6 @@ IF(CMAKE_CXX_COMPILER_ID MATCHES "SunPro"
     PROPERTIES COMPILE_FLAGS -xO3)
 ENDIF()
 
-# Avoid generating Hardware Capabilities due to crc32 instructions
-IF(CMAKE_SYSTEM_NAME MATCHES "SunOS" AND CMAKE_SYSTEM_PROCESSOR MATCHES "i386")
-  MY_CHECK_CXX_COMPILER_FLAG("-Wa,-nH")
-  IF(have_CXX__Wa__nH)
-    ADD_COMPILE_FLAGS(
-      ut/ut0crc32.cc
-      COMPILE_FLAGS "-Wa,-nH"
-    )
-  ENDIF()
-ENDIF()
 
 IF(MSVC)
   # Avoid "unreferenced label" warning in generated file
@@ -186,16 +131,14 @@ ENDIF()
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/storage/innobase/include
                     ${CMAKE_SOURCE_DIR}/storage/innobase/handler
                     ${CMAKE_SOURCE_DIR}/libbinlogevents/include)
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/tpool)
 
 SET(INNOBASE_SOURCES
 	btr/btr0btr.cc
 	btr/btr0bulk.cc
 	btr/btr0cur.cc
 	btr/btr0pcur.cc
-	btr/btr0scrub.cc
 	btr/btr0sea.cc
-	btr/btr0defragment.cc
-	buf/buf0block_hint.cc
 	buf/buf0buddy.cc
 	buf/buf0buf.cc
 	buf/buf0dblwr.cc
@@ -213,7 +156,7 @@ SET(INNOBASE_SOURCES
 	dict/dict0mem.cc
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
-	dict/dict0defrag_bg.cc
+	dict/drop.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
@@ -224,9 +167,7 @@ SET(INNOBASE_SOURCES
 	fsp/fsp0space.cc
 	fsp/fsp0sysspace.cc
 	fut/fut0lst.cc
-	ha/ha0ha.cc
 	ha/ha0storage.cc
-	ha/hash0hash.cc
 	fts/fts0fts.cc
 	fts/fts0ast.cc
 	fts/fts0blex.cc
@@ -244,21 +185,200 @@ SET(INNOBASE_SOURCES
 	handler/handler0alter.cc
 	handler/i_s.cc
 	ibuf/ibuf0ibuf.cc
+	include/btr0btr.h
+	include/btr0btr.inl
+	include/btr0bulk.h
+	include/btr0cur.h
+	include/btr0cur.inl
+	include/btr0pcur.h
+	include/btr0pcur.inl
+	include/btr0sea.h
+	include/btr0sea.inl
+	include/btr0types.h
+	include/buf0buddy.h
+	include/buf0buf.h
+	include/buf0buf.inl
+	include/buf0checksum.h
+	include/buf0dblwr.h
+	include/buf0dump.h
+	include/buf0flu.h
+	include/buf0lru.h
+	include/buf0rea.h
+	include/buf0types.h
+	include/data0data.h
+	include/data0data.inl
+	include/data0type.h
+	include/data0type.inl
+	include/data0types.h
+	include/db0err.h
+	include/dict0boot.h
+	include/dict0crea.h
+	include/dict0crea.inl
+	include/dict0dict.h
+	include/dict0dict.inl
+	include/dict0load.h
+	include/dict0mem.h
+	include/dict0mem.inl
+	include/dict0pagecompress.h
+	include/dict0pagecompress.inl
+	include/dict0stats.h
+	include/dict0stats.inl
+	include/dict0stats_bg.h
+	include/dict0types.h
+	include/dyn0buf.h
+	include/dyn0types.h
+	include/eval0eval.h
+	include/eval0eval.inl
+	include/eval0proc.h
+	include/eval0proc.inl
+	include/fil0crypt.h
+	include/fil0crypt.inl
+	include/fil0fil.h
+	include/fil0pagecompress.h
+	include/fsp0file.h
+	include/fsp0fsp.h
+	include/fsp0space.h
+	include/fsp0sysspace.h
+	include/fsp0types.h
+	include/fts0ast.h
+	include/fts0blex.h
+	include/fts0fts.h
+	include/fts0opt.h
+	include/fts0pars.h
+	include/fts0plugin.h
+	include/fts0priv.h
+	include/fts0priv.inl
+	include/fts0tlex.h
+	include/fts0tokenize.h
+	include/fts0types.h
+	include/fts0types.inl
+	include/fts0vlc.h
+	include/fut0lst.h
+	include/gis0geo.h
+	include/gis0rtree.h
+	include/gis0rtree.inl
+	include/gis0type.h
+	include/ha_prototypes.h
+	include/ha0ha.h
+	include/ha0ha.inl
+	include/ha0storage.h
+	include/ha0storage.inl
+	include/handler0alter.h
+	include/hash0hash.h
+	include/ibuf0ibuf.h
+	include/lock0iter.h
+	include/lock0lock.h
+	include/lock0lock.inl
+	include/lock0prdt.h
+	include/lock0priv.h
+	include/lock0priv.inl
+	include/lock0types.h
+	include/log0crypt.h
+	include/log0log.h
+	include/log0recv.h
+	include/log0types.h
+	include/mach0data.h
+	include/mach0data.inl
+	include/mem0mem.h
+	include/mem0mem.inl
+	include/mtr0log.h
+	include/mtr0mtr.h
+	include/mtr0types.h
+	include/os0file.h
+	include/os0file.inl
+	include/page0cur.h
+	include/page0cur.inl
+	include/page0page.h
+	include/page0page.inl
+	include/page0types.h
+	include/page0zip.h
+	include/page0zip.inl
+	include/pars0grm.h
+	include/pars0opt.h
+	include/pars0pars.h
+	include/pars0sym.h
+	include/pars0types.h
+	include/que0que.h
+	include/que0que.inl
+	include/que0types.h
+	include/read0types.h
+	include/rem0cmp.h
+	include/rem0rec.h
+	include/rem0rec.inl
+	include/rem0types.h
+	include/row0ext.h
+	include/row0ext.inl
+	include/row0ftsort.h
+	include/row0import.h
+	include/row0ins.h
+	include/row0log.h
+	include/row0merge.h
+	include/row0mysql.h
+	include/row0purge.h
+	include/row0quiesce.h
+	include/row0row.h
+	include/row0row.inl
+	include/row0sel.h
+	include/row0types.h
+	include/row0uins.h
+	include/row0umod.h
+	include/row0undo.h
+	include/row0upd.h
+	include/row0upd.inl
+	include/row0vers.h
+	include/rw_lock.h
+	include/small_vector.h
+	include/srv0mon.h
+	include/srv0mon.inl
+	include/srv0srv.h
+	include/srv0start.h
+	include/srw_lock.h
+	include/sux_lock.h
+	include/transactional_lock_guard.h
+	include/trx0i_s.h
+	include/trx0purge.h
+	include/trx0rec.h
+	include/trx0roll.h
+	include/trx0rseg.h
+	include/trx0sys.h
+	include/trx0trx.h
+	include/trx0trx.inl
+	include/trx0types.h
+	include/trx0undo.h
+	include/trx0undo.inl
+	include/trx0xa.h
+	include/univ.i
+	include/ut0byte.h
+	include/ut0byte.inl
+	include/ut0counter.h
+	include/ut0dbg.h
+	include/ut0list.h
+	include/ut0list.inl
+	include/ut0lst.h
+	include/ut0mem.h
+	include/ut0mem.inl
+	include/ut0new.h
+	include/ut0pool.h
+	include/ut0rbt.h
+	include/ut0rnd.h
+	include/ut0rnd.inl
+	include/ut0sort.h
+	include/ut0stage.h
+	include/ut0ut.h
+	include/ut0ut.inl
+	include/ut0vec.h
+	include/ut0vec.inl
+	include/ut0wqueue.h
 	lock/lock0iter.cc
 	lock/lock0prdt.cc
 	lock/lock0lock.cc
-	lock/lock0wait.cc
 	log/log0log.cc
 	log/log0recv.cc
 	log/log0crypt.cc
-	mach/mach0data.cc
+	log/log0sync.cc
 	mem/mem0mem.cc
-	mtr/mtr0log.cc
 	mtr/mtr0mtr.cc
 	os/os0file.cc
-	os/os0proc.cc
-	os/os0event.cc
-	os/os0thread.cc
 	page/page0cur.cc
 	page/page0page.cc
 	page/page0zip.cc
@@ -287,14 +407,10 @@ SET(INNOBASE_SOURCES
 	row/row0upd.cc
 	row/row0quiesce.cc
 	row/row0vers.cc
-	srv/srv0conc.cc
 	srv/srv0mon.cc
 	srv/srv0srv.cc
 	srv/srv0start.cc
-	sync/sync0arr.cc
-	sync/sync0rw.cc
-	sync/sync0debug.cc
-	sync/sync0sync.cc
+	sync/srw_lock.cc
 	trx/trx0i_s.cc
 	trx/trx0purge.cc
 	trx/trx0rec.cc
@@ -303,7 +419,6 @@ SET(INNOBASE_SOURCES
 	trx/trx0sys.cc
 	trx/trx0trx.cc
 	trx/trx0undo.cc
-	ut/ut0crc32.cc
 	ut/ut0dbg.cc
 	ut/ut0list.cc
 	ut/ut0mem.cc
@@ -314,12 +429,16 @@ SET(INNOBASE_SOURCES
 	ut/ut0vec.cc
 	ut/ut0wqueue.cc)
 
+IF(WITH_INNODB_PMEM)
+  ADD_DEFINITIONS(-DHAVE_PMEM)
+  SET(INNOBASE_SOURCES ${INNOBASE_SOURCES} include/cache.h sync/cache.cc)
+ENDIF()
+
 MYSQL_ADD_PLUGIN(innobase ${INNOBASE_SOURCES} STORAGE_ENGINE
   MODULE_OUTPUT_NAME ha_innodb
   DEFAULT RECOMPILE_FOR_EMBEDDED
   LINK_LIBRARIES
-	${ZLIB_LIBRARY}
-	${CRC32_LIBRARY}
+	${ZLIB_LIBRARIES}
 	${NUMA_LIBRARY}
 	${LIBSYSTEMD}
 	${LINKER_SCRIPT})
@@ -328,7 +447,7 @@ IF(NOT TARGET innobase)
   RETURN()
 ENDIF()
 
-ADD_DEFINITIONS(${SSL_DEFINES})
+ADD_DEFINITIONS(${SSL_DEFINES} ${TPOOL_DEFINES})
 
 # A GCC bug causes crash when compiling these files on ARM64 with -O1+
 # Compile them with -O0 as a workaround.
@@ -348,6 +467,20 @@ IF(CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"
       COMPILE_FLAGS "-O0"
       )
 ENDIF()
+
+# Older gcc version insist on -mhtm flag for including the
+# htmxlintrin.h header. This is also true for new gcc versions
+# like 11.2.0 in Debian Sid
+# s390x because of the way it defines the high level intrinsics
+# as not-inline in the header file can only be included by one
+# source file that has -mhtm enabled.
+IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64|s390x"
+   OR CMAKE_SYSTEM_NAME MATCHES "AIX")
+  ADD_COMPILE_FLAGS(
+      sync/srw_lock.cc
+      COMPILE_FLAGS "-mhtm"
+      )
+ENDIF()
 IF(MSVC)
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
    ADD_COMPILE_FLAGS(
@@ -360,6 +493,7 @@ IF(MSVC)
 ENDIF()
 
 IF(NOT (PLUGIN_INNOBASE STREQUAL DYNAMIC))
+  TARGET_LINK_LIBRARIES(innobase tpool mysys)
   ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
 ENDIF()
 

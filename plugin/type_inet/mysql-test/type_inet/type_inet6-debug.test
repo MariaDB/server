@@ -1,0 +1,14 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+--echo #
+
+SET @old_debug_dbug=@@debug_dbug;
+
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 INET6, c02 INET6);
+SET debug_dbug=@old_debug_dbug;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

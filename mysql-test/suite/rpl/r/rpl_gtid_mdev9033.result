@@ -58,8 +58,8 @@ connection server_3;
 include/sync_with_master_gtid.inc
 connection server_2;
 STOP SLAVE;
-CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+CHANGE MASTER TO IGNORE_DOMAIN_IDS = ();
 connection server_3;
 STOP SLAVE;
-CHANGE MASTER TO MASTER_USE_GTID = NO, IGNORE_DOMAIN_IDS = ();
+CHANGE MASTER TO IGNORE_DOMAIN_IDS = ();
 # End of test.

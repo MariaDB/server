@@ -30,6 +30,9 @@ PRIMARY KEY (id)
 PARTITION BY HASH(id) (
 PARTITION pt1 COMMENT='srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT id, CASE WHEN name='Alice' THEN "A" WHEN name='Bob' THEN "B" END FROM tbl_a;
 id	CASE WHEN name='Alice' THEN "A" WHEN name='Bob' THEN "B" END
 1	A

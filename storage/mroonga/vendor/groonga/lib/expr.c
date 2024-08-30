@@ -529,7 +529,7 @@ typedef struct {
 static grn_expr_dfi *
 grn_expr_dfi_pop(grn_expr *expr)
 {
-  if (GRN_BULK_VSIZE(&expr->dfi) >= sizeof(grn_expr_dfi)) {
+  if ((size_t) GRN_BULK_VSIZE(&expr->dfi) >= sizeof(grn_expr_dfi)) {
     grn_expr_dfi *dfi;
     GRN_BULK_INCR_LEN(&expr->dfi, -((ssize_t)(sizeof(grn_expr_dfi))));
     dfi = (grn_expr_dfi *)GRN_BULK_CURR(&expr->dfi);
@@ -1459,7 +1459,7 @@ grn_proc_call(grn_ctx *ctx, grn_obj *proc, int nargs, grn_obj *caller)
   grn_proc_ctx pctx;
   grn_obj *obj = NULL, **args;
   grn_proc *p = (grn_proc *)proc;
-  if (nargs > ctx->impl->stack_curr) { return GRN_INVALID_ARGUMENT; }
+  if ((uint32_t) nargs > ctx->impl->stack_curr) { return GRN_INVALID_ARGUMENT; }
   GRN_API_ENTER;
   if (grn_obj_is_selector_only_proc(ctx, proc)) {
     char name[GRN_TABLE_MAX_KEY_SIZE];
@@ -3841,7 +3841,7 @@ grn_expr_get_value(grn_ctx *ctx, grn_obj *expr, int offset)
   grn_obj *res = NULL;
   grn_expr *e = (grn_expr *)expr;
   GRN_API_ENTER;
-  if (0 <= offset && offset < e->values_size) {
+  if (0 <= offset && (uint) offset < e->values_size) {
     res = &e->values[offset];
   }
   GRN_API_RETURN(res);
@@ -5386,7 +5386,7 @@ grn_scan_info_build_simple_and_operations(grn_ctx *ctx,
   int i;
   int nth_sis;
 
-  for (i = 0, nth_sis = 0; i < e->codes_curr; i += 3, nth_sis++) {
+  for (i = 0, nth_sis = 0; (uint) i < e->codes_curr; i += 3, nth_sis++) {
     grn_expr_code *target = e->codes + i;
     grn_expr_code *constant = e->codes + i + 1;
     grn_expr_code *operator = e->codes + i + 2;
@@ -5454,7 +5454,7 @@ grn_scan_info_build_simple_and_operations(grn_ctx *ctx,
     return NULL;
   }
 
-  for (i = 0, nth_sis = 0; i < e->codes_curr; i += 3, nth_sis++) {
+  for (i = 0, nth_sis = 0; (uint) i < e->codes_curr; i += 3, nth_sis++) {
     grn_expr_code *target = e->codes + i;
     grn_expr_code *constant = e->codes + i + 1;
     grn_expr_code *operator = e->codes + i + 2;
@@ -5920,7 +5920,7 @@ grn_table_select_index_equal(grn_ctx *ctx,
 
             if (si->position.specified) {
               while ((posting = grn_ii_cursor_next_pos(ctx, ii_cursor))) {
-                if (posting->pos == si->position.start) {
+                if ((int) posting->pos == si->position.start) {
                   break;
                 }
               }
@@ -6037,7 +6037,7 @@ grn_table_select_index_not_equal(grn_ctx *ctx,
 
             if (si->position.specified) {
               while ((posting = grn_ii_cursor_next_pos(ctx, ii_cursor))) {
-                if (posting->pos == si->position.start) {
+                if ((int) posting->pos == si->position.start) {
                   break;
                 }
               }
@@ -6561,7 +6561,7 @@ grn_table_select_index_range_column(grn_ctx *ctx, grn_obj *table,
 
             if (si->position.specified) {
               while ((posting = grn_ii_cursor_next_pos(ctx, ii_cursor))) {
-                if (posting->pos == si->position.start) {
+                if ((int) posting->pos == si->position.start) {
                   break;
                 }
               }
@@ -6849,7 +6849,7 @@ grn_table_select(grn_ctx *ctx, grn_obj *table, grn_obj *expr,
       grn_id min_id = GRN_ID_NIL;
       v = grn_expr_get_var_by_offset(ctx, (grn_obj *)e, 0);
       GRN_PTR_INIT(&res_stack, GRN_OBJ_VECTOR, GRN_ID_NIL);
-      for (i = 0; i < scanner->n_sis; i++) {
+      for (i = 0; (uint) i < scanner->n_sis; i++) {
         scan_info *si = scanner->sis[i];
         if (si->flags & SCAN_POP) {
           grn_obj *res_;
@@ -6897,7 +6897,7 @@ grn_table_select(grn_ctx *ctx, grn_obj *table, grn_obj *expr,
 
       i = 0;
       if (!res_created) { i++; }
-      for (; i < GRN_BULK_VSIZE(&res_stack) / sizeof(grn_obj *); i++) {
+      for (; (uint) i < GRN_BULK_VSIZE(&res_stack) / sizeof(grn_obj *); i++) {
         grn_obj *stacked_res;
         stacked_res = *((grn_obj **)GRN_BULK_HEAD(&res_stack) + i);
         grn_obj_close(ctx, stacked_res);

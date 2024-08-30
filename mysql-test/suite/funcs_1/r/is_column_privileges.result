@@ -28,7 +28,7 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.COLUMN_PRIVILEGES;
 Field	Type	Null	Key	Default	Extra
-GRANTEE	varchar(190)	NO		NULL	
+GRANTEE	varchar(385)	NO		NULL	
 TABLE_CATALOG	varchar(512)	NO		NULL	
 TABLE_SCHEMA	varchar(64)	NO		NULL	
 TABLE_NAME	varchar(64)	NO		NULL	
@@ -38,17 +38,17 @@ IS_GRANTABLE	varchar(3)	NO		NULL
 SHOW CREATE TABLE information_schema.COLUMN_PRIVILEGES;
 Table	Create Table
 COLUMN_PRIVILEGES	CREATE TEMPORARY TABLE `COLUMN_PRIVILEGES` (
-  `GRANTEE` varchar(190) NOT NULL,
+  `GRANTEE` varchar(385) NOT NULL,
   `TABLE_CATALOG` varchar(512) NOT NULL,
   `TABLE_SCHEMA` varchar(64) NOT NULL,
   `TABLE_NAME` varchar(64) NOT NULL,
   `COLUMN_NAME` varchar(64) NOT NULL,
   `PRIVILEGE_TYPE` varchar(64) NOT NULL,
   `IS_GRANTABLE` varchar(3) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.COLUMN_PRIVILEGES;
 Field	Type	Null	Key	Default	Extra
-GRANTEE	varchar(190)	NO		NULL	
+GRANTEE	varchar(385)	NO		NULL	
 TABLE_CATALOG	varchar(512)	NO		NULL	
 TABLE_SCHEMA	varchar(64)	NO		NULL	
 TABLE_NAME	varchar(64)	NO		NULL	
@@ -149,6 +149,7 @@ GRANTEE	TABLE_CATALOG	TABLE_SCHEMA	PRIVILEGE_TYPE	IS_GRANTABLE
 'testuser3'@'localhost'	def	db_datadict	LOCK TABLES	NO
 'testuser3'@'localhost'	def	db_datadict	REFERENCES	NO
 'testuser3'@'localhost'	def	db_datadict	SELECT	NO
+'testuser3'@'localhost'	def	db_datadict	SHOW CREATE ROUTINE	NO
 'testuser3'@'localhost'	def	db_datadict	SHOW VIEW	NO
 'testuser3'@'localhost'	def	db_datadict	TRIGGER	NO
 'testuser3'@'localhost'	def	db_datadict	UPDATE	NO

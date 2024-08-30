@@ -200,8 +200,8 @@ class DllExport XXBASE : public CSORT, public BLOCK {
           void FreeIndex(void) {PlgDBfree(Index);}
 
   // Methods
-  virtual void Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void Prints(PGLOBAL g, char *ps, uint z);
+  void Printf(PGLOBAL g, FILE *f, uint n) override;
+  void Prints(PGLOBAL g, char *ps, uint z) override;
   virtual bool Init(PGLOBAL g) = 0;
   virtual bool Make(PGLOBAL g, PIXDEF sxp) = 0;
 #if defined(XMAP)
@@ -214,7 +214,7 @@ class DllExport XXBASE : public CSORT, public BLOCK {
   virtual int  FastFind(void) = 0;
   virtual bool Reorder(PGLOBAL) {return true;}
   virtual int  Range(PGLOBAL, int = 0, bool = true) {return -1;} // Means error
-  virtual int  Qcompare(int *, int *) = 0;
+  int  Qcompare(int *, int *) override = 0;
   virtual int  GroupSize(void) {return 1;}
   virtual void Close(void) = 0;
 
@@ -254,32 +254,32 @@ class DllExport XINDEX : public XXBASE {
                        PCOL *cp, PXOB *xp = NULL, int k = 0);
 
   // Implementation
-  virtual IDT  GetType(void) {return TYPE_IDX_INDX;}
-  virtual bool IsMul(void) {return (Nval < Nk) ? true : Mul;}
+  IDT  GetType(void) override {return TYPE_IDX_INDX;}
+  bool IsMul(void) override {return (Nval < Nk) ? true : Mul;}
 //virtual bool HaveSame(void) {return Op == OP_SAME;}
-  virtual int  GetCurPos(void) {return (Pex) ? Pex[Cur_K] : Cur_K;}
-  virtual void SetNval(int n) {Nval = n;}
+  int  GetCurPos(void) override {return (Pex) ? Pex[Cur_K] : Cur_K;}
+  void SetNval(int n) override {Nval = n;}
           int  GetMaxSame(void) {return MaxSame;}
 
   // Methods
-  virtual void Reset(void);
-  virtual bool Init(PGLOBAL g);
+  void Reset(void) override;
+  bool Init(PGLOBAL g) override;
 #if defined(XMAP)
-  virtual bool MapInit(PGLOBAL g);
+  bool MapInit(PGLOBAL g) override;
 #endif   // XMAP
-  virtual int  Qcompare(int *, int *);
-  virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(void);
-  virtual int  GroupSize(void);
-  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
-  virtual int  MaxRange(void) {return MaxSame;}
+  int  Qcompare(int *, int *) override;
+  int  Fetch(PGLOBAL g) override;
+  int  FastFind(void) override;
+  int  GroupSize(void) override;
+  int  Range(PGLOBAL g, int limit = 0, bool incl = true) override;
+  int  MaxRange(void) override {return MaxSame;}
   virtual int  ColMaxSame(PXCOL kp);
-  virtual void Close(void);
-  virtual bool NextVal(bool eq);
-  virtual bool PrevVal(void);
-  virtual bool Make(PGLOBAL g, PIXDEF sxp);
+  void Close(void) override;
+  bool NextVal(bool eq) override;
+  bool PrevVal(void) override;
+  bool Make(PGLOBAL g, PIXDEF sxp) override;
   virtual bool SaveIndex(PGLOBAL g, PIXDEF sxp);
-  virtual bool Reorder(PGLOBAL g);
+  bool Reorder(PGLOBAL g) override;
           bool GetAllSizes(PGLOBAL g,/* int &ndif,*/ int &numk);
 
  protected:
@@ -310,16 +310,16 @@ class DllExport XINDXS : public XINDEX {
   XINDXS(PTDBDOS tdbp, PIXDEF xdp, PXLOAD pxp, PCOL *cp, PXOB *xp = NULL);
 
   // Implementation
-  virtual void SetNval(int n) {assert(n == 1);}
+  void SetNval(int n) override {assert(n == 1);}
 
   // Methods
-  virtual int  Qcompare(int *, int *);
-  virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(void);
-  virtual bool NextVal(bool eq);
-  virtual bool PrevVal(void);
-  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
-  virtual int  GroupSize(void);
+  int  Qcompare(int *, int *) override;
+  int  Fetch(PGLOBAL g) override;
+  int  FastFind(void) override;
+  bool NextVal(bool eq) override;
+  bool PrevVal(void) override;
+  int  Range(PGLOBAL g, int limit = 0, bool incl = true) override;
+  int  GroupSize(void) override;
 
  protected:
   // Members
@@ -367,14 +367,14 @@ class DllExport XFILE : public XLOAD {
   XFILE(void);
 
   // Methods
-  virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
-  virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
-  virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
-  virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
-  virtual void  Close(char *fn, int id);
-  virtual void  Close(void);
+  bool  Open(PGLOBAL g, char *filename, int id, MODE mode) override;
+  bool  Seek(PGLOBAL g, int low, int high, int origin) override;
+  bool  Read(PGLOBAL g, void *buf, int n, int size) override;
+  int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc) override;
+  void  Close(char *fn, int id) override;
+  void  Close(void) override;
 #if defined(XMAP)
-  virtual void *FileView(PGLOBAL g, char *fn);
+  void *FileView(PGLOBAL g, char *fn) override;
 #endif   // XMAP
 
  protected:
@@ -395,13 +395,13 @@ class DllExport XHUGE : public XLOAD {
 
   // Methods
   using XLOAD::Close;
-  virtual bool  Open(PGLOBAL g, char *filename, int id, MODE mode);
-  virtual bool  Seek(PGLOBAL g, int low, int high, int origin);
-  virtual bool  Read(PGLOBAL g, void *buf, int n, int size);
-  virtual int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc);
-  virtual void  Close(char *fn, int id);
+  bool  Open(PGLOBAL g, char *filename, int id, MODE mode) override;
+  bool  Seek(PGLOBAL g, int low, int high, int origin) override;
+  bool  Read(PGLOBAL g, void *buf, int n, int size) override;
+  int   Write(PGLOBAL g, void *buf, int n, int size, bool& rc) override;
+  void  Close(char *fn, int id) override;
 #if defined(XMAP)
-  virtual void *FileView(PGLOBAL g, char *fn);
+  void *FileView(PGLOBAL g, char *fn) override;
 #endif   // XMAP
 
  protected:
@@ -418,21 +418,21 @@ class DllExport XXROW : public XXBASE {
   XXROW(PTDBDOS tbxp);
 
   // Implementation
-  virtual IDT  GetType(void) {return TYPE_IDX_XROW;}
-  virtual void Reset(void);
+  IDT  GetType(void) override {return TYPE_IDX_XROW;}
+  void Reset(void) override;
 
   // Methods
-  virtual bool Init(PGLOBAL g);
+  bool Init(PGLOBAL g) override;
 #if defined(XMAP)
-  virtual bool MapInit(PGLOBAL) {return true;}
+  bool MapInit(PGLOBAL) override {return true;}
 #endif   // XMAP
-  virtual int  Fetch(PGLOBAL g);
-  virtual int  FastFind(void);
-  virtual int  MaxRange(void) {return 1;}
-  virtual int  Range(PGLOBAL g, int limit = 0, bool incl = true);
-  virtual int  Qcompare(int *, int *) {assert(false); return 0;}
-  virtual bool Make(PGLOBAL, PIXDEF) {return false;}
-  virtual void Close(void) {}
+  int  Fetch(PGLOBAL g) override;
+  int  FastFind(void) override;
+  int  MaxRange(void) override {return 1;}
+  int  Range(PGLOBAL g, int limit = 0, bool incl = true) override;
+  int  Qcompare(int *, int *) override {assert(false); return 0;}
+  bool Make(PGLOBAL, PIXDEF) override {return false;}
+  void Close(void) override {}
 
  protected:
   // Members

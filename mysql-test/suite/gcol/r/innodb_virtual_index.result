@@ -1,6 +1,4 @@
 SET default_storage_engine= innodb;
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 #
 # Bug 21922176 - PREBUILT->SEARCH_TUPLE CREATED WITHOUT INCLUDING
 # THE NUMBER OF VIRTUAL COLUMNS
@@ -194,7 +192,6 @@ ALTER TABLE t1 ADD COLUMN col7a INT GENERATED ALWAYS AS (col1 % col2)
 VIRTUAL, ADD UNIQUE index idx (col1), algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: INPLACE ADD or DROP of virtual columns cannot be combined with other ALTER TABLE actions. Try ALGORITHM=COPY
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 #
 # Bug 27122803 - BACKPORT FIX FOR BUG 25899959 TO MYSQL-5.7
 #
@@ -206,7 +203,7 @@ t1	CREATE TABLE `t1` (
   `col1` int(10) DEFAULT NULL,
   `col2` char(21) GENERATED ALWAYS AS (`col1` * `col1`) VIRTUAL,
   KEY `n` (`col2`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # Bug #27968952  INNODB CRASH/CORRUPTION WITH TEXT PREFIX INDEXES
@@ -284,7 +281,7 @@ INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
 Warnings:
 Warning	1264	Out of range value for column 'va' at row 1
 ALTER TABLE t1 FORCE;
-ERROR 22003: Out of range value for column 'va' at row 1
+ERROR 22003: Out of range value for column 'va' at row 0
 DROP TABLE t1;
 #
 # MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
@@ -311,6 +308,8 @@ b VARCHAR(2499) AS (a) VIRTUAL
 INSERT INTO t1 (a) VALUES ('foo');
 ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
 ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+Warnings:
+Note	1071	Specified key was too long; max key length is 3072 bytes
 # Cleanup
 DROP TABLE t1;
 # End of 10.2 tests

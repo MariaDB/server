@@ -1,0 +1,4 @@
+!include ../galera_4nodes.cnf
+
+[mysqld]
+wsrep-ignore-apply-errors=0

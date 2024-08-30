@@ -50,6 +50,12 @@ int _ma_check_index(MARIA_HA *info, int inx)
       my_errno= HA_ERR_INTERNAL_ERROR;          /* Impossible */
     return(-1);
   }
+  if (unlikely(maria_is_crashed(info)))
+  {
+    my_errno= HA_ERR_CRASHED;
+    return(-1);
+  }
+
   return(inx);
 } /* _ma_check_index */
 
@@ -114,11 +120,11 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
                               MARIA_PINNED_PAGE **res_page_link,
                               uchar **res_page_buff)
 {
-  my_bool last_key_not_used;
+  my_bool last_key_not_used, buff_alloced;
   int error,flag;
   uint page_flag, nod_flag, used_length;
   uchar *keypos,*maxpos;
-  uchar lastkey[MARIA_MAX_KEY_BUFF];
+  uchar *lastkey;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_PAGE page;
   MARIA_PINNED_PAGE *page_link;
@@ -138,6 +144,11 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
     DBUG_RETURN(1);                             /* Search at upper levels */
   }
 
+  alloc_on_stack(*info->stack_end_ptr, lastkey, buff_alloced,
+                 keyinfo->max_store_length);
+  if (!lastkey)
+    DBUG_RETURN(1);
+
   if (_ma_fetch_keypage(&page, info, keyinfo, pos,
                         PAGECACHE_LOCK_READ, DFLT_INIT_HITS, 0, 0))
     goto err;
@@ -150,7 +161,7 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
                                &last_key_not_used);
   if (flag == MARIA_FOUND_WRONG_KEY)
   {
-    maria_print_error(info->s, HA_ERR_CRASHED);
+    _ma_print_error(info, HA_ERR_CRASHED, 0);
     my_errno= HA_ERR_CRASHED;
     goto err;
   }
@@ -164,16 +175,17 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
     if ((error= _ma_search_no_save(info, key, nextflag,
                                    _ma_kpos(nod_flag,keypos),
                                    res_page_link, res_page_buff)) <= 0)
-      DBUG_RETURN(error);
+      goto ret_error;
 
+    error= 1;                                    /* Default return value */
     if (flag >0)
     {
       if (nextflag & (SEARCH_SMALLER | SEARCH_LAST) &&
           keypos == page.buff + info->s->keypage_header + nod_flag)
-        DBUG_RETURN(1);                                 /* Bigger than key */
+        goto ret_error;                         /* Bigger than key */
     }
     else if (nextflag & SEARCH_BIGGER && keypos >= maxpos)
-      DBUG_RETURN(1);                                   /* Smaller than key */
+      goto ret_error;                           /* Smaller than key */
   }
   else
   {
@@ -188,7 +200,7 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
                                      _ma_kpos(nod_flag,keypos),
                                      res_page_link, res_page_buff)) >= 0 ||
           my_errno != HA_ERR_KEY_NOT_FOUND)
-        DBUG_RETURN(error);
+        goto ret_error;
     }
   }
 
@@ -233,6 +245,7 @@ static int _ma_search_no_save(register MARIA_HA *info, MARIA_KEY *key,
   *res_page_link= page_link;
   *res_page_buff= page.buff;
   
+  stack_alloc_free(lastkey, buff_alloced);
   DBUG_PRINT("exit",("found key at %lu",(ulong) info->cur_row.lastpos));
   DBUG_RETURN(0);
 
@@ -240,7 +253,11 @@ err:
   DBUG_PRINT("exit",("Error: %d",my_errno));
   info->cur_row.lastpos= HA_OFFSET_ERROR;
   info->page_changed=1;
-  DBUG_RETURN (-1);
+  error= -1;
+
+ret_error:
+  stack_alloc_free(lastkey, buff_alloced);
+  DBUG_RETURN(error);
 }
 
 
@@ -378,7 +395,7 @@ int _ma_seq_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     length=(*keyinfo->get_key)(&tmp_key, page_flag, nod_flag, &page);
     if (length == 0 || page > end)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
       DBUG_PRINT("error",
                  ("Found wrong key:  length: %u  page: %p  end: %p",
                   length, page, end));
@@ -435,6 +452,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
   MARIA_KEYDEF *keyinfo= key->keyinfo;
   MARIA_SHARE *share= keyinfo->share;
   const uchar *sort_order= keyinfo->seg->charset->sort_order;
+  const int reverse = keyinfo->seg->flag & HA_REVERSE_SORT;
   DBUG_ENTER("_ma_prefix_search");
 
   t_buff[0]=0;                                  /* Avoid bugs */
@@ -553,7 +571,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
     if (page > end)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(share, HA_ERR_CRASHED);
       DBUG_PRINT("error",
                  ("Found wrong key:  length: %u  page: %p  end: %p",
                   length, page, end));
@@ -568,7 +586,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 
       /*
         If prefix_len > cmplen then we are in the end-space comparison
-        phase. Do not try to acces the key any more ==> left= 0.
+        phase. Do not try to access the key any more ==> left= 0.
       */
       left= ((len <= cmplen) ? suffix_len :
              ((prefix_len < cmplen) ? cmplen - prefix_len : 0));
@@ -588,8 +606,6 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
             break;
       }
 
-      if (my_flag>0)      /* mismatch */
-        break;
       if (my_flag==0) /* match */
       {
 	/*
@@ -615,12 +631,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	    for ( ; k < k_end && *k == ' '; k++) ;
 	    if (k == k_end)
 	      goto cmp_rest;		/* should never happen */
-	    if ((uchar) *k < (uchar) ' ')
-	    {
-	      my_flag= 1;		/* Compared string is smaller */
-	      break;
-	    }
-	    my_flag= -1;		/* Continue searching */
+	    my_flag= (uchar)' ' - *k;
 	  }
         }
         else if (len > cmplen)
@@ -634,13 +645,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	       vseg < vseg_end && *vseg == (uchar) ' ';
 	       vseg++, matched++) ;
 	  DBUG_ASSERT(vseg < vseg_end);
-
-	  if ((uchar) *vseg > (uchar) ' ')
-	  {
-	    my_flag= 1;			/* Compared string is smaller */
-	    break;
-	  }
-	  my_flag= -1;			/* Continue searching */
+          my_flag= *vseg - (uchar)' ';
         }
         else
 	{
@@ -668,6 +673,8 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
 	  }
 	}
       }
+      if ((reverse ? -my_flag : my_flag) > 0)      /* mismatch */
+        break;
       matched-=left;
     }
     /* else (matched < prefix_len) ---> do nothing. */
@@ -679,7 +686,7 @@ int _ma_prefix_search(const MARIA_KEY *key, const MARIA_PAGE *ma_page,
     *ret_pos=page;
   }
   if (my_flag)
-    flag=(keyinfo->seg->flag & HA_REVERSE_SORT) ? -my_flag : my_flag;
+    flag= reverse ? -my_flag : my_flag;
   if (flag == 0)
   {
     memcpy(buff,t_buff,saved_length=seg_len_pack+prefix_len);
@@ -1035,7 +1042,7 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
       {
 	if (length > (uint) keyseg->length)
 	{
-          _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+          _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
 	  return 0;				/* Error */
 	}
 	if (length == 0)			/* Same key */
@@ -1050,7 +1057,7 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
                        ("Found too long null packed key: %u of %u at %p",
                         length, keyseg->length, *page_pos));
 	    DBUG_DUMP("key", *page_pos, 16);
-            _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+            _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
 	    return 0;
 	  }
 	  continue;
@@ -1107,7 +1114,7 @@ uint _ma_get_pack_key(MARIA_KEY *int_key, uint page_flag,
         DBUG_PRINT("error",("Found too long packed key: %u of %u at %p",
                             length, keyseg->length, *page_pos));
         DBUG_DUMP("key", *page_pos, 16);
-        _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
         return 0;                               /* Error */
       }
       store_key_length_inc(key,length);
@@ -1266,7 +1273,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
                  ("Found too long binary packed key: %u of %u at %p",
                   length, keyinfo->maxlength, *page_pos));
       DBUG_DUMP("key", *page_pos, 16);
-      _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
       DBUG_RETURN(0);                                 /* Wrong key */
     }
     /* Key is packed against prev key, take prefix from prev key. */
@@ -1357,7 +1364,7 @@ uint _ma_get_binary_pack_key(MARIA_KEY *int_key, uint page_flag, uint nod_flag,
     if (from_end != page_end)
     {
       DBUG_PRINT("error",("Error when unpacking key"));
-      _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+      _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
       DBUG_RETURN(0);                                 /* Error */
     }
   }
@@ -1447,7 +1454,7 @@ uchar *_ma_get_key(MARIA_KEY *key, MARIA_PAGE *ma_page, uchar *keypos)
     {
       if (!(*keyinfo->get_key)(key, page_flag, nod_flag, &page))
       {
-        _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
         DBUG_RETURN(0);
       }
     }
@@ -1497,7 +1504,7 @@ static my_bool _ma_get_prev_key(MARIA_KEY *key, MARIA_PAGE *ma_page,
     {
       if (! (*keyinfo->get_key)(key, page_flag, nod_flag, &page))
       {
-        _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
         DBUG_RETURN(1);
       }
     }
@@ -1550,7 +1557,7 @@ uchar *_ma_get_last_key(MARIA_KEY *key, MARIA_PAGE *ma_page, uchar *endpos)
       {
         DBUG_PRINT("error",("Couldn't find last key:  page: %p",
                             page));
-        _ma_set_fatal_error(keyinfo->share, HA_ERR_CRASHED);
+        _ma_set_fatal_error_with_share(keyinfo->share, HA_ERR_CRASHED);
         DBUG_RETURN(0);
       }
     }
@@ -2038,7 +2045,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
   DBUG_PRINT("test",("tot_length: %u  length: %d  uniq_key_length: %u",
                      key_length, length, s_temp->key_length));
 
-        /* If something after that hasn't length=0, test if we can combine */
+  /* If something after that hasn't length=0, test if we can combine */
   if ((s_temp->next_key_pos=next_key))
   {
     uint packed,n_length;
@@ -2051,7 +2058,7 @@ _ma_calc_var_pack_key_length(const MARIA_KEY *int_key, uint nod_flag,
     }
     else
       n_length= *next_key++ & 127;
-    if (!packed)
+    if (!packed && n_length)
       n_length-= s_temp->store_not_null;
 
     if (n_length || packed)             /* Don't pack 0 length keys */
@@ -2351,7 +2358,7 @@ void _ma_store_var_pack_key(MARIA_KEYDEF *keyinfo  __attribute__((unused)),
       store_key_length_inc(key_pos,s_temp->n_length);
     }
   }
-  else
+  else if (s_temp->n_length)
   {
     s_temp->n_length+= s_temp->store_not_null;
     store_pack_length(s_temp->pack_marker == 128,key_pos,s_temp->n_length);

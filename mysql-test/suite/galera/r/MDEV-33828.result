@@ -1,0 +1,41 @@
+connection node_2;
+connection node_1;
+SET AUTOCOMMIT=ON;
+SELECT @@autocommit;
+@@autocommit
+1
+SET LOCAL enforce_storage_engine=InnoDB;
+CREATE TABLE t1(id int not null primary key auto_increment, name varchar(64)) ENGINE=InnoDB;
+INSERT INTO t1(name) VALUES ('name1'),('name3'),('name6'),('name2');
+CREATE PROCEDURE sel_proc()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+SELECT * FROM t1;
+END|
+CREATE PROCEDURE ins_proc()
+BEGIN
+DECLARE CONTINUE HANDLER FOR SQLEXCEPTION BEGIN END;
+INSERT INTO t1 VALUES ('name_proc');
+END|
+SET AUTOCOMMIT=OFF;
+SELECT @@autocommit;
+@@autocommit
+0
+START TRANSACTION;
+insert into t1(name) values('name10');
+select param_list, returns, db, type from mysql.proc where name='sel_proc';
+param_list	returns	db	type
+		test	PROCEDURE
+call ins_proc();
+COMMIT;
+SET AUTOCOMMIT=ON;
+SELECT * FROM t1;
+id	name
+1	name1
+3	name3
+5	name6
+7	name2
+9	name10
+DROP TABLE t1;
+DROP PROCEDURE sel_proc;
+DROP PROCEDURE ins_proc;

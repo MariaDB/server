@@ -1,7 +1,6 @@
 call mtr.add_suppression("Can't find record in '.*'");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
-drop table if exists t1,t2,t3;
-SET SQL_WARNINGS=1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 STRING_DATA char(255) default NULL,
 KEY string_data (STRING_DATA)
@@ -40,16 +39,16 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	5	NULL	NULL		BTREE		
-t1	1	b	1	b	A	1	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	5	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	1	NULL	NULL		BTREE			NO
 optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	5	NULL	NULL		BTREE		
-t1	1	b	1	b	A	1	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	5	NULL	NULL		BTREE			NO
+t1	1	b	1	b	A	1	NULL	NULL		BTREE			NO
 drop table t1;
 create table t1 (a int not null, b int not null, c int not null, primary key (a),key(b)) engine=myisam;
 insert into t1 values (3,3,3),(1,1,1),(2,2,2),(4,4,4);
@@ -339,21 +338,21 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	5	NULL	NULL	YES	BTREE		
-t1	1	c	1	c	A	5	NULL	NULL	YES	BTREE		
-t1	1	a	1	a	A	1	NULL	NULL		BTREE		
-t1	1	a	2	b	A	5	NULL	NULL	YES	BTREE		
-t1	1	c_2	1	c	A	5	NULL	NULL	YES	BTREE		
-t1	1	c_2	2	a	A	5	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c	1	c	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	a	1	a	A	1	NULL	NULL		BTREE			NO
+t1	1	a	2	b	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	1	c	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	2	a	A	5	NULL	NULL		BTREE			NO
 explain select * from t1,t2 where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1,t2 force index(a) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1 force index(a),t2 force index(a) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	2	
@@ -363,13 +362,13 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	10	NULL	NULL	YES	BTREE		
-t1	1	c	1	c	A	10	NULL	NULL	YES	BTREE		
-t1	1	a	1	a	A	10	NULL	NULL		BTREE		
-t1	1	a	2	b	A	10	NULL	NULL	YES	BTREE		
-t1	1	c_2	1	c	A	10	NULL	NULL	YES	BTREE		
-t1	1	c_2	2	a	A	10	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	c	1	c	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	a	1	a	A	10	NULL	NULL		BTREE			NO
+t1	1	a	2	b	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	1	c	A	10	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	2	a	A	10	NULL	NULL		BTREE			NO
 explain select * from t1,t2 where t1.b=t2.b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	b	NULL	NULL	NULL	2	Using where
@@ -379,20 +378,20 @@ optimize table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	b	1	b	A	5	NULL	NULL	YES	BTREE		
-t1	1	c	1	c	A	5	NULL	NULL	YES	BTREE		
-t1	1	a	1	a	A	1	NULL	NULL		BTREE		
-t1	1	a	2	b	A	5	NULL	NULL	YES	BTREE		
-t1	1	c_2	1	c	A	5	NULL	NULL	YES	BTREE		
-t1	1	c_2	2	a	A	5	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	b	1	b	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c	1	c	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	a	1	a	A	1	NULL	NULL		BTREE			NO
+t1	1	a	2	b	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	1	c	A	5	NULL	NULL	YES	BTREE			NO
+t1	1	c_2	2	a	A	5	NULL	NULL		BTREE			NO
 explain select * from t1,t2 force index(c) where t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	a	a	4	test.t2.a	3	
 explain select * from t1 where a=0 or a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	5	Using where
+1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
 explain select * from t1 force index (a) where a=0 or a=2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	4	NULL	5	Using index condition
@@ -613,29 +612,29 @@ test.t1	2924214226
 drop table t1,t2;
 create table t1 (a int, key (a));
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 alter table t1 disable keys;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled		NO
 create table t2 (a int);
 set @@rand_seed1=31415926,@@rand_seed2=2718281828;
 insert t1 select * from t2;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled	
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE	disabled		NO
 alter table t1 enable keys;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	1000	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	1000	NULL	NULL	YES	BTREE			NO
 alter table t1 engine=heap;
 alter table t1 disable keys;
 Warnings:
 Note	1031	Storage engine MEMORY of the table `test`.`t1` doesn't have this option
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	NULL	500	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	NULL	500	NULL	NULL	YES	HASH			NO
 drop table t1,t2;
 create table t1 ( a tinytext, b char(1), index idx (a(1),b) );
 insert into t1 values (null,''), (null,'');
@@ -645,6 +644,13 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 select count(*) from t1 where a is null;
 count(*)
 2
+insert into t1 values (1,''), (2,'');
+explain select count(*) from t1 where a is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	idx	idx	4	const	2	Using where
+set statement optimizer_scan_setup_cost= 0 for explain select count(*) from t1 where a is null;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	idx	NULL	NULL	NULL	4	Using where
 drop table t1;
 create table t1 (c1 int, c2 varchar(4) not null default '',
 key(c2(3))) default charset=utf8;
@@ -679,16 +685,16 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE			NO
 insert into t1 values (11);
 delete from t1 where a=11;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE			NO
 set myisam_stats_method=nulls_equal;
 set @save_use_stat_tables =  @@use_stat_tables;
 set @@use_stat_tables = COMPLEMENTARY;
@@ -702,16 +708,16 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE			NO
 insert into t1 values (11);
 delete from t1 where a=11;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	5	NULL	NULL	YES	BTREE			NO
 set @@use_stat_tables =  @save_use_stat_tables;
 set myisam_stats_method=DEFAULT;
 show variables like 'myisam_stats_method';
@@ -724,16 +730,16 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE			NO
 insert into t1 values (11);
 delete from t1 where a=11;
 check table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	10	NULL	NULL	YES	BTREE			NO
 drop table t1;
 set myisam_stats_method=nulls_ignored;
 show variables like 'myisam_stats_method';
@@ -754,22 +760,22 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	2	NULL	NULL	YES	BTREE		
-t1	1	a	2	b	A	4	NULL	NULL	YES	BTREE		
-t1	1	a	3	c	A	4	NULL	NULL	YES	BTREE		
-t1	1	a	4	d	A	4	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	2	NULL	NULL	YES	BTREE			NO
+t1	1	a	2	b	A	4	NULL	NULL	YES	BTREE			NO
+t1	1	a	3	c	A	4	NULL	NULL	YES	BTREE			NO
+t1	1	a	4	d	A	4	NULL	NULL	YES	BTREE			NO
 delete from t1;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	0	NULL	NULL	YES	BTREE		
-t1	1	a	2	b	A	0	NULL	NULL	YES	BTREE		
-t1	1	a	3	c	A	0	NULL	NULL	YES	BTREE		
-t1	1	a	4	d	A	0	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	0	NULL	NULL	YES	BTREE			NO
+t1	1	a	2	b	A	0	NULL	NULL	YES	BTREE			NO
+t1	1	a	3	c	A	0	NULL	NULL	YES	BTREE			NO
+t1	1	a	4	d	A	0	NULL	NULL	YES	BTREE			NO
 set myisam_stats_method=DEFAULT;
 drop table t1;
 set @@use_stat_tables =  @save_use_stat_tables;
@@ -1127,7 +1133,7 @@ length(c1)	c1
 2	 B
 DROP TABLE t1;
 End of 4.1 tests
-set storage_engine=MyISAM;
+set default_storage_engine=MyISAM;
 drop table if exists t1,t2,t3;
 --- Testing varchar ---
 --- Testing varchar ---
@@ -1268,7 +1274,7 @@ alter table t1 add unique(v);
 ERROR 23000: Duplicate entry '{ ' for key 'v_2'
 show warnings;
 Level	Code	Message
-Error	1062	Duplicate entry 'a' for key 'v_2'
+Error	1062	Duplicate entry 'a\0001' for key 'v_2'
 alter table t1 add key(v);
 Warnings:
 Note	1831	Duplicate index `v_2`. This is deprecated and will be disallowed in a future release
@@ -1673,7 +1679,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -1725,7 +1731,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 set statement sql_mode='' for
@@ -1738,7 +1744,7 @@ t1	CREATE TABLE `t1` (
   `v` text DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
-set storage_engine=MyISAM;
+set default_storage_engine=MyISAM;
 set @save_concurrent_insert=@@concurrent_insert;
 set global concurrent_insert=1;
 create table t1 (a int);
@@ -1815,13 +1821,13 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	8	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	8	NULL	NULL	YES	BTREE			NO
 alter table t1 disable keys;
 alter table t1 enable keys;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	a	1	a	A	8	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	a	1	a	A	8	NULL	NULL	YES	BTREE			NO
 drop table t1;
 create table t1 (c1 int) engine=myisam pack_keys=0;
 create table t2 (c1 int) engine=myisam pack_keys=1;
@@ -2403,7 +2409,7 @@ KEY (c2)
 
 MyISAM file:         MYSQLD_DATADIR/test/t1
 Record format:       Packed
-Character set:       utf8_general_ci (33)
+Character set:       ? (0)
 Data records:                    0  Deleted blocks:                 0
 Recordlength:                   94
 
@@ -2415,13 +2421,13 @@ DROP TABLE t1;
 set statement sql_mode='' for
 create table t1 (n int not null, c char(1)) transactional=1;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+Warning	1911	Unknown option 'transactional'
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `n` int(11) NOT NULL,
   `c` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci TRANSACTIONAL=1
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci /* TRANSACTIONAL=1 */
 drop table t1;
 CREATE TABLE t1 (line LINESTRING NOT NULL) engine=myisam;
 INSERT INTO t1 VALUES (GeomFromText("LINESTRING(0 0)"));
@@ -2533,6 +2539,7 @@ DROP TABLE t1, t2, t3;
 #
 # BUG#51307 - widespread corruption with partitions and insert...select
 #
+call mtr.add_suppression("Enabling keys got errno 12 on test.t1, retrying");
 CREATE TABLE t1(a CHAR(255), KEY(a));
 SELECT * FROM t1, t1 AS a1;
 a	a
@@ -2556,9 +2563,6 @@ INSERT INTO t1 VALUES
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),('0'),
 ('0'),('0'),('0'),('0'),('0'),('0'),('0');
-Warnings:
-Error	1034	myisam_sort_buffer_size is too small. X
-Warning	1034	Number of rows changed from 0 to 157
 SET myisam_sort_buffer_size=@@global.myisam_sort_buffer_size;
 INSERT INTO t1 VALUES('1');
 SELECT * FROM t1, t1 AS a1 WHERE t1.a=1 AND a1.a=1;
@@ -2630,7 +2634,7 @@ End of 5.1 tests
 #           even if myisam-recover is OFF
 #
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression(" '\..test.t1'");
 # Test that we can exchange a crashed partition with a table
 SELECT @@global.myisam_recover_options;
@@ -2644,8 +2648,8 @@ FLUSH TABLES;
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	warning	1 client is using or hasn't closed the table properly
-test.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1	check	warning	Size of datafile is: 14       Should be: 7
+test.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1	check	warning	Size of datafile is:        14       Should be: 7
 test.t1	check	error	Corrupt
 # Alter table should report error and not auto-repair the table.
 ALTER TABLE t1 ENGINE = MyISAM;
@@ -2654,8 +2658,8 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	warning	Table is marked as crashed
 test.t1	check	warning	1 client is using or hasn't closed the table properly
-test.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-test.t1	check	warning	Size of datafile is: 14       Should be: 7
+test.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+test.t1	check	warning	Size of datafile is:        14       Should be: 7
 test.t1	check	error	Corrupt
 DROP TABLE t1;
 #
@@ -2706,3 +2710,150 @@ DROP TABLE t1;
 #
 # End of 5.5 tests
 #
+#
+# MDEV-27303 Table corruption after insert into a non-InnoDB table with DESC index
+#
+create table t1 (
+a bigint default 0,
+b bigint default 0,
+c binary(128) not null,
+d datetime default '0000-00-00 00:00:00',
+key (c desc,b,d,a)
+) engine=aria;
+insert into t1 (c) values
+('xx'),('bb'),('tt'),('pp'),('mm'),('yy'),('rr'),('bb'),('yy'),('gg'),
+('dd'),('fx'),('wi'),('ix'),('ox'),('mu'),('ux'),('pm'),('mx'),('xu'),
+('ul'),('lp'),('px'),('lp'),('xx'),('pq'),('qs'),('se'),('ee'),('xx'),
+('rv'),('ff'),('vj'),('jy'),('yn'),('nc'),('nx'),('hj'),('ji'),('ik'),
+('kk'),('ww'),('xx'),('yd'),('dw'),('wk'),('kr'),('dd'),('rj'),('jf'),
+('bx'),('fc'),('cp'),('pm'),('mw'),('wy'),('yl'),('li'),('ic'),('he'),
+('ci'),('il'),('lz'),('zd'),('gz'),('xd'),('ze'),('dm'),('ms'),('xd'),
+('sw'),('we'),('nb'),('tx'),('vr'),('xw'),('aa'),('ah'),('hd'),('jl'),
+('lf'),('fw'),('wx'),('xh'),('hr'),('zx'),('vw'),('rm'),('mx'),('xt'),
+('tp'),('ps'),('sh'),('ga'),('df'),('as'),('gz'),('xd'),('yy'),('xr');
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+drop table t1;
+#
+# MDEV-27309 Server crash or ASAN memcpy-param-overlap upon INSERT into Aria/MyISAM table with DESC key
+#
+CREATE TABLE t1 (id INT, c BINARY(80), PRIMARY KEY(id));
+ALTER  TABLE t1 ADD KEY(c DESC, id);
+INSERT INTO t1 VALUES (1,NULL),(2,''),(3,'');
+DROP TABLE t1;
+#
+# MDEV-27330 Wrong sorting order with DESC index and empty strings in MyISAM/Aria table
+#
+create table t (id int, c char(128) not null, key (c desc));
+insert into t values (1,''),(2,'foo'),(3,''),(4,'bar');
+select c from t order by c;
+c
+
+
+bar
+foo
+drop table t;
+#
+# MDEV-27340 NULL gets lost (becomes empty string), SELECT hangs with DESC index on MyISAM/Aria table
+#
+create table t (c char(8), key(c desc)) character set utf8mb4;
+insert into t values (''),('foo'),(null),(''),('bar');
+check table t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select distinct c from t;
+c
+NULL
+
+bar
+foo
+select c from t;
+c
+foo
+bar
+
+
+NULL
+drop table t;
+#
+# MDEV-27434 DESC attribute does not work with auto-increment on secondary column of multi-part index
+#
+create table t (a int auto_increment, b int, unique(b,a desc)) engine=myisam;
+insert ignore into t (b) values (10),(10),(10);
+select * from t;
+a	b
+3	10
+2	10
+1	10
+drop table t;
+#
+# MDEV-27585 Auto-increment on secondary column increments unexpectedly with DESC key
+#
+create table t (c char(16), i int auto_increment, index (c,i desc)) engine=myisam collate latin1_swedish_ci;
+insert into t (c) values ('ä'),('a');
+select hex(c),c,i from t order by c, i;
+hex(c)	c	i
+61	a	1
+C3A4	ä	1
+drop table t;
+#
+# MDEV-27617 HANDLER KEY > (x) does not work with DESC keys, Spider is affected and returns wrong results
+#
+create table t (a int, b char(1), primary key(a desc)) engine=myisam;
+insert into t VALUES (1,'f'),(2,'g'),(3,'j'), (4,'i'),(5,'h');
+handler t open;
+# MUST return 2,'g'. '>' always means READ_AFTER_KEY. desc or not.
+handler t read `primary` > (3);
+a	b
+2	g
+handler t close;
+drop table t;
+#
+# End of 10.8 tests
+#
+CREATE TABLE t1 (pk INT, a INT, PRIMARY KEY(pk), KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1,NULL),(2,NULL),(3,1),(4,5);
+SET @save_optimizer_switch= @@optimizer_switch;
+SET optimizer_switch='index_merge_sort_intersection=on';
+SELECT pk FROM t1 WHERE pk > 2 AND a IS NULL;
+pk
+SET @@optimizer_switch= @save_optimizer_switch;
+drop table t1;
+#
+# MDEV-30104 Server crashes in handler_rowid_filter_check upon ANALYZE TABLE
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (1),(2);
+CREATE TABLE t3 (c INT) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (pk INT, f CHAR(8), PRIMARY KEY(pk), KEY(f)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1,'o'),(2,'x');
+ANALYZE TABLE t1, t2, t3, t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	OK
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON 1) ON 2 IN (SELECT pk FROM t4 WHERE f < 's');
+a	b	c
+1	NULL	NULL
+2	NULL	NULL
+ANALYZE TABLE t4 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t4	analyze	status	Engine-independent statistics collected
+test.t4	analyze	status	Table is already up to date
+DROP TABLE t1, t2, t3, t4;
+#
+# End of 11.0 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

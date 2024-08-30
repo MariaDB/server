@@ -20,13 +20,16 @@ connect disable_purge,localhost,root,,;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
-SET STORAGE_ENGINE = InnoDB;
+SET DEFAULT_STORAGE_ENGINE = InnoDB;
 # InnoDB does not support Merge tables (affects include/index_merge1.inc)
 let $merge_table_support= 0;
 
 set @optimizer_switch_save= @@optimizer_switch;
 set optimizer_switch='index_merge_sort_intersection=off';
 set optimizer_switch='rowid_filter=off';
+
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 
 # The first two tests are disabled because of non deterministic explain output.
 # If include/index_merge1.inc can be enabled for InnoDB and all other
@@ -207,8 +210,6 @@ set optimizer_switch=@tmp_optimizer_switch;
 --echo #
 
 SET @save_sort_buffer_size=@@sort_buffer_size;
-SET @save_innodb_file_format= @@innodb_file_format;
-SET @save_innodb_large_prefix= @@innodb_large_prefix;
 SET sort_buffer_size=2048;
 
 CREATE TABLE t1 (
@@ -225,3 +226,4 @@ DROP TABLE t1;
 SET sort_buffer_size= @save_sort_buffer_size;
 
 disconnect disable_purge;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

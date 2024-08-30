@@ -11,7 +11,7 @@ pk	c
 connect  con1,localhost,root,,;
 update t1 set c = 'updated';
 connection default;
-flush status;
+flush global status;
 show status like 'Qcache_hits';
 Variable_name	Value
 Qcache_hits	0

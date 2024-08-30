@@ -1,0 +1,4 @@
+#
+# MDEV-31855 validate ssl certificates using client password in the internal client
+#
+# socket ssl ssl-verify-server-cert

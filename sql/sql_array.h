@@ -3,6 +3,7 @@
 
 /* Copyright (c) 2003, 2005-2007 MySQL AB, 2009 Sun Microsystems, Inc.
    Use is subject to license terms.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +35,7 @@
 template <typename Element_type> class Bounds_checked_array
 {
 public:
-  Bounds_checked_array() : m_array(NULL), m_size(0) {}
+  Bounds_checked_array()= default;
 
   Bounds_checked_array(Element_type *el, size_t size_arg)
     : m_array(el), m_size(size_arg)
@@ -85,6 +86,10 @@ public:
 
   Element_type *array() const { return m_array; }
 
+  Element_type *begin() const { return array(); }
+  Element_type *end() const { return array() + m_size; }
+
+
   bool operator==(const Bounds_checked_array<Element_type>&rhs) const
   {
     return m_array == rhs.m_array && m_size == rhs.m_size;
@@ -95,8 +100,8 @@ public:
   }
 
 private:
-  Element_type *m_array;
-  size_t        m_size;
+  Element_type *m_array= nullptr;
+  size_t        m_size= 0;
 };
 
 /*
@@ -107,23 +112,23 @@ private:
 
 template <class Elem> class Dynamic_array
 {
-  DYNAMIC_ARRAY  array;
+  DYNAMIC_ARRAY array;
 public:
-  Dynamic_array(uint prealloc=16, uint increment=16)
+  Dynamic_array(PSI_memory_key psi_key, size_t prealloc=16, size_t increment=16)
   {
-    init(prealloc, increment);
+    init(psi_key, prealloc, increment);
   }
 
-  Dynamic_array(MEM_ROOT *root, uint prealloc=16, uint increment=16)
+  Dynamic_array(MEM_ROOT *root, size_t prealloc=16, size_t increment=16)
   {
     void *init_buffer= alloc_root(root, sizeof(Elem) * prealloc);
-    my_init_dynamic_array2(&array, sizeof(Elem), init_buffer, 
-                           prealloc, increment, MYF(0));
+    init_dynamic_array2(root->psi_key, &array, sizeof(Elem), init_buffer,
+                        prealloc, increment, MYF(0));
   }
 
-  void init(uint prealloc=16, uint increment=16)
+  void init(PSI_memory_key psi_key, size_t prealloc=16, size_t increment=16)
   {
-    init_dynamic_array2(&array, sizeof(Elem), 0, prealloc, increment, MYF(0));
+    init_dynamic_array2(psi_key, &array, sizeof(Elem), 0, prealloc, increment, MYF(0));
   }
 
   /**
@@ -135,10 +140,22 @@ public:
     DBUG_ASSERT(idx < array.elements);
     return *(((Elem*)array.buffer) + idx);
   }
+
   /// Const variant of at(), which cannot change data
   const Elem& at(size_t idx) const
   {
     return *(((Elem*)array.buffer) + idx);
+  }
+
+  Elem& operator[](size_t idx)
+  {
+    return at(idx);
+  }
+
+  /// Const variant of operator[]
+  const Elem& operator[](size_t idx) const
+  {
+    return at(idx);
   }
 
   /// @returns pointer to first element
@@ -165,6 +182,13 @@ public:
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
 
+  size_t size() const { return array.elements; }
+
+  const Elem *end() const
+  {
+    return back() + 1;
+  }
+
   /// @returns pointer to n-th element
   Elem *get_pos(size_t idx)
   {
@@ -176,7 +200,6 @@ public:
   {
     return ((const Elem*)array.buffer) + idx;
   }
-
 
   /**
      @retval false ok
@@ -206,7 +229,7 @@ public:
   void del(size_t idx)
   {
     DBUG_ASSERT(idx <= array.max_element);
-    delete_dynamic_element(&array, (uint)idx);
+    delete_dynamic_element(&array, idx);
   }
 
   size_t elements() const
@@ -217,7 +240,7 @@ public:
   void elements(size_t num_elements)
   {
     DBUG_ASSERT(num_elements <= array.max_element);
-    array.elements= (uint)num_elements;
+    array.elements= num_elements;
   }
 
   void clear()
@@ -225,7 +248,7 @@ public:
     elements(0);
   }
 
-  void set(uint idx, const Elem &el)
+  void set(size_t idx, const Elem &el)
   {
     set_dynamic(&array, &el, idx);
   }
@@ -235,15 +258,21 @@ public:
     freeze_size(&array);
   }
 
+  bool reserve(size_t new_size)
+  {
+    return allocate_dynamic(&array, new_size);
+  }
+
+
   bool resize(size_t new_size, Elem default_val)
   {
     size_t old_size= elements();
-    if (unlikely(allocate_dynamic(&array, (uint)new_size)))
+    if (reserve(new_size))
       return true;
     
     if (new_size > old_size)
     {
-      set_dynamic(&array, (uchar*)&default_val, (uint)(new_size - 1));
+      set_dynamic(&array, (uchar*)&default_val, new_size - 1);
       /*for (size_t i= old_size; i != new_size; i++)
       {
         at(i)= default_val;

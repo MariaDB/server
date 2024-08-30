@@ -40,7 +40,7 @@ crew_role_assigned	CREATE TABLE `crew_role_assigned` (
   KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
   CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='This is a comment about tables'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This is a comment about tables'
 SET GLOBAL innodb_buffer_pool_load_now = ON;
 SET GLOBAL innodb_buffer_pool_dump_now = ON;
 SET GLOBAL innodb_buffer_pool_load_abort = ON;
@@ -57,7 +57,7 @@ crew_role_assigned	CREATE TABLE `crew_role_assigned` (
   KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
   CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='This is a new comment about tables'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This is a new comment about tables'
 # restart: --innodb-read-only
 SHOW CREATE TABLE `repro`.`crew_role_assigned`;
 Table	Create Table
@@ -70,7 +70,7 @@ crew_role_assigned	CREATE TABLE `crew_role_assigned` (
   KEY `fk_crewRoleAssigned_pilotId` (`crew_id`),
   CONSTRAINT `fk_crewRoleAssigned_crewId` FOREIGN KEY (`crew_id`) REFERENCES `crew` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT `fk_crewRoleAssigned_pilotId` FOREIGN KEY (`crew_id`) REFERENCES `pilot` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='This is a new comment about tables'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='This is a new comment about tables'
 # restart
 DROP TABLE `repro`.`crew_role_assigned`;
 DROP TABLE `repro`.`pilot`;

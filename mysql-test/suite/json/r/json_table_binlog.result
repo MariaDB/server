@@ -1,0 +1,26 @@
+#
+# MDEV-25154: JSON_TABLE: Queries involving ordinality columns are unsafe for statement binlog and should be marked as such
+#
+create table t1 (a int);
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+set binlog_format='statement';
+insert into t1 
+select * 
+from json_table('[1,2,3]', '$[*]' columns (a for ordinality)) as T ;
+Warnings:
+Note	1592	Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT. Statement is unsafe because it uses a system function that may return a different value on the slave
+set binlog_format='mixed';
+insert into t1 
+select * 
+from json_table('[1,2,3]', '$[*]' columns (a for ordinality)) as T ;
+# This must show Annotate_rows, Write_rows_v1 events. Not the statement event
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000001	#	Annotate_rows	#	#	insert into t1 
+select * 
+from json_table('[1,2,3]', '$[*]' columns (a for ordinality)) as T
+master-bin.000001	#	Table_map	#	#	table_id: # (test.t1)
+master-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000001	#	Query	#	#	COMMIT
+drop table t1;

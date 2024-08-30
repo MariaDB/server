@@ -55,23 +55,23 @@ class DllExport DBFFAM : public FIXFAM, public DBFBASE {
   DBFFAM(PDBFFAM txfp) : FIXFAM(txfp), DBFBASE((PDBF)txfp) {}
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_DBF;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_DBF;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) DBFFAM(this);}
 
   // Methods
-  virtual int  GetNerr(void) {return Nerr;}
-  virtual int  Cardinality(PGLOBAL g);
-  virtual bool OpenTableFile(PGLOBAL g);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual void ResetBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void CloseTableFile(PGLOBAL g, bool abort);
-  virtual void Rewind(void);
+  int  GetNerr(void) override {return Nerr;}
+  int  Cardinality(PGLOBAL g) override;
+  bool OpenTableFile(PGLOBAL g) override;
+  bool AllocateBuffer(PGLOBAL g) override;
+  void ResetBuffer(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void CloseTableFile(PGLOBAL g, bool abort) override;
+  void Rewind(void) override;
 
  protected:
-  virtual bool CopyHeader(PGLOBAL g);
+  bool CopyHeader(PGLOBAL g) override;
 //virtual int  InitDelete(PGLOBAL g, int fpos, int spos);
 
   // Members
@@ -88,18 +88,18 @@ class DllExport DBMFAM : public MPXFAM, public DBFBASE {
   DBMFAM(PDBMFAM txfp) : MPXFAM(txfp), DBFBASE((PDBF)txfp) {}
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_DBF;}
-  virtual PTXF Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_DBF;}
+  PTXF Duplicate(PGLOBAL g) override
                 {return (PTXF)new(g) DBMFAM(this);}
-  virtual  int  GetDelRows(void);
+   int  GetDelRows(void) override;
 
   // Methods
-  virtual int  GetNerr(void) {return Nerr;}
-  virtual int  Cardinality(PGLOBAL g);
-  virtual bool AllocateBuffer(PGLOBAL g);
-  virtual int  ReadBuffer(PGLOBAL g);
-  virtual int  DeleteRecords(PGLOBAL g, int irc);
-  virtual void Rewind(void);
+  int  GetNerr(void) override {return Nerr;}
+  int  Cardinality(PGLOBAL g) override;
+  bool AllocateBuffer(PGLOBAL g) override;
+  int  ReadBuffer(PGLOBAL g) override;
+  int  DeleteRecords(PGLOBAL g, int irc) override;
+  void Rewind(void) override;
 
  protected:
   // Members

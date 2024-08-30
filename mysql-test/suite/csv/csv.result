@@ -4928,9 +4928,7 @@ period
 9410
 drop table if exists t1,t2,t3,t4;
 Warnings:
-Note	1051	Unknown table 'test.t2'
-Note	1051	Unknown table 'test.t3'
-Note	1051	Unknown table 'test.t4'
+Note	1051	Unknown table 'test.t2,test.t3,test.t4'
 DROP TABLE IF EXISTS bug13894;
 CREATE TABLE bug13894 ( val integer not null ) ENGINE = CSV;
 INSERT INTO bug13894 VALUES (5);
@@ -5004,12 +5002,24 @@ connection default;
 disconnect con1;
 disconnect con2;
 CREATE TABLE test_repair_table ( val integer not null ) ENGINE = CSV;
+INSERT into test_repair_table values (1),(2);
 CHECK TABLE test_repair_table;
 Table	Op	Msg_type	Msg_text
 test.test_repair_table	check	status	OK
 REPAIR TABLE test_repair_table;
 Table	Op	Msg_type	Msg_text
 test.test_repair_table	repair	status	OK
+SELECT * from test_repair_table;
+val
+1
+2
+REPAIR TABLE test_repair_table USE_FRM;
+Table	Op	Msg_type	Msg_text
+test.test_repair_table	repair	status	OK
+SELECT * from test_repair_table;
+val
+1
+2
 DROP TABLE test_repair_table;
 CREATE TABLE test_repair_table2 ( val integer not null ) ENGINE = CSV;
 SELECT * from test_repair_table2;

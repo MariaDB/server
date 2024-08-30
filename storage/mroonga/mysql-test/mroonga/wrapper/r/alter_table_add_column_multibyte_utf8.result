@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS users;
 SET NAMES utf8;
 CREATE TABLE users (
 id int unsigned PRIMARY KEY AUTO_INCREMENT
-) DEFAULT CHARSET=utf8 COMMENT='Engine "InnoDB"';
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci COMMENT='Engine "InnoDB"';
 ALTER TABLE users
 ADD COLUMN 名前 text,
 ADD FULLTEXT INDEX (名前);

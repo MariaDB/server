@@ -30,7 +30,6 @@
 #include "rpl_rli.h"
 #include "rpl_mi.h"
 
-extern "C" pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 static Wsrep_thd_queue* wsrep_rollback_queue= 0;
 static Atomic_counter<uint64_t> wsrep_bf_aborts_counter;
@@ -356,22 +355,22 @@ static bool wsrep_bf_abort_low(THD *bf_thd, THD *victim_thd)
   return ret;
 }
 
-
 void wsrep_abort_thd(THD *bf_thd,
                     THD *victim_thd,
                     my_bool signal)
 {
   DBUG_ENTER("wsrep_abort_thd");
 
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
 
   /* Note that when you use RSU node is desynced from cluster, thus WSREP(thd)
   might not be true.
   */
   if ((WSREP(bf_thd)
        || ((WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU)
-           &&  wsrep_thd_is_toi(bf_thd)))
+           &&  wsrep_thd_is_toi(bf_thd))
+       || bf_thd->lex->sql_command == SQLCOM_KILL)
       && !wsrep_thd_is_aborting(victim_thd) &&
       wsrep_bf_abort_low(bf_thd, victim_thd) &&
       !victim_thd->wsrep_cs().is_rollbacker_active())
@@ -390,8 +389,6 @@ void wsrep_abort_thd(THD *bf_thd,
                 bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU,
                 wsrep_thd_is_toi(bf_thd),
                 wsrep_thd_is_aborting(victim_thd));
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
   DBUG_VOID_RETURN;
@@ -406,23 +403,29 @@ bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
 
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
-    WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
-    switch (victim_thd->wsrep_trx().state())
-    {
+    WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction."
+                " Victim state %s bf state %s",
+                wsrep::to_c_string(victim_thd->wsrep_trx().state()),
+                wsrep::to_c_string(bf_thd->wsrep_trx().state()));
+
+    switch (victim_thd->wsrep_trx().state()) {
     case wsrep::transaction::s_aborting: /* fall through */
     case wsrep::transaction::s_aborted:
-      WSREP_DEBUG("victim thd is already aborted or in aborting state.");
-      return false;
-    default:
+      WSREP_DEBUG("victim is aborting or has aborted");
       break;
+    default: break;
     }
-    /* Test: galera_create_table_as_select. Here we enter wsrep-lib
-    were LOCK_thd_data will be acquired, thus we need to release it.
-    However, we can still hold LOCK_thd_kill to protect from
-    disconnect or delete. */
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
-    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+    /* victim may not have started transaction yet in wsrep context, but it may
+       have acquired MDL locks (due to DDL execution), and this has caused BF conflict.
+       such case does not require aborting in wsrep or replication provider state.
+    */
+    if (victim_thd->current_backup_stage != BACKUP_FINISHED &&
+        wsrep_check_mode(WSREP_MODE_BF_MARIABACKUP))
+    {
+      WSREP_DEBUG("killing connection for non wsrep session");
+      victim_thd->awake_no_mutex(KILL_CONNECTION);
+    }
+    return false;
   }
 
   return wsrep_bf_abort_low(bf_thd, victim_thd);
@@ -451,8 +454,6 @@ uint wsrep_kill_thd(THD *thd, THD *victim_thd, killed_state kill_signal)
       trx_state == trans::s_ordered_commit)
   {
     victim_thd->wsrep_abort_by_kill= kill_signal;
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     DBUG_RETURN(0);
   }
   /*
@@ -511,8 +512,8 @@ int wsrep_create_threadvars()
   {
     /* Caller should have called wsrep_reset_threadvars() before this
        method. */
-    DBUG_ASSERT(!pthread_getspecific(THR_KEY_mysys));
-    pthread_setspecific(THR_KEY_mysys, 0);
+    DBUG_ASSERT(!my_thread_var);
+    set_mysys_var(0);
     ret= my_thread_init();
   }
   return ret;
@@ -524,7 +525,7 @@ void wsrep_delete_threadvars()
   {
     /* The caller should have called wsrep_store_threadvars() before
        this method. */
-    DBUG_ASSERT(pthread_getspecific(THR_KEY_mysys));
+    DBUG_ASSERT(my_thread_var);
     /* Reset psi state to avoid deallocating applier thread
        psi_thread. */
 #ifdef HAVE_PSI_INTERFACE
@@ -536,7 +537,7 @@ void wsrep_delete_threadvars()
 #endif /* HAVE_PSI_INTERFACE */
     my_thread_end();
     PSI_CALL_set_thread(psi_thread);
-    pthread_setspecific(THR_KEY_mysys, 0);
+    set_mysys_var(0);
   }
 }
 
@@ -544,9 +545,7 @@ void wsrep_assign_from_threadvars(THD *thd)
 {
   if (thread_handling == SCHEDULER_TYPES_COUNT)
   {
-    st_my_thread_var *mysys_var= (st_my_thread_var *)pthread_getspecific(THR_KEY_mysys);
-    DBUG_ASSERT(mysys_var);
-    thd->set_mysys_var(mysys_var);
+    thd->set_mysys_var(my_thread_var);
   }
 }
 
@@ -554,30 +553,30 @@ Wsrep_threadvars wsrep_save_threadvars()
 {
   return Wsrep_threadvars{
     current_thd,
-    (st_my_thread_var*) pthread_getspecific(THR_KEY_mysys)
+    my_thread_var
   };
 }
 
 void wsrep_restore_threadvars(const Wsrep_threadvars& globals)
 {
   set_current_thd(globals.cur_thd);
-  pthread_setspecific(THR_KEY_mysys, globals.mysys_var);
+  set_mysys_var(globals.mysys_var);
 }
 
-int wsrep_store_threadvars(THD *thd)
+void wsrep_store_threadvars(THD *thd)
 {
   if (thread_handling ==  SCHEDULER_TYPES_COUNT)
   {
-    pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
+    set_mysys_var(thd->mysys_var);
   }
-  return thd->store_globals();
+  thd->store_globals();
 }
 
 void wsrep_reset_threadvars(THD *thd)
 {
   if (thread_handling == SCHEDULER_TYPES_COUNT)
   {
-    pthread_setspecific(THR_KEY_mysys, 0);
+    set_mysys_var(0);
   }
   else
   {

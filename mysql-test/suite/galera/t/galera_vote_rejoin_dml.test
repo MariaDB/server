@@ -1,0 +1,99 @@
+#
+# Test the case where a node that dropped prior to an inconsistency vote is
+# able to rejoin via IST after the vote is complete
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--let $node_4=node_4
+--source include/auto_increment_offset_save.inc
+
+# Isolate node #3
+--connection node_3
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+
+# Wait for node #3 to leave cluster
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'A');
+
+# Introduce inconsistency on node #4
+--connection node_4
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (2, 'B');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+
+# Wait for node #4 to be voted out
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Rejoin node #3
+--connection node_3
+--source include/wsrep_wait_disconnect.inc
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+--source include/galera_wait_ready.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Confirm that all is good
+--connection node_3
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+
+# Rejoin node #4
+--connection node_4
+SET SESSION wsrep_on=OFF;
+--source include/kill_galera.inc
+--sleep 1
+--echo Starting mysqld
+--source include/start_mysqld.inc
+
+# Confirm node #4 has rejoined
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+# Confirm that all is good and all nodes have identical data
+
+--connection node_1
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+
+--connection node_2
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+
+--connection node_3
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+
+--connection node_4
+--source include/galera_wait_ready.inc
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+CALL mtr.add_suppression("inconsistent with group");
+
+DROP TABLE t1;
+
+--source include/auto_increment_offset_restore.inc

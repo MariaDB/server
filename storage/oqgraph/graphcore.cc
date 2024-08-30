@@ -266,10 +266,10 @@ namespace open_query {
       : oqgraph_cursor(arg), no_weight(), sequence(0), results(), last()
     { }
 
-    int fetch_row(const row &, row&);
-    int fetch_row(const row &, row&, const reference&);
+    int fetch_row(const row &, row&) override;
+    int fetch_row(const row &, row&, const reference&) override;
 
-    void current(reference& ref) const
+    void current(reference& ref) const override
     {
       ref= last;
     }
@@ -286,10 +286,10 @@ namespace open_query {
       : oqgraph_cursor(arg), position(0)
     { }
 
-    int fetch_row(const row &, row&);
-    int fetch_row(const row &, row&, const reference&);
+    int fetch_row(const row &, row&) override;
+    int fetch_row(const row &, row&, const reference&) override;
 
-    void current(reference& ref) const
+    void current(reference& ref) const override
     {
       ref= last;
     }
@@ -308,10 +308,10 @@ namespace open_query {
       : oqgraph_cursor(arg), position(0), last()
     { }
 
-    int fetch_row(const row &, row&);
-    int fetch_row(const row &, row&, const reference&);
+    int fetch_row(const row &, row&) override;
+    int fetch_row(const row &, row&, const reference&) override;
 
-    void current(reference& ref) const
+    void current(reference& ref) const override
     {
       ref= last;
     }

@@ -1,4 +1,5 @@
 drop table if exists t1;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set names utf8;
 create table t1 (s1 int)
 partition by list (s1)
@@ -20,3 +21,37 @@ create table t1 (a varchar(1), primary key (a))
 partition by list (ascii(a))
 (partition p1 values in (65));
 ERROR HY000: This partition function is not allowed
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-30805 SIGSEGV in my_convert and UBSAN: member access within null pointer of type 'const struct MY_CHARSET_HANDLER' in my_convert
+#
+CREATE TABLE t1 (a CHAR CHARACTER SET ucs2)
+PARTITION BY RANGE COLUMNS (a)
+(PARTITION p0 VALUES LESS THAN ('a'));
+ALTER TABLE t1 CHANGE COLUMN a a CHAR BINARY;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(1) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+ PARTITION BY RANGE  COLUMNS(`a`)
+(PARTITION `p0` VALUES LESS THAN ('a') ENGINE = MyISAM)
+DROP TABLE t1;
+#
+# MDEV-30681 SIGFPE / UBSAN runtime error: division by zero in String::needs_conversion on ALTER
+#
+CREATE TABLE t1 (a BINARY (10)) PARTITION BY LIST COLUMNS (a) (PARTITION p VALUES IN (0xFF));
+SELECT COLUMN_TYPE, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1';
+COLUMN_TYPE	COLLATION_NAME
+binary(10)	NULL
+ALTER TABLE t1 CHANGE COLUMN a a CHAR(10) BINARY;
+SELECT COLUMN_TYPE, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1';
+COLUMN_TYPE	COLLATION_NAME
+char(10)	latin1_bin
+DROP TABLE t1;
+#
+# End of 10.9 tests
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

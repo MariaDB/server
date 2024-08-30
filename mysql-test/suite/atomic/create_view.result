@@ -1,0 +1,82 @@
+query: CREATE VIEW t1 as select "new"
+crash point: ddl_log_create_before_copy_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_create_view
+t2.frm
+old
+old
+crash point: definition_file_after_create
+t2.frm
+old
+old
+crash point: ddl_log_create_after_create_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_binlog
+t2.frm
+old
+old
+crash point: ddl_log_create_after_binlog
+t1.frm
+t2.frm
+old
+old
+master-bin.000001	#	Query	#	#	use `test`; CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `t1` AS select "new"
+query: CREATE OR REPLACE VIEW t1 as select "new"
+crash point: ddl_log_create_before_copy_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_create_view
+t2.frm
+old
+old
+crash point: definition_file_after_create
+t2.frm
+old
+old
+crash point: ddl_log_create_after_create_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_binlog
+t2.frm
+old
+old
+crash point: ddl_log_create_after_binlog
+t1.frm
+t2.frm
+old
+old
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `t1` AS select "new"
+query: CREATE OR REPLACE VIEW t2 as select "new"
+crash point: ddl_log_create_before_copy_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_create_view
+t2.frm
+old
+old
+crash point: definition_file_after_create
+t2.frm
+old
+old
+crash point: ddl_log_create_after_create_view
+t2.frm
+old
+old
+crash point: ddl_log_create_before_binlog
+t2.frm
+old
+old
+crash point: ddl_log_create_after_binlog
+t2.frm
+new
+new
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `t2` AS select "new"
+Warnings:
+Note	4092	Unknown VIEW: 'test.t1,test.t2'

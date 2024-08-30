@@ -8,6 +8,7 @@ if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
    --skip Test requires: ps-protocol/sp-protocol/cursor-protocol/view-protocol disabled
 }
 
+create table t1 (a int, b int);
 
 --let base=1
 --source query_response_time.inc
@@ -26,3 +27,31 @@ if (`SELECT $PS_PROTOCOL + $SP_PROTOCOL + $CURSOR_PROTOCOL
 
 SET GLOBAL QUERY_RESPONSE_TIME_RANGE_BASE=default;
 SET GLOBAL QUERY_RESPONSE_TIME_STATS=default;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-34031 FLUSH QUERY_RESPONSE_TIME_WRITE also flushes READ, and
+--echo # vice versa
+--echo #
+
+flush query_response_time;
+set query_response_time_session_stats=on;
+create table t1 (a int);
+insert into t1 values (1);
+insert into t1 values (2);
+select * from t1;
+select sum(count) from information_schema.query_response_time_read;
+select sum(count) from information_schema.query_response_time_write;
+flush query_response_time_write;
+select sum(count) from information_schema.query_response_time_read;
+select sum(count) from information_schema.query_response_time_write;
+ 
+set @save_query_response_time_range_base=@@global.query_response_time_range_base;
+select @@global.query_response_time_range_base;
+set @@global.query_response_time_range_base=2;
+flush query_response_time_write;
+select sum(count) from information_schema.query_response_time_read;
+select sum(count) from information_schema.query_response_time_write;
+set @@global.query_response_time_range_base=@save_query_response_time_range_base;
+drop table t1;

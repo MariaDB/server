@@ -125,17 +125,20 @@ int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
   switch (stp) {
     case SQL_WVARCHAR:                      //  (-9)
       w = true;
+      /* fall through */
     case SQL_VARCHAR:                       //   12
       v = 'V';
       type = TYPE_STRING;
       break;
     case SQL_WCHAR:                         //  (-8)
       w = true;
+      /* fall through */
     case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
     case SQL_WLONGVARCHAR:                  // (-10)
       w = true;
+      /* fall through */
     case SQL_LONGVARCHAR:                   //  (-1)
 			if (GetTypeConv() == TPC_YES || GetTypeConv() == TPC_FORCE) {
 				v = 'V';
@@ -1295,10 +1298,7 @@ bool ODBConn::DriverConnect(DWORD Options)
 #else   // !_WIN32
   HWND    hWnd = (HWND)1;
 #endif  // !_WIN32
-  PGLOBAL& g = m_G;
-  PDBUSER dup = PlgGetUser(g);
 
-//if (Options & noOdbcDialog || dup->Remote)
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)
 //  wConnectOption = SQL_DRIVER_PROMPT;
@@ -1697,7 +1697,7 @@ int ODBConn::PrepareSQL(char *sql)
     b = false;
 
     if (m_hstmt) {
-      RETCODE rc = SQLFreeStmt(m_hstmt, SQL_CLOSE);
+      SQLFreeStmt(m_hstmt, SQL_CLOSE);
 
       hstmt = m_hstmt;
       m_hstmt = NULL;
@@ -1705,7 +1705,7 @@ int ODBConn::PrepareSQL(char *sql)
       if (m_Tdb->GetAmType() != TYPE_AM_XDBC)
         ThrowDBX(MSG(SEQUENCE_ERROR));
 
-      } // endif m_hstmt
+    } // endif m_hstmt
 
     rc = SQLAllocStmt(m_hdbc, &hstmt);
 
@@ -2358,6 +2358,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         break;
       case CAT_SPC:
         ThrowDBX("SQLSpecialColumns not available yet");
+        break;
       default:
         ThrowDBX("Invalid SQL function id");
       } // endswitch infotype

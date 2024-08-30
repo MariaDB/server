@@ -7,10 +7,13 @@ CREATE DATABASE federated;
 connection master;
 SET @OLD_MASTER_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
+create user fed@127.0.0.1 identified by 'def';
+grant all privileges on federated.* to fed@127.0.0.1;
 connection slave;
 SET @OLD_SLAVE_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
-DROP TABLE IF EXISTS federated.bug_13118_table;
+create user fed@127.0.0.1 identified by 'def';
+grant all privileges on federated.* to fed@127.0.0.1;
 CREATE TABLE federated.t1 (
 `id` int auto_increment primary key, 
 `value` int
@@ -19,7 +22,6 @@ INSERT INTO federated.t1 SET value=1;
 INSERT INTO federated.t1 SET value=2;
 INSERT INTO federated.t1 SET value=2;
 connection master;
-DROP TABLE IF EXISTS federated.t1;
 CREATE TABLE federated.t1 (
 `id` int auto_increment primary key, 
 `value` int
@@ -51,9 +53,11 @@ id	value
 7	54
 8	55
 DROP TABLE federated.t1;
+drop user fed@127.0.0.1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_MASTER_CONCURRENT_INSERT;
 connection slave;
 DROP TABLE federated.t1;
+drop user fed@127.0.0.1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
 connection master;
 DROP TABLE IF EXISTS federated.t1;

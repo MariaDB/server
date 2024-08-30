@@ -1,0 +1,28 @@
+source include/have_innodb.inc;
+# need to restart server
+source include/not_embedded.inc;
+
+call mtr.add_suppression('SQL_ERROR_LOG');
+call mtr.add_suppression('Failed to initialize plugins');
+call mtr.add_suppression('Aborting');
+
+if (!$SQL_ERRLOG_SO) {
+  skip No SQL_ERROR_LOG plugin;
+}
+
+create table t1(a int primary key, b int as (100-a*a), index(b)) engine=innodb;
+insert t1 (a) values(1),(2),(3);
+start transaction;
+select * from t1 order by a;
+connect(con1, localhost, root);
+delete from t1 where a=2;
+flush tables;
+connection default;
+source include/kill_mysqld.inc;
+echo # Failed restart;
+error 1;
+exec $MYSQLD_LAST_CMD --plugin-load-add=$SQL_ERRLOG_SO --sql-error-log=FORCE --sql-error-log-filename=$MYSQLTEST_VARDIR/nonexistent/nonexistent;
+echo # Start the server;
+source include/start_mysqld.inc;
+select * from t1 order by a;
+drop table t1;

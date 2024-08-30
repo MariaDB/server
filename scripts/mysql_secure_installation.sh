@@ -27,7 +27,14 @@ echo_c=
 basedir=
 defaults_file=
 defaults_extra_file=
+defaults_group_suffix=
 no_defaults=
+
+case "$0" in
+  *mysql_secure_installation)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-secure-installation' instead" 1>&2
+    ;;
+esac
 
 parse_arg()
 {
@@ -52,6 +59,7 @@ parse_arguments()
       --basedir=*) basedir=`parse_arg "$arg"` ;;
       --defaults-file=*) defaults_file="$arg" ;;
       --defaults-extra-file=*) defaults_extra_file="$arg" ;;
+      --defaults-group-suffix=*) defaults_group_suffix="$arg" ;;
       --no-defaults) no_defaults="$arg" ;;
       *)
         if test -n "$pick_args"
@@ -159,15 +167,15 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
-  mysql_command=`find_in_basedir mysql bin`
+  mysql_command=`find_in_basedir mariadb bin`
   if test -z "$mysql_command"
   then
-    cannot_find_file mysql $basedir/bin
-    exit 1
+      cannot_find_file mariadb $basedir/bin
+      exit 1
   fi
 else
   print_defaults="@bindir@/my_print_defaults"
-  mysql_command="@bindir@/mysql"
+  mysql_command="@bindir@/mariadb"
 fi
 
 if test ! -x "$print_defaults"
@@ -184,7 +192,7 @@ fi
 
 # Now we can get arguments from the group [client] and [client-server]
 # in the my.cfg file, then re-run to merge with command line arguments.
-parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
+parse_arguments `$print_defaults $defaults_file $defaults_extra_file $defaults_group_suffix $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
 set_echo_compat() {

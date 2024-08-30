@@ -695,120 +695,120 @@ DROP TABLE test.year; -- Unknown table 'test.year'
 DROP TABLE test.create; -- Unknown table 'test.create'
 CALL p2('CREATE FUNCTION $(VAR)() RETURNS OOPS');
 --------
-CREATE FUNCTION non_keyword() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION lpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION rpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION adddate() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION substr() RETURNS OOPS; -- ..syntax.. near 'substr() RETURNS OOPS' 
 --------
 CREATE FUNCTION substring() RETURNS OOPS; -- ..syntax.. near 'substring() RETURNS OOP
 --------
-CREATE FUNCTION trim_oracle() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION ascii() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION replace() RETURNS OOPS; -- ..syntax.. near 'replace() RETURNS OOPS'
 --------
-CREATE FUNCTION weight_string() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION char() RETURNS OOPS; -- ..syntax.. near 'char() RETURNS OOPS' at
 --------
 CREATE FUNCTION trim() RETURNS OOPS; -- ..syntax.. near 'trim() RETURNS OOPS' at
 --------
-CREATE FUNCTION year() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION year() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION create() RETURNS OOPS; -- ..syntax.. near 'create() RETURNS OOPS' 
 CALL p2('CREATE FUNCTION test.$(VAR)() RETURNS OOPS');
 --------
-CREATE FUNCTION test.non_keyword() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.non_keyword() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.lpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.lpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.rpad() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.rpad() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.adddate() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.adddate() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION test.substr() RETURNS OOPS; -- ..syntax.. near 'substr() RETURNS OOPS' 
 --------
 CREATE FUNCTION test.substring() RETURNS OOPS; -- ..syntax.. near 'substring() RETURNS OOP
 --------
-CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.trim_oracle() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.ascii() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.ascii() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION test.replace() RETURNS OOPS; -- ..syntax.. near 'replace() RETURNS OOPS'
 --------
-CREATE FUNCTION test.weight_string() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.weight_string() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.char() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.char() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
 CREATE FUNCTION test.trim() RETURNS OOPS; -- ..syntax.. near 'trim() RETURNS OOPS' at
 --------
-CREATE FUNCTION test.year() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.year() RETURNS OOPS; -- Unknown data type: 'OOPS'
 --------
-CREATE FUNCTION test.create() RETURNS OOPS; -- ..syntax.. near 'OOPS' at line 1
+CREATE FUNCTION test.create() RETURNS OOPS; -- Unknown data type: 'OOPS'
 CALL p2('DROP FUNCTION $(VAR)');
 --------
-DROP FUNCTION non_keyword; -- This command is not supported in the pre
+DROP FUNCTION non_keyword; -- FUNCTION test.non_keyword does not exist
 --------
-DROP FUNCTION lpad; -- This command is not supported in the pre
+DROP FUNCTION lpad; -- FUNCTION test.lpad does not exist
 --------
-DROP FUNCTION rpad; -- This command is not supported in the pre
+DROP FUNCTION rpad; -- FUNCTION test.rpad does not exist
 --------
-DROP FUNCTION adddate; -- This command is not supported in the pre
+DROP FUNCTION adddate; -- FUNCTION test.adddate does not exist
 --------
-DROP FUNCTION substr; -- This command is not supported in the pre
+DROP FUNCTION substr; -- FUNCTION test.substr does not exist
 --------
-DROP FUNCTION substring; -- This command is not supported in the pre
+DROP FUNCTION substring; -- FUNCTION test.substring does not exist
 --------
-DROP FUNCTION trim_oracle; -- This command is not supported in the pre
+DROP FUNCTION trim_oracle; -- FUNCTION test.trim_oracle does not exist
 --------
-DROP FUNCTION ascii; -- This command is not supported in the pre
+DROP FUNCTION ascii; -- FUNCTION test.ascii does not exist
 --------
 DROP FUNCTION replace; -- ..syntax.. near 'replace' at line 1
 --------
-DROP FUNCTION weight_string; -- This command is not supported in the pre
+DROP FUNCTION weight_string; -- FUNCTION test.weight_string does not exi
 --------
 DROP FUNCTION char; -- ..syntax.. near 'char' at line 1
 --------
-DROP FUNCTION trim; -- This command is not supported in the pre
+DROP FUNCTION trim; -- FUNCTION test.trim does not exist
 --------
-DROP FUNCTION year; -- This command is not supported in the pre
+DROP FUNCTION year; -- FUNCTION test.year does not exist
 --------
 DROP FUNCTION create; -- ..syntax.. near 'create' at line 1
 CALL p2('DROP FUNCTION test.$(VAR)');
 --------
-DROP FUNCTION test.non_keyword; -- This command is not supported in the pre
+DROP FUNCTION test.non_keyword; -- FUNCTION test.non_keyword does not exist
 --------
-DROP FUNCTION test.lpad; -- This command is not supported in the pre
+DROP FUNCTION test.lpad; -- FUNCTION test.lpad does not exist
 --------
-DROP FUNCTION test.rpad; -- This command is not supported in the pre
+DROP FUNCTION test.rpad; -- FUNCTION test.rpad does not exist
 --------
-DROP FUNCTION test.adddate; -- This command is not supported in the pre
+DROP FUNCTION test.adddate; -- FUNCTION test.adddate does not exist
 --------
-DROP FUNCTION test.substr; -- This command is not supported in the pre
+DROP FUNCTION test.substr; -- FUNCTION test.substr does not exist
 --------
-DROP FUNCTION test.substring; -- This command is not supported in the pre
+DROP FUNCTION test.substring; -- FUNCTION test.substring does not exist
 --------
-DROP FUNCTION test.trim_oracle; -- This command is not supported in the pre
+DROP FUNCTION test.trim_oracle; -- FUNCTION test.trim_oracle does not exist
 --------
-DROP FUNCTION test.ascii; -- This command is not supported in the pre
+DROP FUNCTION test.ascii; -- FUNCTION test.ascii does not exist
 --------
-DROP FUNCTION test.replace; -- This command is not supported in the pre
+DROP FUNCTION test.replace; -- FUNCTION test.replace does not exist
 --------
-DROP FUNCTION test.weight_string; -- This command is not supported in the pre
+DROP FUNCTION test.weight_string; -- FUNCTION test.weight_string does not exi
 --------
-DROP FUNCTION test.char; -- This command is not supported in the pre
+DROP FUNCTION test.char; -- FUNCTION test.char does not exist
 --------
-DROP FUNCTION test.trim; -- This command is not supported in the pre
+DROP FUNCTION test.trim; -- FUNCTION test.trim does not exist
 --------
-DROP FUNCTION test.year; -- This command is not supported in the pre
+DROP FUNCTION test.year; -- FUNCTION test.year does not exist
 --------
-DROP FUNCTION test.create; -- This command is not supported in the pre
+DROP FUNCTION test.create; -- FUNCTION test.create does not exist
 DROP TABLE t1;
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;

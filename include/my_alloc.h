@@ -20,6 +20,8 @@
 #ifndef _my_alloc_h
 #define _my_alloc_h
 
+#include "mysql/psi/psi_base.h"
+
 #define ALLOC_MAX_BLOCK_TO_DROP			4096
 #define ALLOC_MAX_BLOCK_USAGE_BEFORE_DROP	10
 
@@ -54,7 +56,8 @@ typedef struct st_mem_root
   unsigned short flags;
 
   void (*error_handler)(void);
-  const char *name;
+
+  PSI_memory_key psi_key;
 } MEM_ROOT;
 
 #ifdef  __cplusplus

@@ -25,11 +25,11 @@ class DllExport XMLDEF : public TABDEF {  /* Logical table description */
    XMLDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "XML";}
+  const char *GetType(void) override {return "XML";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -72,18 +72,18 @@ class DllExport TDBXML : public TDBASE {
   TDBXML(PTDBXML tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_XML;}
-  virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBXML(this);}
+  AMT   GetAmType(void) override {return TYPE_AM_XML;}
+  PTDB  Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBXML(this);}
 
   // Methods
-  virtual PTDB  Clone(PTABS t);
-  virtual int   GetRecpos(void);
-  virtual int   GetProgCur(void) {return N;}
-  virtual PCSZ  GetFile(PGLOBAL g) {return Xfile;}
-  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Xfile = fn;}
-  virtual void  ResetDB(void) {N = 0;}
-  virtual void  ResetSize(void) {MaxSize = -1;}
-  virtual int   RowNumber(PGLOBAL g, bool b = false);
+  PTDB  Clone(PTABS t) override;
+  int   GetRecpos(void) override;
+  int   GetProgCur(void) override {return N;}
+  PCSZ  GetFile(PGLOBAL g) override {return Xfile;}
+  void  SetFile(PGLOBAL g, PCSZ fn) override {Xfile = fn;}
+  void  ResetDB(void) override {N = 0;}
+  void  ResetSize(void) override {MaxSize = -1;}
+  int   RowNumber(PGLOBAL g, bool b = false) override;
           int   LoadTableFile(PGLOBAL g, char *filename);
           bool  Initialize(PGLOBAL g);
           bool  SetTabNode(PGLOBAL g);
@@ -91,19 +91,19 @@ class DllExport TDBXML : public TDBASE {
           bool  CheckRow(PGLOBAL g, bool b);
 
   // Database routines
-  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual PCOL  InsertSpecialColumn(PCOL colp);
+  PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  PCOL  InsertSpecialColumn(PCOL colp) override;
 //virtual int   GetMaxSame(PGLOBAL g) {return (Xpand) ? Limit : 1;}
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
+  int   Cardinality(PGLOBAL g) override;
+  int   GetMaxSize(PGLOBAL g) override;
 //virtual bool  NeedIndexing(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
-  virtual int   WriteDB(PGLOBAL g);
-  virtual int   DeleteDB(PGLOBAL g, int irc);
-  virtual void  CloseDB(PGLOBAL g);
-  virtual int   CheckWrite(PGLOBAL g) {Checked = true; return 0;}
-	virtual const CHARSET_INFO *data_charset();
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
+  int   WriteDB(PGLOBAL g) override;
+  int   DeleteDB(PGLOBAL g, int irc) override;
+  void  CloseDB(PGLOBAL g) override;
+  int   CheckWrite(PGLOBAL g) override {Checked = true; return 0;}
+	const CHARSET_INFO *data_charset() override;
 
  protected:
   // Members
@@ -164,14 +164,14 @@ class XMLCOL : public COLBLK {
   XMLCOL(XMLCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_XML;}
-  virtual void SetTo_Val(PVAL valp) {To_Val = valp;}
+  int  GetAmType(void) override {return TYPE_AM_XML;}
+  void SetTo_Val(PVAL valp) override {To_Val = valp;}
           bool ParseXpath(PGLOBAL g, bool mode);
 
   // Methods
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
           bool AllocBuf(PGLOBAL g, bool mode);
           void AllocNodes(PGLOBAL g, PXDOC dp);
 
@@ -234,8 +234,8 @@ class XMULCOL : public XMLCOLX {
   XMULCOL(PVAL valp) {Value = valp; Mul = true;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
   }; // end of class XMULCOL
 
 /***********************************************************************/
@@ -248,8 +248,8 @@ class XPOSCOL : public XMLCOLX {
   XPOSCOL(PVAL valp) {Value = valp;}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
   }; // end of class XPOSCOL
 
 /***********************************************************************/
@@ -262,7 +262,7 @@ class TDBXCT : public TDBCAT {
 
  protected:
   // Specific routines
-  virtual PQRYRES GetResult(PGLOBAL g);
+  PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   PTOS  Topt;

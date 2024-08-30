@@ -148,7 +148,7 @@ class Rdb_background_thread : public Rdb_thread {
   }
 
  public:
-  virtual void run() override;
+  void run() override;
 
   void request_save_stats() {
     RDB_MUTEX_LOCK_CHECK(m_signal_mutex);
@@ -175,7 +175,7 @@ class Rdb_manual_compaction_thread : public Rdb_thread {
   std::map<int, Manual_compaction_request> m_requests;
 
  public:
-  virtual void run() override;
+  void run() override;
   int request_manual_compaction(rocksdb::ColumnFamilyHandle *cf,
                                 rocksdb::Slice *start, rocksdb::Slice *limit,
                                 int concurrency = 0);
@@ -189,7 +189,7 @@ class Rdb_manual_compaction_thread : public Rdb_thread {
 */
 
 struct Rdb_drop_index_thread : public Rdb_thread {
-  virtual void run() override;
+  void run() override;
 };
 
 }  // namespace myrocks

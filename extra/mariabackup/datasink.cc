@@ -80,11 +80,11 @@ ds_create(const char *root, ds_type_t type)
 /************************************************************************
 Open a datasink file */
 ds_file_t *
-ds_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *stat)
+ds_open(ds_ctxt_t *ctxt, const char *path, const MY_STAT *stat, bool rewrite)
 {
 	ds_file_t	*file;
 
-	file = ctxt->datasink->open(ctxt, path, stat);
+	file = ctxt->datasink->open(ctxt, path, stat, rewrite);
 	if (file != NULL) {
 		file->datasink = ctxt->datasink;
 	}
@@ -102,6 +102,30 @@ ds_write(ds_file_t *file, const void *buf, size_t len)
 		return 0;
 	}
 	return file->datasink->write(file, (const uchar *)buf, len);
+}
+
+int ds_seek_set(ds_file_t *file, my_off_t offset) {
+	DBUG_ASSERT(file);
+	DBUG_ASSERT(file->datasink);
+	if (file->datasink->seek_set)
+		return file->datasink->seek_set(file, offset);
+	return 0;
+}
+
+int ds_rename(ds_ctxt_t *ctxt, const char *old_path, const char *new_path) {
+	DBUG_ASSERT(ctxt);
+	DBUG_ASSERT(ctxt->datasink);
+	if (ctxt->datasink->rename)
+		return ctxt->datasink->rename(ctxt, old_path, new_path);
+	return 0;
+}
+
+int ds_remove(ds_ctxt_t *ctxt, const char *path) {
+	DBUG_ASSERT(ctxt);
+	DBUG_ASSERT(ctxt->datasink);
+	if (ctxt->datasink->remove)
+		return ctxt->datasink->mremove(ctxt, path);
+	return 0;
 }
 
 /************************************************************************

@@ -76,9 +76,18 @@ typedef struct system_status_var STATUS_VAR;
 #define IS_FILES_EXTRA               37
 
 typedef enum { WITHOUT_DB_NAME, WITH_DB_NAME } enum_with_db_name;
+
+int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond);
+
 int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
                       Table_specification_st *create_info_arg,
                       enum_with_db_name with_db_name);
+
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
+                         const char * forced_db, const char *forced_name,
+                         String *packet,
+                         Table_specification_st *create_info_arg,
+                         enum_with_db_name with_db_name);
 
 int copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table);
 
@@ -87,6 +96,10 @@ static inline bool append_identifier(THD *thd, String *packet, const LEX_CSTRING
 {
   return append_identifier(thd, packet, name->str, name->length);
 }
+
+bool append_identifier_opt_casedn(THD *thd, String *to,
+                                  const LEX_CSTRING &ident, bool casedn);
+
 void mysqld_list_fields(THD *thd,TABLE_LIST *table, const char *wild);
 int mysqld_dump_create_info(THD *thd, TABLE_LIST *table_list, int fd);
 bool mysqld_show_create_get_fields(THD *thd, TABLE_LIST *table_list,
@@ -110,6 +123,7 @@ bool append_definer(THD *thd, String *buffer, const LEX_CSTRING *definer_user,
                     const LEX_CSTRING *definer_host);
 int add_status_vars(SHOW_VAR *list);
 void remove_status_vars(SHOW_VAR *list);
+ulonglong get_status_vars_version(void);
 void init_status_vars();
 void free_status_vars();
 void reset_status_vars();
@@ -117,9 +131,7 @@ bool show_create_trigger(THD *thd, const sp_name *trg_name);
 void view_store_options(THD *thd, TABLE_LIST *table, String *buff);
 
 void init_fill_schema_files_row(TABLE* table);
-bool schema_table_store_record(THD *thd, TABLE *table);
 void initialize_information_schema_acl();
-COND *make_cond_for_info_schema(THD *thd, COND *cond, TABLE_LIST *table);
 
 ST_SCHEMA_TABLE *find_schema_table(THD *thd, const LEX_CSTRING *table_name,
                                    bool *in_plugin);
@@ -147,27 +159,36 @@ THD *find_thread_by_id(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;
 /*
-  SHOW EXPLAIN request object. 
+  SHOW EXPLAIN/SHOW ANALYZE request object.
 */
 
 class Show_explain_request : public Apc_target::Apc_call
 {
 public:
-  THD *target_thd;  /* thd that we're running SHOW EXPLAIN for */
-  THD *request_thd; /* thd that run SHOW EXPLAIN command */
-  
+  THD *target_thd;  /* thd that we're running SHOW EXPLAIN/ANALYZE for */
+  THD *request_thd; /* thd that run SHOW EXPLAIN/ANALYZE command */
+ 
+  /*
+    Set to TRUE if you need the result in JSON format,
+    FALSE - in traditional tabular
+  */
+  bool is_json_format= false;
+
+  /* FALSE for SHOW EXPLAIN, TRUE - for SHOW ANALYZE*/
+  bool is_analyze;
+
   /* If true, there was some error when producing EXPLAIN output. */
   bool failed_to_produce;
    
-  /* SHOW EXPLAIN will be stored here */
+  /* SHOW EXPLAIN/ANALYZE will be stored here */
   select_result_explain_buffer *explain_buf;
   
-  /* Query that we've got SHOW EXPLAIN for */
+  /* Query that we've got SHOW EXPLAIN/ANALYZE for */
   String query_str;
   
-  /* Overloaded virtual function */
-  void call_in_target_thread();
+  void call_in_target_thread() override;
 };
+
 
 /**
   Condition pushdown used for INFORMATION_SCHEMA / SHOW queries.
@@ -245,7 +266,7 @@ bool ignore_db_dirs_init();
 void ignore_db_dirs_free();
 void ignore_db_dirs_reset();
 bool ignore_db_dirs_process_additions();
-bool push_ignored_db_dir(char *path);
+bool push_ignored_db_dir(const char *path);
 extern char *opt_ignore_db_dirs;
 
 #endif /* SQL_SHOW_H */

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,6 +25,7 @@ Created 5/7/1996 Heikki Tuuri
 *******************************************************/
 
 #include "dict0types.h"
+#include "buf0types.h"
 #include "ut0lst.h"
 
 #ifndef lock0types_h
@@ -45,34 +46,8 @@ enum lock_mode {
 			in an exclusive mode */
 	LOCK_NONE,	/* this is used elsewhere to note consistent read */
 	LOCK_NUM = LOCK_NONE, /* number of lock modes */
-	LOCK_NONE_UNSET = 255
+	LOCK_NONE_UNSET = 7
 };
-
-/** Convert the given enum value into string.
-@param[in]	mode	the lock mode
-@return human readable string of the given enum value */
-inline
-const char* lock_mode_string(enum lock_mode mode)
-{
-	switch (mode) {
-	case LOCK_IS:
-		return("LOCK_IS");
-	case LOCK_IX:
-		return("LOCK_IX");
-	case LOCK_S:
-		return("LOCK_S");
-	case LOCK_X:
-		return("LOCK_X");
-	case LOCK_AUTO_INC:
-		return("LOCK_AUTO_INC");
-	case LOCK_NONE:
-		return("LOCK_NONE");
-	case LOCK_NONE_UNSET:
-		return("LOCK_NONE_UNSET");
-	default:
-		ut_error;
-	}
-}
 
 /** A table lock */
 struct lock_table_t {
@@ -89,8 +64,8 @@ struct lock_table_t {
 
 /** Record lock for a page */
 struct lock_rec_t {
-	ib_uint32_t	space;		/*!< space id */
-	ib_uint32_t	page_no;	/*!< page number */
+	/** page identifier */
+	page_id_t	page_id;
 	ib_uint32_t	n_bits;		/*!< number of bits in the lock
 					bitmap; NOTE: the lock bitmap is
 					placed immediately after the
@@ -105,12 +80,12 @@ struct lock_rec_t {
 /** Print the record lock into the given output stream
 @param[in,out]	out	the output stream
 @return the given output stream. */
-inline
-std::ostream& lock_rec_t::print(std::ostream& out) const
+inline std::ostream &lock_rec_t::print(std::ostream &out) const
 {
-	out << "[lock_rec_t: space=" << space << ", page_no=" << page_no
-		<< ", n_bits=" << n_bits << "]";
-	return(out);
+  out << "[lock_rec_t: space=" << page_id.space()
+      << ", page_no=" << page_id.page_no()
+      << ", n_bits=" << n_bits << "]";
+  return out;
 }
 
 inline
@@ -120,17 +95,12 @@ operator<<(std::ostream& out, const lock_rec_t& lock)
 	return(lock.print(out));
 }
 
-#define LOCK_MODE_MASK	0xFUL	/*!< mask used to extract mode from the
+#define LOCK_MODE_MASK	0x7	/*!< mask used to extract mode from the
 				type_mode field in a lock */
 /** Lock types */
 /* @{ */
-#define LOCK_TABLE	16U	/*!< table lock */
-#define	LOCK_REC	32U	/*!< record lock */
-#define LOCK_TYPE_MASK	0xF0UL	/*!< mask used to extract lock type from the
-				type_mode field in a lock */
-#if LOCK_MODE_MASK & LOCK_TYPE_MASK
-# error "LOCK_MODE_MASK & LOCK_TYPE_MASK"
-#endif
+/** table lock (record lock if the flag is not set) */
+#define LOCK_TABLE	8U
 
 #define LOCK_WAIT	256U	/*!< Waiting lock flag; when set, it
 				means that the lock has not yet been
@@ -187,22 +157,21 @@ static inline bool lock_mode_is_next_key_lock(ulint mode)
 {
   static_assert(LOCK_ORDINARY == 0, "LOCK_ORDINARY must be 0 (no flags)");
   ut_ad((mode & LOCK_TABLE) == 0);
-  mode&= ~(LOCK_WAIT | LOCK_REC);
+  mode&= ~LOCK_WAIT;
   ut_ad((mode & LOCK_WAIT) == 0);
-  ut_ad((mode & LOCK_TYPE_MASK) == 0);
   ut_ad(((mode & ~(LOCK_MODE_MASK)) == LOCK_ORDINARY) ==
         (mode == LOCK_S || mode == LOCK_X));
   return (mode & ~(LOCK_MODE_MASK)) == LOCK_ORDINARY;
 }
 
-/** Lock struct; protected by lock_sys.mutex */
+/** Lock struct; protected by lock_sys.latch */
 struct ib_lock_t
 {
-	trx_t*		trx;		/*!< transaction owning the
-					lock */
-	UT_LIST_NODE_T(ib_lock_t)
-			trx_locks;	/*!< list of the locks of the
-					transaction */
+  /** the owner of the lock */
+  trx_t *trx;
+  /** other locks of the transaction; protected by
+  lock_sys.is_writer() and trx->mutex_is_owner(); @see trx_lock_t::trx_locks */
+  UT_LIST_NODE_T(ib_lock_t) trx_locks;
 
 	dict_index_t*	index;		/*!< index for a record lock */
 
@@ -229,13 +198,6 @@ struct ib_lock_t
 					LOCK_INSERT_INTENTION,
 					wait flag, ORed */
 
-	/** Determine if the lock object is a record lock.
-	@return true if record lock, false otherwise. */
-	bool is_record_lock() const
-	{
-		return(type() == LOCK_REC);
-	}
-
 	bool is_waiting() const
 	{
 		return(type_mode & LOCK_WAIT);
@@ -254,8 +216,8 @@ struct ib_lock_t
 	/** @return true if the lock is a Next Key Lock */
 	bool is_next_key_lock() const
 	{
-		return is_record_lock()
-		  && lock_mode_is_next_key_lock(type_mode);
+		return !(type_mode & LOCK_TABLE) &&
+		       lock_mode_is_next_key_lock(type_mode);
 	}
 
 	bool is_insert_intention() const
@@ -263,35 +225,25 @@ struct ib_lock_t
 		return(type_mode & LOCK_INSERT_INTENTION);
 	}
 
-	ulint type() const {
-		return(type_mode & LOCK_TYPE_MASK);
-	}
+	bool is_table() const { return type_mode & LOCK_TABLE; }
 
 	enum lock_mode mode() const
 	{
 		return(static_cast<enum lock_mode>(type_mode & LOCK_MODE_MASK));
 	}
 
+        bool is_rec_granted_exclusive_not_gap() const
+        {
+          return (type_mode & (LOCK_MODE_MASK | LOCK_GAP)) == LOCK_X;
+        }
+
 	/** Print the lock object into the given output stream.
 	@param[in,out]	out	the output stream
 	@return the given output stream. */
 	std::ostream& print(std::ostream& out) const;
 
-	/** Convert the member 'type_mode' into a human readable string.
-	@return human readable string */
-	std::string type_mode_string() const;
-
 	const char* type_string() const
-	{
-		switch (type_mode & LOCK_TYPE_MASK) {
-		case LOCK_REC:
-			return("LOCK_REC");
-		case LOCK_TABLE:
-			return("LOCK_TABLE");
-		default:
-			ut_error;
-		}
-	}
+	{ return is_table() ? "LOCK_TABLE" : "LOCK_REC"; }
 };
 
 typedef UT_LIST_BASE_NODE_T(ib_lock_t) trx_lock_list_t;

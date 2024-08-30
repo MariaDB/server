@@ -1,8 +1,4 @@
 include/rpl_init.inc [topology=1->2]
-connection server_2;
-include/stop_slave.inc
-CHANGE MASTER TO master_use_gtid= current_pos;
-include/start_slave.inc
 connection server_1;
 CREATE TABLE t1 (a INT);
 FLUSH LOGS;

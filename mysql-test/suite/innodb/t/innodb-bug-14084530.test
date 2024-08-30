@@ -4,7 +4,7 @@ let MYSQLD_DATADIR =`SELECT @@datadir`;
 
 SET AUTOCOMMIT = 0;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 CREATE DATABASE testdb_wl5522;
 CREATE TABLE testdb_wl5522.t1 (c1 int ) engine = Innodb;
 

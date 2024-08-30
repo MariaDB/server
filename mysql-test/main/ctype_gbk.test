@@ -24,6 +24,7 @@ SET collation_connection='gbk_bin';
 -- source include/ctype_innodb_like.inc
 -- source include/ctype_like_escape.inc
 -- source include/ctype_like_range_f1f2.inc
+-- source include/ctype_ascii_order.inc
 
 #
 # Bug#11987 mysql will truncate the text when
@@ -64,8 +65,10 @@ CREATE TABLE t1(a MEDIUMTEXT CHARACTER SET gbk,
 INSERT INTO t1 VALUES
   (REPEAT(0x1125,200000), REPEAT(0x1125,200000)), ('', ''), ('', '');
 
+--enable_prepare_warnings
 SELECT a FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
 SELECT b FROM t1 GROUP BY 1 LIMIT 1 INTO @nullll;
+--disable_prepare_warnings
 
 DROP TABLES t1;
 
@@ -446,13 +449,10 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-7661 Unexpected result for: CAST(0xHHHH AS CHAR CHARACTER SET xxx) for incorrect byte sequences
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
 set sql_mode='';
 SELECT HEX(CAST(0xA341 AS CHAR CHARACTER SET gb2312)) as exp;
 SELECT HEX(CONVERT(CAST(0xA341 AS CHAR CHARACTER SET gb2312) USING utf8)) as exp;
 set sql_mode=default;
---enable_view_protocol
 
 --echo #
 --echo # End of 10.1 tests
@@ -486,4 +486,21 @@ let $coll_pad='gbk_bin';
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
+--echo #
+
+SET NAMES gbk;
+SET @seq=_gbk 0xAAA1;
+--source include/ctype_ident_sys.inc
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

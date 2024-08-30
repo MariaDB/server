@@ -1068,7 +1068,6 @@ bool TDBJSN::OpenDB(PGLOBAL g)
 		/*********************************************************************/
 		/*  Lrecl is Ok.                      															 */
 		/*********************************************************************/
-		size_t linelen = Lrecl;
     MODE   mode = Mode;
 
     // Buffer must be allocated in g->Sarea
@@ -1729,7 +1728,6 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp, int n)
 /***********************************************************************/
 PJVAL JSONCOL::GetRowValue(PGLOBAL g, PJSON row, int i)
 {
-  int   n = Nod - 1;
   PJVAL val = NULL;
 
   for (; i < Nod && row; i++) {
@@ -1862,7 +1860,6 @@ void JSONCOL::ReadColumn(PGLOBAL g)
 /***********************************************************************/
 PVAL JSONCOL::GetColumnValue(PGLOBAL g, PJSON row, int i)
 {
-  int   n = Nod - 1;
   PJAR  arp;
   PJVAL val = NULL;
 

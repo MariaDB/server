@@ -1,0 +1,44 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo # MDEV-33101 Server crashes when starting the server with
+--echo # innodb-force-recovery=6 and enabling the
+--echo # innodb_truncate_temporary_tablespace_now variable
+
+--let $restart_parameters=--innodb-force-recovery=6
+--source include/restart_mysqld.inc
+SHOW VARIABLES LIKE "innodb_read_only";
+SET GLOBAL innodb_truncate_temporary_tablespace_now=1;
+
+--let $restart_parameters=
+--source include/restart_mysqld.inc
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+			  f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_65536;
+DROP TABLE t1;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=4294967294;
+SET GLOBAL INNODB_TRUNCATE_TEMPORARY_TABLESPACE_NOW= 0;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=4294967294;
+SET GLOBAL INNODB_TRUNCATE_TEMPORARY_TABLESPACE_NOW= 1;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE= 4294967294;
+
+# Concurrent session has open transaction for temporary tables
+CREATE TEMPORARY TABLE t1(f1 INT NOT NULL,
+			  f2 INT NOT NULL)ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq FROM seq_1_to_65536;
+
+# Concurrent session has open transaction for temporary tables
+connect(con1,localhost,root,,,);
+CREATE TEMPORARY TABLE t2(f1 INT NOT NULL,
+			  f2 INT NOT NULL)ENGINE=InnoDB;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_65536;
+DROP TABLE t2;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE=4294967294;
+SET GLOBAL INNODB_TRUNCATE_TEMPORARY_TABLESPACE_NOW= 1;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE= 4294967294;
+
+connection default;
+COMMIT;
+SELECT COUNT(*) FROM t1;
+DROP TABLE t1;

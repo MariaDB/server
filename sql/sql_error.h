@@ -29,6 +29,14 @@ class THD;
 class my_decimal;
 class sp_condition_value;
 
+/* Types of LOG warnings, used by note_verbosity */
+
+#define NOTE_VERBOSITY_NORMAL             (1U << 0)
+/* Show warnings about keys parts that cannot be used */
+#define NOTE_VERBOSITY_UNUSABLE_KEYS      (1U << 1)
+/* Show warnings in explain for key parts that cannot be used */
+#define NOTE_VERBOSITY_EXPLAIN            (1U << 2)
+
 ///////////////////////////////////////////////////////////////////////////
 
 class Sql_state
@@ -305,17 +313,21 @@ protected:
   /** SQL CURSOR_NAME condition item. */
   String m_cursor_name;
 
+  /** SQL ROW_NUMBER condition item. */
+  ulong m_row_number;
+
   Sql_condition_items()
-   :m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin)
+   :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_catalog_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_schema_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_row_number(0)
   { }
 
   void clear()
@@ -330,6 +342,7 @@ protected:
     m_table_name.length(0);
     m_column_name.length(0);
     m_cursor_name.length(0);
+    m_row_number= 0;
   }
 };
 
@@ -433,16 +446,14 @@ private:
     @param level    - the error level for this condition
     @param msg      - the message text for this condition
   */
-  Sql_condition(MEM_ROOT *mem_root,
-                const Sql_condition_identity &value,
-                const char *msg)
-   :Sql_condition_identity(value),
-    m_mem_root(mem_root)
+  Sql_condition(MEM_ROOT *mem_root, const Sql_condition_identity &value,
+                const char *msg, ulong current_row_for_warning)
+   : Sql_condition_identity(value), m_mem_root(mem_root)
   {
-    DBUG_ASSERT(mem_root != NULL);
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
+    m_row_number= current_row_for_warning;
   }
 
   /** Destructor. */
@@ -728,7 +739,7 @@ private:
   void inc_current_row_for_warning() { m_current_row_for_warning++; }
 
   /** Reset the current row counter. Start counting from the first row. */
-  void reset_current_row_for_warning() { m_current_row_for_warning= 1; }
+  void reset_current_row_for_warning(int n) { m_current_row_for_warning= n; }
 
   ulong set_current_row_for_warning(ulong row)
   {
@@ -757,9 +768,8 @@ private:
 
     @return a pointer to the added SQL-condition.
   */
-  Sql_condition *push_warning(THD *thd,
-                              const Sql_condition_identity *identity,
-                              const char* msg);
+  Sql_condition *push_warning(THD *thd, const Sql_condition_identity *identity,
+                              const char* msg, ulong current_row_number);
 
   /**
     Add a new SQL-condition to the current list and increment the respective
@@ -826,8 +836,8 @@ private:
 };
 
 
-extern char *err_conv(char *buff, uint to_length, const char *from,
-                      uint from_length, CHARSET_INFO *from_cs);
+extern size_t err_conv(char *buff, uint to_length, const char *from,
+                       uint from_length, CHARSET_INFO *from_cs);
 
 class ErrBuff
 {
@@ -839,31 +849,45 @@ public:
     err_buffer[0]= '\0';
   }
   const char *ptr() const { return err_buffer; }
-  const char *set_longlong(const Longlong_hybrid &nr) const
+  LEX_CSTRING set_longlong(const Longlong_hybrid &nr) const
   {
-    return nr.is_unsigned() ? ullstr(nr.value(), err_buffer) :
-                              llstr(nr.value(), err_buffer);
+    int radix= nr.is_unsigned() ? 10 : -10;
+    const char *end= longlong10_to_str(nr.value(), err_buffer, radix);
+    DBUG_ASSERT(end >= err_buffer);
+    return {err_buffer, (size_t) (end - err_buffer)};
   }
-  const char *set_double(double nr) const
+  LEX_CSTRING set_double(double nr) const
   {
-    my_gcvt(nr, MY_GCVT_ARG_DOUBLE, sizeof(err_buffer), err_buffer, 0);
-    return err_buffer;
+    size_t length= my_gcvt(nr, MY_GCVT_ARG_DOUBLE,
+                           sizeof(err_buffer), err_buffer, 0);
+    return {err_buffer, length};
   }
-  const char *set_decimal(const decimal_t *d) const
+  LEX_CSTRING set_decimal(const decimal_t *d) const
   {
-    int len= sizeof(err_buffer);
-    decimal2string(d, err_buffer, &len, 0, 0, ' ');
-    return err_buffer;
+    int length= sizeof(err_buffer);
+    decimal2string(d, err_buffer, &length, 0, 0, ' ');
+    DBUG_ASSERT(length >= 0);
+    return {err_buffer, (size_t) length};
   }
-  const char *set_str(const char *str, size_t len, CHARSET_INFO *cs) const
+  LEX_CSTRING set_str(const char *str, size_t len, CHARSET_INFO *cs) const
   {
     DBUG_ASSERT(len < UINT_MAX32);
-    return err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
+    len= err_conv(err_buffer, (uint) sizeof(err_buffer), str, (uint) len, cs);
+    return {err_buffer, len};
   }
-  const char *set_mysql_time(const MYSQL_TIME *ltime) const
+  LEX_CSTRING set_strq(const char *str, size_t len, CHARSET_INFO *cs) const
   {
-    my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
-    return err_buffer;
+    DBUG_ASSERT(len < UINT_MAX32);
+    len= err_conv(err_buffer+1, (uint) sizeof(err_buffer)-2, str, (uint) len, cs);
+    err_buffer[0]= err_buffer[len+1]= '\'';
+    err_buffer[len+2]= 0;
+    return {err_buffer, len+2};
+  }
+  LEX_CSTRING set_mysql_time(const MYSQL_TIME *ltime) const
+  {
+    int length= my_TIME_to_str(ltime, err_buffer, AUTO_SEC_PART_DIGITS);
+    DBUG_ASSERT(length >= 0);
+    return {err_buffer, (size_t) length};
   }
 };
 
@@ -873,11 +897,16 @@ class ErrConv: public ErrBuff
 public:
   ErrConv() = default;
   virtual ~ErrConv() = default;
-  virtual const char *ptr() const = 0;
+  virtual LEX_CSTRING lex_cstring() const= 0;
+  inline const char *ptr() const
+  {
+    return lex_cstring().str;
+  }
 };
 
 class ErrConvString : public ErrConv
 {
+protected:
   const char *str;
   size_t len;
   CHARSET_INFO *cs;
@@ -888,9 +917,19 @@ public:
     : ErrConv(), str(str_arg), len(strlen(str_arg)), cs(cs_arg) {}
   ErrConvString(const String *s)
     : ErrConv(), str(s->ptr()), len(s->length()), cs(s->charset()) {}
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
     return set_str(str, len, cs);
+  }
+};
+
+class ErrConvStringQ : public ErrConvString
+{
+public:
+  using ErrConvString::ErrConvString;
+  LEX_CSTRING lex_cstring() const override
+  {
+    return set_strq(str, len, cs);
   }
 };
 
@@ -899,7 +938,7 @@ class ErrConvInteger : public ErrConv, public Longlong_hybrid
 public:
   ErrConvInteger(const Longlong_hybrid &nr)
    : ErrConv(), Longlong_hybrid(nr) { }
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
     return set_longlong(static_cast<Longlong_hybrid>(*this));
   }
@@ -910,7 +949,7 @@ class ErrConvDouble: public ErrConv
   double num;
 public:
   ErrConvDouble(double num_arg) : ErrConv(), num(num_arg) {}
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
     return set_double(num);
   }
@@ -921,7 +960,7 @@ class ErrConvTime : public ErrConv
   const MYSQL_TIME *ltime;
 public:
   ErrConvTime(const MYSQL_TIME *ltime_arg) : ErrConv(), ltime(ltime_arg) {}
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
     return set_mysql_time(ltime);
   }
@@ -932,7 +971,7 @@ class ErrConvDecimal : public ErrConv
   const decimal_t *d;
 public:
   ErrConvDecimal(const decimal_t *d_arg) : ErrConv(), d(d_arg) {}
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
     return set_decimal(d);
   }
@@ -975,6 +1014,8 @@ public:
     DA_EOF,
     /** Set whenever one calls my_ok() in PS bulk mode. */
     DA_OK_BULK,
+    /** Set whenever one calls my_eof() in PS bulk mode. */
+    DA_EOF_BULK,
     /** Set whenever one calls my_error() or my_message(). */
     DA_ERROR,
     /** Set in case of a custom response, such as one from COM_STMT_PREPARE. */
@@ -1034,17 +1075,12 @@ public:
   enum_diagnostics_status status() const { return m_status; }
 
   const char *message() const
-  { DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
-                m_status == DA_OK_BULK); return m_message; }
-
-  bool skip_flush() const
   {
-    DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
-    return m_skip_flush;
+    DBUG_ASSERT(m_status == DA_ERROR || m_status == DA_OK ||
+                m_status == DA_OK_BULK || m_status == DA_EOF_BULK);
+    return m_message;
   }
 
-  void set_skip_flush()
-  { m_skip_flush= TRUE; }
 
   uint sql_errno() const
   {
@@ -1061,6 +1097,11 @@ public:
     return m_affected_rows;
   }
 
+  void set_message(const char *msg)
+  {
+    strmake_buf(m_message, msg);
+  }
+
   ulonglong last_insert_id() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
@@ -1070,7 +1111,12 @@ public:
   uint statement_warn_count() const
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK ||
-                m_status == DA_EOF);
+                m_status == DA_EOF ||m_status == DA_EOF_BULK );
+    return m_statement_warn_count;
+  }
+
+  uint unsafe_statement_warn_count() const
+  {
     return m_statement_warn_count;
   }
 
@@ -1157,8 +1203,8 @@ public:
   void inc_current_row_for_warning()
   { get_warning_info()->inc_current_row_for_warning(); }
 
-  void reset_current_row_for_warning()
-  { get_warning_info()->reset_current_row_for_warning(); }
+  void reset_current_row_for_warning(int n)
+  { get_warning_info()->reset_current_row_for_warning(n); }
 
   bool is_warning_info_read_only() const
   { return get_warning_info()->is_read_only(); }
@@ -1189,10 +1235,12 @@ public:
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
                               const Sql_user_condition_identity &ucid,
-                              const char* msg)
+                              const char* msg,
+                              ulong current_row_number)
   {
     Sql_condition_identity tmp(sql_errno_arg, sqlstate, level, ucid);
-    return get_warning_info()->push_warning(thd, &tmp, msg);
+    return get_warning_info()->push_warning(thd, &tmp, msg,
+                                            current_row_number);
   }
 
   Sql_condition *push_warning(THD *thd,
@@ -1202,7 +1250,7 @@ public:
                               const char* msg)
   {
     return push_warning(thd, sqlerrno, sqlstate, level,
-                        Sql_user_condition_identity(), msg);
+                        Sql_user_condition_identity(), msg, 0);
   }
   void mark_sql_conditions_for_removal()
   { get_warning_info()->mark_sql_conditions_for_removal(); }
@@ -1235,9 +1283,6 @@ private:
 
   /** Set to make set_error_status after set_{ok,eof}_status possible. */
   bool m_can_overwrite_status;
-
-  /** Skip flushing network buffer after writing OK (for COM_MULTI) */
-  bool m_skip_flush;
 
   /** Message buffer. Can be used by OK or ERROR status. */
   char m_message[MYSQL_ERRMSG_SIZE];
@@ -1281,6 +1326,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////
 
+void convert_error_to_warning(THD *thd);
 
 void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);

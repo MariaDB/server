@@ -17,5 +17,5 @@ INSERT INTO t1 VALUES (1);
 # packet. Show the warnings manually also.
 SHOW WARNINGS;
 
-drop table t1;
 SET debug_dbug= @saved_dbug;
+drop table t1;

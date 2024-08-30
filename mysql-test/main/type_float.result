@@ -95,7 +95,7 @@ t2	CREATE TABLE `t2` (
   `col2` double(22,5) DEFAULT NULL,
   `col3` double DEFAULT NULL,
   `col4` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create table t1 (a float);
 insert into t1 values (1);
@@ -133,7 +133,7 @@ min(a)
 -0.010
 drop table t1;
 create table t1 (a float(200,100), b double(200,100));
-ERROR 42000: Too big scale 100 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create table t1 (c20 char);
 insert ignore into t1 values (5000.0);
 Warnings:
@@ -238,7 +238,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `d` double(18,9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3;
 create table t1 select  105213674794682365.00 + 0.0 x;
 show warnings;
@@ -538,6 +538,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 ON t1.a=t2.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "`t1`.`a`" of type `datetime`
 DROP TABLE t1,t2;
 #
 # MDEV-6971 Bad results with joins comparing TIME and DOUBLE/DECIMAL columns
@@ -568,6 +570,8 @@ EXPLAIN SELECT t1.* FROM t1 LEFT JOIN t2 USING(a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	1	
 1	SIMPLE	t2	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `PRIMARY` part[0] for lookup: `test`.`t2`.`a` of type `double` = "`t1`.`a`" of type `time`
 DROP TABLE t1,t2;
 #
 # End of 10.0 tests
@@ -788,49 +792,49 @@ DROP TABLE t1,t2;
 #
 create or replace table t1 (a double(40,30));
 create or replace table t1 (a double(40,31));
-ERROR 42000: Too big scale 31 specified for 'a'. Maximum is 30
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
 create or replace table t1 as select 1.01e1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `1.01e1` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 30) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double(47,30) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 31) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 39) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 51) as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 20)/2 as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double(41,24) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 as select truncate(10.000000000001e1, 28)/2 as t;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `t` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table if exists t1;
 #
 # MDEV-11586 UNION of FLOAT type results in erroneous precision
@@ -930,7 +934,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` float DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1
 0.671437
@@ -940,16 +944,16 @@ CREATE TABLE t2 AS SELECT CONCAT(a) AS c1, CONCAT(CAST(a AS FLOAT)) AS c2 FROM t
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `c1` varchar(12) DEFAULT NULL,
-  `c2` varchar(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(12) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(12) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 CREATE TABLE t1 (a FLOAT DEFAULT CAST(0.671437 AS FLOAT));
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` float DEFAULT (cast(0.671437 as float))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a FLOAT);
 INSERT INTO t1 VALUES (1, 0.671437),(2, 0.671437);
@@ -1205,4 +1209,372 @@ Note	1916	Got overflow when converting '-3' to UNSIGNED BIGINT. Value truncated
 DROP VIEW v1;
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20548 Unexpected error on CREATE..SELECT HEX(num)
+#
+SET sql_mode=STRICT_ALL_TABLES;
+CREATE TABLE t1 AS SELECT HEX(-2e0) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFE
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(-1e0) AS h;
+SELECT * FROM t1;
+h
+FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(1e0) AS h;
+SELECT * FROM t1;
+h
+1
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 AS SELECT HEX(2e0) AS h;
+SELECT * FROM t1;
+h
+2
+SHOW COLUMNS IN t1;
+Field	Type	Null	Key	Default	Extra
+h	varchar(16)	YES		NULL	
+DROP TABLE t1;
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (-1e38),(-255),(-2),(-1),(+1),(+2),(255),(1e38);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	h
+-1e38	FFFFFFFFFFFFFFFF
+-255	FFFFFFFFFFFFFF01
+-2	FFFFFFFFFFFFFFFE
+-1	FFFFFFFFFFFFFFFF
+1	1
+2	2
+255	FF
+1e38	FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t2;
+Field	Type	Null	Key	Default	Extra
+a	float	YES		NULL	
+h	varchar(16)	YES		NULL	
+DROP TABLE t1, t2;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-1e308),(-255),(-2),(-1),(+1),(+2),(255),(1e308);
+CREATE TABLE t2 AS SELECT a, HEX(a) AS h FROM t1;
+SELECT * FROM t2 ORDER BY a;
+a	h
+-1e308	FFFFFFFFFFFFFFFF
+-255	FFFFFFFFFFFFFF01
+-2	FFFFFFFFFFFFFFFE
+-1	FFFFFFFFFFFFFFFF
+1	1
+2	2
+255	FF
+1e308	FFFFFFFFFFFFFFFF
+SHOW COLUMNS IN t2;
+Field	Type	Null	Key	Default	Extra
+a	double	YES		NULL	
+h	varchar(16)	YES		NULL	
+DROP TABLE t1, t2;
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col FLOAT, KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "DATE'2001-01-01'" of type `date`
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "TIME'10:20:30'" of type `time`
+Warning	1292	Incorrect time value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230100	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230100	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230100	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "`t2`.`not_indexed_col`" of type `date`
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "`t2`.`not_indexed_col`" of type `datetime`
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `float` = "`t2`.`not_indexed_col`" of type `timestamp`
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+Warning	1292	Incorrect datetime value: '20230132' for column `test`.`t1`.`indexed_col` at row 31
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-02'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-02'
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col DOUBLE, KEY(indexed_col));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (MAKEDATE(2023, i));
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "TIME'10:20:30'" of type `time`
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01
+20230102	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "`t2`.`not_indexed_col`" of type `date`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "`t2`.`not_indexed_col`" of type `datetime`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `double` = "`t2`.`not_indexed_col`" of type `timestamp`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-02'
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-01'
+Warning	1292	Truncated incorrect DOUBLE value: '2001-01-02'
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+#
+CREATE TABLE t1 (a DOUBLE(1000,1000));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(1000,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,1000));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483647,2147483647));
+ERROR 42000: Too big scale specified for 'a'. Maximum is 30
+CREATE TABLE t1 (a DOUBLE(2147483647,0));
+ERROR 42000: Display width out of range for 'a' (max = 255)
+CREATE TABLE t1 (a DOUBLE(0,2147483647));
+ERROR 42000: For float(M,D), double(M,D) or decimal(M,D), M must be >= D (column 'a')
+CREATE TABLE t1 (a DOUBLE(2147483648,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(2147483648,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,2147483648));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '2147483648))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,999999999999999999999999999999))' at line 1
+CREATE TABLE t1 (a DOUBLE(999999999999999999999999999999,0));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999,0))' at line 1
+CREATE TABLE t1 (a DOUBLE(0,999999999999999999999999999999));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '999999999999999999999999999999))' at line 1
+#
+# End of 10.9 tests
 #

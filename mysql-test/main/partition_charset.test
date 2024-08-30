@@ -8,6 +8,8 @@
 drop table if exists t1;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 set names utf8;
 create table t1 (s1 int)
   partition by list (s1)
@@ -27,3 +29,35 @@ partition by list (ascii(a))
 #insert into t1 values ('A');
 #replace into t1 values ('A');
 #drop table t1;
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-30805 SIGSEGV in my_convert and UBSAN: member access within null pointer of type 'const struct MY_CHARSET_HANDLER' in my_convert
+--echo #
+
+CREATE TABLE t1 (a CHAR CHARACTER SET ucs2)
+  PARTITION BY RANGE COLUMNS (a)
+  (PARTITION p0 VALUES LESS THAN ('a'));
+ALTER TABLE t1 CHANGE COLUMN a a CHAR BINARY;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-30681 SIGFPE / UBSAN runtime error: division by zero in String::needs_conversion on ALTER
+--echo #
+
+CREATE TABLE t1 (a BINARY (10)) PARTITION BY LIST COLUMNS (a) (PARTITION p VALUES IN (0xFF));
+SELECT COLUMN_TYPE, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1';
+ALTER TABLE t1 CHANGE COLUMN a a CHAR(10) BINARY;
+SELECT COLUMN_TYPE, COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='t1';
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

@@ -4,17 +4,6 @@
 #
 # MDEV-10083: Orphan ibd file when playing with foreign keys
 #
---disable_query_log
-SET @start_global_fpt = @@global.innodb_file_per_table;
-SET @start_global_fkc = @@global.foreign_key_checks;
---enable_query_log
-
-set global innodb_file_per_table = 1;
-
---disable_warnings
-drop table if exists b;
-drop database if exists bug_fk;
---enable_warnings
 
 let $MYSQLD_DATADIR = `select @@datadir`;
 
@@ -46,7 +35,15 @@ show create table c;
 #
 # Note that column b has different type in parent table
 #
---error 1005
+CREATE TABLE b (
+  b bigint unsigned NOT NULL,
+  d1 date NOT NULL,
+  PRIMARY KEY (b,d1)
+) ENGINE=InnoDB;
+DROP TABLE b;
+
+set foreign_key_checks = 1;
+--error ER_CANT_CREATE_TABLE
 CREATE TABLE b (
   b bigint unsigned NOT NULL,
   d1 date NOT NULL,
@@ -54,6 +51,7 @@ CREATE TABLE b (
 ) ENGINE=InnoDB;
 
 show warnings;
+set foreign_key_checks = 0;
 
 DROP TABLE IF EXISTS d;
 
@@ -64,7 +62,7 @@ CREATE TABLE d (
   CONSTRAINT bd_fk FOREIGN KEY (b) REFERENCES b (b)
 ) ENGINE=InnoDB;
 
-show warnings; 
+show warnings;
 
 set foreign_key_checks = 1;
 
@@ -105,12 +103,6 @@ show warnings;
 #
 # Cleanup
 #
---disable_query_log
-SET @@global.innodb_file_per_table = @start_global_fpt;
-SET @@global.foreign_key_checks = @start_global_fkc;
---enable_query_log
 
---disable_warnings
-drop table if exists b;
-drop database if exists bug_fk;
---enable_warnings
+drop table b;
+drop database bug_fk;

@@ -56,7 +56,7 @@ drop table t2;
 
 --echo # wait for T1
 # Wildcard for `state` as it depends on whether WSREP is compiled in or not.
---let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%)' and  command LIKE 'Slave_worker';
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc
 
 --echo # wait for T2

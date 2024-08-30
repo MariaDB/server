@@ -34,7 +34,7 @@ use strict;
 
 use Exporter;
 use base "Exporter";
-our @EXPORT= qw /rmtree mkpath copytree/;
+our @EXPORT= qw /rmtree mkpath copytree make_readonly/;
 
 use File::Find;
 use File::Copy;
@@ -184,6 +184,10 @@ sub copytree {
     # Only copy plain files
     next unless -f "$from_dir/$_";
     copy("$from_dir/$_", "$to_dir/$_");
+    if (!$use_umask)
+    {
+      chmod(0666, "$to_dir/$_");
+    }
   }
   closedir(DIR);
 
@@ -193,4 +197,29 @@ sub copytree {
   }
 }
 
+
+sub make_readonly {
+  my ($dir) = @_;
+
+  die "Usage: make_readonly(<dir>])"
+    unless @_ == 1;
+
+  opendir(DIR, "$dir")
+    or croak("Can't find $dir$!");
+  for(readdir(DIR)) {
+
+    next if "$_" eq "." or "$_" eq "..";
+
+    if ( -d "$dir/$_" )
+    {
+      make_readonly("$dir/$_");
+      next;
+    }
+
+    # Only copy plain files
+    next unless -f "$dir/$_";
+    chmod 0444, "$dir/$_";
+  }
+  closedir(DIR);
+}
 1;

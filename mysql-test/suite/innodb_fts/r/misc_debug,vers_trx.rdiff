@@ -18,9 +18,9 @@
  SET SESSION debug_dbug=@saved_debug_dbug;
  DROP TABLE t;
  CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
-@@ -27,32 +27,6 @@
- ALTER TABLE t1 FORCE;
+@@ -28,32 +28,6 @@
  DROP TABLE t2, t1;
+ SET SESSION debug_dbug=@saved_debug_dbug;
  #
 -# MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 -#
@@ -51,3 +51,16 @@
  # MDEV-25663 Double free of transaction during TRUNCATE
  #
  call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+@@ -65,12 +39,3 @@
+ SET debug_dbug=@saved_debug_dbug;
+ DROP TABLE t1;
+ # End of 10.3 tests
+-CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+-SET DEBUG_DBUG="+d,stats_lock_fail";
+-ALTER TABLE t1 ADD FULLTEXT(f2);
+-ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+-SET debug_dbug=@saved_debug_dbug;
+-ALTER TABLE t1 DISCARD TABLESPACE;
+-ALTER TABLE t1 ADD FULLTEXT(f2);
+-ERROR HY000: Tablespace has been discarded for table `t1`
+-DROP TABLE t1;

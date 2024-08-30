@@ -8,7 +8,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 drop table t1;
 create table t1 (a bit(0), primary key (a)) engine='INNODB' 
@@ -20,7 +20,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` ENGINE = InnoDB,
  PARTITION `pa2` ENGINE = InnoDB)
@@ -32,7 +32,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(64) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 2
 insert into t1 values 
@@ -60,7 +60,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` bit(64) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 (PARTITION `pa1` MAX_ROWS = 20 MIN_ROWS = 2 ENGINE = InnoDB,
  PARTITION `pa2` MAX_ROWS = 30 MIN_ROWS = 3 ENGINE = InnoDB,
@@ -90,7 +90,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bit(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 4
 insert into t2 values (b'0'), (b'1');
@@ -103,7 +103,7 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bit(1) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 4
 select hex(a) from t2;
@@ -116,7 +116,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` bit(1) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`a`)
 PARTITIONS 4
 select hex(a) from t2;
@@ -135,7 +135,7 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` bit(8) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`a`)
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 2
@@ -418,7 +418,7 @@ Table	Create Table
 t4	CREATE TABLE `t4` (
   `a` bit(8) NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`a`)
 SUBPARTITION BY KEY (`a`)
 SUBPARTITIONS 2

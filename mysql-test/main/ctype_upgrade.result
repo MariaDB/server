@@ -6,7 +6,7 @@ call mtr.add_suppression("Table rebuild required");
 # Copying maria050313_utf8_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_utf8_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050313_utf8_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_utf8_croatian_ci`" or dump/reload to fix it!
+test.maria050313_utf8_croatian_ci	check	error	Table rebuild required. Please do "ALTER TABLE `maria050313_utf8_croatian_ci` FORCE" or dump/reload to fix it!
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_utf8_croatian_ci` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050313_utf8_croatian_ci;
@@ -18,7 +18,7 @@ test.maria050313_utf8_croatian_ci	check	status	OK
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT count(*) FROM maria050313_utf8_croatian_ci;
 count(*)
@@ -29,7 +29,7 @@ ALTER TABLE maria050313_utf8_croatian_ci FORCE;
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
@@ -43,7 +43,7 @@ DROP TABLE maria050313_utf8_croatian_ci;
 # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+test.maria050313_ucs2_croatian_ci_def	check	error	Table rebuild required. Please do "ALTER TABLE `maria050313_ucs2_croatian_ci_def` FORCE" or dump/reload to fix it!
 SELECT count(*) FROM maria050313_ucs2_croatian_ci_def;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria050313_ucs2_croatian_ci_def` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050313_ucs2_croatian_ci_def;
@@ -53,12 +53,12 @@ SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
 Table	Create Table
 maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 DROP TABLE maria050313_ucs2_croatian_ci_def;
 # Copying maria050313_ucs2_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050313_ucs2_croatian_ci_def;
 Table	Op	Msg_type	Msg_text
-test.maria050313_ucs2_croatian_ci_def	check	error	Upgrade required. Please do "REPAIR TABLE `maria050313_ucs2_croatian_ci_def`" or dump/reload to fix it!
+test.maria050313_ucs2_croatian_ci_def	check	error	Table rebuild required. Please do "ALTER TABLE `maria050313_ucs2_croatian_ci_def` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050313_ucs2_croatian_ci_def;
 Table	Op	Msg_type	Msg_text
 test.maria050313_ucs2_croatian_ci_def	repair	status	OK
@@ -69,7 +69,7 @@ SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
 Table	Create Table
 maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
 a
 1
@@ -84,14 +84,14 @@ DROP TABLE maria050313_ucs2_croatian_ci_def;
 # Copying maria050533_xxx_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria050533_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria050533_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria050533_xxx_croatian_ci`" or dump/reload to fix it!
+test.maria050533_xxx_croatian_ci	check	error	Table rebuild required. Please do "ALTER TABLE `maria050533_xxx_croatian_ci` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria050533_xxx_croatian_ci;
 Table	Op	Msg_type	Msg_text
 test.maria050533_xxx_croatian_ci	repair	status	OK
 SHOW CREATE TABLE maria050533_xxx_croatian_ci;
 Table	Create Table
 maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -106,7 +106,7 @@ ALTER TABLE maria050533_xxx_croatian_ci FORCE;
 SHOW CREATE TABLE maria050533_xxx_croatian_ci;
 Table	Create Table
 maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -141,7 +141,7 @@ DROP TABLE maria050533_xxx_croatian_ci;
 # Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
 CHECK TABLE maria100004_xxx_croatian_ci FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
-test.maria100004_xxx_croatian_ci	check	error	Upgrade required. Please do "REPAIR TABLE `maria100004_xxx_croatian_ci`" or dump/reload to fix it!
+test.maria100004_xxx_croatian_ci	check	error	Table rebuild required. Please do "ALTER TABLE `maria100004_xxx_croatian_ci` FORCE" or dump/reload to fix it!
 SELECT count(*) FROM maria100004_xxx_croatian_ci;
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.maria100004_xxx_croatian_ci` FORCE" or dump/reload to fix it!
 REPAIR TABLE maria100004_xxx_croatian_ci;
@@ -155,7 +155,7 @@ maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 DROP TABLE maria100004_xxx_croatian_ci;
 # Copying maria100004_xxx_croatian_ci.* to MYSQLD_DATADIR
 ALTER TABLE maria100004_xxx_croatian_ci FORCE;
@@ -167,7 +167,7 @@ maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -206,7 +206,7 @@ mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_mysql561_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_mysql561_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_mysql561_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 NJ,Nj,nJ,nj
@@ -227,7 +227,7 @@ DROP TABLE mysql050614_xxx_croatian_ci;
 # Checking mysql_upgrade
 #
 # Running mysql_upgrade
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -258,35 +258,139 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-test.maria050313_ucs2_croatian_ci_def              Needs upgrade
-test.maria050313_utf8_croatian_ci                  Needs upgrade
-test.maria050533_xxx_croatian_ci                   Needs upgrade
-test.maria100004_xxx_croatian_ci                   Needs upgrade
+test.maria050313_ucs2_croatian_ci_def              Needs upgrade with ALTER TABLE FORCE
+test.maria050313_utf8_croatian_ci                  Needs upgrade with ALTER TABLE FORCE
+test.maria050533_xxx_croatian_ci                   Needs upgrade with ALTER TABLE FORCE
+test.maria100004_xxx_croatian_ci                   Needs upgrade with ALTER TABLE FORCE
 test.mysql050614_xxx_croatian_ci                   OK
 
 Repairing tables
-test.maria050313_ucs2_croatian_ci_def              OK
-test.maria050313_utf8_croatian_ci                  OK
-test.maria050533_xxx_croatian_ci                   OK
-test.maria100004_xxx_croatian_ci                   OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+`test`.`maria050313_ucs2_croatian_ci_def`          OK
+`test`.`maria050313_utf8_croatian_ci`              OK
+`test`.`maria050533_xxx_croatian_ci`               OK
+`test`.`maria100004_xxx_croatian_ci`               OK
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 # Running mysql_upgrade for the second time
 # This should report OK for all tables
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -317,31 +421,135 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
 test.maria050313_ucs2_croatian_ci_def              OK
 test.maria050313_utf8_croatian_ci                  OK
 test.maria050533_xxx_croatian_ci                   OK
 test.maria100004_xxx_croatian_ci                   OK
 test.mysql050614_xxx_croatian_ci                   OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE maria050313_ucs2_croatian_ci_def;
 Table	Create Table
 maria050313_ucs2_croatian_ci_def	CREATE TABLE `maria050313_ucs2_croatian_ci_def` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 SELECT * FROM maria050313_ucs2_croatian_ci_def ORDER BY a;
 a
 1
@@ -350,7 +558,7 @@ a
 SHOW CREATE TABLE maria050313_utf8_croatian_ci;
 Table	Create Table
 maria050313_utf8_croatian_ci	CREATE TABLE `maria050313_utf8_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria050313_utf8_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
@@ -359,7 +567,7 @@ NJ,Nj,nj
 SHOW CREATE TABLE maria050533_xxx_croatian_ci;
 Table	Create Table
 maria050533_xxx_croatian_ci	CREATE TABLE `maria050533_xxx_croatian_ci` (
-  `a` varchar(10) CHARACTER SET utf8 COLLATE utf8_croatian_ci DEFAULT NULL,
+  `a` varchar(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_croatian_ci DEFAULT NULL,
   `b` varchar(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_croatian_ci DEFAULT NULL,
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
@@ -377,7 +585,7 @@ maria100004_xxx_croatian_ci	CREATE TABLE `maria100004_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM maria100004_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 nJ
@@ -390,7 +598,7 @@ mysql050614_xxx_croatian_ci	CREATE TABLE `mysql050614_xxx_croatian_ci` (
   `c` varchar(10) CHARACTER SET ucs2 COLLATE ucs2_croatian_mysql561_ci DEFAULT NULL,
   `d` varchar(10) CHARACTER SET utf16 COLLATE utf16_croatian_mysql561_ci DEFAULT NULL,
   `e` varchar(10) CHARACTER SET utf32 COLLATE utf32_croatian_mysql561_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_croatian_mysql561_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_croatian_mysql561_ci
 SELECT GROUP_CONCAT(a ORDER BY BINARY a) FROM mysql050614_xxx_croatian_ci GROUP BY a;
 GROUP_CONCAT(a ORDER BY BINARY a)
 NJ,Nj,nJ,nj
@@ -414,7 +622,7 @@ SELECT * FROM t1 IGNORE KEY(a);
 ERROR HY000: Table rebuild required. Please do "ALTER TABLE `test.t1` FORCE" or dump/reload to fix it!
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Upgrade required. Please do "REPAIR TABLE `t1`" or dump/reload to fix it!
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	repair	status	OK

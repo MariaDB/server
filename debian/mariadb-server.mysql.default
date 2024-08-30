@@ -1,0 +1,22 @@
+#
+# NOTE: This file is read only by the traditional SysV init script.
+# Debian 9 and Ubuntu 17.04 onward do not normally read this file as they use
+# systemd by default.
+#
+# For similar behavior, systemd users should override ExecStart by dropping
+# files into /etc/systemd/system/mariadb.service.d/
+#
+# See also:
+# https://wiki.debian.org/Teams/pkg-systemd/Packaging#overriding_options_and_.2Fetc.2Fdefault_handling
+# https://mariadb.com/kb/en/mariadb/systemd/
+#
+# Note also that MariaDB systemd does _not_ utilize mysqld_safe.
+
+# The delay in seconds the init script waits for the server to be up and running after having started "mysqld_safe" to run the "/etc/mysql/debian-start" script.
+# If the server is still not responding after the delay, the script won't be executed and an error will be thrown on the syslog.
+# Default: 30
+#MYSQLD_STARTUP_TIMEOUT=30
+
+# The email recipient(s) of the output of the check for crashed and improperly closed MyISAM and Aria tables done at each server start by the "/etc/mysql/debian-start" script.
+# Default: root
+#MYCHECK_RCPT="root"

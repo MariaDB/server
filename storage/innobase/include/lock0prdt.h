@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,7 +48,7 @@ lock_prdt_lock(
 				records: LOCK_S or LOCK_X; the
 				latter is possible in
 				SELECT FOR UPDATE */
-	ulint		type_mode,
+	unsigned	type_mode,
 				/*!< in: LOCK_PREDICATE or LOCK_PRDT_PAGE */
 	que_thr_t*	thr);	/*!< in: query thread
 				(can be NULL if BTR_NO_LOCKING_FLAG) */
@@ -58,9 +58,7 @@ Acquire a "Page" lock on a block
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
 dberr_t
 lock_place_prdt_page_lock(
-/*======================*/
-	ulint		space,	/*!< in: space for the page to lock */
-	ulint		pageno,	/*!< in: page number */
+	const page_id_t	page_id,	/*!< in: page identifier */
 	dict_index_t*	index,	/*!< in: secondary index */
 	que_thr_t*	thr);	/*!< in: query thread */
 
@@ -90,7 +88,7 @@ bool
 lock_prdt_has_to_wait(
 /*==================*/
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	ulint		type_mode,/*!< in: precise mode of the new lock
+	unsigned	type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_PREDICATE or LOCK_PRDT_PAGE,
 				LOCK_INSERT_INTENTION */
@@ -108,8 +106,7 @@ lock_prdt_update_split(
 	buf_block_t*	new_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	prdt,		/*!< in: MBR on the old page */
 	lock_prdt_t*	new_prdt,	/*!< in: MBR on the new page */
-	ulint		space,		/*!< in: space id */
-	ulint		page_no);	/*!< in: page number */
+	const page_id_t	page_id);	/*!< in: page number */
 
 /**************************************************************//**
 Ajust locks from an ancester page of Rtree on the appropriate level . */
@@ -120,8 +117,7 @@ lock_prdt_update_parent(
 	buf_block_t*	right_block,	/*!< in/out: the new half page */
 	lock_prdt_t*	left_prdt,	/*!< in: MBR on the old page */
 	lock_prdt_t*	right_prdt,	/*!< in: MBR on the new page */
-	ulint		space,		/*!< in: space id */
-	ulint		page_no);	/*!< in: page number */
+	const page_id_t	page_id);	/*!< in: parent page */
 
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
@@ -130,8 +126,6 @@ a predicate record.
 dberr_t
 lock_prdt_insert_check_and_lock(
 /*============================*/
-	ulint		flags,	/*!< in: if BTR_NO_LOCKING_FLAG bit is
-				set, does nothing */
 	const rec_t*	rec,	/*!< in: record after which to insert */
 	buf_block_t*	block,	/*!< in/out: buffer block of rec */
 	dict_index_t*	index,	/*!< in: index */
@@ -158,7 +152,7 @@ bool
 lock_prdt_has_to_wait(
 /*==================*/
 	const trx_t*	trx,	/*!< in: trx of new lock */
-	ulint		type_mode,/*!< in: precise mode of the new lock
+	unsigned	type_mode,/*!< in: precise mode of the new lock
 				to set: LOCK_S or LOCK_X, possibly
 				ORed to LOCK_PREDICATE or LOCK_PRDT_PAGE,
 				LOCK_INSERT_INTENTION */
@@ -187,28 +181,12 @@ lock_prdt_rec_move(
 /*===============*/
 	const buf_block_t*	receiver,	/*!< in: buffer block containing
 						the receiving record */
-	const buf_block_t*	donator);	/*!< in: buffer block containing
-						the donating record */
+	const page_id_t		donator);	/*!< in: target page */
 
-/** Check whether there are R-tree Page lock on a buffer page
+/** Check whether there are R-tree Page lock on a page
 @param[in]	trx	trx to test the lock
-@param[in]	space	space id for the page
-@param[in]	page_no	page number
-@return true if there is none */
-bool
-lock_test_prdt_page_lock(
-/*=====================*/
-	const trx_t*	trx,
-	ulint		space,
-	ulint		page_no);
-
-/** Removes predicate lock objects set on an index page which is discarded.
-@param[in]	block		page to be discarded
-@param[in]	lock_hash	lock hash */
-void
-lock_prdt_page_free_from_discard(
-/*=============================*/
-	const buf_block_t*	block,
-	hash_table_t*		lock_hash);
+@param[in]	page_id	page identifier
+@return	true if there is none */
+bool lock_test_prdt_page_lock(const trx_t *trx, const page_id_t page_id);
 
 #endif

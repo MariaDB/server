@@ -8,8 +8,8 @@ n1 NUMERIC,
 n2 NUMERIC(65,4)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	d1	A	1000	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	d1	A	1000	NULL	NULL		LSMTREE			NO
 INSERT INTO t1 (d1,d2,n1,n2) VALUES 
 (10.22,60.12345,123456,14.3456),
 (10.0,60.12345,123456,14),
@@ -54,10 +54,10 @@ pk NUMERIC PRIMARY KEY,
 UNIQUE INDEX n1_n2 (n1,n2)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	0	n1_n2	1	n1	A	500	NULL	NULL	YES	LSMTREE		
-t1	0	n1_n2	2	n2	A	1000	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	0	n1_n2	1	n1	A	500	NULL	NULL	YES	LSMTREE			NO
+t1	0	n1_n2	2	n2	A	1000	NULL	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (d1,d2,n1,n2,pk) VALUES
 (10.22,60.12345,123456,14.3456,1),
 (10.0,60.12345,123456,14,2),
@@ -90,9 +90,9 @@ pk DECIMAL(20,10) PRIMARY KEY,
 INDEX (d2)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	d2	1	d2	A	500	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	d2	1	d2	A	500	NULL	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (d1,d2,n1,n2,pk) VALUES
 (10.22,60.12345,123456,14.3456,1),
 (10.0,60.12345,123456,14,2),

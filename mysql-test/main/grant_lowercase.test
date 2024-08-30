@@ -22,5 +22,5 @@ alter table mysql.db modify User char(16) default "", modify Db varchar(200) def
 insert mysql.db set db=concat('=>', repeat(_utf8 'й', 200));
 flush privileges; # shouldn't crash here
 delete from mysql.db where db like '=>%';
-alter table mysql.db modify Db char(64) default "", modify User char(80) default "";
+alter table mysql.db modify Db char(64) default "", modify User char(128) default "";
 flush privileges;

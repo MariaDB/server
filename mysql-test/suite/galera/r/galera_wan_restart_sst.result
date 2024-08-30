@@ -10,7 +10,7 @@ SELECT VARIABLE_VALUE AS EXPECT_4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VA
 EXPECT_4
 4
 connection node_1;
-CREATE TABLE t1 (f1 INTEGER);
+CREATE TABLE t1 (f1 INTEGER NOT NULL PRIMARY KEY) ENGINE=INNODB;
 INSERT INTO t1 VALUES (1);
 connection node_2;
 INSERT INTO t1 VALUES (2);
@@ -20,6 +20,8 @@ connection node_4;
 INSERT INTO t1 VALUES (4);
 connection node_3;
 INSERT INTO t1 VALUES (13);
+connection node_1;
+connection node_3;
 Killing server ...
 connection node_1;
 INSERT INTO t1 VALUES (11);
@@ -29,8 +31,11 @@ connection node_4;
 INSERT INTO t1 VALUES (14);
 connection node_3;
 INSERT INTO t1 VALUES (131);
+connection node_1;
 connection node_2;
 INSERT INTO t1 VALUES (22);
+connection node_1;
+connection node_2;
 Killing server ...
 connection node_1;
 INSERT INTO t1 VALUES (21);
@@ -42,6 +47,8 @@ connection node_2;
 INSERT INTO t1 VALUES (221);
 connection node_4;
 INSERT INTO t1 VALUES (34);
+connection node_1;
+connection node_4;
 Killing server ...
 connection node_1;
 INSERT INTO t1 VALUES (31);

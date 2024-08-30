@@ -1,3 +1,5 @@
+SET @start_encr_threads = @@global.innodb_encryption_threads;
+SET @start_encrypt_tables = @@global.innodb_encrypt_tables;
 CREATE TABLE t1 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB encrypted=yes;
 CREATE TABLE t2 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB;
 CREATE TABLE t3 (id INT NOT NULL PRIMARY KEY, a VARCHAR(255)) ENGINE=InnoDB row_format=compressed encrypted=yes;
@@ -85,7 +87,7 @@ t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci `encrypted`=yes
 ALTER TABLE t2 FORCE;
 SHOW CREATE TABLE t2;
 Table	Create Table
@@ -93,7 +95,7 @@ t2	CREATE TABLE `t2` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE t3 FORCE;
 SHOW CREATE TABLE t3;
 Table	Create Table
@@ -101,7 +103,7 @@ t3	CREATE TABLE `t3` (
   `id` int(11) NOT NULL,
   `a` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED `encrypted`=yes
 # Verify that tables are still usable
 CHECK TABLE t1, t2, t3 EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -116,3 +118,42 @@ NOT FOUND /temp/ in t2.ibd
 # t3 ... on expecting NOT FOUND
 UNLOCK TABLES;
 DROP TABLE t1, t2, t3;
+#
+# MDEV-34670 IMPORT TABLESPACE unnecessary traverses
+# 		tablespace list
+#
+SET GLOBAL innodb_encrypt_tables= OFF;
+SET GLOBAL innodb_encryption_threads= 0;
+CREATE TABLE t1(f1 int,f2 text)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "InnoDB");
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SET GLOBAL innodb_encryption_threads=2;
+SET GLOBAL innodb_encrypt_tables = ON;
+# Wait max 10 min for key encryption threads to encrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+NAME
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+NAME
+innodb_system
+test/t1
+test/t2
+SET GLOBAL innodb_encrypt_tables = OFF;
+# Wait max 10 min for key encryption threads to decrypt all spaces
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+NAME
+innodb_system
+test/t1
+test/t2
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+NAME
+DROP TABLE t1, t2;
+SET GLOBAL innodb_encryption_threads=@start_encr_threads;
+SET GLOBAL innodb_encrypt_tables=@start_encrypt_tables;

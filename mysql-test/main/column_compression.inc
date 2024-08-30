@@ -1,7 +1,7 @@
 FLUSH STATUS;
 
 --error ER_COMPRESSED_COLUMN_USED_AS_KEY
-eval CREATE TABLE t1(a $typec, KEY(a(10)));
+eval CREATE TABLE t1(a $typec, KEY(a(10))) CHARSET=latin1;
 
 eval CREATE TABLE t1(a $typec);
 --error ER_COMPRESSED_COLUMN_USED_AS_KEY
@@ -70,7 +70,8 @@ TRUNCATE TABLE t1;
 SET column_compression_zlib_level= 1;
 INSERT INTO t1 VALUES(REPEAT('ab', 1000));
 SELECT * FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME IN('Column_compressions', 'Column_decompressions');
-SELECT DATA_LENGTH FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
+# This is is using < as DATA_LENGTH produces different results on s390x-ubuntu-2004
+SELECT DATA_LENGTH < 100 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='test' AND TABLE_NAME='t1';
 TRUNCATE TABLE t1;
 
 SET column_compression_zlib_level= 9;

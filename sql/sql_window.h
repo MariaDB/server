@@ -134,13 +134,13 @@ class Window_spec : public Sql_alloc
       order_list(ord_list), save_order_list(NULL),
       window_frame(win_frame), referenced_win_spec(NULL) {}
 
-  virtual const char *name() { return NULL; }
+  virtual const Lex_ident_window name() { return Lex_ident_window(); }
 
   bool check_window_names(List_iterator_fast<Window_spec> &it);
 
-  const char *window_reference()
+  const Lex_ident_window window_reference()
   {
-    return window_ref ? window_ref->str : NULL;
+    return window_ref ? Lex_ident_window(*window_ref) : Lex_ident_window();
   }
 
   void join_partition_and_order_lists()
@@ -173,7 +173,7 @@ class Window_def : public Window_spec
     : Window_spec(win_ref, part_list, ord_list, win_frame),
       window_name(win_name) {}
  
-  const char *name() { return window_name->str; }
+  const Lex_ident_window name() override { return Lex_ident_window(*window_name); }
 
 };
 

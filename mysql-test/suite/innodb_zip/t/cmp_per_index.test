@@ -4,20 +4,11 @@
 
 -- source include/have_innodb.inc
 
-# Using innodb_log_compressed=0 leads to a larger number of page
-# compressions, because page_cur_insert_rec_zip() will reorganize the
-# page before attempting an insert followed by page compression and
-# page_zip_compress_write_log_no_data().
-
-if (`SELECT @@innodb_log_compressed_pages = 0`)
-{
-  --skip Needs innodb_log_compressed_pages
-}
-
 # numbers read in this test depend on the page size
 -- source include/have_innodb_16k.inc
 # include/restart_mysqld.inc does not work in embedded mode
 -- source include/not_embedded.inc
+--source include/test_db_charset_latin1.inc
 
 -- vertical_results
 
@@ -34,6 +25,10 @@ SELECT * FROM information_schema.innodb_cmp_per_index_reset;
 # see that the table is empty
 SELECT * FROM information_schema.innodb_cmp_per_index;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 # create a table that uses compression
 CREATE TABLE t (
 	a INT,
@@ -67,6 +62,9 @@ while ($i)
 COMMIT;
 
 ALTER TABLE t DROP INDEX c;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 GRANT USAGE ON *.* TO 'tuser01'@'localhost' IDENTIFIED BY 'cDJvI9s_Uq';
 FLUSH PRIVILEGES;
@@ -86,13 +84,13 @@ SELECT
 database_name,
 table_name,
 index_name,
-CASE WHEN compress_ops=47 and @@innodb_compression_level IN (4,8,9) THEN 65
-ELSE compress_ops END as compress_ops,
-CASE WHEN compress_ops_ok=47 and @@innodb_compression_level IN (4,8,9) THEN 65
-ELSE compress_ops_ok END as compress_ops_ok,
+compress_ops,
+compress_ops_ok,
 uncompress_ops
 FROM information_schema.innodb_cmp_per_index
 ORDER BY 1, 2, 3;
 DROP TABLE t;
 
 SET GLOBAL innodb_cmp_per_index_enabled=@save_enabled;
+
+--source include/test_db_charset_restore.inc

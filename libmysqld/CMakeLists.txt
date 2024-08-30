@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2018, MariaDB Corporation
+# Copyright (c) 2009, 2022, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,18 +21,20 @@ INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
+${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
-${PCRE_INCLUDES}
-${ZLIB_INCLUDE_DIR}
+${PCRE_INCLUDE_DIRS}
+${LIBFMT_INCLUDE_DIR}
+${ZLIB_INCLUDE_DIRS}
 ${SSL_INCLUDE_DIRS}
 ${SSL_INTERNAL_INCLUDE_DIRS}
 )
 
 SET(GEN_SOURCES
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
-${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
+${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h
 )
 
@@ -41,20 +43,22 @@ SET_SOURCE_FILES_PROPERTIES(${GEN_SOURCES} PROPERTIES GENERATED TRUE)
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang" AND
    NOT CMAKE_C_COMPILER_VERSION VERSION_LESS "13.0.0")
  ADD_COMPILE_FLAGS(
-   ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-   ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
+   ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+   ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
    COMPILE_FLAGS "-Wno-unused-but-set-variable")
 ENDIF()
 
 SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc 
            libmysql.c ../sql-common/errmsg.c
            ../sql-common/client.c
+           ../sql/cset_narrowing.cc
            ../sql-common/my_user.c ../sql-common/pack.c
-           ../sql-common/client_plugin.c ../sql-common/mysql_async.c
+           ../sql-common/client_plugin.c
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
            ../sql/field.cc ../sql/field_conv.cc ../sql/field_comp.cc
            ../sql/filesort_utils.cc ../sql/sql_digest.cc
-           ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
+           ../sql/filesort.cc ../sql/grant.cc
+           ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
            ../sql/init.cc ../sql/item_buff.cc ../sql/item_cmpfunc.cc 
@@ -62,9 +66,14 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/item_geofunc.cc ../sql/item_row.cc ../sql/item_strfunc.cc 
            ../sql/item_subselect.cc ../sql/item_sum.cc ../sql/item_timefunc.cc 
            ../sql/item_xmlfunc.cc ../sql/item_jsonfunc.cc
+           ../sql/json_schema.cc ../sql/json_schema_helper.cc
            ../sql/key.cc ../sql/lock.cc ../sql/log.cc 
-           ../sql/log_event.cc ../sql/mf_iocache.cc ../sql/my_decimal.cc
-           ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
+           ../sql/log_event.cc ../sql/log_event_server.cc 
+           ../sql/mf_iocache.cc ../sql/my_decimal.cc 
+           ../sql/net_serv.cc ../sql/opt_range.cc
+           ../sql/opt_rewrite_date_cmp.cc
+           ../sql/opt_rewrite_remove_casefold.cc
+           ../sql/opt_sum.cc
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
            ../sql/rpl_record.cc ../sql/des_key_file.cc
@@ -83,14 +92,16 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
            ../sql/sql_partition.cc ../sql/sql_plugin.cc 
-           ../sql/debug_sync.cc ../sql/opt_table_elimination.cc
+           ../sql/debug_sync.cc ../sql/debug.cc
+           ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
            ../sql/sql_select.cc ../sql/sql_servers.cc
            ../sql/group_by_handler.cc ../sql/derived_handler.cc
            ../sql/select_handler.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
-           ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/ddl_log.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
            ../sql/gcalc_tools.cc ../sql/gcalc_slicescan.cc
@@ -108,21 +119,25 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/multi_range_read.cc
            ../sql/opt_index_cond_pushdown.cc
            ../sql/opt_subselect.cc
-           ../sql/create_options.cc ../sql/rpl_utility.cc
+           ../sql/create_options.cc
+           ../sql/rpl_utility.cc
+           ../sql/rpl_utility_server.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
            ../sql/my_json_writer.cc ../sql/my_json_writer.h
-	   ../sql/rpl_gtid.cc
+	   ../sql/rpl_gtid.cc ../sql/gtid_index.cc
            ../sql/sql_explain.cc ../sql/sql_explain.h
            ../sql/sql_analyze_stmt.cc ../sql/sql_analyze_stmt.h
            ../sql/compat56.cc
            ../sql/sql_schema.cc
+           ../sql/lex_charset.cc ../sql/charset_collations.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
+           ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
+           ../sql/sql_type_geom.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
-           ../sql/item_inetfunc.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc
            ../sql/sql_cte.cc
@@ -136,6 +151,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/item_vers.cc
            ../sql/opt_trace.cc
            ../sql/xa.cc
+           ../sql/json_table.cc
+           ../sql/opt_histogram_json.cc
+           ../sql/sp_instr.cc
            ${GEN_SOURCES}
            ${MYSYS_LIBWRAP_SOURCE}
 )
@@ -144,6 +162,13 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
 ADD_CONVENIENCE_LIBRARY(sql_embedded ${SQL_EMBEDDED_SOURCES})
 DTRACE_INSTRUMENT(sql_embedded)
 ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
+IF(TARGET pcre2)
+  ADD_DEPENDENCIES(sql_embedded pcre2)
+ENDIF()
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(sql_embedded libfmt)
+ENDIF()
+TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY})
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a
@@ -159,8 +184,8 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings mysys mysys_ssl pcre vio 
-  ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
+  dbug strings mysys mysys_ssl pcre2-8 vio
+  ${ZLIB_LIBRARIES} ${SSL_LIBRARIES}
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
   ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
@@ -304,89 +329,14 @@ mysql_stmt_next_result
 # Charsets
 my_charset_bin
 my_charset_latin1
-my_charset_utf8_general_ci
+my_charset_utf8mb3_general_ci
 # Client plugins
 mysql_client_find_plugin
 mysql_client_register_plugin
 mysql_load_plugin
 mysql_load_plugin_v
 mysql_plugin_options
-# Async API
-mysql_get_timeout_value
-mysql_get_timeout_value_ms
-mysql_get_socket
-mysql_autocommit_cont
-mysql_autocommit_start
-mysql_change_user_cont
-mysql_change_user_start
-mysql_close_cont
-mysql_close_start
-mysql_commit_cont
-mysql_commit_start
-mysql_dump_debug_info_cont
-mysql_dump_debug_info_start
-mysql_fetch_row_cont
-mysql_fetch_row_start
-mysql_free_result_cont
-mysql_free_result_start
-mysql_kill_cont
-mysql_kill_start
-mysql_list_dbs_cont
-mysql_list_dbs_start
-mysql_list_fields_cont
-mysql_list_fields_start
-mysql_list_processes_cont
-mysql_list_processes_start
-mysql_list_tables_cont
-mysql_list_tables_start
-mysql_next_result_cont
-mysql_next_result_start
-mysql_ping_cont
-mysql_ping_start
-mysql_query_cont
-mysql_query_start
-mysql_read_query_result_cont
-mysql_read_query_result_start
-mysql_real_connect_cont
-mysql_real_connect_start
-mysql_real_query_cont
-mysql_real_query_start
-mysql_refresh_cont
-mysql_refresh_start
-mysql_rollback_cont
-mysql_rollback_start
-mysql_select_db_cont
-mysql_select_db_start
-mysql_send_query_cont
-mysql_send_query_start
-mysql_set_character_set_cont
-mysql_set_character_set_start
-mysql_set_server_option_cont
-mysql_set_server_option_start
-mysql_shutdown_cont
-mysql_shutdown_start
-mysql_stat_cont
-mysql_stat_start
-mysql_stmt_close_cont
-mysql_stmt_close_start
-mysql_stmt_execute_cont
-mysql_stmt_execute_start
-mysql_stmt_fetch_cont
-mysql_stmt_fetch_start
-mysql_stmt_free_result_cont
-mysql_stmt_free_result_start
-mysql_stmt_next_result_cont
-mysql_stmt_next_result_start
-mysql_stmt_prepare_cont
-mysql_stmt_prepare_start
-mysql_stmt_reset_cont
-mysql_stmt_reset_start
-mysql_stmt_send_long_data_cont
-mysql_stmt_send_long_data_start
-mysql_stmt_store_result_cont
-mysql_stmt_store_result_start
-mysql_store_result_cont
-mysql_store_result_start
+
 #dynamic columns api
 dynamic_column_create
 dynamic_column_create_many
@@ -427,9 +377,15 @@ mysql_net_field_length
 mysql_options4
 )
 
+
+SET(CLIENT_API_FUNCTIONS_10_5
+mariadb_field_attr
+)
+
 SET(CLIENT_API_FUNCTIONS
   ${CLIENT_API_FUNCTIONS_5_1}
   ${CLIENT_API_FUNCTIONS_5_5}
+  ${CLIENT_API_FUNCTIONS_10_5}
 )
 
 
@@ -459,11 +415,10 @@ IF(NOT DISABLE_SHARED)
     # Clean direct output flags, as 2 targets have the same base name
     # libmysqld
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(libmysqld LINK_PRIVATE ${CRC32_LIBRARY})
     SET_TARGET_PROPERTIES(mysqlserver PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(mysqlserver LINK_PRIVATE ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(mysqlserver LINK_PRIVATE tpool ${CRC32_LIBRARY})
     IF(LIBMYSQLD_SO_EXTRA_LIBS)
-       TARGET_LINK_LIBRARIES(libmysqld ${LIBMYSQLD_SO_EXTRA_LIBS})
+       TARGET_LINK_LIBRARIES(libmysqld LINK_PRIVATE ${LIBMYSQLD_SO_EXTRA_LIBS})
     ENDIF()
   ENDIF()
 ENDIF()

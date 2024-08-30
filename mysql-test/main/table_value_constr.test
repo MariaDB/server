@@ -422,6 +422,7 @@ select * from t2;
 
 --echo # recursive CTE that uses VALUES structure(s) : that uses UNION ALL
 
+--sorted_result
 with recursive t2(a,b,st) as
 (
   values(1,1,1)
@@ -832,6 +833,7 @@ deallocate prepare stmt1;
 explain
 values (1,2);
 
+--source include/explain-no-costs.inc
 explain format=json
 values (1,2);
 
@@ -852,16 +854,19 @@ values (5,6)
 union
 values (1,2),(3,4);
 
+--source include/explain-no-costs.inc
 explain format=json
 select 1,2
 union
 values (1,2),(3,4);
 
+--source include/explain-no-costs.inc
 explain format=json
 values (1,2),(3,4)
 union
 select 1,2;
 
+--source include/explain-no-costs.inc
 explain format=json
 values (5,6)
 union
@@ -874,6 +879,7 @@ values (3,4)
 union
 values (1,2);
 
+--source include/explain-no-costs.inc
 explain format=json
 select 1,2
 union
@@ -898,16 +904,19 @@ values (1,2)
 union all
 values (1,2),(3,4);
 
+--source include/explain-no-costs.inc
 explain format=json
 values (1,2),(3,4)
 union all
 select 1,2;
 
+--source include/explain-no-costs.inc
 explain format=json
 select 1,2
 union
 values (1,2),(3,4);
 
+--source include/explain-no-costs.inc
 explain format=json
 values (1,2)
 union all
@@ -920,6 +929,7 @@ values (3,4)
 union all
 values (1,2);
 
+--source include/explain-no-costs.inc
 explain format=json
 select 1,2
 union all
@@ -932,6 +942,7 @@ values (1,2);
 analyze
 values (1,2);
 
+--source include/analyze-format.inc
 analyze format=json
 values (1,2);
 
@@ -952,16 +963,19 @@ values (5,6)
 union
 values (1,2),(3,4);
 
+--source include/analyze-format.inc
 analyze format=json
 select 1,2
 union
 values (1,2),(3,4);
 
+--source include/analyze-format.inc
 analyze format=json
 values (1,2),(3,4)
 union
 select 1,2;
 
+--source include/analyze-format.inc
 analyze format=json
 values (5,6)
 union
@@ -974,6 +988,7 @@ values (3,4)
 union
 values (1,2);
 
+--source include/analyze-format.inc
 analyze format=json
 select 1,2
 union
@@ -998,16 +1013,19 @@ values (1,2)
 union all
 values (1,2),(3,4);
 
+--source include/analyze-format.inc
 analyze format=json
 values (1,2),(3,4)
 union all
 select 1,2;
 
+--source include/analyze-format.inc
 analyze format=json
 select 1,2
 union
 values (1,2),(3,4);
 
+--source include/analyze-format.inc
 analyze format=json
 values (1,2)
 union all
@@ -1020,6 +1038,7 @@ values (3,4)
 union all
 values (1,2);
 
+--source include/analyze-format.inc
 analyze format=json
 select 1,2
 union all
@@ -1345,9 +1364,9 @@ DELIMITER ;$$
 --echo # MDEV-21995 Server crashes in Item_field::real_type_handler with table value constructor
 --echo #
 
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 VALUES (IGNORE);
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 VALUES (DEFAULT);
 --error ER_INVALID_DEFAULT_PARAM
 EXECUTE IMMEDIATE 'VALUES (?)' USING IGNORE;
@@ -1471,7 +1490,9 @@ insert into t2 values (1), (2);
 let $q1=
 select (values ((select 2))) from t2;
 eval $q1;
+--enable_prepare_warnings
 eval explain $q1;
+--disable_prepare_warnings
 eval prepare stmt from "$q1";
 execute stmt;
 execute stmt;
@@ -1562,6 +1583,9 @@ union all
 values ((values (4)), (select 5)), ((select 2), (values (8)));
 
 values ((values (1) union values (1)));
+
+--error ER_SUBQUERY_NO_1_ROW
+values ((values (1) union all values (1)));
 
 values ((values (1) union values (1) union values (1)));
 
@@ -1725,14 +1749,14 @@ SET @@in_predicate_conversion_threshold = @save_in_predicate_conversion_threshol
 --echo # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
 --echo #
 
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 VALUES (DEFAULT) UNION VALUES (DEFAULT);
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 VALUES (IGNORE) UNION VALUES (IGNORE);
 CREATE TABLE t1 (a INT DEFAULT 10);
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT));
---error ER_UNKNOWN_ERROR
+--error ER_NOT_ALLOWED_IN_THIS_CONTEXT
 INSERT INTO t1 (VALUES (IGNORE) UNION VALUES (IGNORE));
 DROP TABLE t1;
 

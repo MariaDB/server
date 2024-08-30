@@ -311,7 +311,7 @@ struct { const char *f0, *f2; } data[NDATAS] = {
    {"18.4.49", "Problems linking with the C API"},
    {"18.4.50", "How to make a thread-safe client"},
    {"18.5", "MySQL Perl API's"},
-   {"18.5.1", "DBI with DBD::mysql"},
+   {"18.5.1", "DBI with DBD::MariaDB"},
    {"18.5.1.1", "The DBI interface"},
    {"18.5.1.2", "More DBI/DBD information"},
    {"18.6", "MySQL Java connectivity (JDBC)"},

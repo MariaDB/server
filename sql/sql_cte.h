@@ -36,7 +36,7 @@ struct st_unit_ctxt_elem;
 class With_element_head : public Sql_alloc
 {
   /* The name of the defined CTE */
-  LEX_CSTRING *query_name;
+  const Lex_ident_with_element query_name;
 
 public:
   /*
@@ -47,7 +47,7 @@ public:
   */
   TABLE_CHAIN tables_pos;
 
-  With_element_head(LEX_CSTRING *name)
+  With_element_head(const Lex_ident_with_element &name)
     : query_name(name)
   {
     tables_pos.set_start_pos(0);
@@ -159,7 +159,8 @@ public:
     inherited from the query that specified the table. Otherwise the list is
     always empty.
   */
-  List <LEX_CSTRING> column_list;
+  List <Lex_ident_sys> column_list;
+  List <Lex_ident_sys> *cycle_list;
   /* The query that specifies the table introduced by this with element */
   st_select_lex_unit *spec;
   /* 
@@ -211,20 +212,20 @@ public:
   SQL_I_List<TABLE_LIST> derived_with_rec_ref;
 
   With_element(With_element_head *h,
-               List <LEX_CSTRING> list,
+               List <Lex_ident_sys> list,
                st_select_lex_unit *unit)
     : next(NULL), base_dep_map(0), derived_dep_map(0),
       sq_dep_map(0), work_dep_map(0), mutually_recursive(0),
       top_level_dep_map(0), sq_rec_ref(NULL),
       next_mutually_recursive(NULL), references(0), 
       referenced(false), is_used_in_query(false),
-      head(h), column_list(list), spec(unit),
+      head(h), column_list(list), cycle_list(0), spec(unit),
       is_recursive(false), rec_outer_references(0), with_anchor(false),
       level(0), rec_result(NULL)
   { unit->with_element= this; }
 
-  LEX_CSTRING *get_name() { return head->query_name; }
-  const char *get_name_str() { return get_name()->str; }
+  const Lex_ident_with_element get_name() const { return head->query_name; }
+  const char *get_name_str() const { return get_name().str; }
 
   void set_tables_start_pos(TABLE_LIST **pos)
   { head->tables_pos.set_start_pos(pos); }
@@ -265,7 +266,7 @@ public:
 
   void inc_references() { references++; }
 
-  bool rename_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);
+  bool process_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);
 
   bool prepare_unreferenced(THD *thd);
 
@@ -273,7 +274,7 @@ public:
                                     table_map &unrestricted,
                                     table_map &encountered);
 
-  void print(String *str, enum_query_type query_type);
+  void print(THD *thd, String *str, enum_query_type query_type);
 
   With_clause *get_owner() { return owner; }
 
@@ -317,6 +318,8 @@ public:
   bool instantiate_tmp_tables();
 
   void prepare_for_next_iteration();
+
+  void set_cycle_list(List<Lex_ident_sys> *cycle_list_arg);
 
   friend class With_clause;
 
@@ -432,7 +435,7 @@ public:
 
   void add_unrestricted(table_map map) { unrestricted|= map; }
 
-  void print(String *str, enum_query_type query_type);
+  void print(THD *thd, String *str, enum_query_type query_type);
 
   friend class With_element;
 

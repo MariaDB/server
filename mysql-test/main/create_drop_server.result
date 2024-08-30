@@ -7,7 +7,7 @@ server_name	username	db
 server1	user1	test0
 CREATE SERVER IF NOT EXISTS server1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'user2', HOST 'localhost', DATABASE 'test1');
 Warnings:
-Note	1476	The foreign server, server1, you are trying to create already exists
+Note	1476	Cannot create foreign server 'server1' as it already exists
 SELECT server_name, username, db FROM mysql.servers;
 server_name	username	db
 server1	user1	test0
@@ -21,10 +21,10 @@ server_name	username	db
 DROP SERVER IF EXISTS server1;
 CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test0');
 CREATE SERVER server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test1');
-ERROR HY000: The foreign server, server_1, you are trying to create already exists
+ERROR HY000: Cannot create foreign server 'server_1' as it already exists
 CREATE SERVER IF NOT EXISTS server_1 FOREIGN DATA WRAPPER mysql OPTIONS (USER 'mysqltest_1', HOST 'localhost', DATABASE 'test2');
 Warnings:
-Note	1476	The foreign server, server_1, you are trying to create already exists
+Note	1476	Cannot create foreign server 'server_1' as it already exists
 SELECT server_name, username, db FROM mysql.servers;
 server_name	username	db
 server_1	mysqltest_1	test0

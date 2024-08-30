@@ -1,0 +1,1053 @@
+call mtr.add_suppression("You need to use --log-bin to make --log-slave-updates work.");
+connection default;
+CREATE VIEW v_processlist  as SELECT * FROM performance_schema.threads where type = 'FOREGROUND';
+call mtr.add_suppression("Found 10 prepared XA transactions");
+CREATE TABLE t (a INT) ENGINE=innodb;
+INSERT INTO t VALUES(100);
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx1tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx1tmp';
+XA PREPARE 'trx1tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx2tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx2tmp';
+XA PREPARE 'trx2tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx3tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx3tmp';
+XA PREPARE 'trx3tmp';
+connection default;
+XA COMMIT 'trx1tmp';
+ERROR XAE04: XAER_NOTA: Unknown XID
+XA ROLLBACK 'trx1tmp';
+ERROR XAE04: XAER_NOTA: Unknown XID
+XA START 'trx1tmp';
+ERROR XAE08: XAER_DUPID: The XID already exists
+connection default;
+*** 3 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1tmp;
+disconnect conn1tmp;
+connection default;
+XA COMMIT 'trx1tmp';
+KILL connection CONN_ID;
+XA COMMIT 'trx3tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1ro';
+SELECT * from t ORDER BY a;
+a
+100
+XA END     'trx1ro';
+XA PREPARE 'trx1ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx2ro';
+SELECT * from t ORDER BY a;
+a
+100
+XA END     'trx2ro';
+XA PREPARE 'trx2ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx3ro';
+SELECT * from t ORDER BY a;
+a
+100
+XA END     'trx3ro';
+XA PREPARE 'trx3ro';
+connection default;
+*** 4 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1ro;
+disconnect conn1ro;
+connection default;
+XA ROLLBACK 'trx1ro';
+KILL connection CONN_ID;
+XA ROLLBACK 'trx3ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1empty';
+XA END     'trx1empty';
+XA PREPARE 'trx1empty';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx2empty';
+XA END     'trx2empty';
+XA PREPARE 'trx2empty';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx3empty';
+XA END     'trx3empty';
+XA PREPARE 'trx3empty';
+connection default;
+*** 5 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1empty;
+disconnect conn1empty;
+connection default;
+XA COMMIT 'trx1empty';
+KILL connection CONN_ID;
+XA COMMIT 'trx3empty';
+connect conn1$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1unprepared';
+INSERT INTO t set a=0;
+XA END     'trx1unprepared';
+INSERT INTO t set a=0;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA START 'trx1unprepared';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA START 'trx1unprepared';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+disconnect conn1unprepared;
+connection default;
+XA COMMIT 'trx1unprepared';
+ERROR XAE04: XAER_NOTA: Unknown XID
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_0';
+INSERT INTO t SET a=0;
+XA END     'trx_0';
+XA PREPARE 'trx_0';
+disconnect conn0;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_1';
+INSERT INTO t SET a=1;
+XA END     'trx_1';
+XA PREPARE 'trx_1';
+disconnect conn1;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_2';
+INSERT INTO t SET a=2;
+XA END     'trx_2';
+XA PREPARE 'trx_2';
+disconnect conn2;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_3';
+INSERT INTO t SET a=3;
+XA END     'trx_3';
+XA PREPARE 'trx_3';
+disconnect conn3;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_4';
+INSERT INTO t SET a=4;
+XA END     'trx_4';
+XA PREPARE 'trx_4';
+disconnect conn4;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_5';
+INSERT INTO t SET a=5;
+XA END     'trx_5';
+XA PREPARE 'trx_5';
+disconnect conn5;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_6';
+INSERT INTO t SET a=6;
+XA END     'trx_6';
+XA PREPARE 'trx_6';
+disconnect conn6;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_7';
+INSERT INTO t SET a=7;
+XA END     'trx_7';
+XA PREPARE 'trx_7';
+disconnect conn7;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_8';
+INSERT INTO t SET a=8;
+XA END     'trx_8';
+XA PREPARE 'trx_8';
+disconnect conn8;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_9';
+INSERT INTO t SET a=9;
+XA END     'trx_9';
+XA PREPARE 'trx_9';
+disconnect conn9;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_10';
+INSERT INTO t SET a=10;
+XA END     'trx_10';
+XA PREPARE 'trx_10';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_11';
+INSERT INTO t SET a=11;
+XA END     'trx_11';
+XA PREPARE 'trx_11';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_12';
+INSERT INTO t SET a=12;
+XA END     'trx_12';
+XA PREPARE 'trx_12';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_13';
+INSERT INTO t SET a=13;
+XA END     'trx_13';
+XA PREPARE 'trx_13';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_14';
+INSERT INTO t SET a=14;
+XA END     'trx_14';
+XA PREPARE 'trx_14';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_15';
+INSERT INTO t SET a=15;
+XA END     'trx_15';
+XA PREPARE 'trx_15';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_16';
+INSERT INTO t SET a=16;
+XA END     'trx_16';
+XA PREPARE 'trx_16';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_17';
+INSERT INTO t SET a=17;
+XA END     'trx_17';
+XA PREPARE 'trx_17';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_18';
+INSERT INTO t SET a=18;
+XA END     'trx_18';
+XA PREPARE 'trx_18';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_19';
+INSERT INTO t SET a=19;
+XA END     'trx_19';
+XA PREPARE 'trx_19';
+connection default;
+KILL CONNECTION CONN_ID;
+connection default;
+XA ROLLBACK 'trx_0';
+XA ROLLBACK 'trx_1';
+XA ROLLBACK 'trx_2';
+XA ROLLBACK 'trx_3';
+XA ROLLBACK 'trx_4';
+XA COMMIT 'trx_5';
+XA COMMIT 'trx_6';
+XA COMMIT 'trx_7';
+XA COMMIT 'trx_8';
+XA COMMIT 'trx_9';
+# restart
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_0';
+INSERT INTO t SET a=0;
+XA END     'new_trx_0';
+XA PREPARE 'new_trx_0';
+disconnect conn_restart_0;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_1';
+INSERT INTO t SET a=1;
+XA END     'new_trx_1';
+XA PREPARE 'new_trx_1';
+disconnect conn_restart_1;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_2';
+INSERT INTO t SET a=2;
+XA END     'new_trx_2';
+XA PREPARE 'new_trx_2';
+disconnect conn_restart_2;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_3';
+INSERT INTO t SET a=3;
+XA END     'new_trx_3';
+XA PREPARE 'new_trx_3';
+disconnect conn_restart_3;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_4';
+INSERT INTO t SET a=4;
+XA END     'new_trx_4';
+XA PREPARE 'new_trx_4';
+disconnect conn_restart_4;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_5';
+INSERT INTO t SET a=5;
+XA END     'new_trx_5';
+XA PREPARE 'new_trx_5';
+disconnect conn_restart_5;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_6';
+INSERT INTO t SET a=6;
+XA END     'new_trx_6';
+XA PREPARE 'new_trx_6';
+disconnect conn_restart_6;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_7';
+INSERT INTO t SET a=7;
+XA END     'new_trx_7';
+XA PREPARE 'new_trx_7';
+disconnect conn_restart_7;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_8';
+INSERT INTO t SET a=8;
+XA END     'new_trx_8';
+XA PREPARE 'new_trx_8';
+disconnect conn_restart_8;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_9';
+INSERT INTO t SET a=9;
+XA END     'new_trx_9';
+XA PREPARE 'new_trx_9';
+disconnect conn_restart_9;
+connection default;
+connection default;
+XA COMMIT  'new_trx_0';
+XA COMMIT  'new_trx_1';
+XA COMMIT  'new_trx_2';
+XA COMMIT  'new_trx_3';
+XA COMMIT  'new_trx_4';
+XA COMMIT  'new_trx_5';
+XA COMMIT  'new_trx_6';
+XA COMMIT  'new_trx_7';
+XA COMMIT  'new_trx_8';
+XA COMMIT  'new_trx_9';
+XA START 'trx_10';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_10';
+XA START 'trx_11';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_11';
+XA START 'trx_12';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_12';
+XA START 'trx_13';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_13';
+XA START 'trx_14';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_14';
+XA START 'trx_15';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_15';
+XA START 'trx_16';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_16';
+XA START 'trx_17';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_17';
+XA START 'trx_18';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_18';
+XA START 'trx_19';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_19';
+SELECT * FROM t;
+a
+100
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+disconnect conn2tmp;
+disconnect conn3tmp;
+disconnect conn2ro;
+disconnect conn3ro;
+disconnect conn2empty;
+disconnect conn3empty;
+connection default;
+XA ROLLBACK 'trx_20';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn19;
+connection default;
+XA ROLLBACK 'trx_19';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn18;
+connection default;
+XA ROLLBACK 'trx_18';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn17;
+connection default;
+XA ROLLBACK 'trx_17';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn16;
+connection default;
+XA ROLLBACK 'trx_16';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn15;
+connection default;
+XA ROLLBACK 'trx_15';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn14;
+connection default;
+XA ROLLBACK 'trx_14';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn13;
+connection default;
+XA ROLLBACK 'trx_13';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn12;
+connection default;
+XA ROLLBACK 'trx_12';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn11;
+connection default;
+XA ROLLBACK 'trx_11';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn10;
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx1tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx1tmp';
+XA PREPARE 'trx1tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx2tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx2tmp';
+XA PREPARE 'trx2tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@sql_log_bin = OFF;
+CREATE TEMPORARY TABLE tmp1 (a int) ENGINE=innodb;
+XA START   'trx3tmp';
+INSERT INTO tmp1 SET a=1;
+XA END     'trx3tmp';
+XA PREPARE 'trx3tmp';
+connection default;
+XA COMMIT 'trx1tmp';
+ERROR XAE04: XAER_NOTA: Unknown XID
+XA ROLLBACK 'trx1tmp';
+ERROR XAE04: XAER_NOTA: Unknown XID
+XA START 'trx1tmp';
+ERROR XAE08: XAER_DUPID: The XID already exists
+connection default;
+*** 3 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1tmp;
+disconnect conn1tmp;
+connection default;
+XA COMMIT 'trx1tmp';
+KILL connection CONN_ID;
+XA COMMIT 'trx3tmp';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1ro';
+SELECT * from t ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+5
+6
+6
+7
+7
+8
+8
+9
+9
+10
+11
+12
+13
+14
+100
+XA END     'trx1ro';
+XA PREPARE 'trx1ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx2ro';
+SELECT * from t ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+5
+6
+6
+7
+7
+8
+8
+9
+9
+10
+11
+12
+13
+14
+100
+XA END     'trx2ro';
+XA PREPARE 'trx2ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx3ro';
+SELECT * from t ORDER BY a;
+a
+0
+1
+2
+3
+4
+5
+5
+6
+6
+7
+7
+8
+8
+9
+9
+10
+11
+12
+13
+14
+100
+XA END     'trx3ro';
+XA PREPARE 'trx3ro';
+connection default;
+*** 4 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1ro;
+disconnect conn1ro;
+connection default;
+XA ROLLBACK 'trx1ro';
+KILL connection CONN_ID;
+XA ROLLBACK 'trx3ro';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1empty';
+XA END     'trx1empty';
+XA PREPARE 'trx1empty';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx2empty';
+XA END     'trx2empty';
+XA PREPARE 'trx2empty';
+connect  conn$index$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx3empty';
+XA END     'trx3empty';
+XA PREPARE 'trx3empty';
+connection default;
+*** 5 prepared transactions must be in the list ***
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+1	LEN1	LEN2	TRX_N
+connection conn1empty;
+disconnect conn1empty;
+connection default;
+XA COMMIT 'trx1empty';
+KILL connection CONN_ID;
+XA COMMIT 'trx3empty';
+connect conn1$type, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'trx1unprepared';
+INSERT INTO t set a=0;
+XA END     'trx1unprepared';
+INSERT INTO t set a=0;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA START 'trx1unprepared';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+XA START 'trx1unprepared';
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  IDLE state
+disconnect conn1unprepared;
+connection default;
+XA COMMIT 'trx1unprepared';
+ERROR XAE04: XAER_NOTA: Unknown XID
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_0';
+INSERT INTO t SET a=0;
+XA END     'trx_0';
+XA PREPARE 'trx_0';
+disconnect conn0;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_1';
+INSERT INTO t SET a=1;
+XA END     'trx_1';
+XA PREPARE 'trx_1';
+disconnect conn1;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_2';
+INSERT INTO t SET a=2;
+XA END     'trx_2';
+XA PREPARE 'trx_2';
+disconnect conn2;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_3';
+INSERT INTO t SET a=3;
+XA END     'trx_3';
+XA PREPARE 'trx_3';
+disconnect conn3;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_4';
+INSERT INTO t SET a=4;
+XA END     'trx_4';
+XA PREPARE 'trx_4';
+disconnect conn4;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_5';
+INSERT INTO t SET a=5;
+XA END     'trx_5';
+XA PREPARE 'trx_5';
+disconnect conn5;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_6';
+INSERT INTO t SET a=6;
+XA END     'trx_6';
+XA PREPARE 'trx_6';
+disconnect conn6;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_7';
+INSERT INTO t SET a=7;
+XA END     'trx_7';
+XA PREPARE 'trx_7';
+disconnect conn7;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_8';
+INSERT INTO t SET a=8;
+XA END     'trx_8';
+XA PREPARE 'trx_8';
+disconnect conn8;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_9';
+INSERT INTO t SET a=9;
+XA END     'trx_9';
+XA PREPARE 'trx_9';
+disconnect conn9;
+connection default;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_10';
+INSERT INTO t SET a=10;
+XA END     'trx_10';
+XA PREPARE 'trx_10';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_11';
+INSERT INTO t SET a=11;
+XA END     'trx_11';
+XA PREPARE 'trx_11';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_12';
+INSERT INTO t SET a=12;
+XA END     'trx_12';
+XA PREPARE 'trx_12';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_13';
+INSERT INTO t SET a=13;
+XA END     'trx_13';
+XA PREPARE 'trx_13';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_14';
+INSERT INTO t SET a=14;
+XA END     'trx_14';
+XA PREPARE 'trx_14';
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_15';
+INSERT INTO t SET a=15;
+XA END     'trx_15';
+XA PREPARE 'trx_15';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_16';
+INSERT INTO t SET a=16;
+XA END     'trx_16';
+XA PREPARE 'trx_16';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_17';
+INSERT INTO t SET a=17;
+XA END     'trx_17';
+XA PREPARE 'trx_17';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+XA START   'trx_18';
+INSERT INTO t SET a=18;
+XA END     'trx_18';
+XA PREPARE 'trx_18';
+connection default;
+KILL CONNECTION CONN_ID;
+connect  conn$i, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+SET @@binlog_format = STATEMENT;
+SET @@binlog_format = ROW;
+XA START   'trx_19';
+INSERT INTO t SET a=19;
+XA END     'trx_19';
+XA PREPARE 'trx_19';
+connection default;
+KILL CONNECTION CONN_ID;
+connection default;
+XA ROLLBACK 'trx_0';
+XA ROLLBACK 'trx_1';
+XA ROLLBACK 'trx_2';
+XA ROLLBACK 'trx_3';
+XA ROLLBACK 'trx_4';
+XA COMMIT 'trx_5';
+XA COMMIT 'trx_6';
+XA COMMIT 'trx_7';
+XA COMMIT 'trx_8';
+XA COMMIT 'trx_9';
+# Kill and restart
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_0';
+INSERT INTO t SET a=0;
+XA END     'new_trx_0';
+XA PREPARE 'new_trx_0';
+disconnect conn_restart_0;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_1';
+INSERT INTO t SET a=1;
+XA END     'new_trx_1';
+XA PREPARE 'new_trx_1';
+disconnect conn_restart_1;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_2';
+INSERT INTO t SET a=2;
+XA END     'new_trx_2';
+XA PREPARE 'new_trx_2';
+disconnect conn_restart_2;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_3';
+INSERT INTO t SET a=3;
+XA END     'new_trx_3';
+XA PREPARE 'new_trx_3';
+disconnect conn_restart_3;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_4';
+INSERT INTO t SET a=4;
+XA END     'new_trx_4';
+XA PREPARE 'new_trx_4';
+disconnect conn_restart_4;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_5';
+INSERT INTO t SET a=5;
+XA END     'new_trx_5';
+XA PREPARE 'new_trx_5';
+disconnect conn_restart_5;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_6';
+INSERT INTO t SET a=6;
+XA END     'new_trx_6';
+XA PREPARE 'new_trx_6';
+disconnect conn_restart_6;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_7';
+INSERT INTO t SET a=7;
+XA END     'new_trx_7';
+XA PREPARE 'new_trx_7';
+disconnect conn_restart_7;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_8';
+INSERT INTO t SET a=8;
+XA END     'new_trx_8';
+XA PREPARE 'new_trx_8';
+disconnect conn_restart_8;
+connection default;
+connect  conn_restart_$k, 127.0.0.1,root,,test,$MASTER_MYPORT,;
+XA START   'new_trx_9';
+INSERT INTO t SET a=9;
+XA END     'new_trx_9';
+XA PREPARE 'new_trx_9';
+disconnect conn_restart_9;
+connection default;
+connection default;
+XA COMMIT  'new_trx_0';
+XA COMMIT  'new_trx_1';
+XA COMMIT  'new_trx_2';
+XA COMMIT  'new_trx_3';
+XA COMMIT  'new_trx_4';
+XA COMMIT  'new_trx_5';
+XA COMMIT  'new_trx_6';
+XA COMMIT  'new_trx_7';
+XA COMMIT  'new_trx_8';
+XA COMMIT  'new_trx_9';
+XA START 'trx_10';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_10';
+XA START 'trx_11';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_11';
+XA START 'trx_12';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_12';
+XA START 'trx_13';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_13';
+XA START 'trx_14';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA COMMIT 'trx_14';
+XA START 'trx_15';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_15';
+XA START 'trx_16';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_16';
+XA START 'trx_17';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_17';
+XA START 'trx_18';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_18';
+XA START 'trx_19';
+ERROR XAE08: XAER_DUPID: The XID already exists
+XA ROLLBACK 'trx_19';
+SELECT * FROM t;
+a
+100
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+0
+1
+2
+3
+4
+5
+6
+7
+8
+9
+disconnect conn2tmp;
+disconnect conn3tmp;
+disconnect conn2ro;
+disconnect conn3ro;
+disconnect conn2empty;
+disconnect conn3empty;
+connection default;
+XA ROLLBACK 'trx_20';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn19;
+connection default;
+XA ROLLBACK 'trx_19';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn18;
+connection default;
+XA ROLLBACK 'trx_18';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn17;
+connection default;
+XA ROLLBACK 'trx_17';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn16;
+connection default;
+XA ROLLBACK 'trx_16';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn15;
+connection default;
+XA ROLLBACK 'trx_15';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn14;
+connection default;
+XA ROLLBACK 'trx_14';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn13;
+connection default;
+XA ROLLBACK 'trx_13';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn12;
+connection default;
+XA ROLLBACK 'trx_12';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn11;
+connection default;
+XA ROLLBACK 'trx_11';
+ERROR XAE04: XAER_NOTA: Unknown XID
+disconnect conn10;
+connection default;
+XA START   'one_phase_trx_0';
+INSERT INTO t SET a=0;
+XA END     'one_phase_trx_0';
+XA COMMIT  'one_phase_trx_0' ONE PHASE;
+XA START   'one_phase_trx_1';
+INSERT INTO t SET a=1;
+XA END     'one_phase_trx_1';
+XA COMMIT  'one_phase_trx_1' ONE PHASE;
+XA START   'one_phase_trx_2';
+INSERT INTO t SET a=2;
+XA END     'one_phase_trx_2';
+XA COMMIT  'one_phase_trx_2' ONE PHASE;
+XA START   'one_phase_trx_3';
+INSERT INTO t SET a=3;
+XA END     'one_phase_trx_3';
+XA COMMIT  'one_phase_trx_3' ONE PHASE;
+XA START   'one_phase_trx_4';
+INSERT INTO t SET a=4;
+XA END     'one_phase_trx_4';
+XA COMMIT  'one_phase_trx_4' ONE PHASE;
+SELECT SUM(a) FROM t;
+SUM(a)
+390
+DROP TABLE t;
+DROP VIEW v_processlist;
+All transactions must be completed, to empty-list the following:
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data

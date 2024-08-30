@@ -6,7 +6,7 @@
 --echo # CALLED FROM A FUNCTION
 --echo #
 
-call mtr.add_suppression("MySQL is trying to drop table");
+call mtr.add_suppression("MariaDB is trying to drop table");
 
 DELIMITER $$;
 CREATE PROCEDURE cachedata(

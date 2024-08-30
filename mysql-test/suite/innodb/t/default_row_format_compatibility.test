@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 call mtr.add_suppression("Index for table 'tab' is corrupt; try to repair it");
 
@@ -49,16 +50,15 @@ CREATE TABLE tab(a INT) ENGINE=InnoDB;
 # Remove the *.ibd file
 ALTER TABLE tab DISCARD TABLESPACE;
 
-# Move the *.ibd,*.cfg file into orginal location
+# Move the *.ibd,*.cfg file into original location
 --move_file $MYSQLD_DATADIR/tab.cfg $MYSQLD_DATADIR/test/tab.cfg
 --move_file $MYSQLD_DATADIR/tab.ibd $MYSQLD_DATADIR/test/tab.ibd
 
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE tab IMPORT TABLESPACE;
 
-# Take the backup of the ibd and cfg files
---copy_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_DATADIR/tab.cfg
---copy_file $MYSQLD_DATADIR/test/tab.ibd $MYSQLD_DATADIR/tab.ibd
+--move_file $MYSQLD_DATADIR/test/tab.cfg $MYSQLD_DATADIR/tab.cfg
+--move_file $MYSQLD_DATADIR/test/tab.ibd $MYSQLD_DATADIR/tab.ibd
 
 # Cleanup
 DROP TABLE tab;
@@ -150,14 +150,22 @@ SHOW TABLE STATUS LIKE 'tab';
 # Check by SELECT, no errors
 SELECT * FROM tab;
 
-# Check no errors
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=ON;
+
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
 ALTER TABLE tab ROW_FORMAT=COMPRESSED;
+SET GLOBAL innodb_read_only_compressed=OFF;
+ALTER TABLE tab ROW_FORMAT=COMPRESSED;
+SET GLOBAL innodb_read_only_compressed=ON;
 
 # Check by SELECT, no errors
 SELECT * FROM tab;
 
-# Check no errors
 ALTER TABLE tab ROW_FORMAT=Dynamic;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+
+# Check no errors
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
 SHOW TABLE STATUS LIKE 'tab';
 
@@ -165,3 +173,5 @@ SHOW TABLE STATUS LIKE 'tab';
 DROP TABLE tab;
 
 SET GLOBAL innodb_default_row_format =  @row_format;
+
+--source include/test_db_charset_restore.inc

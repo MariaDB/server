@@ -70,10 +70,10 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newdos.zip';
-SELECT * FROM t4;
-fn	cmpsize	uncsize	method
-new1.dos	67	79	8
-new2.dos	77	112	8
+SELECT fn, uncsize, method FROM t4;
+fn	uncsize	method
+new1.dos	79	8
+new2.dos	112	8
 DROP TABLE t1,t2,t3,t4;
 #
 # Testing zipped CSV tables
@@ -161,10 +161,10 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newcsv.zip';
-SELECT * FROM t4;
-fn	cmpsize	uncsize	method
-new1.csv	79	83	8
-new2.csv	94	125	8
+SELECT fn,uncsize,method FROM t4;
+fn	uncsize	method
+new1.csv	83	8
+new2.csv	125	8
 DROP TABLE t1,t2,t3,t4;
 #
 # Testing zipped JSON tables
@@ -234,7 +234,7 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='bios.zip';
-SELECT * FROM t4;
-fn	cmpsize	uncsize	method
-bios.json	1096	6848	8
+SELECT fn,uncsize,method FROM t4;
+fn	uncsize	method
+bios.json	6848	8
 DROP TABLE t1,t2,t3,t4;

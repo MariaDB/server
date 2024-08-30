@@ -80,7 +80,8 @@ SPIDER_TRX *spider_get_trx(
 
 int spider_free_trx(
   SPIDER_TRX *trx,
-  bool need_lock
+  bool need_lock,
+  bool reset_ha_data= true
 );
 
 int spider_check_and_set_trx_isolation(
@@ -125,6 +126,10 @@ int spider_start_internal_consistent_snapshot(
 );
 
 int spider_internal_start_trx(
+  ha_spider *spider
+);
+
+int spider_internal_start_trx_for_connection(
   ha_spider *spider,
   SPIDER_CONN *conn,
   int link_idx
@@ -222,11 +227,7 @@ int spider_end_trx(
   SPIDER_CONN *conn
 );
 
-int spider_check_trx_and_get_conn(
-  THD *thd,
-  ha_spider *spider,
-  bool use_conn_kind
-);
+int spider_check_trx_and_get_conn(THD *thd, ha_spider *spider);
 
 THD *spider_create_tmp_thd();
 
@@ -261,9 +262,3 @@ int spider_trx_check_link_idx_failed(
   ha_spider *spider
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-void spider_trx_add_bulk_access_conn(
-  SPIDER_TRX *trx,
-  SPIDER_CONN *conn
-);
-#endif

@@ -1,0 +1,38 @@
+include/master-slave.inc
+[connection master]
+call mtr.add_suppression("Replication event checksum verification failed");
+call mtr.add_suppression("could not queue event from master");
+call mtr.add_suppression("Semisync ack receiver.*error reading communication packets");
+call mtr.add_suppression("Semisync ack receiver got hangup");
+connection slave;
+#
+# Set up a semisync connection
+connection master;
+set @@global.rpl_semi_sync_master_enabled= ON;
+connection slave;
+stop slave io_thread;
+set @@global.rpl_semi_sync_slave_enabled= ON;
+set @old_dbug= @@global.debug_dbug;
+set @@global.debug_dbug= "+d,corrupt_queue_event";
+set @@global.debug_dbug= "+d,pause_before_io_read_event";
+set @@global.debug_dbug= "+d,placeholder";
+start slave io_thread;
+# Disable semi-sync on the slave while the IO thread is active
+set debug_sync='now wait_for io_thread_at_read_event';
+set @@global.rpl_semi_sync_slave_enabled= OFF;
+set debug_sync='now signal io_thread_continue_read_event';
+# Waiting for the slave to stop with the error from corrupt_queue_event
+connection slave;
+include/wait_for_slave_io_error.inc [errno=1595,1743]
+# Sleep 1 to give time for Ack_receiver to receive COM_QUIT
+include/assert_grep.inc [Check that there is no 'Read semi-sync reply magic number error' in error log.]
+#
+# Cleanup
+connection slave;
+include/stop_slave.inc
+set @@global.debug_dbug= @old_dbug;
+include/start_slave.inc
+connection master;
+set @@global.rpl_semi_sync_master_enabled= default;
+include/rpl_end.inc
+# End of rpl_semi_sync_slave_enabled_consistent.test

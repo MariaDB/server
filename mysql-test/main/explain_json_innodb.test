@@ -20,6 +20,7 @@ INSERT INTO t2 VALUES (3,'United States');
 CREATE TABLE t3 (b INT, c VARCHAR(3), PRIMARY KEY (c,b)) ENGINE=InnoDB;
 INSERT INTO t3 VALUES (4,'USA'),(5,'CAN');
 
+--source include/explain-no-costs.inc
 EXPLAIN FORMAT=JSON SELECT * FROM t1 WHERE 0 < ALL ( 
   SELECT tbl_alias1.column_name_1 FROM t2 AS tbl_alias1, t3 AS tbl_alias2 
   WHERE tbl_alias2.b = tbl_alias1.column_name_1 AND tbl_alias2.c = tbl_alias1.column_name_2 

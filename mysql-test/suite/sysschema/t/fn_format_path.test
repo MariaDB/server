@@ -1,0 +1,17 @@
+-- source include/not_embedded.inc
+-- source include/not_windows.inc
+
+
+# Passing NULL should return NULL
+SELECT sys.format_path(NULL);
+# Ensure datadir is recognized and stripped
+SET @mypath := CONCAT(@@global.datadir, 'foo/bar.foo');
+
+SELECT sys.format_path(@mypath);
+
+# Ensure tmpdir is recognized and stripped
+SET @mypath := CONCAT(@@global.tmpdir, '/foo/bar.foo');
+SELECT sys.format_path(@mypath);
+
+# Unrecognized paths should return the full path
+SELECT sys.format_path('/foo/bar/baz.foo');

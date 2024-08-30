@@ -50,4 +50,3 @@ int main() {
   ok(failed == 0, "Testing gcs()");
   return exit_status();
 }
-

@@ -1,0 +1,68 @@
+--echo #
+--echo # MDEV-27018 IF and COALESCE lose "json" property
+--echo #
+
+#
+# Testing that JSON data types inherit properties
+# from their non-JSON counterparts when mixed to INET6.
+#
+# E.g. JSON acts exactly like LONGTEXT when mixed to INET6:
+#
+# - COALESCE(inet6,json) returns inet6 (type aggregation for result)
+# - LEAST(inet6,json) returns inet6    (type aggregation for min/max)
+# - inet6=json is compared as inet6    (type aggregation for comparison)
+# - inet6+json returns an error        (type aggregation for numeric op)
+#
+# Mixing INET6 and JSON is actually meaningless:
+# Non of valid JSON values are valid INET6.
+# 
+# Some queries below intentionally use LIMIT 0 to avoid errors.
+#
+
+CREATE TABLE t1 (a INET6, b JSON, c LONGTEXT);
+INSERT INTO t1 VALUES ('::', '{"b": "b"}', '{"c": "c"}');
+
+--disable_ps_protocol
+--enable_metadata
+SELECT
+  COALESCE(a,b), COALESCE(a,c),
+  LEAST(a,b), LEAST(a,c)
+FROM t1 LIMIT 0;
+--disable_metadata
+--enable_ps_protocol
+
+CREATE TABLE t2 AS
+SELECT
+  COALESCE(a,b), COALESCE(a,c), 
+  LEAST(a,b), LEAST(a,c)
+FROM t1 LIMIT 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+
+SELECT * FROM t1 WHERE a=b;
+SELECT * FROM t1 WHERE a=c;
+
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT a+b FROM t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+SELECT a+c FROM t1;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-27668 Assertion `item->type_handler()->is_traditional_scalar_type() || item->type_handler() == type_handler()' failed in Field_inet6::can_optimize_keypart_ref
+--echo #
+
+CREATE TABLE t1 (i INET6 PRIMARY KEY);
+CREATE TABLE t2 (a VARCHAR(40) CHECK (JSON_VALID(a)));
+SELECT * FROM t1 JOIN t2 ON (i = a);
+INSERT INTO t1 VALUES ('::'),('ffff::ffff');
+INSERT INTO t2 VALUES ('{}'),('[]');
+SELECT * FROM t1 JOIN t2 ON (i = a);
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (i INET6 PRIMARY KEY);
+SELECT * FROM t1 WHERE i<JSON_OBJECT('c','b');
+INSERT INTO t1 VALUES ('::'),('ffff::ffff');
+SELECT * FROM t1 WHERE i<JSON_OBJECT('c','b');
+DROP TABLE t1;

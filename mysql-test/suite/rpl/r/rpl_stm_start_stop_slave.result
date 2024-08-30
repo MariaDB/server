@@ -104,13 +104,15 @@ connection master;
 RESET MASTER;
 connection slave;
 include/stop_slave.inc
-CHANGE MASTER TO master_log_pos=MASTER_POS;
+CHANGE MASTER TO master_log_pos=MASTER_POS, master_use_gtid=no;
 START SLAVE;
 include/wait_for_slave_param.inc [Last_IO_Errno]
 Last_IO_Errno = '1236'
 Last_IO_Error = 'Got fatal error 1236 from master when reading data from binary log: 'Client requested master to start replication from impossible position; the first event 'master-bin.000001' at XXX, the last event read from 'master-bin.000001' at XXX, the last byte read from 'master-bin.000001' at XXX.''
 include/stop_slave_sql.inc
 RESET SLAVE;
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;

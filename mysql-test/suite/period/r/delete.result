@@ -176,6 +176,10 @@ delete from t for portion of othertime from '2000-01-01' to '2018-01-01';
 ERROR HY000: Period `othertime` is not found in table
 delete from t for portion of system_time from '2000-01-01' to '2018-01-01';
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'of system_time from '2000-01-01' to '2018-01-01'' at line 1
+# MDEV-22596 DELETE FOR PORTION does not obey
+# "Expression in FOR PORTION OF must be constant" limitation, data can be easily lost
+delete from t for portion of apptime from s to e;
+ERROR HY000: Expression in FOR PORTION OF must be constant
 create or replace table t (id int, str text, s date, e date,
 period for apptime(s,e));
 insert into t values(1, 'data', '1999-01-01', '2018-12-12');
@@ -388,6 +392,11 @@ ERROR 22003: Out of range value for column 'f' at row ROW
 delete ignore from t
 for portion of app from '2015-07-07 00:00:00' to '2020-03-11 08:48:52';
 drop table t;
+create table t1 (pk int, s date, e date,  period for se (s,e), primary key (pk,se without overlaps));
+insert into t1 values (1,'2020-01-01','2020-02-20');
+delete from t1 for portion of se from '2020-01-30' to '2020-01-31';
+drop table t1;
+# End of 10.5 tests
 #
 # MDEV-19190 Assertion `part_share->auto_inc_initialized` failed in
 # ha_partition::get_auto_increment

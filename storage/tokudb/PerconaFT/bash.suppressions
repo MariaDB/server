@@ -1,6 +1,0 @@
-{
-    bash
-    Memcheck:Leak
-    ...
-    obj:/bin/bash
-}

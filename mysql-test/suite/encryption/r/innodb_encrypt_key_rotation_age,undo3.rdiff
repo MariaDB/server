@@ -1,0 +1,52 @@
+--- innodb_encrypt_key_rotation_age.result	2022-06-02 16:15:08.395122720 +0530
++++ innodb_encrypt_key_rotation_age,undo3.reject	2022-11-29 19:06:07.964542115 +0530
+@@ -12,6 +12,9 @@
+ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+ NAME
+ innodb_system
++innodb_undo001
++innodb_undo002
++innodb_undo003
+ mysql/innodb_index_stats
+ mysql/innodb_table_stats
+ mysql/transaction_registry
+@@ -27,6 +30,9 @@
+ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+ NAME
+ innodb_system
++innodb_undo001
++innodb_undo002
++innodb_undo003
+ mysql/innodb_index_stats
+ mysql/innodb_table_stats
+ mysql/transaction_registry
+@@ -39,6 +45,9 @@
+ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0;
+ NAME
+ innodb_system
++innodb_undo001
++innodb_undo002
++innodb_undo003
+ mysql/innodb_index_stats
+ mysql/innodb_table_stats
+ mysql/transaction_registry
+@@ -59,6 +68,9 @@
+ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+ NAME
+ innodb_system
++innodb_undo001
++innodb_undo002
++innodb_undo003
+ mysql/innodb_index_stats
+ mysql/innodb_table_stats
+ mysql/transaction_registry
+@@ -71,6 +83,9 @@
+ SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+ NAME
+ innodb_system
++innodb_undo001
++innodb_undo002
++innodb_undo003
+ mysql/innodb_index_stats
+ mysql/innodb_table_stats
+ mysql/transaction_registry

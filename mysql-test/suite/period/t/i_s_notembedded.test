@@ -1,0 +1,119 @@
+--source include/not_embedded.inc
+--source include/platform.inc
+
+select * from information_schema.periods;
+
+create or replace table t1 (id int primary key, s timestamp(6), e timestamp(6),
+                            period for mytime(s,e));
+
+create or replace table t2 (id int primary key, s timestamp(6), e timestamp(6),
+                            period for mytime(s,e),
+                            vs timestamp(6) as row start,
+                            ve timestamp(6) as row end,
+                            period for system_time(vs, ve))
+                            with system versioning;
+
+show columns from t1;
+
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+
+create user periods_hidden@localhost;
+# Give it a privilege to connect
+grant create on test.nonexist to periods_hidden@localhost;
+
+--connect (chopped,localhost,periods_hidden,,test)
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(id) on test.t1 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+--connection default
+revoke select(id) on test.t1 from periods_hidden@localhost;
+--connection chopped
+--sorted_result
+--connection default
+grant update(id) on test.t1 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(s) on test.t1 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant select(e) on test.t2 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+grant update on test.t2 to periods_hidden@localhost;
+--connection chopped
+--sorted_result
+select * from information_schema.periods where table_schema = 'test';
+--connection default
+drop tables t1, t2;
+
+--echo # MDEV-32503 Queries from KEY_PERIOD_USAGE don't obey case-sensitivity
+
+create table t (a int, b date, c date, period for app(b,c),
+                unique idx(a, app without overlaps));
+
+
+set names latin1 collate latin1_general_cs;
+
+select table_name from information_schema.periods where table_schema = 'TEST';
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+set names latin1 collate latin1_general_ci;
+
+select table_name from information_schema.periods where table_schema = 'TEST';
+select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+
+--echo # [DUPLICATE] MDEV-32504 Search by I_S.KEY_PERIOD_USAGE.CONSTRAINT_NAME
+--echo # does not work
+disable_warnings; # storage engine 'Innodb' is not found 
+select constraint_name from information_schema.key_period_usage where table_name = 't';
+select constraint_name from information_schema.key_period_usage where constraint_name = 'idx';
+enable_warnings;
+
+drop table t;
+
+--echo # MDEV-32501 KEY_PERIOD_USAGE reveals information to unprivileged user
+create table t (a int, b date, c date, f int, period for app(b, c),
+                primary key(a, app without overlaps));
+
+grant select (f) on t to periods_hidden@localhost;
+
+--connection chopped
+select period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+grant update (f) on t to periods_hidden@localhost;
+--connection chopped
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+revoke update (f) on t from periods_hidden@localhost;
+--connection chopped
+--error ER_TABLEACCESS_DENIED_ERROR
+update t set f = 1;
+select period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+grant alter on t to periods_hidden@localhost;
+--connection chopped
+select 'can be seen', constraint_name, period_name from information_schema.key_period_usage where table_name = 't';
+
+--connection default
+drop table t;
+
+#
+# End of 11.4 tests
+#
+
+# Global cleanup
+--disconnect chopped
+--connection default
+drop user periods_hidden@localhost;

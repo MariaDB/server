@@ -12,6 +12,9 @@ set global spider_same_server_link=1;
 CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table td (a int, PRIMARY KEY (a));
 create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_26151",TABLE "td", casual_read "3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'casual_read' is deprecated and will be removed in a future release
 insert into td values (11), (42);
 select max(a) from ts;
 max(a)
@@ -19,6 +22,9 @@ max(a)
 drop table td, ts;
 create table td (a int, PRIMARY KEY (a));
 create table ts (a int, PRIMARY KEY (a)) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv_mdev_26151",TABLE "td", casual_read "1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'casual_read' is deprecated and will be removed in a future release
 insert into td values (11), (42);
 select max(a) from ts;
 max(a)

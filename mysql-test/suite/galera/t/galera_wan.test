@@ -9,11 +9,10 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-CALL mtr.add_suppression("WSREP: Stray state UUID msg:.*");
-CALL mtr.add_suppression("WSREP: Sending JOIN failed:.*");
+CALL mtr.add_suppression("WSREP: Stray state UUID msg:");
+CALL mtr.add_suppression("Sending JOIN failed: ");
+CALL mtr.add_suppression("WSREP: .* sending install message failed: Socket is not connected");
 CALL mtr.add_suppression("There are no nodes in the same segment that will ever be able to become donors, yet there is a suitable donor outside");
-call mtr.add_suppression("WSREP: Sending JOIN failed:.*");
-
 
 SELECT VARIABLE_VALUE = 4 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
 
@@ -37,4 +36,3 @@ SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL
 SELECT COUNT(*) = 1 FROM t1;
 
 DROP TABLE t1;
-

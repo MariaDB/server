@@ -32,31 +32,31 @@ class DllExport TDBMUL : public TDBASE {
   TDBMUL(PTDBMUL tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return Tdbp->GetAmType();}
-  virtual PTDB Duplicate(PGLOBAL g);
+  AMT  GetAmType(void) override {return Tdbp->GetAmType();}
+  PTDB Duplicate(PGLOBAL g) override;
 
   // Methods
-  virtual void ResetDB(void);
-  virtual PTDB Clone(PTABS t);
-  virtual bool IsSame(PTDB tp) {return tp == (PTDB)Tdbp;}
-  virtual PCSZ GetFile(PGLOBAL g) {return Tdbp->GetFile(g);}
-  virtual int  GetRecpos(void) {return 0;}
-  virtual PCOL ColDB(PGLOBAL g, PSZ name, int num);
+  void ResetDB(void) override;
+  PTDB Clone(PTABS t) override;
+  bool IsSame(PTDB tp) override {return tp == (PTDB)Tdbp;}
+  PCSZ GetFile(PGLOBAL g) override {return Tdbp->GetFile(g);}
+  int  GetRecpos(void) override {return 0;}
+  PCOL ColDB(PGLOBAL g, PSZ name, int num) override;
           bool InitFileNames(PGLOBAL g);
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override
                 {strcpy(g->Message, MSG(MUL_MAKECOL_ERR)); return NULL;}
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual int  GetProgMax(PGLOBAL g);
-  virtual int  GetProgCur(void);
-  virtual int  RowNumber(PGLOBAL g, bool b = false);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  int  Cardinality(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  int  GetProgMax(PGLOBAL g) override;
+  int  GetProgCur(void) override;
+  int  RowNumber(PGLOBAL g, bool b = false) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
 
@@ -83,10 +83,10 @@ public:
 	TDBMSD(PTDBMSD tdbp) : TDBMUL(tdbp) {}
 
 	// Implementation
-	virtual PTDB Duplicate(PGLOBAL g);
+	PTDB Duplicate(PGLOBAL g);
 
 	// Methods
-	virtual PTDB Clone(PTABS t);
+	PTDB Clone(PTABS t) override;
 	bool InitFileNames(PGLOBAL g);
 
 	// Database routines
@@ -108,11 +108,11 @@ class DllExport DIRDEF : public TABDEF {    /* Directory listing table */
   DIRDEF(void) {Fn = NULL; Incl = false; Huge = false;}
 
   // Implementation
-  virtual const char *GetType(void) {return "DIR";}
+  const char *GetType(void) override {return "DIR";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -137,21 +137,21 @@ public:
 	TDBDIR(PSZ fpat);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_DIR;}
+  AMT  GetAmType(void) override {return TYPE_AM_DIR;}
 
   // Methods
-  virtual int GetRecpos(void) {return iFile;}
+  int GetRecpos(void) override {return iFile;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual int  GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
-  virtual int  GetProgCur(void) {return iFile;}
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  int  GetProgMax(PGLOBAL g) override {return GetMaxSize(g);}
+  int  GetProgCur(void) override {return iFile;}
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
 
  protected:
 	void Init(void);
@@ -195,11 +195,11 @@ class TDBSDR : public TDBDIR {
 	TDBSDR(PSZ fpat) : TDBDIR(fpat) {Sub = NULL;}
 
   // Database routines
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual int  GetProgMax(PGLOBAL g) {return GetMaxSize(g);}
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-//virtual void CloseDB(PGLOBAL g);
+  int  GetMaxSize(PGLOBAL g) override;
+  int  GetProgMax(PGLOBAL g) override {return GetMaxSize(g);}
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+//void CloseDB(PGLOBAL g) override;
 
  protected:
           int  FindInDir(PGLOBAL g);
@@ -230,10 +230,10 @@ class DIRCOL : public COLBLK {
   DIRCOL(DIRCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_DIR;}
+  int    GetAmType(void) override {return TYPE_AM_DIR;}
 
   // Methods
-  virtual void   ReadColumn(PGLOBAL g);
+  void   ReadColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used

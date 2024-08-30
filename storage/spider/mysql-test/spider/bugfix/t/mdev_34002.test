@@ -1,0 +1,7 @@
+INSTALL PLUGIN Spider SONAME 'ha_spider.so';
+CREATE TABLE t (c DATE, c2 VARCHAR(1025) CHARACTER SET utf8mb3, UNIQUE KEY k(c2)) ENGINE=SPIDER;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+UPDATE t SET c='２';
+drop table t;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

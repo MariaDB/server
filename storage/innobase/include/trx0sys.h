@@ -24,40 +24,36 @@ Transaction system
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0sys_h
-#define trx0sys_h
-
+#pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
-#include "trx0types.h"
+#include "trx0rseg.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
 #include "ut0lst.h"
 #include "read0types.h"
 #include "page0types.h"
-#include "ut0mutex.h"
 #include "trx0trx.h"
-#ifdef WITH_WSREP
-#include "trx0xa.h"
-#endif /* WITH_WSREP */
+#include "ilist.h"
+#include "my_cpu.h"
 
-typedef UT_LIST_BASE_NODE_T(trx_t) trx_ut_list_t;
+#ifdef UNIV_PFS_MUTEX
+extern mysql_pfs_key_t trx_sys_mutex_key;
+#endif
 
 /** Checks if a page address is the trx sys header page.
 @param[in]	page_id	page id
 @return true if trx sys header page */
-inline bool trx_sys_hdr_page(const page_id_t& page_id)
+inline bool trx_sys_hdr_page(const page_id_t page_id)
 {
-	return(page_id.space() == TRX_SYS_SPACE
-	       && page_id.page_no() == TRX_SYS_PAGE_NO);
+  return page_id == page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO);
 }
 
 /*****************************************************************//**
 Creates and initializes the transaction system at the database creation. */
-void
-trx_sys_create_sys_pages(void);
-/*==========================*/
+dberr_t trx_sys_create_sys_pages(mtr_t *mtr);
+
 /** Find an available rollback segment.
 @param[in]	sys_header
 @return an unallocated rollback segment slot in the TRX_SYS header
@@ -70,10 +66,8 @@ trx_sys_rseg_find_free(const buf_block_t* sys_header);
 @retval	NULL	if the page cannot be read */
 inline buf_block_t *trx_sysf_get(mtr_t* mtr, bool rw= true)
 {
-  buf_block_t* block = buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
-				    0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
-  ut_d(if (block) buf_block_dbg_add_level(block, SYNC_TRX_SYS_HEADER);)
-  return block;
+  return buf_page_get(page_id_t(TRX_SYS_SPACE, TRX_SYS_PAGE_NO),
+                      0, rw ? RW_X_LATCH : RW_S_LATCH, mtr);
 }
 
 #ifdef UNIV_DEBUG
@@ -136,9 +130,6 @@ trx_sys_print_mysql_binlog_offset();
 bool
 trx_sys_create_rsegs();
 
-/** The automatically created system rollback segment has this id */
-#define TRX_SYS_SYSTEM_RSEG_ID	0
-
 /** The offset of the transaction system header on the page */
 #define	TRX_SYS		FSEG_PAGE_DATA
 
@@ -158,13 +149,6 @@ from older MySQL or MariaDB versions. */
 					/*!< the start of the array of
 					rollback segment specification
 					slots */
-/*------------------------------------------------------------- @} */
-
-/** The number of rollback segments; rollback segment id must fit in
-the 7 bits reserved for it in DB_ROLL_PTR. */
-#define	TRX_SYS_N_RSEGS			128
-/** Maximum number of undo tablespaces (not counting the system tablespace) */
-#define TRX_SYS_MAX_UNDO_SPACES		(TRX_SYS_N_RSEGS - 1)
 
 /* Rollback segment specification slot offsets */
 
@@ -187,7 +171,7 @@ trx_sysf_rseg_get_space(const buf_block_t* sys_header, ulint rseg_id)
 	ut_ad(rseg_id < TRX_SYS_N_RSEGS);
 	return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_SPACE
 				+ rseg_id * TRX_SYS_RSEG_SLOT_SIZE
-				+ sys_header->frame);
+				+ sys_header->page.frame);
 }
 
 /** Read the page number of a rollback segment slot.
@@ -200,7 +184,7 @@ trx_sysf_rseg_get_page_no(const buf_block_t *sys_header, ulint rseg_id)
   ut_ad(rseg_id < TRX_SYS_N_RSEGS);
   return mach_read_from_4(TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
 			  rseg_id * TRX_SYS_RSEG_SLOT_SIZE +
-			  sys_header->frame);
+			  sys_header->page.frame);
 }
 
 /** Maximum length of MySQL binlog file name, in bytes.
@@ -340,31 +324,33 @@ FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID. */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_MAGIC_N= 536853855;
 /** Contents of TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED */
 constexpr uint32_t TRX_SYS_DOUBLEWRITE_SPACE_ID_STORED_N= 1783657386;
-
-/** Size of the doublewrite block in pages */
-#define TRX_SYS_DOUBLEWRITE_BLOCK_SIZE	FSP_EXTENT_SIZE
 /* @} */
 
 trx_t* current_trx();
 
 struct rw_trx_hash_element_t
 {
-  rw_trx_hash_element_t(): trx(0)
+  rw_trx_hash_element_t()
   {
-    mutex_create(LATCH_ID_RW_TRX_HASH_ELEMENT, &mutex);
+    memset(reinterpret_cast<void*>(this), 0, sizeof *this);
+    mutex.init();
   }
 
 
-  ~rw_trx_hash_element_t()
-  {
-    mutex_free(&mutex);
-  }
+  ~rw_trx_hash_element_t() { mutex.destroy(); }
 
 
   trx_id_t id; /* lf_hash_init() relies on this to be first in the struct */
+
+  /**
+    Transaction serialization number.
+
+    Assigned shortly before the transaction is moved to COMMITTED_IN_MEMORY
+    state. Initially set to TRX_ID_MAX.
+  */
   Atomic_counter<trx_id_t> no;
   trx_t *trx;
-  ib_mutex_t mutex;
+  srw_mutex mutex;
 };
 
 
@@ -375,6 +361,10 @@ struct rw_trx_hash_element_t
 class rw_trx_hash_t
 {
   LF_HASH hash;
+
+
+  template <typename T>
+  using walk_action= my_bool(rw_trx_hash_element_t *element, T *action);
 
 
   /**
@@ -447,10 +437,10 @@ class rw_trx_hash_t
     not accessible by concurrent threads.
   */
 
-  static void rw_trx_hash_initializer(LF_HASH *,
-                                      rw_trx_hash_element_t *element,
-                                      trx_t *trx)
+  static void rw_trx_hash_initializer(LF_HASH *, void *el, const void *t)
   {
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    trx_t *trx= static_cast<trx_t*>(const_cast<void*>(t));
     ut_ad(element->trx == 0);
     element->trx= trx;
     element->id= trx->id;
@@ -464,7 +454,7 @@ class rw_trx_hash_t
 
     Pins are used to protect object from being destroyed or reused. They are
     normally stored in trx object for quick access. If caller doesn't have trx
-    available, we try to get it using currnet_trx(). If caller doesn't have trx
+    available, we try to get it using current_trx(). If caller doesn't have trx
     at all, temporary pins are allocated.
   */
 
@@ -479,19 +469,21 @@ class rw_trx_hash_t
   }
 
 
-  struct eliminate_duplicates_arg
+  template <typename T> struct eliminate_duplicates_arg
   {
     trx_ids_t ids;
-    my_hash_walk_action action;
-    void *argument;
-    eliminate_duplicates_arg(size_t size, my_hash_walk_action act, void* arg):
+    walk_action<T> *action;
+    T *argument;
+    eliminate_duplicates_arg(size_t size, walk_action<T> *act, T *arg):
       action(act), argument(arg) { ids.reserve(size); }
   };
 
 
-  static my_bool eliminate_duplicates(rw_trx_hash_element_t *element,
-                                      eliminate_duplicates_arg *arg)
+  template <typename T>
+  static my_bool eliminate_duplicates(void *el, void *a)
   {
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    auto arg= static_cast<eliminate_duplicates_arg<T>*>(a);
     for (trx_ids_t::iterator it= arg->ids.begin(); it != arg->ids.end(); it++)
     {
       if (*it == element->id)
@@ -508,12 +500,12 @@ class rw_trx_hash_t
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
     ut_ad(!trx->is_autocommit_non_locking());
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
-    mutex_enter(&trx->mutex);
+    ut_d(trx->mutex_lock());
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
           trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) ||
           trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED) ||
           trx_state_eq(trx, TRX_STATE_PREPARED));
-    mutex_exit(&trx->mutex);
+    ut_d(trx->mutex_unlock());
   }
 
 
@@ -524,13 +516,15 @@ class rw_trx_hash_t
   };
 
 
-  static my_bool debug_iterator(rw_trx_hash_element_t *element,
-                                debug_iterator_arg *arg)
+  static my_bool debug_iterator(void *el, void *a)
   {
-    mutex_enter(&element->mutex);
+    rw_trx_hash_element_t *element= static_cast<rw_trx_hash_element_t*>(el);
+    debug_iterator_arg *arg= static_cast<debug_iterator_arg*>(a);
+    element->mutex.wr_lock();
     if (element->trx)
       validate_element(element->trx);
-    mutex_exit(&element->mutex);
+    element->mutex.wr_unlock();
+    ut_ad(element->id < element->no);
     return arg->action(element, arg->argument);
   }
 #endif
@@ -583,10 +577,10 @@ public:
     the transaction may get committed before this method returns.
 
     With do_ref_count == false the caller may dereference returned trx pointer
-    only if lock_sys.mutex was acquired before calling find().
+    only if lock_sys.latch was acquired before calling find().
 
     With do_ref_count == true caller may dereference trx even if it is not
-    holding lock_sys.mutex. Caller is responsible for calling
+    holding lock_sys.latch. Caller is responsible for calling
     trx->release_reference() when it is done playing with trx.
 
     Ideally this method should get caller rw_trx_hash_pins along with trx
@@ -596,8 +590,7 @@ public:
 
     So we take more expensive approach: get trx through current_thd()->ha_data.
     Some threads don't have trx attached to THD, and at least server
-    initialisation thread, fts_optimize_thread, srv_master_thread,
-    dict_stats_thread, srv_monitor_thread, btr_defragment_thread don't even
+    initialisation thread doesn't even
     have THD at all. For such cases we allocate pins only for duration of
     search and free them immediately.
 
@@ -637,7 +630,7 @@ public:
       If the element was removed before the mutex acquisition, element->trx
       will be equal to nullptr. */
       DEBUG_SYNC_C("before_trx_hash_find_element_mutex_enter");
-      mutex_enter(&element->mutex);
+      element->mutex.wr_lock();
       /* element_trx can't point to reused object now. If transaction was
       deregistered before element->mutex acquisition, element->trx is nullptr.
       It can't be deregistered while element->mutex is held. */
@@ -659,15 +652,12 @@ public:
             trx->mutex is released, and it will have to be rechecked
             by the caller after reacquiring the mutex.
           */
-          trx_mutex_enter(trx);
-          const trx_state_t state= trx->state;
-          trx_mutex_exit(trx);
           /* trx_t::commit_in_memory() sets the state to
           TRX_STATE_COMMITTED_IN_MEMORY before deregistering the transaction.
           It also waits for any implicit-to-explicit lock conversions to cease
           after deregistering. */
-          if (state == TRX_STATE_COMMITTED_IN_MEMORY)
-            trx= NULL;
+          if (trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
+            trx= nullptr;
           else
             trx->reference();
         }
@@ -675,7 +665,7 @@ public:
       /* element's lifetime is equal to the hash lifetime, that's why
       element->mutex is valid here despite the element is unpinned. In the
       worst case some thread will wait for element->mutex releasing. */
-      mutex_exit(&element->mutex);
+      element->mutex.wr_unlock();
     }
     if (!caller_trx)
       lf_hash_put_pins(pins);
@@ -709,9 +699,9 @@ public:
   void erase(trx_t *trx)
   {
     ut_d(validate_element(trx));
-    mutex_enter(&trx->rw_trx_hash_element->mutex);
-    trx->rw_trx_hash_element->trx= 0;
-    mutex_exit(&trx->rw_trx_hash_element->mutex);
+    trx->rw_trx_hash_element->mutex.wr_lock();
+    trx->rw_trx_hash_element->trx= nullptr;
+    trx->rw_trx_hash_element->mutex.wr_unlock();
     int res= lf_hash_delete(&hash, get_pins(trx),
                             reinterpret_cast<const void*>(&trx->id),
                             sizeof(trx_id_t));
@@ -736,7 +726,7 @@ public:
 
     @param caller_trx  used to get/set pins
     @param action      called for every element in hash
-    @param argument    opque argument passed to action
+    @param argument    opaque argument passed to action
 
     May return the same element multiple times if hash is under contention.
     If caller doesn't like to see the same transaction multiple times, it has
@@ -745,12 +735,12 @@ public:
     May return element with committed transaction. If caller doesn't like to
     see committed transactions, it has to skip those under element mutex:
 
-      mutex_enter(&element->mutex);
+      element->mutex.wr_lock();
       if (trx_t trx= element->trx)
       {
         // trx is protected against commit in this branch
       }
-      mutex_exit(&element->mutex);
+      element->mutex.wr_unlock();
 
     May miss concurrently inserted transactions.
 
@@ -759,14 +749,15 @@ public:
       @retval 1 iteration was interrupted (action returned 1)
   */
 
-  int iterate(trx_t *caller_trx, my_hash_walk_action action, void *argument)
+  int iterate(trx_t *caller_trx, my_hash_walk_action action,
+              void *argument= nullptr)
   {
     LF_PINS *pins= caller_trx ? get_pins(caller_trx) : lf_hash_get_pins(&hash);
     ut_a(pins);
 #ifdef UNIV_DEBUG
     debug_iterator_arg debug_arg= { action, argument };
-    action= reinterpret_cast<my_hash_walk_action>(debug_iterator);
-    argument= &debug_arg;
+    action= debug_iterator;
+    argument= reinterpret_cast<void*>(&debug_arg);
 #endif
     int res= lf_hash_iterate(&hash, pins, action, argument);
     if (!caller_trx)
@@ -775,7 +766,7 @@ public:
   }
 
 
-  int iterate(my_hash_walk_action action, void *argument)
+  int iterate(my_hash_walk_action action, void *argument= nullptr)
   {
     return iterate(current_trx(), action, argument);
   }
@@ -787,21 +778,73 @@ public:
     @sa iterate()
   */
 
-  int iterate_no_dups(trx_t *caller_trx, my_hash_walk_action action,
-                      void *argument)
+  template <typename T>
+  int iterate_no_dups(trx_t *caller_trx, walk_action<T> *action,
+                      T *argument= nullptr)
   {
-    eliminate_duplicates_arg arg(size() + 32, action, argument);
-    return iterate(caller_trx, reinterpret_cast<my_hash_walk_action>
-                   (eliminate_duplicates), &arg);
+    eliminate_duplicates_arg<T> arg(size() + 32, action, argument);
+    return iterate(caller_trx, eliminate_duplicates<T>, &arg);
   }
 
 
-  int iterate_no_dups(my_hash_walk_action action, void *argument)
+  template <typename T>
+  int iterate_no_dups(walk_action<T> *action, T *argument= nullptr)
   {
     return iterate_no_dups(current_trx(), action, argument);
   }
 };
 
+class thread_safe_trx_ilist_t
+{
+public:
+  void create() { mysql_mutex_init(trx_sys_mutex_key, &mutex, nullptr); }
+  void close() { mysql_mutex_destroy(&mutex); }
+
+  bool empty() const
+  {
+    mysql_mutex_lock(&mutex);
+    auto result= trx_list.empty();
+    mysql_mutex_unlock(&mutex);
+    return result;
+  }
+
+  void push_front(trx_t &trx)
+  {
+    mysql_mutex_lock(&mutex);
+    trx_list.push_front(trx);
+    mysql_mutex_unlock(&mutex);
+  }
+
+  void remove(trx_t &trx)
+  {
+    mysql_mutex_lock(&mutex);
+    trx_list.remove(trx);
+    mysql_mutex_unlock(&mutex);
+  }
+
+  template <typename Callable> void for_each(Callable &&callback) const
+  {
+    mysql_mutex_lock(&mutex);
+    for (const auto &trx : trx_list)
+      callback(trx);
+    mysql_mutex_unlock(&mutex);
+  }
+
+  template <typename Callable> void for_each(Callable &&callback)
+  {
+    mysql_mutex_lock(&mutex);
+    for (auto &trx : trx_list)
+      callback(trx);
+    mysql_mutex_unlock(&mutex);
+  }
+
+  void freeze() const { mysql_mutex_lock(&mutex); }
+  void unfreeze() const { mysql_mutex_unlock(&mutex); }
+
+private:
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable mysql_mutex_t mutex;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) ilist<trx_t> trx_list;
+};
 
 /** The transaction system central memory data structure. */
 class trx_sys_t
@@ -810,7 +853,7 @@ class trx_sys_t
     The smallest number not yet assigned as a transaction id or transaction
     number. Accessed and updated with atomic operations.
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<trx_id_t> m_max_trx_id;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<trx_id_t> m_max_trx_id;
 
 
   /**
@@ -821,42 +864,30 @@ class trx_sys_t
     @sa assign_new_trx_no()
     @sa snapshot_ids()
   */
-  MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<trx_id_t> m_rw_trx_hash_version;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  std::atomic<trx_id_t> m_rw_trx_hash_version;
 
 
   bool m_initialised;
 
+  /** False if there is no undo log to purge or rollback */
+  bool undo_log_nonempty;
 public:
-  /**
-    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
-  */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<size_t> rseg_history_len;
-
-  /** Mutex protecting trx_list. */
-  MY_ALIGNED(CACHE_LINE_SIZE) mutable TrxSysMutex mutex;
-
   /** List of all transactions. */
-  MY_ALIGNED(CACHE_LINE_SIZE) trx_ut_list_t trx_list;
+  thread_safe_trx_ilist_t trx_list;
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	/** Temporary rollback segments */
-	trx_rseg_t*	temp_rsegs[TRX_SYS_N_RSEGS];
+  /** Temporary rollback segments */
+  trx_rseg_t temp_rsegs[TRX_SYS_N_RSEGS];
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_rseg_t*	rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback
-					segments; NULL if slot not in use;
-					created and destroyed in
-					single-threaded mode; not protected
-					by any mutex, because it is read-only
-					during multi-threaded operation */
+  /** Persistent rollback segments; space==nullptr if slot not in use */
+  trx_rseg_t rseg_array[TRX_SYS_N_RSEGS];
 
   /**
     Lock-free hash of in memory read-write transactions.
     Works faster when it is on it's own cache line (tested).
   */
 
-  MY_ALIGNED(CACHE_LINE_SIZE) rw_trx_hash_t rw_trx_hash;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) rw_trx_hash_t rw_trx_hash;
 
 
 #ifdef WITH_WSREP
@@ -882,21 +913,47 @@ public:
 
 
   /**
-    Returns the minimum trx id in rw trx list.
+    @return TRX_RSEG_HISTORY length (number of committed transactions to purge)
+  */
+  size_t history_size();
 
-    This is the smallest id for which the trx can possibly be active. (But, you
-    must look at the trx->state to find out if the minimum trx id transaction
-    itself is active, or already committed.)
 
-    @return the minimum trx id, or m_max_trx_id if the trx list is empty
+  /**
+    Check whether history_size() exceeds a specified number.
+    @param threshold   number of committed transactions
+    @return whether TRX_RSEG_HISTORY length exceeds the threshold
+  */
+  bool history_exceeds(size_t threshold);
+
+
+  /**
+    @return approximate history_size(), without latch protection
+  */
+  TPOOL_SUPPRESS_TSAN size_t history_size_approx() const;
+
+
+  /**
+    @return whether history_size() is nonzero (with some race condition)
+  */
+  TPOOL_SUPPRESS_TSAN bool history_exists();
+
+
+  /**
+    Determine if the specified transaction or any older one might be active.
+
+    @param trx         current transaction
+    @param id          transaction identifier
+    @return whether any transaction not newer than id might be active
   */
 
-  trx_id_t get_min_trx_id()
+  bool find_same_or_older(trx_t *trx, trx_id_t id)
   {
-    trx_id_t id= get_max_trx_id();
-    rw_trx_hash.iterate(reinterpret_cast<my_hash_walk_action>
-                        (get_min_trx_id_callback), &id);
-    return id;
+    if (trx->max_inactive_id >= id)
+      return false;
+    bool found= rw_trx_hash.iterate(trx, find_same_or_older_callback, &id);
+    if (!found)
+      trx->max_inactive_id= id;
+    return found;
   }
 
 
@@ -950,8 +1007,7 @@ public:
   */
   void assign_new_trx_no(trx_t *trx)
   {
-    trx->no= get_new_trx_id_no_refresh();
-    trx->rw_trx_hash_element->no= trx->no;
+    trx->rw_trx_hash_element->no= get_new_trx_id_no_refresh();
     refresh_rw_trx_hash_version();
   }
 
@@ -975,13 +1031,12 @@ public:
     @param[in,out] caller_trx used to get access to rw_trx_hash_pins
     @param[out]    ids        array to store registered transaction identifiers
     @param[out]    max_trx_id variable to store m_max_trx_id value
-    @param[out]    mix_trx_no variable to store min(trx->no) value
+    @param[out]    mix_trx_no variable to store min(no) value
   */
 
   void snapshot_ids(trx_t *caller_trx, trx_ids_t *ids, trx_id_t *max_trx_id,
                     trx_id_t *min_trx_no)
   {
-    ut_ad(!mutex_own(&mutex));
     snapshot_ids_arg arg(ids);
 
     while ((arg.m_id= get_rw_trx_hash_version()) != get_max_trx_id())
@@ -990,9 +1045,7 @@ public:
 
     ids->clear();
     ids->reserve(rw_trx_hash.size() + 32);
-    rw_trx_hash.iterate(caller_trx,
-                        reinterpret_cast<my_hash_walk_action>(copy_one_id),
-                        &arg);
+    rw_trx_hash.iterate(caller_trx, copy_one_id, &arg);
 
     *max_trx_id= arg.m_id;
     *min_trx_no= arg.m_no;
@@ -1007,7 +1060,7 @@ public:
   }
 
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
 
   /** Initialise the transaction subsystem. */
@@ -1017,7 +1070,23 @@ public:
   void close();
 
   /** @return total number of active (non-prepared) transactions */
-  ulint any_active_transactions();
+  size_t any_active_transactions(size_t *prepared= nullptr);
+
+
+  /**
+    Determine the rollback segment identifier.
+
+    @param rseg        rollback segment
+    @param persistent  whether the rollback segment is persistent
+    @return the rollback segment identifier
+  */
+  unsigned rseg_id(const trx_rseg_t *rseg, bool persistent) const
+  {
+    const trx_rseg_t *array= persistent ? rseg_array : temp_rsegs;
+    ut_ad(rseg >= array);
+    ut_ad(rseg < &array[TRX_SYS_N_RSEGS]);
+    return static_cast<unsigned>(rseg - array);
+  }
 
 
   /**
@@ -1080,9 +1149,7 @@ public:
   */
   void register_trx(trx_t *trx)
   {
-    mutex_enter(&mutex);
-    UT_LIST_ADD_FIRST(trx_list, trx);
-    mutex_exit(&mutex);
+    trx_list.push_front(*trx);
   }
 
 
@@ -1093,9 +1160,7 @@ public:
   */
   void deregister_trx(trx_t *trx)
   {
-    mutex_enter(&mutex);
-    UT_LIST_REMOVE(trx_list, trx);
-    mutex_exit(&mutex);
+    trx_list.remove(*trx);
   }
 
 
@@ -1106,7 +1171,7 @@ public:
     in. This function is called by purge thread to determine whether it should
     purge the delete marked record or not.
   */
-  void clone_oldest_view();
+  void clone_oldest_view(ReadViewBase *view) const;
 
 
   /** @return the number of active views */
@@ -1114,30 +1179,39 @@ public:
   {
     size_t count= 0;
 
-    mutex_enter(&mutex);
-    for (const trx_t *trx= UT_LIST_GET_FIRST(trx_list); trx;
-         trx= UT_LIST_GET_NEXT(trx_list, trx))
-    {
-      if (trx->read_view.get_state() == READ_VIEW_STATE_OPEN)
+    trx_list.for_each([&count](const trx_t &trx) {
+      if (trx.read_view.is_open())
         ++count;
-    }
-    mutex_exit(&mutex);
+    });
+
     return count;
   }
 
-private:
-  static my_bool get_min_trx_id_callback(rw_trx_hash_element_t *element,
-                                         trx_id_t *id)
+  /** Disable further allocation of transactions in a rollback segment
+  that are subject to innodb_undo_log_truncate=ON
+  @param space   undo tablespace that will be truncated */
+  inline void undo_truncate_start(fil_space_t &space);
+
+  /** Set the undo log empty value */
+  void set_undo_non_empty(bool val)
   {
-    if (element->id < *id)
-    {
-      mutex_enter(&element->mutex);
-      /* We don't care about read-only transactions here. */
-      if (element->trx && element->trx->rsegs.m_redo.rseg)
-        *id= element->id;
-      mutex_exit(&element->mutex);
-    }
-    return 0;
+    if (!undo_log_nonempty)
+      undo_log_nonempty= val;
+  }
+
+  /** Get the undo log empty value */
+  bool is_undo_empty() const { return !undo_log_nonempty; }
+
+  /* Reset the trx_sys page and retain the dblwr information,
+  system rollback segment header page
+  @return error code */
+  inline dberr_t reset_page(mtr_t *mtr);
+private:
+  static my_bool find_same_or_older_callback(void *el, void *i)
+  {
+    auto element= static_cast<rw_trx_hash_element_t *>(el);
+    auto id= static_cast<trx_id_t*>(i);
+    return element->id <= *id;
   }
 
 
@@ -1150,9 +1224,10 @@ private:
   };
 
 
-  static my_bool copy_one_id(rw_trx_hash_element_t *element,
-                             snapshot_ids_arg *arg)
+  static my_bool copy_one_id(void* el, void *a)
   {
+    auto element= static_cast<const rw_trx_hash_element_t *>(el);
+    auto arg= static_cast<snapshot_ids_arg*>(a);
     if (element->id < arg->m_id)
     {
       trx_id_t no= element->no;
@@ -1200,5 +1275,3 @@ private:
 
 /** The transaction system */
 extern trx_sys_t trx_sys;
-
-#endif

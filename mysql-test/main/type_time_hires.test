@@ -207,3 +207,30 @@ drop table t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+--echo #
+
+--error ER_TOO_BIG_PRECISION
+CREATE TABLE t1 (a TIME(4294967295));
+--error ER_TOO_BIG_PRECISION
+CREATE TABLE t1 (a TIME(4294967296));
+--error ER_TOO_BIG_PRECISION
+CREATE TABLE t1 (a TIME(999999999999999999999999999999));
+
+--error ER_TOO_BIG_PRECISION
+SELECT CAST(1 AS TIME(4294967295));
+--error ER_TOO_BIG_PRECISION
+SELECT CAST(1 AS TIME(4294967296));
+--error ER_TOO_BIG_PRECISION
+SELECT CAST(1 AS TIME(999999999999999999999999999999));
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #

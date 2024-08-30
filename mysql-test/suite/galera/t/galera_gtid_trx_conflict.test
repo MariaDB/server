@@ -1,0 +1,56 @@
+#
+# Test galera GTID with conflicting trx and @@wsrep_gtid_seq_no set on one node.
+#
+
+--source include/galera_cluster.inc
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+
+--connection node_1
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+
+--connection node_2
+SET AUTOCOMMIT = OFF;
+SET @@wsrep_gtid_seq_no = 100;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+
+--connection node_1
+COMMIT;
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--let $wait_condition = SELECT COUNT(*) = 1 FROM t1;
+--source include/wait_condition.inc
+
+--connection node_2
+--error ER_LOCK_DEADLOCK
+COMMIT;
+
+--echo # Expected GTID value 1-1-2 on both nodes
+SELECT @@gtid_binlog_state;
+
+SET AUTOCOMMIT = ON;
+INSERT INTO t1 VALUES(2);
+
+--echo # Expected GTID value 1-1-100 on both nodes, seqno is set with wsrep_gtid_seq_no
+SELECT @@gtid_binlog_state;
+
+--connection node_1
+SELECT @@gtid_binlog_state;
+
+SET AUTOCOMMIT = ON;
+INSERT INTO t1 VALUES(3);
+
+--echo # Expected GTID value 1-1-101 on both nodes
+SELECT @@gtid_binlog_state;
+
+--connection node_2
+SELECT @@gtid_binlog_state;
+DROP TABLE t1;
+
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

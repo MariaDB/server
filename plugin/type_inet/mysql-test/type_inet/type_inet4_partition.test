@@ -1,0 +1,41 @@
+--source include/have_partition.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo # MDEV-20831 Table partitioned by LIST/RANGE COLUMNS(inet6) can be created, but not inserted into
+--echo #
+
+SET NAMES utf8;
+
+--error ER_WRONG_TYPE_COLUMN_VALUE_ERROR
+CREATE TABLE t1 (a INET4)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN (10));
+
+--error ER_WRONG_TYPE_COLUMN_VALUE_ERROR
+CREATE TABLE t1 (a INET4)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN (TIME'10:20:30'));
+
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TABLE t1 (a INET4)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN ('€'));
+
+CREATE TABLE t1 (a INET4)
+  PARTITION BY LIST COLUMNS(a)
+    (PARTITION p00 VALUES IN ('0.0.0.0'),
+     PARTITION pFF VALUES IN (0xFFFFFFFF));
+INSERT INTO t1 VALUES ('0.0.0.0');
+INSERT INTO t1 VALUES ('255.255.255.255');
+SELECT * FROM t1 PARTITION (p00);
+SELECT * FROM t1 PARTITION (pFF);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

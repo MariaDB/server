@@ -269,3 +269,164 @@ SETVAL(s, 10)
 10
 DROP SEQUENCE s;
 # End of 10.3 tests
+#
+# MDEV-28152 Features for sequence
+#
+create sequence s;
+select setval(s, 12345678901234567890);
+setval(s, 12345678901234567890)
+NULL
+select nextval(s);
+nextval(s)
+1
+drop sequence s;
+create sequence s increment -1;
+select setval(s, 12345678901234567890);
+setval(s, 12345678901234567890)
+NULL
+select nextval(s);
+nextval(s)
+-1
+drop sequence s;
+create sequence s as smallint;
+select setval(s, 55555);
+setval(s, 55555)
+NULL
+select setval(s, -55555);
+setval(s, -55555)
+NULL
+select nextval(s);
+nextval(s)
+1
+drop sequence s;
+create sequence s as smallint increment -1;
+select setval(s, 55555);
+setval(s, 55555)
+NULL
+select setval(s, -55555);
+setval(s, -55555)
+NULL
+select nextval(s);
+nextval(s)
+-1
+drop sequence s;
+create sequence s as bigint unsigned;
+select setval(s, -123);
+setval(s, -123)
+NULL
+select nextval(s);
+nextval(s)
+1
+drop sequence s;
+create sequence s as bigint unsigned increment -1;
+select setval(s, -123);
+setval(s, -123)
+NULL
+select nextval(s);
+nextval(s)
+18446744073709551614
+drop sequence s;
+create sequence s as bigint unsigned;
+select setval(s, -123);
+setval(s, -123)
+NULL
+select setval(s, 0);
+setval(s, 0)
+0
+select nextval(s);
+nextval(s)
+1
+select setval(s, 12345678901234567890);
+setval(s, 12345678901234567890)
+12345678901234567890
+select nextval(s);
+nextval(s)
+12345678901234567891
+select setval(s, 12345678901234567890);
+setval(s, 12345678901234567890)
+NULL
+select nextval(s);
+nextval(s)
+12345678901234567892
+select setval(s, 18446744073709551614, 0);
+setval(s, 18446744073709551614, 0)
+18446744073709551614
+select nextval(s);
+nextval(s)
+18446744073709551614
+select nextval(s);
+ERROR HY000: Sequence 'test.s' has run out
+select setval(s, 12345678901234567890, 0, 1);
+ERROR HY000: Sequence 'test.s' has run out
+alter sequence s cycle;
+select setval(s, 12345678901234567890, 0, 1);
+setval(s, 12345678901234567890, 0, 1)
+12345678901234567890
+select nextval(s);
+nextval(s)
+12345678901234567890
+drop sequence s;
+create sequence s as bigint unsigned;
+select setval(s, 18446744073709551616);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '18446744073709551616)' at line 1
+select setval(s, 18446744073709551615);
+setval(s, 18446744073709551615)
+18446744073709551615
+select nextval(s);
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as bigint unsigned;
+select setval(s, 18446744073709551615, 0);
+setval(s, 18446744073709551615, 0)
+18446744073709551615
+select nextval(s);
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615);
+setval(s, 18446744073709551615)
+18446744073709551615
+select nextval(s);
+nextval(s)
+1
+drop sequence s;
+create sequence s as bigint unsigned cycle;
+select setval(s, 18446744073709551615, 0);
+setval(s, 18446744073709551615, 0)
+18446744073709551615
+select nextval(s);
+nextval(s)
+1
+drop sequence s;
+create sequence s as bigint unsigned minvalue 123 maxvalue 456;
+select setval(s, 100);
+setval(s, 100)
+NULL
+select nextval(s);
+nextval(s)
+123
+select setval(s, 500);
+setval(s, 500)
+500
+select nextval(s);
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+create sequence s as smallint;
+select setval(s, 32767);
+setval(s, 32767)
+32767
+select nextval(s);
+ERROR HY000: Sequence 'test.s' has run out
+drop sequence s;
+#
+# MDEV-33836 Assertion `(ulonglong) next_free_value % real_increment == (ulonglong) offset' failed in void sequence_definition::adjust_values(longlong)
+#
+CREATE SEQUENCE s AS BIGINT UNSIGNED START WITH 9223372036854775800 INCREMENT 0;
+set @old_AUTO_INCREMENT_INCREMENT=@@global.AUTO_INCREMENT_INCREMENT;
+set global AUTO_INCREMENT_INCREMENT=100;
+SELECT SETVAL (s,12345678901234567890);
+SETVAL (s,12345678901234567890)
+12345678901234567890
+drop sequence s;
+set global AUTO_INCREMENT_INCREMENT=@old_AUTO_INCREMENT_INCREMENT;
+# End of 11.5 tests

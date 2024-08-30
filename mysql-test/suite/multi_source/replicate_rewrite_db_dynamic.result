@@ -1,0 +1,67 @@
+connect  server_1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  server_2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connect  server_3,127.0.0.1,root,,,$SERVER_MYPORT_3;
+# Connect the slave (server_3) to two masters (server_1 and server_2)
+connection server_3;
+CHANGE MASTER 'm1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+CHANGE MASTER 'm2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
+# Apply events from server_1 (m1) into m1_test
+create database m1_test;
+SET @@global.'m1'.replicate_rewrite_db='test->m1_test';
+# Apply events from server_2 (m2) into m2_test
+create database m2_test;
+SET @@global.'m2'.replicate_rewrite_db='test->m2_test';
+start all slaves;
+Warnings:
+Note	1937	SLAVE 'm2' started
+Note	1937	SLAVE 'm1' started
+set default_master_connection = 'm1';
+include/wait_for_slave_to_start.inc
+set default_master_connection = 'm2';
+include/wait_for_slave_to_start.inc
+# Create test data for servers 1 and 2 with different data
+connection server_1;
+create table t (a int);
+insert into t values (1);
+insert into t values (2);
+insert into t values (3);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+create table t (a int);
+insert into t values (4);
+insert into t values (5);
+insert into t values (6);
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+# Ensure the slave correctly replicates data from each master into its
+# respective database
+include/diff_tables.inc [server_1:test.t,server_3:m1_test.t]
+include/diff_tables.inc [server_2:test.t,server_3:m2_test.t]
+#
+# Cleanup
+connection server_1;
+DROP TABLE t;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_2;
+DROP TABLE t;
+include/save_master_gtid.inc
+connection server_3;
+include/sync_with_master_gtid.inc
+connection server_3;
+stop all slaves;
+Warnings:
+Note	1938	SLAVE 'm2' stopped
+Note	1938	SLAVE 'm1' stopped
+SET default_master_connection = "m1";
+include/wait_for_slave_to_stop.inc
+SET default_master_connection = "m2";
+include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+DROP DATABASE m1_test;
+DROP DATABASE m2_test;
+# End of replicate_rewrite_db_dynamic.test

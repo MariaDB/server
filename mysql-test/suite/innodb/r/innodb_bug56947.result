@@ -1,4 +1,7 @@
-SET GLOBAL innodb_file_per_table=0;
+SET @save_fpt=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=OFF;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 create table bug56947(a int not null) engine = innodb;
 SET @saved_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG='+d,ib_rebuild_cannot_rename';
@@ -8,5 +11,7 @@ check table bug56947;
 Table	Op	Msg_type	Msg_text
 test.bug56947	check	status	OK
 drop table bug56947;
-SET @@global.innodb_file_per_table=DEFAULT;
+SET GLOBAL innodb_file_per_table=@save_fpt;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 SET debug_dbug= @saved_dbug;

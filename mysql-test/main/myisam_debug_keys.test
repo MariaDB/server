@@ -10,6 +10,7 @@ CREATE TABLE types (
   type TEXT NOT NULL,
   prefix_length INT NOT NULL
 );
+--disable_ps_protocol
 INSERT INTO types (type, prefix_length) VALUES
 ('INT',               0),
 ('BIGINT',            0),
@@ -29,10 +30,11 @@ INSERT INTO types (type, prefix_length) VALUES
 ('TEXT',              12),
 ('TEXT',              16),
 ('TEXT',              100);
+--enable_ps_protocol
 DELIMITER $$;
 BEGIN NOT ATOMIC
   DECLARE create2_template TEXT
-    DEFAULT 'CREATE TABLE t1 (a TYPE1 NOT NULL, b TYPE2 NOT NULL, KEY(SEG1,SEG2))';
+    DEFAULT 'CREATE TABLE t1 (a TYPE1 NOT NULL, b TYPE2 NOT NULL, KEY(SEG1,SEG2)) CHARSET=latin1';
   DECLARE cur2 CURSOR FOR
     SELECT t1.type AS type1,
            t2.type AS type2,

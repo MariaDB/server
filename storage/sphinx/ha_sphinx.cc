@@ -39,7 +39,7 @@
 #include <my_sys.h>
 #include <mysql.h> // include client for INSERT table (sort of redoing federated..)
 
-#ifndef __WIN__
+#ifndef _WIN32
 	// UNIX-specific
 	#include <my_net.h>
 	#include <netdb.h>
@@ -199,7 +199,7 @@ enum ESphRankMode
 	SPH_RANK_PROXIMITY_BM25		= 0,	///< default mode, phrase proximity major factor and BM25 minor one
 	SPH_RANK_BM25				= 1,	///< statistical mode, BM25 ranking only (faster but worse quality)
 	SPH_RANK_NONE				= 2,	///< no ranking, all matches get a weight of 1
-	SPH_RANK_WORDCOUNT			= 3,	///< simple word-count weighting, rank is a weighted sum of per-field keyword occurence counts
+	SPH_RANK_WORDCOUNT			= 3,	///< simple word-count weighting, rank is a weighted sum of per-field keyword occurrence counts
 	SPH_RANK_PROXIMITY			= 4,	///< phrase proximity
 	SPH_RANK_MATCHANY			= 5,	///< emulate old match-any weighting
 	SPH_RANK_FIELDMASK			= 6,	///< sets bits where there were matches
@@ -596,6 +596,7 @@ private:
 
 	struct Override_t
 	{
+		Override_t() : m_dIds(PSI_INSTRUMENT_MEM), m_dValues(PSI_INSTRUMENT_MEM) {}
 		union Value_t
 		{
 			uint32		m_uValue;
@@ -695,7 +696,7 @@ handlerton sphinx_hton =
 	NULL,	// create_cursor_read_view
 	NULL,	// set_cursor_read_view
 	NULL,	// close_cursor_read_view
-	HTON_CAN_RECREATE
+	HTON_CAN_RECREATE | HTON_AUTOMATIC_DELETE_TABLE
 };
 #else
 static handlerton * sphinx_hton_ptr = NULL;
@@ -737,17 +738,18 @@ static int sphinx_init_func ( void * p )
 	{
 		sphinx_init = 1;
 		void ( pthread_mutex_init ( &sphinx_mutex, MY_MUTEX_INIT_FAST ) );
-		sphinx_hash_init ( &sphinx_open_tables, system_charset_info, 32, 0, 0,
-			sphinx_get_key, 0, 0 );
+                sphinx_hash_init ( PSI_NOT_INSTRUMENTED, &sphinx_open_tables,
+                                   system_charset_info, 32, 0, 0,
+                                   sphinx_get_key, 0, 0 );
 
 		#if MYSQL_VERSION_ID > 50100
 		handlerton * hton = (handlerton*) p;
-		hton->state = SHOW_OPTION_YES;
 		hton->db_type = DB_TYPE_AUTOASSIGN;
 		hton->create = sphinx_create_handler;
 		hton->close_connection = sphinx_close_connection;
 		hton->show_status = sphinx_show_status;
 		hton->panic = sphinx_panic;
+		hton->drop_table= [](handlerton *, const char*) { return -1; };
 		hton->flags = HTON_CAN_RECREATE;
 		#endif
 	}
@@ -769,10 +771,8 @@ static int sphinx_close_connection ( handlerton * hton, THD * thd )
 {
 	// deallocate common handler data
 	SPH_ENTER_FUNC();
-	void ** tmp = thd_ha_data ( thd, hton );
-	CSphTLS * pTls = (CSphTLS *) (*tmp);
+	CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, hton );
 	SafeDelete ( pTls );
-	*tmp = NULL;
 	SPH_RET(0);
 }
 
@@ -844,7 +844,7 @@ bool sphinx_show_status ( THD * thd )
 
 #if MYSQL_VERSION_ID>50100
 	// 5.1.x style stats
-	CSphTLS * pTls = (CSphTLS*) ( *thd_ha_data ( thd, hton ) );
+	CSphTLS * pTls = (CSphTLS*) ( thd_get_ha_data ( thd, hton ) );
 
 #define LOC_STATS(_key,_keylen,_val,_vallen) \
 	stat_print ( thd, sphinx_hton_name, strlen(sphinx_hton_name), _key, _keylen, _val, _vallen );
@@ -959,7 +959,7 @@ static char * sphDup ( const char * sSrc, int iLen=-1 )
 static void sphLogError ( const char * sFmt, ... )
 {
 	// emit timestamp
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME t;
 	GetLocalTime ( &t );
 
@@ -983,7 +983,7 @@ static void sphLogError ( const char * sFmt, ... )
 	fprintf ( stderr, "%02d%02d%02d %2d:%02d:%02d SphinxSE: internal error: ",
 		pParsed->tm_year % 100, pParsed->tm_mon + 1, pParsed->tm_mday,
 		pParsed->tm_hour, pParsed->tm_min, pParsed->tm_sec);
-#endif // __WIN__
+#endif // _WIN32
 
 	// emit message
 	va_list ap;
@@ -1194,7 +1194,7 @@ static CSphSEShare * get_share ( const char * table_name, TABLE * table )
 #if MYSQL_VERSION_ID>=50120
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const uchar *) table_name, strlen(table_name) );
 #else
-#ifdef __WIN__
+#ifdef _WIN32
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const byte *) table_name, strlen(table_name) );
 #else
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, table_name, strlen(table_name) );
@@ -1306,6 +1306,7 @@ CSphSEQuery::CSphSEQuery ( const char * sQuery, int iLength, const char * sIndex
 	, m_fGeoLongitude ( 0.0f )
 	, m_sComment ( (char*) "" )
 	, m_sSelect ( (char*) "*" )
+        , m_dOverrides (PSI_INSTRUMENT_MEM)
 
 	, m_pBuf ( NULL )
 	, m_pCur ( NULL )
@@ -2118,11 +2119,7 @@ int ha_sphinx::open ( const char * name, int, uint )
 
 	thr_lock_data_init ( &m_pShare->m_tLock, &m_tLock, NULL );
 
-	#if MYSQL_VERSION_ID>50100
-	*thd_ha_data ( table->in_use, ht ) = NULL;
-	#else
-	table->in_use->ha_data [ sphinx_hton.slot ] = NULL;
-	#endif
+	thd_set_ha_data ( table->in_use, ht, 0 );
 
 	SPH_RET(0);
 }
@@ -2131,7 +2128,7 @@ int ha_sphinx::open ( const char * name, int, uint )
 int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 {
 	struct sockaddr_in sin;
-#ifndef __WIN__
+#ifndef _WIN32
 	struct sockaddr_un saun;
 #endif
 
@@ -2200,7 +2197,7 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 		}
 	} else
 	{
-#ifndef __WIN__
+#ifndef _WIN32
 		iDomain = AF_UNIX;
 		iSockaddrSize = sizeof(saun);
 		pSockaddr = (struct sockaddr *) &saun;
@@ -2328,30 +2325,32 @@ int ha_sphinx::write_row ( const byte * )
 	// SphinxQL inserts only, pretty much similar to abandoned federated
 	char sQueryBuf[1024];
 	char sValueBuf[1024];
-
 	String sQuery ( sQueryBuf, sizeof(sQueryBuf), &my_charset_bin );
 	String sValue ( sValueBuf, sizeof(sQueryBuf), &my_charset_bin );
+        const char *query;
 	sQuery.length ( 0 );
 	sValue.length ( 0 );
 
 	CSphSEThreadTable * pTable = GetTls ();
-	sQuery.append ( pTable && pTable->m_bReplace ? "REPLACE INTO " : "INSERT INTO " );
-	sQuery.append ( m_pShare->m_sIndex );
-	sQuery.append ( " (" );
+        query= pTable && pTable->m_bReplace ? "REPLACE INTO " : "INSERT INTO ";
+	sQuery.append (query, strlen(query));
+	sQuery.append ( m_pShare->m_sIndex, strlen(m_pShare->m_sIndex ));
+	sQuery.append (STRING_WITH_LEN(" (" ));
 
 	for ( Field ** ppField = table->field; *ppField; ppField++ )
 	{
-		sQuery.append ( (*ppField)->field_name.str );
+          sQuery.append ( (*ppField)->field_name.str,
+                          strlen((*ppField)->field_name.str));
 		if ( ppField[1] )
-			sQuery.append ( ", " );
+                      sQuery.append (STRING_WITH_LEN(", "));
 	}
-	sQuery.append ( ") VALUES (" );
+	sQuery.append (STRING_WITH_LEN( ") VALUES (" ));
 
 	for ( Field ** ppField = table->field; *ppField; ppField++ )
 	{
 		if ( (*ppField)->is_null() )
 		{
-			sQuery.append ( "''" );
+                        sQuery.append (STRING_WITH_LEN( "''" ));
 
 		} else
 		{
@@ -2363,23 +2362,23 @@ int ha_sphinx::write_row ( const byte * )
 				pConv->quick_fix_field();
 				unsigned int uTs = (unsigned int) pConv->val_int();
 
-				snprintf ( sValueBuf, sizeof(sValueBuf), "'%u'", uTs );
-				sQuery.append ( sValueBuf );
+				uint len= my_snprintf ( sValueBuf, sizeof(sValueBuf), "'%u'", uTs );
+				sQuery.append ( sValueBuf, len );
 
 			} else
 			{
 				(*ppField)->val_str ( &sValue );
-				sQuery.append ( "'" );
+				sQuery.append ( '\'' );
 				sValue.print ( &sQuery );
-				sQuery.append ( "'" );
+				sQuery.append ( '\'' );
 				sValue.length(0);
 			}
 		}
 
 		if ( ppField[1] )
-			sQuery.append ( ", " );
+                        sQuery.append (STRING_WITH_LEN(", "));
 	}
-	sQuery.append ( ")" );
+	sQuery.append ( ')' );
 
 	// FIXME? pretty inefficient to reconnect every time under high load,
 	// but this was intentionally written for a low load scenario..
@@ -2435,13 +2434,14 @@ int ha_sphinx::delete_row ( const byte * )
 	String sQuery ( sQueryBuf, sizeof(sQueryBuf), &my_charset_bin );
 	sQuery.length ( 0 );
 
-	sQuery.append ( "DELETE FROM " );
-	sQuery.append ( m_pShare->m_sIndex );
-	sQuery.append ( " WHERE id=" );
+	sQuery.append (STRING_WITH_LEN( "DELETE FROM " ));
+	sQuery.append ( m_pShare->m_sIndex, strlen(m_pShare->m_sIndex));
+	sQuery.append (STRING_WITH_LEN( " WHERE id=" ));
 
 	char sValue[32];
-	snprintf ( sValue, sizeof(sValue), "%lld", table->field[0]->val_int() );
-	sQuery.append ( sValue );
+	uint length= my_snprintf ( sValue, sizeof(sValue), "%lld",
+                                   table->field[0]->val_int() );
+	sQuery.append ( sValue, length );
 
 	// FIXME? pretty inefficient to reconnect every time under high load,
 	// but this was intentionally written for a low load scenario..
@@ -2805,23 +2805,16 @@ CSphSEThreadTable * ha_sphinx::GetTls()
 {
 	SPH_ENTER_METHOD()
 	// where do we store that pointer in today's version?
-	CSphTLS ** ppTls;
-#if MYSQL_VERSION_ID>50100
-	ppTls = (CSphTLS**) thd_ha_data ( table->in_use, ht );
-#else
-	ppTls = (CSphTLS**) &current_thd->ha_data[sphinx_hton.slot];
-#endif // >50100
+	CSphTLS * pTls = (CSphTLS*) thd_get_ha_data ( table->in_use, ht );
 
 	CSphSEThreadTable * pTable = NULL;
 	// allocate if needed
-	if ( !*ppTls )
+	if ( !pTls )
 	{
-		*ppTls = new CSphTLS ( this );
-		pTable = (*ppTls)->m_pHeadTable;
-	} else
-	{
-		pTable = (*ppTls)->m_pHeadTable;
+		pTls = new CSphTLS ( this );
+		thd_set_ha_data(table->in_use, ht, pTls);
 	}
+	pTable = pTls->m_pHeadTable;
 
 	while ( pTable && pTable->m_pHandler!=this )
 		pTable = pTable->m_pTableNext;
@@ -2829,8 +2822,8 @@ CSphSEThreadTable * ha_sphinx::GetTls()
 	if ( !pTable )
 	{
 		pTable = new CSphSEThreadTable ( this );
-		pTable->m_pTableNext = (*ppTls)->m_pHeadTable;
-		(*ppTls)->m_pHeadTable = pTable;
+		pTable->m_pTableNext = pTls->m_pHeadTable;
+		pTls->m_pHeadTable = pTable;
 	}
 
 	// errors will be handled by caller
@@ -3371,7 +3364,7 @@ int ha_sphinx::rename_table ( const char *, const char * )
 // if start_key matches any rows.
 //
 // Called from opt_range.cc by check_quick_keys().
-ha_rows ha_sphinx::records_in_range ( uint, key_range *, key_range * )
+ha_rows ha_sphinx::records_in_range ( uint, const key_range *, const key_range *, page_range *)
 {
 	SPH_ENTER_METHOD();
 	SPH_RET(3); // low number to force index usage
@@ -3532,7 +3525,7 @@ CSphSEStats * sphinx_get_stats ( THD * thd, SHOW_VAR * out )
 #if MYSQL_VERSION_ID>50100
 	if ( sphinx_hton_ptr )
 	{
-		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
 
 		if ( pTls && pTls->m_pHeadTable && pTls->m_pHeadTable->m_bStats )
 			return &pTls->m_pHeadTable->m_tStats;
@@ -3603,7 +3596,7 @@ static int sphinx_showfunc_words ( THD * thd, SHOW_VAR * out, void * buf,
 	char *sBuffer = static_cast<char*>(buf);
 	if ( sphinx_hton_ptr )
 	{
-		CSphTLS * pTls = (CSphTLS *) *thd_ha_data ( thd, sphinx_hton_ptr );
+		CSphTLS * pTls = (CSphTLS *) thd_get_ha_data ( thd, sphinx_hton_ptr );
 #else
 	{
 		CSphTLS * pTls = (CSphTLS *) thd->ha_data[sphinx_hton.slot];

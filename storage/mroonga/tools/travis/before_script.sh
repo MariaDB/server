@@ -24,7 +24,6 @@ if [ "${MROONGA_BUNDLED}" = "yes" ]; then
   cmake_args=("${cmake_args[@]}" -DWITH_EMBEDDED_SERVER=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_ARCHIVE=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_BLACKHOLE=TRUE)
-  cmake_args=("${cmake_args[@]}" -DWITHOUT_CASSANDRA=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_CONNECT=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_CSV=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_EXAMPLE=TRUE)
@@ -37,7 +36,6 @@ if [ "${MROONGA_BUNDLED}" = "yes" ]; then
   cmake_args=("${cmake_args[@]}" -DWITHOUT_SPHINX=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_SPIDER=TRUE)
   cmake_args=("${cmake_args[@]}" -DWITHOUT_TEST_SQL_DISCOVERY=TRUE)
-  cmake_args=("${cmake_args[@]}" -DWITHOUT_TOKUDB=TRUE)
   if [ "${MROONGA_TEST_EMBEDDED}" = "yes" ]; then
     cmake_args=("${cmake_args[@]}" -DWITH_EMBEDDED_SERVER=TRUE)
     cmake_args=("${cmake_args[@]}" -DMRN_BUILD_FOR_EMBEDDED_SERVER=TRUE)

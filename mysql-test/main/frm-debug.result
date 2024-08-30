@@ -1,0 +1,24 @@
+#
+# MDEV-20042 Implement EXTRA2_FIELD_DATA_TYPE_INFO in FRM
+#
+SET SESSION debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 INT, c02 CHAR(20), c03 TEXT, c04 DOUBLE);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 0
+DROP TABLE t1;
+SET SESSION debug_dbug="-d,frm_data_type_info";
+SET SESSION debug_dbug="+d,frm_data_type_info";
+SET SESSION debug_dbug="+d,frm_data_type_info_emulate";
+CREATE TABLE t1 (c01 INT, c02 CHAR(20), c03 TEXT, c04 DOUBLE);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 14
+Note	1105	DBUG: [0] name='c01' type_info=''
+Note	1105	DBUG: [1] name='c02' type_info='xchar'
+Note	1105	DBUG: [2] name='c03' type_info='xblob'
+Note	1105	DBUG: [3] name='c04' type_info=''
+SET SESSION debug_dbug="-d,frm_data_type_info_emulate";
+SET SESSION debug_dbug="-d,frm_data_type_info";
+FLUSH TABLES;
+SHOW CREATE TABLE t1;
+ERROR HY000: Unknown data type: 'xchar'
+DROP TABLE t1;

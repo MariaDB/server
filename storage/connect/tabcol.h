@@ -38,8 +38,8 @@ class DllExport XTAB: public BLOCK {  // Table Name-Schema-Srcdef block.
 
   // Methods
   PTABLE Link(PTABLE);
-  void   Printf(PGLOBAL g, FILE *f, uint n);
-  void   Prints(PGLOBAL g, char *ps, uint z);
+  void   Printf(PGLOBAL g, FILE *f, uint n) override;
+  void   Prints(PGLOBAL g, char *ps, uint z) override;
 
  protected:
   // Members
@@ -64,11 +64,11 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
   COLUMN(LPCSTR name);
 
   // Implementation
-  virtual int    GetType(void) {return TYPE_COLUMN;}
-  virtual int    GetResultType(void) {assert(false); return TYPE_VOID;}
-  virtual int    GetLength(void) {assert(false); return 0;}
-  virtual int    GetLengthEx(void) {assert(false); return 0;}
-  virtual int    GetScale() {assert(false); return 0;};
+  int    GetType(void) override {return TYPE_COLUMN;}
+  int    GetResultType(void) override {assert(false); return TYPE_VOID;}
+  int    GetLength(void) override {assert(false); return 0;}
+  int    GetLengthEx(void) override {assert(false); return 0;}
+  int    GetScale() override {assert(false); return 0;};
           LPCSTR GetName(void) {return Name;}
           LPCSTR GetQualifier(void) {return Qualifier;}
           PTABLE GetTo_Table(void) {return To_Table;}
@@ -78,13 +78,13 @@ class DllExport COLUMN: public XOBJECT {  // Column Name/Qualifier block.
           void   SetTo_Col(PCOL colp) {To_Col = colp;}
 
   // Methods
-  virtual void   Printf(PGLOBAL g, FILE *f, uint n);
-  virtual void   Prints(PGLOBAL g, char *ps, uint z);
+  void   Printf(PGLOBAL g, FILE *f, uint n) override;
+  void   Prints(PGLOBAL g, char *ps, uint z) override;
   // All methods below should never be used for COLUMN's
-  virtual void   Reset(void) {assert(false);}
-  virtual bool   Compare(PXOB) {assert(false); return false;}
-  virtual bool   SetFormat(PGLOBAL, FORMAT&);
-  virtual bool   Eval(PGLOBAL) {assert(false); return true;}
+  void   Reset(void) override {assert(false);}
+  bool   Compare(PXOB) override {assert(false); return false;}
+  bool   SetFormat(PGLOBAL, FORMAT&) override;
+  bool   Eval(PGLOBAL) override {assert(false); return true;}
 
  private:
   // Members

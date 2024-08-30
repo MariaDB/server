@@ -1,0 +1,47 @@
+#
+# MDEV-29676 Dual thread hang in 'closing tables' and 'Waiting for table metadata lock' on Spider CREATE OR REPLACE TABLE
+#
+for master_1
+for child2
+for child3
+CREATE SERVER srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# length-0 self-reference
+
+CREATE TABLE t (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t"';
+CREATE OR REPLACE TABLE t (c INT);
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+Error	12722	Table test.t open lock wait timeout. Please check for self-reference.
+SHOW CREATE TABLE t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t;
+
+# length-2 self-reference
+
+CREATE TABLE t2 (c int);
+CREATE TABLE t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+CREATE TABLE t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t1"';
+ALTER TABLE t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t0"';
+CREATE OR REPLACE TABLE t0 (c int);
+Warnings:
+Error	1205	Lock wait timeout exceeded; try restarting transaction
+Error	12722	Table test.t1 open lock wait timeout. Please check for self-reference.
+SHOW CREATE TABLE t0;
+Table	Create Table
+t0	CREATE TABLE `t0` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+CREATE OR REPLACE TABLE t1 (c int);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop TABLE t0, t1, t2;
+for master_1
+for child2
+for child3

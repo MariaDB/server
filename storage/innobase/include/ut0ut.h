@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -117,7 +117,7 @@ when m is a power of two.  In other words, rounds n up to m * k.
 @return n rounded up to the smallest possible integer multiple of m */
 #define UT_CALC_ALIGN(n, m) ((n + m - 1) & ~(m - 1))
 template <typename T> inline T ut_calc_align(T n, T m)
-{ return UT_CALC_ALIGN(n, m); }
+{ return static_cast<T>(UT_CALC_ALIGN(n, m)); }
 
 /*************************************************************//**
 Calculates fast the 2-logarithm of a number, rounded upward to an
@@ -136,14 +136,6 @@ ulint
 ut_2_exp(
 /*=====*/
 	ulint	n);	/*!< in: number */
-/*************************************************************//**
-Calculates fast the number rounded up to the nearest power of 2.
-@return first power of 2 which is >= n */
-ulint
-ut_2_power_up(
-/*==========*/
-	ulint	n)	/*!< in: number != 0 */
-	MY_ATTRIBUTE((const));
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -164,7 +156,7 @@ store the given number of bits.
 /** Determines if a number is zero or a power of two.
 @param[in]	n	number
 @return nonzero if n is zero or a power of two; zero otherwise */
-#define ut_is_2pow(n) UNIV_LIKELY(!((n) & ((n) - 1)))
+#define ut_is_2pow(n) (!((n) & ((n) - 1)))
 
 /** Functor that compares two C strings. Can be used as a comparator for
 e.g. std::map that uses char* as keys. */
@@ -250,20 +242,6 @@ ut_print_name(
 	FILE*		ef,	/*!< in: stream */
 	const trx_t*	trx,	/*!< in: transaction */
 	const char*	name);	/*!< in: table name to print */
-/** Format a table name, quoted as an SQL identifier.
-If the name contains a slash '/', the result will contain two
-identifiers separated by a period (.), as in SQL
-database_name.table_name.
-@see table_name_t
-@param[in]	name		table or index name
-@param[out]	formatted	formatted result, will be NUL-terminated
-@param[in]	formatted_size	size of the buffer in bytes
-@return pointer to 'formatted' */
-char*
-ut_format_name(
-	const char*	name,
-	char*		formatted,
-	ulint		formatted_size);
 
 /**********************************************************************//**
 Catenate files. */
@@ -283,25 +261,6 @@ ut_strerr(
 	dberr_t	num);	/*!< in: error number */
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#ifdef UNIV_PFS_MEMORY
-
-/** Extract the basename of a file without its extension.
-For example, extract "foo0bar" out of "/path/to/foo0bar.cc".
-@param[in]	file		file path, e.g. "/path/to/foo0bar.cc"
-@param[out]	base		result, e.g. "foo0bar"
-@param[in]	base_size	size of the output buffer 'base', if there
-is not enough space, then the result will be truncated, but always
-'\0'-terminated
-@return number of characters that would have been printed if the size
-were unlimited (not including the final ‘\0’) */
-size_t
-ut_basename_noext(
-	const char*	file,
-	char*		base,
-	size_t		base_size);
-
-#endif /* UNIV_PFS_MEMORY */
 
 namespace ib {
 
@@ -331,6 +290,16 @@ operator<<(
 	lhs.setf(ff);
 	return(lhs);
 }
+
+/** This is a wrapper class, used to print any number in IEC style */
+struct bytes_iec {
+  explicit bytes_iec(unsigned long long t): m_val(t) {}
+  double get_double() const { return static_cast<double>(m_val); }
+  const unsigned long long m_val;
+};
+
+/** Like hex operator above, except for bytes_iec */
+std::ostream &operator<<(std::ostream &lhs, const bytes_iec &rhs);
 
 /** The class logger is the base class of all the error log related classes.
 It contains a std::ostringstream object.  The main purpose of this class is

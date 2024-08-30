@@ -1,5 +1,5 @@
 /* Copyright (c) 2009, 2010, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2014, Monty Program Ab
+   Copyright (c) 2012, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 /* support for Services */
 #include <service_versions.h>
 #include <mysql/service_wsrep.h>
+#include <mysql/service_thd_mdl.h>
+#include <mysql/service_print_check_msg.h>
 
 struct st_service_ref {
   const char *name;
@@ -162,6 +164,8 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_thd_is_local,
   wsrep_thd_self_abort,
   wsrep_thd_append_key,
+  wsrep_thd_append_table_key,
+  wsrep_thd_is_local_transaction,
   wsrep_thd_client_state_str,
   wsrep_thd_client_mode_str,
   wsrep_thd_transaction_state_str,
@@ -174,10 +178,14 @@ static struct wsrep_service_st wsrep_handler = {
   wsrep_get_debug,
   wsrep_commit_ordered,
   wsrep_thd_is_applying,
+  wsrep_OSU_method_get,
+  wsrep_thd_has_ignored_error,
+  wsrep_thd_set_ignored_error,
   wsrep_report_bf_lock_wait,
   wsrep_thd_kill_LOCK,
   wsrep_thd_kill_UNLOCK,
-  wsrep_thd_set_PA_unsafe
+  wsrep_thd_set_PA_unsafe,
+  wsrep_get_domain_id
 };
 
 static struct thd_specifics_service_st thd_specifics_handler=
@@ -212,7 +220,12 @@ static struct my_print_error_service_st my_print_error_handler=
   my_printv_error
 };
 
-struct json_service_st json_handler=
+static struct print_check_msg_service_st print_check_msg_handler=
+{
+  print_check_msg
+};
+
+static struct json_service_st json_handler=
 {
   json_type,
   json_get_array_item,
@@ -241,8 +254,86 @@ struct sql_service_st sql_service_handler=
   mysql_set_character_set,
   mysql_num_fields,
   mysql_select_db,
+  mysql_use_result,
+  mysql_fetch_fields,
+  mysql_real_escape_string,
   mysql_ssl_set
 };
+
+static struct thd_mdl_service_st thd_mdl_handler=
+{
+  thd_mdl_context
+};
+
+#define DEFINE_warning_function(name, ret) {                                \
+  static query_id_t last_query_id= -1;                                      \
+  THD *thd= current_thd;                                                    \
+  if((thd ? thd->query_id : 0) != last_query_id)                            \
+  {                                                                         \
+    my_error(ER_PROVIDER_NOT_LOADED, MYF(ME_ERROR_LOG|ME_WARNING), name);   \
+    last_query_id= thd ? thd->query_id : 0;                                 \
+  }                                                                         \
+  return ret;                                                               \
+}
+
+#include <providers/lzma.h>
+static struct provider_service_lzma_st provider_handler_lzma=
+{
+  DEFINE_lzma_stream_buffer_decode([]) DEFINE_warning_function("LZMA compression", LZMA_PROG_ERROR),
+  DEFINE_lzma_easy_buffer_encode([])   DEFINE_warning_function("LZMA compression", LZMA_PROG_ERROR),
+
+  false // .is_loaded
+};
+struct provider_service_lzma_st *provider_service_lzma= &provider_handler_lzma;
+
+#include <providers/lzo/lzo1x.h>
+static struct provider_service_lzo_st provider_handler_lzo=
+{
+  DEFINE_lzo1x_1_15_compress([])   DEFINE_warning_function("LZO compression", LZO_E_INTERNAL_ERROR),
+  DEFINE_lzo1x_decompress_safe([]) DEFINE_warning_function("LZO compression", LZO_E_INTERNAL_ERROR),
+
+  false // .is_loaded
+};
+struct provider_service_lzo_st *provider_service_lzo= &provider_handler_lzo;
+
+#include <providers/bzlib.h>
+static struct provider_service_bzip2_st provider_handler_bzip2=
+{
+  DEFINE_BZ2_bzBuffToBuffCompress([])   DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzBuffToBuffDecompress([]) DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompress([])             DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompressEnd([])          DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompressInit([])         DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompress([])           DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompressEnd([])        DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompressInit([])       DEFINE_warning_function("BZip2 compression", -1),
+
+  false // .is_loaded
+};
+struct provider_service_bzip2_st *provider_service_bzip2= &provider_handler_bzip2;
+
+#include <providers/snappy-c.h>
+static struct provider_service_snappy_st provider_handler_snappy=
+{
+  DEFINE_snappy_max_compressed_length([]) -> size_t DEFINE_warning_function("Snappy compression", 0),
+  DEFINE_snappy_compress([])            DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+  DEFINE_snappy_uncompressed_length([]) DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+  DEFINE_snappy_uncompress([])          DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+
+  false // .is_loaded
+};
+struct provider_service_snappy_st *provider_service_snappy= &provider_handler_snappy;
+
+#include <providers/lz4.h>
+static struct provider_service_lz4_st provider_handler_lz4=
+{
+  DEFINE_LZ4_compressBound([])    DEFINE_warning_function("LZ4 compression", 0),
+  DEFINE_LZ4_compress_default([]) DEFINE_warning_function("LZ4 compression", 0),
+  DEFINE_LZ4_decompress_safe([])  DEFINE_warning_function("LZ4 compression", -1),
+
+  false // .is_loaded
+};
+struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
 
 static struct st_service_ref list_of_services[]=
 {
@@ -254,6 +345,7 @@ static struct st_service_ref list_of_services[]=
   { "my_crypt_service",            VERSION_my_crypt,            &crypt_handler},
   { "my_md5_service",              VERSION_my_md5,              &my_md5_handler},
   { "my_print_error_service",      VERSION_my_print_error,      &my_print_error_handler},
+  { "print_check_msg_service",     VERSION_print_check_msg,     &print_check_msg_handler},
   { "my_sha1_service",             VERSION_my_sha1,             &my_sha1_handler},
   { "my_sha2_service",             VERSION_my_sha2,             &my_sha2_handler},
   { "my_snprintf_service",         VERSION_my_snprintf,         &my_snprintf_handler },
@@ -269,4 +361,10 @@ static struct st_service_ref list_of_services[]=
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
   { "sql_service",                 VERSION_sql_service,         &sql_service_handler },
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
+  { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
+  { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
+  { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
+  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
 };

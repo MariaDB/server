@@ -1,0 +1,22 @@
+include/master-slave.inc
+[connection master]
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-27018 IF and COALESCE lose "json" property
+#
+CREATE TABLE t1 (a CHAR(100) CHECK(JSON_VALID(a)));
+connection slave;
+connection master;
+INSERT INTO t1 VALUES (JSON_OBJECT('a','b'));
+connection slave;
+SELECT * FROM t1 ORDER BY a;
+a
+{"a": "b"}
+connection master;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
+include/rpl_end.inc

@@ -11,7 +11,7 @@
 --source include/auto_increment_offset_save.inc
 
 --connection node_1
-call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member .*");
+call mtr.add_suppression("WSREP: Last Applied Action message in non-primary configuration from member ");
 
 # Enable the master to continue running during the split-brain situation that
 # occurs when the slave is killed

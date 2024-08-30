@@ -1,0 +1,3 @@
+--innodb_undo_tablespaces=8
+--innodb_open_files=10
+--innodb_temp_data_file_path=ibtmp1:32M;ibtmp2:32M:autoextend

@@ -1,0 +1,16 @@
+#
+# MDEV-24600 performance_schema.events_transactions_history_long.trx_id
+#            reports garbage
+#
+TRUNCATE performance_schema.events_transactions_history_long;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+COMMIT;
+BEGIN;
+SELECT table_name FROM mysql.innodb_table_stats LIMIT 0 LOCK IN SHARE MODE;
+table_name
+COMMIT;
+SELECT state,trx_id,gtid
+FROM performance_schema.events_transactions_history_long;
+state	trx_id	gtid
+COMMITTED	NULL	0-0-0
+COMMITTED	NULL	0-0-0

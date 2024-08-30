@@ -11,7 +11,7 @@ t17m TEXT(17000000) ,
 tt TINYTEXT ,
 m MEDIUMTEXT ,
 l LONGTEXT 
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment

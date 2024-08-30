@@ -11,6 +11,9 @@
 # $galera_connection_name
 #   Name of the resulting connection.
 #
+# $galera_connection_address
+#   IP to connect to for galera (defaults to 127.0.0.1)
+#
 # $galera_server_number
 #   Sequence number of the node in the galera cluster.
 #
@@ -28,6 +31,11 @@ if (!$galera_server_number)
   --die ERROR IN TEST: $galera_server_number must be set before sourcing include/galera_connect.inc
 }
 
+if (!$galera_connection_address)
+{
+  --let $galera_connection_address= 127.0.0.1
+}
+
 --let $_galera_port= \$NODE_MYPORT_$galera_server_number
 if (!$_galera_port)
 {
@@ -38,7 +46,7 @@ if (!$_galera_port)
 if ($galera_debug)
 {
 --disable_query_log
-  --echo connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
+  --echo connect($galera_connection_name,$galera_connection_address,root,,test,$_galera_port,)
 --enable_query_log
 }
 
@@ -47,5 +55,5 @@ if ($galera_debug)
 
 # Open a connection
 --disable_query_log
---connect($galera_connection_name,127.0.0.1,root,,test,$_galera_port,)
+--connect($galera_connection_name,$galera_connection_address,root,,test,$_galera_port,)
 --enable_query_log

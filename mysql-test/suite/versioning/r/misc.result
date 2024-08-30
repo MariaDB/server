@@ -16,12 +16,47 @@ create trigger tr before insert on t for each row set new.b=1, new.s = '2022-03-
 insert into t (a) values (3),(4);
 select * from t for system_time all;
 a	b	s	e
-1	2	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
-2	3	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
-3	4	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
-4	5	2010-10-10 10:10:10.000000	2038-01-19 03:14:07.999999
+1	2	2010-10-10 10:10:10.000000	SYS_TIME_MAX
+2	3	2010-10-10 10:10:10.000000	SYS_TIME_MAX
+3	4	2010-10-10 10:10:10.000000	SYS_TIME_MAX
+4	5	2010-10-10 10:10:10.000000	SYS_TIME_MAX
 drop table t;
 set sql_mode=default, timestamp=default;
 #
 # End of 10.3 tests
+#
+set time_zone='+00:00';
+#
+# MDEV-29721 Inconsistency upon inserting history with visible system versioning columns
+#
+create table t1 (a int, s timestamp(6) as row start, e timestamp(6) as row end, period for system_time(s,e)) with system versioning;
+set system_versioning_insert_history=on;
+set timestamp=unix_timestamp('2010-10-10 10:10:10');
+insert t1 (a,s,e) values (1,'2020-01-01',default), (2,'2020-02-02',ignore),(3,default,'2020-03-03'), (4,ignore,'2020-04-04');
+set timestamp=unix_timestamp('2010-11-11 11:11:11');
+insert t1 values (5,'2020-01-01',default), (6,'2020-02-02',ignore),(7,default,'2020-03-03'), (8,ignore,'2020-04-04');
+set timestamp=default;
+select * from t1 for system_time all;
+a	s	e
+1	2020-01-01 00:00:00.000000	SYS_TIME_MAX
+2	2020-02-02 00:00:00.000000	SYS_TIME_MAX
+3	2010-10-10 10:10:10.000000	2020-03-03 00:00:00.000000
+4	2010-10-10 10:10:10.000000	2020-04-04 00:00:00.000000
+5	2020-01-01 00:00:00.000000	SYS_TIME_MAX
+6	2020-02-02 00:00:00.000000	SYS_TIME_MAX
+7	2010-11-11 11:11:11.000000	2020-03-03 00:00:00.000000
+8	2010-11-11 11:11:11.000000	2020-04-04 00:00:00.000000
+drop table t1;
+#
+# MDEV-29830 Assertion `table->versioned()' in THD::vers_insert_history_fast
+#
+create table t1 (a int) with system versioning;
+insert into t1 values (1),(2);
+create table t2 (a timestamp);
+insert into t2 (a) values (now()),(now());
+select * from t2 where a in (select row_start from t1);
+a
+drop table t1, t2;
+#
+# End of 10.11 tests
 #

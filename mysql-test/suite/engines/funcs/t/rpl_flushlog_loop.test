@@ -11,7 +11,7 @@ connection slave;
 
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval change master to master_host='127.0.0.1',master_user='root',
- master_password='',master_port=$MASTER_MYPORT;
+ master_password='',master_port=$MASTER_MYPORT, master_ssl_verify_server_cert=0;
 --source include/start_slave.inc
 #
 #  Start replication slave -> master
@@ -20,7 +20,7 @@ connection master;
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval change master to master_host='127.0.0.1',master_user='root',
- master_password='',master_port=$SLAVE_MYPORT;
+ master_password='',master_port=$SLAVE_MYPORT, master_ssl_verify_server_cert=0;
 --source include/start_slave.inc
 
 #

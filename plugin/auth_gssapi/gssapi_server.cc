@@ -158,8 +158,8 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
   gss_buffer_desc client_name_buf, input, output;
   char *client_name_str;
   const char *user= 0;
-  size_t userlen;
-  int use_full_name;
+  size_t userlen= 0;
+  int use_full_name= 0;
 
   /* server acquires credential */
   major= gss_acquire_cred(&minor, service_name, GSS_C_INDEFINITE,
@@ -244,7 +244,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
        && userlen < client_name_buf.length
        && client_name_str[userlen] == '@'))
   {
-    if (strncmp(client_name_str, user, userlen) == 0)
+    if (user && strncmp(client_name_str, user, userlen) == 0)
     {
       rc= CR_OK;
     }

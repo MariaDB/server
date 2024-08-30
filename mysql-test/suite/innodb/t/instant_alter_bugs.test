@@ -1,8 +1,9 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
-SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 
 --echo #
 --echo # MDEV-17821 Assertion `!page_rec_is_supremum(rec)' failed
@@ -199,6 +200,7 @@ DROP TABLE t1;
 # Restore of instant table
 CREATE TABLE t1(c1 INT NOT NULL)Engine=InnoDB;
 ALTER TABLE t1 DISCARD TABLESPACE;
+FLUSH TABLES;
 ALTER TABLE t1 ADD COLUMN c2 INT NOT NULL;
 ALTER TABLE t1 ADD COLUMN c3 INT DEFAULT 10;
 # Restore files
@@ -216,8 +218,6 @@ DROP TABLE t1;
 --echo # MDEV-23801 Assertion index->table->instant... failed
 --echo #            in btr_pcur_store_position()
 --echo #
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 CREATE TABLE t (
   pk int auto_increment,
@@ -245,14 +245,16 @@ ROLLBACK;
 DELETE FROM t;
 
 --source include/wait_all_purged.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 
 CREATE TABLE tt ENGINE=InnoDB AS SELECT c FROM t;
 DROP TABLE t, tt;
 
 --echo # End of 10.3 tests
 
-
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 create table t (
   a varchar(9),
   b int,
@@ -267,6 +269,9 @@ alter table t modify a varchar(10), algorithm=instant;
 alter table t change b bb int, algorithm=instant;
 alter table t modify c int without system versioning, algorithm=instant;
 set @@system_versioning_alter_history = error;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 check table t;
 drop table t;
 
@@ -518,7 +523,6 @@ ALTER TABLE t1 ADD COLUMN(f2 INT NOT NULL, f3 INT NOT NULL,
 			  f4 INT NOT NULL, f5 INT NOT NULL),
 	       CHANGE COLUMN f1 f1 CHAR(10) DEFAULT NULL;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;
 
 --echo #
 --echo # MDEV-26420 Buffer overflow on instant ADD/DROP of generated column
@@ -552,3 +556,20 @@ SELECT COUNT(*) FROM t1;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo #  MDEV-29010  Table cannot be loaded after instant ALTER
+--echo #
+CREATE TABLE t1 (a CHAR(255), b INT,
+		 c INT as (b) VIRTUAL)ENGINE=InnoDB CHARACTER SET utf32;
+ALTER TABLE t1 DROP COLUMN a;
+ALTER TABLE t1 DROP COLUMN c;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
+
+--echo # End of 10.6 tests
+
+--source include/test_db_charset_restore.inc
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

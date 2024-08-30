@@ -9,10 +9,10 @@ this test is for MDEV-24020
 
 drop and create databases
 connection master_1;
-CREATE DATABASE auto_test_local;
+CREATE DATABASE auto_test_local CHARACTER SET latin1;
 USE auto_test_local;
 connection child2_1;
-CREATE DATABASE auto_test_remote;
+CREATE DATABASE auto_test_remote CHARACTER SET latin1;
 USE auto_test_remote;
 
 create table and insert
@@ -28,6 +28,10 @@ PARTITION pt1 VALUES IN (0) COMMENT='srv "s_2_1", table "ta_r2"',
 PARTITION pt2 VALUES IN (1) COMMENT='srv "s_2_1", table "ta_r3"',
 PARTITION pt3 VALUES IN (2) COMMENT='srv "s_2_1", table "ta_r4"'
   )
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES(10000, "  abcd   ");
 INSERT INTO tbl_a VALUES(10001, "  abcd   ");
 INSERT INTO tbl_a VALUES(10002, "  abcd   ");

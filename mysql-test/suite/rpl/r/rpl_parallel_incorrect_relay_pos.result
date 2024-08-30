@@ -1,0 +1,75 @@
+*** MDEV-7237: Parallel replication: incorrect relaylog position after stop/start the slave ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on which this one depends");
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=10;
+SET GLOBAL slave_parallel_mode='conservative';
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (40);
+connection server_2;
+connect  con_temp2,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=no;
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,rpl_parallel_scheduled_gtid_0_x_100";
+SET GLOBAL debug_dbug="+d,rpl_parallel_wait_for_done_trigger";
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+connection server_1;
+INSERT INTO t2 VALUES (41);
+INSERT INTO t2 VALUES (42);
+SET @old_format= @@binlog_format;
+SET binlog_format= statement;
+DELETE FROM t2 WHERE a=40;
+SET binlog_format= @old_format;
+INSERT INTO t2 VALUES (43);
+INSERT INTO t2 VALUES (44);
+FLUSH LOGS;
+INSERT INTO t2 VALUES (45);
+SET gtid_seq_no=100;
+INSERT INTO t2 VALUES (46);
+connection con_temp2;
+BEGIN;
+SELECT * FROM t2 WHERE a=40 FOR UPDATE;
+a
+40
+connection server_2;
+include/start_slave.inc
+SET debug_sync= 'now WAIT_FOR scheduled_gtid_0_x_100';
+STOP SLAVE;
+connection con_temp2;
+SET debug_sync= 'now WAIT_FOR wait_for_done_waiting';
+ROLLBACK;
+connection server_2;
+include/wait_for_slave_sql_to_stop.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+include/start_slave.inc
+SELECT * FROM t2 WHERE a >= 40 ORDER BY a;
+a
+41
+42
+43
+44
+45
+46
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t2;
+include/rpl_end.inc

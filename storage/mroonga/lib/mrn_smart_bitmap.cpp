@@ -26,7 +26,7 @@ namespace mrn {
 
   SmartBitmap::~SmartBitmap() {
     if (bitmap_) {
-      bitmap_free(bitmap_);
+      my_bitmap_free(bitmap_);
     }
   }
 

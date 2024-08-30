@@ -7,6 +7,7 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 --source include/maybe_debug.inc
+if ($have_debug) { source include/have_debug_sync.inc; }
 --source include/maybe_versioning.inc
 
 FLUSH TABLES;
@@ -47,21 +48,75 @@ INSERT INTO articles (title,body) VALUES
         ('MySQL Security','When configured properly, MySQL ...');
 
 BEGIN;
-
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
 --echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
---connect (flush_redo_log,localhost,root,,)
-SET GLOBAL innodb_flush_log_at_trx_commit=1;
-BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
---disconnect flush_redo_log
+--connect(ddl1, localhost, root,,)
+CREATE TABLE t1(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL 1 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t1 ADD FULLTEXT INDEX(b);
 --connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 1';
+--enable_query_log
+}
+
+--connect(ddl2, localhost, root,,)
+CREATE TABLE t2(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL 2 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t2 DROP INDEX a, ADD FULLTEXT INDEX(b), FORCE;
+--connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 2';
+--enable_query_log
+}
+
+--connect(ddl3, localhost, root,,)
+CREATE TABLE t3(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='alter_table_before_rename_result_table SIGNAL 3 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t3 DROP INDEX a, ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
+
+--connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 3';
+--enable_query_log
+}
 
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
+
+disconnect ddl1;
+disconnect ddl2;
+disconnect ddl3;
+
+# Wait for purge, so that any #sql-ib.ibd files from the previous kill
+# will be deleted.
+SET GLOBAL innodb_max_purge_lag_wait=0;
+
+CHECK TABLE t1,t2,t3;
+DROP TABLE t1,t2,t3;
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -102,9 +157,11 @@ connection default;
 --echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
 --connect (flush_redo_log,localhost,root,,)
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
 BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
+UPDATE articles SET id=0 WHERE id=1;
+UPDATE articles SET id=1 WHERE id=0;
+COMMIT;
 --disconnect flush_redo_log
 --connection default
 
@@ -228,6 +285,8 @@ SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 DROP TABLE mdev19073, mdev19073_2;
 
+let $shutdown_timeout=;
+
 --echo #
 --echo # MDEV-28706  Redundant InnoDB table fails during alter
 --echo #
@@ -242,3 +301,5 @@ INSERT INTO t1 VALUES ( 1255, "mariadb", "InnoDB");
 --source include/restart_mysqld.inc
 ALTER TABLE t1 ADD FULLTEXT(col_text_1);
 DROP TABLE t1;
+
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';

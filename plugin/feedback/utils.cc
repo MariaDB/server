@@ -246,7 +246,7 @@ int my_getncpus()
 {
 #ifdef _SC_NPROCESSORS_ONLN
   return sysconf(_SC_NPROCESSORS_ONLN);
-#elif defined(__WIN__)
+#elif defined(_WIN32)
   SYSTEM_INFO sysinfo;
   GetSystemInfo(&sysinfo);
   return sysinfo.dwNumberOfProcessors;
@@ -403,7 +403,7 @@ int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
     if (my_collation_is_known_id(id) &&
         (count= my_collation_statistics_get_use_count(id)))
     {
-      char name[MY_CS_NAME_SIZE + 32];
+      char name[MY_CS_COLLATION_NAME_SIZE + 32];
       size_t namelen= my_snprintf(name, sizeof(name),
                                  "Collation used %s",
                                  get_charset_name(id));
@@ -412,31 +412,4 @@ int fill_collation_statistics(THD *thd, TABLE_LIST *tables)
   }
   return 0;
 };
-
-/**
-  calculates the server unique identifier
-  
-  UID is a base64 encoded SHA1 hash of the MAC address of one of
-  the interfaces, and the tcp port that the server is listening on
-*/
-int calculate_server_uid(char *dest)
-{
-  uchar rawbuf[2 + 6];
-  uchar shabuf[MY_SHA1_HASH_SIZE];
-
-  int2store(rawbuf, mysqld_port);
-  if (my_gethwaddr(rawbuf + 2))
-  {
-    sql_print_error("feedback plugin: failed to retrieve the MAC address");
-    return 1;
-  }
-
-  my_sha1((uint8*) shabuf, (char*) rawbuf, sizeof(rawbuf));
-
-  assert(my_base64_needed_encoded_length(sizeof(shabuf)) <= SERVER_UID_SIZE);
-  my_base64_encode(shabuf, sizeof(shabuf), dest);
-
-  return 0;
-}
-
 } // namespace feedback

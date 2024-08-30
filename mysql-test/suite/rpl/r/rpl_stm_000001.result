@@ -49,7 +49,7 @@ connection master;
 reset master;
 connection slave;
 stop slave;
-reset slave;
+include/reset_slave.inc
 connection master;
 connection slave;
 lock tables t1 read;

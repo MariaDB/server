@@ -1,0 +1,82 @@
+#
+#   This test ensures that a table with engine=memory is kept consistent with
+# the slave when the master restarts. That is, when the master is restarted, it
+# should binlog a new TRUNCATE TABLE command for tables with MEMORY engines,
+# such that after the slave executes these events, its MEMORY-engine tables
+# should be empty.
+#
+# References:
+#   MDEV-25607: Auto-generated DELETE from HEAP table can break replication
+#
+--source include/master-slave.inc
+
+--connection master
+create table t (val int) engine=MEMORY;
+
+-- echo # DELETE trigger should never be activated
+create trigger tr after delete on t for each row update t2 set val = 1;
+
+insert into t values (1),(2);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+-- echo # Check pre-restart values
+--let $diff_tables= master:test.t,slave:test.t
+--source include/diff_tables.inc
+
+--echo # Restarting master should empty master and slave `t`
+--connection master
+--let $seq_no_before_restart= `SELECT REGEXP_REPLACE(@@global.gtid_binlog_pos, "0-1-", "")`
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+
+--connection master
+--echo # Validating MEMORY table on master is empty after restart
+--let $table_size= `select count(*) from t`
+if ($table_size)
+{
+  --echo # MEMORY table is not empty
+  --die MEMORY table is not empty
+}
+--let $seq_no_after_restart= `SELECT REGEXP_REPLACE(@@global.gtid_binlog_pos, "0-1-", "")`
+if ($seq_no_before_restart == $seq_no_after_restart)
+{
+  --echo # Event to empty MEMORY table was not binlogged
+  --die Event to empty MEMORY table was not binlogged
+}
+
+--let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $datadir=`select @@datadir`
+--let assert_file= $MYSQLTEST_VARDIR/tmp/binlog_decoded.out
+--echo # MYSQL_BINLOG datadir/binlog_file --result-file=assert_file
+--exec $MYSQL_BINLOG $datadir/$binlog_file --result-file=$assert_file
+
+--let assert_text= Query to truncate the MEMORY table should be the contents of the new event
+--let assert_count= 1
+--let assert_select= TRUNCATE TABLE
+--source include/assert_grep.inc
+
+--echo # Ensuring slave MEMORY table is empty
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/diff_tables.inc
+
+--echo # Ensure new events replicate correctly
+--connection master
+insert into t values (3),(4);
+--source include/save_master_gtid.inc
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--echo # Validate values on slave, after master restart, do not include those inserted previously
+--source include/diff_tables.inc
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t;
+--source include/rpl_end.inc
+--echo # End of rpl_memory_engine_truncate_on_restart.test

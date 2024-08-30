@@ -14,7 +14,7 @@ CREATE TABLE tbl_a (a FLOAT) ENGINE=SPIDER;
 INSERT INTO tbl_a VALUES
 (0xF5A7),(0xF5A8),(0xF5A9),(0xF5AA),(0xF5AB),(0xF5AC),(0xF5AD),(0xF5AE),
 (0xF5A7),(0xF5A8),(0xF5A9),(0xF5AA),(0xF5AB),(0xF5AC),(0xF5AD),(0xF5AE);
-ERROR HY000: Unable to connect to foreign data source: localhost
+Got one of the listed errors
 DROP DATABASE auto_test_remote;
 for master_1
 for child2

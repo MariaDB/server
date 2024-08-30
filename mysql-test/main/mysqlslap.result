@@ -230,6 +230,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 # 'bug58090' database should be present.
 SHOW DATABASES;
@@ -239,6 +240,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 DROP DATABASE bug58090;
 #

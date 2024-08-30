@@ -1,0 +1,2 @@
+# This false-positive as is just seeks dot
+synopsis-is-a-sentence "MariaDB database common files (e.g. /etc/mysql/mariadb.conf.d/)"

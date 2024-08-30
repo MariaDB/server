@@ -33,7 +33,9 @@ set optimizer_trace="enabled=on";
 set @tmp_index_merge_ror_cpk=@@optimizer_switch;
 set optimizer_switch='extended_keys=off';
 explain select * from t1 where pk1 != 0  and key1 = 1;
+--disable_view_protocol
 select * from information_schema.OPTIMIZER_TRACE;
+--enable_view_protocol
 drop table t1;
 set @@optimizer_switch= @tmp_index_merge_ror_cpk;
 

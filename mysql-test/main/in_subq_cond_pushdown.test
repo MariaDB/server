@@ -42,6 +42,7 @@ WHERE t1.c<25 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted AND formula : pushing into HAVING
@@ -60,6 +61,7 @@ WHERE t1.c>55 AND t1.b<4 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted OR formula : pushing into HAVING
@@ -78,6 +80,7 @@ WHERE (t1.c>60 OR t1.c<25) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted AND-OR formula : pushing into HAVING
@@ -96,6 +99,7 @@ WHERE ((t1.c>60 OR t1.c<25) AND t1.b>2) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into HAVING
@@ -114,6 +118,7 @@ WHERE ((t1.a<2 OR t1.d>3) AND t1.b>1) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using view IN subquery defINition : pushing into HAVING
@@ -132,6 +137,7 @@ WHERE t1.c>20 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using equality : pushing into WHERE
@@ -150,6 +156,7 @@ WHERE t1.c>20 AND t1.c=v1_y AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -168,6 +175,7 @@ WHERE t1.a<2 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted AND formula : pushing into WHERE
@@ -186,6 +194,7 @@ WHERE t1.a>2 AND t1.a<5 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted OR formula : pushing into WHERE
@@ -204,6 +213,7 @@ WHERE (t1.a<2 OR t1.a>=4) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted AND-OR formula : pushing into WHERE
@@ -222,6 +232,7 @@ WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # extracted AND-OR formula : pushing into WHERE
@@ -240,6 +251,7 @@ WHERE ((t1.a<2 OR t1.a=5) AND t1.b>3) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -258,6 +270,7 @@ WHERE ((t1.b<3 OR t1.d>2) AND t1.a<2) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using equalities : pushing into WHERE
@@ -276,6 +289,7 @@ WHERE t1.d=1 AND t1.a=t1.d AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using equality : pushing into WHERE
@@ -294,6 +308,7 @@ WHERE t1.d>1 AND t1.a=t1.d AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using view IN subquery definition : pushing into WHERE
@@ -312,6 +327,7 @@ WHERE t1.a<3 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # using equality : pushing into WHERE
@@ -330,6 +346,7 @@ WHERE t1.a=v1_x AND v1_x<2 AND v1_y>30 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -349,6 +366,7 @@ WHERE ((t1.b<3 OR t1.b=4) AND t1.a<3) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using addition : pushing into HAVING
@@ -367,6 +385,7 @@ WHERE (t1.a+t1.c>41) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using substitution : pushing into HAVING
@@ -385,6 +404,7 @@ WHERE (t1.c-t1.a<35) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using multiplication : pushing into HAVING
@@ -403,6 +423,7 @@ WHERE (t1.c*t1.a>100) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using division : pushing into HAVING
@@ -421,6 +442,7 @@ WHERE (t1.c/t1.a>30) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using BETWEEN : pushing into HAVING
@@ -439,6 +461,7 @@ WHERE (t1.c BETWEEN 50 AND 100) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using addition : pushing into WHERE
@@ -457,6 +480,7 @@ WHERE (t1.a+t1.b > 5) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using substitution : pushing into WHERE
@@ -475,6 +499,7 @@ WHERE (t1.a-t1.b > 0) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using multiplication : pushing into WHERE
@@ -493,6 +518,7 @@ WHERE (t1.a*t1.b > 6) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using division : pushing into WHERE
@@ -511,6 +537,7 @@ WHERE (t1.b/t1.a > 2) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula using BETWEEN : pushing into WHERE
@@ -529,6 +556,7 @@ WHERE (t1.a BETWEEN 1 AND 3) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into HAVING of the IN subquery
@@ -548,6 +576,7 @@ WHERE t1.c>3 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE of the IN subquery
@@ -568,6 +597,7 @@ WHERE t1.a>1 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE and HAVING
@@ -589,6 +619,7 @@ WHERE t1.a>1 AND t1.c<100 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE of the IN subquery
@@ -615,6 +646,7 @@ WHERE t1.a>1 AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into HAVING of the derived table
@@ -640,6 +672,7 @@ WHERE d_tab.a=t3.x AND d_tab.b>2;
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE of the derived table
@@ -665,6 +698,7 @@ WHERE d_tab.a=t3.x AND d_tab.a<5;
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE and HAVING
@@ -692,6 +726,7 @@ WHERE d_tab.a=t3.x AND d_tab.a<5 AND d_tab.max_c<70;
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE of the derived table
@@ -717,6 +752,7 @@ WHERE d_tab.a=t3.x AND d_tab.a<5;
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -735,6 +771,7 @@ WHERE (t1.b>1) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 --echo # conjunctive subformula : pushing into WHERE
@@ -753,6 +790,7 @@ WHERE (t1.b>1) AND
 EVAL $no_pushdown $query;
 EVAL $query;
 EVAL EXPLAIN $query;
+--source include/explain-no-costs.inc
 EVAL EXPLAIN FORMAT=JSON $query;
 
 DROP TABLE t1,t2,t3;

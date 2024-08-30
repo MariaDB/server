@@ -23,9 +23,16 @@
 #include <sql_audit.h>
 #include <debug_sync.h>
 #include <threadpool.h>
+#include <sql_class.h>
+#include <sql_parse.h>
+
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
+
+#ifdef _WIN32
+#include "threadpool_winsockets.h"
+#endif
 
 /* Threadpool parameters */
 
@@ -38,14 +45,16 @@ uint threadpool_max_threads;
 uint threadpool_oversubscribe;
 uint threadpool_mode;
 uint threadpool_prio_kickup_timer;
+my_bool threadpool_exact_stats;
+my_bool threadpool_dedicated_listener;
 
 /* Stats */
 TP_STATISTICS tp_stats;
 
 
 static void  threadpool_remove_connection(THD *thd);
-static int   threadpool_process_request(THD *thd);
-static THD*  threadpool_add_connection(CONNECT *connect, void *scheduler_data);
+static dispatch_command_return threadpool_process_request(THD *thd);
+static THD*  threadpool_add_connection(CONNECT *connect, TP_connection *c);
 
 extern bool do_command(THD*);
 
@@ -57,24 +66,24 @@ static inline TP_connection *get_TP_connection(THD *thd)
 /*
   Worker threads contexts, and THD contexts.
   =========================================
-  
-  Both worker threads and connections have their sets of thread local variables 
-  At the moment it is mysys_var (this has specific data for dbug, my_error and 
+
+  Both worker threads and connections have their sets of thread local variables
+  At the moment it is mysys_var (this has specific data for dbug, my_error and
   similar goodies), and PSI per-client structure.
 
   Whenever query is executed following needs to be done:
 
   1. Save worker thread context.
   2. Change TLS variables to connection specific ones using thread_attach(THD*).
-     This function does some additional work , e.g setting up 
+     This function does some additional work , e.g setting up
      thread_stack/thread_ends_here pointers.
   3. Process query
   4. Restore worker thread context.
 
-  Connection login and termination follows similar schema w.r.t saving and 
-  restoring contexts. 
+  Connection login and termination follows similar schema w.r.t saving and
+  restoring contexts.
 
-  For both worker thread, and for the connection, mysys variables are created 
+  For both worker thread, and for the connection, mysys variables are created
   using my_thread_init() and freed with my_thread_end().
 
 */
@@ -83,17 +92,17 @@ struct Worker_thread_context
   PSI_thread *psi_thread;
   st_my_thread_var* mysys_var;
 
-  void save()
+  Worker_thread_context()
   {
     psi_thread= PSI_CALL_get_thread();
     mysys_var= my_thread_var;
   }
 
-  void restore()
+  ~Worker_thread_context()
   {
     PSI_CALL_set_thread(psi_thread);
     set_mysys_var(mysys_var);
-    pthread_setspecific(THR_THD, 0);
+    set_current_thd(nullptr);
   }
 };
 
@@ -139,6 +148,44 @@ static inline void set_thd_idle(THD *thd)
 }
 
 /*
+  Per OS thread info (ID and pthread_self)
+  stored as TLS, because of syscall overhead
+  (on Linux)
+*/
+struct OS_thread_info
+{
+  pthread_t self;
+  ssize_t stack_size;
+  uint32_t thread_id;
+
+  inline bool initialized() { return stack_size != 0; }
+
+  void init(ssize_t ssize)
+  {
+#if _WIN32
+   self= thread_id= GetCurrentThreadId();
+#else
+#ifdef __NR_gettid
+    thread_id= (uint32) syscall(__NR_gettid);
+#else
+    thread_id= 0;
+#endif
+    self= pthread_self();
+#endif
+    stack_size= ssize;
+  }
+};
+static thread_local OS_thread_info os_thread_info;
+
+static const OS_thread_info *get_os_thread_info()
+{
+  auto *res= &os_thread_info;
+  if (!res->initialized())
+    res->init((ssize_t) (my_thread_stack_size * STACK_DIRECTION));
+  return res;
+}
+
+/*
   Attach/associate the connection with the OS thread,
 */
 static void thread_attach(THD* thd)
@@ -150,13 +197,17 @@ static void thread_attach(THD* thd)
 #endif /* WITH_WSREP */
   set_mysys_var(thd->mysys_var);
   thd->thread_stack=(char*)&thd;
-  thd->store_globals();
-  PSI_CALL_set_thread(thd->event_scheduler.m_psi);
-  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
+  set_current_thd(thd);
+  auto tinfo= get_os_thread_info();
+  thd->real_id= tinfo->self;
+  thd->os_thread_id= tinfo->thread_id;
+  DBUG_ASSERT(thd->mysys_var == my_thread_var);
+  thd->mysys_var->stack_ends_here= thd->thread_stack + tinfo->stack_size;
+  PSI_CALL_set_thread(thd->get_psi());
 }
 
 /*
-  Determine connection priority , using current 
+  Determine connection priority , using current
   transaction state and 'threadpool_priority' variable value.
 */
 static TP_PRIORITY get_priority(TP_connection *c)
@@ -164,9 +215,8 @@ static TP_PRIORITY get_priority(TP_connection *c)
   DBUG_ASSERT(c->thd == current_thd);
   TP_PRIORITY prio= (TP_PRIORITY)c->thd->variables.threadpool_priority;
   if (prio == TP_PRIORITY_AUTO)
-  {
-    return c->thd->transaction.is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
-  }
+    prio= c->thd->transaction->is_active() ? TP_PRIORITY_HIGH : TP_PRIORITY_LOW;
+
   return prio;
 }
 
@@ -176,7 +226,6 @@ void tp_callback(TP_connection *c)
   DBUG_ASSERT(c);
 
   Worker_thread_context worker_context;
-  worker_context.save();
 
   THD *thd= c->thd;
 
@@ -194,10 +243,29 @@ void tp_callback(TP_connection *c)
     }
     c->connect= 0;
   }
-  else if (threadpool_process_request(thd))
+  else
   {
-    /* QUIT or an error occurred. */
-    goto error;
+retry:
+    switch(threadpool_process_request(thd))
+    {
+      case DISPATCH_COMMAND_WOULDBLOCK:
+        if (!thd->async_state.try_suspend())
+        {
+          /*
+            All async operations finished meanwhile, thus nobody is will wake up
+            this THD. Therefore, we'll resume "manually" here.
+          */
+          thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
+          goto retry;
+        }
+        return;
+      case DISPATCH_COMMAND_CLOSE_CONNECTION:
+        /* QUIT or an error occurred. */
+        goto error;
+      case DISPATCH_COMMAND_SUCCESS:
+        break;
+    }
+    thd->async_state.m_state= thd_async_state::enum_async_state::NONE;
   }
 
   /* Set priority */
@@ -208,8 +276,6 @@ void tp_callback(TP_connection *c)
   c->state= TP_STATE_IDLE;
   if (c->start_io())
     goto error;
-
-  worker_context.restore();
   return;
 
 error:
@@ -219,11 +285,10 @@ error:
     threadpool_remove_connection(thd);
   }
   delete c;
-  worker_context.restore();
 }
 
 
-static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
+static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
 {
   THD *thd= NULL;
 
@@ -235,46 +300,36 @@ static THD* threadpool_add_connection(CONNECT *connect, void *scheduler_data)
   set_mysys_var(NULL);
   my_thread_init();
   st_my_thread_var* mysys_var= my_thread_var;
+  PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection, connect, 0));
   if (!mysys_var ||!(thd= connect->create_thd(NULL)))
   {
     /* Out of memory? */
     connect->close_and_delete();
     if (mysys_var)
-    {
-#ifdef HAVE_PSI_INTERFACE
-      /*
-       current PSI is still from worker thread.
-       Set to 0, to avoid premature cleanup by my_thread_end
-      */
-      if (PSI_server) PSI_server->set_thread(0);
-#endif
       my_thread_end();
-    }
     return NULL;
   }
+
+  thd->event_scheduler.data= c;
   server_threads.insert(thd); // Make THD visible in show processlist
   delete connect; // must be after server_threads.insert, see close_connections()
   thd->set_mysys_var(mysys_var);
-  thd->event_scheduler.data= scheduler_data;
-
-  /* Create new PSI thread for use with the THD. */
-  thd->event_scheduler.m_psi=
-    PSI_CALL_new_thread(key_thread_one_connection, thd, thd->thread_id);
-
 
   /* Login. */
   thread_attach(thd);
+  mysql_socket_set_thread_owner(thd->net.vio->mysql_socket);
   re_init_net_server_extension(thd);
   ulonglong now= microsecond_interval_timer();
   thd->prior_thr_create_utime= now;
   thd->start_utime= now;
   thd->thr_create_utime= now;
 
-  if (setup_connection_thread_globals(thd))
-    goto end;
+  setup_connection_thread_globals(thd);
 
   if (thd_prepare_connection(thd))
     goto end;
+
+  c->init_vio(thd->net.vio);
 
   /*
     Check if THD is ok, as prepare_new_connection_state()
@@ -296,15 +351,15 @@ end:
 static void threadpool_remove_connection(THD *thd)
 {
   thread_attach(thd);
-  thd->event_scheduler.data= 0;
   thd->net.reading_or_writing = 0;
   end_connection(thd);
   close_connection(thd, 0);
   unlink_thd(thd);
+  PSI_CALL_delete_current_thread(); // before THD is destroyed
   delete thd;
 
   /*
-    Free resources associated with this connection: 
+    Free resources associated with this connection:
     mysys thread_var and PSI thread.
   */
   my_thread_end();
@@ -339,18 +394,21 @@ static bool has_unread_data(THD* thd)
 /**
  Process a single client request or a single batch.
 */
-static int threadpool_process_request(THD *thd)
+static dispatch_command_return threadpool_process_request(THD *thd)
 {
-  int retval= 0;
+  dispatch_command_return retval= DISPATCH_COMMAND_SUCCESS;
+
   thread_attach(thd);
+  if(thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
+    goto resume;
 
   if (thd->killed >= KILL_CONNECTION)
   {
-    /* 
-      killed flag was set by timeout handler 
+    /*
+      killed flag was set by timeout handler
       or KILL command. Return error.
     */
-    retval= 1;
+    retval= DISPATCH_COMMAND_CLOSE_CONNECTION;
     if(thd->killed == KILL_WAIT_TIMEOUT)
       handle_wait_timeout(thd);
     goto end;
@@ -373,19 +431,27 @@ static int threadpool_process_request(THD *thd)
     if (mysql_audit_release_required(thd))
       mysql_audit_release(thd);
 
-    if ((retval= do_command(thd)) != 0)
-      goto end;
+resume:
+    retval= do_command(thd, false);
+    switch(retval)
+    {
+      case DISPATCH_COMMAND_WOULDBLOCK:
+      case DISPATCH_COMMAND_CLOSE_CONNECTION:
+        goto end;
+      case DISPATCH_COMMAND_SUCCESS:
+        break;
+    }
 
     if (!thd_is_connection_alive(thd))
     {
-      retval= 1;
+      retval=DISPATCH_COMMAND_CLOSE_CONNECTION;
       goto end;
     }
 
     set_thd_idle(thd);
 
     if (!has_unread_data(thd))
-    { 
+    {
       /* More info on this debug sync is in sql_parse.cc*/
       DEBUG_SYNC(thd, "before_do_command_net_read");
       goto end;
@@ -396,19 +462,6 @@ end:
   return retval;
 }
 
-
-
-/* Dummy functions, do nothing */
-
-static bool tp_init_new_connection_thread()
-{
-  return 0;
-}
-
-static bool tp_end_thread(THD *, bool)
-{
-  return 0;
-}
 
 static TP_pool *pool;
 
@@ -431,6 +484,9 @@ static bool tp_init()
     pool= 0;
     return true;
   }
+#ifdef _WIN32
+  init_win_aio_buffers(max_connections);
+#endif
   return false;
 }
 
@@ -507,12 +563,17 @@ void tp_timeout_handler(TP_connection *c)
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
+MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) Atomic_counter<unsigned long long> tp_waits[THD_WAIT_LAST];
 
 static void tp_wait_begin(THD *thd, int type)
 {
   TP_connection *c = get_TP_connection(thd);
   if (c)
+  {
+    DBUG_ASSERT(type > 0 && type < THD_WAIT_LAST);
+    tp_waits[type]++;
     c->wait_begin(type);
+  }
 }
 
 
@@ -527,6 +588,9 @@ static void tp_wait_end(THD *thd)
 static void tp_end()
 {
   delete pool;
+#ifdef _WIN32
+  destroy_win_aio_buffers();
+#endif
 }
 
 static void tp_post_kill_notification(THD *thd)
@@ -537,24 +601,32 @@ static void tp_post_kill_notification(THD *thd)
   post_kill_notification(thd);
 }
 
+/* Resume previously suspended THD */
+static void tp_resume(THD* thd)
+{
+  DBUG_ASSERT(thd->async_state.m_state == thd_async_state::enum_async_state::SUSPENDED);
+  thd->async_state.m_state = thd_async_state::enum_async_state::RESUMED;
+  TP_connection* c = get_TP_connection(thd);
+  pool->resume(c);
+}
+
 static scheduler_functions tp_scheduler_functions=
 {
   0,                                  // max_threads
   NULL,
   NULL,
   tp_init,                            // init
-  tp_init_new_connection_thread,      // init_new_connection_thread
   tp_add_connection,                  // add_connection
   tp_wait_begin,                      // thd_wait_begin
   tp_wait_end,                        // thd_wait_end
   tp_post_kill_notification,          // post kill notification
-  tp_end_thread,                      // Dummy function
-  tp_end                              // end
+  tp_end,                              // end
+  tp_resume
 };
 
 void pool_of_threads_scheduler(struct scheduler_functions *func,
     ulong *arg_max_connections,
-    uint *arg_connection_count)
+    Atomic_counter<uint> *arg_connection_count)
 {
   *func = tp_scheduler_functions;
   func->max_threads= threadpool_max_threads;

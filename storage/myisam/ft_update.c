@@ -301,7 +301,8 @@ uint _mi_ft_convert_to_ft2(MI_INFO *info, uint keynr, uchar *key)
   DYNAMIC_ARRAY *da=info->ft1_to_ft2;
   MI_KEYDEF *keyinfo=&info->s->ft2_keyinfo;
   uchar *key_ptr= (uchar*) dynamic_array_ptr(da, 0), *end;
-  uint length, key_length;
+  size_t length;
+  uint key_length;
   DBUG_ENTER("_mi_ft_convert_to_ft2");
 
   /* we'll generate one pageful at once, and insert the rest one-by-one */

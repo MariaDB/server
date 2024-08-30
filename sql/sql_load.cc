@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -44,6 +44,8 @@
 
 #include "wsrep_mysqld.h"
 
+#include "scope.h"  // scope_exit
+
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
 class XML_TAG {
@@ -51,11 +53,11 @@ public:
   int level;
   String field;
   String value;
-  XML_TAG(int l, String f, String v);
+  XML_TAG(int l, const String &f, const String &v);
 };
 
 
-XML_TAG::XML_TAG(int l, String f, String v)
+XML_TAG::XML_TAG(int l, const String &f, const String &v)
 {
   level= l;
   field.append(f);
@@ -117,10 +119,8 @@ public:
     */
     if (WSREP(thd) && wsrep_load_data_splitting)
     {
-      handlerton *ht= table->s->db_type();
       // For partitioned tables find underlying hton
-      if (table->file->partition_ht())
-        ht= table->file->partition_ht();
+      handlerton *ht= table->file->partition_ht();
       if (ht->db_type != DB_TYPE_INNODB)
       {
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
@@ -208,7 +208,7 @@ class READ_INFO: public Load_data_param
   bool read_mbtail(String *str)
   {
     int chlen;
-    if ((chlen= my_charlen(charset(), str->end() - 1, str->end())) == 1)
+    if ((chlen= charset()->charlen(str->end() - 1, str->end())) == 1)
       return false; // Single byte character found
     for (uint32 length0= str->length() - 1 ; MY_CS_IS_TOOSMALL(chlen); )
     {
@@ -219,7 +219,7 @@ class READ_INFO: public Load_data_param
         return true; // EOF
       }
       str->append(chr);
-      chlen= my_charlen(charset(), str->ptr() + length0, str->end());
+      chlen= charset()->charlen(str->ptr() + length0, str->end());
       if (chlen == MY_CS_ILSEQ)
       {
         /**
@@ -411,6 +411,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     DBUG_RETURN(TRUE);
   if (thd->lex->handle_list_of_derived(table_list, DT_PREPARE))
     DBUG_RETURN(TRUE);
+
   if (setup_tables_and_check_access(thd,
                                     &thd->lex->first_select_lex()->context,
                                     &thd->lex->first_select_lex()->
@@ -460,10 +461,19 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
 
   table= table_list->table;
-  transactional_table= table->file->has_transactions();
+  transactional_table= table->file->has_transactions_and_rollback();
 #ifndef EMBEDDED_LIBRARY
   is_concurrent= (table_list->lock_type == TL_WRITE_CONCURRENT_INSERT);
 #endif
+
+  if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
+    DBUG_RETURN(true);
+
+  auto scope_cleaner = make_scope_exit(
+    [&fields_vars]() {
+      fields_vars.empty();
+    }
+  );
 
   if (!fields_vars.elements)
   {
@@ -492,6 +502,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
   else
   {						// Part field list
+    scope_cleaner.release();
     /* TODO: use this conds for 'WITH CHECK OPTIONS' */
     if (setup_fields(thd, Ref_ptr_array(),
                      fields_vars, MARK_COLUMNS_WRITE, 0, NULL, 0) ||
@@ -588,7 +599,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
     }
 
-#if !defined(__WIN__) && ! defined(__NETWARE__)
+#if !defined(_WIN32)
     MY_STAT stat_info;
     if (!my_stat(name, &stat_info, MYF(MY_WME)))
       DBUG_RETURN(TRUE);
@@ -672,12 +683,18 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     table->copy_blobs=1;
 
     thd->abort_on_warning= !ignore && thd->is_strict_mode();
+    thd->get_stmt_da()->reset_current_row_for_warning(1);
 
-    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS) &&
-        (error= table_list->table->file->ha_rnd_init_with_error(0)))
-      goto err;
-
+    bool create_lookup_handler= handle_duplicates != DUP_ERROR;
+    if ((table_list->table->file->ha_table_flags() & HA_DUPLICATE_POS))
+    {
+      create_lookup_handler= true;
+      if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
+        goto err;
+    }
+    table->file->prepare_for_insert(create_lookup_handler);
     thd_progress_init(thd, 2);
+    fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
       read_info.error= true;
@@ -757,7 +774,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
           
           /* since there is already an error, the possible error of
              writing binary log will be ignored */
-	  if (thd->transaction.stmt.modified_non_trans_table)
+	  if (thd->transaction->stmt.modified_non_trans_table)
             (void) write_execute_load_query_log_event(thd, ex,
                                                       table_list->db.str,
                                                       table_list->table_name.str,
@@ -782,10 +799,10 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
 	  (ulong) (info.records - info.copied),
           (long) thd->get_stmt_da()->current_statement_warn_count());
 
-  if (thd->transaction.stmt.modified_non_trans_table)
-    thd->transaction.all.modified_non_trans_table= TRUE;
-  thd->transaction.all.m_unsafe_rollback_flags|=
-    (thd->transaction.stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
+  if (thd->transaction->stmt.modified_non_trans_table)
+    thd->transaction->all.modified_non_trans_table= TRUE;
+  thd->transaction->all.m_unsafe_rollback_flags|=
+    (thd->transaction->stmt.m_unsafe_rollback_flags & THD_TRANS::DID_WAIT);
 #ifndef EMBEDDED_LIBRARY
   if (mysql_bin_log.is_open())
   {
@@ -834,7 +851,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   my_ok(thd, info.copied + info.deleted, 0L, name);
 err:
   DBUG_ASSERT(transactional_table || !(info.copied || info.deleted) ||
-              thd->transaction.stmt.modified_non_trans_table);
+              thd->transaction->stmt.modified_non_trans_table);
   table->file->ha_release_auto_increment();
   table->auto_increment_field_not_null= FALSE;
   thd->abort_on_warning= 0;
@@ -843,8 +860,6 @@ err:
 
 
 #ifndef EMBEDDED_LIBRARY
-
-/* Not a very useful function; just to avoid duplication of code */
 static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                const char* db_arg,  /* table's database */
                                                const char* table_name_arg,
@@ -855,27 +870,34 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
                                                int errcode)
 {
   char                *load_data_query;
-  my_off_t            fname_start,
-                      fname_end;
-  List<Item>           fv;
+  my_off_t             fname_start, fname_end;
   Item                *item, *val;
   int                  n;
-  const char          *tdb= (thd->db.str != NULL ? thd->db.str : db_arg);
-  const char          *qualify_db= NULL;
-  char                command_buffer[1024];
-  String              query_str(command_buffer, sizeof(command_buffer),
-                              system_charset_info);
+  StringBuffer<1024>   query_str(system_charset_info);
 
-  Load_log_event       lle(thd, ex, tdb, table_name_arg, fv, is_concurrent,
-                           duplicates, ignore, transactional_table);
+  query_str.append(STRING_WITH_LEN("LOAD DATA "));
 
-  /*
-    force in a LOCAL if there was one in the original.
-  */
+  if (is_concurrent)
+    query_str.append(STRING_WITH_LEN("CONCURRENT "));
+
+  fname_start= query_str.length();
+
   if (thd->lex->local_file)
-    lle.set_fname_outside_temp_buf(ex->file_name, strlen(ex->file_name));
+    query_str.append(STRING_WITH_LEN("LOCAL "));
+  query_str.append(STRING_WITH_LEN("INFILE '"));
+  query_str.append_for_single_quote(ex->file_name, strlen(ex->file_name));
+  query_str.append(STRING_WITH_LEN("' "));
 
-  query_str.length(0);
+  if (duplicates == DUP_REPLACE)
+    query_str.append(STRING_WITH_LEN("REPLACE "));
+  else if (ignore)
+    query_str.append(STRING_WITH_LEN("IGNORE "));
+
+  query_str.append(STRING_WITH_LEN("INTO"));
+
+  fname_end= query_str.length();
+
+  query_str.append(STRING_WITH_LEN(" TABLE "));
   if (!thd->db.str || strcmp(db_arg, thd->db.str))
   {
     /*
@@ -883,10 +905,47 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
       prefix table name with database name so that it 
       becomes a FQ name.
      */
-    qualify_db= db_arg;
+    append_identifier(thd, &query_str, db_arg, strlen(db_arg));
+    query_str.append(STRING_WITH_LEN("."));
   }
-  lle.print_query(thd, FALSE, (const char *) ex->cs?ex->cs->csname:NULL,
-                  &query_str, &fname_start, &fname_end, qualify_db);
+  append_identifier(thd, &query_str, table_name_arg, strlen(table_name_arg));
+
+  if (ex->cs)
+  {
+    query_str.append(STRING_WITH_LEN(" CHARACTER SET "));
+    query_str.append(ex->cs->cs_name);
+  }
+
+  /* We have to create all optional fields as the default is not empty */
+  query_str.append(STRING_WITH_LEN(" FIELDS TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->field_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->opt_enclosed)
+    query_str.append(STRING_WITH_LEN(" OPTIONALLY"));
+  query_str.append(STRING_WITH_LEN(" ENCLOSED BY '"));
+  query_str.append_for_single_quote(ex->enclosed);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" ESCAPED BY '"));
+  query_str.append_for_single_quote(ex->escaped);
+  query_str.append(STRING_WITH_LEN("'"));
+
+  query_str.append(STRING_WITH_LEN(" LINES TERMINATED BY '"));
+  query_str.append_for_single_quote(ex->line_term);
+  query_str.append(STRING_WITH_LEN("'"));
+  if (ex->line_start->length())
+  {
+    query_str.append(STRING_WITH_LEN(" STARTING BY '"));
+    query_str.append_for_single_quote(ex->line_start);
+    query_str.append(STRING_WITH_LEN("'"));
+  }
+
+  if (ex->skip_lines)
+  {
+    query_str.append(STRING_WITH_LEN(" IGNORE "));
+    query_str.append_ulonglong(ex->skip_lines);
+    query_str.append(STRING_WITH_LEN(" LINES "));
+  }
 
   /*
     prepare fields-list and SET if needed; print_query won't do that for us.
@@ -895,18 +954,18 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   {
     List_iterator<Item>  li(thd->lex->field_list);
 
-    query_str.append(" (");
+    query_str.append(STRING_WITH_LEN(" ("));
     n= 0;
 
     while ((item= li++))
     {
       if (n++)
-        query_str.append(", ");
+        query_str.append(STRING_WITH_LEN(", "));
       const Load_data_outvar *var= item->get_load_data_outvar();
       DBUG_ASSERT(var);
       var->load_data_print_for_log_event(thd, &query_str);
     }
-    query_str.append(")");
+    query_str.append(')');
   }
 
   if (!thd->lex->update_list.is_empty())
@@ -1230,7 +1289,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
   bool no_trans_update_stmt;
   DBUG_ENTER("read_xml_field");
   
-  no_trans_update_stmt= !table->file->has_transactions();
+  no_trans_update_stmt= !table->file->has_transactions_and_rollback();
   
   for ( ; ; it.rewind())
   {
@@ -1318,7 +1377,7 @@ read_xml_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       We don't need to reset auto-increment field since we are restoring
       its default value at the beginning of each loop iteration.
     */
-    thd->transaction.stmt.modified_non_trans_table= no_trans_update_stmt;
+    thd->transaction->stmt.modified_non_trans_table= no_trans_update_stmt;
     thd->get_stmt_da()->inc_current_row_for_warning();
     continue_loop:;
   }
@@ -1613,7 +1672,7 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (use_mb(charset()) && read_mbtail(&data))
+      if (charset()->use_mb() && read_mbtail(&data))
         goto found_eof;
     }
     /*
@@ -1712,8 +1771,8 @@ int READ_INFO::next_line()
     if (getbyte(&buf[0]))
       return 1; // EOF
 
-    if (use_mb(charset()) &&
-        (chlen= my_charlen(charset(), buf, buf + 1)) != 1)
+    if (charset()->use_mb() &&
+        (chlen= charset()->charlen(buf, buf + 1)) != 1)
     {
       uint i;
       for (i= 1; MY_CS_IS_TOOSMALL(chlen); )
@@ -1722,7 +1781,7 @@ int READ_INFO::next_line()
         DBUG_ASSERT(chlen != 1);
         if (getbyte(&buf[i++]))
           return 1; // EOF
-        chlen= my_charlen(charset(), buf, buf + i);
+        chlen= charset()->charlen(buf, buf + i);
       }
 
       /*
@@ -1893,7 +1952,7 @@ int READ_INFO::read_value(int delim, String *val)
     else
     {
       val->append(chr);
-      if (use_mb(charset()) && read_mbtail(val))
+      if (charset()->use_mb() && read_mbtail(val))
         return my_b_EOF;
     }
   }            

@@ -14,10 +14,6 @@
 --echo # alter table = Assertion failed: thd->is_error()
 --echo #
 
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
 --echo # Create InnoDB table
 CREATE TABLE t1 (id INT) engine=innodb;
 connect (con2, localhost, root);
@@ -615,55 +611,13 @@ INSERT INTO t1 VALUES(10, 20);
 ALTER TABLE t1 FORCE;
 ALTER TABLE t1 ENGINE=INNODB;
 
---echo #ALTER TABLE FORCE, ALTER TABLE ENGINE and OPTIMIZE TABLE uses
---echo #table copy when the old_alter_table enabled.
-SET SESSION old_alter_table= TRUE;
-ALTER TABLE t1 FORCE;
-ALTER TABLE t1 ENGINE= INNODB;
-
-SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
---echo #OPTIMIZE TABLE operation using table copy.
---send OPTIMIZE TABLE t1
-
---connection con1
-SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
-INSERT INTO t1 VALUES(10, 20);
-
---connection default
---reap
-SET DEBUG_SYNC= 'RESET';
-SET SESSION old_alter_table= FALSE;
-
---echo #ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
---echo #when ALGORITHM COPY is used.
+--echo # ALTER TABLE FORCE and ALTER TABLE ENGINE uses table copy
+--echo # when ALGORITHM COPY is used.
 ALTER TABLE t1 FORCE, ALGORITHM= COPY;
 ALTER TABLE t1 ENGINE= INNODB, ALGORITHM= COPY;
 --disable_info
 
 #cleanup
-DROP TABLE t1;
-
---echo #OPTIMIZE TABLE on a table with FULLTEXT index uses
---echo #ALTER TABLE FORCE using COPY algorithm here. This
---echo #test case ensures the COPY table debug sync point is hit.
-
-SET DEBUG_SYNC= 'alter_table_copy_after_lock_upgrade SIGNAL upgraded';
-
---echo #Setup a table with FULLTEXT index.
---connection default
-CREATE TABLE t1(fld1 CHAR(10), FULLTEXT(fld1), FULLTEXT(fld1)) ENGINE= INNODB;
-INSERT INTO t1 VALUES("String1");
-
---echo #OPTIMIZE TABLE operation.
---send OPTIMIZE TABLE t1
-
---connection con1
-SET DEBUG_SYNC= 'now WAIT_FOR upgraded';
-INSERT INTO t1 VALUES("String2");
-
---connection default
---reap
-SET DEBUG_SYNC= 'RESET';
 DROP TABLE t1;
 
 --echo #Test which demonstrates that ALTER TABLE, OPTIMIZE PARTITION

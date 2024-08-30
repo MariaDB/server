@@ -1,0 +1,192 @@
+*** MDEV-7326 Server deadlock in connection with parallel replication ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='conservative';
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t6 (a INT) ENGINE=MyISAM;
+connection server_2;
+connection server_1;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+connection server_1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format= STATEMENT;
+INSERT INTO t1 VALUES (foo(50,
+"rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
+"rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
+connection server_1;
+INSERT INTO t2 VALUES (foo(50,
+"rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
+"rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
+connection server_1;
+INSERT INTO t1 VALUES (foo(51,
+"rpl_parallel_before_mark_start_commit SIGNAL t2_ready1 WAIT_FOR t2_cont1",
+"rpl_parallel_after_mark_start_commit SIGNAL t2_ready2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready1";
+SET DEBUG_SYNC= "now SIGNAL t1_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready2";
+connection server_1;
+INSERT INTO t1 VALUES (52);
+SET BINLOG_FORMAT= @old_format;
+SELECT * FROM t2 WHERE a>=50 ORDER BY a;
+a
+50
+SELECT * FROM t1 WHERE a>=50 ORDER BY a;
+a
+50
+51
+52
+connection server_2;
+SET DEBUG_SYNC= "now SIGNAL prep_cont";
+SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
+SET DEBUG_SYNC= "now SIGNAL t2_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
+SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+connection server_1;
+connection server_2;
+SELECT * FROM t2 WHERE a>=50 ORDER BY a;
+a
+50
+SELECT * FROM t1 WHERE a>=50 ORDER BY a;
+a
+50
+51
+52
+SET DEBUG_SYNC="reset";
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+*** MDEV-7326 Server deadlock in connection with parallel replication ***
+connect  con_temp3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connect  con_temp4,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+connection server_2;
+include/stop_slave.inc
+SET @old_parallel_mode= @@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_mode='conservative';
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=3;
+SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
+include/start_slave.inc
+connection server_1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format= STATEMENT;
+INSERT INTO t1 VALUES (foo(60,
+"rpl_parallel_start_waiting_for_prior SIGNAL t3_ready",
+"rpl_parallel_end_of_group SIGNAL prep_ready WAIT_FOR prep_cont"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR prep_ready";
+connection server_1;
+INSERT INTO t2 VALUES (foo(60,
+"rpl_parallel_simulate_temp_err_xid SIGNAL t1_ready1 WAIT_FOR t1_cont1",
+"rpl_parallel_retry_after_unmark SIGNAL t1_ready2 WAIT_FOR t1_cont2"));
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready1";
+connection con_temp3;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued1 WAIT_FOR master_cont1';
+SET binlog_format=statement;
+INSERT INTO t1 VALUES (foo(61,
+"rpl_parallel_before_mark_start_commit SIGNAL t2_ready1 WAIT_FOR t2_cont1",
+"rpl_parallel_after_mark_start_commit SIGNAL t2_ready2"));
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued1';
+connection con_temp4;
+SET debug_sync='commit_after_release_LOCK_prepare_ordered SIGNAL master_queued2';
+INSERT INTO t6 VALUES (62);
+connection server_1;
+SET debug_sync='now WAIT_FOR master_queued2';
+SET debug_sync='now SIGNAL master_cont1';
+connection con_temp3;
+connection con_temp4;
+connection server_1;
+SET debug_sync='RESET';
+SET BINLOG_FORMAT= @old_format;
+SELECT * FROM t2 WHERE a>=60 ORDER BY a;
+a
+60
+SELECT * FROM t1 WHERE a>=60 ORDER BY a;
+a
+60
+61
+SELECT * FROM t6 WHERE a>=60 ORDER BY a;
+a
+62
+connection server_2;
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready1";
+SET DEBUG_SYNC= "now SIGNAL t1_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t1_ready2";
+connection server_2;
+SET DEBUG_SYNC= "now SIGNAL prep_cont";
+SET DEBUG_SYNC= "now WAIT_FOR t3_ready";
+SET DEBUG_SYNC= "now SIGNAL t2_cont1";
+SET DEBUG_SYNC= "now WAIT_FOR t2_ready2";
+SET DEBUG_SYNC= "now SIGNAL t1_cont2";
+connection server_1;
+connection server_2;
+SELECT * FROM t2 WHERE a>=60 ORDER BY a;
+a
+60
+SELECT * FROM t1 WHERE a>=60 ORDER BY a;
+a
+60
+61
+SELECT * FROM t6 WHERE a>=60 ORDER BY a;
+a
+62
+SET DEBUG_SYNC="reset";
+include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP function foo;
+DROP TABLE t1,t2,t6;
+disconnect con_temp3;
+disconnect con_temp4;
+SET DEBUG_SYNC= 'RESET';
+include/rpl_end.inc

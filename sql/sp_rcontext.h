@@ -71,7 +71,7 @@ public:
   ///
   /// @return valid sp_rcontext object or NULL in case of OOM-error.
   static sp_rcontext *create(THD *thd,
-                             const sp_head *owner,
+                             sp_head *owner,
                              const sp_pcontext *root_parsing_ctx,
                              Field *return_value_fld,
                              Row_definition_list &defs);
@@ -79,7 +79,7 @@ public:
   ~sp_rcontext();
 
 private:
-  sp_rcontext(const sp_head *owner,
+  sp_rcontext(sp_head *owner,
               const sp_pcontext *root_parsing_ctx,
               Field *return_value_fld,
               bool in_sub_stmt);
@@ -111,15 +111,18 @@ public:
     /// Text message.
     char *message;
 
+    /** Row number where the condition has happened */
+    ulong m_row_number;
+
     /// The constructor.
     ///
     /// @param _sql_condition  The SQL condition.
     /// @param arena           Query arena for SP
-    Sql_condition_info(const Sql_condition *_sql_condition,
-                       Query_arena *arena)
+    Sql_condition_info(const Sql_condition *_sql_condition, Query_arena *arena)
       :Sql_condition_identity(*_sql_condition)
     {
       message= strdup_root(arena->mem_root, _sql_condition->get_message_text());
+      m_row_number= _sql_condition->m_row_number;
     }
   };
 
@@ -166,7 +169,7 @@ public:
   /// checking if correct runtime context is used for variable handling,
   /// and to access the package run-time context.
   /// Also used by slow log.
-  const sp_head *m_sp;
+  sp_head *m_sp;
 
   /////////////////////////////////////////////////////////////////////////
   // SP-variables.

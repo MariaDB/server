@@ -28,6 +28,7 @@ class sp_name;
 class Query_tables_list;
 struct TABLE_LIST;
 class Query_tables_list;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 /** Event on which trigger is invoked. */
 enum trg_event_type
@@ -73,8 +74,34 @@ struct st_trg_execution_order
   /**
     Trigger name referenced in the FOLLOWS/PRECEDES clause of the
     CREATE TRIGGER statement.
+    Cannot be Lex_ident_trigger,
+    as this structure is used in %union in sql_yacc.yy
   */
-  LEX_CSTRING anchor_trigger_name;
+  LEX_CSTRING anchor_trigger_name; // Used in sql_yacc %union
+};
+
+
+/*
+  Parameter to change_table_name_in_triggers()
+*/
+
+class TRIGGER_RENAME_PARAM
+{
+public:
+  TABLE table;
+  bool upgrading50to51;
+  bool got_error;
+
+  TRIGGER_RENAME_PARAM()
+  {
+    upgrading50to51= got_error= 0;
+    table.reset();
+  }
+  ~TRIGGER_RENAME_PARAM()
+  {
+    reset();
+  }
+  void reset();
 };
 
 
@@ -88,7 +115,7 @@ class Trigger :public Sql_alloc
 {
 public:
     Trigger(Table_triggers_list *base_arg, sp_head *code):
-    base(base_arg), body(code), next(0), trigger_fields(0), action_order(0)
+    base(base_arg), body(code), next(0), action_order(0)
   {
     bzero((char *)&subject_table_grants, sizeof(subject_table_grants));
   }
@@ -97,12 +124,7 @@ public:
   sp_head *body;
   Trigger *next;                                /* Next trigger of same type */
 
-  /**
-    Heads of the lists linking items for all fields used in triggers
-    grouped by event and action_time.
-  */
-  Item_trigger_field *trigger_fields;
-  LEX_CSTRING name;
+  Lex_ident_trigger name;
   LEX_CSTRING on_table_name;                     /* Raw table name */
   LEX_CSTRING definition;
   LEX_CSTRING definer;
@@ -120,7 +142,6 @@ public:
   trg_action_time_type action_time;
   uint action_order;
 
-  bool is_fields_updated_in_trigger(MY_BITMAP *used_fields);
   void get_trigger_info(LEX_CSTRING *stmt, LEX_CSTRING *body,
                         LEX_STRING *definer);
   /* Functions executed over each active trigger */
@@ -219,8 +240,12 @@ public:
   }
   ~Table_triggers_list();
 
-  bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
-  bool drop_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
+  bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query,
+                      DDL_LOG_STATE *ddl_log_state,
+                      DDL_LOG_STATE *ddl_log_state_tmp_file);
+  bool drop_trigger(THD *thd, TABLE_LIST *table,
+                    LEX_CSTRING *sp_name,
+                    String *stmt_query, DDL_LOG_STATE *ddl_log_state);
   bool process_triggers(THD *thd, trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
@@ -231,8 +256,15 @@ public:
   static bool check_n_load(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *table_name,
                            TABLE *table, bool names_only);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name);
-  static bool change_table_name(THD *thd, const LEX_CSTRING *db,
+                                const LEX_CSTRING *table_name, myf MyFlags);
+  static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                 const Lex_ident_db &db,
+                                 const Lex_ident_table &old_alias,
+                                 const Lex_ident_table &old_table,
+                                 const Lex_ident_db &new_db,
+                                 const Lex_ident_table &new_table);
+  static bool change_table_name(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                const LEX_CSTRING *db,
                                 const LEX_CSTRING *old_alias,
                                 const LEX_CSTRING *old_table,
                                 const LEX_CSTRING *new_db,
@@ -240,7 +272,7 @@ public:
   void add_trigger(trg_event_type event_type, 
                    trg_action_time_type action_time,
                    trigger_order_type ordering_clause,
-                   LEX_CSTRING *anchor_trigger_name,
+                   const Lex_ident_trigger &anchor_trigger_name,
                    Trigger *trigger);
   Trigger *get_trigger(trg_event_type event_type, 
                        trg_action_time_type action_time)
@@ -308,7 +340,14 @@ private:
     }
     return false;
   }
+
+public:
+  TABLE *get_subject_table()
+  {
+    return trigger_table;
+  }
 };
+
 
 bool add_table_for_trigger(THD *thd,
                            const sp_name *trg_name,
@@ -324,6 +363,8 @@ bool load_table_name_for_trigger(THD *thd,
                                  const LEX_CSTRING *trn_path,
                                  LEX_CSTRING *tbl_name);
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
+bool rm_trigname_file(char *path, const LEX_CSTRING *db,
+                      const LEX_CSTRING *trigger_name, myf MyFlags);
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;

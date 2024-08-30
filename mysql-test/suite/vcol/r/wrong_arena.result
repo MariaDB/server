@@ -21,7 +21,7 @@ t1	CREATE TABLE `t1` (
   `c` int(11) GENERATED ALWAYS AS (`a` in (1,2,3)) VIRTUAL,
   `d` int(11) GENERATED ALWAYS AS ((`a`,`a`) in ((1,1),(2,1),(NULL,1))) VIRTUAL,
   `e` int(11) GENERATED ALWAYS AS ((`a`,1) in ((1,1),(2,1),(NULL,1))) VIRTUAL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '1'
 Warning	1292	Truncated incorrect datetime value: '2'

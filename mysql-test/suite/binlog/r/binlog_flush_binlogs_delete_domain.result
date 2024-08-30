@@ -46,15 +46,26 @@ Warning	1076	The current gtid binlog state is incompatible with a former one mis
 Warning	1076	The gtid domain being deleted ('1') is not in the current binlog state
 FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0);
 ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('1') being deleted. Make sure to first purge those files.
+MDEV-31140: Missing error from DELETE_DOMAIN_ID when gtid_binlog_state partially matches GTID_LIST.
 FLUSH BINARY LOGS;
 PURGE BINARY LOGS TO 'master-bin.000005';
+show binary logs;
+Log_name	File_size
+master-bin.000005	#
+SET @@SESSION.gtid_domain_id=8;
+SET @@SESSION.server_id=10*8 + 1;
+INSERT INTO t SELECT 1+MAX(a) FROM t;
+FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0);
+ERROR HY000: Could not delete gtid domain. Reason: binlog files may contain gtids from the domain ('8') being deleted. Make sure to first purge those files.
+FLUSH BINARY LOGS;
+PURGE BINARY LOGS TO 'master-bin.000006';
 FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0);
 Warnings:
 Warning	1076	The gtid domain being deleted ('0') is not in the current binlog state
 Gtid_list of the current binlog does not contain 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 0:
-show binlog events in 'master-bin.000006' limit 1,1;
+show binlog events in 'master-bin.000007' limit 1,1;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-master-bin.000006	#	Gtid_list	1	#	[]
+master-bin.000007	#	Gtid_list	1	#	[]
 SET @@SESSION.gtid_domain_id=1;;
 SET @@SESSION.server_id=1;
 SET @@SESSION.gtid_seq_no=1;
@@ -75,7 +86,7 @@ INSERT INTO t SET a=1;
 SELECT @gtid_binlog_state_saved "as original state", @@GLOBAL.gtid_binlog_state as "out of order for 11 domain state";
 as original state	out of order for 11 domain state
 1-1-1,1-2-2,11-11-11	1-1-1,1-2-2,11-11-1
-PURGE BINARY LOGS TO 'master-bin.000007';
+PURGE BINARY LOGS TO 'master-bin.000008';
 the following command succeeds with warnings
 FLUSH BINARY LOGS DELETE_DOMAIN_ID = (1);
 Warnings:

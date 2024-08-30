@@ -64,7 +64,7 @@ int wsrep_write_cache_buf(IO_CACHE *cache, uchar **buf, size_t *buf_len)
                      wsrep_max_ws_size, total_length);
           goto error;
       }
-      uchar* tmp= (uchar *)my_realloc(*buf, total_length,
+      uchar* tmp= (uchar *)my_realloc(PSI_INSTRUMENT_ME, *buf, total_length,
                                        MYF(MY_ALLOW_ZERO_PTR));
       if (!tmp)
       {
@@ -198,7 +198,7 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
     to alloc and pass as an argument to snprintf.
   */
 
-  char *filename= (char *)malloc(len+1);
+  char *filename= (char *) my_malloc(key_memory_WSREP, len+1, 0);
   int len1= snprintf(filename, len+1, "%s/GRA_%lld_%lld.log",
                     wsrep_data_home_dir, (longlong) thd->thread_id,
                     (long long)wsrep_thd_trx_seqno(thd));
@@ -206,7 +206,7 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
   if (len > len1)
   {
     WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
-    free(filename);
+    my_free(filename);
     return;
   }
 
@@ -225,7 +225,7 @@ void wsrep_dump_rbr_buf(THD *thd, const void* rbr_buf, size_t buf_len)
     WSREP_ERROR("Failed to open file '%s': %d (%s)",
                 filename, errno, strerror(errno));
   }
-  free(filename);
+  my_free(filename);
 }
 
 /* Dump replication buffer along with header to a file. */
@@ -236,7 +236,9 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
 
   File file;
   IO_CACHE cache;
-  Log_event_writer writer(&cache, 0);
+  enum_binlog_checksum_alg checksum_alg=
+    (enum_binlog_checksum_alg) binlog_checksum_options;
+  Log_event_writer writer(&cache, 0, checksum_alg, NULL);
   Format_description_log_event *ev= 0;
 
   longlong thd_trx_seqno= (long long)wsrep_thd_trx_seqno(thd);
@@ -248,7 +250,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     to alloc and pass as an argument to snprintf.
   */
   char *filename;
-  if (len < 0 || !(filename= (char*)malloc(len+1)))
+  if (len < 0 || !(filename= (char*) my_malloc(key_memory_WSREP, len+1, 0)))
   {
     WSREP_ERROR("snprintf error: %d, skipping dump.", len);
     DBUG_VOID_RETURN;
@@ -261,7 +263,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
   if (len > len1)
   {
     WSREP_ERROR("RBR dump path truncated: %d, skipping dump.", len);
-    free(filename);
+    my_free(filename);
     DBUG_VOID_RETURN;
   }
 
@@ -288,7 +290,7 @@ void wsrep_dump_rbr_buf_with_header(THD *thd, const void *rbr_buf,
     to the dump file).
   */
   ev= (thd->wsrep_applier) ? wsrep_get_apply_format(thd) :
-    (new Format_description_log_event(4));
+    (new Format_description_log_event(4, NULL, checksum_alg));
 
   if (writer.write(ev) || my_b_write(&cache, (uchar*)rbr_buf, buf_len) ||
       flush_io_cache(&cache))
@@ -301,7 +303,7 @@ cleanup2:
   end_io_cache(&cache);
 
 cleanup1:
-  free(filename);
+  my_free(filename);
   mysql_file_close(file, MYF(MY_WME));
 
   if (!thd->wsrep_applier) delete ev;

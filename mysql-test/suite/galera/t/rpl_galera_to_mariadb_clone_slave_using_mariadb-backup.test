@@ -1,0 +1,9 @@
+--source include/have_innodb.inc
+--source include/galera_cluster.inc
+
+--echo #
+--echo # MDEV-33355 Add a Galera-2-node-to-MariaDB replication MTR test cloning the slave with mariadb-backup
+--echo #
+
+--let cnf=galera2_to_mariadb
+--source include/rpl_clone_slave_using_mariadb-backup.inc

@@ -1,0 +1,33 @@
+#
+# MDEV-27398 DESC index causes wrong (empty) result on Federated tables
+#
+create table t (a int);
+insert into t values (1),(5),(2),(3),(4);
+create table tf (a int, key(a desc)) connection 'mysql://root@127.0.0.1:$MASTER_MYPORT/test/t' engine=Federated;
+select * from tf;
+a
+1
+2
+3
+4
+5
+select * from tf where a > 2;
+a
+3
+4
+5
+select * from tf where a < 3;
+a
+1
+2
+select * from tf where a >= 3;
+a
+3
+4
+5
+select * from tf where a <= 3;
+a
+1
+2
+3
+drop table tf, t;

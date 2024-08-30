@@ -21,7 +21,9 @@ insert into t1 values
 (11, 2, 10,   NULL,     0.9,  NULL);
 
 select pk, row_number() over () from t1;
+--source include/explain-no-costs.inc
 explain FORMAT=JSON select pk, row_number() over () from t1;
+--source include/explain-no-costs.inc
 explain FORMAT=JSON select row_number() over (), pk from t1;
 
 select row_number() over () from (select 4) as t;

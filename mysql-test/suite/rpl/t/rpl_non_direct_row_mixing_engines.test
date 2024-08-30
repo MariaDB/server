@@ -4,6 +4,8 @@
 ###################################################################################
 --source include/have_binlog_format_row.inc
 --source include/have_innodb.inc
+# MDEV-31790 FIXME: This test is extremely slow
+--source include/not_msan.inc
 --source include/master-slave.inc
 
 --disable_query_log

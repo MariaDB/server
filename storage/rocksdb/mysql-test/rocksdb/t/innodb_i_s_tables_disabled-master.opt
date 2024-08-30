@@ -1,5 +1,4 @@
 --loose-enable-innodb_trx
---loose-enable-innodb_file_status
 --loose-enable-innodb_locks
 --loose-enable-innodb_lock_waits
 --loose-enable-innodb_cmp
@@ -26,5 +25,3 @@
 --loose-enable-innodb_sys_foreign
 --loose-enable-innodb_sys_foreign_cols
 --loose-enable-innodb_sys_tablespaces
---loose-enable-innodb_sys_datafiles
---loose-enable-innodb_sys_docstore_fields

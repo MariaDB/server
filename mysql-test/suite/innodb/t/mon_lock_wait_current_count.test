@@ -10,8 +10,27 @@
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
 --connection default
-SET GLOBAL innodb_monitor_disable='all';
-SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+# lock_row_lock_time_avg is filled under lock_sys.wait_mutex lock, which
+# will be held by connection 2, that is why the following SELECT
+# from information_schema.innodb_metrics will be blocked.
+#
+# And setting innodb_monitor_disable=all causes innodb monitor enabling
+# status changing. The status will not be restored to default value even
+# after
+# -----------------------
+# SET GLOBAL innodb_monitor_reset_all=default;
+# SET GLOBAL innodb_monitor_enable=default;
+# -----------------------
+# execution. See MDEV-32553 for details.
+#
+# All monitors disabling, i.e. "innodb_monitor_disable=all" causes
+# innodb.monitor test failure due to MDEV-32553. 10.5 is not affected, as
+# innodb.monitor differs there.
+#
+# Disable not all monitors at the beggining of the test,
+# but only the monitor, which causes hanging, i.e. lock_row_lock_time_avg.
+SET GLOBAL innodb_monitor_disable='lock_row_lock_time_avg';
+# 'lock_row_lock_current_waits' should be enabled by default;
 CREATE TABLE `t` (a INT PRIMARY KEY) engine=InnoDB STATS_PERSISTENT=0;
 INSERT INTO t VALUES (5);
 SELECT name, count FROM information_schema.innodb_metrics
@@ -67,6 +86,8 @@ DROP TABLE `t`;
 SET GLOBAL innodb_monitor_disable='lock_row_lock_current_waits';
 SET GLOBAL innodb_monitor_reset_all='lock_row_lock_current_waits';
 SET GLOBAL innodb_monitor_enable='lock_row_lock_current_waits';
+# TODO: remove it when MDEV-32553 is fixed
+SET GLOBAL innodb_monitor_enable='lock_row_lock_time_avg';
 --disable_warnings
 SET GLOBAL innodb_monitor_disable=default;
 SET GLOBAL innodb_monitor_reset_all=default;

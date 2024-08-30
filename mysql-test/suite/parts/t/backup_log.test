@@ -1,0 +1,63 @@
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+connect (con1,localhost,root,,);
+BACKUP STAGE START;
+connection default;
+
+--let $part_int=PARTITION BY HASH(a) PARTITIONS 2
+--let $part_date=PARTITION BY HASH(YEAR(a)) PARTITIONS 2
+--source main/backup_log.inc
+
+--echo #
+--echo # Testing backup ddl log for partitioned tables
+--echo #
+
+CREATE TABLE t200(a INT, b INT) ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1;
+INSERT INTO t200 VALUES (5, 5), (15, 15), (25, 25);
+ALTER TABLE t200 PARTITION BY RANGE( a ) (
+    PARTITION p0 VALUES LESS THAN (10),
+    PARTITION p1 VALUES LESS THAN (20),
+    PARTITION p2 VALUES LESS THAN (30)
+);
+CREATE TABLE t210(a INT, b INT) ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1;
+--echo #TODO: echange partitions have not logged yet
+ALTER TABLE t200 EXCHANGE PARTITION p2 WITH TABLE t210;
+ALTER TABLE t200 DROP PARTITION p0;
+ALTER TABLE t200 ADD PARTITION (PARTITION p3 VALUES LESS THAN (40));
+ALTER TABLE t200
+    REORGANIZE PARTITION p3 INTO (
+        PARTITION n0 VALUES LESS THAN (35),
+        PARTITION n1 VALUES LESS THAN (45)
+);
+ALTER TABLE t200 PARTITION BY KEY(a) PARTITIONS 2;
+ALTER TABLE t200 PARTITION BY HASH(a) PARTITIONS 8;
+ALTER TABLE t200 COALESCE PARTITION 4;
+ALTER TABLE t200
+ PARTITION BY RANGE (b)
+    SUBPARTITION BY KEY (a)
+    SUBPARTITIONS 2 (
+         PARTITION p0 VALUES LESS THAN (10),
+         PARTITION p1 VALUES LESS THAN (20),
+         PARTITION p2 VALUES LESS THAN (30),
+         PARTITION p3 VALUES LESS THAN (MAXVALUE)
+     );
+ALTER TABLE t200 REMOVE PARTITIONING;
+DROP TABLE t200, t210;
+
+--echo # Test for the case when TDC contains TABLE_SHARE object for the
+--echo # certain table, but the table is not opened
+CREATE TABLE t220(a INT) ENGINE ARIA PARTITION BY HASH(a) PARTITIONS 2;
+--disable_result_log
+SELECT VERSION FROM INFORMATION_SCHEMA.tables WHERE
+  TABLE_SCHEMA = 'test' AND TABLE_NAME = 't220';
+--enable_result_log
+DROP TABLE t220;
+
+--source include/print_ddl_log.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+disconnect con1;

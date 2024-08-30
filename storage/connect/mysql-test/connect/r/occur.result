@@ -7,7 +7,7 @@ manager CHAR(5) DEFAULT NULL,
 department CHAR(4) NOT NULL FLAG=41,
 secretary CHAR(5) DEFAULT NULL FLAG=46,
 salary DOUBLE(8,2) NOT NULL FLAG=52
-) ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
 SELECT * FROM employee;
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -37,7 +37,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 00137	BROWNY	1	ENGINEER	40567	0319	12345	10500.00
 73111	WHEELFOR	1	SALESMAN	70012	0318	24888	10030.00
 00023	MARTIN	1	ENGINEER	40567	0319	12345	10000.00
-CREATE TABLE occurs (name CHAR(12), sex CHAR(1), title CHAR(15), department CHAR(4), salary DOUBLE(8,2), id_of CHAR(12), id CHAR(5) NOT NULL) ENGINE=CONNECT TABLE_TYPE=OCCUR TABNAME=employee OPTION_LIST='OccurCol=ID,RankCol=ID_OF,Colist=serialno;manager;secretary,port=PORT';;
+CREATE TABLE occurs (name CHAR(12), sex CHAR(1), title CHAR(15), department CHAR(4), salary DOUBLE(8,2), id_of CHAR(12), id CHAR(5) NOT NULL) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=OCCUR TABNAME=employee OPTION_LIST='OccurCol=ID,RankCol=ID_OF,Colist=serialno;manager;secretary,port=PORT';;
 SELECT * FROM occurs;
 name	sex	title	department	salary	id_of	id
 BANCROFT	2	SALESMAN	0318	9600.00	serialno	74200
@@ -138,7 +138,7 @@ Mary	1	1	0	0	0
 Lisbeth	0	0	2	0	0
 Kevin	0	2	0	6	0
 Donald	1	0	0	0	3
-CREATE TABLE xpet (name VARCHAR(12) NOT NULL, race CHAR(6) NOT NULL, number INT) ENGINE=CONNECT TABLE_TYPE=OCCUR TABNAME=pets OPTION_LIST='OccurCol=number,RankCol=race,Colist=dog;cat;rabbit;bird;fish,port=PORT';
+CREATE TABLE xpet (name VARCHAR(12) NOT NULL, race CHAR(6) NOT NULL, number INT) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=OCCUR TABNAME=pets OPTION_LIST='OccurCol=number,RankCol=race,Colist=dog;cat;rabbit;bird;fish,port=PORT';
 SELECT * FROM xpet;
 name	race	number
 John	dog	2

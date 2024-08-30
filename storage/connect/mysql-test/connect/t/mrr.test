@@ -11,13 +11,13 @@ let $MYSQLD_DATADIR= `select @@datadir`;
 CREATE TABLE t2 (
 name VARCHAR(64) NOT NULL,
 value VARCHAR(1024) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=DOS;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS;
 INSERT INTO t2 SELECT * FROM information_schema.session_variables WHERE variable_name = 'OPTIMIZER_SWITCH';
 # Check that MRR is OFF by default
 create table t3 (
 name CHAR(32) NOT NULL,
 value CHAR(64) NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=XCOL TABNAME=t2 OPTION_LIST='Colname=value';
 SELECT value FROM t3 WHERE value LIKE 'mrr%';
 
 --echo #
@@ -39,7 +39,7 @@ CREATE TABLE t1
   sitmat    CHAR(1) NOT NULL,
   formation CHAR(5) NOT NULL,
   INDEX NP(nom,prenom)
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='emp.txt' ENDING=2;
 SELECT * FROM t1 LIMIT 10;
 --echo # Without MRR, the rows are retrieved sorted by name
 SELECT matricule, nom, prenom, sitmat, net FROM t1 WHERE nom IN ('ETANG','FOCH','CERF','ITALIE','ROI');

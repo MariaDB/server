@@ -7,6 +7,7 @@
 struct rpl_parallel;
 struct rpl_parallel_entry;
 struct rpl_parallel_thread_pool;
+extern struct rpl_parallel_thread_pool pool_bkp_for_pfs;
 
 class Relay_log_info;
 struct inuse_relaylog;
@@ -105,6 +106,18 @@ struct rpl_parallel_thread {
   bool running;
   bool stop;
   bool pause_for_ftwrl;
+  /*
+    0  = No start alter assigned
+   >0 = Start alter assigned
+  */
+  uint64 current_start_alter_id;
+  uint32 current_start_alter_domain_id;
+  /*
+   This flag is true when Start Alter just needs to be binlogged only.
+   This scenario will happens when there is congestion , and we can not
+   allocate independent worker to start alter.
+  */
+  bool reserved_start_alter_thread;
   mysql_mutex_t LOCK_rpl_thread;
   mysql_cond_t COND_rpl_thread;
   mysql_cond_t COND_rpl_thread_queue;
@@ -168,6 +181,35 @@ struct rpl_parallel_thread {
   inuse_relaylog *accumulated_ir_last;
   uint64 accumulated_ir_count;
 
+  char channel_name[MAX_CONNECTION_NAME];
+  uint channel_name_length;
+  rpl_gtid last_seen_gtid;
+  int last_error_number;
+  char last_error_message[MAX_SLAVE_ERRMSG];
+  ulonglong last_error_timestamp;
+  ulonglong worker_idle_time;
+  ulong last_trans_retry_count;
+  ulonglong start_time;
+  void start_time_tracker()
+  {
+    start_time= microsecond_interval_timer();
+  }
+  ulonglong compute_time_lapsed()
+  {
+    return (ulonglong)((microsecond_interval_timer() - start_time) / 1000000.0);
+  }
+  void add_to_worker_idle_time_and_reset()
+  {
+    worker_idle_time+= compute_time_lapsed();
+    start_time=0;
+  }
+  ulonglong get_worker_idle_time()
+  {
+    if (start_time)
+      return (worker_idle_time + compute_time_lapsed());
+    else
+      return worker_idle_time;
+  }
   void enqueue(queued_event *qev)
   {
     if (last_in_queue)
@@ -231,8 +273,42 @@ struct rpl_parallel_thread {
   void batch_free();
   /* Update inuse_relaylog refcounts with what we have accumulated so far. */
   void inuse_relaylog_refcount_update();
+  rpl_parallel_thread();
 };
 
+
+struct pool_bkp_for_pfs{
+  uint32 count;
+  bool inited, is_valid;
+  struct rpl_parallel_thread **rpl_thread_arr;
+  void init(uint32 thd_count)
+  {
+    DBUG_ASSERT(thd_count);
+    rpl_thread_arr= (rpl_parallel_thread **)
+                      my_malloc(PSI_INSTRUMENT_ME,
+                                thd_count * sizeof(rpl_parallel_thread*),
+                                MYF(MY_WME | MY_ZEROFILL));
+    for (uint i=0; i<thd_count; i++)
+      rpl_thread_arr[i]= (rpl_parallel_thread *)
+                          my_malloc(PSI_INSTRUMENT_ME, sizeof(rpl_parallel_thread),
+                                    MYF(MY_WME | MY_ZEROFILL));
+    count= thd_count;
+    inited= true;
+  }
+
+  void destroy()
+  {
+    if (inited)
+    {
+      for (uint i=0; i<count; i++)
+        my_free(rpl_thread_arr[i]);
+
+      my_free(rpl_thread_arr);
+      rpl_thread_arr= NULL;
+    }
+    inited= false;
+  }
+};
 
 struct rpl_parallel_thread_pool {
   struct rpl_parallel_thread **threads;
@@ -241,14 +317,22 @@ struct rpl_parallel_thread_pool {
   mysql_cond_t COND_rpl_thread_pool;
   uint32 count;
   bool inited;
+
+  /*
+    Lock first LOCK_rpl_thread_pool and then LOCK_rpl_thread to
+    update this variable.
+  */
+  uint32 current_start_alters;
   /*
     While FTWRL runs, this counter is incremented to make SQL thread or
     STOP/START slave not try to start new activity while that operation
     is in progress.
   */
   bool busy;
+  struct pool_bkp_for_pfs pfs_bkp;
 
   rpl_parallel_thread_pool();
+  void copy_pool_for_pfs(Relay_log_info *rli);
   int init(uint32 size);
   void destroy();
   void deactivate();
@@ -260,6 +344,27 @@ struct rpl_parallel_thread_pool {
 
 
 struct rpl_parallel_entry {
+  /*
+    A small struct to put worker threads references into a FIFO (using an
+    I_List) for round-robin scheduling.
+  */
+  struct sched_bucket : public ilink {
+    sched_bucket() : thr(nullptr) { }
+    rpl_parallel_thread *thr;
+  };
+  /*
+    A struct to keep track of into which "generation" an XA XID was last
+    scheduled. A "generation" means that we know that every worker thread
+    slot in the rpl_parallel_entry was scheduled at least once. When more
+    that two generations have passed, we can safely reuse the XID in a
+    different worker.
+  */
+  struct xid_active_generation {
+    uint64 generation;
+    sched_bucket *thr;
+    xid_t xid;
+  };
+
   mysql_mutex_t LOCK_parallel_entry;
   mysql_cond_t COND_parallel_entry;
   uint32 domain_id;
@@ -270,6 +375,7 @@ struct rpl_parallel_entry {
   */
   uint32 need_sub_id_signal;
   uint64 last_commit_id;
+  uint32 pending_start_alters;
   bool active;
   /*
     Set when SQL thread is shutting down, and no more events can be processed,
@@ -289,17 +395,36 @@ struct rpl_parallel_entry {
   uint64 stop_sub_id;
 
   /*
-    Cyclic array recording the last rpl_thread_max worker threads that we
+    Array recording the last rpl_thread_max worker threads that we
     queued event for. This is used to limit how many workers a single domain
     can occupy (--slave-domain-parallel-threads).
+
+    The array is structured as a FIFO using an I_List thread_sched_fifo.
 
     Note that workers are never explicitly deleted from the array. Instead,
     we need to check (under LOCK_rpl_thread) that the thread still belongs
     to us before re-using (rpl_thread::current_owner).
   */
-  rpl_parallel_thread **rpl_threads;
+  sched_bucket *rpl_threads;
+  I_List<sched_bucket> *thread_sched_fifo;
   uint32 rpl_thread_max;
-  uint32 rpl_thread_idx;
+  /*
+    Keep track of all XA XIDs that may still be active in a worker thread.
+    The elements are of type xid_active_generation.
+  */
+  DYNAMIC_ARRAY maybe_active_xid;
+  /*
+    Keeping track of the current scheduling generation.
+
+    A new generation means that every worker thread in the rpl_threads array
+    have been scheduled at least one event group.
+
+    When we have scheduled to slot current_generation_idx= 0, 1, ..., N-1 in this
+    order, we know that (at least) one generation has passed.
+  */
+  uint64 current_generation;
+  uint32 current_generation_idx;
+
   /*
     The sub_id of the last transaction to commit within this domain_id.
     Must be accessed under LOCK_parallel_entry protection.
@@ -352,11 +477,25 @@ struct rpl_parallel_entry {
   uint64 count_committing_event_groups;
   /* The group_commit_orderer object for the events currently being queued. */
   group_commit_orderer *current_gco;
+  /* Relay log info of replication source for this entry. */
+  Relay_log_info *rli;
 
+  void check_scheduling_generation(sched_bucket *cur);
+  sched_bucket *check_xa_xid_dependency(xid_t *xid);
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                      PSI_stage_info *old_stage, bool reuse);
+                                      PSI_stage_info *old_stage,
+                                      Gtid_log_event *gtid_ev);
+  rpl_parallel_thread *
+  choose_thread_internal(sched_bucket *cur_thr, bool *did_enter_cond,
+                         rpl_group_info *rgi, PSI_stage_info *old_stage);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
+  /*
+    the initial size of maybe_ array corresponds to the case of
+    each worker receives perhaps unlikely XA-PREPARE and XA-COMMIT within
+    the same generation.
+  */
+  inline uint active_xid_init_alloc() { return 3 * 2 * rpl_thread_max; }
 };
 struct rpl_parallel {
   HASH domain_hash;
@@ -366,7 +505,7 @@ struct rpl_parallel {
   rpl_parallel();
   ~rpl_parallel();
   void reset();
-  rpl_parallel_entry *find(uint32 domain_id);
+  rpl_parallel_entry *find(uint32 domain_id, Relay_log_info *rli);
   void wait_for_done(THD *thd, Relay_log_info *rli);
   void stop_during_until();
   int wait_for_workers_idle(THD *thd);
@@ -379,6 +518,7 @@ struct rpl_parallel {
 extern struct rpl_parallel_thread_pool global_rpl_thread_pool;
 
 
+extern void wait_for_pending_deadlock_kill(THD *thd, rpl_group_info *rgi);
 extern int rpl_parallel_resize_pool_if_no_slaves(void);
 extern int rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool);
 extern int rpl_parallel_inactivate_pool(rpl_parallel_thread_pool *pool);

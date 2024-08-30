@@ -613,7 +613,7 @@ let $rows = 1;
 --source suite/gcol/inc/gcol_supported_sql_funcs.inc
 
 --echo # WEIGHT_STRING()
-let $cols = a varchar(5), b varchar(10) generated always as (weight_string(a as char(4))) virtual;
+let $cols = a varchar(5), b varchar(20) generated always as (hex(weight_string(a as char(4)))) virtual;
 let $values1 = 'MySQL',default;
 let $rows = 1;
 --source suite/gcol/inc/gcol_supported_sql_funcs.inc
@@ -1191,18 +1191,6 @@ let $cols = a varchar(1024) default 'aaa', b varchar(1024) generated always as (
 let $values1 = 'any value',default;
 let $rows = 1;
 --source suite/gcol/inc/gcol_supported_sql_funcs.inc
-
---echo # DES_ENCRYPT(), DES_DECRYPT()
---source include/have_ssl_crypto_functs.inc
-let $cols = a varchar(1024), b varchar(1024) generated always as (des_encrypt(des_decrypt(a,'adf'),'adf')) virtual;
-let $values1 = 'MySQL',default;
---disable_warnings
-eval create table t1 ($cols);
-show create table t1;
---enable_warnings
-eval insert into t1 values ($values1);
-select * from t1;
-drop table t1;
 
 --echo # INET_ATON(), INET_NTOA()
 let $cols = a varchar(1024), b varchar(1024) generated always as (inet_ntoa(inet_aton(a))) virtual;

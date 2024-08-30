@@ -44,7 +44,7 @@ typedef struct {
 
 static ds_ctxt_t *buffer_init(const char *root);
 static ds_file_t *buffer_open(ds_ctxt_t *ctxt, const char *path,
-			      MY_STAT *mystat);
+			      const MY_STAT *mystat, bool rewrite);
 static int buffer_write(ds_file_t *file, const uchar *buf, size_t len);
 static int buffer_close(ds_file_t *file);
 static void buffer_deinit(ds_ctxt_t *ctxt);
@@ -53,8 +53,11 @@ datasink_t datasink_buffer = {
 	&buffer_init,
 	&buffer_open,
 	&buffer_write,
+	nullptr,
 	&buffer_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&buffer_deinit
 };
 
@@ -72,20 +75,22 @@ buffer_init(const char *root)
 	ds_ctxt_t		*ctxt;
 	ds_buffer_ctxt_t	*buffer_ctxt;
 
-	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t) + sizeof(ds_buffer_ctxt_t),
-			 MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED,
+                                sizeof(ds_ctxt_t) + sizeof(ds_buffer_ctxt_t), MYF(MY_FAE));
 	buffer_ctxt = (ds_buffer_ctxt_t *) (ctxt + 1);
 	buffer_ctxt->buffer_size = DS_DEFAULT_BUFFER_SIZE;
 
 	ctxt->ptr = buffer_ctxt;
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(PSI_NOT_INSTRUMENTED, root, MYF(MY_FAE));
 
 	return ctxt;
 }
 
 static ds_file_t *
-buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
+buffer_open(ds_ctxt_t *ctxt, const char *path,
+	const MY_STAT *mystat, bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_buffer_ctxt_t	*buffer_ctxt;
 	ds_ctxt_t		*pipe_ctxt;
 	ds_file_t		*dst_file;
@@ -102,9 +107,8 @@ buffer_open(ds_ctxt_t *ctxt, const char *path, MY_STAT *mystat)
 
 	buffer_ctxt = (ds_buffer_ctxt_t *) ctxt->ptr;
 
-	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
-				       sizeof(ds_buffer_file_t) +
-				       buffer_ctxt->buffer_size,
+	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ds_file_t) +
+				       sizeof(ds_buffer_file_t) + buffer_ctxt->buffer_size,
 				       MYF(MY_FAE));
 
 	buffer_file = (ds_buffer_file_t *) (file + 1);

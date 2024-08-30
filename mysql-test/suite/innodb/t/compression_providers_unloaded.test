@@ -1,0 +1,13 @@
+let $alg = $MTR_COMBINATIONS;
+
+--echo #
+--echo # Testing unloaded compression provider: $alg
+--echo #
+
+--echo # Innodb_have_$alg reflects that the provider is not loaded
+eval SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_$alg";
+
+--echo # Innodb_compression_algorithm cannot be set to $alg
+error ER_WRONG_VALUE_FOR_VAR;
+eval SET GLOBAL Innodb_compression_algorithm = $alg;
+show warnings;

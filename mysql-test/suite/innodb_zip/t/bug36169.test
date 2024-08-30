@@ -4,9 +4,7 @@
 #
 
 -- source include/innodb_page_size_small.inc
-
-let $file_per_table=`select @@innodb_file_per_table`;
-SET GLOBAL innodb_file_per_table=ON;
+--source include/test_db_charset_latin1.inc
 
 #
 # The following is copied from http://bugs.mysql.com/36169
@@ -1155,7 +1153,7 @@ DROP TABLE IF EXISTS table2;
 DROP TABLE IF EXISTS table3;
 DROP TABLE IF EXISTS table4;
 DROP TABLE IF EXISTS table5;
+-- enable_query_log
 DROP TABLE IF EXISTS table6;
 
-EVAL SET GLOBAL innodb_file_per_table=$file_per_table;
-SET sql_mode = default;
+--source include/test_db_charset_restore.inc

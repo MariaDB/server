@@ -1,0 +1,19 @@
+#
+# MDEV-25305: MyRocks: Killing server during RESET MASTER can lose last transactions
+#
+set global rocksdb_flush_log_at_trx_commit=1;
+create table t1 (a int, b int, key(a)) engine=rocksdb;
+insert into t1 values (1,1),(2,2);
+select * from t1;
+a	b
+1	1
+2	2
+flush tables;
+set @@debug_dbug="+d,crash_after_reset_master";
+RESET MASTER;
+# Must show the inserted rows:
+select * from t1;
+a	b
+1	1
+2	2
+drop table t1;

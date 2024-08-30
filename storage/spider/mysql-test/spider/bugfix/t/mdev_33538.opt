@@ -1,0 +1,2 @@
+--plugin-load-add=ha_spider
+--transaction-read-only=on

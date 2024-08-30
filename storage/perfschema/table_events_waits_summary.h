@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -57,6 +57,7 @@ struct row_events_waits_summary_by_instance
 class table_events_waits_summary_by_instance : public table_all_instr
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
@@ -66,16 +67,16 @@ protected:
   void make_instr_row(PFS_instr *pfs, PFS_instr_class *klass,
                       const void *object_instance_begin,
                       PFS_single_stat *pfs_stat);
-  virtual void make_mutex_row(PFS_mutex *pfs);
-  virtual void make_rwlock_row(PFS_rwlock *pfs);
-  virtual void make_cond_row(PFS_cond *pfs);
-  virtual void make_file_row(PFS_file *pfs);
-  virtual void make_socket_row(PFS_socket *pfs);
+  void make_mutex_row(PFS_mutex *pfs) override;
+  void make_rwlock_row(PFS_rwlock *pfs) override;
+  void make_cond_row(PFS_cond *pfs) override;
+  void make_file_row(PFS_file *pfs) override;
+  void make_socket_row(PFS_socket *pfs) override;
 
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_events_waits_summary_by_instance();
 

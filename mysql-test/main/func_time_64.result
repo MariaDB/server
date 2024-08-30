@@ -1,0 +1,156 @@
+#
+# Test dates close to upper range
+#
+set time_zone="+03:00";
+select from_unixtime(2147483648);
+from_unixtime(2147483648)
+2038-01-19 06:14:08
+select unix_timestamp(from_unixtime(2147483648));
+unix_timestamp(from_unixtime(2147483648))
+2147483648
+select from_unixtime(4294967295);
+from_unixtime(4294967295)
+2106-02-07 09:28:15
+select unix_timestamp(from_unixtime(4294967295));
+unix_timestamp(from_unixtime(4294967295))
+4294967295
+# bad year
+select unix_timestamp('2107-02-07 01:00:00');
+unix_timestamp('2107-02-07 01:00:00')
+NULL
+# bad month
+select unix_timestamp('2106-03-07 01:00:00');
+unix_timestamp('2106-03-07 01:00:00')
+NULL
+# bad day
+select unix_timestamp('2106-02-08 01:00:00');
+unix_timestamp('2106-02-08 01:00:00')
+NULL
+# check bad date, close to the boundary (we cut them off in the very end)
+select unix_timestamp('2038-01-19 07:14:07');
+unix_timestamp('2038-01-19 07:14:07')
+2147487247
+select unix_timestamp('2106-02-07 09:28:15');
+unix_timestamp('2106-02-07 09:28:15')
+4294967295
+select unix_timestamp('2106-02-07 09:28:16');
+unix_timestamp('2106-02-07 09:28:16')
+NULL
+set time_zone=MET;
+select unix_timestamp('2038-01-19 04:14:07'),
+unix_timestamp('2038-01-19 04:14:08'),
+unix_timestamp('2106-02-07 07:28:15'),
+unix_timestamp('2106-02-07 07:28:16');
+unix_timestamp('2038-01-19 04:14:07')	unix_timestamp('2038-01-19 04:14:08')	unix_timestamp('2106-02-07 07:28:15')	unix_timestamp('2106-02-07 07:28:16')
+2147483647	2147483648	4294967295	NULL
+set time_zone= @@global.time_zone;
+#
+# Functions that construct DATETIME
+#
+SET time_zone='+00:00';
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+CREATE TABLE t1 (id SERIAL, a DECIMAL(30,10));
+INSERT INTO t1 (a) VALUES
+(2147483647.9999999),
+(4294967295.999999),
+(4294967295.9999999);
+SELECT a, FROM_UNIXTIME(a) FROM t1 ORDER BY id;
+a	FROM_UNIXTIME(a)
+2147483647.9999999000	2038-01-19 03:14:08.000000
+4294967295.9999990000	2106-02-07 06:28:15.999999
+4294967295.9999999000	NULL
+DROP TABLE t1;
+set time_zone= @@global.time_zone;
+set sql_mode=default;
+#
+# Corner case:
+# ALTER TIMESTAMP to a shorter TIMESTAMP
+# All values round, maximum possible value truncates.
+#
+SET time_zone='+00:00';
+SET sql_mode=IF(@@version LIKE '%MariaDB%', 'TIME_ROUND_FRACTIONAL', '');
+CREATE TABLE t1 (ID INT, a TIMESTAMP(6), comment VARCHAR(64));
+INSERT INTO t1 VALUES (0, '2038-01-18 23:59:59.999999', 'Should round');
+INSERT INTO t1 VALUES (1, '2038-01-19 03:14:06.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2038-01-19 03:14:07.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2106-02-07 06:28:14.999999', 'Should round');
+INSERT INTO t1 VALUES (2, '2106-02-07 06:28:15.999999', 'Should truncate');
+ALTER TABLE t1 MODIFY a TIMESTAMP(5);
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 5
+SELECT * FROM t1;
+ID	a	comment
+0	2038-01-19 00:00:00.00000	Should round
+1	2038-01-19 03:14:07.00000	Should round
+2	2038-01-19 03:14:08.00000	Should round
+2	2106-02-07 06:28:15.00000	Should round
+2	2106-02-07 06:28:15.99999	Should truncate
+DROP TABLE t1;
+set time_zone= @@global.time_zone;
+set sql_mode=default;
+
+# Let us test range for TIMESTAMP
+#
+create table t1 (ts timestamp);
+set time_zone='UTC';
+insert into t1 values ('2038-01-19 03:14:07'),('2038-01-19 03:14:08');
+insert into t1 values ('2106-02-07 06:28:15'),('2106-02-07 06:28:16');
+Warnings:
+Warning	1264	Out of range value for column 'ts' at row 2
+select * from t1;
+ts
+2038-01-19 03:14:07
+2038-01-19 03:14:08
+2106-02-07 06:28:15
+0000-00-00 00:00:00
+truncate table t1;
+set time_zone='MET';
+insert into t1 values ('2038-01-19 04:14:07'),('2038-01-19 04:14:08');
+insert ignore into t1 values ('2106-02-07 07:28:15'),('2106-02-07 07:28:16');
+Warnings:
+Warning	1264	Out of range value for column 'ts' at row 2
+select * from t1;
+ts
+2038-01-19 04:14:07
+2038-01-19 04:14:08
+2106-02-07 07:28:15
+0000-00-00 00:00:00
+truncate table t1;
+set time_zone='+01:30';
+insert into t1 values ('2038-01-19 04:44:07'),('2038-01-19 04:44:08');
+insert ignore into t1 values ('2106-02-07 07:58:15'),('2106-02-07 07:58:16');
+Warnings:
+Warning	1264	Out of range value for column 'ts' at row 2
+select * from t1;
+ts
+2038-01-19 04:44:07
+2038-01-19 04:44:08
+2106-02-07 07:58:15
+0000-00-00 00:00:00
+drop table t1;
+SET time_zone='+00:00';
+CREATE TABLE t1 (ts0 TIMESTAMP, ts1 TIMESTAMP(1));
+INSERT INTO t1 VALUES ('2001-01-01 10:20:30', '2001-01-01 10:20:30.9');
+# Corner case
+UPDATE t1 SET ts1=FROM_UNIXTIME(2147483647.9);
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+ts0	ts1
+2038-01-19 03:14:07	2038-01-19 03:14:07.9
+UPDATE t1 SET ts1=FROM_UNIXTIME(4294963695.9);
+UPDATE t1 SET ts0=COALESCE(ts1);
+SELECT * FROM t1;
+ts0	ts1
+2106-02-07 05:28:15	2106-02-07 05:28:15.9
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+# Let us test CONVERT_TZ function
+select convert_tz('2038-01-19 04:14:08', 'MET', 'UTC');
+convert_tz('2038-01-19 04:14:08', 'MET', 'UTC')
+2038-01-19 03:14:08
+select convert_tz('2103-01-01 04:00:00', 'MET', 'UTC');
+convert_tz('2103-01-01 04:00:00', 'MET', 'UTC')
+2103-01-01 03:00:00
+select convert_tz('2106-02-07 07:28:15', 'MET', 'UTC');
+convert_tz('2106-02-07 07:28:15', 'MET', 'UTC')
+2106-02-07 06:28:15

@@ -1,7 +1,7 @@
 call mtr.add_suppression("InnoDB: Failed to set .*DIRECT");
 select @@innodb_flush_method;
 @@innodb_flush_method
-fsync
+O_DIRECT
 create table t(a serial) engine=innodb;
 FLUSH TABLES;
 # restart: --innodb-flush-method=5

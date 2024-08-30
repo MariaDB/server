@@ -5,6 +5,6 @@
 -- source include/master-slave.inc
 
 let $engine_type = 'MyISAM';
---source include/rpl_extra_col_master.test
+--source include/rpl_extra_col_master.inc
 
 --source include/rpl_end.inc

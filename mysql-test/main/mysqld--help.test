@@ -23,20 +23,26 @@ perl;
   # their paths may vary:
   @skipvars=qw/basedir open-files-limit general-log-file log plugin-dir plugin-maturity
                log-slow-queries pid-file slow-query-log-file log-basename
+               log-slow-query-file
                datadir slave-load-tmpdir tmpdir socket thread-pool-size
                large-files-support lower-case-file-system system-time-zone
                collation-server character-set-server log-tc-size table-cache
                table-open-cache table-open-cache-instances max-connections
-               tls-version version.*/;
+               server-uid tls-version version.* password-reuse-check
+               provider-bzip2 provider-lzma provider-lzo
+               password-reuse-check-interval/;
 
   # Plugins which may or may not be there:
-  @plugins=qw/innodb archive blackhole federated partition
+  @plugins=qw/innodb archive blackhole federated partition s3
               feedback debug temp-pool ssl des-key-file xtradb sequence
               thread-concurrency super-large-pages mutex-deadlock-detector
               connect null-audit aria oqgraph sphinx thread-handling
-              test-sql-discovery query-cache-info
+              test-sql-discovery query-cache-info password-reuse-check
               query-response-time metadata-lock-info locales unix-socket
-              wsrep file-key-management cracklib-password-check user-variables/;
+              wsrep file-key-management cracklib-password-check user-variables
+              provider-bzip2 provider-lzma provider-lzo
+              thread-pool-groups thread-pool-queues thread-pool-stats
+              thread-pool-waits hashicorp provider gssapi parsec/;
 
   # And substitute the content some environment variables with their
   # names:

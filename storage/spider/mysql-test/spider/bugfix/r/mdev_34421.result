@@ -1,0 +1,13 @@
+SET sql_mode='';
+INSTALL SONAME 'ha_spider';
+CREATE TABLE t (c INT) ENGINE=Spider PARTITION BY KEY(c) (PARTITION p);
+UNINSTALL SONAME IF EXISTS 'ha_spider';
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+INSERT INTO t SELECT 1;
+ERROR 42000: Unknown storage engine 'SPIDER'
+drop table t;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+Note	1305	PLUGIN SPIDER_ALLOC_MEM does not exist
+Note	1305	PLUGIN SPIDER_WRAPPER_PROTOCOLS does not exist

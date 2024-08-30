@@ -3,6 +3,7 @@ Variable_name	Value
 set @old_dbug=@@global.debug_dbug;
 set global debug_dbug="+d,role_merge_stats";
 create user foo@localhost;
+grant select on test.* to foo@localhost;
 create role role1;
 create role role2;
 create role role3;
@@ -30,6 +31,7 @@ ERROR HY000: Cannot grant role 'role10' to: 'role2'
 connect  foo, localhost, foo;
 show grants;
 Grants for foo@localhost
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT `role10` TO `foo`@`localhost`
 select * from information_schema.applicable_roles;
@@ -71,6 +73,7 @@ count(*)
 show grants;
 Grants for foo@localhost
 GRANT SELECT ON *.* TO `role1`
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role2`
@@ -139,6 +142,7 @@ count(*)
 show grants;
 Grants for foo@localhost
 GRANT SELECT ON `mysql`.* TO `role1`
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`
@@ -192,6 +196,7 @@ count(*)
 show grants;
 Grants for foo@localhost
 GRANT SELECT ON `mysql`.`roles_mapping` TO `role1`
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`
@@ -247,6 +252,7 @@ count(concat(User))
 show grants;
 Grants for foo@localhost
 GRANT SELECT (`User`) ON `mysql`.`roles_mapping` TO `role1`
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`
@@ -287,6 +293,7 @@ show grants;
 Grants for foo@localhost
 GRANT SELECT (`Host`) ON `mysql`.`roles_mapping` TO `role3`
 GRANT SELECT (`User`) ON `mysql`.`roles_mapping` TO `role1`
+GRANT SELECT ON `test`.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `foo`@`localhost`
 GRANT USAGE ON *.* TO `role10`
 GRANT USAGE ON *.* TO `role1`

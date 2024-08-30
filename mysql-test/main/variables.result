@@ -162,7 +162,6 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 Warnings:
 Note	1003	select @@IDENTITY AS `@@IDENTITY`,last_insert_id() AS `last_insert_id()`,@@identity AS `@@identity`
-set big_tables=OFF, big_tables=ON, big_tables=0, big_tables=1, big_tables="OFF", big_tables="ON";
 set global concurrent_insert=2;
 show variables like 'concurrent_insert';
 Variable_name	Value
@@ -188,24 +187,6 @@ set global concurrent_insert=DEFAULT;
 select @@concurrent_insert;
 @@concurrent_insert
 AUTO
-set global timed_mutexes=ON;
-Warnings:
-Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
-show variables like 'timed_mutexes';
-Variable_name	Value
-timed_mutexes	ON
-select * from information_schema.session_variables where variable_name like 'timed_mutexes';
-VARIABLE_NAME	VARIABLE_VALUE
-TIMED_MUTEXES	ON
-set global timed_mutexes=0;
-Warnings:
-Warning	1287	'@@timed_mutexes' is deprecated and will be removed in a future release
-show variables like 'timed_mutexes';
-Variable_name	Value
-timed_mutexes	OFF
-select * from information_schema.session_variables where variable_name like 'timed_mutexes';
-VARIABLE_NAME	VARIABLE_VALUE
-TIMED_MUTEXES	OFF
 set default_storage_engine=MYISAM, default_storage_engine="HEAP", global default_storage_engine="MERGE";
 show local variables like 'default_storage_engine';
 Variable_name	Value
@@ -422,18 +403,14 @@ SELECT @@version LIKE 'non-existent';
 SELECT @@version_compile_os LIKE 'non-existent';
 @@version_compile_os LIKE 'non-existent'
 0
-set big_tables=OFFF;
-ERROR 42000: Variable 'big_tables' can't be set to the value of 'OFFF'
-set big_tables="OFFF";
-ERROR 42000: Variable 'big_tables' can't be set to the value of 'OFFF'
 set unknown_variable=1;
 ERROR HY000: Unknown system variable 'unknown_variable'
 set max_join_size="hello";
 ERROR 42000: Incorrect argument type to variable 'max_join_size'
 set default_storage_engine=UNKNOWN_TABLE_TYPE;
 ERROR 42000: Unknown storage engine 'UNKNOWN_TABLE_TYPE'
-set default_storage_engine=MERGE, big_tables=2;
-ERROR 42000: Variable 'big_tables' can't be set to the value of '2'
+set default_storage_engine=MERGE, sql_warnings=NULL;
+ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'NULL'
 show local variables like 'default_storage_engine';
 Variable_name	Value
 default_storage_engine	MEMORY
@@ -456,10 +433,9 @@ ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and shoul
 set @@SQL_WARNINGS=NULL;
 ERROR 42000: Variable 'sql_warnings' can't be set to the value of 'NULL'
 set autocommit=1;
-set big_tables=1;
-select @@autocommit, @@big_tables;
-@@autocommit	@@big_tables
-1	1
+select @@autocommit;
+@@autocommit
+1
 set global binlog_cache_size=100;
 Warnings:
 Warning	1292	Truncated incorrect binlog_cache_size value: '100'
@@ -572,7 +548,7 @@ set default_storage_engine=myisam;
 set global thread_cache_size=100;
 set timestamp=1, timestamp=default;
 set tmp_table_size=1024;
-set tx_isolation="READ-COMMITTED";
+set transaction_isolation="READ-COMMITTED";
 set wait_timeout=100;
 set log_warnings=1;
 set global log_warnings=1;
@@ -724,7 +700,7 @@ t1	CREATE TABLE `t1` (
   `c3` mediumint(9) DEFAULT NULL,
   `c4` int(11) DEFAULT NULL,
   `c5` bigint(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @arg00= 8, @arg01= 8.8, @arg02= 'a string', @arg03= 0.2e0;
 create table t1 as select @arg00 as c1, @arg01 as c2, @arg02 as c3, @arg03 as c4;
@@ -735,7 +711,7 @@ t1	CREATE TABLE `t1` (
   `c2` decimal(65,38) DEFAULT NULL,
   `c3` longtext DEFAULT NULL,
   `c4` double DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET GLOBAL MYISAM_DATA_POINTER_SIZE= 7;
 SHOW VARIABLES LIKE 'MYISAM_DATA_POINTER_SIZE';
@@ -801,16 +777,16 @@ select @@lc_time_names;
 @@lc_time_names
 en_US
 LC_TIME_NAMES: testing locale with the last ID:
-set lc_time_names=110;
+set lc_time_names=112;
 select @@lc_time_names;
 @@lc_time_names
-rm_CH
+sw_KE
 LC_TIME_NAMES: testing a number beyond the valid ID range:
-set lc_time_names=111;
-ERROR HY000: Unknown locale: '111'
+set lc_time_names=113;
+ERROR HY000: Unknown locale: '113'
 select @@lc_time_names;
 @@lc_time_names
-rm_CH
+sw_KE
 LC_TIME_NAMES: testing that 0 is en_US:
 set lc_time_names=0;
 select @@lc_time_names;
@@ -883,7 +859,7 @@ select @@max_heap_table_size > 0;
 1
 select @@character_set_system;
 @@character_set_system
-utf8
+utf8mb3
 set global character_set_system = latin1;
 ERROR HY000: Variable 'character_set_system' is a read only variable
 set @@global.version_compile_os='234';
@@ -916,6 +892,8 @@ VARIABLE_NAME	VARIABLE_VALUE
 SQL_BIG_SELECTS	ON
 set @@sql_big_selects = @old_sql_big_selects;
 set @@sql_notes = 0, @@sql_warnings = 0;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 show variables like 'sql_notes';
 Variable_name	Value
 sql_notes	OFF
@@ -929,6 +907,8 @@ select * from information_schema.session_variables where variable_name like 'sql
 VARIABLE_NAME	VARIABLE_VALUE
 SQL_WARNINGS	OFF
 set @@sql_notes = 1, @@sql_warnings = 1;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 show variables like 'sql_notes';
 Variable_name	Value
 sql_notes	ON
@@ -1021,11 +1001,11 @@ hostname	#
 SET @@myisam_mmap_size= 500M;
 ERROR HY000: Variable 'myisam_mmap_size' is a read only variable
 #
-# Bug #52315: utc_date() crashes when system time > year 2037
+# Bug #52315: utc_date() crashes when system time > year 2106
 #
-SET TIMESTAMP=2*1024*1024*1024;
+SET TIMESTAMP=5*1024*1024*1024;
 Warnings:
-Warning	1292	Truncated incorrect timestamp value: '2147483648'
+Warning	1292	Truncated incorrect timestamp value: '5368709120'
 #Should not crash
 SELECT UTC_DATE();
 SET TIMESTAMP=DEFAULT;
@@ -1414,7 +1394,7 @@ Warning	1292	Truncated incorrect expire_logs_days value: '-1'
 needs to've been adjusted (0)
 SELECT @@global.expire_logs_days;
 @@global.expire_logs_days
-0
+0.000000
 SET GLOBAL expire_logs_days = 11;
 SET @old_mode=@@sql_mode;
 SET SESSION sql_mode = 'TRADITIONAL';
@@ -1423,7 +1403,7 @@ ERROR 42000: Variable 'expire_logs_days' can't be set to the value of '100'
 needs to be unchanged (11)
 SELECT @@global.expire_logs_days;
 @@global.expire_logs_days
-11
+11.000000
 SET SESSION sql_mode = @old_mode;
 SET GLOBAL expire_logs_days = 100;
 Warnings:
@@ -1431,13 +1411,13 @@ Warning	1292	Truncated incorrect expire_logs_days value: '100'
 needs to've been adjusted (99)
 SELECT @@global.expire_logs_days;
 @@global.expire_logs_days
-99
+99.000000
 SET GLOBAL expire_logs_days = 11;
 SET GLOBAL expire_logs_days = 99;
 needs to pass with no warnings (99)
 SELECT @@global.expire_logs_days;
 @@global.expire_logs_days
-99
+99.000000
 SET GLOBAL expire_logs_days = @old_eld;
 SET GLOBAL auto_increment_offset=-1;
 Warnings:
@@ -1532,9 +1512,6 @@ SET @@global.max_binlog_cache_size=DEFAULT;
 SET @@global.max_join_size=DEFAULT;
 SET @@global.key_buffer_size=@kbs;
 SET @@global.key_cache_block_size=@kcbs;
-select @@max_long_data_size > 0;
-@@max_long_data_size > 0
-1
 #
 # Bug#11766424  59527:
 # Assert in DECIMAL_BIN_SIZE: 
@@ -1576,7 +1553,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(1) unsigned NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 End of 5.1 tests
 
@@ -1588,6 +1565,8 @@ End of 5.1 tests
 SET @sql_notes_saved = @@sql_notes;
 
 SET @@sql_notes = ON;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 SELECT @@sql_notes;
 @@sql_notes
 1
@@ -1599,11 +1578,15 @@ SELECT @@sql_notes;
 1
 
 SET @@sql_notes = OFF;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 SELECT @@sql_notes;
 @@sql_notes
 0
 
 SET @@sql_notes = @sql_notes_saved;
+Warnings:
+Warning	1287	'@@sql_notes' is deprecated and will be removed in a future release. Please use '@@note_verbosity' instead
 
 # Checking delay_key_write...
 SET @delay_key_write_saved = @@delay_key_write;
@@ -1771,24 +1754,24 @@ drop function t1_max;
 #
 # Bug #59884: setting charset to 2048 crashes
 #
-set session character_set_results = 2048;
-ERROR 42000: Unknown character set: '2048'
-set session character_set_client=2048;
-ERROR 42000: Unknown character set: '2048'
-set session character_set_connection=2048;
-ERROR 42000: Unknown character set: '2048'
-set session character_set_server=2048;
-ERROR 42000: Unknown character set: '2048'
-set session collation_server=2048;
-ERROR HY000: Unknown collation: '2048'
-set session character_set_filesystem=2048;
-ERROR 42000: Unknown character set: '2048'
-set session character_set_database=2048;
-ERROR 42000: Unknown character set: '2048'
-set session collation_connection=2048;
-ERROR HY000: Unknown collation: '2048'
-set session collation_database=2048;
-ERROR HY000: Unknown collation: '2048'
+set session character_set_results = 4096;
+ERROR 42000: Unknown character set: '4096'
+set session character_set_client=4096;
+ERROR 42000: Unknown character set: '4096'
+set session character_set_connection=4096;
+ERROR 42000: Unknown character set: '4096'
+set session character_set_server=4096;
+ERROR 42000: Unknown character set: '4096'
+set session collation_server=4096;
+ERROR HY000: Unknown collation: '4096'
+set session character_set_filesystem=4096;
+ERROR 42000: Unknown character set: '4096'
+set session character_set_database=4096;
+ERROR 42000: Unknown character set: '4096'
+set session collation_connection=4096;
+ERROR HY000: Unknown collation: '4096'
+set session collation_database=4096;
+ERROR HY000: Unknown collation: '4096'
 set session rand_seed1=DEFAULT;
 ERROR 42000: Variable 'rand_seed1' doesn't have a default value
 set autocommit = value(v);

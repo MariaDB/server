@@ -1,0 +1,5 @@
+--ssl-key=
+--ssl-cert=
+--ssl-ca=
+--plugin-load-add=$AUTH_PARSEC_SO
+--loose-parsec

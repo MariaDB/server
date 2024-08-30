@@ -1,0 +1,101 @@
+*** Test two transactions in different domains committed in opposite order on slave but in a single group commit. ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+connection server_2;
+include/stop_slave.inc
+connection server_1;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+SET @old_format= @@SESSION.binlog_format;
+SET binlog_format='statement';
+SET gtid_domain_id=1;
+INSERT INTO t2 VALUES (foo(10,
+'commit_before_enqueue SIGNAL ready1 WAIT_FOR cont1',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready2'));
+connection server_2;
+FLUSH LOGS;
+SET sql_log_bin=0;
+CREATE FUNCTION foo(x INT, d1 VARCHAR(500), d2 VARCHAR(500))
+RETURNS INT DETERMINISTIC
+BEGIN
+IF d1 != '' THEN
+SET debug_sync = d1;
+END IF;
+IF d2 != '' THEN
+SET debug_sync = d2;
+END IF;
+RETURN x;
+END
+||
+SET sql_log_bin=1;
+SET @old_format=@@GLOBAL.binlog_format;
+SET GLOBAL binlog_format=statement;
+SET GLOBAL slave_parallel_threads=0;
+SET GLOBAL slave_parallel_threads=10;
+include/start_slave.inc
+SET debug_sync='now WAIT_FOR ready1';
+connection server_1;
+SET gtid_domain_id=2;
+INSERT INTO t2 VALUES (foo(11,
+'commit_before_enqueue SIGNAL ready3 WAIT_FOR cont3',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready4 WAIT_FOR cont4'));
+SET gtid_domain_id=0;
+SELECT * FROM t2 WHERE a >= 10 ORDER BY a;
+a
+10
+11
+connection server_2;
+SET debug_sync='now WAIT_FOR ready3';
+SET debug_sync='now SIGNAL cont3';
+SET debug_sync='now WAIT_FOR ready4';
+SET debug_sync='now SIGNAL cont1';
+SET debug_sync='now WAIT_FOR ready2';
+SET debug_sync='now SIGNAL cont4';
+SELECT * FROM t2 WHERE a >= 10 ORDER BY a;
+a
+10
+11
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000002	#	Binlog_checkpoint	#	#	slave-bin.000002
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (foo(11,
+'commit_before_enqueue SIGNAL ready3 WAIT_FOR cont3',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready4 WAIT_FOR cont4'))
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-# cid=#
+slave-bin.000002	#	Query	#	#	use `test`; INSERT INTO t2 VALUES (foo(10,
+'commit_before_enqueue SIGNAL ready1 WAIT_FOR cont1',
+'commit_after_release_LOCK_prepare_ordered SIGNAL ready2'))
+slave-bin.000002	#	Xid	#	#	COMMIT /* XID */
+FLUSH LOGS;
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL binlog_format=@old_format;
+connection server_1;
+DROP function foo;
+DROP TABLE t1,t2;
+SET DEBUG_SYNC= 'RESET';
+SET GLOBAL binlog_format=@old_format;
+include/rpl_end.inc

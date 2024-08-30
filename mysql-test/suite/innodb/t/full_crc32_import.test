@@ -2,6 +2,9 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 FLUSH TABLES;
 
 let $MYSQLD_TMPDIR = `SELECT @@tmpdir`;
@@ -15,6 +18,7 @@ CREATE TABLE t1
  c blob,
  KEY (b(200))) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 
+BEGIN;
 INSERT INTO t1 (b, c) values (repeat("ab", 200), repeat("bc", 200));
 INSERT INTO t1 (b, c) values (repeat("bc", 200), repeat("cd", 200));
 INSERT INTO t1 (b, c) values (repeat("cd", 200), repeat("ef", 200));
@@ -27,6 +31,7 @@ INSERT INTO t1 (b, c) values (repeat("ij", 200), repeat("kl", 200));
 INSERT INTO t1 (b, c) values (repeat("jk", 200), repeat("lm", 200));
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
 INSERT INTO t1 (b, c) SELECT b,c FROM t1 ORDER BY a;
+COMMIT;
 SELECT COUNT(*) FROM t1;
 
 FLUSH TABLE t1 FOR EXPORT;
@@ -58,6 +63,12 @@ ALTER TABLE t1 DROP INDEX b;
 ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
 SHOW CREATE TABLE t1;
+
+--echo # Auto increment value must be more than maximum column value
+SELECT MAX(a) FROM t1;
+SELECT auto_increment FROM information_schema.tables
+WHERE table_name like 't1';
+
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 --replace_column 9 #
 explain SELECT a FROM t1 where b = repeat("de", 100);
@@ -98,6 +109,7 @@ INSERT INTO t1(c2,c3) VALUES(
 	ST_GeomFromText('POINT(60 50)'),
 	ST_GeomFromText('LINESTRING(10 15,20 44,35 32)'));
 
+BEGIN;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
@@ -109,6 +121,7 @@ INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
 INSERT INTO t1(c2, c3) SELECT c2, c3 FROM t1;
+COMMIT;
 
 FLUSH TABLE t1 FOR EXPORT;
 --echo # List before copying files
@@ -138,6 +151,12 @@ ALTER TABLE t1 DROP INDEX idx1;
 ALTER TABLE t1 IMPORT TABLESPACE;
 --disable_warnings
 SHOW CREATE TABLE t1;
+
+--echo # Auto increment value must be more than maximum column value
+SELECT MAX(c1) FROM t1;
+SELECT auto_increment FROM information_schema.tables
+WHERE table_name like 't1';
+
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;
 DELETE FROM t1;
@@ -218,3 +237,4 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 SET GLOBAL innodb_compression_algorithm=@save_algo;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

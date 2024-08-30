@@ -1,0 +1,27 @@
+#
+# Testing mariabackup with bzip2 compression
+#
+# Creating table
+set global innodb_compression_algorithm = bzip2;
+create table t1 (a int, b text ) engine = innodb page_compressed = 1;
+insert t1 (a, b) values (0, repeat("abc", 100));
+insert t1 (a, b) values (1, repeat("def", 1000));
+insert t1 (a, b) values (2, repeat("ghi", 10000));
+select a, left(b, 9), length(b) from t1;
+a	left(b, 9)	length(b)
+0	abcabcabc	300
+1	defdefdef	3000
+2	ghighighi	30000
+# restart
+# xtrabackup backup
+# xtrabackup prepare;
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+select a, left(b, 9), length(b) from t1;
+a	left(b, 9)	length(b)
+0	abcabcabc	300
+1	defdefdef	3000
+2	ghighighi	30000
+drop table t1;

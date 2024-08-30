@@ -1,3 +1,4 @@
+usr/include/mariadb/server
 usr/lib/*/libmariadbd.a
 usr/lib/*/libmariadbd.so
 usr/lib/*/libmysqld.a

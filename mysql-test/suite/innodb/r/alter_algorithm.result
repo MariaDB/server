@@ -1,3 +1,6 @@
+#
+# sql_mode:    alter_algorithm: COPY
+#
 CREATE TABLE t1(f1 INT NOT NULL,
 f2 INT NOT NULL,
 f3 INT NULL,
@@ -5,45 +8,42 @@ f4 INT as (f2) STORED,
 f5 INT as (f3) STORED,
 PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
-SELECT @@alter_algorithm;
-@@alter_algorithm
-COPY
 # All the following cases needs table rebuild
 # Add and Drop primary key
-ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1);
+ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Make existing column NULLABLE
-ALTER TABLE t1 MODIFY f2 INT;
+ALTER TABLE t1 MODIFY f2 INT, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Drop Stored Column
-ALTER TABLE t1 DROP COLUMN f5;
+ALTER TABLE t1 DROP COLUMN f5, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Add base non-generated column as a last column in the compressed table
-ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL;
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Add base non-generated column but not in the last position
-ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3;
+ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Force the table to rebuild
-ALTER TABLE t1 FORCE;
+ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Row format changes
-ALTER TABLE t1 ROW_FORMAT=COMPRESSED;
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Engine table
-ALTER TABLE t1 ENGINE=INNODB;
+ALTER TABLE t1 ENGINE=INNODB, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 DROP TABLE t1;
 affected rows: 0
 CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
@@ -55,21 +55,21 @@ CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
 INDEX(f1),
 FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
-ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1;
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 DROP INDEX idx, page_compression_level=5;
+ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 ADD UNIQUE INDEX u1(f2);
+ALTER TABLE t1 ADD UNIQUE INDEX u1(f2), ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 DROP INDEX f4, page_compression_level=9;
+ALTER TABLE t1 DROP INDEX f4, page_compression_level=9, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 SET foreign_key_checks = 0;
 affected rows: 0
-ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1);
+ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1), ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t2, t1;
@@ -83,42 +83,390 @@ f3 VARCHAR(10),
 INDEX(f1))ENGINE=INNODB;
 INSERT INTO t1(f1, f2) VALUES(1, 1);
 # Add column at the end of the table
-ALTER TABLE t1 ADD COLUMN f4 char(100) default 'BIG WALL';
+ALTER TABLE t1 ADD COLUMN f4 char(100) default 'BIG WALL', ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Change virtual column expression
-ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL;
+ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Add virtual column
-ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL;
+ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Rename Column
-ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL;
+ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Rename table
-ALTER TABLE t1 RENAME t3;
+ALTER TABLE t1 RENAME t3, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Drop Virtual Column
-ALTER TABLE t3 DROP COLUMN vcol;
+ALTER TABLE t3 DROP COLUMN vcol, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 # Column length varies
-ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20);
+ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20), ALGORITHM=COPY;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 SET foreign_key_checks = 0;
 affected rows: 0
-ALTER TABLE t3 ADD FOREIGN KEY fidx(f2) REFERENCES t2(f1);
+ALTER TABLE t3 ADD FOREIGN KEY fidx(f2) REFERENCES t2(f1), ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 SET foreign_key_checks = 1;
 affected rows: 0
-ALTER TABLE t3 DROP FOREIGN KEY fidx;
+ALTER TABLE t3 DROP FOREIGN KEY fidx, ALGORITHM=COPY;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
+DROP TABLE t3, t2;
+affected rows: 0
+#
+# sql_mode:    alter_algorithm: INPLACE
+#
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT NULL,
+f4 INT as (f2) STORED,
+f5 INT as (f3) STORED,
+PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+# All the following cases needs table rebuild
+# Add and Drop primary key
+ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Make existing column NULLABLE
+ALTER TABLE t1 MODIFY f2 INT, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Drop Stored Column
+ALTER TABLE t1 DROP COLUMN f5, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Add base non-generated column as a last column in the compressed table
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Add base non-generated column but not in the last position
+ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Force the table to rebuild
+ALTER TABLE t1 FORCE, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Row format changes
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Engine table
+ALTER TABLE t1 ENGINE=INNODB, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+INDEX(f1),
+FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD UNIQUE INDEX u1(f2), ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 DROP INDEX f4, page_compression_level=9, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1), ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t2, t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+INDEX idx (f2))engine=innodb;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 VARCHAR(10),
+INDEX(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2) VALUES(1, 1);
+# Add column at the end of the table
+ALTER TABLE t1 ADD COLUMN f4 char(100) default 'BIG WALL', ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Change virtual column expression
+ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Add virtual column
+ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename Column
+ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename table
+ALTER TABLE t1 RENAME t3, ALGORITHM=INPLACE;
+affected rows: 0
+# Drop Virtual Column
+ALTER TABLE t3 DROP COLUMN vcol, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Column length varies
+ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20), ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t3 ADD FOREIGN KEY fidx(f2) REFERENCES t2(f1), ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 1;
+affected rows: 0
+ALTER TABLE t3 DROP FOREIGN KEY fidx, ALGORITHM=INPLACE;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t3, t2;
+affected rows: 0
+#
+# sql_mode:    alter_algorithm: NOCOPY
+#
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT NULL,
+f4 INT as (f2) STORED,
+f5 INT as (f3) STORED,
+PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+# All the following cases needs table rebuild
+# Add and Drop primary key
+ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Make existing column NULLABLE
+ALTER TABLE t1 MODIFY f2 INT, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Drop Stored Column
+ALTER TABLE t1 DROP COLUMN f5, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Add base non-generated column as a last column in the compressed table
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Add base non-generated column but not in the last position
+ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Force the table to rebuild
+ALTER TABLE t1 FORCE, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Row format changes
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED, ALGORITHM=NOCOPY;
+Got one of the listed errors
+# Engine table
+ALTER TABLE t1 ENGINE=INNODB, ALGORITHM=NOCOPY;
+Got one of the listed errors
+ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+INDEX(f1),
+FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 ADD UNIQUE INDEX u1(f2), ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+ALTER TABLE t1 DROP INDEX f4, page_compression_level=9, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1), ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t2, t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+INDEX idx (f2))engine=innodb;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 VARCHAR(10),
+INDEX(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2) VALUES(1, 1);
+# Add column at the end of the table
+ALTER TABLE t1 ADD COLUMN f4 char(100) default 'BIG WALL', ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Change virtual column expression
+ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Add virtual column
+ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename Column
+ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename table
+ALTER TABLE t1 RENAME t3, ALGORITHM=NOCOPY;
+affected rows: 0
+# Drop Virtual Column
+ALTER TABLE t3 DROP COLUMN vcol, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Column length varies
+ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20), ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t3 ADD FOREIGN KEY fidx(f2) REFERENCES t2(f1), ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 1;
+affected rows: 0
+ALTER TABLE t3 DROP FOREIGN KEY fidx, ALGORITHM=NOCOPY;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t3, t2;
+affected rows: 0
+#
+# sql_mode:    alter_algorithm: INSTANT
+#
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT NULL,
+f4 INT as (f2) STORED,
+f5 INT as (f3) STORED,
+PRIMARY KEY(f1))ROW_FORMAT=COMPRESSED, ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f3) VALUES(1, 1, 1);
+# All the following cases needs table rebuild
+# Add and Drop primary key
+ALTER TABLE t1 ADD COLUMN col1 INT NOT NULL,DROP PRIMARY KEY,ADD PRIMARY KEY(col1), ALGORITHM=INSTANT;
+Got one of the listed errors
+# Make existing column NULLABLE
+ALTER TABLE t1 MODIFY f2 INT, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Drop Stored Column
+ALTER TABLE t1 DROP COLUMN f5, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Add base non-generated column as a last column in the compressed table
+ALTER TABLE t1 ADD COLUMN f6 INT NOT NULL, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Add base non-generated column but not in the last position
+ALTER TABLE t1 ADD COLUMN f7 INT NOT NULL after f3, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Force the table to rebuild
+ALTER TABLE t1 FORCE, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Row format changes
+ALTER TABLE t1 ROW_FORMAT=COMPRESSED, ALGORITHM=INSTANT;
+Got one of the listed errors
+# Engine table
+ALTER TABLE t1 ENGINE=INNODB, ALGORITHM=INSTANT;
+Got one of the listed errors
+ALTER TABLE t1 FORCE, ALGORITHM=DEFAULT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+DROP TABLE t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT PRIMARY KEY, f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+f4 INT NOT NULL UNIQUE,
+f5 INT NOT NULL,
+INDEX idx(f2))ENGINE=INNODB;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+INDEX(f1),
+FOREIGN KEY fidx(f1) REFERENCES t1(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2, f4, f5) VALUES(1, 2, 3, 4);
+ALTER TABLE t1 ADD INDEX idx1(f4), page_compressed=1, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 DROP INDEX idx, page_compression_level=5, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 ADD UNIQUE INDEX u1(f2), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+ALTER TABLE t1 DROP INDEX f4, page_compression_level=9, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: DROP INDEX. Try ALGORITHM=NOCOPY
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t1 ADD FOREIGN KEY(f5) REFERENCES t2(f1), ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
+DROP TABLE t2, t1;
+affected rows: 0
+CREATE TABLE t1(f1 INT NOT NULL,
+f2 INT NOT NULL,
+f3 INT AS (f2 * f2) VIRTUAL,
+INDEX idx (f2))engine=innodb;
+CREATE TABLE t2(f1 INT NOT NULL, f2 INT NOT NULL,
+f3 VARCHAR(10),
+INDEX(f1))ENGINE=INNODB;
+INSERT INTO t1(f1, f2) VALUES(1, 1);
+# Add column at the end of the table
+ALTER TABLE t1 ADD COLUMN f4 char(100) default 'BIG WALL', ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Change virtual column expression
+ALTER TABLE t1 CHANGE f3 f3 INT AS (f2 * f2) VIRTUAL, ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Add virtual column
+ALTER TABLE t1 ADD COLUMN f5 INT AS (f2) VIRTUAL, ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename Column
+ALTER TABLE t1 CHANGE f3 vcol INT AS (f2) VIRTUAL, ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Rename table
+ALTER TABLE t1 RENAME t3, ALGORITHM=INSTANT;
+affected rows: 0
+# Drop Virtual Column
+ALTER TABLE t3 DROP COLUMN vcol, ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+# Column length varies
+ALTER TABLE t2 CHANGE f3 f3 VARCHAR(20), ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 0;
+affected rows: 0
+ALTER TABLE t3 ADD FOREIGN KEY fidx(f2) REFERENCES t2(f1), ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
+SET foreign_key_checks = 1;
+affected rows: 0
+ALTER TABLE t3 DROP FOREIGN KEY fidx, ALGORITHM=INSTANT;
+affected rows: 0
+info: Records: 0  Duplicates: 0  Warnings: 0
 DROP TABLE t3, t2;
 affected rows: 0

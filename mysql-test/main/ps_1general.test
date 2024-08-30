@@ -60,7 +60,7 @@ select * from t1 where a = @var ;
 
 # 3. DEALLOCATE PREPARE stmt_name;
 #
-#    Send the server the order to drop the parse informations.
+#    Send the server the order to drop the parse information.
 #    The server will reply with "Query Ok" or an error message.
 DEALLOCATE PREPARE stmt ;
 
@@ -406,19 +406,16 @@ deallocate prepare stmt_do ;
 deallocate prepare stmt_set ;
 
 ## nonsense like prepare of prepare,execute or deallocate
---error ER_UNSUPPORTED_PS 
+--error ER_UNSUPPORTED_PS
 prepare stmt1 from ' prepare stmt2 from '' select 1 ''  ' ;
---error ER_UNSUPPORTED_PS 
+--error ER_UNSUPPORTED_PS
 prepare stmt1 from ' execute stmt2 ' ;
---error ER_UNSUPPORTED_PS 
+--error ER_UNSUPPORTED_PS
 prepare stmt1 from ' deallocate prepare never_prepared ' ;
 
-## We don't support alter view as prepared statements
---error ER_UNSUPPORTED_PS
 prepare stmt1 from 'alter view v1 as select 2';
 
 ## switch the database connection
---error ER_UNSUPPORTED_PS
 prepare stmt4 from ' use test ' ;
 
 ## create/drop database
@@ -435,18 +432,17 @@ drop table t2 ;
 --error ER_NO_SUCH_TABLE
 execute stmt3;
 ## lock/unlock
---error ER_UNSUPPORTED_PS
 prepare stmt3 from ' lock tables t1 read ' ;
---error ER_UNSUPPORTED_PS
 prepare stmt3 from ' unlock tables ' ;
 ## Load/Unload table contents
 
 --let $datafile = $MYSQLTEST_VARDIR/tmp/data.txt
+--disable_warnings
 --error 0,1
 --remove_file $datafile
+--enable_warnings
 
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
---error ER_UNSUPPORTED_PS
 eval prepare stmt1 from ' load data infile ''$datafile''
      into table t1 fields terminated by ''\t'' ';
 --replace_result $MYSQLTEST_VARDIR <MYSQLTEST_VARDIR>
@@ -461,7 +457,6 @@ prepare stmt1 from ' repair table t1 ' ;
 --remove_file $datafile
 
 ## handler
---error ER_UNSUPPORTED_PS
 prepare stmt1 from ' handler t1 open ';
 
 
@@ -504,7 +499,7 @@ prepare stmt1 from ' explain select a from t1 order by b ';
 execute stmt1;
 --disable_metadata
 SET @arg00=1 ;
-prepare stmt1 from ' explain select a from t1 where a > ? order by b ';
+prepare stmt1 from ' explain select a from t1 force index (primary) where a > ? order by b ';
 --enable_metadata
 --replace_result 4096 4_OR_8_K 8192 4_OR_8_K
 execute stmt1 using @arg00;
@@ -579,10 +574,12 @@ drop table if exists new_t2;
 --enable_warnings
 prepare stmt3 from ' rename table t2 to new_t2 ';
 execute stmt3;
+--error ER_NO_SUCH_TABLE
+execute stmt3;
+create table t2 like new_t2;
 --error ER_TABLE_EXISTS_ERROR
 execute stmt3;
-rename table new_t2 to t2;
-drop table t2;
+drop table new_t2,t2;
 ## RENAME more than on TABLE within one statement
 # cases derived from client_test.c: test_rename()
 prepare stmt1 from ' rename table t5 to t6, t7 to t8 ' ;
@@ -593,7 +590,7 @@ create table t7 (a int) ;
 # rename, t5 -> t6 and t7 -> t8
 execute stmt1 ;
 # rename must fail, t5 and t7 does not exist t6 and t8 already exist
---error ER_TABLE_EXISTS_ERROR
+--error ER_NO_SUCH_TABLE
 execute stmt1 ;
 rename table t6 to t5, t8 to t7 ;
 # rename, t5 -> t6 and t7 -> t8

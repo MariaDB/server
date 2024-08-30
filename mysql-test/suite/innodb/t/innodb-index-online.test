@@ -2,15 +2,16 @@
 --source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/no_valgrind_without_big.inc
 
+SET GLOBAL innodb_monitor_reset_all=all;
+--disable_warnings
+SET GLOBAL innodb_monitor_reset_all=default;
+--enable_warnings
 let $innodb_metrics_select=
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
-
-# DISCARD TABLESPACE needs file-per-table
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
 
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
@@ -28,7 +29,6 @@ SET DEBUG_SYNC = 'write_row_noreplace SIGNAL have_handle WAIT_FOR go_ahead';
 INSERT INTO t1 VALUES(1,2,3);
 
 connect (con1,localhost,root,,);
-connection con1;
 
 # This should block at the end because of the INSERT in connection default
 # is holding a metadata lock.
@@ -99,7 +99,8 @@ eval $innodb_metrics_select;
 # Insert a duplicate entry (4) for the already started UNIQUE INDEX(c2).
 BEGIN;
 INSERT INTO t1 VALUES(7,4,2);
-ROLLBACK;
+COMMIT;
+DELETE FROM t1 where c1 = 7;
 SET DEBUG_SYNC = 'now SIGNAL rollback_done';
 
 connection con1;
@@ -122,7 +123,7 @@ INSERT INTO t1 VALUES(6,3,1);
 SET DEBUG_SYNC = 'now SIGNAL dml_done';
 connection con1;
 # This is due to the duplicate entry (6,3,1).
---error ER_DUP_UNKNOWN_IN_INDEX
+--error ER_DUP_ENTRY
 reap;
 DELETE FROM t1 WHERE c1=6;
 ALTER TABLE t1 ADD UNIQUE INDEX(c2);
@@ -157,6 +158,7 @@ let $ID= `SELECT @id := CONNECTION_ID()`;
 --error ER_QUERY_INTERRUPTED
 KILL QUERY @id;
 
+SET GLOBAL innodb_max_purge_lag_wait=0;
 SET DEBUG_SYNC = 'row_log_apply_before SIGNAL c2d_created WAIT_FOR kill_done';
 --send
 CREATE INDEX c2d ON t1(c2);
@@ -208,13 +210,13 @@ SHOW CREATE TABLE t1;
 
 connection default;
 SET @merge_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_0=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 connection con1;
 
@@ -238,17 +240,11 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
 eval $innodb_metrics_select;
-let $c= 4;
+let $c= 8;
 while ($c)
 {
-  BEGIN;
-  DELETE FROM t1;
-  ROLLBACK;
   UPDATE t1 SET c2 = c2 + 1;
-  BEGIN;
-  UPDATE t1 SET c2 = c2 + 1;
-  DELETE FROM t1;
-  ROLLBACK;
+  UPDATE t1 SET c2 = c2 + 2;
   dec $c;
 }
 # Incomplete index c2e should exist until the DDL thread notices the overflow.
@@ -259,13 +255,13 @@ INNER JOIN INFORMATION_SCHEMA.INNODB_SYS_FIELDS sf
 ON si.index_id = sf.index_id WHERE si.name = '?c2e';
 
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 
 SELECT
@@ -302,16 +298,16 @@ ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 eval $innodb_metrics_select;
 
 SET @merge_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_1=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
 connection con1;
@@ -324,17 +320,16 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 # Generate some log (delete-mark, delete-unmark, insert etc.)
 eval $innodb_metrics_select;
-let $c= 2;
+let $c= 6;
 while ($c)
 {
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 160;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
+COMMIT;
 BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 dec $c;
 }
 eval $innodb_metrics_select;
@@ -349,16 +344,16 @@ eval $innodb_metrics_select;
 connection default;
 
 SET @merge_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_encrypted');
 SET @merge_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_merge_blocks_decrypted');
 SET @rowlog_encrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_encrypted');
 SET @rowlog_decrypt_2=
-(SELECT variable_value FROM information_schema.global_status
+(SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
 SELECT
@@ -375,6 +370,8 @@ SELECT
 connection con1;
 SELECT COUNT(c22f) FROM t1;
 CHECK TABLE t1;
+# Avoid a strange DEBUG_SYNC timeout on c3p5_created.
+SET GLOBAL innodb_max_purge_lag_wait=0;
 
 # Create a column prefix index.
 --error ER_DUP_ENTRY
@@ -430,7 +427,6 @@ connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR c2g_created';
 
 connect (con2,localhost,root,,);
-connection con2;
 
 # This will conflict with the ALTER in connection default, above.
 SET lock_wait_timeout = 10;
@@ -479,7 +475,6 @@ send ALTER TABLE t1 ADD UNIQUE(c);
 
 connection con1;
 SET DEBUG_SYNC = 'now WAIT_FOR t1u_created';
-BEGIN;
 INSERT INTO t1 VALUES('bar'),('bar');
 SET DEBUG_SYNC = 'now SIGNAL dup_done';
 
@@ -489,16 +484,40 @@ reap;
 
 SET DEBUG_SYNC = 'RESET';
 disconnect con1;
+
 CREATE TABLE t2 (c VARCHAR(64)) ENGINE=InnoDB;
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t2 ADD FOREIGN KEY (c) REFERENCES t1 (c);
 DROP TABLE t2,t1;
 
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,0);
+
+connect (con1,localhost,root,,);
+SET DEBUG_SYNC = 'row_log_apply_before SIGNAL created WAIT_FOR inserted';
+send ALTER TABLE t1 ADD INDEX(b);
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR created';
+BEGIN;
+INSERT INTO t1 VALUES(1,1);
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL inserted';
+
+connection con1;
+reap;
+disconnect con1;
+
+connection default;
+SELECT * FROM t1;
+CHECK TABLE t1;
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
+
 # Check that all connections opened by test cases in this file are really
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
 
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;

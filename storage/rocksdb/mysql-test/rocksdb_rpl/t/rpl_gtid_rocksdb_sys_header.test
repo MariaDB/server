@@ -5,12 +5,12 @@ source include/have_gtid.inc;
 source include/have_debug.inc;
 source include/not_valgrind.inc;
 
---let $old_debug = `select @@global.debug;`
+--let $old_debug = `select @@global.debug_dbug;`
 
 connection master;
 create table t1 (a int primary key) engine=rocksdb;
 insert into t1 values(1);
---eval SET GLOBAL debug = '+d,crash_before_writing_xid'
+--eval SET GLOBAL debug_dbug = '+d,crash_before_writing_xid'
 --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --error 2013
 insert into t1 values(2);
@@ -19,7 +19,7 @@ insert into t1 values(2);
 --let $rpl_server_number = 1
 --source include/rpl_reconnect.inc
 
---eval SET GLOBAL debug = `$old_debug`
+--eval SET GLOBAL debug_dbug = `$old_debug`
 
 connection slave;
 disable_warnings;

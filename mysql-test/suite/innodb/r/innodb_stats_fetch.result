@@ -131,16 +131,16 @@ FROM information_schema.statistics WHERE table_name = 'test_ps_fetch'
 ORDER BY index_name, seq_in_index;
 seq_in_index	1
 column_name	c
-cardinality	6
+cardinality	3
 seq_in_index	2
 column_name	d
-cardinality	22
+cardinality	11
 seq_in_index	1
 column_name	a
-cardinality	40
+cardinality	20
 seq_in_index	2
 column_name	b
-cardinality	200
+cardinality	90
 SELECT
 table_rows, avg_row_length, max_data_length, index_length
 FROM information_schema.tables WHERE table_name = 'test_ps_fetch';
@@ -174,3 +174,20 @@ SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_VIRTUAL LIMIT ROWS EXAMINED 5;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN LIMIT ROWS EXAMINED 5;
 SELECT * FROM INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS LIMIT ROWS EXAMINED 5;
 DROP TABLE t1;
+#
+# MDEV-33462 Disallow LOCK=NONE operation on statistics table
+#
+ALTER TABLE mysql.innodb_table_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: innodb_table_stats. Try LOCK=SHARED
+ALTER TABLE mysql.innodb_index_stats FORCE, LOCK=NONE, ALGORITHM=INPLACE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: innodb_index_stats. Try LOCK=SHARED
+#
+#  MDEV-34474 InnoDB: Failing assertion: stat_n_leaf_pages > 0
+#           in ha_innobase::estimate_rows_upper_bound
+#
+CREATE TABLE t (c1 INT,c2 INT,
+INDEX(c1))STATS_PERSISTENT=1 ENGINE=INNODB;
+UPDATE mysql.innodb_index_stats SET stat_value=0 WHERE database_name like "test" and table_name like 't';
+UPDATE mysql.innodb_table_stats SET clustered_index_size= 0, sum_of_other_index_sizes=0 WHERE database_name like "test" and table_name like 't';
+UPDATE t SET c1=+1 ORDER BY c2;
+DROP TABLE t;

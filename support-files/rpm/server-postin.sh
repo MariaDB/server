@@ -51,7 +51,7 @@ if [ $1 = 1 ] ; then
     mkdir -p $datadir
 
     # Initiate databases
-    %{_bindir}/mysql_install_db --rpm --user=%{mysqld_user}
+    %{_bindir}/mariadb-install-db --rpm --user=%{mysqld_user}
   fi
 
   # Change permissions again to fix any new files.
@@ -68,10 +68,10 @@ SEDOMPROG=$SETARGETDIR/domains/program
 SECONPROG=$SETARGETDIR/file_contexts/program
 
 if [ -x /usr/sbin/semodule ] ; then
-  /usr/sbin/semodule -i /usr/share/mysql/policy/selinux/mariadb.pp
+  /usr/sbin/semodule -i /usr/share/mariadb/policy/selinux/mariadb.pp
 fi
 
-if [ -x /sbin/restorecon ] ; then
+if [ -x /sbin/restorecon -a -d /var/lib/mysql ] ; then
 	/sbin/restorecon -R /var/lib/mysql
 fi
 

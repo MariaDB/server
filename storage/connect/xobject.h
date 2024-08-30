@@ -75,17 +75,17 @@ class DllExport XVOID : public XOBJECT {
   XVOID(void) {Constant = true;}
 
   // Implementation
-  virtual int    GetType(void) {return TYPE_VOID;}
-  virtual int    GetLength(void) {return 0;}
-  virtual int    GetLengthEx(void) {return 0;}
-  virtual PSZ    GetCharValue(void) {return NULL;}
-  virtual int    GetIntValue(void) {return 0;}
-  virtual double GetFloatValue(void) {return 0.0;}
-  virtual int    GetScale() {return 0;}
+  int    GetType(void) override {return TYPE_VOID;}
+  int    GetLength(void) override {return 0;}
+  int    GetLengthEx(void) override {return 0;}
+  PSZ    GetCharValue(void) override {return NULL;}
+  int    GetIntValue(void) override {return 0;}
+  double GetFloatValue(void) override {return 0.0;}
+  int    GetScale() override {return 0;}
 
   // Methods
-  virtual bool   Compare(PXOB xp) {return xp->GetType() == TYPE_VOID;}
-  virtual bool   SetFormat(PGLOBAL, FORMAT&) {return true;}
+  bool   Compare(PXOB xp) override {return xp->GetType() == TYPE_VOID;}
+  bool   SetFormat(PGLOBAL, FORMAT&) override {return true;}
   }; // end of class XVOID
 
 
@@ -100,20 +100,20 @@ class DllExport CONSTANT : public XOBJECT {
   CONSTANT(PVAL valp) {Value = valp; Constant = true;}
 
   // Implementation
-  virtual int    GetType(void) {return TYPE_CONST;}
-  virtual int    GetResultType(void) {return Value->Type;}
-  virtual int    GetLength(void) {return Value->GetValLen();}
-  virtual int    GetScale() {return Value->GetValPrec();}
-  virtual int    GetLengthEx(void);
+  int    GetType(void) override {return TYPE_CONST;}
+  int    GetResultType(void) override {return Value->Type;}
+  int    GetLength(void) override {return Value->GetValLen();}
+  int    GetScale() override {return Value->GetValPrec();}
+  int    GetLengthEx(void) override;
 
   // Methods
-  virtual bool   Compare(PXOB xp);
-  virtual bool   SetFormat(PGLOBAL g, FORMAT& fmt)
+  bool   Compare(PXOB xp) override;
+  bool   SetFormat(PGLOBAL g, FORMAT& fmt) override
                  {return Value->SetConstFormat(g, fmt);}
           void   Convert(PGLOBAL g, int newtype);
           void   SetValue(PVAL vp) {Value = vp;}
-  virtual void   Printf(PGLOBAL g, FILE *, uint);
-  virtual void   Prints(PGLOBAL g, char *, uint);
+  void   Printf(PGLOBAL g, FILE *, uint) override;
+  void   Prints(PGLOBAL g, char *, uint) override;
   }; // end of class CONSTANT
 
 /***********************************************************************/

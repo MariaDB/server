@@ -215,7 +215,7 @@ DROP TABLE t1;
 --echo #
 
 CREATE TABLE t1 (a int, b varchar(1), c varchar(1), INDEX idx(b));
-INSERT INTO t1 VALUES (2,'x','x'), (5,'x','y');
+INSERT INTO t1 VALUES (2,'x','x'), (5,'x','y'), (6,'a','b'), (7,'a','b');
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN

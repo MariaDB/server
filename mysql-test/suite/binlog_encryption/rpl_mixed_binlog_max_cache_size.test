@@ -3,5 +3,5 @@
 --source include/not_windows.inc
 --source include/have_binlog_format_mixed.inc
 
---source suite/rpl/include/rpl_binlog_max_cache_size.test
+--source suite/rpl/include/rpl_binlog_max_cache_size.inc
 --source include/rpl_end.inc

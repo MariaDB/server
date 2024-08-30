@@ -1,0 +1,9 @@
+/etc/init.d/mariadb\[[0-9]+\]: Check that mariadbd is running and that the socket: '/run/mysqld/mysqld.sock' exists\!$
+/etc/init.d/mariadb\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/mysql/debian-start\[[0-9]+\]: Checking for crashed MySQL tables\.$
+mariadbd\[[0-9]+\]: $
+mariadbd\[[0-9]+\]: Version: .* socket: '/run/mysqld/mysqld.sock'  port: 3306$
+mariadbd\[[0-9]+\]: Warning: Ignoring user change to 'mysql' because the user was set to 'mysql' earlier on the command line$
+mysqld_safe\[[0-9]+\]: started$
+usermod\[[0-9]+\]: change user `mysql' GID from `([0-9]+)' to `\1'$
+usermod\[[0-9]+\]: change user `mysql' shell from `/bin/false' to `/bin/false'$

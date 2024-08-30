@@ -35,51 +35,51 @@ endif()
 # Optional compression libraries.
 
 include(CheckFunctionExists)
-macro(check_lib package var)
-  STRING(TOUPPER ${package} PACKAGE_NAME)
+macro(check_lib package)
   SET(WITH_ROCKSDB_${package} AUTO CACHE STRING
         "Build RocksDB  with ${package} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
 
+  STRING(TOUPPER ${package} var)
   IF (NOT ${WITH_ROCKSDB_${package}} STREQUAL "OFF")
     FIND_PACKAGE(${package} QUIET)
-    SET(HAVE_ROCKSDB_${PACKAGE_NAME} TRUE)
-    IF (${${PACKAGE_NAME}_FOUND})
-      IF(${ARGC} GREATER 2)
+    SET(HAVE_ROCKSDB_${package} TRUE)
+    IF (${${package}_FOUND})
+      IF(${ARGC} GREATER 1)
         SET(CMAKE_REQUIRED_LIBRARIES ${${var}_LIBRARIES})
-        CHECK_FUNCTION_EXISTS(${ARGV2} ${var}_VALID)
+        CHECK_FUNCTION_EXISTS(${ARGV1} ${package}_VALID)
         UNSET(CMAKE_REQUIRED_LIBRARIES)
       ELSE()
-        SET(${var}_VALID TRUE)
+        SET(${package}_VALID TRUE)
       ENDIF()
     ENDIF()
   ENDIF()
-  ADD_FEATURE_INFO(ROCKSDB_${PACKAGE_NAME} HAVE_ROCKSDB_${PACKAGE_NAME} "${package} Compression in the RocksDB storage engine")
+  ADD_FEATURE_INFO(ROCKSDB_${package} HAVE_ROCKSDB_${package} "${package} Compression in the RocksDB storage engine")
 
-  IF(${${var}_VALID})
-    MESSAGE_ONCE(rocksdb_${var} "Found ${package}: ${${var}_LIBRARIES}")
-    add_definitions(-D${PACKAGE_NAME})
+  IF(${${package}_VALID})
+    MESSAGE_ONCE(rocksdb_${package} "Found ${package}: ${${var}_LIBRARIES}")
+    add_definitions(-D${var})
     include_directories(${${var}_INCLUDE_DIR})
     list(APPEND THIRDPARTY_LIBS ${${var}_LIBRARIES})
-  ELSEIF(${${PACKAGE_NAME}_FOUND})
-    MESSAGE_ONCE(rocksdb_${var} "Found unusable ${package}: ${${var}_LIBRARIES} [${ARGV2}]")
+  ELSEIF(${${package}_FOUND})
+    MESSAGE_ONCE(rocksdb_${package} "Found unusable ${package}: ${${var}_LIBRARIES} [${ARGV1}]")
   ELSE()
-    MESSAGE_ONCE(rocksdb_${var} "Could NOT find ${package}")
+    MESSAGE_ONCE(rocksdb_${package} "Could NOT find ${package}")
   ENDIF()
 
-  IF (${WITH_ROCKSDB_${package}} STREQUAL "ON"  AND NOT ${${PACKAGE_NAME}_FOUND})
+  IF (${WITH_ROCKSDB_${package}} STREQUAL "ON"  AND NOT ${${package}_FOUND})
     MESSAGE(FATAL_ERROR
       "${package} library was not found, but WITH_ROCKSDB_${package} option is ON.\
       Either set WITH_ROCKSDB_${package} to OFF, or make sure ${package} is installed")
   endif()
 endmacro()
 
-check_lib(LZ4    LZ4)
-check_lib(BZip2  BZIP2)
-check_lib(snappy snappy) # rocksdb/cmake/modules/Findsnappy.cmake violates the convention
-check_lib(ZSTD   ZSTD ZDICT_trainFromBuffer)
+check_lib(LZ4)
+check_lib(BZip2)
+check_lib(Snappy)
+check_lib(ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
-list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
+list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARIES})
 ADD_FEATURE_INFO(ROCKSDB_ZLIB "ON" "zlib Compression in the RocksDB storage engine")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Cygwin")
@@ -112,8 +112,8 @@ if(NOT WIN32)
 endif()
 
 include(CheckCCompilerFlag)
-# ppc64 or ppc64le
-if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+# ppc64 or ppc64le or powerpc64 (BSD)
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
   CHECK_C_COMPILER_FLAG("-maltivec" HAS_ALTIVEC)
   if(HAS_ALTIVEC)
     message(STATUS " HAS_ALTIVEC yes")
@@ -127,7 +127,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mcpu=power8")
   endif()
   ADD_DEFINITIONS(-DHAVE_POWER8 -DHAS_ALTIVEC)
-endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+endif(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64|powerpc64")
 
 option(WITH_FALLOCATE "build with fallocate" ON)
 
@@ -175,13 +175,6 @@ set(LIBS ${ROCKSDB_LIBS} ${THIRDPARTY_LIBS} ${SYSTEM_LIBS})
 #  Unit tests themselves:
 #  - *_test.cc
 #  - *_bench.cc
-#
-#  - table/mock_table.cc
-#  - utilities/cassandra/cassandra_compaction_filter.cc
-#  - utilities/cassandra/format.cc
-#  - utilities/cassandra/merge_operator.cc
-#  - utilities/cassandra/test_utils.cc
-#
 set(ROCKSDB_SOURCES
         cache/clock_cache.cc
         cache/lru_cache.cc

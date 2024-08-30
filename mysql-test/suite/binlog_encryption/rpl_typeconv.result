@@ -1,5 +1,6 @@
 include/master-slave.inc
 [connection master]
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 connection slave;
 set @saved_slave_type_conversions = @@global.slave_type_conversions;
 CREATE TABLE type_conversions (
@@ -763,6 +764,7 @@ DROP TABLE type_conversions;
 call mtr.add_suppression("Slave SQL.*Column 1 of table .test.t1. cannot be converted from type.* error.* 1677");
 connection master;
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 connection slave;
 set global slave_type_conversions = @saved_slave_type_conversions;
 include/rpl_end.inc

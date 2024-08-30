@@ -40,7 +40,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -64,7 +64,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 DROP PROCEDURE p1;
 #
@@ -89,7 +89,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP VIEW v1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -115,7 +115,7 @@ t2	CREATE TABLE `t2` (
   `rec.b` varchar(10) DEFAULT NULL,
   `rec.c` double DEFAULT NULL,
   `rec.d` decimal(10,0) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP VIEW v1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
@@ -606,8 +606,6 @@ SELECT 10,'a','b' FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: The used SELECT statements have a different number of columns
 DROP TABLE t1;
@@ -624,8 +622,6 @@ SELECT 10,'a' FROM t1 INTO rec1, rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 ERROR 21000: Operand should contain 2 column(s)
 DROP TABLE t1;
@@ -642,8 +638,6 @@ SELECT * FROM t1 INTO rec1;
 SELECT rec1.a, rec1.b;
 END;
 $$
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL p1();
 rec1.a	rec1.b
 10	b10
@@ -707,8 +701,8 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` text DEFAULT NULL,
-  `c` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c` varchar(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP PROCEDURE p2;
 DROP PROCEDURE p1;
 DROP TABLE t1;
@@ -807,12 +801,12 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `int11` int(11) DEFAULT NULL,
   `text0` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `int11` int(11) DEFAULT NULL,
   `text0` text DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # End of 10.3 tests

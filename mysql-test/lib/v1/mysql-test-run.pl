@@ -2,16 +2,16 @@
 # -*- cperl -*-
 
 # Copyright (c) 2008, 2013, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335 USA
@@ -572,7 +572,7 @@ sub command_line_setup () {
              'valgrind-path=s'          => \$opt_valgrind_path,
 	     'callgrind'                => \$opt_callgrind,
 
-             # Stress testing 
+             # Stress testing
              'stress'                   => \$opt_stress,
              'stress-suite=s'           => \$opt_stress_suite,
              'stress-threads=i'         => \$opt_stress_threads,
@@ -655,7 +655,7 @@ sub command_line_setup () {
     $glob_mysql_test_dir= `cygpath -m "$glob_mysql_test_dir"`;
     chomp($glob_mysql_test_dir);
   }
-  if (defined $ENV{MTR_BINDIR}) 
+  if (defined $ENV{MTR_BINDIR})
   {
     $default_vardir= "$ENV{MTR_BINDIR}/mysql-test/var";
   }
@@ -700,7 +700,7 @@ sub command_line_setup () {
     {
       my $lib_mysqld=
         mtr_path_exists(vs_config_dirs('libmysqld',''));
-	  $lib_mysqld= $glob_cygwin_perl ? ":".`cygpath "$lib_mysqld"` 
+	  $lib_mysqld= $glob_cygwin_perl ? ":".`cygpath "$lib_mysqld"`
                                      : ";".$lib_mysqld;
       chomp($lib_mysqld);
       $ENV{'PATH'}="$ENV{'PATH'}".$lib_mysqld;
@@ -738,7 +738,7 @@ sub command_line_setup () {
 					 "$glob_bindir/client",
 					 "$glob_bindir/bin");
   }
-  
+
   # Look for language files and charsetsdir, use same share
   $path_share=      mtr_path_exists("$glob_bindir/share/mysql",
                                     "$glob_bindir/sql/share",
@@ -761,8 +761,8 @@ sub command_line_setup () {
 				       "$path_client_bindir/mysqld-debug",
 				       "$path_client_bindir/mysqld-max",
 				       "$glob_bindir/libexec/mysqld",
-				       "$glob_bindir/bin/mysqld",
-				       "$glob_bindir/sbin/mysqld");
+				       "$glob_bindir/bin/mariadbd",
+				       "$glob_bindir/sbin/mariadbd");
 
     # Use the mysqld found above to find out what features are available
     collect_mysqld_features();
@@ -815,7 +815,7 @@ sub command_line_setup () {
       	$used_binlog_format= $1;
       }
     }
-    if (defined $used_binlog_format) 
+    if (defined $used_binlog_format)
     {
       mtr_report("Using binlog format '$used_binlog_format'");
     }
@@ -1497,7 +1497,7 @@ sub mysql_client_test_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_client_test.trace");
   }
 
   if ( $glob_use_embedded_server )
@@ -1535,7 +1535,7 @@ sub mysql_upgrade_arguments()
   if ( $opt_debug )
   {
     mtr_add_arg($args,
-      "--debug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
+      "--debug-dbug=d:t:A,$path_vardir_trace/log/mysql_upgrade.trace");
   }
 
   return join(" ", $exe, @$args);
@@ -1619,7 +1619,7 @@ sub environment_setup () {
   $ENV{'CHARSETSDIR'}=              $path_charsetsdir;
   $ENV{'UMASK'}=              "0660"; # The octal *string*
   $ENV{'UMASK_DIR'}=          "0770"; # The octal *string*
-  
+
   #
   # MySQL tests can produce output in various character sets
   # (especially, ctype_xxx.test). To avoid confusing Perl
@@ -1630,7 +1630,7 @@ sub environment_setup () {
   #
   $ENV{'LC_ALL'}=             "C";
   $ENV{'LC_CTYPE'}=           "C";
-  
+
   $ENV{'LC_COLLATE'}=         "C";
   $ENV{'USE_RUNNING_SERVER'}= $opt_extern;
   $ENV{'MYSQL_TEST_DIR'}=     $glob_mysql_test_dir;
@@ -1663,7 +1663,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlcheck .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlcheck.trace";
   }
   $ENV{'MYSQL_CHECK'}=              $cmdline_mysqlcheck;
 
@@ -1676,9 +1676,9 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqldump .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-master.trace";
     $cmdline_mysqldumpslave .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqldump-slave.trace";
   }
   $ENV{'MYSQL_DUMP'}= $cmdline_mysqldump;
   $ENV{'MYSQL_DUMP_SLAVE'}= $cmdline_mysqldumpslave;
@@ -1698,7 +1698,7 @@ sub environment_setup () {
     if ( $opt_debug )
    {
       $cmdline_mysqlslap .=
-	" --debug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
+	" --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlslap.trace";
     }
     $ENV{'MYSQL_SLAP'}= $cmdline_mysqlslap;
   }
@@ -1715,7 +1715,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlimport .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlimport.trace";
   }
   $ENV{'MYSQL_IMPORT'}= $cmdline_mysqlimport;
 
@@ -1732,7 +1732,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlshow .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlshow.trace";
   }
   $ENV{'MYSQL_SHOW'}= $cmdline_mysqlshow;
 
@@ -1753,7 +1753,7 @@ sub environment_setup () {
   if ( $opt_debug )
   {
     $cmdline_mysqlbinlog .=
-      " --debug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
+      " --debug-dbug=d:t:A,$path_vardir_trace/log/mysqlbinlog.trace";
   }
   $ENV{'MYSQL_BINLOG'}= $cmdline_mysqlbinlog;
 
@@ -1803,7 +1803,7 @@ sub environment_setup () {
   $ENV{'MYSQLADMIN'}= mtr_native_path($exe_mysqladmin);
 
   # ----------------------------------------------------
-  # Setup env so childs can execute perror  
+  # Setup env so childs can execute perror
   # ----------------------------------------------------
   $ENV{'MY_PERROR'}= mtr_native_path($exe_perror);
 
@@ -2460,7 +2460,7 @@ sub install_db ($$) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:i:A,%s/log/bootstrap_%s.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:i:A,%s/log/bootstrap_%s.trace",
 		$path_vardir_trace, $type);
   }
 
@@ -2773,7 +2773,7 @@ sub run_testcase ($) {
     if ($glob_win32_perl)
     {
       #ActiveState perl hangs  when using normal exit, use  POSIX::_exit instead
-      use POSIX qw[ _exit ]; 
+      use POSIX qw[ _exit ];
       POSIX::_exit(0);
     }
     else
@@ -3041,7 +3041,7 @@ sub mysqld_arguments ($$$$) {
     mtr_add_arg($args, "%s--log-bin-trust-function-creators", $prefix);
   }
 
-  mtr_add_arg($args, "%s--character-set-server=latin1", $prefix);
+  mtr_add_arg($args, "%s--character-set-server=utf8mb4", $prefix);
   mtr_add_arg($args, "%s--lc-messages-dir=%s", $prefix, $path_language);
   mtr_add_arg($args, "%s--tmpdir=$opt_tmpdir", $prefix);
 
@@ -3157,10 +3157,10 @@ sub mysqld_arguments ($$$$) {
     {
 #      NOTE: the backport (see BUG#48048) originally removed the
 #            commented out lines below. However, given that they are
-#            protected with a version check (< 50200) now, it should be 
-#            safe to keep them. The problem is that the backported patch 
-#            was into a 5.1 GA codebase - mysql-5.1-rep+2 tree - so 
-#            version is 501XX, consequently check becomes worthless. It 
+#            protected with a version check (< 50200) now, it should be
+#            safe to keep them. The problem is that the backported patch
+#            was into a 5.1 GA codebase - mysql-5.1-rep+2 tree - so
+#            version is 501XX, consequently check becomes worthless. It
 #            should be safe to uncomment them when merging up to 5.5.
 #
 #            RQG semisync test runs on the 5.1 GA tree and needs MTR v1.
@@ -3186,7 +3186,7 @@ sub mysqld_arguments ($$$$) {
   {
     if ( $opt_debug )
     {
-      mtr_add_arg($args, "%s--debug=d:t:i:A,%s/log/%s%s.trace",
+      mtr_add_arg($args, "%s--debug-dbug=d:t:i:A,%s/log/%s%s.trace",
                   $prefix, $path_vardir_trace, $mysqld->{'type'}, $sidx);
     }
     else
@@ -3661,7 +3661,7 @@ sub run_testcase_start_servers($) {
 }
 
 #
-# Run include/check-testcase.test
+# Run include/check-testcase.inc
 # Before a testcase, run in record mode, save result file to var
 # After testcase, run and compare with the recorded file, they should be equal!
 #
@@ -3699,7 +3699,7 @@ sub run_check_testcase ($$) {
   }
 
   my $res = mtr_run_test($exe_mysqltest,$args,
-	        "include/check-testcase.test", "", "", "");
+	        "include/check-testcase.inc", "", "", "");
 
   if ( $res == 1  and $mode eq "after")
   {
@@ -3825,7 +3825,7 @@ sub run_mysqltest ($) {
 
   if ( $opt_debug )
   {
-    mtr_add_arg($args, "--debug=d:t:A,%s/log/mysqltest.trace",
+    mtr_add_arg($args, "--debug-dbug=d:t:A,%s/log/mysqltest.trace",
 		$path_vardir_trace);
   }
 
@@ -4322,4 +4322,3 @@ sub list_options ($) {
 
   mtr_exit(1);
 }
-

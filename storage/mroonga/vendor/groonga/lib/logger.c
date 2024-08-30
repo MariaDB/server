@@ -495,9 +495,9 @@ grn_query_log_flags_parse(const char *string,
     }
 
 #define CHECK_FLAG(name)                                        \
-    if (((string_end - string) >= (sizeof(#name) - 1)) &&       \
+    if (((size_t) (string_end - string) >= (sizeof(#name) - 1)) &&       \
         (memcmp(string, #name, sizeof(#name) - 1) == 0) &&      \
-        (((string_end - string) == (sizeof(#name) - 1)) ||      \
+        (((size_t)(string_end - string) == (sizeof(#name) - 1)) ||      \
          (string[sizeof(#name) - 1] == '|') ||                  \
          (string[sizeof(#name) - 1] == ' '))) {                 \
       *flags |= GRN_QUERY_LOG_ ## name;                         \

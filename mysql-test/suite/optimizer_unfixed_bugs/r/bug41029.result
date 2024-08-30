@@ -15,8 +15,8 @@ create table t1 (dummy int primary key, a int unique, b int) engine=innodb;
 insert into t1 values(1,1,1),(3,3,3),(5,5,5);
 commit;
 set session transaction isolation level repeatable read;
-select @@tx_isolation;
-@@tx_isolation
+select @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 start transaction;
 select * from t1 where a > 2 for update;

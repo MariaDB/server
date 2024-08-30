@@ -238,7 +238,7 @@ func_string_substring(grn_ctx *ctx, int n_args, grn_obj **args,
       start = p;
     } else {
       unsigned int char_length = 0;
-      size_t n_chars = 0;
+      int64_t n_chars = 0;
 
       for (;
            p < end && (char_length = grn_charlen(ctx, p, end));
@@ -252,7 +252,7 @@ func_string_substring(grn_ctx *ctx, int n_args, grn_obj **args,
 
     if (start && length > 0) {
       unsigned int char_length = 0;
-      size_t n_chars = 0;
+      int64_t n_chars = 0;
 
       for (;
            p < end && (char_length = grn_charlen(ctx, p, end));

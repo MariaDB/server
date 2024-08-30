@@ -4,7 +4,7 @@
 CREATE TABLE t1
 (
 ID INT NOT NULL
-) Engine=CONNECT TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='nonexistent.txt';
 SELECT * FROM t1;
 ID
 Warnings:
@@ -16,7 +16,7 @@ DROP TABLE t1;
 CREATE TABLE t1
 (
 id INT NOT NULL
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='t1.txt';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='t1.txt';
 INSERT INTO t1 VALUES (10);
 SELECT * FROM t1;
 id
@@ -57,7 +57,7 @@ location CHAR(15) NOT NULL flag=5,
 director CHAR(5) NOT NULL flag=20,
 function CHAR(12) NOT NULL flag=26,
 name     CHAR(22) NOT NULL flag=38
-) ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='dept.dat';
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=DOS FILE_NAME='dept.dat';
 SELECT * FROM t1;
 number	location	director	function	name
 0318	KINGSTON	70012	SALES	Bank/Insurance
@@ -71,7 +71,7 @@ name char(12) not null,
 city char(11) not null,
 birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02
@@ -87,7 +87,7 @@ name char(12) not null,
 city char(11) not null,
 birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' LRECL=47 ENDING=1;
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02
@@ -103,7 +103,7 @@ name char(12) not null,
 city char(11) not null,
 birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boyswin.txt' ENDING=2;
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02
@@ -119,7 +119,7 @@ name char(12) not null,
 city char(11) not null,
 birth date not null date_format='DD/MM/YYYY',
 hired date not null date_format='DD/MM/YYYY' flag=36
-) ENGINE=CONNECT TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boyswin.txt' LRECL=47 ENDING=2;
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02

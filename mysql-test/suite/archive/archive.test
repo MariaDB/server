@@ -7,11 +7,7 @@
 CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Table 't1' is marked as crashed and should be repaired");
 
---disable_warnings
-DROP TABLE if exists t1,t2,t3,t4,t5,t6;
---enable_warnings
-
-SET storage_engine=ARCHIVE;
+SET default_storage_engine=ARCHIVE;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 CREATE TABLE t1 (
@@ -1449,8 +1445,9 @@ INSERT INTO t5 VALUES (NULL, "promote the general welfare");
 SELECT * FROM t5;
 SELECT b FROM t5;
 SELECT b FROM t5 WHERE a =3;
+explain
 SELECT b FROM t5 WHERE a IN (32, 23, 5);
-
+SELECT b FROM t5 WHERE a IN (32, 23, 5);
 
 #More blob tests
 
@@ -1612,6 +1609,8 @@ CREATE TABLE t1(a INT, b BLOB) ENGINE=archive;
 SELECT DATA_LENGTH, AVG_ROW_LENGTH FROM
   INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 INSERT INTO t1 VALUES(1, 'sampleblob1'),(2, 'sampleblob2');
+# Compression length depends on zip library
+--replace_result 583 584 585 584 291 292
 SELECT DATA_LENGTH, AVG_ROW_LENGTH FROM
   INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
 DROP TABLE t1;
@@ -1760,7 +1759,7 @@ DROP TABLE t1, t2;
 --echo #
 --echo # BUG#917689 Using wrong archive table causes crash
 --echo #
-create table t1 (a int, b char(50)) engine=archive;
+create table t1 (a int, b char(50)) engine=archive charset=latin1;
 select * from t1; # open the table to create the frm
 flush tables;     # and close the table again
 --remove_file $MYSQLD_DATADIR/test/t1.ARZ
@@ -1770,9 +1769,9 @@ select * from t1;
 show warnings;
 drop table t1;
 
-#
-# temporary archive
-#
+--echo #
+--echo # temporary archive
+--echo #
 create temporary table t1 (a int) engine=archive;
 insert t1 values (1),(2),(3);
 select * from t1;
@@ -1782,3 +1781,16 @@ select * from t1;
 show create table t1;
 drop table t1;
 
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-27396 DESC index attribute remains in Archive table definition, despite being apparently ignored
+--echo #
+--error ER_CANT_CREATE_TABLE
+create table t (t int auto_increment, key (t desc)) engine=archive;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

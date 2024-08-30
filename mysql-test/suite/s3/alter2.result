@@ -1,0 +1,49 @@
+#
+# MDEV-19575 Assertion `page_st == 1' failed upon SELECT from S3
+# table which is being converted into Aria
+#
+CREATE TABLE t1 (f INT);
+insert into t1 values (1),(2);
+ALTER TABLE t1 ENGINE=S3;
+select * from t1;
+f
+1
+2
+connect  con1,localhost,root,,$database;
+ALTER TABLE t1 ENGINE=Aria;
+connection default;
+SELECT * FROM t1;
+f
+1
+2
+connection con1;
+disconnect con1;
+connection default;
+DROP TABLE t1;
+#
+# MDEV-20302 Server hangs upon concurrent SELECT from partitioned S3
+# table
+#
+CREATE TABLE t1 (
+pk INT AUTO_INCREMENT,
+c CHAR(12),
+PRIMARY KEY(pk),
+KEY(c)
+) ENGINE=Aria
+PARTITION BY KEY(pk) PARTITIONS 2;
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (NULL,'ill'),(NULL,'loop');
+ALTER TABLE t1 ENGINE=S3;
+connect  con1,localhost,root,,$database;
+SELECT * FROM t1 WHERE c BETWEEN 'bar' AND 'foo';
+connection default;
+SELECT pk FROM v1;
+pk
+1
+2
+connection con1;
+pk	c
+disconnect con1;
+connection default;
+DROP VIEW v1;
+DROP TABLE t1;

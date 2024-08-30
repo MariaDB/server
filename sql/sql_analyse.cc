@@ -258,7 +258,9 @@ bool test_if_number(NUM_INFO *info, const char *str, uint str_len)
       info->decimals++;
     if (str == end)
     {
-      info->dval = my_atof(begin);
+      int error;
+      const char *end2= end;
+      info->dval= my_strtod(begin, (char **) &end2, &error);
       DBUG_RETURN(1);
     }
   }
@@ -679,10 +681,19 @@ int analyse::end_of_records()
   String *res, s_min(buff, sizeof(buff),&my_charset_bin), 
 	 s_max(buff, sizeof(buff),&my_charset_bin),
 	 ans(buff, sizeof(buff),&my_charset_bin);
+  StringBuffer<NAME_LEN> name;
 
   for (; f != f_end; f++)
   {
-    func_items[0]->set((*f)->item->full_name());
+    /*
+      We have to make a copy of full_name() as it stores it's value in str_value,
+      which is reset by save_str_in_field
+    */
+    LEX_CSTRING col_name= (*f)->item->full_name_cstring();
+    name.set_buffer_if_not_allocated(&my_charset_bin);
+    name.copy(col_name.str, col_name.length, &my_charset_bin);
+    func_items[0]->set((char*) name.ptr(), name.length(), &my_charset_bin);
+
     if (!(*f)->found)
     {
       func_items[1]->null_value = 1;
@@ -943,8 +954,10 @@ void field_longlong::get_opt_type(String *answer,
   else if (min_arg >= INT_MIN24 && max_arg <= (min_arg >= 0 ?
 					       UINT_MAX24 : INT_MAX24))
     snprintf(buff, sizeof(buff), "MEDIUMINT(%d)", (int) max_length);
-  else if (min_arg >= INT_MIN32 && max_arg <= (min_arg >= 0 ?
-					       UINT_MAX32 : INT_MAX32))
+  else if (min_arg >= INT_MIN32 &&
+           (ulonglong) max_arg <= (min_arg >= 0 ?
+                                   (ulonglong) UINT_MAX32 :
+                                   (ulonglong) INT_MAX32))
     snprintf(buff, sizeof(buff), "INT(%d)", (int) max_length);
   else
     snprintf(buff, sizeof(buff), "BIGINT(%d)", (int) max_length);
@@ -1161,16 +1174,16 @@ bool analyse::change_columns(THD *thd, List<Item> &field_list)
 
   func_items[0]= new (mem_root) Item_proc_string(thd, "Field_name", 255);
   func_items[1]= new (mem_root) Item_proc_string(thd, "Min_value", 255);
-  func_items[1]->maybe_null = 1;
+  func_items[1]->set_maybe_null();
   func_items[2]= new (mem_root) Item_proc_string(thd, "Max_value", 255);
-  func_items[2]->maybe_null = 1;
+  func_items[2]->set_maybe_null();
   func_items[3]= new (mem_root) Item_proc_int(thd, "Min_length");
   func_items[4]= new (mem_root) Item_proc_int(thd, "Max_length");
   func_items[5]= new (mem_root) Item_proc_int(thd, "Empties_or_zeros");
   func_items[6]= new (mem_root) Item_proc_int(thd, "Nulls");
   func_items[7]= new (mem_root) Item_proc_string(thd, "Avg_value_or_avg_length", 255);
   func_items[8]= new (mem_root) Item_proc_string(thd, "Std", 255);
-  func_items[8]->maybe_null = 1;
+  func_items[8]->set_maybe_null();
   func_items[9]= new (mem_root) Item_proc_string(thd, "Optimal_fieldtype",
                                                   MY_MAX(64,
                                                          output_str_length));
@@ -1228,4 +1241,4 @@ uint check_ulonglong(const char *str, uint length)
   }
   while (*cmp && *cmp++ == *str++) ;
   return ((uchar) str[-1] <= (uchar) cmp[-1]) ? smaller : bigger;
-} /* check_ulonlong */
+} /* check_ulonglong */

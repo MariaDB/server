@@ -2,7 +2,9 @@
 # Tests for setting innodb-page-size=32k;
 --source include/have_innodb.inc
 --source include/have_innodb_32k.inc
+--source include/test_db_charset_latin1.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 
 let $MYSQLD_DATADIR= `select @@datadir`;
@@ -33,7 +35,7 @@ SELECT variable_value FROM information_schema.global_status
 SET SESSION innodb_strict_mode = ON;
 
 --replace_regex /> [0-9]*/> max_row_size/
---error 1005
+--error ER_CANT_CREATE_TABLE,ER_UNSUPPORTED_COMPRESSED_TABLE
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
 c06 char(200), c07 char(200), c08 char(200), c09 char(200), c10 char(200),
@@ -347,13 +349,10 @@ UPDATE t3 SET c = REPEAT('b',16928);
 SHOW WARNINGS;
 UPDATE t3 SET c = REPEAT('b',32800);
 SHOW WARNINGS;
+
+--source include/wait_all_purged.inc
+
 DROP TABLE t3;
-
-# The tests that uses these tables required the purge thread to run.
-# Just in case it has not by now, provide a 10 second wait.
-
---sleep 10
-
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;
 DROP TABLE tlong2;
@@ -623,3 +622,5 @@ show create table t2;
 update t2 set col150=@a;
 update t2 set col145=@b;
 drop table t2;
+
+--source include/test_db_charset_restore.inc

@@ -15,8 +15,7 @@
 -- error 0,ER_UNKNOWN_SYSTEM_VARIABLE
 SET GLOBAL innodb_change_buffering_debug = 1;
 -- enable_query_log
-SET GLOBAL tx_isolation='REPEATABLE-READ';
-SET GLOBAL innodb_file_per_table=on;
+SET GLOBAL transaction_isolation='REPEATABLE-READ';
 
 CREATE TABLE bug56680(
        a INT AUTO_INCREMENT PRIMARY KEY,
@@ -51,7 +50,7 @@ SELECT b FROM bug56680;
 
 # For the rest of this test, use the READ UNCOMMITTED isolation level
 # to see what exists in the secondary index.
-SET GLOBAL tx_isolation='READ-UNCOMMITTED';
+SET GLOBAL transaction_isolation='READ-UNCOMMITTED';
 
 # Create enough rows for the table, so that the insert buffer will be
 # used for modifying the secondary index page. There must be multiple

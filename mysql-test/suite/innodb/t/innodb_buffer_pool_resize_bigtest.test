@@ -1,0 +1,28 @@
+--source include/have_innodb.inc
+--source include/big_test.inc
+
+SET @save_size=@@innodb_buffer_pool_size;
+
+let $wait_timeout = 60;
+let $wait_condition =
+  SELECT SUBSTR(variable_value, 1, 30) = 'Completed resizing buffer pool'
+  FROM information_schema.global_status
+  WHERE variable_name = 'INNODB_BUFFER_POOL_RESIZE_STATUS';
+
+--echo #
+--echo # MDEV-27891: Delayed SIGSEGV in InnoDB buffer pool resize
+--echo # after or during DROP TABLE
+--echo #
+
+select @@innodb_buffer_pool_chunk_size;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL innodb_buffer_pool_size=256*1024*1024;
+DROP TABLE t1;
+--source include/wait_condition.inc
+SET GLOBAL innodb_buffer_pool_size=@@innodb_buffer_pool_size + @@innodb_buffer_pool_chunk_size;
+--source include/wait_condition.inc
+
+--echo # End of 10.6 tests
+
+SET GLOBAL innodb_buffer_pool_size=@save_size;
+--source include/wait_condition.inc

@@ -29,37 +29,38 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
 {
   if (window_names_are_checked)
     return false;
-  const char *name= this->name();
-  const char *ref_name= window_reference();
+  const Lex_ident_window name= this->name();
+  const Lex_ident_window ref_name= window_reference();
   it.rewind();
   Window_spec *win_spec;
   while((win_spec= it++) && win_spec != this)
   {
-    const char *win_spec_name= win_spec->name();
-    if (!win_spec_name)
+    const Lex_ident_window win_spec_name= win_spec->name();
+    if (!win_spec_name.str)
       break;
-    if (name && my_strcasecmp(system_charset_info, name, win_spec_name) == 0)
+    if (name.str && name.streq(win_spec_name))
     {
-      my_error(ER_DUP_WINDOW_NAME, MYF(0), name);
+      my_error(ER_DUP_WINDOW_NAME, MYF(0), name.str);
       return true;
     }
-    if (ref_name &&
-        my_strcasecmp(system_charset_info, ref_name, win_spec_name) == 0)
+    if (ref_name.str && win_spec_name.streq(ref_name))
     {
       if (partition_list->elements)
       {
         my_error(ER_PARTITION_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
-                 ref_name);
+                 ref_name.str);
         return true;
       }
       if (win_spec->order_list->elements && order_list->elements)
       {
-        my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0), ref_name);
+        my_error(ER_ORDER_LIST_IN_REFERENCING_WINDOW_SPEC, MYF(0),
+                 ref_name.str);
         return true;
       } 
       if (win_spec->window_frame)
       {
-        my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0), ref_name);
+        my_error(ER_WINDOW_FRAME_IN_REFERENCED_WINDOW_SPEC, MYF(0),
+                 ref_name.str);
         return true;
       }
       referenced_win_spec= win_spec;
@@ -69,9 +70,9 @@ Window_spec::check_window_names(List_iterator_fast<Window_spec> &it)
         order_list= win_spec->order_list;
     }
   }
-  if (ref_name && !referenced_win_spec)
+  if (ref_name.str && !referenced_win_spec)
   {
-    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name);
+    my_error(ER_WRONG_WINDOW_SPEC_NAME, MYF(0), ref_name.str);
     return true;
   }
   window_names_are_checked= true;
@@ -221,7 +222,7 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     uint elems= win_specs.elements;
     while ((win_spec= it++) && i++ < elems)
     {
-      if (win_spec->name() == NULL)
+      if (win_spec->name().str == NULL)
       {
         it.remove();
         win_specs.push_back(win_spec);
@@ -262,9 +263,12 @@ setup_windows(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
        For  "win_func() OVER (ORDER BY order_list RANGE BETWEEN ...)",
        - ORDER BY order_list must not be ommitted
        - the list must have a single element.
+       But it really only matters if the frame is bounded.
     */
     if (win_spec->window_frame && 
-        win_spec->window_frame->units == Window_frame::UNITS_RANGE)
+        win_spec->window_frame->units == Window_frame::UNITS_RANGE &&
+	!(win_spec->window_frame->top_bound->is_unbounded() &&
+          win_spec->window_frame->bottom_bound->is_unbounded()))
     {
       if (win_spec->order_list->elements != 1)
       {
@@ -428,6 +432,16 @@ ORDER *st_select_lex::find_common_window_func_partition_fields(THD *thd)
 #define CMP_EQ         0    // Equal to
 #define CMP_GT_C       1    // Greater than and compatible
 #define CMP_GT         2    // Greater then
+
+
+/*
+  This function is used for sorting ORDER/PARTITION BY clauses of window
+  functions and so must implement an order relation on ORDER BY clauses"
+
+  It is called by a sorting function.
+  The function return's CMP_EQ (=0) if the values are identical.
+  If not equal, it returns a stable value < or > than 0.
+*/
 
 static
 int compare_order_elements(ORDER *ord1, int weight1,
@@ -637,7 +651,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Partition lists contain the same elements. 
       Let's use only one of the lists.
     */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
     {
       win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
@@ -660,7 +674,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Order lists contain the same elements.
        Let's use only one of the lists.
     */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
     {
       win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
@@ -678,7 +692,7 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       return cmp;
 
     /* Window frames are equal. Let's use only one of them. */
-    if (!win_spec1->name() && win_spec2->name())
+    if (!win_spec1->name().str && win_spec2->name().str)
       win_spec1->window_frame= win_spec2->window_frame;
     else
       win_spec2->window_frame= win_spec1->window_frame;
@@ -699,10 +713,6 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
   return cmp;
 }
 
-
-#define  SORTORDER_CHANGE_FLAG    1
-#define  PARTITION_CHANGE_FLAG    2
-#define  FRAME_CHANGE_FLAG        4
 
 typedef int (*Item_window_func_cmp)(Item_window_func *f1,
                                     Item_window_func *f2,
@@ -733,15 +743,15 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 
   List_iterator_fast<Item_window_func> it(*win_func_list);
   Item_window_func *prev= it++;
-  prev->marker= SORTORDER_CHANGE_FLAG |
-                PARTITION_CHANGE_FLAG |
-                FRAME_CHANGE_FLAG;
+  prev->marker= (MARKER_SORTORDER_CHANGE |
+                 MARKER_PARTITION_CHANGE |
+                 MARKER_FRAME_CHANGE);
   Item_window_func *curr;
   while ((curr= it++))
   {
     Window_spec *win_spec_prev= prev->window_spec;
     Window_spec *win_spec_curr= curr->window_spec;
-    curr->marker= 0;
+    curr->marker= MARKER_UNUSED;
     if (!(win_spec_prev->partition_list == win_spec_curr->partition_list &&
           win_spec_prev->order_list == win_spec_curr->order_list))
     {
@@ -755,17 +765,17 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
         cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
-        curr->marker= SORTORDER_CHANGE_FLAG |
-                      PARTITION_CHANGE_FLAG |
-                      FRAME_CHANGE_FLAG;
+        curr->marker= (MARKER_SORTORDER_CHANGE |
+                       MARKER_PARTITION_CHANGE |
+                       MARKER_FRAME_CHANGE);
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
       {
-        curr->marker|= PARTITION_CHANGE_FLAG | FRAME_CHANGE_FLAG;
+        curr->marker|= MARKER_PARTITION_CHANGE | MARKER_FRAME_CHANGE;
       }
     }
     else if (win_spec_prev->window_frame != win_spec_curr->window_frame)
-      curr->marker|= FRAME_CHANGE_FLAG;
+      curr->marker|= MARKER_FRAME_CHANGE;
 
     prev= curr;
   }
@@ -840,10 +850,10 @@ public:
     {
       //DBUG_ASSERT(info->read_record == rr_from_tempfile);
       rownum= 0;
-      io_cache= (IO_CACHE*)my_malloc(sizeof(IO_CACHE), MYF(0));
+      io_cache= (IO_CACHE*)my_malloc(PSI_INSTRUMENT_ME, sizeof(IO_CACHE), MYF(0));
       init_slave_io_cache(info->io_cache, io_cache);
 
-      ref_buffer= (uchar*)my_malloc(ref_length, MYF(0));
+      ref_buffer= (uchar*)my_malloc(PSI_INSTRUMENT_ME, ref_length, MYF(0));
       ref_buffer_valid= false;
     }
   }
@@ -954,7 +964,7 @@ protected:
 class Table_read_cursor : public Rowid_seq_cursor
 {
 public:
-  virtual ~Table_read_cursor() = default;
+  ~Table_read_cursor() override = default;
 
   void init(READ_RECORD *info)
   {
@@ -1022,7 +1032,7 @@ public:
   /*
     This returns -1 when end of partition was reached.
   */
-  int next()
+  int next() override
   {
     int res;
     if (end_of_partition)
@@ -1312,12 +1322,12 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
@@ -1326,19 +1336,19 @@ public:
     end_of_partition= false;
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     walk_till_non_peer();
   }
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     if (end_of_partition)
       return;
     range_expr->fetch_value_from(item_add);
   }
 
-  void next_row()
+  void next_row() override
   {
     if (end_of_partition)
       return;
@@ -1350,12 +1360,12 @@ public:
     walk_till_non_peer();
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
 
-  bool is_outside_computation_bounds() const
+  bool is_outside_computation_bounds() const override
   {
     if (end_of_partition)
       return true;
@@ -1452,12 +1462,12 @@ public:
     item_add->fix_fields(thd, &item_add);
   }
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     // Save the value of FUNC(current_row)
     range_expr->fetch_value_from(item_add);
@@ -1467,20 +1477,20 @@ public:
     added_values= false;
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     cursor.move_to(rownum);
     walk_till_non_peer();
   }
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     if (end_of_partition)
       return;
     range_expr->fetch_value_from(item_add);
   }
 
-  void next_row()
+  void next_row() override
   {
     if (end_of_partition)
       return;
@@ -1492,14 +1502,14 @@ public:
     walk_till_non_peer();
   }
 
-  bool is_outside_computation_bounds() const
+  bool is_outside_computation_bounds() const override
   {
     if (!added_values)
       return true;
     return false;
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     if (end_of_partition)
       return cursor.get_rownum(); // Cursor does not pass over partition bound.
@@ -1561,13 +1571,13 @@ public:
   {
   }
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
     peer_tracker.init();
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     // Save the value of the current_row
     peer_tracker.check_if_next_group();
@@ -1576,17 +1586,17 @@ public:
     add_value_to_items();
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     walk_till_non_peer();
   }
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     dont_move= !peer_tracker.check_if_next_group();
   }
 
-  void next_row()
+  void next_row() override
   {
     // Check if our cursor is pointing at a peer of the current row.
     // If not, move forward until that becomes true
@@ -1601,7 +1611,7 @@ public:
     walk_till_non_peer();
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -1658,7 +1668,7 @@ public:
     move(false)
   {}
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     bound_tracker.init();
 
@@ -1666,23 +1676,23 @@ public:
     peer_tracker.init();
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     // Fetch the value from the first row
     peer_tracker.check_if_next_group();
     cursor.move_to(rownum);
   }
 
-  void next_partition(ha_rows rownum) {}
+  void next_partition(ha_rows rownum) override {}
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     // Check if the new current_row is a peer of the row that our cursor is
     // pointing to.
     move= peer_tracker.check_if_next_group();
   }
 
-  void next_row()
+  void next_row() override
   {
     if (move)
     {
@@ -1710,7 +1720,7 @@ public:
     }
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -1732,9 +1742,9 @@ public:
                             SQL_I_List<ORDER> *order_list)
   {}
 
-  void init(READ_RECORD *info) {}
+  void init(READ_RECORD *info) override {}
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     /*
       UNBOUNDED PRECEDING frame end just stays on the first row of the
@@ -1744,12 +1754,12 @@ public:
     curr_rownum= rownum;
   }
 
-  void next_row()
+  void next_row() override
   {
     /* Do nothing, UNBOUNDED PRECEDING frame end doesn't move. */
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return curr_rownum;
   }
@@ -1774,17 +1784,17 @@ public:
       SQL_I_List<ORDER> *order_list) :
     cursor(thd, partition_list) {}
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     cursor.on_next_partition(rownum);
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     /* Activate the first row */
     cursor.fetch();
@@ -1797,12 +1807,12 @@ public:
     }
   }
 
-  void next_row()
+  void next_row() override
   {
     /* Do nothing, UNBOUNDED FOLLOWING frame end doesn't move */
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -1817,7 +1827,7 @@ public:
       SQL_I_List<ORDER> *partition_list, SQL_I_List<ORDER> *order_list) :
     Frame_unbounded_following(thd, partition_list, order_list) {}
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     ha_rows num_rows_in_partition= 0;
     if (cursor.fetch())
@@ -1830,7 +1840,7 @@ public:
     set_win_funcs_row_count(num_rows_in_partition);
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -1857,7 +1867,7 @@ public:
   {
     order_item= order_list->first->item[0];
   }
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     ha_rows num_rows_in_partition= 0;
     if (cursor.fetch())
@@ -1873,7 +1883,7 @@ public:
     set_win_funcs_row_count(num_rows_in_partition);
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -1904,12 +1914,12 @@ public:
     is_top_bound(is_top_bound_arg), n_rows(n_rows_arg), n_rows_behind(0)
   {}
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     /*
       Position our cursor to point at the first row in the new partition
@@ -1935,13 +1945,13 @@ public:
 
   }
 
-  void next_row()
+  void next_row() override
   {
     n_rows_behind++;
     move_cursor_if_possible();
   }
 
-  bool is_outside_computation_bounds() const
+  bool is_outside_computation_bounds() const override
   {
     /* As a bottom boundary, rows have not yet been added. */
     if (!is_top_bound && n_rows - n_rows_behind)
@@ -1949,7 +1959,7 @@ public:
     return false;
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -2007,26 +2017,26 @@ public:
 
   Frame_rows_current_row_bottom() : curr_rownum(0) {}
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     add_value_to_items();
     curr_rownum= rownum;
   }
 
-  void next_partition(ha_rows rownum) {}
+  void next_partition(ha_rows rownum) override {}
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     /* Temp table's current row is current_row. Add it to the window func */
     add_value_to_items();
   }
 
-  void next_row()
+  void next_row() override
   {
     curr_rownum++;
   };
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return curr_rownum;
   }
@@ -2083,13 +2093,13 @@ public:
   {
   }
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
     at_partition_end= false;
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     at_partition_end= false;
 
@@ -2097,7 +2107,7 @@ public:
   }
 
   /* Move our cursor to be n_rows ahead.  */
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     if (is_top_bound)
       next_part_top(rownum);
@@ -2105,7 +2115,7 @@ public:
       next_part_bottom(rownum);
   }
 
-  void next_row()
+  void next_row() override
   {
     if (is_top_bound)
       next_row_top();
@@ -2113,7 +2123,7 @@ public:
       next_row_bottom();
   }
 
-  bool is_outside_computation_bounds() const
+  bool is_outside_computation_bounds() const override
   {
     /*
        The top bound can go over the current partition. In this case,
@@ -2124,7 +2134,7 @@ public:
     return false;
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return cursor.get_rownum();
   }
@@ -2210,12 +2220,12 @@ public:
                     const Frame_cursor &bottom_bound) :
     top_bound(top_bound), bottom_bound(bottom_bound) {}
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     /* TODO(cvicentiu) Sum functions get cleared on next partition anyway during
        the window function computation algorithm. Either perform this only in
@@ -2225,23 +2235,23 @@ public:
     clear_sum_functions();
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     compute_values_for_current_row();
   }
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     clear_sum_functions();
   }
 
-  void next_row()
+  void next_row() override
   {
     curr_rownum++;
     compute_values_for_current_row();
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return curr_rownum;
   }
@@ -2301,36 +2311,36 @@ class Frame_positional_cursor : public Frame_cursor
     bottom_bound(&bottom_bound), offset(&offset),
     negative_offset(negative_offset) {}
 
-  void init(READ_RECORD *info)
+  void init(READ_RECORD *info) override
   {
     cursor.init(info);
   }
 
-  void pre_next_partition(ha_rows rownum)
+  void pre_next_partition(ha_rows rownum) override
   {
     /* The offset is dependant on the current row values. We can only get
      * it here accurately. When fetching other rows, it changes. */
     save_offset_value();
   }
 
-  void next_partition(ha_rows rownum)
+  void next_partition(ha_rows rownum) override
   {
     save_positional_value();
   }
 
-  void pre_next_row()
+  void pre_next_row() override
   {
     /* The offset is dependant on the current row values. We can only get
      * it here accurately. When fetching other rows, it changes. */
     save_offset_value();
   }
 
-  void next_row()
+  void next_row() override
   {
     save_positional_value();
   }
 
-  ha_rows get_curr_rownum() const
+  ha_rows get_curr_rownum() const override
   {
     return position_cursor.get_curr_rownum();
   }
@@ -2559,7 +2569,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       cursor_manager->add_cursor(current_row_pos);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       bool negative_offset= item_sum->sum_func() == Item_sum::LAG_FUNC;
       fc= new Frame_positional_cursor(*current_row_pos,
                                       *top_bound, *bottom_bound,
@@ -2575,7 +2585,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*top_bound,
@@ -2591,7 +2601,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*bottom_bound,
@@ -2607,7 +2617,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *int_item= new (thd->mem_root) Item_int(thd, 1);
       Item *offset_func= new (thd->mem_root)
                               Item_func_minus(thd, item_sum->get_arg(1),
@@ -2796,7 +2806,7 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
   Item *func;
   for (; (func = *func_ptr) ; func_ptr++)
   {
-    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+    if (func->with_window_func() && func->type() != Item::WINDOW_FUNC_ITEM)
       func->save_in_result_field(true);
   }
 
@@ -2852,6 +2862,7 @@ bool compute_window_func(THD *thd,
 {
   List_iterator_fast<Item_window_func> iter_win_funcs(window_functions);
   List_iterator_fast<Cursor_manager> iter_cursor_managers(cursor_managers);
+  bool ret= false;
   uint err;
 
   READ_RECORD info;
@@ -2878,7 +2889,7 @@ bool compute_window_func(THD *thd,
 
   List_iterator_fast<Group_bound_tracker> iter_part_trackers(partition_trackers);
   ha_rows rownum= 0;
-  uchar *rowid_buf= (uchar*) my_malloc(tbl->file->ref_length, MYF(0));
+  uchar *rowid_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, tbl->file->ref_length, MYF(0));
 
   while (true)
   {
@@ -2914,18 +2925,27 @@ bool compute_window_func(THD *thd,
       /* Check if we found any error in the window function while adding values
          through cursors. */
       if (unlikely(thd->is_error() || thd->is_killed()))
+      {
+        ret= true;
         break;
-
+      }
 
       /* Return to current row after notifying cursors for each window
          function. */
-      tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf);
+      if (tbl->file->ha_rnd_pos(tbl->record[0], rowid_buf))
+      {
+        ret= true;
+        break;
+      }
     }
 
     /* We now have computed values for each window function. They can now
        be saved in the current row. */
-    save_window_function_values(window_functions, tbl, rowid_buf);
-
+    if (save_window_function_values(window_functions, tbl, rowid_buf))
+    {
+      ret= true;
+      break;
+    }
     rownum++;
   }
 
@@ -2933,7 +2953,7 @@ bool compute_window_func(THD *thd,
   partition_trackers.delete_elements();
   end_read_record(&info);
 
-  return false;
+  return ret;
 }
 
 /* Make a list that is a concation of two lists of ORDER elements */
@@ -2998,6 +3018,14 @@ bool Window_func_runner::add_function_to_run(Item_window_func *win_func)
       my_error(ER_NOT_SUPPORTED_YET, MYF(0),
                "COUNT(DISTINCT) aggregate as window function");
       return true;
+    case Item_sum::JSON_ARRAYAGG_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "JSON_ARRAYAGG() aggregate as window function");
+      return true;
+    case Item_sum::JSON_OBJECTAGG_FUNC:
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "JSON_OBJECTAGG() aggregate as window function");
+      return true;
     default:
       break;
   }
@@ -3018,7 +3046,8 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
     win_func->set_phase_to_computation();
     // TODO(cvicentiu) Setting the aggregator should probably be done during
     // setup of Window_funcs_sort.
-    win_func->window_func()->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
+    win_func->window_func()->set_aggregator(thd,
+                                            Aggregator::SIMPLE_AGGREGATOR);
   }
   it.rewind();
 
@@ -3091,11 +3120,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
       return true;
     it++;
     win_func= it.peek();
-  } while (win_func && !(win_func->marker & SORTORDER_CHANGE_FLAG));
+  } while (win_func && !(win_func->marker & MARKER_SORTORDER_CHANGE));
 
   /*
     The sort criteria must be taken from the last win_func in the group of
-    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG. This is
+    adjacent win_funcs that do not have MARKER_SORTORDER_CHANGE. This is
     because the sort order must be the most specific sorting criteria defined
     within the window function group. This ensures that we sort the table
     in a way that the result is valid for all window functions belonging to
@@ -3120,8 +3149,10 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
      */
     ORDER *order= (ORDER *)alloc_root(thd->mem_root, sizeof(ORDER));
     memset(order, 0, sizeof(*order));
-    Item *item= new (thd->mem_root) Item_temptable_field(thd,
-                                                    join_tab->table->field[0]);
+    Item_field *item=
+        new (thd->mem_root) Item_field(thd, join_tab->table->field[0]);
+    if (item)
+      item->set_refers_to_temp_table();
     order->item= (Item **)alloc_root(thd->mem_root, 2 * sizeof(Item *));
     order->item[1]= NULL;
     order->item[0]= item;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,15 +37,15 @@ Created 2013/03/27 Jimmy Yang
 #include <vector>
 #include <forward_list>
 
-/* Node Sequence Number. Only updated when page splits */
-typedef ib_uint32_t     node_seq_t;
+/** Node Sequence Number. Only updated when page splits */
+typedef uint32_t     node_seq_t;
 
 /* RTree internal non-leaf Nodes to be searched, from root to leaf */
-typedef	struct node_visit {
-	ulint		page_no;	/*!< the page number */
+struct node_visit_t {
+	uint32_t	page_no;	/*!< the page number */
 	node_seq_t	seq_no;		/*!< the SSN (split sequence number */
 	ulint		level;		/*!< the page's index level */
-	ulint		child_no;	/*!< child page num if for parent
+	uint32_t	child_no;	/*!< child page num if for parent
 					recording */
 	btr_pcur_t*	cursor;		/*!< cursor structure if we positioned
 					FIXME: there is no need to use whole
@@ -53,7 +53,7 @@ typedef	struct node_visit {
 					members */
 	double		mbr_inc;	/*!< whether this node needs to be
 					enlarged for insertion */
-} node_visit_t;
+};
 
 typedef std::vector<node_visit_t, ut_allocator<node_visit_t> >	rtr_node_path_t;
 
@@ -66,13 +66,10 @@ typedef std::vector<rtr_rec_t, ut_allocator<rtr_rec_t> >	rtr_rec_vector;
 
 /* Structure for matched records on the leaf page */
 typedef	struct matched_rec {
-	byte*		bufp;		/*!< aligned buffer point */
-	byte		rec_buf[UNIV_PAGE_SIZE_MAX * 2];
-					/*!< buffer used to copy matching rec */
-	buf_block_t	block;		/*!< the shadow buffer block */
+	buf_block_t*	block;		/*!< the shadow buffer block */
 	ulint		used;		/*!< memory used */
 	rtr_rec_vector*	matched_recs;	/*!< vector holding the matching rec */
-	ib_mutex_t	rtr_match_mutex;/*!< mutex protect the match_recs
+	mysql_mutex_t	rtr_match_mutex;/*!< mutex protect the match_recs
 					vector */
 	bool		valid;		/*!< whether result in matched_recs
 					or this search is valid (page not
@@ -103,17 +100,10 @@ typedef	struct rtr_info{
 				/*!< vector holding parent pages during
 				search */
 	matched_rec_t*	matches;/*!< struct holding matching leaf records */
-	ib_mutex_t	rtr_path_mutex;
+	mysql_mutex_t	rtr_path_mutex;
 				/*!< mutex protect the "path" vector */
-	buf_block_t*	tree_blocks[RTR_MAX_LEVELS + RTR_LEAF_LATCH_NUM];
-				/*!< tracking pages that would be locked
-				at leaf level, for future free */
-        ulint		tree_savepoints[RTR_MAX_LEVELS + RTR_LEAF_LATCH_NUM];
-				/*!< savepoint used to release latches/blocks
-				on each level and leaf level */
 	rtr_mbr_t	mbr;	/*!< the search MBR */
 	que_thr_t*      thr;	/*!< the search thread */
-	mem_heap_t*	heap;	/*!< memory heap */
 	btr_cur_t*	cursor;	/*!< cursor used for search */
 	dict_index_t*	index;	/*!< index it is searching */
 	bool		need_prdt_lock;
@@ -137,7 +127,7 @@ typedef	struct rtr_info{
 struct rtr_info_track_t {
 	/** Active search info */
 	std::forward_list<rtr_info_t*, ut_allocator<rtr_info_t*> > rtr_active;
-	ib_mutex_t rtr_active_mutex;
+	mysql_mutex_t rtr_active_mutex;
 						/*!< mutex to protect
 						rtr_active */
 };

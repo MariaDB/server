@@ -1,0 +1,24 @@
+# MDEV-11675 binlog_alter_two_phase
+# MDEV-27511 Assertion `rgi->gtid_ev_flags_extra & Gtid_log_event::FL_COMMIT_ALTER_E1' failed
+#            in write_bin_log_start_alter
+#
+--source include/have_log_bin.inc
+--source include/master-slave.inc
+
+# The test proves the assert is not hit anymore.
+--connection master
+CREATE  TABLE t1 (a1 int, d1 int DEFAULT 0);
+INSERT INTO t1 VALUES  (1,1) ;
+SET binlog_alter_two_phase = ON;
+ALTER  TABLE t1  WAIT 9 RENAME COLUMN a1 TO a2;
+SET  binlog_alter_two_phase = OFF;
+ALTER  TABLE t1  ALTER COLUMN d1 DROP DEFAULT;
+
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+drop table t1;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

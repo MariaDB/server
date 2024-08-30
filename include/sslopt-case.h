@@ -24,15 +24,25 @@
     case OPT_SSL_CIPHER:
     case OPT_SSL_CRL:
     case OPT_SSL_CRLPATH:
+    case OPT_TLS_VERSION:
+#ifdef MYSQL_CLIENT
+    case OPT_SSL_FP:
+    case OPT_SSL_FPLIST:
+#endif
     /*
       Enable use of SSL if we are using any ssl option
       One can disable SSL later by using --skip-ssl or --ssl=0
     */
       opt_use_ssl= 1;
-#if defined (HAVE_WOLFSSL) && (!defined (_WIN32) || defined (MYSQL_SERVER))
-      /* CRL does not work with WolfSSL */
+#if defined (HAVE_WOLFSSL)
+#if defined(MYSQL_SERVER)
+      /* CRL does not work with WolfSSL (server) */
       opt_ssl_crl= NULL;
+#endif
+#if !defined(_WIN32) || !defined(LIBMARIADB)
+      /* CRL_PATH does not work with WolfSSL (server) and GnuTLS (client) */
       opt_ssl_crlpath= NULL;
+#endif
 #endif
       break;
 #endif

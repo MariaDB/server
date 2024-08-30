@@ -1,12 +1,4 @@
-
-#remove this include after fix MDEV-27871
---source include/no_view_protocol.inc
-
 set names binary;
-
---echo #
---echo # Start of 5.5 tests
---echo #
 
 --source include/ctype_numconv.inc
 
@@ -14,10 +6,6 @@ set names binary;
 --echo # End of 5.5 tests
 --echo #
 
-
---echo #
---echo # Start of 10.0 tests
---echo #
 
 SET NAMES binary;
 --source include/ctype_like_cond_propagation.inc
@@ -32,10 +20,6 @@ SET NAMES utf8, character_set_connection=binary;
 
 --echo #
 --echo # End of 10.0 tests
---echo #
-
---echo #
---echo # Start of 10.1 tests
 --echo #
 
 --echo #
@@ -118,13 +102,13 @@ DROP TABLE t1;
 
 --echo # 0x00 in the beginning of the second (and following) value of the *last* ENUM/SET in the table:
 
-CREATE TABLE t1 (a ENUM('a',0x0061));
+CREATE TABLE t1 (a ENUM('a',0x0061)) CHARSET=latin1;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (1),(2);
 SELECT HEX(a) FROM t1 ORDER BY a;
 DROP TABLE t1;
 
-CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061));
+CREATE TABLE t1 (a ENUM('a'), b ENUM('b',0x0061)) CHARSET=latin1;
 SHOW CREATE TABLE t1;
 INSERT INTO t1 VALUES (1,1);
 INSERT INTO t1 VALUES (1,2);
@@ -134,15 +118,11 @@ DROP TABLE t1;
 --echo 0x00 in the beginning of a value of a non-last ENUM/SET causes an error:
 --replace_regex /'.*t1.frm'/'DIR\/t1.frm'/
 --error ER_NOT_FORM_FILE
-CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b'));
+CREATE TABLE t1 (a ENUM('a',0x0061), b ENUM('b')) CHARSET=latin1;
 
 
 --echo #
 --echo # End of 10.1 tests
---echo #
-
---echo #
---echo # Start of 10.2 tests
 --echo #
 
 --echo #
@@ -250,22 +230,57 @@ SET NAMES latin1,character_set_connection=binary;
 --echo # Binary format, binary result
 SELECT DATE_FORMAT('2004-02-02','%W');
 SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
+#Enable after fix MDEV-33936
+--disable_view_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01','%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+--enable_view_protocol
 
 --echo # latin1 format, binary result
 SELECT DATE_FORMAT('2004-02-02',_latin1'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_latin1'%W'));
+#Enable after fix MDEV-33936
+--disable_view_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_latin1'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_latin1'%h'));
+--enable_view_protocol
 
 --echo # Binary format, latin1 result
 SET NAMES latin1;
 SELECT DATE_FORMAT('2004-02-02',_binary'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_binary'%W'));
+#Enable after fix MDEV-33936
+--disable_view_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_binary'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_binary'%h'));
-
+--enable_view_protocol
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-8844 Unreadable control characters printed as is in warnings
+--echo #
+
+SET NAMES binary;
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1, UNIQUE(a));
+INSERT INTO t1 VALUES (0x61000162FF);
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (0x61000162FF);
+INSERT IGNORE INTO t1 VALUES (0x61000162FF);
+DROP TABLE t1;
+
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET utf8, UNIQUE(a));
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+--error ER_DUP_ENTRY
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+INSERT IGNORE INTO t1 VALUES (_latin1 0x61000162FF);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

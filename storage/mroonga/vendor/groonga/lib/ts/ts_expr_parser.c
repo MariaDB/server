@@ -360,7 +360,7 @@ grn_ts_expr_parser_tokenize_start(grn_ctx *ctx, grn_ts_expr_parser *parser,
                                   grn_ts_str str, grn_ts_expr_token **token)
 {
   grn_ts_str token_str = { str.ptr, 0 };
-  grn_ts_expr_start_token *new_token;
+  grn_ts_expr_start_token *new_token= 0;
   grn_rc rc = grn_ts_expr_start_token_open(ctx, token_str, &new_token);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -375,7 +375,7 @@ grn_ts_expr_parser_tokenize_end(grn_ctx *ctx, grn_ts_expr_parser *parser,
                                 grn_ts_str str, grn_ts_expr_token **token)
 {
   grn_ts_str token_str = { str.ptr, 0 };
-  grn_ts_expr_end_token *new_token;
+  grn_ts_expr_end_token *new_token= 0;
   grn_rc rc = grn_ts_expr_end_token_open(ctx, token_str, &new_token);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -393,7 +393,7 @@ grn_ts_expr_parser_tokenize_number(grn_ctx *ctx, grn_ts_expr_parser *parser,
   grn_rc rc;
   grn_ts_int int_value;
   grn_ts_str token_str;
-  grn_ts_expr_const_token *new_token;
+  grn_ts_expr_const_token *new_token= 0;
 
   int_value = strtol(str.ptr, &end, 0);
   if ((end != str.ptr) && (*end != '.') && (*end != 'e')) {
@@ -442,7 +442,7 @@ grn_ts_expr_parser_tokenize_text(grn_ctx *ctx, grn_ts_expr_parser *parser,
   size_t i, n_escapes = 0;
   grn_rc rc;
   grn_ts_str token_str;
-  grn_ts_expr_const_token *new_token;
+  grn_ts_expr_const_token *new_token= 0;
   for (i = 1; i < str.size; i++) {
     if (str.ptr[i] == '\\') {
       i++;
@@ -504,7 +504,7 @@ grn_ts_expr_parser_tokenize_name(grn_ctx *ctx, grn_ts_expr_parser *parser,
   token_str.size = i;
 
   if (grn_ts_str_is_bool(token_str)) {
-    grn_ts_expr_const_token *new_token;
+    grn_ts_expr_const_token *new_token= 0;
     grn_rc rc = grn_ts_expr_const_token_open(ctx, token_str, &new_token);
     if (rc != GRN_SUCCESS) {
       return rc;
@@ -527,7 +527,7 @@ grn_ts_expr_parser_tokenize_bridge(grn_ctx *ctx, grn_ts_expr_parser *parser,
                                    grn_ts_str str, grn_ts_expr_token **token)
 {
   grn_ts_str token_str = { str.ptr, 1 };
-  grn_ts_expr_bridge_token *new_token;
+  grn_ts_expr_bridge_token *new_token= 0;
   grn_rc rc = grn_ts_expr_bridge_token_open(ctx, token_str, &new_token);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -543,7 +543,7 @@ grn_ts_expr_parser_tokenize_bracket(grn_ctx *ctx, grn_ts_expr_parser *parser,
                                     grn_ts_expr_token **token)
 {
   grn_ts_str token_str = { str.ptr, 1 };
-  grn_ts_expr_bracket_token *new_token;
+  grn_ts_expr_bracket_token *new_token= 0;
   grn_rc rc = grn_ts_expr_bracket_token_open(ctx, token_str, &new_token);
   if (rc != GRN_SUCCESS) {
     return rc;
@@ -567,7 +567,7 @@ grn_ts_expr_parser_tokenize_sign(grn_ctx *ctx, grn_ts_expr_parser *parser,
   grn_ts_op_type op_type;
   grn_ts_str token_str = { str.ptr, 1 };
   grn_ts_expr_token *prev_token = parser->tokens[parser->n_tokens - 1];
-  grn_ts_expr_op_token *new_token;
+  grn_ts_expr_op_token *new_token= 0;
   switch (prev_token->type) {
     case GRN_TS_EXPR_START_TOKEN:
     case GRN_TS_EXPR_OP_TOKEN: {
@@ -626,7 +626,7 @@ grn_ts_expr_parser_tokenize_op(grn_ctx *ctx, grn_ts_expr_parser *parser,
   grn_rc rc = GRN_SUCCESS;
   grn_ts_str token_str = str;
   grn_ts_op_type op_type;
-  grn_ts_expr_op_token *new_token;
+  grn_ts_expr_op_token *new_token= 0;
   switch (str.ptr[0]) {
     case '+': case '-': {
       return grn_ts_expr_parser_tokenize_sign(ctx, parser, str, token);

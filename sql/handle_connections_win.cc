@@ -22,12 +22,12 @@
 #include <mswsock.h>
 #include <mysql/psi/mysql_socket.h>
 #include <sddl.h>
-
+#include <vector>
 #include <handle_connections_win.h>
 
 /* From mysqld.cc */
 extern HANDLE hEventShutdown;
-extern MYSQL_SOCKET base_ip_sock, extra_ip_sock;
+extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
 #ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
 extern void tp_win_callback_prolog();
@@ -129,6 +129,9 @@ struct Socket_Listener: public Listener
   /** Client socket passed to AcceptEx() call.*/
   SOCKET m_client_socket;
 
+  /** Listening socket. */
+  MYSQL_SOCKET m_listen_socket;
+
   /** Buffer for sockaddrs passed to AcceptEx()/GetAcceptExSockaddrs() */
   char m_buffer[2 * sizeof(sockaddr_storage) + 32];
 
@@ -163,7 +166,8 @@ struct Socket_Listener: public Listener
   */
   Socket_Listener(MYSQL_SOCKET listen_socket, PTP_CALLBACK_ENVIRON callback_environ) :
     Listener((HANDLE)listen_socket.fd,0),
-    m_client_socket(INVALID_SOCKET)
+    m_client_socket(INVALID_SOCKET),
+    m_listen_socket(listen_socket)
   {
     if (callback_environ)
     {
@@ -185,7 +189,8 @@ struct Socket_Listener: public Listener
   void begin_accept()
   {
 retry :
-    m_client_socket= socket(server_socket_ai_family, SOCK_STREAM, IPPROTO_TCP);
+    m_client_socket= socket(m_listen_socket.address_family, SOCK_STREAM,
+                            IPPROTO_TCP);
     if (m_client_socket == INVALID_SOCKET)
     {
       sql_perror("socket() call failed.");
@@ -234,7 +239,6 @@ retry :
     }
 
     MYSQL_SOCKET s_client{m_client_socket};
-    MYSQL_SOCKET s_listen{(SOCKET)m_handle};
 
 #ifdef HAVE_PSI_SOCKET_INTERFACE
     /* Parse socket addresses buffer filled by AcceptEx(),
@@ -247,7 +251,8 @@ retry :
       &local_addr, &local_addr_len, &remote_addr, &remote_addr_len);
 
     s_client.m_psi= PSI_SOCKET_CALL(init_socket)
-      (key_socket_client_connection, (const my_socket*)&s_listen.fd, remote_addr, remote_addr_len);
+      (key_socket_client_connection, (const my_socket*)&m_listen_socket.fd,
+       remote_addr, remote_addr_len);
 #endif
 
     /* Start accepting new connection. After this point, do not use
@@ -256,7 +261,7 @@ retry :
 
     /* Some chores post-AcceptEx() that we need to create a normal socket.*/
     if (setsockopt(s_client.fd, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT,
-      (char *)&s_listen.fd, sizeof(s_listen.fd)))
+      (char *)&m_listen_socket.fd, sizeof(m_listen_socket.fd)))
     {
       if (!abort_loop)
       {
@@ -266,7 +271,7 @@ retry :
     }
 
     /* Create a new connection.*/
-    handle_accepted_socket(s_client, s_listen);
+    handle_accepted_socket(s_client, m_listen_socket);
   }
 
   ~Socket_Listener()
@@ -281,14 +286,12 @@ retry :
   */
   static void init_winsock_extensions()
   {
-    SOCKET s= mysql_socket_getfd(base_ip_sock);
-    if (s == INVALID_SOCKET)
-      s= mysql_socket_getfd(extra_ip_sock);
-    if (s == INVALID_SOCKET)
-    {
+    if (listen_sockets.size() == 0) {
       /* --skip-networking was used*/
       return;
     }
+
+    SOCKET s= mysql_socket_getfd(listen_sockets.at(0));
     GUID guid_AcceptEx= WSAID_ACCEPTEX;
     GUID guid_GetAcceptExSockaddrs= WSAID_GETACCEPTEXSOCKADDRS;
 
@@ -357,7 +360,8 @@ static void init_pipe_security_descriptor()
     goto fail;
 
   snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
-           EVERYONE_PIPE_ACCESS_MASK, current_user_string_sid);
+          (unsigned int)EVERYONE_PIPE_ACCESS_MASK,
+           current_user_string_sid);
   LocalFree(current_user_string_sid);
 
   if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl_string,
@@ -377,7 +381,7 @@ struct Pipe_Listener : public Listener
 {
   PTP_CALLBACK_ENVIRON m_tp_env;
   Pipe_Listener():
-    Listener(INVALID_HANDLE_VALUE, CreateEvent(0, FALSE, FALSE, 0)),
+    Listener(create_named_pipe(), CreateEvent(0, FALSE, FALSE, 0)),
     m_tp_env(get_threadpool_win_callback_environ())
   {
   }
@@ -412,7 +416,7 @@ struct Pipe_Listener : public Listener
     {
       sql_perror("Create named pipe failed");
       sql_print_error("Aborting");
-      exit(1);
+      unireg_abort(1);
     }
     first_instance= false;
     return pipe_handle;
@@ -420,17 +424,14 @@ struct Pipe_Listener : public Listener
 
   static void create_pipe_connection(HANDLE pipe)
   {
-    CONNECT *connect;
-    if (!(connect= new CONNECT) || !(connect->vio= vio_new_win32pipe(pipe)))
+    if (auto connect= new CONNECT(pipe))
+      create_new_thread(connect);
+    else
     {
       CloseHandle(pipe);
-      delete connect;
       statistic_increment(aborted_connects, &LOCK_status);
       statistic_increment(connection_errors_internal, &LOCK_status);
-      return;
     }
-    connect->host= my_localhost;
-    create_new_thread(connect);
   }
 
   /* Threadpool callback.*/
@@ -443,7 +444,6 @@ struct Pipe_Listener : public Listener
 
   void begin_accept()
   {
-    m_handle= create_named_pipe();
     BOOL connected= ConnectNamedPipe(m_handle, &m_overlapped);
     if (connected)
     {
@@ -488,11 +488,12 @@ struct Pipe_Listener : public Listener
       sql_print_warning("ConnectNamedPipe completed with %u", GetLastError());
 #endif
       CloseHandle(m_handle);
-      m_handle= INVALID_HANDLE_VALUE;
+      m_handle= create_named_pipe();
       begin_accept();
       return;
     }
     HANDLE pipe= m_handle;
+    m_handle= create_named_pipe();
     begin_accept();
     // If threadpool is on, create connection in threadpool thread
     if (!m_tp_env || !TrySubmitThreadpoolCallback(tp_create_pipe_connection, pipe, m_tp_env))
@@ -513,6 +514,18 @@ struct Pipe_Listener : public Listener
   }
 };
 
+ /* The shutdown event, which is set whenever*/
+static void create_shutdown_event()
+{
+  char shutdown_event_name[40];
+  sprintf_s(shutdown_event_name, "MySQLShutdown%u", GetCurrentProcessId());
+  if (!(hEventShutdown= CreateEvent(0, FALSE, FALSE, shutdown_event_name)))
+  {
+    sql_print_error("Can't create shutdown event, Windows error %u", GetLastError());
+    unireg_abort(1);
+  }
+}
+
 /**
   Accept new client connections on Windows.
 
@@ -532,23 +545,24 @@ struct Pipe_Listener : public Listener
 */
 
 
-#define MAX_WAIT_HANDLES 32
 #define NUM_PIPE_LISTENERS 24
 #define SHUTDOWN_IDX 0
 #define LISTENER_START_IDX 1
 
-void handle_connections_win()
-{
-  Listener* all_listeners[MAX_WAIT_HANDLES]= {};
-  HANDLE wait_events[MAX_WAIT_HANDLES]= {};
-  int n_listeners= 0;
-  int n_waits= 0;
+static std::vector<Listener *> all_listeners;
+static std::vector<HANDLE> wait_events;
 
+void network_init_win()
+{
   Socket_Listener::init_winsock_extensions();
 
   /* Listen for TCP connections on "extra-port" (no threadpool).*/
-  if (extra_ip_sock.fd != INVALID_SOCKET)
-    all_listeners[n_listeners++]= new Socket_Listener(extra_ip_sock, 0);
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
+  {
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
+    if (sock->is_extra_port)
+      all_listeners.push_back(new Socket_Listener(*sock, 0));
+  }
 
   /* Listen for named pipe connections */
   if (mysqld_unix_port[0] && !opt_bootstrap && opt_enable_named_pipe)
@@ -557,40 +571,68 @@ void handle_connections_win()
       Use several listeners for pipe, to reduce ERROR_PIPE_BUSY on client side.
     */
     for (int i= 0; i < NUM_PIPE_LISTENERS; i++)
-      all_listeners[n_listeners++]= new Pipe_Listener();
+      all_listeners.push_back(new Pipe_Listener());
   }
 
-  if (base_ip_sock.fd != INVALID_SOCKET)
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
-     /* Wait for TCP connections.*/
-    SetFileCompletionNotificationModes((HANDLE)base_ip_sock.fd, FILE_SKIP_SET_EVENT_ON_HANDLE);
-    all_listeners[n_listeners++]= new Socket_Listener(base_ip_sock, get_threadpool_win_callback_environ());
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
+    if (sock->is_extra_port)
+      continue;
+    /* Wait for TCP connections.*/
+    SetFileCompletionNotificationModes((HANDLE) sock->fd,
+                                       FILE_SKIP_SET_EVENT_ON_HANDLE);
+    all_listeners.push_back(
+      new Socket_Listener(*sock, get_threadpool_win_callback_environ()));
   }
 
-  if (!n_listeners && !opt_bootstrap)
+  if (all_listeners.size() == 0 && !opt_bootstrap)
   {
     sql_print_error("Either TCP connections or named pipe connections must be enabled.");
     unireg_abort(1);
   }
+}
 
-  wait_events[SHUTDOWN_IDX]= hEventShutdown;
-  n_waits = 1;
+void handle_connections_win()
+{
+  int n_waits;
 
-  for (int i= 0;  i < n_listeners; i++)
+  create_shutdown_event();
+  wait_events.push_back(hEventShutdown);
+  n_waits= 1;
+
+  for (size_t i= 0; i < all_listeners.size(); i++)
   {
     HANDLE wait_handle= all_listeners[i]->wait_handle();
-    if(wait_handle)
+    if (wait_handle)
     {
-      DBUG_ASSERT((i == 0) || (all_listeners[i-1]->wait_handle() != 0));
-      wait_events[n_waits++]= wait_handle;
+      DBUG_ASSERT((i == 0) || (all_listeners[i - 1]->wait_handle() != 0));
+      wait_events.push_back(wait_handle);
     }
     all_listeners[i]->begin_accept();
   }
 
+  mysqld_win_set_startup_complete();
+
+  // WaitForMultipleObjects can't wait on more than MAXIMUM_WAIT_OBJECTS
+  // handles simultaneously. Since MAXIMUM_WAIT_OBJECTS is only 64, there is
+  // a theoretical possiblity of exceeding that limit on installations where
+  // host name resolves to a lot of addresses.
+  if (wait_events.size() > MAXIMUM_WAIT_OBJECTS)
+  {
+    sql_print_warning(
+      "Too many wait events (%lu). Some connection listeners won't be handled. "
+      "Try to switch \"thread-handling\" to \"pool-of-threads\" and/or disable "
+      "\"extra-port\".", static_cast<ulong>(wait_events.size()));
+    wait_events.resize(MAXIMUM_WAIT_OBJECTS);
+  }
+
   for (;;)
   {
-    DWORD idx = WaitForMultipleObjects(n_waits ,wait_events, FALSE, INFINITE);
-    DBUG_ASSERT((int)idx >= 0 && (int)idx < n_waits);
+    DBUG_ASSERT(wait_events.size() <= MAXIMUM_WAIT_OBJECTS);
+    DWORD idx = WaitForMultipleObjects((DWORD)wait_events.size(),
+                                       wait_events.data(), FALSE, INFINITE);
+    DBUG_ASSERT((int)idx >= 0 && (int)idx < (int)wait_events.size());
 
     if (idx == SHUTDOWN_IDX)
       break;
@@ -598,8 +640,10 @@ void handle_connections_win()
     all_listeners[idx - LISTENER_START_IDX]->completion_callback();
   }
 
+  mysqld_win_initiate_shutdown();
+
   /* Cleanup */
-  for (int i= 0; i < n_listeners; i++)
+  for (size_t i= 0; i < all_listeners.size(); i++)
   {
     Listener *listener= all_listeners[i];
     if (listener->wait_handle())

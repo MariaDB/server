@@ -2,7 +2,8 @@
 -- source include/have_example_key_management_plugin.inc
 -- source include/not_valgrind.inc
 -- source include/not_embedded.inc
-
+SET @start_encr_threads = @@global.innodb_encryption_threads;
+SET @start_encrypt_tables = @@global.innodb_encrypt_tables;
 let MYSQLD_DATADIR = `SELECT @@datadir`;
 
 --let SEARCH_RANGE = 10000000
@@ -124,3 +125,56 @@ FLUSH TABLES t1, t2, t3 FOR EXPORT;
 UNLOCK TABLES;
 
 DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-34670 IMPORT TABLESPACE unnecessary traverses
+--echo # 		tablespace list
+--echo #
+SET GLOBAL innodb_encrypt_tables= OFF;
+SET GLOBAL innodb_encryption_threads= 0;
+
+CREATE TABLE t1(f1 int,f2 text)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "InnoDB");
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+
+SET GLOBAL innodb_encryption_threads=2;
+SET GLOBAL innodb_encrypt_tables = ON;
+
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces + 1 from information_schema.tables where engine = 'InnoDB'`
+
+--echo # Wait max 10 min for key encryption threads to encrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) >= $tables_count FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+SET GLOBAL innodb_encrypt_tables = OFF;
+
+--echo # Wait max 10 min for key encryption threads to decrypt all spaces
+--let $wait_timeout= 600
+--let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0;
+--source include/wait_condition.inc
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION = 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+--sorted_result
+SELECT NAME FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+AND NAME NOT LIKE 'innodb_undo%' AND NAME NOT LIKE 'mysql/innodb_%_stats' AND NAME NOT LIKE 'mysql/transaction_registry';
+
+DROP TABLE t1, t2;
+SET GLOBAL innodb_encryption_threads=@start_encr_threads;
+SET GLOBAL innodb_encrypt_tables=@start_encrypt_tables;

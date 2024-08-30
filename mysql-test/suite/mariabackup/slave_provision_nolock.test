@@ -1,6 +1,9 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
 
+call mtr.add_suppression("Can't init tc log");
+call mtr.add_suppression("Aborting");
+
 # Test provisioning a slave from an existing server, using mariabackup --no-lock
 # and the binlog position recovered from InnoDB redo log.
 
@@ -44,7 +47,7 @@ substr($page, $binlog_offset + 12, length($old_name))= $old_name;
 
 # Write back the modified page.
 my $full_crc32= get_full_crc32(\*IBD_FILE);
-my $page= fix_page_crc($page, $full_crc32);
+$page= fix_page_crc($page, $full_crc32);
 sysseek(IBD_FILE, $ps * 5, SEEK_SET)
   or die "Cannot seek ibdata1: $!\n";
 syswrite(IBD_FILE, $page, $ps) == $ps
@@ -94,7 +97,7 @@ send CALL gen_load();
 --echo *** Doing backup...
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$basedir --no-lock
 --echo *** Doing prepare...
---exec $XTRABACKUP --prepare --rollback-xa --binlog-info=1 --target-dir=$basedir
+--exec $XTRABACKUP --prepare --binlog-info=1 --target-dir=$basedir
 
 --echo *** Stop the background load...
 UPDATE t2 SET val=1;
@@ -117,6 +120,9 @@ disconnect con1;
 --echo *** Provision new server from backup
 --exec $XTRABACKUP --copy-back --datadir=$datadir_2 --target-dir=$basedir
 
+# --no-lock backup might leave prepared xa transactions. rollback them.
+--error 1
+--exec $MYSQLD_LAST_CMD --tc-heuristic-recover=ROLLBACK
 --source include/start_mysqld.inc
 
 --echo *** Configure slave position from xtrabackup_binlog_pos_innodb
@@ -133,6 +139,7 @@ eval LOAD DATA LOCAL INFILE "$basedir/xtrabackup_binlog_pos_innodb"
 
 --replace_result $SERVER_MYPORT_1 PORT $provision_master_file MASTER_FILE $provision_master_pos MASTER_POS
 eval CHANGE MASTER TO
+  master_ssl_verify_server_cert=0,
   master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root',
   master_log_file= "$provision_master_file",
   master_log_pos= $provision_master_pos;

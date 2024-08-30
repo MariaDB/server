@@ -14,6 +14,9 @@
 # privileges.
 --source include/not_embedded.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
+
+--enable_prepare_warnings
 
 let $engine_type= MEMORY;
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
@@ -23,4 +26,7 @@ SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
 let $my_where = WHERE table_schema LIKE 'test%';
 --source suite/funcs_1/datadict/columns.inc
 
+--disable_prepare_warnings
+
 --source suite/funcs_1/include/cleanup.inc
+--source include/test_db_charset_restore.inc

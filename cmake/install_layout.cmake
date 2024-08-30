@@ -64,8 +64,6 @@
 #
 # - INSTALL_UNIX_ADDRDIR    (path to mysql.sock)
 #
-# When changing this page,  _please_ do not forget to update public Wiki
-# http://forge.mysql.com/wiki/CMake#Fine-tuning_installation_paths
 
 IF(NOT INSTALL_LAYOUT)
   IF(DEB)
@@ -121,7 +119,7 @@ SET(INSTALL_INFODIR_STANDALONE          "docs")
 #
 SET(INSTALL_SHAREDIR_STANDALONE         "share")
 SET(INSTALL_MYSQLSHAREDIR_STANDALONE    "share")
-SET(INSTALL_MYSQLTESTDIR_STANDALONE     "mysql-test")
+SET(INSTALL_MYSQLTESTDIR_STANDALONE     "mariadb-test")
 SET(INSTALL_SQLBENCHDIR_STANDALONE      ".")
 SET(INSTALL_SUPPORTFILESDIR_STANDALONE  "support-files")
 #
@@ -154,10 +152,10 @@ SET(INSTALL_INFODIR_RPM                 "share/info")
 SET(INSTALL_MANDIR_RPM                  "share/man")
 #
 SET(INSTALL_SHAREDIR_RPM                "share")
-SET(INSTALL_MYSQLSHAREDIR_RPM           "share/mysql")
-SET(INSTALL_MYSQLTESTDIR_RPM            "share/mysql-test")
+SET(INSTALL_MYSQLSHAREDIR_RPM           "share/mariadb")
+SET(INSTALL_MYSQLTESTDIR_RPM            "share/mariadb-test")
 SET(INSTALL_SQLBENCHDIR_RPM             "")
-SET(INSTALL_SUPPORTFILESDIR_RPM         "share/mysql")
+SET(INSTALL_SUPPORTFILESDIR_RPM         "share/mariadb")
 #
 SET(INSTALL_MYSQLDATADIR_RPM            "/var/lib/mysql")
 
@@ -175,7 +173,7 @@ SET(INSTALL_BINDIR_DEB                  "bin")
 SET(INSTALL_SBINDIR_DEB                 "sbin")
 SET(INSTALL_SCRIPTDIR_DEB               "bin")
 SET(INSTALL_SYSCONFDIR_DEB              "/etc")
-SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/conf.d")
+SET(INSTALL_SYSCONF2DIR_DEB             "/etc/mysql/mariadb.conf.d")
 #
 SET(INSTALL_LIBDIR_DEB                  "lib/${CMAKE_CXX_LIBRARY_ARCHITECTURE}")
 SET(INSTALL_PLUGINDIR_DEB               "lib/mysql/plugin")
@@ -188,14 +186,14 @@ SET(INSTALL_MANDIR_DEB                  "share/man")
 SET(INSTALL_INFODIR_DEB                 "share/info")
 #
 SET(INSTALL_SHAREDIR_DEB                "share")
-SET(INSTALL_MYSQLSHAREDIR_DEB           "share/mysql")
-SET(INSTALL_MYSQLTESTDIR_DEB            "share/mysql/mysql-test")
+SET(INSTALL_MYSQLSHAREDIR_DEB           "share/mariadb")
+SET(INSTALL_MYSQLTESTDIR_DEB            "share/mariadb/mariadb-test")
 SET(INSTALL_SQLBENCHDIR_DEB             ".")
-SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mysql")
+SET(INSTALL_SUPPORTFILESDIR_DEB         "share/mariadb")
 #
 SET(INSTALL_MYSQLDATADIR_DEB            "/var/lib/mysql")
 
-SET(INSTALL_UNIX_ADDRDIR_DEB            "/var/run/mysqld/mysqld.sock")
+SET(INSTALL_UNIX_ADDRDIR_DEB            "/run/mysqld/mysqld.sock")
 SET(INSTALL_SYSTEMD_UNITDIR_DEB         "/lib/systemd/system")
 SET(INSTALL_SYSTEMD_SYSUSERSDIR_DEB     "/usr/lib/sysusers.d")
 SET(INSTALL_SYSTEMD_TMPFILESDIR_DEB     "/usr/lib/tmpfiles.d")
@@ -221,7 +219,7 @@ SET(INSTALL_INFODIR_SVR4                "docs")
 #
 SET(INSTALL_SHAREDIR_SVR4               "share")
 SET(INSTALL_MYSQLSHAREDIR_SVR4          "share")
-SET(INSTALL_MYSQLTESTDIR_SVR4           "mysql-test")
+SET(INSTALL_MYSQLTESTDIR_SVR4           "mariadb-test")
 SET(INSTALL_SQLBENCHDIR_SVR4            ".")
 SET(INSTALL_SUPPORTFILESDIR_SVR4        "support-files")
 #

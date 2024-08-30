@@ -1,11 +1,11 @@
-CREATE TABLE t1 (i INT AUTO_INCREMENT, c VARCHAR(1), KEY(i), KEY(c,i)) ENGINE=MyISAM;
-INSERT INTO t1 (c) VALUES ('a'),('b'),('c'),('d');
-INSERT INTO t1 (c) SELECT c FROM t1;
-INSERT INTO t1 (c) SELECT c FROM t1;
-INSERT INTO t1 (c) SELECT c FROM t1;
-INSERT INTO t1 (c) SELECT c FROM t1;
-INSERT INTO t1 (c) SELECT c FROM t1;
-INSERT INTO t1 (c) SELECT c FROM t1;
+CREATE TABLE t1 (i INT AUTO_INCREMENT, c VARCHAR(1), KEY(i), KEY(c,i)) ENGINE=MyISAM CHARSET=latin1;
+INSERT INTO t1 (c) select mid("abcdefgh", mod(seq,8)+1, 1) from seq_1_to_256;
+explain SELECT 1 FROM t1 AS alias1, t1 AS alias2, t1 AS alias3
+WHERE alias1.c = alias2.c OR alias1.i <= 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	alias2	index	c	c	8	NULL	256	Using index
+1	SIMPLE	alias3	index	NULL	i	4	NULL	256	Using index; Using join buffer (flat, BNL join)
+1	SIMPLE	alias1	ALL	i,c	NULL	NULL	NULL	256	Range checked for each record (index map: 0x3)
 set @old_dbug=@@session.debug_dbug;
 SET debug_dbug="+d,kill_join_init_read_record";
 SELECT 1 FROM t1 AS alias1, t1 AS alias2, t1 AS alias3

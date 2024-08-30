@@ -40,7 +40,7 @@ our @EXPORT= qw(create_process);
 #   Retry a couple of times if fork returns EAGAIN
 #
 sub _safe_fork {
-  my $retries= 5;
+  my $retries= 100;
   my $pid;
 
  FORK:

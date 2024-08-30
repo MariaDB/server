@@ -1,3 +1,6 @@
+call mtr.add_suppression('Unknown key id 1');
+call mtr.add_suppression('try to repair it');
+call mtr.add_suppression('Index is corrupted');
 call mtr.add_suppression("Initialization of encryption failed.*");
 set global aria_encrypt_tables= 1;
 create table t1 (pk int primary key, a int, key(a)) engine=aria transactional=1;

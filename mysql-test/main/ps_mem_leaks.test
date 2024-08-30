@@ -110,3 +110,111 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33769: Memory leak found in the test main.rownum run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
+--echo #
+CREATE OR REPLACE TABLE t1(a INT);
+PREPARE stmt FROM 'SELECT 1 FROM t1 WHERE ROWNUM() < 2';
+EXECUTE stmt;
+EXECUTE stmt;
+
+INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
+
+PREPARE stmt FROM 'SELECT * FROM t1 WHERE ROWNUM() < ?';
+--echo # Expected output is two rows (1), (2)
+EXECUTE stmt USING 3;
+--echo # Expected output is one row (1)
+EXECUTE stmt USING 2;
+--echo # Expected output is three rows (1), (2), (3)
+EXECUTE stmt USING 4;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 10.6 tests
+
+--echo #
+--echo # MDEV-34447: Memory leakage is detected on running the test main.ps against the server 11.1
+--echo #
+CREATE TABLE t1 (id INT, value INT);
+CREATE TABLE t2 (id INT);
+
+PREPARE stmt FROM 'UPDATE t1 SET value = (SELECT 1 FROM t2 WHERE id = t1.id)';
+EXECUTE stmt;
+INSERT INTO t1 VALUES (1,10),(2,10),(3,10);
+INSERT INTO t2 VALUES (1),(2);
+EXECUTE stmt;
+SELECT * FROM t1;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+
+--echo # Memory leak also could take place on running the DELETE statement
+--echo # with the LIMIT clause. Check it.
+CREATE TABLE t1 (c1 INT);
+INSERT INTO t1 (c1) VALUES (1), (2), (3);
+
+CREATE PROCEDURE p1(p1 INT)
+  DELETE FROM t1 LIMIT p1;
+
+CALL p1(0);
+CALL p1(1);
+CALL p1(2);
+
+--echo # Clean up
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 10.11 tests
+
+--echo #
+--echo # MDEV-34649: Memory leaks on running DELETE statement in PS mode with positional parameters
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(30)) CHARSET=utf8mb4;
+INSERT INTO t1 VALUES (1, 'one'), (0, NULL), (3, 'three'), (4, 'four');
+PREPARE stmt FROM 'DELETE FROM t1 WHERE b=?' ;
+SET @arg00=NULL;
+EXECUTE stmt USING @arg00;
+SET @arg00='one';
+# Without the patch, attempt to run the same prepared statement the second time
+# would result in memory leaks
+EXECUTE stmt USING @arg00;
+--echo # Clean up
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo # End of 11.1
+
+--echo #
+--echo # MDEV-34517: Memory leak on re-compilation of a failing statement inside a stored routine
+--echo #
+CREATE TABLE t1 (a INT);
+
+CREATE PROCEDURE p1()
+  SELECT * FROM t1;
+
+SET @save_dbug = @@debug_dbug;
+
+CALL p1();
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+SET @@debug_dbug='+d,check_sp_cache_not_invalidated,sp_instr_reparsing_1st_time';
+--echo # Recomplilation of the statement 'SELECT * FORM t1' on
+--echo # the second run of the procedure p1 shouldn't result in memory leaks
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_1st_time';
+
+DROP TABLE t1;
+CREATE TABLE t1 (a INT);
+--echo # Recompilation is requested the second time
+SET @@debug_dbug='+d,sp_instr_reparsing_2nd_time';
+CALL p1();
+SET @@debug_dbug='-d,sp_instr_reparsing_2nd_time';
+
+--echo # Clean up
+SET @@debug_dbug=@save_dbug;
+DROP TABLE t1;
+DROP PROCEDURE p1;
+
+--echo # End of 11.2 tests

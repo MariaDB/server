@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -70,32 +70,41 @@ struct row_threads
   const char* m_processlist_info_ptr;
   /** Length in bytes of @c m_processlist_info_ptr. */
   uint m_processlist_info_length;
-  /** Column INSTRUMENTED. */
-  bool *m_enabled_ptr;
+  /** Column INSTRUMENTED (read). */
+  bool m_enabled;
+  /** Column HISTORY (read). */
+  bool m_history;
+  /** INSTRUMENTED and HISTORY (write). */
+  PFS_thread *m_psi;
   /** Column PARENT_THREAD_ID. */
   ulonglong m_parent_thread_internal_id;
+  /** Column CONNECTION_TYPE. */
+  enum_vio_type m_connection_type;
+  /** Column THREAD_OS_ID. */
+  my_thread_os_id_t m_thread_os_id;
 };
 
 /** Table PERFORMANCE_SCHEMA.THREADS. */
 class table_threads : public cursor_by_thread
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   /** Table builder */
   static PFS_engine_table* create();
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
+    
 
-
-  virtual int update_row_values(TABLE *table,
-                                const unsigned char *old_buf,
-                                const unsigned char *new_buf,
-                                Field **fields);
+  int update_row_values(TABLE *table,
+                        const unsigned char *old_buf,
+                        const unsigned char *new_buf,
+                        Field **fields) override;
 
 protected:
   table_threads();
@@ -104,7 +113,7 @@ public:
   ~table_threads() = default;
 
 private:
-  virtual void make_row(PFS_thread *pfs);
+  void make_row(PFS_thread *pfs) override;
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;

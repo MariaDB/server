@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2019 Kentoku Shiba
+   Copyright (C) 2019 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER 1
 #include <my_global.h>
@@ -611,9 +612,9 @@ SPIDER_CONN_HOLDER *spider_fields::create_conn_holder(
   DBUG_PRINT("info",("spider this=%p", this));
   return_conn_holder = (SPIDER_CONN_HOLDER *)
     spider_bulk_malloc(spider_current_trx, SPD_MID_FIELDS_CREATE_CONN_HOLDER_1, MYF(MY_WME | MY_ZEROFILL),
-      &return_conn_holder, sizeof(SPIDER_CONN_HOLDER),
+      &return_conn_holder, (uint) (sizeof(SPIDER_CONN_HOLDER)),
       &table_link_idx_holder,
-        table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER),
+        (uint) (table_count * sizeof(SPIDER_TABLE_LINK_IDX_HOLDER)),
       NullS
     );
   if (!return_conn_holder)
@@ -750,7 +751,7 @@ void spider_fields::choose_a_conn(
   SPIDER_CONN_HOLDER *conn_holder;
   longlong balance_total = 0, balance_val;
   double rand_val;
-  THD *thd = table_holder[0].spider->trx->thd;
+  THD *thd = table_holder[0].spider->wide_handler->trx->thd;
   DBUG_ENTER("spider_fields::choose_a_conn");
   DBUG_PRINT("info",("spider this=%p", this));
   for (current_conn_holder = first_conn_holder; current_conn_holder;
@@ -953,8 +954,8 @@ int spider_fields::ping_table_mon_from_table(
     if (tmp_share->monitoring_kind[tmp_link_idx])
     {
       error_num_buf = spider_ping_table_mon_from_table(
-          tmp_spider->trx,
-          tmp_spider->trx->thd,
+          tmp_spider->wide_handler->trx,
+          tmp_spider->wide_handler->trx->thd,
           tmp_share,
           tmp_link_idx,
           (uint32) tmp_share->monitoring_sid[tmp_link_idx],
@@ -975,7 +976,6 @@ int spider_fields::ping_table_mon_from_table(
   DBUG_RETURN(error_num);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 spider_group_by_handler::spider_group_by_handler(
   THD *thd_arg,
   Query *query_arg,
@@ -985,7 +985,7 @@ spider_group_by_handler::spider_group_by_handler(
 {
   DBUG_ENTER("spider_group_by_handler::spider_group_by_handler");
   spider = fields->get_first_table_holder()->spider;
-  trx = spider->trx;
+  trx = spider->wide_handler->trx;
   DBUG_VOID_RETURN;
 }
 
@@ -1001,7 +1001,6 @@ static int spider_prepare_init_scan(
   const Query& query, spider_fields *fields, ha_spider *spider,
   SPIDER_TRX *trx, longlong& offset_limit, THD *thd)
 {
-  int error_num, link_idx;
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   st_select_lex *select_lex;
   longlong select_limit, direct_order_limit;
@@ -1020,34 +1019,28 @@ static int spider_prepare_init_scan(
   spider->init_index_handler = FALSE;
   spider->use_spatial_index = FALSE;
   result_list->check_direct_order_limit = FALSE;
+  /* Disable direct aggregate when GBH is on (MDEV-29502). */
+  result_list->direct_aggregate = FALSE;
   spider->select_column_mode = 0;
   spider->search_link_idx = fields->get_ok_link_idx();
   spider->result_link_idx = spider->search_link_idx;
 
   spider_db_free_one_result_for_start_next(spider);
 
-  spider->sql_kinds = SPIDER_SQL_KIND_SQL;
-  for (link_idx = 0; link_idx < (int) share->link_count; ++link_idx)
-    spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
-
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   spider->do_direct_update = FALSE;
   spider->direct_update_kinds = 0;
-#endif
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
   direct_order_limit = spider_param_direct_order_limit(thd,
     share->direct_order_limit);
   if (
     direct_order_limit &&
-    select_lex->explicit_limit &&
+    select_lex->limit_params.explicit_limit &&
     !(select_lex->options & OPTION_FOUND_ROWS) &&
     select_limit < direct_order_limit /* - offset_limit */
   ) {
     result_list->internal_limit = select_limit /* + offset_limit */;
     result_list->split_read = select_limit /* + offset_limit */;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     result_list->bgs_split_read = select_limit /* + offset_limit */;
-#endif
 
     result_list->split_read_base = 9223372036854775807LL;
     result_list->semi_split_read = 0;
@@ -1058,10 +1051,8 @@ static int spider_prepare_init_scan(
   }
   result_list->semi_split_read_base = 0;
   result_list->set_split_read = TRUE;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
-  if ((error_num = spider_set_conn_bg_param(spider)))
+  if (int error_num = spider_set_conn_bg_param(spider))
     DBUG_RETURN(error_num);
-#endif
   DBUG_PRINT("info",("spider result_list.finish_flg = FALSE"));
   result_list->finish_flg = FALSE;
   result_list->record_num = 0;
@@ -1074,7 +1065,7 @@ static int spider_prepare_init_scan(
     result_list->internal_limit >= result_list->split_read ?
     result_list->split_read : result_list->internal_limit;
 
-  if (select_lex->explicit_limit)
+  if (select_lex->limit_params.explicit_limit)
   {
     result_list->internal_offset += offset_limit;
   } else {
@@ -1170,7 +1161,6 @@ static int spider_send_query(
     link_idx = link_idx_holder->link_idx;
     dbton_hdl = spider->dbton_handler[conn->dbton_id];
     spider->link_idx_chain = link_idx_chain;
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list->bgs_phase > 0)
     {
       if ((error_num = spider_check_and_init_casual_read(trx->thd, spider,
@@ -1189,8 +1179,8 @@ static int spider_send_query(
         }
         DBUG_RETURN(error_num);
       }
-    } else {
-#endif
+    } else
+    {
       pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
       if ((error_num = dbton_hdl->set_sql_for_exec(
              SPIDER_SQL_TYPE_SELECT_SQL, link_idx, link_idx_chain)))
@@ -1271,9 +1261,7 @@ static int spider_send_query(
         SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
         pthread_mutex_unlock(&conn->mta_conn_mutex);
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
     }
-#endif
   }
   DBUG_RETURN(0);
 }
@@ -1343,7 +1331,6 @@ int spider_group_by_handler::next_row()
           table->status = STATUS_NOT_FOUND;
         DBUG_RETURN(spider->store_error_num);
       }
-#ifndef WITHOUT_SPIDER_BG_SEARCH
       if (spider->result_list.bgs_phase > 0)
       {
         fields->set_pos_to_first_link_idx_chain();
@@ -1372,7 +1359,6 @@ int spider_group_by_handler::next_row()
           }
         }
       }
-#endif
       spider->use_pre_call = FALSE;
     }
   } else if (offset_limit)
@@ -1421,6 +1407,9 @@ group_by_handler *spider_create_group_by_handler(
   long tgt_link_status;
   DBUG_ENTER("spider_create_group_by_handler");
 
+  if (spider_param_disable_group_by_handler(thd))
+    DBUG_RETURN(NULL);
+
   switch (thd_sql_command(thd))
   {
     case SQLCOM_UPDATE:
@@ -1437,7 +1426,6 @@ group_by_handler *spider_create_group_by_handler(
   do {
     DBUG_PRINT("info",("spider from=%p", from));
     ++table_count;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       DBUG_PRINT("info",("spider partition handler"));
@@ -1450,7 +1438,6 @@ group_by_handler *spider_create_group_by_handler(
         DBUG_RETURN(NULL);
       }
     }
-#endif
   } while ((from = from->next_local));
 
   if (!(table_holder= spider_create_table_holder(table_count)))
@@ -1458,7 +1445,6 @@ group_by_handler *spider_create_group_by_handler(
 
   table_idx = 0;
   from = query->from;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1469,7 +1455,6 @@ group_by_handler *spider_create_group_by_handler(
   } else {
     spider = (ha_spider *) from->table->file;
   }
-#endif
   share = spider->share;
   spider->idx_for_direct_join = table_idx;
   ++table_idx;
@@ -1491,7 +1476,6 @@ group_by_handler *spider_create_group_by_handler(
   }
   while ((from = from->next_local))
   {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1502,7 +1486,6 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     spider->idx_for_direct_join = table_idx;
     ++table_idx;
@@ -1531,7 +1514,6 @@ group_by_handler *spider_create_group_by_handler(
 
   from = query->from;
   do {
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1542,7 +1524,6 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     if (spider_param_skip_default_condition(thd,
       share->skip_default_condition))
@@ -1672,7 +1653,6 @@ group_by_handler *spider_create_group_by_handler(
     goto skip_free_table_holder;
 
   from = query->from;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (from->table->part_info)
   {
     partition_info *part_info = from->table->part_info;
@@ -1683,7 +1663,6 @@ group_by_handler *spider_create_group_by_handler(
   } else {
     spider = (ha_spider *) from->table->file;
   }
-#endif
   share = spider->share;
   lock_mode = spider_conn_lock_mode(spider);
   if (lock_mode)
@@ -1694,6 +1673,11 @@ group_by_handler *spider_create_group_by_handler(
   }
   DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
   DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
+  if (spider->dml_init())
+  {
+    DBUG_PRINT("info",("spider can not init for dml"));
+    goto skip_free_fields;
+  }
   for (
     roop_count = spider_conn_link_idx_next(share->link_statuses,
       spider->conn_link_idx, -1, share->link_count,
@@ -1703,13 +1687,6 @@ group_by_handler *spider_create_group_by_handler(
       spider->conn_link_idx, roop_count, share->link_count,
       tgt_link_status)
   ) {
-    if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
-    {
-      DBUG_PRINT("info",("spider direct_join does not support use_handler"));
-      if (lock_mode)
-        goto skip_free_fields;
-      continue;
-    }
     conn = spider->conns[roop_count];
     DBUG_PRINT("info",("spider roop_count=%d", roop_count));
     DBUG_PRINT("info",("spider conn=%p", conn));
@@ -1744,7 +1721,6 @@ group_by_handler *spider_create_group_by_handler(
   {
     fields->clear_conn_holder_from_conn();
 
-#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (from->table->part_info)
     {
       partition_info *part_info = from->table->part_info;
@@ -1755,10 +1731,14 @@ group_by_handler *spider_create_group_by_handler(
     } else {
       spider = (ha_spider *) from->table->file;
     }
-#endif
     share = spider->share;
     DBUG_PRINT("info",("spider s->db=%s", from->table->s->db.str));
     DBUG_PRINT("info",("spider s->table_name=%s", from->table->s->table_name.str));
+    if (spider->dml_init())
+    {
+      DBUG_PRINT("info",("spider can not init for dml"));
+      goto skip_free_fields;
+    }
     for (
       roop_count = spider_conn_link_idx_next(share->link_statuses,
         spider->conn_link_idx, -1, share->link_count,
@@ -1769,13 +1749,6 @@ group_by_handler *spider_create_group_by_handler(
         tgt_link_status)
     ) {
       DBUG_PRINT("info",("spider roop_count=%d", roop_count));
-      if (spider_param_use_handler(thd, share->use_handlers[roop_count]))
-      {
-        DBUG_PRINT("info",("spider direct_join does not support use_handler"));
-        if (lock_mode)
-          goto skip_free_fields;
-        continue;
-      }
       conn = spider->conns[roop_count];
       DBUG_PRINT("info",("spider conn=%p", conn));
       if (!fields->check_conn_same_conn(conn))
@@ -1853,4 +1826,3 @@ skip_free_table_holder:
   spider_free(spider_current_trx, table_holder, MYF(0));
   DBUG_RETURN(NULL);
 }
-#endif

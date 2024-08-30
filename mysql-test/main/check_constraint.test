@@ -215,7 +215,7 @@ drop table t1;
 --echo # MDEV-26061 MariaDB server crash at Field::set_default
 --echo #
 
-create table t1 (d timestamp check (default (d) is true)) as select 1;
+create table t1 (d timestamp not null default now() check (default (d) is true)) as select 1;
 show create table t1;
 drop table t1;
 
@@ -246,4 +246,36 @@ drop table t1;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
+--echo #
+
+CREATE TABLE t1 (v1 varchar(10), v2 varchar(10), constraint unequal check (v1 != v2));
+INSERT IGNORE INTO t1 VALUES (1,1);
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (1,2),(2,2);
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (3,3),(4,4);
+SHOW WARNINGS;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-32439 INSERT IGNORE VALUES (one row) errors on constraint
+--echo #
+
+CREATE TABLE t1 (v1 varchar(10), v2 varchar(10), constraint unequal check (v1 != v2));
+INSERT IGNORE INTO t1 VALUES (1,1);
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (1,2),(2,2);
+SHOW WARNINGS;
+INSERT IGNORE INTO t1 VALUES (3,3),(4,4);
+SHOW WARNINGS;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 11.4 tests
 --echo #

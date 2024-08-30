@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,7 @@ Index build routines using a merge sort
 Created 13/06/2005 Jan Lindstrom
 *******************************************************/
 
-#ifndef row0merge_h
-#define row0merge_h
+#pragma once
 
 #include "que0types.h"
 #include "trx0types.h"
@@ -36,7 +35,8 @@ Created 13/06/2005 Jan Lindstrom
 #include "row0mysql.h"
 #include "lock0types.h"
 #include "srv0srv.h"
-#include "ut0stage.h"
+
+class ut_stage_alter_t;
 
 /* Reserve free space from every block for key_version */
 #define ROW_MERGE_RESERVE_SIZE 4
@@ -109,6 +109,7 @@ struct index_field_t {
 	ulint		prefix_len;	/*!< column prefix length, or 0
 					if indexing the whole column */
 	bool		is_v_col;	/*!< whether this is a virtual column */
+	bool		descending;	/*!< whether to use DESC order */
 };
 
 /** Definition of an index being created */
@@ -145,28 +146,6 @@ row_merge_dup_report(
 	const dfield_t*		entry)	/*!< in: duplicate index entry */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Sets an exclusive lock on a table, for the duration of creating indexes.
-@return error code or DB_SUCCESS */
-dberr_t
-row_merge_lock_table(
-/*=================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	dict_table_t*	table,		/*!< in: table to lock */
-	enum lock_mode	mode)		/*!< in: LOCK_X or LOCK_S */
-	MY_ATTRIBUTE((nonnull(1,2), warn_unused_result));
-
-/*********************************************************************//**
-Drop indexes that were created before an error occurred.
-The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
-void
-row_merge_drop_indexes_dict(
-/*========================*/
-	trx_t*		trx,	/*!< in/out: dictionary transaction */
-	table_id_t	table_id)/*!< in: table identifier */
-	MY_ATTRIBUTE((nonnull));
-
 /** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed.
@@ -182,20 +161,15 @@ row_merge_drop_indexes(
         bool            locked,
         const trx_t*    alter_trx=NULL);
 
-/*********************************************************************//**
-Drop all partially created indexes during crash recovery. */
-void
-row_merge_drop_temp_indexes(void);
-/*=============================*/
+/** During recovery, drop recovered index stubs that were created in
+prepare_inplace_alter_table_dict(). */
+void row_merge_drop_temp_indexes();
 
-/** Create temporary merge files in the given paramater path, and if
-UNIV_PFS_IO defined, register the file descriptor with Performance Schema.
-@param[in]	path	location for creating temporary merge files, or NULL
+/** Create a temporary file at the specified path.
+@param path location for creating temporary merge files, or nullptr
 @return File descriptor */
-pfs_os_file_t
-row_merge_file_create_low(
-	const char*	path)
-	MY_ATTRIBUTE((warn_unused_result));
+pfs_os_file_t row_merge_file_create_low(const char *path)
+  MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 Destroy a merge file. And de-register the file from Performance Schema
 if UNIV_PFS_IO is defined. */
@@ -205,22 +179,6 @@ row_merge_file_destroy_low(
 	const pfs_os_file_t&	fd);	/*!< in: merge file descriptor */
 
 /*********************************************************************//**
-Rename the tables in the data dictionary.  The data dictionary must
-have been locked exclusively by the caller, because the transaction
-will not be committed.
-@return error code or DB_SUCCESS */
-dberr_t
-row_merge_rename_tables_dict(
-/*=========================*/
-	dict_table_t*	old_table,	/*!< in/out: old table, renamed to
-					tmp_name */
-	dict_table_t*	new_table,	/*!< in/out: new table, renamed to
-					old_table->name */
-	const char*	tmp_name,	/*!< in: new name for old_table */
-	trx_t*		trx)		/*!< in/out: dictionary transaction */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/*********************************************************************//**
 Rename an index in the dictionary that was created. The data
 dictionary must have been locked exclusively by the caller, because
 the transaction will not be committed.
@@ -228,19 +186,6 @@ the transaction will not be committed.
 dberr_t
 row_merge_rename_index_to_add(
 /*==========================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	table_id_t	table_id,	/*!< in: table identifier */
-	index_id_t	index_id)	/*!< in: index identifier */
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-/*********************************************************************//**
-Rename an index in the dictionary that is to be dropped. The data
-dictionary must have been locked exclusively by the caller, because
-the transaction will not be committed.
-@return DB_SUCCESS if all OK */
-dberr_t
-row_merge_rename_index_to_drop(
-/*===========================*/
 	trx_t*		trx,		/*!< in/out: transaction */
 	table_id_t	table_id,	/*!< in: table identifier */
 	index_id_t	index_id)	/*!< in: index identifier */
@@ -269,24 +214,10 @@ row_merge_is_index_usable(
 	const dict_index_t*	index)	/*!< in: index to check */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/*********************************************************************//**
-Drop a table. The caller must have ensured that the background stats
-thread is not processing the table. This can be done by calling
-dict_stats_wait_bg_to_stop_using_table() after locking the dictionary and
-before calling this function.
-@return DB_SUCCESS or error code */
-dberr_t
-row_merge_drop_table(
-/*=================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_table_t*	table)		/*!< in: table instance to drop */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/** Write an MLOG_INDEX_LOAD record to indicate in the redo-log
-that redo-logging of individual index pages was disabled, and
-the flushing of such pages to the data files was completed.
-@param[in]	index	an index tree on which redo logging was disabled */
-void row_merge_write_redo(const dict_index_t* index);
+/** Map from column numbers to column definitions that include
+changes to the collation, when the encoding is compatible with
+the original column and no table rebuild is needed */
+typedef std::map<unsigned, dict_col_t*> col_collations;
 
 /** Build indexes on a table by reading a clustered index, creating a temporary
 file containing index entries, merge sorting these index entries and inserting
@@ -316,6 +247,7 @@ this function and it will be passed to other functions for further accounting.
 @param[in]	eval_table	mysql table used to evaluate virtual column
 				value, see innobase_get_computed_value().
 @param[in]	allow_non_null	allow the conversion from null to not-null
+@param[in]	col_collate	columns whose collations changed, or nullptr
 @return DB_SUCCESS or error code */
 dberr_t
 row_merge_build_indexes(
@@ -335,18 +267,20 @@ row_merge_build_indexes(
 	ut_stage_alter_t*	stage,
 	const dict_add_v_col_t*	add_v,
 	struct TABLE*		eval_table,
-	bool			allow_non_null)
+	bool			allow_non_null,
+	const col_collations*	col_collate)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/********************************************************************//**
-Write a buffer to a block. */
-void
-row_merge_buf_write(
-/*================*/
-	const row_merge_buf_t*	buf,	/*!< in: sorted buffer */
-	const merge_file_t*	of,	/*!< in: output file */
-	row_merge_block_t*	block)	/*!< out: buffer for writing to file */
-	MY_ATTRIBUTE((nonnull));
+/** Write a buffer to a block.
+@param buf              sorted buffer
+@param block            buffer for writing to file
+@param blob_file        blob file handle for doing bulk insert operation */
+dberr_t row_merge_buf_write(const row_merge_buf_t *buf,
+#ifndef DBUG_OFF
+                            const merge_file_t *of, /*!< output file */
+#endif
+                            row_merge_block_t *block,
+                            merge_file_t *blob_file= nullptr);
 
 /********************************************************************//**
 Sort a buffer. */
@@ -363,10 +297,8 @@ Write a merge block to the file system.
 @return whether the request was completed successfully
 @retval	false	on error
 @retval	true	on success */
-UNIV_INTERN
 bool
 row_merge_write(
-/*============*/
 	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
@@ -483,4 +415,87 @@ row_merge_read_rec(
 	row_merge_block_t*	crypt_block, /*!< in: crypt buf or NULL */
 	ulint			space)	   /*!< in: space id */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* row0merge.h */
+
+/* Report an InnoDB error to the client by invoking my_error().
+@param error InnoDB error code
+@param table table name
+@param flags table flags */
+ATTRIBUTE_COLD __attribute__((nonnull))
+void
+my_error_innodb(dberr_t error, const char *table, ulint flags);
+
+/** Buffer for bulk insert */
+class row_merge_bulk_t
+{
+  /** Buffer for each index in the table. main memory
+  buffer for sorting the index */
+  row_merge_buf_t *m_merge_buf;
+  /** Block for IO operation */
+  row_merge_block_t *m_block= nullptr;
+  /** File to store the buffer and used for merge sort */
+  merge_file_t *m_merge_files= nullptr;
+  /** Temporary file to be used for merge sort */
+  pfs_os_file_t m_tmpfd;
+  /** Allocate memory for merge file data structure */
+  ut_allocator<row_merge_block_t> m_alloc;
+  /** Storage for description for the m_alloc */
+  ut_new_pfx_t m_block_pfx;
+  /** Temporary file to store the blob */
+  merge_file_t m_blob_file;
+  /** Storage for description for the crypt_block */
+  ut_new_pfx_t m_crypt_pfx;
+  /** Block for encryption */
+  row_merge_block_t *m_crypt_block= nullptr;
+public:
+  /** Constructor.
+  Create all merge files, merge buffer for all the table indexes
+  expect fts indexes.
+  Create a merge block which is used to write IO operation
+  @param table  table which undergoes bulk insert operation */
+  row_merge_bulk_t(dict_table_t *table);
+
+  /** Destructor.
+  Remove all merge files, merge buffer for all table indexes. */
+  ~row_merge_bulk_t();
+
+  /** Remove all buffer for the table indexes */
+  void remove_all_bulk_buffer();
+
+  /** Clean the merge buffer for the given index number */
+  void clean_bulk_buffer(ulint index_no);
+
+  /** Create the temporary file for the given index number
+  @retval true if temporary file creation went well */
+  bool create_tmp_file(ulint index_no);
+
+  /** Write the merge buffer to the tmp file for the given
+  index number.
+  @param index_no       buffer to be written for the index */
+  dberr_t write_to_tmp_file(ulint index_no);
+
+  /** Add the tuple to the merge buffer for the given index.
+  If the buffer ran out of memory then write the buffer into
+  the temporary file and do insert the tuple again.
+  @param row     tuple to be inserted
+  @param ind     index to be buffered
+  @param trx     bulk transaction */
+  dberr_t bulk_insert_buffered(const dtuple_t &row, const dict_index_t &ind,
+                               trx_t *trx);
+
+  /** Do bulk insert operation into the index tree from
+  buffer or merge file if exists
+  @param index_no  index to be inserted
+  @param trx       bulk transaction */
+  dberr_t write_to_index(ulint index_no, trx_t *trx);
+
+  /** Do bulk insert for the buffered insert for the table.
+  @param table  table which undergoes for bulk insert operation
+  @param trx    bulk transaction */
+  dberr_t write_to_table(dict_table_t *table, trx_t *trx);
+
+  /** Allocate block for writing the buffer into disk */
+  dberr_t alloc_block();
+
+  /** Init temporary files for each index */
+  void init_tmp_file();
+};

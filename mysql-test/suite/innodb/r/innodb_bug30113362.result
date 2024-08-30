@@ -37,7 +37,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 connection con2;
 DELETE FROM t1 WHERE a00 = 'cnm';
 COMMIT;
@@ -80,7 +80,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 DELETE FROM t1 WHERE a00 = 'dpn';
 COMMIT;
 INSERT INTO t1 SET a00 = 'dpn';
@@ -117,6 +117,6 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT CLUST_INDEX_SIZE FROM information_schema.INNODB_SYS_TABLESTATS WHERE NAME = 'test/t1';
 CLUST_INDEX_SIZE
-1856
+1792
 SET DEBUG_SYNC = 'RESET';
 DROP TABLE t1;

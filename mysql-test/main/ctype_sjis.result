@@ -52,7 +52,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('ìS','ìs') CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (0x9353);
 insert into t1 values (0x9373);
 select hex(c) from t1;
@@ -218,8 +218,8 @@ DROP TABLE t1;
 SELECT @@character_set_connection, HEX(CAST(_utf8'√∑' AS CHAR));
 @@character_set_connection	HEX(CAST(_utf8'√∑' AS CHAR))
 sjis	8180
-SELECT STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR));
-STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR))
+SELECT STR_TO_DATE(CAST(_utf8'2001√∑01√∑01' AS CHAR),CAST(_utf8'%Y√∑%m√∑%d' AS CHAR)) as exp;
+exp
 2001-01-01
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
@@ -231,6 +231,128 @@ SELECT HEX(subject),HEX(pattern),STR_TO_DATE(subject, pattern) FROM t1;
 HEX(subject)	HEX(pattern)	STR_TO_DATE(subject, pattern)
 323030318180303181803031	25598180256D81802564	2001-01-01 00:00:00.000000
 DROP TABLE t1;
+drop table if exists t1;
+create table t1 select repeat('a',10) as c1;
+delete from t1;
+insert into t1 values (0x00),(0x01),(0x02),(0x03),(0x04),(0x05),(0x06),(0x07),(0x08),(0x09),(0x0A),(0x0B),(0x0C),(0x0D),(0x0E),(0x0F);
+insert into t1 values (0x10),(0x11),(0x12),(0x13),(0x14),(0x15),(0x16),(0x17),(0x18),(0x19),(0x1A),(0x1B),(0x1C),(0x1D),(0x1E),(0x1F);
+insert into t1 values (0x20),(0x21),(0x22),(0x23),(0x24),(0x25),(0x26),(0x27),(0x28),(0x29),(0x2A),(0x2B),(0x2C),(0x2D),(0x2E),(0x2F);
+insert into t1 values (0x30),(0x31),(0x32),(0x33),(0x34),(0x35),(0x36),(0x37),(0x38),(0x39),(0x3A),(0x3B),(0x3C),(0x3D),(0x3E),(0x3F);
+insert into t1 values (0x40),(0x41),(0x42),(0x43),(0x44),(0x45),(0x46),(0x47),(0x48),(0x49),(0x4A),(0x4B),(0x4C),(0x4D),(0x4E),(0x4F);
+insert into t1 values (0x50),(0x51),(0x52),(0x53),(0x54),(0x55),(0x56),(0x57),(0x58),(0x59),(0x5A),(0x5B),(0x5C),(0x5D),(0x5E),(0x5F);
+insert into t1 values (0x60),(0x61),(0x62),(0x63),(0x64),(0x65),(0x66),(0x67),(0x68),(0x69),(0x6A),(0x6B),(0x6C),(0x6D),(0x6E),(0x6F);
+insert into t1 values (0x70),(0x71),(0x72),(0x73),(0x74),(0x75),(0x76),(0x77),(0x78),(0x79),(0x7A),(0x7B),(0x7C),(0x7D),(0x7E),(0x7F);
+create view v1 as select c1, if(c1 < 0x20 OR c1=0x7F, concat('<',hex(c1),'>'),c1) as name from t1;
+select column_name, collation_name from information_schema.columns where table_schema=database() and table_name='v1';
+column_name	collation_name
+c1	sjis_japanese_ci
+name	sjis_japanese_ci
+SELECT GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR ''), GROUP_CONCAT(hex(c1) ORDER BY BINARY c1) FROM v1 GROUP BY c1;
+GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR '')	GROUP_CONCAT(hex(c1) ORDER BY BINARY c1)
+<00>	00
+<01>	01
+<02>	02
+<03>	03
+<04>	04
+<05>	05
+<06>	06
+<07>	07
+<08>	08
+<09>	09
+<0A>	0A
+<0B>	0B
+<0C>	0C
+<0D>	0D
+<0E>	0E
+<0F>	0F
+<10>	10
+<11>	11
+<12>	12
+<13>	13
+<14>	14
+<15>	15
+<16>	16
+<17>	17
+<18>	18
+<19>	19
+<1A>	1A
+<1B>	1B
+<1C>	1C
+<1D>	1D
+<1E>	1E
+<1F>	1F
+ 	20
+!	21
+"	22
+#	23
+$	24
+%	25
+&	26
+'	27
+(	28
+)	29
+*	2A
++	2B
+,	2C
+-	2D
+.	2E
+/	2F
+0	30
+1	31
+2	32
+3	33
+4	34
+5	35
+6	36
+7	37
+8	38
+9	39
+:	3A
+;	3B
+<	3C
+=	3D
+>	3E
+?	3F
+@	40
+Aa	41,61
+Bb	42,62
+Cc	43,63
+Dd	44,64
+Ee	45,65
+Ff	46,66
+Gg	47,67
+Hh	48,68
+Ii	49,69
+Jj	4A,6A
+Kk	4B,6B
+Ll	4C,6C
+Mm	4D,6D
+Nn	4E,6E
+Oo	4F,6F
+Pp	50,70
+Qq	51,71
+Rr	52,72
+Ss	53,73
+Tt	54,74
+Uu	55,75
+Vv	56,76
+Ww	57,77
+Xx	58,78
+Yy	59,79
+Zz	5A,7A
+[	5B
+\	5C
+]	5D
+^	5E
+_	5F
+`	60
+{	7B
+|	7C
+}	7D
+~	7E
+<7F>	7F
+drop table t1;
+drop view v1;
 SET collation_connection='sjis_bin';
 create table t1 select repeat('a',4000) a;
 delete from t1;
@@ -372,6 +494,154 @@ a	hex(b)	c
 3	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 4	F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2F1F2	NULL
 DROP TABLE t1;
+drop table if exists t1;
+create table t1 select repeat('a',10) as c1;
+delete from t1;
+insert into t1 values (0x00),(0x01),(0x02),(0x03),(0x04),(0x05),(0x06),(0x07),(0x08),(0x09),(0x0A),(0x0B),(0x0C),(0x0D),(0x0E),(0x0F);
+insert into t1 values (0x10),(0x11),(0x12),(0x13),(0x14),(0x15),(0x16),(0x17),(0x18),(0x19),(0x1A),(0x1B),(0x1C),(0x1D),(0x1E),(0x1F);
+insert into t1 values (0x20),(0x21),(0x22),(0x23),(0x24),(0x25),(0x26),(0x27),(0x28),(0x29),(0x2A),(0x2B),(0x2C),(0x2D),(0x2E),(0x2F);
+insert into t1 values (0x30),(0x31),(0x32),(0x33),(0x34),(0x35),(0x36),(0x37),(0x38),(0x39),(0x3A),(0x3B),(0x3C),(0x3D),(0x3E),(0x3F);
+insert into t1 values (0x40),(0x41),(0x42),(0x43),(0x44),(0x45),(0x46),(0x47),(0x48),(0x49),(0x4A),(0x4B),(0x4C),(0x4D),(0x4E),(0x4F);
+insert into t1 values (0x50),(0x51),(0x52),(0x53),(0x54),(0x55),(0x56),(0x57),(0x58),(0x59),(0x5A),(0x5B),(0x5C),(0x5D),(0x5E),(0x5F);
+insert into t1 values (0x60),(0x61),(0x62),(0x63),(0x64),(0x65),(0x66),(0x67),(0x68),(0x69),(0x6A),(0x6B),(0x6C),(0x6D),(0x6E),(0x6F);
+insert into t1 values (0x70),(0x71),(0x72),(0x73),(0x74),(0x75),(0x76),(0x77),(0x78),(0x79),(0x7A),(0x7B),(0x7C),(0x7D),(0x7E),(0x7F);
+create view v1 as select c1, if(c1 < 0x20 OR c1=0x7F, concat('<',hex(c1),'>'),c1) as name from t1;
+select column_name, collation_name from information_schema.columns where table_schema=database() and table_name='v1';
+column_name	collation_name
+c1	sjis_bin
+name	sjis_bin
+SELECT GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR ''), GROUP_CONCAT(hex(c1) ORDER BY BINARY c1) FROM v1 GROUP BY c1;
+GROUP_CONCAT(name ORDER BY binary c1 SEPARATOR '')	GROUP_CONCAT(hex(c1) ORDER BY BINARY c1)
+<00>	00
+<01>	01
+<02>	02
+<03>	03
+<04>	04
+<05>	05
+<06>	06
+<07>	07
+<08>	08
+<09>	09
+<0A>	0A
+<0B>	0B
+<0C>	0C
+<0D>	0D
+<0E>	0E
+<0F>	0F
+<10>	10
+<11>	11
+<12>	12
+<13>	13
+<14>	14
+<15>	15
+<16>	16
+<17>	17
+<18>	18
+<19>	19
+<1A>	1A
+<1B>	1B
+<1C>	1C
+<1D>	1D
+<1E>	1E
+<1F>	1F
+ 	20
+!	21
+"	22
+#	23
+$	24
+%	25
+&	26
+'	27
+(	28
+)	29
+*	2A
++	2B
+,	2C
+-	2D
+.	2E
+/	2F
+0	30
+1	31
+2	32
+3	33
+4	34
+5	35
+6	36
+7	37
+8	38
+9	39
+:	3A
+;	3B
+<	3C
+=	3D
+>	3E
+?	3F
+@	40
+A	41
+B	42
+C	43
+D	44
+E	45
+F	46
+G	47
+H	48
+I	49
+J	4A
+K	4B
+L	4C
+M	4D
+N	4E
+O	4F
+P	50
+Q	51
+R	52
+S	53
+T	54
+U	55
+V	56
+W	57
+X	58
+Y	59
+Z	5A
+[	5B
+\	5C
+]	5D
+^	5E
+_	5F
+`	60
+a	61
+b	62
+c	63
+d	64
+e	65
+f	66
+g	67
+h	68
+i	69
+j	6A
+k	6B
+l	6C
+m	6D
+n	6E
+o	6F
+p	70
+q	71
+r	72
+s	73
+t	74
+u	75
+v	76
+w	77
+x	78
+y	79
+z	7A
+{	7B
+|	7C
+}	7D
+~	7E
+<7F>	7F
+drop table t1;
+drop view v1;
 SET NAMES sjis;
 SELECT HEX('ç≤ìëÅ@å\') FROM DUAL;
 HEX('ç≤ìëÅ@å\')
@@ -421,7 +691,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `code` varchar(8) DEFAULT NULL,
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_japanese_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 UPDATE IGNORE t1 SET a=unhex(code) ORDER BY code;
 Warnings:
 Warning	1366	Incorrect string value: '\x80 ' for column `test`.`t1`.`a` at row 1
@@ -674,139 +944,139 @@ HEX(LOWER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 81F0	‚Ñ´
 Warnings:
-Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8mb3'
 SELECT * FROM t1
 WHERE HEX(CAST(UPPER(a) AS CHAR CHARACTER SET utf8)) <>
 HEX(UPPER(CAST(a AS CHAR CHARACTER SET utf8))) ORDER BY code;
 code	a
 Warnings:
-Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8mb3'
 #
 # WL#3090 Japanese Character Set adjustments
 # Test sjis->Unicode conversion
@@ -7757,70 +8027,70 @@ EAA2	E791A4
 EAA3	E5879C
 EAA4	E78699
 Warnings:
-Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EB to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EC to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81ED to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EE to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81EF to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81F8 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81F9 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81FA to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x81FB to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8240 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8241 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8242 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8243 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8244 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8245 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8246 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8247 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8248 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8249 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x824A to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x824B to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x824C to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x824D to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x824E to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x8259 to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825A to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825B to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825C to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825D to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825E to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x825F to 'utf8'
-Warning	1977	Cannot convert 'sjis' character 0x827A to 'utf8'
+Warning	1977	Cannot convert 'sjis' character 0x81AD to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81AF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81B7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81C7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81CF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D0 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D1 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D2 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D3 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D4 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D5 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D6 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D7 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81D9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81E9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EA to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EB to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EC to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81ED to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EE to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81EF to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81F8 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81F9 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81FA to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x81FB to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8240 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8241 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8242 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8243 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8244 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8245 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8246 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8247 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8248 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8249 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x824A to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x824B to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x824C to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x824D to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x824E to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x8259 to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825A to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825B to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825C to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825D to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825E to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x825F to 'utf8mb3'
+Warning	1977	Cannot convert 'sjis' character 0x827A to 'utf8mb3'
 DROP TABLE t1;
 #
 # WL#3090 Japanese Character Set adjustments
@@ -14941,13 +15211,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_japanese_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 41
@@ -14961,13 +15231,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 4141414141
@@ -14980,7 +15250,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 414141
@@ -14993,7 +15263,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 41414141412020202020
@@ -15200,13 +15470,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(1) CHARACTER SET sjis COLLATE sjis_bin NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(2) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 61
@@ -15220,13 +15490,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(5) CHARACTER SET sjis COLLATE sjis_bin DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 AS SELECT WEIGHT_STRING(a) AS ws FROM t1;
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a)) FROM t1;
 HEX(WEIGHT_STRING(a))
 6161616161
@@ -15239,7 +15509,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(3))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(3)))
 616161
@@ -15252,7 +15522,7 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `ws` varbinary(20) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT HEX(WEIGHT_STRING(a AS CHAR(10))) FROM t1;
 HEX(WEIGHT_STRING(a AS CHAR(10)))
 61616161612020202020
@@ -18565,7 +18835,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('‡\'),('‡\t');
 INSERT INTO t1 VALUES ('\\‡\'),('\\‡\t'),('\\‡\t\t');
 INSERT INTO t1 VALUES ('''‡\'),('‡\''');
@@ -18604,7 +18874,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (BINARY('‡\')),(BINARY('‡\t'));
 INSERT INTO t1 VALUES (BINARY('\\‡\')),(BINARY('\\‡\t')),(BINARY('\\‡\t\t'));
 INSERT INTO t1 VALUES (BINARY('''‡\')),(BINARY('‡\'''));
@@ -18643,7 +18913,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (_BINARY'‡\'),(_BINARY'‡\t');
 INSERT INTO t1 VALUES (_BINARY'\\‡\'),(_BINARY'\\‡\t'),(_BINARY'\\‡\t\t');
 INSERT INTO t1 VALUES (_BINARY'''‡\'),(_BINARY'‡\''');
@@ -18694,7 +18964,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) CHARACTER SET sjis COLLATE sjis_japanese_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('‡\['),('\‡\[');
 SELECT HEX(a) FROM t1;
 HEX(a)
@@ -18714,7 +18984,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varbinary(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES ('‡\['),('\‡\[');
 SELECT HEX(a) FROM t1;
 HEX(a)
@@ -18744,7 +19014,7 @@ DROP TABLE t1;
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=sjis;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -18839,20 +19109,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -18882,7 +19152,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -18977,20 +19247,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_japanese_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_japanese_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_japanese_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19020,8 +19290,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -19116,20 +19386,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19159,7 +19429,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -19254,20 +19524,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'sjis_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'sjis_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'sjis_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'sjis_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -19297,7 +19567,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #
@@ -19316,4 +19586,78 @@ f
 DROP TABLE t;
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+#
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+(a(b '—Ç'));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'a(b 'Å_0143Å_201A'))' at line 1
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+'—Ç';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ''Å_0143Å_201A'' at line 1
+SET NAMES sjis;
+SET @@CHARACTER_SET_CLIENT='cp1257';
+EXECUTE IMMEDIATE _cp1257 0xD182;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'Å_0143Å_201A' at line 1
+SET NAMES sjis;
+#
+# MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
+#
+SET NAMES sjis;
+SET @seq=_sjis 0x81AD;
+#
+# SET STATEMENT (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81'
+#
+# SET SESSION (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid sjis character string: 'Å_x81'
+#
+# SET (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81'
+#
+# Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
+#
+SET sql_mode=ORACLE;
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '(1); END;');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
+ERROR HY000: Invalid sjis character string: 'Å_x81'
+#
+# Oracle assignment: (bad|good.bad|bad.good):= value
+#
+EXECUTE IMMEDIATE CONCAT(@seq, ':=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81Å_xAD'
+EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
+ERROR HY000: Invalid sjis character string: 'Å_x81'
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
 #

@@ -1,0 +1,20 @@
+create database db;
+use db;
+create table t (a text);
+insert into t values ('{"foo":"bar"}');
+create user u@localhost;
+grant select (a) on db.t to u@localhost;
+connect  con1,localhost,u,,db;
+select a from t;
+a
+{"foo":"bar"}
+select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
+a	f
+{"foo":"bar"}	bar
+select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
+ERROR 28000: Access denied for user 'u'@'localhost' (using password: NO)
+connection default;
+disconnect con1;
+drop user u@localhost;
+drop database db;
+use test;

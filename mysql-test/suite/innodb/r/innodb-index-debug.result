@@ -1,3 +1,7 @@
+SET GLOBAL innodb_max_purge_lag_wait=0;
+connect  stop_purge,localhost,root;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
 CREATE TABLE t1(c1 INT NOT NULL, c2 INT, PRIMARY KEY(c1)) Engine=InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -5,7 +9,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES (1,1),(2,2),(3,3),(4,4),(5,5);
 SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG='+d,ib_build_indexes_too_many_concurrent_trxs, ib_rename_indexes_too_many_concurrent_trxs, ib_drop_index_too_many_concurrent_trxs';
@@ -18,7 +22,7 @@ t1	CREATE TABLE `t1` (
   `c1` int(11) NOT NULL,
   `c2` int(11) DEFAULT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE bug13861218 (c1 INT NOT NULL, c2 INT NOT NULL, INDEX(c2))
 ENGINE=InnoDB;
@@ -87,9 +91,7 @@ SIGNAL opened WAIT_FOR flushed';
 ALTER TABLE t1 FORCE, ADD COLUMN k4 int;
 connection default;
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
-SET debug = '+d,row_log_tmpfile_fail';
-Warnings:
-Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
+SET debug_dbug = '+d,row_log_tmpfile_fail';
 INSERT INTO t1 select NULL,'aaa','bbb' from t480;
 INSERT INTO t1 select NULL,'aaaa','bbbb' from t480;
 SET DEBUG_SYNC= 'now SIGNAL flushed';
@@ -111,25 +113,28 @@ t1	CREATE TABLE `t1` (
   `k2` char(200) DEFAULT NULL,
   `k3` char(200) DEFAULT NULL,
   PRIMARY KEY (`k1`)
-) ENGINE=InnoDB AUTO_INCREMENT=1024 DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB AUTO_INCREMENT=1024 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 drop table t480;
 #
 # MDEV-12827 Assertion failure when reporting duplicate key error
 # in online table rebuild
 #
-CREATE TABLE t1 (j INT UNIQUE, i INT UNIQUE) ENGINE=InnoDB;
+CREATE TABLE t1 (j INT UNIQUE, i INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(2, 2);
 connect  con1,localhost,root,,test;
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built WAIT_FOR log';
-ALTER TABLE t1 DROP j, FORCE;
+ALTER TABLE t1 DROP j, ADD UNIQUE INDEX(i), FORCE;
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR built';
+SET DEBUG_DBUG='+d,row_ins_row_level';
 INSERT INTO t1 (i) VALUES (0),(0);
-ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log';
+SET DEBUG_DBUG=@saved_debug_dbug;
 connection con1;
 ERROR 23000: Duplicate entry '0' for key 'i'
+DELETE FROM t1;
+ALTER TABLE t1 ADD UNIQUE INDEX(i);
 SET DEBUG_SYNC='row_log_table_apply1_before SIGNAL built2 WAIT_FOR log2';
 ALTER TABLE t1 DROP j, FORCE;
 connection default;
@@ -139,8 +144,8 @@ UPDATE t1 SET i=0;
 ERROR 23000: Duplicate entry '0' for key 'i'
 SET DEBUG_SYNC='now SIGNAL log2';
 connection con1;
-ERROR 23000: Duplicate entry '0' for key 'i'
 disconnect con1;
+disconnect stop_purge;
 connection default;
 SET DEBUG_SYNC='RESET';
 DROP TABLE t1;

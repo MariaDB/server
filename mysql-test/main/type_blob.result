@@ -27,12 +27,12 @@ Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` mediumtext DEFAULT NULL,
   `b` mediumblob DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create TABLE t4;
 Table	Create Table
 t4	CREATE TABLE `t4` (
-  `c` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2,t3,t4;
 CREATE TABLE t1 (a char(257) default "hello");
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
@@ -46,13 +46,13 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` mediumtext DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 CREATE TABLE t2 (a blob default "hello");
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` blob DEFAULT 'hello'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1,t2;
 create table t1 (nr int(5) not null auto_increment,b blob,str char(10), primary key (nr));
 insert into t1 values (null,"a","A");
@@ -93,15 +93,15 @@ update t1 set c="",b=null where c="1";
 lock tables t1 READ;
 show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-t	text	latin1_swedish_ci	YES		NULL		#	
-c	char(10)	latin1_swedish_ci	YES		NULL		#	
+t	text	utf8mb4_uca1400_ai_ci	YES		NULL		#	
+c	char(10)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 b	blob	NULL	YES		NULL		#	
 d	varbinary(10)	NULL	YES		NULL		#	
 lock tables t1 WRITE;
 show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
-t	text	latin1_swedish_ci	YES		NULL		#	
-c	char(10)	latin1_swedish_ci	YES		NULL		#	
+t	text	utf8mb4_uca1400_ai_ci	YES		NULL		#	
+c	char(10)	utf8mb4_uca1400_ai_ci	YES		NULL		#	
 b	blob	NULL	YES		NULL		#	
 d	varbinary(10)	NULL	YES		NULL		#	
 unlock tables;
@@ -245,7 +245,7 @@ HELLO
 HELLO MY
 a
 hello
-set big_tables=1;
+set tmp_memory_table_size=0;
 select distinct t from t1;
 t
 NULL
@@ -326,7 +326,7 @@ HELLO
 HELLO MY
 a
 hello
-set big_tables=0;
+set tmp_memory_table_size=default;
 select distinct * from t1;
 t	c	b	d
 NULL	NULL	NULL	NULL
@@ -376,8 +376,8 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT NULL,
-  KEY `a` (`a`(1000))
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  KEY `a` (`a`(250))
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE TABLE t1 (
 t1_id bigint(21) NOT NULL auto_increment,
@@ -520,7 +520,7 @@ charset(load_file('../../std_data/words.dat')),
 collation(load_file('../../std_data/words.dat')),
 coercibility(load_file('../../std_data/words.dat'));
 charset(load_file('../../std_data/words.dat'))	collation(load_file('../../std_data/words.dat'))	coercibility(load_file('../../std_data/words.dat'))
-binary	binary	4
+binary	binary	5
 explain extended select
 charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
 collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
@@ -539,7 +539,7 @@ show full fields from t1;
 Field	Type	Collation	Null	Key	Default	Extra	Privileges	Comment
 l	longblob	NULL	YES		NULL		#	
 drop table t1;
-create table t1 (id integer primary key auto_increment, txt text not null, unique index txt_index (txt (20)));
+create table t1 (id integer primary key auto_increment, txt text not null, unique index txt_index (txt (20))) charset=latin1;
 insert into t1 (txt) values ('Chevy'), ('Chevy ');
 ERROR 23000: Duplicate entry 'Chevy ' for key 'txt_index'
 insert into t1 (txt) values ('Chevy'), ('CHEVY');
@@ -615,7 +615,7 @@ id	txt
 2	Chevy 
 3	Ford
 drop table t1;
-create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20)));
+create table t1 (id integer primary key auto_increment, txt text, index txt_index (txt (20))) charset=latin1;
 insert into t1 (txt) values
 ('Chevy'), ('Chevy '), (NULL), ('Honda'), ('Subaru'), ('Honda');
 select * from t1 where txt='Chevy' or txt is NULL;
@@ -625,7 +625,7 @@ id	txt
 3	NULL
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	txt_index	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	3	Using where
 explain select * from t1 FORCE INDEX (`txt_index`) where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref_or_null	txt_index	txt_index	23	const	3	Using where
@@ -690,18 +690,18 @@ id	txt
 2	Chevy 
 select * from t1 where txt > 'Chevy';
 id	txt
-4	Honda
-5	Subaru
-6	Honda
 7	Ford
+4	Honda
+6	Honda
+5	Subaru
 select * from t1 where txt >= 'Chevy';
 id	txt
 1	Chevy
 2	Chevy 
-4	Honda
-5	Subaru
-6	Honda
 7	Ford
+4	Honda
+6	Honda
+5	Subaru
 alter table t1 modify column txt blob;
 explain select * from t1 where txt='Chevy' or txt is NULL;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -718,7 +718,7 @@ id	txt
 3	NULL
 1	Chevy
 drop table t1;
-CREATE TABLE t1 ( i int(11) NOT NULL default '0',    c text NOT NULL, d varchar(1) NOT NULL DEFAULT ' ', PRIMARY KEY  (i), KEY (c(1),d));
+CREATE TABLE t1 ( i int(11) NOT NULL default '0',    c text NOT NULL, d varchar(1) NOT NULL DEFAULT ' ', PRIMARY KEY  (i), KEY (c(1),d)) charset=latin1;
 INSERT t1 (i, c) VALUES (1,''),(2,''),(3,'asdfh'),(4,'');
 select max(i) from t1 where c = '';
 max(i)
@@ -737,7 +737,7 @@ t1	CREATE TABLE `t1` (
   `e` int(11) DEFAULT NULL,
   PRIMARY KEY (`a`,`b`,`c`(255),`d`),
   KEY `a` (`a`,`b`,`d`,`e`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 CREATE table t1 (a blob);
 insert into t1 values ('b'),('a\0'),('a'),('a '),('aa'),(NULL);
@@ -814,7 +814,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values (default);
 select * from t1;
 a
@@ -826,7 +826,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` text DEFAULT ''
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 set @@sql_mode='';
 CREATE TABLE t (c TEXT CHARSET ASCII);
@@ -901,31 +901,33 @@ CREATE TABLE b15776 (a char(4294967296));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(?));
 Warnings:
-Note	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(?)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO b15776 VALUES (42);
 SELECT * FROM b15776;
 a
 2042
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(4294967296));
+Warnings:
+Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(0));
 Warnings:
-Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 DROP TABLE b15776;
 CREATE TABLE b15776 (a year(-2));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-2))' at line 1
 CREATE TABLE b15776 (a timestamp(4294967294));
-ERROR 42000: Too big precision 4294967294 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(4294967295));
-ERROR 42000: Too big precision 4294967295 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(4294967296));
-ERROR 42000: Too big precision 4294967296 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 CREATE TABLE b15776 (a timestamp(-1));
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '-1))' at line 1
 CREATE TABLE b15776 (a timestamp(-2));
@@ -935,11 +937,13 @@ ERROR 42000: Display width out of range for 'a' (max = 255)
 CREATE TABLE b15776 (a char(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
 ERROR 42000: Column length too big for column 'a' (max = 255); use BLOB or TEXT instead
 CREATE TABLE b15776 (a year(999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999));
+Warnings:
+Warning	1287	'YEAR(4294967295)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 SHOW CREATE TABLE b15776;
 Table	Create Table
 b15776	CREATE TABLE `b15776` (
   `a` year(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE b15776;
 CREATE TABLE b15776 select cast(null as char(4294967295));
 show columns from b15776;
@@ -1081,8 +1085,8 @@ CREATE TABLE t1 (a TEXT(1431655798) CHARACTER SET utf8);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 create table t1 (a int);
 alter table t1 add column b blob, alter column b set default "foo";
@@ -1091,7 +1095,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` blob DEFAULT 'foo'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # End of 10.2 test
@@ -1155,3 +1159,263 @@ drop table t1;
 #
 # End of 10.4 test
 #
+#
+# MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+#
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col BLOB, KEY(indexed_col(64)));
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (20230100+i);
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101" of type `int`
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030" of type `bigint`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030.1" of type `decimal`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030.1e0" of type `double`
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "TIME'10:20:30'" of type `time`
+Warning	1292	Truncated incorrect time value: '20230101'
+Warning	1292	Truncated incorrect time value: '20230102'
+Warning	1292	Truncated incorrect time value: '20230103'
+Warning	1292	Truncated incorrect time value: '20230104'
+Warning	1292	Truncated incorrect time value: '20230105'
+Warning	1292	Truncated incorrect time value: '20230106'
+Warning	1292	Truncated incorrect time value: '20230107'
+Warning	1292	Truncated incorrect time value: '20230108'
+Warning	1292	Truncated incorrect time value: '20230109'
+Warning	1292	Truncated incorrect time value: '20230110'
+Warning	1292	Truncated incorrect time value: '20230111'
+Warning	1292	Truncated incorrect time value: '20230112'
+Warning	1292	Truncated incorrect time value: '20230113'
+Warning	1292	Truncated incorrect time value: '20230114'
+Warning	1292	Truncated incorrect time value: '20230115'
+Warning	1292	Truncated incorrect time value: '20230116'
+Warning	1292	Truncated incorrect time value: '20230117'
+Warning	1292	Truncated incorrect time value: '20230118'
+Warning	1292	Truncated incorrect time value: '20230119'
+Warning	1292	Truncated incorrect time value: '20230120'
+Warning	1292	Truncated incorrect time value: '20230121'
+Warning	1292	Truncated incorrect time value: '20230122'
+Warning	1292	Truncated incorrect time value: '20230123'
+Warning	1292	Truncated incorrect time value: '20230124'
+Warning	1292	Truncated incorrect time value: '20230125'
+Warning	1292	Truncated incorrect time value: '20230126'
+Warning	1292	Truncated incorrect time value: '20230127'
+Warning	1292	Truncated incorrect time value: '20230128'
+Warning	1292	Truncated incorrect time value: '20230129'
+Warning	1292	Truncated incorrect time value: '20230130'
+Warning	1292	Truncated incorrect time value: '20230131'
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = _utf8mb3'0' collate utf8mb3_bin`
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col TEXT, KEY(indexed_col(64))) charset=latin1;
+FOR i IN 1..31
+DO
+INSERT INTO t1 VALUES (20230100+i);
+END FOR;
+$$
+SELECT * FROM t1 WHERE indexed_col=20230101;
+indexed_col
+20230101
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101" of type `int`
+SELECT * FROM t1 WHERE indexed_col=20230101102030;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030" of type `bigint`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030.1" of type `decimal`
+SELECT * FROM t1 WHERE indexed_col=20230101102030.1e0;
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "20230101102030.1e0" of type `double`
+SELECT * FROM t1 WHERE indexed_col='10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col='2001-01-01 10:20:30';
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=DATE'2001-01-01';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "DATE'2001-01-01'" of type `date`
+SELECT * FROM t1 WHERE indexed_col=TIME'10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "TIME'10:20:30'" of type `time`
+Warning	1292	Truncated incorrect time value: '20230101'
+Warning	1292	Truncated incorrect time value: '20230102'
+Warning	1292	Truncated incorrect time value: '20230103'
+Warning	1292	Truncated incorrect time value: '20230104'
+Warning	1292	Truncated incorrect time value: '20230105'
+Warning	1292	Truncated incorrect time value: '20230106'
+Warning	1292	Truncated incorrect time value: '20230107'
+Warning	1292	Truncated incorrect time value: '20230108'
+Warning	1292	Truncated incorrect time value: '20230109'
+Warning	1292	Truncated incorrect time value: '20230110'
+Warning	1292	Truncated incorrect time value: '20230111'
+Warning	1292	Truncated incorrect time value: '20230112'
+Warning	1292	Truncated incorrect time value: '20230113'
+Warning	1292	Truncated incorrect time value: '20230114'
+Warning	1292	Truncated incorrect time value: '20230115'
+Warning	1292	Truncated incorrect time value: '20230116'
+Warning	1292	Truncated incorrect time value: '20230117'
+Warning	1292	Truncated incorrect time value: '20230118'
+Warning	1292	Truncated incorrect time value: '20230119'
+Warning	1292	Truncated incorrect time value: '20230120'
+Warning	1292	Truncated incorrect time value: '20230121'
+Warning	1292	Truncated incorrect time value: '20230122'
+Warning	1292	Truncated incorrect time value: '20230123'
+Warning	1292	Truncated incorrect time value: '20230124'
+Warning	1292	Truncated incorrect time value: '20230125'
+Warning	1292	Truncated incorrect time value: '20230126'
+Warning	1292	Truncated incorrect time value: '20230127'
+Warning	1292	Truncated incorrect time value: '20230128'
+Warning	1292	Truncated incorrect time value: '20230129'
+Warning	1292	Truncated incorrect time value: '20230130'
+Warning	1292	Truncated incorrect time value: '20230131'
+SELECT * FROM t1 WHERE indexed_col=TIMESTAMP'2001-01-01 10:20:30';
+indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "TIMESTAMP'2001-01-01 10:20:30'" of type `datetime`
+SELECT * FROM t1 WHERE indexed_col=0x00;
+indexed_col
+SELECT * FROM t1 WHERE indexed_col=_utf8mb3'0' COLLATE utf8mb3_bin;
+indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = _utf8mb3'0' collate utf8mb3_bin`
+CREATE TABLE t2 (not_indexed_col INT);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `int`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col INT UNSIGNED);
+INSERT INTO t2 VALUES (20230101),(20230102);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	20230101
+20230102	20230102
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `int unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `bigint`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col BIGINT UNSIGNED);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `bigint unsigned`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DECIMAL(30,6));
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `decimal`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col FLOAT);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `float`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DOUBLE);
+INSERT INTO t2 VALUES (20230101102030),(20230101102031);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `double`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATE);
+INSERT INTO t2 VALUES ('2023-01-01'),('2023-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01
+20230102	2023-01-02
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `date`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col DATETIME);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `datetime`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col TIMESTAMP);
+INSERT INTO t2 VALUES ('2023-01-01 00:00:00'),('2023-01-01 00:00:01');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+20230101	2023-01-01 00:00:00
+Warnings:
+Note	1105	Cannot use key `indexed_col` part[0] for lookup: `test`.`t1`.`indexed_col` of type `blob` = "`t2`.`not_indexed_col`" of type `timestamp`
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARBINARY(32));
+INSERT INTO t2 VALUES (0x30),(0x31);
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32)) CHARACTER SET latin1;
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+DROP TABLE t2;
+CREATE TABLE t2 (not_indexed_col VARCHAR(32) CHARACTER SET utf8mb3);
+INSERT INTO t2 VALUES ('2001-01-01'),('2001-01-02');
+SELECT * FROM t1, t2 WHERE indexed_col=not_indexed_col;
+indexed_col	not_indexed_col
+Warnings:
+Note	1105	Cannot use key parts with `test`.`t1`.`indexed_col` in the rewritten condition: `convert(``t1``.``indexed_col`` using utf8mb3) = ``t2``.``not_indexed_col```
+DROP TABLE t2;
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

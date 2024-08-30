@@ -35,9 +35,15 @@ static mysql_cond_t  COND_timer;
 static QUEUE timer_queue;
 pthread_t timer_thread;
 
+#if SIZEOF_VOIDP == 4
+/* 32 bit system, using old timestamp */
 #define set_max_time(abs_time) \
   { (abs_time)->MY_tv_sec= INT_MAX32; (abs_time)->MY_tv_nsec= 0; }
-
+#else
+/* 64 bit system. Use 4 byte unsigned timestamp */
+#define set_max_time(abs_time) \
+  { (abs_time)->MY_tv_sec= UINT_MAX32; (abs_time)->MY_tv_nsec= 0; }
+#endif
 
 static void *timer_handler(void *arg __attribute__((unused)));
 
@@ -85,6 +91,7 @@ my_bool init_thr_timer(uint alloc_timers)
   /* Create a thread to handle timers */
   pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
+  pthread_attr_setstacksize(&thr_attr,64*1024);
   thr_timer_inited= 1;
   if (mysql_thread_create(key_thread_timer, &timer_thread, &thr_attr,
                           timer_handler, NULL))
@@ -140,6 +147,18 @@ void thr_timer_init(thr_timer_t *timer_data, void(*function)(void*),
   DBUG_VOID_RETURN;
 }
 
+/*
+  Make timer periodic
+
+  @param timer_data     Timer structure
+  @param micro_seconds  Period
+*/
+void thr_timer_set_period(thr_timer_t* timer_data, ulonglong micro_seconds)
+{
+  DBUG_ENTER("thr_timer_set_period");
+  timer_data->period= micro_seconds;
+  DBUG_VOID_RETURN;
+}
 
 /*
   Request timer after X milliseconds
@@ -239,17 +258,34 @@ static sig_handler process_timers(struct timespec *now)
   {
     void (*function)(void*);
     void *func_arg;
+    my_bool is_periodic;
 
     timer_data= (thr_timer_t*) queue_top(&timer_queue);
     function=   timer_data->func;
     func_arg=   timer_data->func_arg;
+    is_periodic= timer_data->period != 0;
     timer_data->expired= 1;			/* Mark expired */
     /*
       We remove timer before calling timer function to allow thread to
       delete it's timer data any time.
+
+      Deleting timer inside the callback would not work
+      for periodic timers, they need to be removed from
+      queue prior to destroying timer_data.
     */
     queue_remove_top(&timer_queue);		/* Remove timer */
     (*function)(func_arg);                      /* Inform thread of timeout */
+
+    /*
+      If timer is periodic, recalculate next expiration time, and
+      reinsert it into the queue.
+    */
+    if (is_periodic && timer_data->period)
+    {
+      set_timespec_nsec(timer_data->expire_time, timer_data->period * 1000);
+      timer_data->expired= 0;
+      queue_insert(&timer_queue, (uchar*)timer_data);
+    }
 
     /* Check if next one has also expired */
     timer_data= (thr_timer_t*) queue_top(&timer_queue);
@@ -268,6 +304,7 @@ static sig_handler process_timers(struct timespec *now)
 static void *timer_handler(void *arg __attribute__((unused)))
 {
   my_thread_init();
+  my_thread_set_name("statement_timer");
 
   mysql_mutex_lock(&LOCK_timer);
   while (likely(thr_timer_inited))
@@ -503,7 +540,6 @@ static void run_test()
   mysql_mutex_init(0, &LOCK_thread_count, MY_MUTEX_INIT_FAST);
   mysql_cond_init(0, &COND_thread_count, NULL);
 
-  thr_setconcurrency(3);
   pthread_attr_init(&thr_attr);
   pthread_attr_setscope(&thr_attr,PTHREAD_SCOPE_PROCESS);
   printf("Main thread: %s\n",my_thread_name());

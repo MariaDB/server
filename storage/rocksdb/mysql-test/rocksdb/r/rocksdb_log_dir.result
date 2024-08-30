@@ -1,0 +1,8 @@
+CREATE DATABASE mysqltest;
+USE mysqltest;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES(42);
+DROP TABLE t1;
+DROP DATABASE mysqltest;
+Check for MyRocks info LOG files
+db_LOG

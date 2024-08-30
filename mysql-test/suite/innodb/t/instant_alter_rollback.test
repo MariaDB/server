@@ -3,6 +3,8 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 
+SET GLOBAL innodb_stats_persistent = 0;
+
 # Flush any open myisam tables from previous tests
 FLUSH TABLES;
 
@@ -60,11 +62,8 @@ CREATE TABLE foo(a INT PRIMARY KEY) ENGINE=InnoDB;
 disconnect to_be_killed;
 --source include/start_mysqld.inc
 
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 DROP TABLE foo;
 --source include/wait_all_purged.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@saved_frequency;
 
 SELECT * FROM empty;
 SELECT * FROM once;

@@ -57,6 +57,9 @@ CALL mtr.add_suppression("Commit failed due to failure of an earlier commit on w
 --connection server_1
 ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=InnoDB;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(1);
 --source include/save_master_gtid.inc
 
 --connection server_2

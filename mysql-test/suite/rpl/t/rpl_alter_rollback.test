@@ -1,0 +1,42 @@
+#
+# MENT-662: Lag Free Alter On Slave
+#
+
+--echo #
+--echo # Test verifies that "ROLLBACK ALTER" is written to binary log upon
+--echo #ALTER command execution failure.
+--echo #
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+
+create table t1 (f1 int primary key) engine=InnoDB;
+--error ER_CANT_CREATE_TABLE
+create table t2 (f1 int primary key,
+constraint c1 foreign key (f1) references t1(f1),
+constraint c1 foreign key (f1) references t1(f1)) engine=InnoDB;
+create table t2 (f1 int primary key,
+   constraint c1 foreign key (f1) references t1(f1)) engine=innodb;
+
+--error ER_CANT_CREATE_TABLE
+alter table t2 add constraint c1 foreign key (f1) references t1(f1);
+--source include/show_binlog_events.inc
+
+set foreign_key_checks = 0;
+--error ER_DUP_CONSTRAINT_NAME
+alter table t2 add constraint c1 foreign key (f1) references t1(f1);
+--source include/show_binlog_events.inc
+--sync_slave_with_master
+
+--connection master
+drop table t2, t1;
+--sync_slave_with_master
+
+--connection master
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase;
+
+--source include/rpl_end.inc

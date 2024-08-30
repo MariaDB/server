@@ -134,35 +134,35 @@ class DllExport DOSFAM : public TXTFAM {
   DOSFAM(PBLKFAM tdfp, PDOSDEF tdp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_DOS;}
-  virtual bool  GetUseTemp(void) {return UseTemp;}
-  virtual int   GetPos(void);
-  virtual int   GetNextPos(void);
-  virtual PTXF  Duplicate(PGLOBAL g)
+  AMT   GetAmType(void) override {return TYPE_AM_DOS;}
+  bool  GetUseTemp(void) override {return UseTemp;}
+  int   GetPos(void) override;
+  int   GetNextPos(void) override;
+  PTXF  Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) DOSFAM(this);}
 
   // Methods
-  virtual void  Reset(void);
-  virtual int   GetFileLength(PGLOBAL g);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   MaxBlkSize(PGLOBAL g, int s);
-  virtual bool  AllocateBuffer(PGLOBAL g);
-  virtual int   GetRowID(void);
-  virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos);
-  virtual int   SkipRecord(PGLOBAL g, bool header);
-  virtual bool  OpenTableFile(PGLOBAL g);
-  virtual int   ReadBuffer(PGLOBAL g);
-  virtual int   WriteBuffer(PGLOBAL g);
-  virtual int   DeleteRecords(PGLOBAL g, int irc);
-  virtual void  CloseTableFile(PGLOBAL g, bool abort);
-  virtual void  Rewind(void);
+  void  Reset(void) override;
+  int   GetFileLength(PGLOBAL g) override;
+  int   Cardinality(PGLOBAL g) override;
+  int   MaxBlkSize(PGLOBAL g, int s) override;
+  bool  AllocateBuffer(PGLOBAL g) override;
+  int   GetRowID(void) override;
+  bool  RecordPos(PGLOBAL g) override;
+  bool  SetPos(PGLOBAL g, int recpos) override;
+  int   SkipRecord(PGLOBAL g, bool header) override;
+  bool  OpenTableFile(PGLOBAL g) override;
+  int   ReadBuffer(PGLOBAL g) override;
+  int   WriteBuffer(PGLOBAL g) override;
+  int   DeleteRecords(PGLOBAL g, int irc) override;
+  void  CloseTableFile(PGLOBAL g, bool abort) override;
+  void  Rewind(void) override;
 
  protected:
   virtual bool  OpenTempFile(PGLOBAL g);
   virtual bool  MoveIntermediateLines(PGLOBAL g, bool *b);
   virtual int   RenameTempFile(PGLOBAL g);
-  virtual int   InitDelete(PGLOBAL g, int fpos, int spos);
+  int   InitDelete(PGLOBAL g, int fpos, int spos) override;
 
   // Members
   FILE   *Stream;             // Points to Dos file structure
@@ -183,25 +183,25 @@ class DllExport BLKFAM : public DOSFAM {
   BLKFAM(PBLKFAM txfp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_BLK;}
-  virtual int   GetPos(void);
-  virtual int   GetNextPos(void);
-  virtual PTXF  Duplicate(PGLOBAL g)
+  AMT   GetAmType(void) override {return TYPE_AM_BLK;}
+  int   GetPos(void) override;
+  int   GetNextPos(void) override;
+  PTXF  Duplicate(PGLOBAL g) override
                   {return (PTXF)new(g) BLKFAM(this);}
 
   // Methods
-  virtual void  Reset(void);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   MaxBlkSize(PGLOBAL g, int s);
-  virtual bool  AllocateBuffer(PGLOBAL g);
-  virtual int   GetRowID(void);
-  virtual bool  RecordPos(PGLOBAL g);
-  virtual bool  SetPos(PGLOBAL g, int recpos);
-  virtual int   SkipRecord(PGLOBAL g, bool header);
-  virtual int   ReadBuffer(PGLOBAL g);
-  virtual int   WriteBuffer(PGLOBAL g);
-  virtual void  CloseTableFile(PGLOBAL g, bool abort);
-  virtual void  Rewind(void);
+  void  Reset(void) override;
+  int   Cardinality(PGLOBAL g) override;
+  int   MaxBlkSize(PGLOBAL g, int s) override;
+  bool  AllocateBuffer(PGLOBAL g) override;
+  int   GetRowID(void) override;
+  bool  RecordPos(PGLOBAL g) override;
+  bool  SetPos(PGLOBAL g, int recpos) override;
+  int   SkipRecord(PGLOBAL g, bool header) override;
+  int   ReadBuffer(PGLOBAL g) override;
+  int   WriteBuffer(PGLOBAL g) override;
+  void  CloseTableFile(PGLOBAL g, bool abort) override;
+  void  Rewind(void) override;
 
  protected:
   // Members
@@ -222,24 +222,24 @@ public:
 	BINFAM(PBINFAM txfp) : DOSFAM(txfp) {Recsize = txfp->Recsize;}
 
 	// Implementation
-	virtual AMT   GetAmType(void) {return TYPE_AM_BIN;}
+	AMT   GetAmType(void) override {return TYPE_AM_BIN;}
 //virtual int   GetPos(void);
 //virtual int   GetNextPos(void);
-	virtual PTXF  Duplicate(PGLOBAL g) { return (PTXF)new(g) BINFAM(this); }
+	PTXF  Duplicate(PGLOBAL g) override { return (PTXF)new(g) BINFAM(this); }
 
 	// Methods
 //virtual void  Reset(void) {TXTFAM::Reset();}
 //virtual int   GetFileLength(PGLOBAL g);
 //virtual int   Cardinality(PGLOBAL g);
-	virtual int   MaxBlkSize(PGLOBAL g, int s) {return s;}
-	virtual bool  AllocateBuffer(PGLOBAL g);
+	int   MaxBlkSize(PGLOBAL g, int s) override {return s;}
+	bool  AllocateBuffer(PGLOBAL g) override;
 //virtual int   GetRowID(void);
 //virtual bool  RecordPos(PGLOBAL g);
 //virtual bool  SetPos(PGLOBAL g, int recpos);
-	virtual int   SkipRecord(PGLOBAL g, bool header) {return RC_OK;}
+	int   SkipRecord(PGLOBAL g, bool header) override {return RC_OK;}
 //virtual bool  OpenTableFile(PGLOBAL g);
-	virtual int   ReadBuffer(PGLOBAL g);
-	virtual int   WriteBuffer(PGLOBAL g);
+	int   ReadBuffer(PGLOBAL g) override;
+	int   WriteBuffer(PGLOBAL g) override;
 //virtual int   DeleteRecords(PGLOBAL g, int irc);
 //virtual void  CloseTableFile(PGLOBAL g, bool abort);
 //virtual void  Rewind(void);

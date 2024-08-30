@@ -19,9 +19,8 @@ loose-innodb_buffer_pool_size=    8M
 loose-innodb_lru_scan_depth=      100
 loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
-loose-innodb_log_buffer_size=     1M
-loose-innodb_log_file_size=       5M
-loose-innodb_log_files_in_group=  2
+loose-innodb_log_buffer_size=     2M
+loose-innodb_log_file_size=       10M
 
 slave-net-timeout=120
 

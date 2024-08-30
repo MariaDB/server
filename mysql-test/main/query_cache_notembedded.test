@@ -116,7 +116,7 @@ disconnect root2;
 --disable_ps2_protocol
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 delimiter //;
 create table t1 (s1 int)//
 create procedure f1 () begin
@@ -167,7 +167,7 @@ show status like "Qcache_inserts";
 show status like "Qcache_hits";
 flush query cache;
 reset query cache;
-flush status;
+flush global status;
 select sql_cache * from t1;
 select sql_cache * from t1 where s1=1;
 call f1();
@@ -251,7 +251,7 @@ SET @@global.log_bin_trust_function_creators = @old_log_bin_trust_function_creat
 --disable_warnings
 DROP DATABASE IF EXISTS bug30269;
 --enable_warnings
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 CREATE DATABASE bug30269;
 USE bug30269;
 CREATE TABLE test1 (id int, name varchar(23));
@@ -310,7 +310,7 @@ insert into t1 values ("x", 3), ("y", 5)|
 set @x = @@query_cache_size|
 set global query_cache_size = 10*1024*1024|
 
-flush status|
+flush global status|
 flush query cache|
 show status like 'Qcache_hits'|
 call bug3583()|
@@ -320,12 +320,39 @@ call bug3583()|
 show status like 'Qcache_hits'|
 
 set global query_cache_size = @x|
-flush status|
+flush global status|
 flush query cache|
 delete from t1|
 drop procedure bug3583|
 drop table t1|
 delimiter ;|
+
+--echo #
+--echo # MDEV-29760 DROP DATABASE hangs when particular query cache is present
+--echo #
+
+create table t1 (id int);
+create table t2 like t1;
+create table t3 like t1;
+
+create database d;
+
+create table d.t1 like test.t1;
+create table d.t2 like test.t2;
+
+set LOCAL query_cache_type=ON;
+
+select id from t3;
+select 'x' a, 'y' b from d.t1;
+select 'x' a, 'y' b from d.t1, d.t2;
+
+drop database d;
+
+drop table t1, t2, t3;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

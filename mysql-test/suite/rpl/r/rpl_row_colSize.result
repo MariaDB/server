@@ -11,7 +11,7 @@ Warnings:
 Note	1051	Unknown table 'test.t1'
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t1 (a DECIMAL(5,2));
 connection master;
 CREATE TABLE t1 (a DECIMAL(20, 10));
@@ -25,7 +25,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -34,7 +36,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a DECIMAL(27, 9));
 connection master;
 CREATE TABLE t1 (a DECIMAL(27, 18));
@@ -48,7 +52,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -57,7 +63,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a NUMERIC(5,2));
 connection master;
 CREATE TABLE t1 (a NUMERIC(20, 10));
@@ -71,7 +79,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -81,7 +91,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a FLOAT(20));
 connection master;
 CREATE TABLE t1 (a FLOAT(47));
@@ -95,7 +107,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -105,7 +119,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a BIT(5));
 connection master;
 CREATE TABLE t1 (a BIT(64));
@@ -119,7 +135,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -128,7 +146,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a BIT(11));
 connection master;
 CREATE TABLE t1 (a BIT(12));
@@ -142,7 +162,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -152,7 +174,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a SET('4'));
 connection master;
 CREATE TABLE t1 (a SET('1','2','3','4','5','6','7','8','9'));
@@ -166,7 +190,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -176,7 +202,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a CHAR(10));
 connection master;
 CREATE TABLE t1 (a CHAR(20));
@@ -185,12 +213,14 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'char(20 octets)' to type 'char(10 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'char(80 octets)' to type 'char(40 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -200,7 +230,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a ENUM('44','54'));
 connection master;
 CREATE TABLE t1 (a ENUM(
@@ -245,7 +277,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -255,7 +289,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a VARCHAR(100));
 connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
@@ -264,12 +300,14 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000 octets)' to type 'varchar(100 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(8000 octets)' to type 'varchar(400 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -278,7 +316,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a VARCHAR(10));
 connection master;
 CREATE TABLE t1 (a VARCHAR(200));
@@ -287,12 +327,14 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(200 octets)' to type 'varchar(10 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(800 octets)' to type 'varchar(40 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -301,7 +343,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a VARCHAR(1000));
 connection master;
 CREATE TABLE t1 (a VARCHAR(2000));
@@ -310,12 +354,14 @@ INSERT INTO t1 VALUES ('This is a test.');
 connection slave;
 START SLAVE;
 include/wait_for_slave_sql_error.inc [errno=1677]
-Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(2000 octets)' to type 'varchar(1000 octets) character set latin1''
+Last_SQL_Error = 'Column 0 of table 'test.t1' cannot be converted from type 'varchar(8000 octets)' to type 'varchar(4000 octets) character set utf8mb4''
 SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;
@@ -325,7 +371,9 @@ connection master;
 DROP TABLE IF EXISTS t1;
 connection slave;
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 CREATE TABLE t1 (a TINYBLOB);
 connection master;
 CREATE TABLE t1 (a LONGBLOB);
@@ -339,7 +387,9 @@ SELECT COUNT(*) FROM t1;
 COUNT(*)
 0
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 connection master;
 RESET MASTER;
 connection slave;

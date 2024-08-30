@@ -20,7 +20,7 @@
 #
 #   $binlog_start
 #     Position for the 'FROM' clause of SHOW BINLOG EVENTS. If none
-#     given, starts right after the  Binlog_checkpoint_log_even.
+#     given, starts right after the  Binlog_checkpoint_log_event.
 #
 #   $binlog_limit
 #     Limit for the 'LIMIT' clause of SHOW BINLOG EVENTS, i.e.:

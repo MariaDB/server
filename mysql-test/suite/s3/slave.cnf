@@ -1,0 +1,34 @@
+[mysqld.2]
+plugin-load-add=@ENV.HA_S3_SO
+s3=ON
+s3-slave-ignore-updates=1
+s3-host-name=@ENV.S3_HOST_NAME
+s3-protocol-version=@ENV.S3_PROTOCOL_VERSION
+s3-bucket=@ENV.S3_BUCKET
+s3-access-key=@ENV.S3_ACCESS_KEY
+s3-secret-key=@ENV.S3_SECRET_KEY
+s3-region=@ENV.S3_REGION
+s3-port=@ENV.S3_PORT
+s3-use-http=@ENV.S3_USE_HTTP
+
+# You can change the following when running the tests against
+# your own S3 setup
+
+#s3-host-name=s3.amazonaws.com
+#s3-protocol-version=Amazon
+#s3-bucket=MariaDB
+#s3-access-key=...
+#s3-secret-key=...
+#s3-region=eu-north-1
+
+##
+## Configuration for local MinIO
+##
+#s3-host-name="127.0.0.1"
+## Note: s3-host-name="localhost" doesn't work. It causes
+## libmarias3 to use the wrong variant of the protocol.
+#s3-bucket=storage-engine
+#s3-access-key=minio
+#s3-secret-key=minioadmin
+#s3-port=9000
+#s3-use-http=ON

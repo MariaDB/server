@@ -1,5 +1,4 @@
 # Wait for everything to be purged.
-# The user should have set innodb_purge_rseg_truncate_frequency=1.
 
 --disable_query_log
 if (!$wait_all_purged)

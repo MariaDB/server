@@ -27,7 +27,7 @@ static ulong volatile Cversion= 1;
 
 
 /*
-  Cache of stored routines. 
+  Cache of stored routines.
 */
 
 class sp_cache
@@ -151,8 +151,8 @@ void sp_cache_end()
     sp_cache_insert()
      cp  The cache to put routine into
      sp  Routine to insert.
-      
-  TODO: Perhaps it will be more straightforward if in case we returned an 
+
+  TODO: Perhaps it will be more straightforward if in case we returned an
         error from this function when we couldn't allocate sp_cache. (right
         now failure to put routine into cache will cause a 'SP not found'
         error to be reported at some later time)
@@ -175,18 +175,18 @@ void sp_cache_insert(sp_cache **cp, sp_head *sp)
 }
 
 
-/* 
+/*
   Look up a routine in the cache.
   SYNOPSIS
     sp_cache_lookup()
       cp    Cache to look into
       name  Name of rutine to find
-      
+
   NOTE
     An obsolete (but not more obsolete then since last
     sp_cache_flush_obsolete call) routine may be returned.
 
-  RETURN 
+  RETURN
     The routine or
     NULL if the routine not found.
 */
@@ -197,7 +197,8 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
   sp_cache *c= *cp;
   if (! c)
     return NULL;
-  return c->lookup(buf, name->make_qname(buf, sizeof(buf), true));
+  return c->lookup(buf, name->to_identifier_chain2().
+                          make_qname_casedn_part1(buf, sizeof(buf)));
 }
 
 
@@ -206,7 +207,7 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
 
   SYNOPSIS
     sp_cache_invalidate()
-      
+
   NOTE
     This is called when a VIEW definition is created or modified (and in some
     other contexts). We can't destroy sp_head objects here as one may modify
@@ -227,7 +228,7 @@ void sp_cache_invalidate()
   @param[in] sp  SP to remove.
 
   @note This invalidates pointers to sp_head objects this thread
-  uses. In practice that means 'dont call this function when
+  uses. In practice that means don't call this function when
   inside SP'.
 */
 
@@ -235,6 +236,7 @@ void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
 {
   if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked())
   {
+    DBUG_EXECUTE_IF("check_sp_cache_not_invalidated", DBUG_SUICIDE(););
     (*cp)->remove(*sp);
     *sp= NULL;
   }
@@ -266,7 +268,7 @@ sp_cache_enforce_limit(sp_cache *c, ulong upper_limit_for_elements)
 }
 
 /*************************************************************************
-  Internal functions 
+  Internal functions
  *************************************************************************/
 
 extern "C" uchar *hash_get_key_for_sp_head(const uchar *ptr, size_t *plen,
@@ -304,7 +306,7 @@ sp_cache::~sp_cache()
 void
 sp_cache::init()
 {
-  my_hash_init(&m_hashtable, &my_charset_bin, 0, 0, 0,
+  my_hash_init(key_memory_sp_cache, &m_hashtable, &my_charset_bin, 0, 0, 0,
                hash_get_key_for_sp_head, hash_free_sp_head, 0);
 }
 

@@ -26,10 +26,8 @@ namespace feedback {
 ulong debug_startup_interval, debug_first_interval, debug_interval;
 #endif
 
-char server_uid_buf[SERVER_UID_SIZE+1]; ///< server uid will be written here
-
 /* backing store for system variables */
-static char *server_uid= server_uid_buf, *url, *http_proxy;
+static char *url, *http_proxy;
 char *user_info;
 ulong send_timeout, send_retry_wait;
 
@@ -67,9 +65,9 @@ ST_SCHEMA_TABLE *i_s_feedback; ///< table descriptor for our I_S table
 */
 static ST_FIELD_INFO feedback_fields[] =
 {
-  {"VARIABLE_NAME",   255, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"VARIABLE_VALUE", 1024, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0}
+  Show::Column("VARIABLE_NAME",  Show::Varchar(255),  NOT_NULL),
+  Show::Column("VARIABLE_VALUE", Show::Varchar(1024), NOT_NULL),
+  Show::CEnd()
 };
 
 static COND * const OOM= (COND*)1;
@@ -94,14 +92,14 @@ static COND* make_cond(THD *thd, TABLE_LIST *tables, LEX_STRING *filter)
   Item_cond_or *res= NULL;
   /* A reference to this context will be stored in Item_field */
   Name_resolution_context *nrc= new (thd->mem_root) Name_resolution_context;
-  const char *db= tables->db.str, *table= tables->alias.str;
-  LEX_CSTRING *field= &tables->table->field[0]->field_name;
+  LEX_CSTRING &db= tables->db;
+  LEX_CSTRING &table= tables->alias;
+  LEX_CSTRING &field= tables->table->field[0]->field_name;
   CHARSET_INFO *cs= &my_charset_latin1;
 
   if (!filter->str || !nrc)
     return 0;
 
-  nrc->init();
   nrc->resolve_in_table_list_only(tables);
   nrc->select_lex= tables->select_lex;
 
@@ -179,13 +177,12 @@ static LEX_STRING vars_filter[]= {
   {C_STRING_WITH_LEN("secure_auth")},
   {C_STRING_WITH_LEN("slow_launch_time")},
   {C_STRING_WITH_LEN("sql%")},
-  {C_STRING_WITH_LEN("storage_engine")},
+  {C_STRING_WITH_LEN("default_storage_engine")},
   {C_STRING_WITH_LEN("sync_binlog")},
   {C_STRING_WITH_LEN("table_definition_cache")},
   {C_STRING_WITH_LEN("table_open_cache")},
   {C_STRING_WITH_LEN("thread_handling")},
   {C_STRING_WITH_LEN("time_zone")},
-  {C_STRING_WITH_LEN("timed_mutexes")},
   {C_STRING_WITH_LEN("version%")},
   {0, 0}
 };
@@ -254,9 +251,6 @@ static int init(void *p)
   PSI_register(cond);
   PSI_register(thread);
 
-  if (calculate_server_uid(server_uid_buf))
-    return 1;
-
   prepare_linux_info();
 
 #ifndef DBUG_OFF
@@ -282,7 +276,7 @@ static int init(void *p)
       if (*s == ' ')
         url_count++;
 
-    urls= (Url **)my_malloc(url_count*sizeof(Url*), MYF(MY_WME));
+    urls= (Url **)my_malloc(PSI_INSTRUMENT_ME, url_count*sizeof(Url*), MYF(MY_WME));
     if (!urls)
       return 1;
 
@@ -340,6 +334,10 @@ static int free(void *p)
     shutdown_plugin= true;
     mysql_cond_signal(&sleep_condition);
     mysql_mutex_unlock(&sleep_mutex);
+
+    for (uint i= 0; i < url_count; i++)
+      urls[i]->abort();
+
     pthread_join(sender_thread, NULL);
 
     mysql_mutex_destroy(&sleep_mutex);
@@ -358,25 +356,22 @@ static int free(void *p)
 #define DEFAULT_PROTO "http://"
 #endif
 
-static MYSQL_SYSVAR_STR(server_uid, server_uid,
-       PLUGIN_VAR_READONLY | PLUGIN_VAR_NOCMDOPT,
-       "Automatically calculated server unique id hash.", NULL, NULL, 0);
 static MYSQL_SYSVAR_STR(user_info, user_info,
        PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "User specified string that will be included in the feedback report.",
+       "User specified string that will be included in the feedback report",
        NULL, NULL, "");
 static MYSQL_SYSVAR_STR(url, url, PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Space separated URLs to send the feedback report to.", NULL, NULL,
+       "Space separated URLs to send the feedback report to", NULL, NULL,
        DEFAULT_PROTO "feedback.mariadb.org/rest/v1/post");
 static MYSQL_SYSVAR_ULONG(send_timeout, send_timeout, PLUGIN_VAR_RQCMDARG,
-       "Timeout (in seconds) for the sending the report.",
+       "Timeout (in seconds) for the sending the report",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_ULONG(send_retry_wait, send_retry_wait, PLUGIN_VAR_RQCMDARG,
-       "Wait this many seconds before retrying a failed send.",
+       "Wait this many seconds before retrying a failed send",
        NULL, NULL, 60, 1, 60*60*24, 1);
 static MYSQL_SYSVAR_STR(http_proxy, http_proxy,
                         PLUGIN_VAR_READONLY | PLUGIN_VAR_RQCMDARG,
-       "Proxy server host:port.", NULL, NULL,0);
+       "Proxy server host:port", NULL, NULL,0);
 
 #ifndef DBUG_OFF
 static MYSQL_SYSVAR_ULONG(debug_startup_interval, debug_startup_interval,
@@ -391,7 +386,6 @@ static MYSQL_SYSVAR_ULONG(debug_interval, debug_interval,
 #endif
 
 static struct st_mysql_sys_var* settings[] = {
-  MYSQL_SYSVAR(server_uid),
   MYSQL_SYSVAR(user_info),
   MYSQL_SYSVAR(url),
   MYSQL_SYSVAR(send_timeout),
@@ -411,24 +405,6 @@ static struct st_mysql_information_schema feedback =
 
 } // namespace feedback
 
-mysql_declare_plugin(feedback)
-{
-  MYSQL_INFORMATION_SCHEMA_PLUGIN,
-  &feedback::feedback,
-  "FEEDBACK",
-  "Sergei Golubchik",
-  "MariaDB User Feedback Plugin",
-  PLUGIN_LICENSE_GPL,
-  feedback::init,
-  feedback::free,
-  0x0101,
-  NULL,
-  feedback::settings,
-  NULL,
-  0
-}
-mysql_declare_plugin_end;
-#ifdef MARIA_PLUGIN_INTERFACE_VERSION
 maria_declare_plugin(feedback)
 {
   MYSQL_INFORMATION_SCHEMA_PLUGIN,
@@ -446,4 +422,3 @@ maria_declare_plugin(feedback)
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;
-#endif

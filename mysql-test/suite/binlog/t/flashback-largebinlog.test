@@ -10,11 +10,11 @@
 --let $mysqlbinlog_output= tmp/mysqlbinlog_big_1.out
 
 --source include/have_binlog_format_row.inc
-
 --source include/have_log_bin.inc
 
 # This is a big test.
 --source include/big_test.inc
+--source include/not_msan.inc
 # Test needs more than 4G of memory
 --source include/have_64bit.inc
 

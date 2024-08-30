@@ -25,13 +25,13 @@
                                            // date_add_interval,
                                            // calc_time_diff
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
-#include "sql_acl.h"    // EVENT_ACL, SUPER_ACL
 #include "sp.h"         // load_charset, load_collation
 #include "events.h"
 #include "event_data_objects.h"
 #include "event_db_repository.h"
 #include "sp_head.h"
 #include "sql_show.h"                // append_definer, append_identifier
+#include "mysql/psi/mysql_sp.h"
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
@@ -40,6 +40,18 @@
   @addtogroup Event_Scheduler
   @{
 */
+
+#ifdef HAVE_PSI_INTERFACE
+void init_scheduler_psi_keys()
+{
+  const char *category= "scheduler";
+
+  PSI_server->register_statement(category, & Event_queue_element_for_exec::psi_info, 1);
+}
+
+PSI_statement_info Event_queue_element_for_exec::psi_info=
+{ 0, "event", 0};
+#endif
 
 /*************************************************************************/
 
@@ -59,14 +71,14 @@ public:
                            Stored_program_creation_ctx **ctx);
 
 public:
-  virtual Stored_program_creation_ctx *clone(MEM_ROOT *mem_root)
+  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
   {
     return new (mem_root)
                Event_creation_ctx(m_client_cs, m_connection_cl, m_db_cl);
   }
 
 protected:
-  virtual Object_creation_ctx *create_backup_ctx(THD *thd) const
+  Object_creation_ctx *create_backup_ctx(THD *thd) const override
   {
     /*
       We can avoid usual backup/restore employed in stored programs since we
@@ -105,7 +117,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 
   bool invalid_creation_ctx= FALSE;
 
-  if (load_charset(event_mem_root,
+  if (load_charset(thd, event_mem_root,
                    event_tbl->field[ET_FIELD_CHARACTER_SET_CLIENT],
                    thd->variables.character_set_client,
                    &client_cs))
@@ -118,7 +130,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_COLLATION_CONNECTION],
                      thd->variables.collation_connection,
                      &connection_cl))
@@ -131,7 +143,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_DB_COLLATION],
                      NULL,
                      &db_cl))
@@ -174,11 +186,13 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING *db, const LEX_CSTRING *n)
+Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
 {
-  if (!(dbname.str= my_strndup(db->str, dbname.length= db->length, MYF(MY_WME))))
+  if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
+                               db.str, dbname.length= db.length, MYF(MY_WME))))
     return TRUE;
-  if (!(name.str= my_strndup(n->str, name.length= n->length, MYF(MY_WME))))
+  if (!(name.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
+                             n.str, name.length= n.length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
     dbname.str= NULL;
@@ -213,7 +227,7 @@ Event_basic::Event_basic()
 {
   DBUG_ENTER("Event_basic::Event_basic");
   /* init memory root */
-  init_sql_alloc(&mem_root, "Event_basic", 256, 512, MYF(0));
+  init_sql_alloc(key_memory_event_basic_root, &mem_root, 256, 512, MYF(0));
   dbname.str= name.str= NULL;
   dbname.length= name.length= 0;
   time_zone= NULL;
@@ -280,7 +294,7 @@ Event_basic::load_string_fields(Field **fields, ...)
 bool
 Event_basic::load_time_zone(THD *thd, const LEX_CSTRING *tz_name)
 {
-  String str(tz_name->str, &my_charset_latin1);
+  String str(tz_name->str, strlen(tz_name->str), &my_charset_latin1);
   time_zone= my_tz_find(thd, &str);
 
   return (time_zone == NULL);
@@ -1423,15 +1437,23 @@ Event_job_data::execute(THD *thd, bool drop)
 
   {
     Parser_state parser_state;
+    sql_digest_state *parent_digest= thd->m_digest;
+    PSI_statement_locker *parent_locker= thd->m_statement_psi;
+    bool res;
+
     if (parser_state.init(thd, thd->query(), thd->query_length()))
       goto end;
 
-    if (parse_sql(thd, & parser_state, creation_ctx))
+    thd->m_digest= NULL;
+    thd->m_statement_psi= NULL;
+    res= parse_sql(thd, & parser_state, creation_ctx);
+    thd->m_digest= parent_digest;
+    thd->m_statement_psi= parent_locker;
+
+    if (res)
     {
-      sql_print_error("Event Scheduler: "
-                      "%serror during compilation of %s.%s",
-                      thd->is_fatal_error ? "fatal " : "",
-                      (const char *) dbname.str, (const char *) name.str);
+      sql_print_error("Event Scheduler: %serror during compilation of %s.%s",
+                      thd->is_fatal_error ? "fatal " : "", dbname.str, name.str);
       goto end;
     }
   }
@@ -1454,6 +1476,9 @@ Event_job_data::execute(THD *thd, bool drop)
     sphead->set_creation_ctx(creation_ctx);
     sphead->optimize();
 
+    sphead->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_EVENT,
+                                           dbname.str, static_cast<uint>(dbname.length),
+                                           name.str, static_cast<uint>(name.length));
     ret= sphead->execute_procedure(thd, &empty_item_list);
     /*
       There is no pre-locking and therefore there should be no
@@ -1478,8 +1503,6 @@ end:
       ret= 1;
     else
     {
-      ulong saved_master_access;
-
       thd->set_query(sp_sql.c_ptr_safe(), sp_sql.length());
 
       /*
@@ -1491,8 +1514,8 @@ end:
         Temporarily reset it to read-write.
       */
 
-      saved_master_access= thd->security_ctx->master_access;
-      thd->security_ctx->master_access |= SUPER_ACL;
+      privilege_t saved_master_access(thd->security_ctx->master_access);
+      thd->security_ctx->master_access |= PRIV_IGNORE_READ_ONLY;
       bool save_tx_read_only= thd->tx_read_only;
       thd->tx_read_only= false;
 
@@ -1519,7 +1542,9 @@ end:
 
       if (sql_command_set)
       {
-        WSREP_TO_ISOLATION_END;
+#ifdef WITH_WSREP
+	wsrep_to_isolation_end(thd);
+#endif
         thd->lex->sql_command = sql_command_save;
       }
 

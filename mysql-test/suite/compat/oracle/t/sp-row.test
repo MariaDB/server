@@ -1,3 +1,4 @@
+
 SET sql_mode=ORACLE;
 
 
@@ -34,7 +35,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1(ROW(10,20));
 DROP FUNCTION f1;
 
@@ -263,7 +264,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
@@ -277,7 +278,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 
@@ -324,6 +325,7 @@ AS
 BEGIN
   RETURN a;
 END;
+$$
 CREATE PROCEDURE p1()
 AS
   a ROW (a INT,b INT);
@@ -332,7 +334,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
@@ -344,6 +346,7 @@ AS
 BEGIN
   RETURN a;
 END;
+$$
 CREATE PROCEDURE p1()
 AS
   a ROW (a INT);
@@ -352,7 +355,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 CALL p1();
 DROP PROCEDURE p1;
 DROP FUNCTION f1;
@@ -424,7 +427,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 SELECT f1(10);
 DROP FUNCTION f1;
 
@@ -861,6 +864,8 @@ DROP PROCEDURE p2;
 --echo # ROW fields as SELECT..INTO targets
 --echo #
 
+--enable_prepare_warnings
+
 DELIMITER $$;
 CREATE PROCEDURE p1
 AS
@@ -874,6 +879,7 @@ DELIMITER ;$$
 CALL p1;
 DROP PROCEDURE p1;
 
+--disable_prepare_warnings
 
 --echo #
 --echo # Implicit default NULL handling
@@ -2083,6 +2089,7 @@ DROP PROCEDURE p1;
 --echo #
 
 
+--enable_prepare_warnings
 --echo # ROW variable with a wrong column count
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 INSERT INTO t1 VALUES (10,'b10');
@@ -2243,7 +2250,7 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
-
+--disable_prepare_warnings
 
 --echo #
 --echo # MDEV-12347 Valgrind reports invalid read errors in Item_field_row::element_index_by_name

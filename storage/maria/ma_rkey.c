@@ -94,7 +94,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
   case HA_KEY_ALG_RTREE:
     if (maria_rtree_find_first(info, &key, nextflag) < 0)
     {
-      _ma_set_fatal_error(share, HA_ERR_CRASHED);
+      _ma_set_fatal_error(info, HA_ERR_CRASHED);
       info->cur_row.lastpos= HA_OFFSET_ERROR;
     }
     break;
@@ -120,6 +120,7 @@ int maria_rkey(MARIA_HA *info, uchar *buf, int inx, const uchar *key_data,
 
       /* The key references a concurrently inserted record. */
       if (search_flag == HA_READ_KEY_EXACT &&
+          (keyinfo->flag & HA_NOSAME) &&
           last_used_keyseg == keyinfo->seg + keyinfo->keysegs)
       {
         /* Simply ignore the key if it matches exactly. (Bug #29838) */

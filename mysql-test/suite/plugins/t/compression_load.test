@@ -1,0 +1,24 @@
+source include/have_innodb.inc;
+
+if (!$PROVIDER_LZ4_SO) {
+  skip Requires provider_lz4 plugin;
+}
+
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+--error ER_WRONG_VALUE_FOR_VAR
+set global innodb_compression_algorithm = lz4;
+install plugin provider_lz4 soname 'provider_lz4';
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+set global innodb_compression_algorithm = lz4;
+create table t1 (a int, b text) engine=innodb page_compressed=1;
+insert t1 (a, b) values (0, repeat("abc", 100));
+insert t1 (a, b) values (1, repeat("def", 1000));
+insert t1 (a, b) values (2, repeat("ghi", 10000));
+select a, left(b, 9), length(b) from t1;
+uninstall plugin provider_lz4;
+select plugin_name, plugin_status from information_schema.plugins where plugin_name='provider_lz4';
+set global innodb_compression_algorithm = default;
+set global innodb_compression_algorithm = lz4;
+set global innodb_compression_algorithm = default;
+select a, left(b, 9), length(b) from t1;
+drop table t1;

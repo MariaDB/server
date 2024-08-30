@@ -1,4 +1,4 @@
-SET SESSION STORAGE_ENGINE='InnoDB';
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_stat_tables_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
@@ -77,12 +77,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	Using index
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	Using index
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	Using where
+1	SIMPLE	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	Using where
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.supplier.s_nationkey	6	Using index
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (14%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	9	dbt3_s001.supplier.s_suppkey,dbt3_s001.orders.o_orderkey	1	
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -186,10 +186,10 @@ select count(distinct o_custkey) from orders;
 count(distinct o_custkey)
 100
 show index from orders;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-orders	0	PRIMARY	1	o_orderkey	A	1500	NULL	NULL		BTREE		
-orders	1	i_o_orderdate	1	o_orderDATE	A	1126	NULL	NULL	YES	BTREE		
-orders	1	i_o_custkey	1	o_custkey	A	100	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+orders	0	PRIMARY	1	o_orderkey	A	1500	NULL	NULL		BTREE			NO
+orders	1	i_o_orderdate	1	o_orderDATE	A	1126	NULL	NULL	YES	BTREE			NO
+orders	1	i_o_custkey	1	o_custkey	A	100	NULL	NULL	YES	BTREE			NO
 select index_name, column_name, cardinality from information_schema.statistics
 where table_name='orders';
 index_name	column_name	cardinality
@@ -208,12 +208,12 @@ and r_name = 'AMERICA' and o_orderdate >= date '1995-01-01'
 group by n_name
 order by revenue desc;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	region	ALL	PRIMARY	NULL	NULL	NULL	5	Using where; Using temporary; Using filesort
-1	SIMPLE	nation	ref	PRIMARY,i_n_regionkey	i_n_regionkey	5	dbt3_s001.region.r_regionkey	5	
-1	SIMPLE	supplier	ref	PRIMARY,i_s_nationkey	i_s_nationkey	5	dbt3_s001.nation.n_nationkey	1	Using index
-1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	Using index
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	Using where
+1	SIMPLE	region	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.nation.n_regionkey	1	Using where
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.supplier.s_nationkey	6	Using index
 1	SIMPLE	orders	ref|filter	PRIMARY,i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (14%)	Using where; Using rowid filter
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey	9	dbt3_s001.supplier.s_suppkey,dbt3_s001.orders.o_orderkey	1	
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
 select n_name, sum(l_extendedprice * (1 - l_discount)) as revenue
 from customer, orders, lineitem, supplier, nation, region
 where c_custkey = o_custkey and l_orderkey = o_orderkey
@@ -251,7 +251,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	n2	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	
 1	SIMPLE	orders	eq_ref	PRIMARY,i_o_orderdate,i_o_custkey	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	Using where
 1	SIMPLE	customer	eq_ref	PRIMARY,i_c_nationkey	PRIMARY	4	dbt3_s001.orders.o_custkey	1	Using where
-1	SIMPLE	n1	eq_ref	PRIMARY,i_n_regionkey	PRIMARY	4	dbt3_s001.customer.c_nationkey	1	Using where
+1	SIMPLE	n1	eq_ref	PRIMARY,i_n_regionkey	i_n_regionkey	9	dbt3_s001.region.r_regionkey,dbt3_s001.customer.c_nationkey	1	Using index
 select o_year,
 sum(case when nation = 'UNITED STATES' then volume else 0 end) /
 sum(volume) as mkt_share
@@ -289,6 +289,26 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	Using where
 1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	
 1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	
+EXPLAIN EXTENDED select nation, o_year, sum(amount) as sum_profit
+from (select n_name as nation, 
+extract(year from o_orderdate) as o_year,
+l_extendedprice * (1 - l_discount) - ps_supplycost * l_quantity as amount
+from part, supplier, lineitem, partsupp, orders, nation
+where s_suppkey = l_suppkey and ps_suppkey = l_suppkey
+and ps_partkey = l_partkey and p_partkey = l_partkey
+and o_orderkey = l_orderkey and s_nationkey = n_nationkey
+and p_name like '%green%') as profit
+group by nation, o_year
+order by nation, o_year desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	supplier	index	PRIMARY,i_s_nationkey	i_s_nationkey	5	NULL	10	100.00	Using where; Using index; Using temporary; Using filesort
+1	SIMPLE	nation	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.supplier.s_nationkey	1	100.00	
+1	SIMPLE	partsupp	ref	PRIMARY,i_ps_partkey,i_ps_suppkey	i_ps_suppkey	4	dbt3_s001.supplier.s_suppkey	70	100.00	
+1	SIMPLE	part	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.partsupp.ps_partkey	1	100.00	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_suppkey_partkey,i_l_partkey,i_l_suppkey,i_l_orderkey,i_l_orderkey_quantity	i_l_suppkey_partkey	10	dbt3_s001.partsupp.ps_partkey,dbt3_s001.supplier.s_suppkey	8	100.00	
+1	SIMPLE	orders	eq_ref	PRIMARY	PRIMARY	4	dbt3_s001.lineitem.l_orderkey	1	100.00	
+Warnings:
+Note	1003	select `dbt3_s001`.`nation`.`n_name` AS `nation`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) AS `o_year`,sum(`dbt3_s001`.`lineitem`.`l_extendedprice` * (1 - `dbt3_s001`.`lineitem`.`l_discount`) - `dbt3_s001`.`partsupp`.`ps_supplycost` * `dbt3_s001`.`lineitem`.`l_quantity`) AS `sum_profit` from `dbt3_s001`.`part` join `dbt3_s001`.`supplier` join `dbt3_s001`.`lineitem` join `dbt3_s001`.`partsupp` join `dbt3_s001`.`orders` join `dbt3_s001`.`nation` where `dbt3_s001`.`partsupp`.`ps_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`lineitem`.`l_suppkey` = `dbt3_s001`.`supplier`.`s_suppkey` and `dbt3_s001`.`part`.`p_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`lineitem`.`l_partkey` = `dbt3_s001`.`partsupp`.`ps_partkey` and `dbt3_s001`.`orders`.`o_orderkey` = `dbt3_s001`.`lineitem`.`l_orderkey` and `dbt3_s001`.`nation`.`n_nationkey` = `dbt3_s001`.`supplier`.`s_nationkey` and `dbt3_s001`.`part`.`p_name` like '%green%' group by `dbt3_s001`.`nation`.`n_name`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) desc order by `dbt3_s001`.`nation`.`n_name`,extract(year from `dbt3_s001`.`orders`.`o_orderDATE`) desc
 select nation, o_year, sum(amount) as sum_profit
 from (select n_name as nation, 
 extract(year from o_orderdate) as o_year,
@@ -444,7 +464,7 @@ EXPLAIN
 SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE name IN ( 'AUS','YEM' ) AND id = 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	0	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	1	Using where
 ANALYZE TABLE t2;
 Table	Op	Msg_type	Msg_text
 test.t2	analyze	status	Engine-independent statistics collected
@@ -574,14 +594,14 @@ test.t1	analyze	Warning	Engine-independent statistics are not collected for colu
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 DELETE FROM mysql.column_stats
 WHERE db_name='test' AND table_name='t1' AND column_name='t';
 INSERT INTO mysql.column_stats VALUES
 ('test','t1','t','bar','foo', 0.0, 3.0, 1.0, 0, NULL, NULL);
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	t	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
 SELECT pk FROM t1;
 pk
@@ -605,7 +625,7 @@ pk	c
 2	bar
 SELECT * FROM mysql.column_stats;
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	pk	1	2	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	pk	1	2	0.0000	4.0000	1.0000	NULL	NULL	NULL
 test	t1	c	bar	foo	0.0000	3.0000	1.0000	0	NULL	NULL
 CREATE OR REPLACE TABLE t1 (pk int PRIMARY KEY, a char(7));
 SELECT * FROM t1;
@@ -623,8 +643,8 @@ set @@use_stat_tables= PREFERABLY;
 explain
 SELECT * FROM INFORMATION_SCHEMA.PROFILING, mysql.user;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	
-1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
+1	SIMPLE	global_priv	ALL	NULL	NULL	NULL	NULL	5	
+1	SIMPLE	PROFILING	ALL	NULL	NULL	NULL	NULL	NULL	Using join buffer (flat, BNL join)
 set @@optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
 set use_stat_tables=@save_use_stat_tables;
 #
@@ -688,33 +708,33 @@ dbt3_s001	lineitem	i_l_orderkey_quantity	1	4.0033
 dbt3_s001	lineitem	i_l_orderkey_quantity	2	1.0404
 dbt3_s001	lineitem	i_l_commitdate	1	2.7160
 SHOW INDEXES FROM lineitem;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-lineitem	0	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	0	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE		
-lineitem	1	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	1	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-lineitem	1	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE		
-lineitem	1	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+lineitem	0	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	0	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO
+lineitem	1	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	1	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+lineitem	1	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
+lineitem	1	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
 SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='lineitem';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE		
-def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE		
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	0	dbt3_s001	PRIMARY	2	l_linenumber	A	6005	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_shipdate	1	l_shipDATE	A	2266	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey_partkey	2	l_suppkey	A	699	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_partkey	1	l_partkey	A	200	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_suppkey	1	l_suppkey	A	10	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_receiptdate	1	l_receiptDATE	A	2268	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	1	l_orderkey	A	1500	NULL	NULL		BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_orderkey_quantity	2	l_quantity	A	5771	NULL	NULL	YES	BTREE			NO
+def	dbt3_s001	lineitem	1	dbt3_s001	i_l_commitdate	1	l_commitDATE	A	2210	NULL	NULL	YES	BTREE			NO
 SELECT
 COUNT(DISTINCT l_orderkey), COUNT(DISTINCT l_orderkey,l_linenumber),
 COUNT(DISTINCT l_shipDATE),
@@ -935,7 +955,85 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	10	10.00	2.78	10.00	Using where
 drop table t1;
 set @@global.histogram_size=@save_histogram_size;
+#
 # End of 10.4 tests
+#
+#
+# MDEV-29693 ANALYZE TABLE still flushes table definition cache
+# when engine-independent statistics is used
+#
+create table t1 (a int);
+insert into t1 select seq from seq_0_to_99;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connect  con1, localhost, root,,;
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection default;
+update t1 set a= a +100;
+# Explain shows outdated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	50.51	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection default;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Now explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	1.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+connection con1;
+# Run update and analyze in con1:
+update t1 set a= a - 150;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+connection default;
+# Explain shows updated statistics:
+explain extended select count(*) from t1 where a < 50;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	100.00	Using where
+Warnings:
+Note	1003	select count(0) AS `count(*)` from `test`.`t1` where `test`.`t1`.`a` < 50
+disconnect con1;
+drop table t1;
+#
+# End of 10.6 tests
+#
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
 set global innodb_stats_persistent_sample_pages=
 @innodb_stats_persistent_sample_pages_save;
@@ -964,4 +1062,4 @@ test	t1	a	1	1	0.0000	4.0000	60000.0000	0	NULL	NULL
 SET use_stat_tables= @save_use_stat_tables;
 DROP TABLE t1;
 # end of 10.1 tests
-SET SESSION STORAGE_ENGINE=DEFAULT;
+SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;

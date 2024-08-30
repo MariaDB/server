@@ -1,1 +1,2 @@
 --default_storage_engine=InnoDB
+--skip-innodb-read-only-compressed

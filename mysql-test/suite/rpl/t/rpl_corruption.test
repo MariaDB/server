@@ -14,15 +14,21 @@
 ############################################################
 
 #
-# The tests intensively utilize @@global.debug. Note,
+# The tests intensively utilize @@global.debug_dbug. Note,
 # Bug#11765758 - 58754,
-# @@global.debug is read by the slave threads through dbug-interface. 
-# Hence, before a client thread set @@global.debug we have to ensure that:
+# @@global.debug_dbug is read by the slave threads through dbug-interface. 
+# Hence, before a client thread set @@global.debug_dbug we have to ensure that:
 # (a) the slave threads are stopped, or (b) the slave threads are in
 # sync and waiting.
 
 --source include/have_debug.inc
 --source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+--connection master
 
 # Block legal errors for MTR 
 call mtr.add_suppression('Found invalid event in binary log');

@@ -4,7 +4,7 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
-call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
+call mtr.add_suppression("InnoDB: innodb_open_files=.* is exceeded");
 
 SET @save_tdc= @@GLOBAL.table_definition_cache;
 SET @save_toc= @@GLOBAL.table_open_cache;
@@ -29,6 +29,7 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 # and then hogs the table lock, so that the unique index cannot be dropped.
 BEGIN;
 INSERT INTO to_be_evicted VALUES(3, 2);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
 
 connection ddl;

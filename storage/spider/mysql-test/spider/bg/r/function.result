@@ -34,6 +34,8 @@ CREATE TABLE t1 (
 a VARCHAR(255),
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET3 MASTER_1_COMMENT_TEXT_PK1_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values ('1');
 insert into t1 select a + 1 from t1;
 insert into t1 select a + 2 from t1;
@@ -61,6 +63,9 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO ta_l (a, b, c) VALUES
 (1, 'a', '2008-08-01 10:21:39'),
 (2, 'b', '2000-01-01 00:00:00'),

@@ -36,12 +36,14 @@
 
   RETURN VALUE
     0	Ok
-    1	Error 
+    -1  OS does not support truncate. Filled space with 0
+    1	Error
 */
 int my_chsize(File fd, my_off_t newlength, int filler, myf MyFlags)
 {
   my_off_t oldsize;
   uchar buff[IO_SIZE];
+  int res= 0;
   DBUG_ENTER("my_chsize");
   DBUG_PRINT("my",("fd: %d  length: %lu  MyFlags: %lu",fd,(ulong) newlength,
 		   MyFlags));
@@ -77,6 +79,7 @@ int my_chsize(File fd, my_off_t newlength, int filler, myf MyFlags)
     {
       goto err;
     }
+    res= -1;        /* Warn that file was zerofilled, not truncated */
     swap_variables(my_off_t, newlength, oldsize);
 #endif
   }
@@ -91,7 +94,7 @@ int my_chsize(File fd, my_off_t newlength, int filler, myf MyFlags)
   }
   if (my_write(fd,buff,(size_t) (newlength-oldsize), MYF(MY_NABP)))
     goto err;
-  DBUG_RETURN(0);
+  DBUG_RETURN(res);
 
 err:
   DBUG_PRINT("error", ("errno: %d", errno));

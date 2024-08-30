@@ -6,9 +6,7 @@
 #pragma once
 
 #if defined(_WIN32)
-static PCSZ slash = "\\";
 #else // !_WIN32
-static PCSZ slash = "/";
 #define stricmp strcasecmp
 #endif // !_WIN32
 
@@ -35,11 +33,11 @@ public:
 	RESTDEF(void) { Tdp = NULL; Http = Uri = Fn = NULL; }
 
 	// Implementation
-	virtual const char *GetType(void) { return "REST"; }
+	const char *GetType(void) override { return "REST"; }
 
 	// Methods
-	virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-	virtual PTDB GetTable(PGLOBAL g, MODE m);
+	bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+	PTDB GetTable(PGLOBAL g, MODE m) override;
 
 protected:
 	// Members

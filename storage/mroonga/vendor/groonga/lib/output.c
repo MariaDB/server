@@ -774,7 +774,7 @@ grn_text_atoj(grn_ctx *ctx, grn_obj *outbuf, grn_content_type output_type,
       }
       if (a->next) {
         a = a->next;
-        if (GRN_BULK_VSIZE(&buf) >= sizeof(grn_id)) {
+        if ((size_t) GRN_BULK_VSIZE(&buf) >= sizeof(grn_id)) {
           id = *((grn_id *)GRN_BULK_HEAD(&buf));
         } else {
           id = GRN_ID_NIL;

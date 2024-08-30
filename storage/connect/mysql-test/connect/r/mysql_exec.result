@@ -13,6 +13,7 @@ command VARCHAR(128) NOT NULL,
 warnings INT(4) NOT NULL FLAG=3,
 number INT(5) NOT NULL FLAG=1,
 message VARCHAR(255) FLAG=2)
+CHARSET=latin1
 ENGINE=CONNECT TABLE_TYPE=MYSQL CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test' OPTION_LIST='Execsrc=1,maxerr=2';
 SELECT * FROM t1 WHERE command IN ('Warning','Note',
 'drop table if exists t1',
@@ -43,7 +44,7 @@ Warning	1105	Result set columns
 DROP PROCEDURE IF EXISTS p1;
 Warnings:
 Note	1305	PROCEDURE test.p1 does not exist
-CREATE PROCEDURE p1(cmd varchar(512))
+CREATE PROCEDURE p1(cmd varchar(512) CHARACTER SET latin1)
 READS SQL DATA
 SELECT * FROM t1 WHERE command IN ('Warning','Note',cmd);
 CALL p1('insert ignore into t1(id) values(NULL)');

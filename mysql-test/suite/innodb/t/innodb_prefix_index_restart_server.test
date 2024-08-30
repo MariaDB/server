@@ -12,6 +12,7 @@
 
 # Embedded server tests do not support restarting
 --source include/not_embedded.inc
+--source include/test_db_charset_latin1.inc
 
 #------------------------------------------------------------------------------
 # Stop the server in between when prefix index are created and see if state is
@@ -107,3 +108,5 @@ SELECT * FROM t1 WHERE a IN ('');
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--source include/test_db_charset_restore.inc

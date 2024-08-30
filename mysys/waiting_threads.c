@@ -395,7 +395,8 @@ static void wt_resource_create(uchar *arg)
   bzero(rc, sizeof(*rc));
   rc_rwlock_init(rc);
   mysql_cond_init(key_WT_RESOURCE_cond, &rc->cond, 0);
-  my_init_dynamic_array(&rc->owners, sizeof(WT_THD *), 0, 5, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &rc->owners,
+                        sizeof(WT_THD *), 0, 5, MYF(0));
   DBUG_VOID_RETURN;
 }
 
@@ -423,8 +424,10 @@ static void wt_resource_destroy(uchar *arg)
   It's called from lf_hash when an element is inserted.
 */
 static void wt_resource_init(LF_HASH *hash __attribute__((unused)),
-                             WT_RESOURCE *rc, WT_RESOURCE_ID *id)
+                             void *resource, const void *ident)
 {
+  WT_RESOURCE *rc= resource;
+  const WT_RESOURCE_ID *id= ident;
   DBUG_ENTER("wt_resource_init");
   rc->id= *id;
   rc->waiter_count= 0;
@@ -508,7 +511,8 @@ void wt_thd_lazy_init(WT_THD *thd, const ulong *ds, const ulong *ts,
   thd->deadlock_search_depth_long= dl;
   thd->timeout_long= tl;
   /* dynamic array is also initialized lazily - without memory allocations */
-  my_init_dynamic_array(&thd->my_resources, sizeof(WT_RESOURCE *), 0, 5, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &thd->my_resources,
+                        sizeof(WT_RESOURCE *), 0, 5, MYF(0));
 #ifndef DBUG_OFF
   thd->name= my_thread_name();
 #endif
@@ -596,7 +600,7 @@ static int deadlock_search(struct deadlock_arg *arg, WT_THD *blocker,
 {
   WT_RESOURCE *rc, *volatile *shared_ptr= &blocker->waiting_for;
   WT_THD *cursor;
-  uint i;
+  size_t i;
   int ret= WT_OK;
   DBUG_ENTER("deadlock_search");
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, depth=%u",

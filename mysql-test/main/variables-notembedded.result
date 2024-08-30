@@ -174,4 +174,20 @@ LENGTH(a)
 SET GLOBAL max_allowed_packet=@save_max_allowed_packet;
 SET GLOBAL net_buffer_length=@save_net_buffer_length;
 DROP TABLE t1;
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
+#
+# MDEV-31811 deprecate old_mode values
+#
+select @@old_mode;
+@@old_mode
+NO_DUP_KEY_WARNINGS_WITH_IGNORE,COMPAT_5_1_CHECKSUM
+set old_mode='zero_date_time_cast,no_progress_info';
+Warnings:
+Warning	1287	'NO_PROGRESS_INFO' is deprecated and will be removed in a future release
+Warning	1287	'ZERO_DATE_TIME_CAST' is deprecated and will be removed in a future release
+FOUND 2 /old-mode='[0-9A-Z_]+' is deprecated and will be removed in a future release/ in mysqld.1.err
+#
+# End of 11.3 tests
+#

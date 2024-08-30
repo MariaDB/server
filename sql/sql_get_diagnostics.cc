@@ -266,8 +266,8 @@ Condition_information::aggregate(THD *thd, const Diagnostics_area *da)
 Item *
 Condition_information_item::make_utf8_string_item(THD *thd, const String *str)
 {
-  /* Default is utf8 character set and utf8_general_ci collation. */
-  CHARSET_INFO *to_cs= &my_charset_utf8_general_ci;
+  /* Default is utf8 character set and utf8mb3_general_ci collation. */
+  CHARSET_INFO *to_cs= &my_charset_utf8mb3_general_ci;
   /* If a charset was not set, assume that no conversion is needed. */
   CHARSET_INFO *from_cs= str->charset() ? str->charset() : to_cs;
   String tmp(str->ptr(), str->length(), from_cs);
@@ -338,6 +338,8 @@ Condition_information_item::get_value(THD *thd, const Sql_condition *cond)
     str.set_ascii(cond->get_sqlstate(), strlen(cond->get_sqlstate()));
     value= make_utf8_string_item(thd, &str);
     break;
+  case ROW_NUMBER:
+    value= new (thd->mem_root) Item_uint(thd, cond->m_row_number);
   }
 
   DBUG_RETURN(value);

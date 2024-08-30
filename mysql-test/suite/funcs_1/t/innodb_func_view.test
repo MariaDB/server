@@ -12,5 +12,9 @@
 let $type= 'InnoDB' ;
 --source include/have_innodb.inc
 
+--source include/test_db_charset_latin1.inc
+
 --source suite/funcs_1/views/func_view.inc
+
+--source include/test_db_charset_restore.inc
 

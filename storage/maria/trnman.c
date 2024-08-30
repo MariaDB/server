@@ -149,7 +149,7 @@ int trnman_init(TrID initial_trid)
   DBUG_ENTER("trnman_init");
   DBUG_PRINT("enter", ("initial_trid: %lu", (ulong) initial_trid));
 
-  short_trid_to_active_trn= (TRN **)my_malloc(SHORT_TRID_MAX*sizeof(TRN*),
+  short_trid_to_active_trn= (TRN **)my_malloc(PSI_INSTRUMENT_ME, SHORT_TRID_MAX*sizeof(TRN*),
                                      MYF(MY_WME|MY_ZEROFILL));
   if (unlikely(!short_trid_to_active_trn))
     DBUG_RETURN(1);
@@ -194,6 +194,7 @@ int trnman_init(TrID initial_trid)
   DBUG_RETURN(0);
 }
 
+
 /*
   NOTE
     this could only be called in the "idle" state - no transaction can be
@@ -229,6 +230,7 @@ void trnman_destroy()
   DBUG_VOID_RETURN;
 }
 
+
 /*
   NOTE
     TrID is limited to 6 bytes. Initial value of the generator
@@ -238,7 +240,7 @@ void trnman_destroy()
 static TrID new_trid()
 {
   DBUG_ENTER("new_trid");
-  DBUG_ASSERT(global_trid_generator < 0xffffffffffffLL);
+  DBUG_ASSERT(global_trid_generator < MAX_INTERNAL_TRID);
   DBUG_PRINT("info", ("mysql_mutex_assert_owner LOCK_trn_list"));
   mysql_mutex_assert_owner(&LOCK_trn_list);
   DBUG_RETURN(++global_trid_generator);
@@ -267,7 +269,7 @@ static uint get_short_trid(TRN *trn)
 }
 
 /**
-  Allocates and initialzies a new TRN object
+  Allocates and initializes a new TRN object
 
   @note the 'wt' parameter can only be 0 in a single-threaded code (or,
   generally, where threads cannot block each other), otherwise the
@@ -312,7 +314,7 @@ TRN *trnman_new_trn(WT_THD *wt)
       (Like redo_lns, which is assumed to be 0 at start of row handling
       and reset to zero before end of row handling)
     */
-    trn= (TRN *)my_malloc(sizeof(TRN), MYF(MY_WME | MY_ZEROFILL));
+    trn= (TRN *)my_malloc(PSI_INSTRUMENT_ME, sizeof(TRN), MYF(MY_WME | MY_ZEROFILL));
     if (unlikely(!trn))
     {
       DBUG_PRINT("info", ("mysql_mutex_unlock LOCK_trn_list"));
@@ -383,6 +385,26 @@ TRN *trnman_new_trn(WT_THD *wt)
 
   DBUG_RETURN(trn);
 }
+
+
+/*
+  Initialize a temporary TRN object for logging a new transaction id (trid)
+  to it. Used by create table to associate a create trid to the table.
+
+  Out: trn->trid is updated with next available trid
+*/
+
+void trnman_init_tmp_trn_for_logging_trid(TRN *trn)
+{
+  *trn= dummy_transaction_object;
+  /* Avoid logging short_id */
+  trn->short_id= 1;
+  /* Trid gets logged in translog_write_record */
+  trn->first_undo_lsn= 0;
+  /* Get next free trid */
+  trn->trid= trnman_get_min_safe_trid();
+}
+
 
 /*
   remove a trn from the active list.
@@ -700,8 +722,8 @@ my_bool trnman_collect_transactions(LEX_STRING *str_act, LEX_STRING *str_com,
 #endif
      LSN_STORE_SIZE /* first_undo_lsn */
      ) * trnman_committed_transactions;
-  if ((NULL == (str_act->str= my_malloc(str_act->length, MYF(MY_WME)))) ||
-      (NULL == (str_com->str= my_malloc(str_com->length, MYF(MY_WME)))))
+  if ((NULL == (str_act->str= my_malloc(PSI_INSTRUMENT_ME, str_act->length, MYF(MY_WME)))) ||
+      (NULL == (str_com->str= my_malloc(PSI_INSTRUMENT_ME, str_com->length, MYF(MY_WME)))))
     goto err;
   /* First, the active transactions */
   ptr= str_act->str + 2 + LSN_STORE_SIZE;
@@ -880,6 +902,7 @@ TrID trnman_get_min_safe_trid()
 TrID trnman_get_max_trid()
 {
   TrID id;
+  /* Check if trnman has been initalized */
   if (short_trid_to_active_trn == NULL)
     return 0;
   mysql_mutex_lock(&LOCK_trn_list);

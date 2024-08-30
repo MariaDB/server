@@ -15,6 +15,7 @@
 --source include/not_embedded.inc
 --source include/have_innodb.inc
 --source include/default_charset.inc
+--source include/test_db_charset_latin1.inc
 
 let $engine_type= InnoDB;
 --source suite/funcs_1/datadict/datadict_load.inc
@@ -24,3 +25,4 @@ let $my_where = WHERE table_schema LIKE 'test%';
 --source suite/funcs_1/datadict/columns.inc
 
 --source suite/funcs_1/include/cleanup.inc
+--source include/test_db_charset_restore.inc

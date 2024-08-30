@@ -1,0 +1,22 @@
+source include/not_embedded.inc;
+#
+# Test of ALTER ONLINE TABLE syntax
+# (same as LOCK=NONE)
+#
+
+create table t1 (a int not null primary key, b int, c varchar(80), e enum('a','b')) engine=aria;
+insert into t1 (a) values (1),(2),(3);
+alter online table t1 page_checksum=1;
+alter online table t1 page_checksum=0;
+alter online table t1 drop column b, add b int;
+alter online table t1 modify b bigint;
+alter online table t1 modify e enum('c','a','b');
+alter online table t1 modify c varchar(50);
+alter online table t1 modify c varchar(100);
+alter online table t1 add f int;
+alter online table t1 engine=memory;
+alter online table t1 checksum=1;
+alter online table t1 add constraint check (b > 0);
+
+show create table t1;
+drop table t1;

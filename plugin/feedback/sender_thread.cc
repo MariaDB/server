@@ -92,8 +92,7 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->variables.pseudo_thread_id= thd->thread_id;
   server_threads.insert(thd);
   thd->thread_stack= (char*) &tables;
-  if (thd->store_globals())
-    return 1;
+  thd->store_globals();
 
   thd->mysys_var->current_cond= &sleep_condition;
   thd->mysys_var->current_mutex= &sleep_mutex;
@@ -106,12 +105,12 @@ static int prepare_for_fill(TABLE_LIST *tables)
   thd->db= null_clex_str;
   thd->security_ctx->host_or_ip= "";
   thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ~NO_ACCESS;
+  thd->security_ctx->master_access= ALL_KNOWN_ACL;
   bzero((char*) &thd->net, sizeof(thd->net));
   lex_start(thd);
-  mysql_init_select(thd->lex);
+  thd->lex->init_select();
 
-  LEX_CSTRING tbl_name= {i_s_feedback->table_name, strlen(i_s_feedback->table_name) };
+  const LEX_CSTRING tbl_name= i_s_feedback->table_name;
 
   tables->init_one_table(&INFORMATION_SCHEMA_NAME, &tbl_name, 0, TL_READ);
   tables->schema_table= i_s_feedback;
@@ -184,15 +183,15 @@ static void send_report(const char *when)
     str.length(0);
     str.append(STRING_WITH_LEN("FEEDBACK_SERVER_UID"));
     str.append('\t');
-    str.append(server_uid_buf);
+    str.append(server_uid,  sizeof(server_uid)-1);
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_WHEN"));
     str.append('\t');
-    str.append(when);
+    str.append(when, strlen(when));
     str.append('\n');
     str.append(STRING_WITH_LEN("FEEDBACK_USER_INFO"));
     str.append('\t');
-    str.append(user_info);
+    str.append(user_info, strlen(user_info));
     str.append('\n');
     str.append('\n');
   }
@@ -258,7 +257,8 @@ ret:
       the effect of the background thread on SHOW STATUS.
     */
     server_threads.erase(thd);
-    thd->set_status_var_init();
+    DBUG_ASSERT(thd->status_var.tmp_space_used == 0);
+    thd->set_status_var_init(clear_for_new_connection);
     thd->killed= KILL_CONNECTION;
     delete thd;
     thd= 0;

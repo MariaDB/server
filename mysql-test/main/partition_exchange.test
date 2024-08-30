@@ -1,10 +1,6 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 
---disable_warnings
-DROP TABLE IF EXISTS t1, t2, t3, t, tp, tsp, tmp;
---enable_warnings
-
 --echo #
 --echo # Bug#11894100: EXCHANGE PARTITION CAN'T BE EXECUTED IF
 --echo #               ROW_FORMAT WAS SET EXPLICITLY
@@ -13,7 +9,7 @@ DROP TABLE IF EXISTS t1, t2, t3, t, tp, tsp, tmp;
 --echo # Same definition (both have ROW_FORMAT set)
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT=COMPACT
@@ -45,7 +41,7 @@ DROP TABLE t2;
 --echo # Only the partitioned table have ROW_FORMAT set.
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB;
@@ -62,7 +58,7 @@ ORDER BY TABLE_NAME;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB
@@ -70,7 +66,7 @@ PARTITION BY HASH (id)
 PARTITIONS 2;
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = COMPACT;
@@ -87,7 +83,7 @@ ORDER BY TABLE_NAME;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB
@@ -95,7 +91,7 @@ PARTITION BY HASH (id)
 PARTITIONS 2;
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB;
@@ -112,7 +108,7 @@ ORDER BY TABLE_NAME;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = REDUNDANT
@@ -120,7 +116,7 @@ PARTITION BY HASH (id)
 PARTITIONS 2;
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = REDUNDANT;
@@ -137,7 +133,7 @@ ORDER BY TABLE_NAME;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB
@@ -145,7 +141,7 @@ PARTITION BY HASH (id)
 PARTITIONS 2;
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = REDUNDANT;
@@ -163,7 +159,7 @@ ORDER BY TABLE_NAME;
 DROP TABLE t1, t2;
 CREATE TABLE t1 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = COMPACT
@@ -171,7 +167,7 @@ PARTITION BY HASH (id)
 PARTITIONS 2;
 CREATE TABLE t2 (
  id int(11) NOT NULL AUTO_INCREMENT,
- year year(2) DEFAULT NULL,
+ year year DEFAULT NULL,
  modified timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
  PRIMARY KEY (id)
 ) ENGINE=InnoDB ROW_FORMAT = REDUNDANT;
@@ -529,10 +525,10 @@ DROP TABLE t, t2, tp;
 --echo #                failed during EXCHANGE PARTITION with different TABLESPACE.
 --echo #
 CREATE TABLE t1 (a VARCHAR(200)) PARTITION BY KEY(a) partitions 10;
-ALTER TABLE t1 ADD PARTITION (PARTITION pm TABLESPACE = `innodb_file_per_table`);
+ALTER TABLE t1 ADD PARTITION (PARTITION pm);
 CREATE TABLE t2 like t1;
 ALTER TABLE t2 REMOVE PARTITIONING;
---error ER_PARTITION_EXCHANGE_DIFFERENT_OPTION
+# The following works as table spaces are not checked anymore
 ALTER TABLE t1 EXCHANGE PARTITION pm WITH TABLE t2;
 DROP TABLE t1, t2;
 
@@ -554,3 +550,16 @@ ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 
 # Cleanup
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-27683 EXCHANGE PARTITION allows different index direction, but causes further errors
+--echo #
+CREATE TABLE t1 (a INT, KEY(a DESC)) PARTITION BY KEY(a) PARTITIONS 4;
+CREATE TABLE t2 (a INT, KEY(a));
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #

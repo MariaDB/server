@@ -167,12 +167,12 @@ CALL p1('1b');
 v_a
 1
 Warnings:
-Warning	1265	Data truncated for column 'p_a' at row 1
+Warning	1265	Data truncated for column 'p_a' at row 0
 CALL p1('b1');
 v_a
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 1
+Warning	1366	Incorrect integer value: 'b1' for column ``.``.`p_a` at row 0
 DROP PROCEDURE p1;
 SET sql_mode=DEFAULT;
 #
@@ -800,3 +800,55 @@ drop procedure test_proc;
 drop view v1;
 drop function get_name;
 drop table t1;
+#
+# MDEV-28266: Crash in Field_string::type_handler when calling procedures
+#
+CREATE TABLE t (f INT);
+CREATE TRIGGER tr AFTER INSERT ON t FOR EACH ROW
+FOR x IN (SELECT * FROM json_table(NULL, '$' COLUMNS(a CHAR(1) path '$.*')) tmp)
+DO set @a=1; END FOR $
+INSERT INTO t () values ();
+DROP TABLE t;
+#
+# End of 10.6 tests
+#
+#
+# Start of 10.8 tests
+#
+#
+# MDEV-10654 IN, OUT, INOUT parameters in CREATE FUNCTION
+#
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (IN a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+va
+1
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (OUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+BEGIN NOT ATOMIC
+DECLARE va INT;
+DECLARE cur CURSOR (INOUT a INT) FOR SELECT a FROM dual;
+OPEN cur(1);
+FETCH cur INTO va;
+CLOSE cur;
+SELECT va;
+END;
+$$
+ERROR 42000: This version of MariaDB doesn't yet support 'OUT/INOUT cursor parameter'
+#
+# End of 10.8 tests
+#

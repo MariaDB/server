@@ -11,6 +11,7 @@
 #   [--let $rpl_skip_start_slave= 1]
 #   [--let $rpl_debug= 1]
 #   [--let $slave_timeout= NUMBER]
+#   [--let $rpl_server_skip_log_bin= 1]
 #   --source include/master-slave.inc
 #
 # Parameters:

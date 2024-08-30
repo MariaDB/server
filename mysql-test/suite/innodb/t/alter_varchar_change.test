@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 DELIMITER |;
 CREATE PROCEDURE get_index_id(IN tbl_id INT, IN idx_name char(100), OUT idx_id INT)
@@ -373,3 +374,5 @@ on sc.table_id=st.table_id where st.name='test/t' and sc.name='a';
 drop table t;
 
 --echo # End of 10.2 tests
+
+--source include/test_db_charset_restore.inc

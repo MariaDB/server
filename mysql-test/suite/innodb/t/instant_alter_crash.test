@@ -14,7 +14,7 @@ let MYSQLD_DATADIR=`select @@datadir`;
 --echo #
 
 CREATE TABLE t1(id INT PRIMARY KEY, c2 INT UNIQUE)
-ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+ENGINE=InnoDB STATS_PERSISTENT=0 ROW_FORMAT=REDUNDANT;
 CREATE TABLE t2 LIKE t1;
 INSERT INTO t1 VALUES(0,2);
 INSERT INTO t2 VALUES(2,1);
@@ -36,7 +36,6 @@ COMMIT;
 disconnect ddl;
 --source include/start_mysqld.inc
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SELECT * FROM t1;
 SELECT * FROM t2;
 BEGIN;
@@ -47,6 +46,9 @@ ROLLBACK;
 INSERT INTO t2 VALUES
 (16,1551,'Omnium enim rerum'),(128,1571,' principia parva sunt');
 
+BEGIN;
+UPDATE t1 SET c2=c2+1;
+
 connect ddl, localhost, root;
 SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
 --send
@@ -55,15 +57,11 @@ ALTER TABLE t2 DROP COLUMN c3, ADD COLUMN c5 TEXT DEFAULT 'naturam abhorrere';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
-UPDATE t1 SET c2=c2+1;
+COMMIT;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
 --source include/start_mysqld.inc
-
-SET @saved_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -74,6 +72,8 @@ ROLLBACK;
 --source include/wait_all_purged.inc
 
 INSERT INTO t2 VALUES (64,42,'De finibus bonorum'), (347,33101,' et malorum');
+BEGIN;
+DELETE FROM t1;
 
 connect ddl, localhost, root;
 ALTER TABLE t2 DROP COLUMN c3;
@@ -84,14 +84,11 @@ ALTER TABLE t2 ADD COLUMN (c4 TEXT NOT NULL DEFAULT ' et malorum');
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
-DELETE FROM t1;
+COMMIT;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
 --source include/start_mysqld.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 let SEARCH_PATTERN= \[Note\] InnoDB: Rolled back recovered transaction ;
@@ -179,6 +176,9 @@ DELETE FROM t2;
 --echo #
 --echo # MDEV-24323 Crash on recovery after kill during instant ADD COLUMN
 --echo #
+BEGIN;
+INSERT INTO t1 VALUES(0,0);
+
 connect ddl, localhost, root;
 CREATE TABLE t3(id INT PRIMARY KEY, c2 INT, v2 INT AS(c2) VIRTUAL, UNIQUE(v2))
 ENGINE=InnoDB;
@@ -191,8 +191,7 @@ ALTER TABLE t3 ADD COLUMN c3 TEXT NOT NULL DEFAULT 'sic transit gloria mundi';
 connection default;
 SET DEBUG_SYNC='now WAIT_FOR ddl';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
-SET debug_dbug='+d,dict_sys_mutex_avoid';
-INSERT INTO t1 VALUES(0,0);
+COMMIT;
 
 --source include/kill_mysqld.inc
 disconnect ddl;
@@ -201,7 +200,33 @@ disconnect ddl;
 SHOW CREATE TABLE t1;
 SHOW CREATE TABLE t2;
 SHOW CREATE TABLE t3;
-DROP TABLE t1,t2,t3;
-SET DEBUG_SYNC=RESET;
---remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
+DROP TABLE t2,t3;
+
+--echo #
+--echo # MDEV-29440 InnoDB instant ALTER TABLE recovery wrongly uses
+--echo #            READ COMMITTED isolation level instead of READ UNCOMMITTED
+--echo #
+CREATE TABLE t2(a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1),(2),(3),(4),(5),(6);
+
+BEGIN;
+DELETE FROM t1;
+
+connect ddl, localhost, root;
+SET DEBUG_SYNC='innodb_alter_inplace_before_commit SIGNAL ddl WAIT_FOR ever';
+--send
+ALTER TABLE t2 ADD COLUMN b TINYINT UNSIGNED NOT NULL DEFAULT 42 FIRST;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR ddl';
+SET GLOBAL innodb_flush_log_at_trx_commit=1;
+COMMIT;
+
+--source include/kill_mysqld.inc
+disconnect ddl;
+--source include/start_mysqld.inc
+
+CHECK TABLE t2;
+DROP TABLE t1,t2;
+
 --list_files $MYSQLD_DATADIR/test

@@ -1,4 +1,4 @@
-/* Copyright (c) 2017, MariaDB
+/* Copyright (c) 2017, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,6 +22,37 @@
 #include "sql_explain.h"
 #include "sql_parse.h"
 #include "sql_cte.h"
+#include "my_json_writer.h"
+
+
+/**
+  @brief
+    Walk through all VALUES items.
+  @param
+     @param processor      - the processor to call for each Item
+     @param walk_qubquery  - if should dive into subquery items
+     @param argument       - the argument to pass recursively
+  @retval
+    true   on error
+    false  on success
+*/
+bool table_value_constr::walk_values(Item_processor processor,
+                                     bool walk_subquery,
+                                     void *argument)
+{
+  List_iterator_fast<List_item> list_item_it(lists_of_values);
+  while (List_item *list= list_item_it++)
+  {
+    List_iterator_fast<Item> item_it(*list);
+    while (Item *item= item_it++)
+    {
+       if (item->walk(&Item::unknown_splocal_processor, false, argument))
+         return true;
+    }
+  }
+  return false;
+}
+
 
 /**
   @brief
@@ -181,7 +212,7 @@ bool get_type_attributes_for_tvc(THD *thd,
     Item *item;
     for (uint holder_pos= 0 ; (item= it++); holder_pos++)
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       holders[holder_pos].add_argument(item);
     }
   }
@@ -281,7 +312,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
     (thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW)
   */
 
-  thd->where="order clause";
+  thd->where= THD_WHERE::ORDER_CLAUSE;
   ORDER *order= sl->order_list.first;
   for (; order; order=order->next)
   {
@@ -296,7 +327,7 @@ bool table_value_constr::prepare(THD *thd, SELECT_LEX *sl,
       if (!count || count > first_elem->elements)
       {
         my_error(ER_BAD_FIELD_ERROR, MYF(0),
-                 order_item->full_name(), thd->where);
+                 order_item->full_name(), thd_where(thd));
         DBUG_RETURN(true);
       }
       order->in_field_list= 1;
@@ -372,8 +403,7 @@ bool table_value_constr::optimize(THD *thd)
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
-  if (select_lex->select_number != UINT_MAX &&
-      select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ &&
+  if (select_lex->select_number != FAKE_SELECT_LEX_ID &&
       have_query_plan != QEP_NOT_PRESENT_YET &&
       thd->lex->explain && // for "SET" command in SPs.
       (!thd->lex->explain->get_select(select_lex->select_number)))
@@ -398,7 +428,9 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   DBUG_ENTER("table_value_constr::exec");
   List_iterator_fast<List_item> li(lists_of_values);
   List_item *elem;
+  THD *cur_thd= sl->parent_lex->thd;
   ha_rows send_records= 0;
+  int rc=0;
   
   if (select_options & SELECT_DESCRIBE)
     DBUG_RETURN(false);
@@ -410,13 +442,14 @@ bool table_value_constr::exec(SELECT_LEX *sl)
     DBUG_RETURN(true);
   }
 
+  fix_rownum_pointers(sl->parent_lex->thd, sl, &send_records);
+
   while ((elem= li++))
   {
-    THD *cur_thd= sl->parent_lex->thd;
-    if (send_records >= sl->master_unit()->select_limit_cnt)
-      break;
-    int rc= result->send_data(*elem);
     cur_thd->get_stmt_da()->inc_current_row_for_warning();
+    if (send_records >= sl->master_unit()->lim.get_select_limit())
+      break;
+    rc= result->send_data_with_check(*elem, sl->master_unit(), send_records);
     if (!rc)
       send_records++;
     else if (rc > 0)
@@ -631,7 +664,8 @@ static bool create_tvc_name(THD *thd, st_select_lex *parent_select,
 bool table_value_constr::to_be_wrapped_as_with_tail()
 {
   return  select_lex->master_unit()->first_select()->next_select() &&
-          select_lex->order_list.elements && select_lex->explicit_limit;
+          select_lex->order_list.elements &&
+          select_lex->limit_params.explicit_limit;
 }
 
 
@@ -677,19 +711,19 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
     goto err;
   wrapper_sl->select_number= ++thd->lex->stmt_lex->current_select_number;
   wrapper_sl->parent_lex= lex; /* Used in init_query. */
-  wrapper_sl->init_query();
-  wrapper_sl->init_select();
+  wrapper_sl->make_empty_select();
   wrapper_sl->is_tvc_wrapper= true;
 
   wrapper_sl->nest_level= tvc_sl->nest_level;
   wrapper_sl->parsing_place= tvc_sl->parsing_place;
+  wrapper_sl->distinct=      tvc_sl->distinct;
   wrapper_sl->set_linkage(tvc_sl->get_linkage());
   wrapper_sl->exclude_from_table_unique_test=
                                  tvc_sl->exclude_from_table_unique_test;
 
   lex->current_select= wrapper_sl;
   item= new (thd->mem_root) Item_field(thd, &wrapper_sl->context,
-                                       NULL, NULL, &star_clex_str);
+                                       star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
   (wrapper_sl->with_wild)++;
@@ -710,6 +744,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
   derived_unit->init_query();
   derived_unit->thd= thd;
   derived_unit->include_down(wrapper_sl);
+  derived_unit->distinct= tvc_sl->distinct;
 
   /*
     Attach the select used of TVC as the only slave to the unit for
@@ -780,15 +815,11 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
     return NULL;
 
   wrapper_sl->order_list= tvc_sl->order_list;
-  wrapper_sl->select_limit= tvc_sl->select_limit;
-  wrapper_sl->offset_limit= tvc_sl->offset_limit;
+  wrapper_sl->limit_params= tvc_sl->limit_params;
   wrapper_sl->braces= tvc_sl->braces;
-  wrapper_sl->explicit_limit= tvc_sl->explicit_limit;
   tvc_sl->order_list.empty();
-  tvc_sl->select_limit= NULL;
-  tvc_sl->offset_limit= NULL;
+  tvc_sl->limit_params.clear();
   tvc_sl->braces= 0;
-  tvc_sl->explicit_limit= false;
   if (tvc_sl->select_number == 1)
   {
     tvc_sl->select_number= wrapper_sl->select_number;
@@ -798,6 +829,7 @@ st_select_lex *wrap_tvc_with_tail(THD *thd, st_select_lex *tvc_sl)
   {
     wrapper_sl->master_unit()->union_distinct= wrapper_sl;
   }
+  wrapper_sl->distinct= tvc_sl->distinct;
   thd->lex->current_select= wrapper_sl;
   return wrapper_sl;
 }
@@ -906,7 +938,11 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
 {
   if (!transform_into_subq)
     return this;
-  
+
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_conv(thd, "in_to_subquery_conversion");
+  trace_conv.add("item", this);
+
   List<List_item> values;
 
   LEX *lex= thd->lex;
@@ -924,13 +960,35 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   uint32 length= max_length_of_left_expr();
   if (!length  || length > tmp_table_max_key_length() ||
       args[0]->cols() > tmp_table_max_key_parts())
+  {
+    if (unlikely(trace_conv.trace_started()))
+      trace_conv.
+        add("done", false).
+        add("reason", "key is too long");
     return this;
-  
+  }
+
   for (uint i=1; i < arg_count; i++)
   {
-    if (!args[i]->const_item() || cmp_row_types(args[i], args[0]))
+    if (!args[i]->const_item())
+    {
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "non-constant element in the IN-list");
       return this;
+    }
+
+    if (cmp_row_types(args[i], args[0]))
+    {
+      if (unlikely(trace_conv.trace_started()))
+        trace_conv.
+          add("done", false).
+          add("reason", "type mismatch");
+      return this;
+    }
   }
+  Json_writer_array trace_nested_obj(thd, "conversion");
 
   Query_arena backup;
   Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
@@ -940,14 +998,14 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   */
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   /* Create item list as '*' for the subquery SQ */
   Item *item;
   SELECT_LEX *sq_select; // select for IN subquery;
   sq_select= lex->current_select;
   sq_select->parsing_place= SELECT_LIST;
   item= new (thd->mem_root) Item_field(thd, &sq_select->context,
-                                       NULL, NULL, &star_clex_str);
+                                       star_clex_str);
   if (item == NULL || add_item_to_list(thd, item))
     goto err;
   (sq_select->with_wild)++;
@@ -958,10 +1016,12 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   SELECT_LEX_UNIT *derived_unit; // unit for tvc_select
   if (mysql_new_select(lex, 1, NULL))
     goto err;
-  mysql_init_select(lex);
+  lex->init_select();
   tvc_select= lex->current_select;
   derived_unit= tvc_select->master_unit();
+  derived_unit->distinct= 1;
   tvc_select->set_linkage(DERIVED_TABLE_TYPE);
+  tvc_select->distinct= 1;
 
   /* Create TVC used in the transformation */
   if (create_value_list_for_tvc(thd, &values))
@@ -994,7 +1054,9 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
   sq_select->add_where_field(derived_unit->first_select());
   sq_select->context.table_list= sq_select->table_list.first;
   sq_select->context.first_name_resolution_table= sq_select->table_list.first;
-  sq_select->table_list.first->derived_type= DTYPE_TABLE | DTYPE_MATERIALIZE;
+  sq_select->table_list.first->derived_type= (DTYPE_TABLE |
+                                              DTYPE_MATERIALIZE |
+                                              DTYPE_IN_PREDICATE);
   lex->derived_tables|= DERIVED_SUBQUERY;
 
   sq_select->where= 0;
@@ -1023,6 +1085,7 @@ Item *Item_func_in::in_predicate_to_in_subs_transformer(THD *thd,
     goto err;
 
   parent_select->curr_tvc_name++;
+
   return sq;
 
 err:

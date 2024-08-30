@@ -46,7 +46,7 @@ let $CHILD2_1_SELECT_CONST_TABLE_JOIN=
 let $CHILD2_1_SELECT_CONST_TABLE2_JOIN=
   SELECT * FROM tbl_ncd_cm_person;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $OUTPUT_CHILD_GROUP2_BACKUP= $OUTPUT_CHILD_GROUP2
 --let $OUTPUT_CHILD_GROUP2= 1
 --let $USE_GENERAL_LOG_BACKUP= $USE_GENERAL_LOG

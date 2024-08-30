@@ -3,10 +3,7 @@
 --echo #
 
 SELECT @@character_set_connection, HEX(CAST(_utf8'÷' AS CHAR));
-# enable view-protocol after fix MDEV-27871
---disable_view_protocol
-SELECT STR_TO_DATE(CAST(_utf8'2001÷01÷01' AS CHAR),CAST(_utf8'%Y÷%m÷%d' AS CHAR));
---enable_view_protocol
+SELECT STR_TO_DATE(CAST(_utf8'2001÷01÷01' AS CHAR),CAST(_utf8'%Y÷%m÷%d' AS CHAR)) as exp;
 CREATE TABLE t1 AS SELECT REPEAT(' ', 64) AS subject, REPEAT(' ',64) AS pattern LIMIT 0;
 SHOW COLUMNS FROM t1;
 INSERT INTO t1 VALUES (_utf8'2001÷01÷01',_utf8'%Y÷%m÷%d');

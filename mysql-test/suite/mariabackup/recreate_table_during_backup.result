@@ -2,6 +2,7 @@ CREATE TABLE t1(i int) ENGINE=INNODB;
 CREATE TABLE t2(i int) ENGINE=INNODB;
 CREATE TABLE t3(a CHAR(36)) ENGINE INNODB;
 INSERT INTO t3 SELECT UUID() FROM seq_1_to_1000;
+set global innodb_log_checkpoint_now=1;
 # xtrabackup backup
 # xtrabackup prepare
 # shutdown server

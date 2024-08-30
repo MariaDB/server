@@ -1,5 +1,6 @@
 /*
 Copyright (c) 2008-2009, Patrick Galbraith & Antony Curtis
+Copyright (c) 2020, 2022, MariaDB Corporation.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -407,8 +408,26 @@ handlerton* federatedx_hton;
 
 static derived_handler*
 create_federatedx_derived_handler(THD* thd, TABLE_LIST *derived);
+
 static select_handler*
-create_federatedx_select_handler(THD* thd, SELECT_LEX *sel);
+create_federatedx_select_handler(THD *thd, SELECT_LEX *sel_lex,
+                                 SELECT_LEX_UNIT *sel_unit);
+static select_handler *
+create_federatedx_unit_handler(THD *thd, SELECT_LEX_UNIT *sel_unit);
+
+/*
+  Federated doesn't need costs.disk_read_ratio as everything is one a remote
+  server and nothing is cached locally
+*/
+
+static void federatedx_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 0.0;
+}
 
 /*
   Initialize the federatedx handler.
@@ -427,7 +446,6 @@ int federatedx_db_init(void *p)
   DBUG_ENTER("federatedx_db_init");
   init_federated_psi_keys();
   federatedx_hton= (handlerton *)p;
-  federatedx_hton->state= SHOW_OPTION_YES;
   /* Needed to work with old .frm files */
   federatedx_hton->db_type= DB_TYPE_FEDERATED_DB;
   federatedx_hton->savepoint_offset= sizeof(ulong);
@@ -439,16 +457,19 @@ int federatedx_db_init(void *p)
   federatedx_hton->rollback= ha_federatedx::rollback;
   federatedx_hton->discover_table_structure= ha_federatedx::discover_assisted;
   federatedx_hton->create= federatedx_create_handler;
+  federatedx_hton->drop_table= [](handlerton *, const char*) { return -1; };
   federatedx_hton->flags= HTON_ALTER_NOT_SUPPORTED;
   federatedx_hton->create_derived= create_federatedx_derived_handler;
   federatedx_hton->create_select= create_federatedx_select_handler;
+  federatedx_hton->update_optimizer_costs= federatedx_update_optimizer_costs;
+  federatedx_hton->create_unit= create_federatedx_unit_handler;
 
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(&federatedx_open_tables, &my_charset_bin, 32, 0, 0,
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables, &my_charset_bin, 32, 0, 0,
                  (my_hash_get_key) federatedx_share_get_key, 0, 0) &&
-      !my_hash_init(&federatedx_open_servers, &my_charset_bin, 32, 0, 0,
+      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers, &my_charset_bin, 32, 0, 0,
                  (my_hash_get_key) federatedx_server_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
@@ -512,7 +533,7 @@ bool append_ident(String *string, const char *name, size_t length,
     for (name_end= name+length; name < name_end; name+= clen)
     {
       uchar c= *(uchar *) name;
-      clen= my_charlen_fix(system_charset_info, name, name_end);
+      clen= system_charset_info->charlen_fix(name, name_end);
       if (clen == 1 && c == (uchar) quote_char &&
           (result= string->append(&quote_char, 1, system_charset_info)))
         goto err;
@@ -895,7 +916,8 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store(io->get_column_data(row, column), lengths[column], &my_charset_bin);
+        (*field)->store_text(io->get_column_data(row, column), lengths[column],
+                             &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
@@ -930,25 +952,23 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     *buf++= '0';
     *buf++= 'x';
-    buf= octet2hex(buf, (char*) ptr, len);
+    buf= octet2hex(buf, ptr, len);
     if (to->append((char*) buff, (uint)(buf - buff)))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_BLOB_PART)
   {
-    String blob;
     uint blob_length= uint2korr(ptr);
-    blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                   blob_length, &my_charset_bin);
+    String blob((char*) ptr+HA_KEY_BLOB_LENGTH,
+                blob_length, &my_charset_bin);
     if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
   {
-    String varchar;
     uint var_length= uint2korr(ptr);
-    varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                      var_length, &my_charset_bin);
+    String varchar((char*) ptr+HA_KEY_BLOB_LENGTH,
+                   var_length, &my_charset_bin);
     if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
@@ -1219,7 +1239,6 @@ bool ha_federatedx::create_where_from_key(String *to,
                                          KEY *key_info,
                                          const key_range *start_key,
                                          const key_range *end_key,
-                                         bool from_records_in_range,
                                          bool eq_range)
 {
   bool both_not_null=
@@ -1240,7 +1259,6 @@ bool ha_federatedx::create_where_from_key(String *to,
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
-    bool needs_quotes;
     KEY_PART_INFO *key_part;
     if (ranges[i] == NULL)
       continue;
@@ -1263,21 +1281,30 @@ bool ha_federatedx::create_where_from_key(String *to,
       Field *field= key_part->field;
       uint store_length= key_part->store_length;
       uint part_length= MY_MIN(store_length, length);
-      needs_quotes= field->str_needs_quotes();
+      bool needs_quotes= field->str_needs_quotes();
+      bool reverse= key_part->key_part_flag & HA_REVERSE_SORT;
+      static const LEX_CSTRING lt={STRING_WITH_LEN(" < ") };
+      static const LEX_CSTRING gt={STRING_WITH_LEN(" > ") };
+      static const LEX_CSTRING le={STRING_WITH_LEN(" <= ") };
+      static const LEX_CSTRING ge={STRING_WITH_LEN(" >= ") };
       DBUG_DUMP("key, start of loop", ptr, length);
 
       if (key_part->null_bit)
       {
         if (*ptr++)
         {
+          LEX_CSTRING constraint;
+          if (ranges[i]->flag == HA_READ_KEY_EXACT)
+            constraint= {STRING_WITH_LEN(" IS NULL ") };
+          else
+            constraint= {STRING_WITH_LEN(" IS NOT NULL ") };
           /*
             We got "IS [NOT] NULL" condition against nullable column. We
             distinguish between "IS NOT NULL" and "IS NULL" by flag. For
             "IS NULL", flag is set to HA_READ_KEY_EXACT.
           */
           if (emit_key_part_name(&tmp, key_part) ||
-              tmp.append(ranges[i]->flag == HA_READ_KEY_EXACT ?
-                         " IS NULL " : " IS NOT NULL "))
+              tmp.append(constraint))
             goto err;
           /*
             We need to adjust pointer and length to be prepared for next
@@ -1301,16 +1328,8 @@ bool ha_federatedx::create_where_from_key(String *to,
           if (emit_key_part_name(&tmp, key_part))
             goto err;
 
-          if (from_records_in_range)
-          {
-            if (tmp.append(STRING_WITH_LEN(" >= ")))
-              goto err;
-          }
-          else
-          {
-            if (tmp.append(STRING_WITH_LEN(" = ")))
-              goto err;
-          }
+          if (tmp.append(STRING_WITH_LEN(" = ")))
+            goto err;
 
           if (emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                     part_length))
@@ -1329,7 +1348,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_AFTER_KEY:
         if (eq_range)
         {
-          if (tmp.append("1=1"))                // Dummy
+          if (tmp.append(STRING_WITH_LEN("1=1")))                // Dummy
             goto err;
           break;
         }
@@ -1341,12 +1360,12 @@ bool ha_federatedx::create_where_from_key(String *to,
 
           if (i > 0) /* end key */
           {
-            if (tmp.append(STRING_WITH_LEN(" <= ")))
+            if (tmp.append(reverse ? ge : le))
               goto err;
           }
           else /* start key */
           {
-            if (tmp.append(STRING_WITH_LEN(" > ")))
+            if (tmp.append(reverse ? lt : gt))
               goto err;
           }
 
@@ -1361,7 +1380,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_NEXT:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_NEXT %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(STRING_WITH_LEN(" >= ")) ||
+            tmp.append(reverse ? le : ge) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
               part_length))
           goto err;
@@ -1371,7 +1390,7 @@ bool ha_federatedx::create_where_from_key(String *to,
         if (store_length >= length)
         {
           if (emit_key_part_name(&tmp, key_part) ||
-              tmp.append(STRING_WITH_LEN(" < ")) ||
+              tmp.append(reverse ? gt : lt) ||
               emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                     part_length))
             goto err;
@@ -1381,7 +1400,7 @@ bool ha_federatedx::create_where_from_key(String *to,
       case HA_READ_KEY_OR_PREV:
         DBUG_PRINT("info", ("federatedx HA_READ_KEY_OR_PREV %d", i));
         if (emit_key_part_name(&tmp, key_part) ||
-            tmp.append(STRING_WITH_LEN(" <= ")) ||
+            tmp.append(reverse ? ge : le) ||
             emit_key_part_element(&tmp, key_part, needs_quotes, 0, ptr,
                                   part_length))
           goto err;
@@ -1438,38 +1457,33 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
                         FEDERATEDX_SHARE *share, CHARSET_INFO *table_charset)
 {
   char buffer[STRING_BUFFER_USUAL_SIZE];
+  const char *socket_arg= share->socket ? share->socket : "";
+  const char *password_arg= share->password ? share->password : "";
+  const Lex_cstring_strlen ls_database(share->database);
+  const Lex_cstring_strlen ls_socket(socket_arg);
+
   String key(buffer, sizeof(buffer), &my_charset_bin);  
-  String scheme(share->scheme, &my_charset_latin1);
-  String hostname(share->hostname, &my_charset_latin1);
-  String database(share->database, system_charset_info);
-  String username(share->username, system_charset_info);
-  String socket(share->socket ? share->socket : "", files_charset_info);
-  String password(share->password ? share->password : "", &my_charset_bin);
+  String scheme, hostname;
+  String database(ls_database.str, ls_database.length, system_charset_info);
+  String username(share->username, strlen(share->username), system_charset_info);
+  String socket(ls_socket.str, ls_socket.length, files_charset_info);
+  String password(password_arg, strlen(password_arg), &my_charset_bin);
   DBUG_ENTER("fill_server");
 
   /* Do some case conversions */
-  scheme.reserve(scheme.length());
-  scheme.length(my_casedn_str(&my_charset_latin1, scheme.c_ptr_safe()));
-  
-  hostname.reserve(hostname.length());
-  hostname.length(my_casedn_str(&my_charset_latin1, hostname.c_ptr_safe()));
-  
-  if (lower_case_table_names)
-  {
-    database.reserve(database.length());
-    database.length(my_casedn_str(system_charset_info, database.c_ptr_safe()));
-  }
+  scheme.copy_casedn(&my_charset_latin1, Lex_cstring_strlen(share->scheme));
+  hostname.copy_casedn(&my_charset_latin1, Lex_cstring_strlen(share->hostname));
 
-#ifndef __WIN__
+  if (lower_case_table_names)
+    database.copy_casedn(system_charset_info, ls_database);
+
+#ifndef _WIN32
   /*
     TODO: there is no unix sockets under windows so the engine should be
     revised about using sockets in such environment.
   */
   if (lower_case_file_system && socket.length())
-  {
-    socket.reserve(socket.length());
-    socket.length(my_casedn_str(files_charset_info, socket.c_ptr_safe()));
-  }
+    socket.copy_casedn(files_charset_info, ls_socket);
 #endif
 
   /* start with all bytes zeroed */  
@@ -1517,7 +1531,7 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
     server->password= NULL;
 
   if (table_charset)
-    server->csname= strdup_root(mem_root, table_charset->csname);
+    server->csname= strdup_root(mem_root, table_charset->cs_name.str);
 
   DBUG_VOID_RETURN;
 }
@@ -1528,18 +1542,21 @@ static FEDERATEDX_SERVER *get_server(FEDERATEDX_SHARE *share, TABLE *table)
   FEDERATEDX_SERVER *server= NULL, tmp_server;
   MEM_ROOT mem_root;
   char buffer[STRING_BUFFER_USUAL_SIZE];
+  const char *socket_arg= share->socket ? share->socket : "";
+  const char *password_arg= share->password ? share->password : "";
+
   String key(buffer, sizeof(buffer), &my_charset_bin);  
-  String scheme(share->scheme, &my_charset_latin1);
-  String hostname(share->hostname, &my_charset_latin1);
-  String database(share->database, system_charset_info);
-  String username(share->username, system_charset_info);
-  String socket(share->socket ? share->socket : "", files_charset_info);
-  String password(share->password ? share->password : "", &my_charset_bin);
+  String scheme(share->scheme, strlen(share->scheme), &my_charset_latin1);
+  String hostname(share->hostname, strlen(share->hostname), &my_charset_latin1);
+  String database(share->database, strlen(share->database), system_charset_info);
+  String username(share->username, strlen(share->username), system_charset_info);
+  String socket(socket_arg, strlen(socket_arg), files_charset_info);
+  String password(password_arg, strlen(password_arg), &my_charset_bin);
   DBUG_ENTER("ha_federated.cc::get_server");
 
   mysql_mutex_assert_owner(&federatedx_mutex);
 
-  init_alloc_root(&mem_root, "federated", 4096, 4096, MYF(0));
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 4096, 4096, MYF(0));
 
   fill_server(&mem_root, &tmp_server, share, table ? table->s->table_charset : 0);
 
@@ -1597,7 +1614,7 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
   query.length(0);
 
   bzero(&tmp_share, sizeof(tmp_share));
-  init_alloc_root(&mem_root, "federated", 256, 0, MYF(0));
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 256, 0, MYF(0));
 
   mysql_mutex_lock(&federatedx_mutex);
 
@@ -1636,13 +1653,14 @@ static FEDERATEDX_SHARE *get_share(const char *table_name, TABLE *table)
 
     if (!(share= (FEDERATEDX_SHARE *) memdup_root(&mem_root, (char*)&tmp_share, sizeof(*share))) ||
         !(share->share_key= (char*) memdup_root(&mem_root, tmp_share.share_key, tmp_share.share_key_length+1)) ||
-        !(share->select_query= (char*) strmake_root(&mem_root, query.ptr(), query.length())))
+        !(share->select_query.str= (char*) strmake_root(&mem_root, query.ptr(), query.length())))
       goto error;
+    share->select_query.length= query.length();
 
     share->mem_root= mem_root;
 
     DBUG_PRINT("info",
-               ("share->select_query %s", share->select_query));
+               ("share->select_query %s", share->select_query.str));
 
     if (!(share->s= get_server(share, table)))
       goto error;
@@ -1730,8 +1748,10 @@ static void free_share(federatedx_txn *txn, FEDERATEDX_SHARE *share)
 }
 
 
-ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
-                                       key_range *end_key)
+ha_rows ha_federatedx::records_in_range(uint inx,
+                                        const key_range *start_key,
+                                        const key_range *end_key,
+                                        page_range *pages)
 {
   /*
 
@@ -1746,10 +1766,13 @@ ha_rows ha_federatedx::records_in_range(uint inx, key_range *start_key,
 
 federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 {
-  federatedx_txn **txnp= (federatedx_txn **) thd_ha_data(thd, ht);
-  if (!*txnp && !no_create)
-    *txnp= new federatedx_txn();
-  return *txnp;
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
+  if (!txn && !no_create)
+  {
+    txn= new federatedx_txn();
+    thd_set_ha_data(thd, federatedx_hton, txn);
+  }
+  return txn;
 }
 
 
@@ -1757,7 +1780,6 @@ int ha_federatedx::disconnect(handlerton *hton, MYSQL_THD thd)
 {
   federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
   delete txn;
-  *((federatedx_txn **) thd_ha_data(thd, hton))= 0;
   return 0;
 }
 
@@ -1799,7 +1821,7 @@ int ha_federatedx::open(const char *name, int mode, uint test_if_locked)
 
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &results, sizeof(FEDERATEDX_IO_RESULT*), 4, 4, MYF(0));
 
   reset();
 
@@ -1814,7 +1836,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;
@@ -2625,10 +2647,7 @@ int ha_federatedx::index_read_idx_with_result_set(uchar *buf, uint index,
   range.key= key;
   range.length= key_len;
   range.flag= find_flag;
-  create_where_from_key(&index_string,
-                        &table->key_info[index],
-                        &range,
-                        NULL, 0, 0);
+  create_where_from_key(&index_string, &table->key_info[index], &range, 0, 0);
   sql_query.append(index_string);
 
   if ((retval= txn->acquire(share, ha_thd(), TRUE, &io)))
@@ -2707,9 +2726,8 @@ int ha_federatedx::read_range_first(const key_range *start_key,
 
   sql_query.length(0);
   sql_query.append(share->select_query);
-  create_where_from_key(&sql_query,
-                        &table->key_info[active_index],
-                        start_key, end_key, 0, eq_range_arg);
+  create_where_from_key(&sql_query, &table->key_info[active_index],
+                        start_key, end_key, eq_range_arg);
 
   if ((retval= txn->acquire(share, ha_thd(), TRUE, &io)))
     DBUG_RETURN(retval);
@@ -2817,8 +2835,7 @@ int ha_federatedx::rnd_init(bool scan)
     if (stored_result)
       (void) free_result();
 
-    if (io->query(share->select_query,
-                  strlen(share->select_query)))
+    if (io->query(share->select_query.str, share->select_query.length))
       goto error;
 
     stored_result= io->store_result();
@@ -3093,11 +3110,11 @@ int ha_federatedx::info(uint flag)
   if (flag & (HA_STATUS_VARIABLE | HA_STATUS_CONST))
   {
     /*
-      size of IO operations (This is based on a good guess, no high science
-      involved)
+      Size of IO operations. This is used to calculate time to scan a table.
+      See handler.cc::keyread_time
     */
     if (flag & HA_STATUS_CONST)
-      stats.block_size= 4096;
+      stats.block_size= 1500;                   // Typical size of an TCP packet
 
     if ((*iop)->table_metadata(&stats, share->table_name,
                                (uint)share->table_name_length, flag))
@@ -3471,7 +3488,7 @@ bool ha_federatedx::get_error_message(int error, String* buf)
     buf->append(STRING_WITH_LEN("Error on remote system: "));
     buf->qs_append(remote_error_number);
     buf->append(STRING_WITH_LEN(": "));
-    buf->append(remote_error_buf);
+    buf->append(remote_error_buf, strlen(remote_error_buf));
     /* Ensure string ends with \0 */
     (void) buf->c_ptr_safe();
 
@@ -3491,7 +3508,7 @@ int ha_federatedx::start_stmt(MYSQL_THD thd, thr_lock_type lock_type)
   if (!txn->in_transaction())
   {
     txn->stmt_begin();
-    trans_register_ha(thd, FALSE, ht);
+    trans_register_ha(thd, FALSE, ht, 0);
   }
   DBUG_RETURN(0);
 }
@@ -3514,12 +3531,12 @@ int ha_federatedx::external_lock(MYSQL_THD thd, int lock_type)
       if (!thd_test_options(thd, (OPTION_NOT_AUTOCOMMIT | OPTION_BEGIN)))
       {
         txn->stmt_begin();
-        trans_register_ha(thd, FALSE, ht);
+        trans_register_ha(thd, FALSE, ht, 0);
       }
       else
       {
         txn->txn_begin();
-        trans_register_ha(thd, TRUE, ht);
+        trans_register_ha(thd, TRUE, ht, 0);
       }
     }
   }
@@ -3537,7 +3554,7 @@ int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
   if (txn && txn->has_connections())
   {
     if (txn->txn_begin())
-      trans_register_ha(thd, TRUE, hton);
+      trans_register_ha(thd, TRUE, hton, 0);
     
     txn->sp_acquire((ulong *) sv);
 
@@ -3630,13 +3647,15 @@ int ha_federatedx::discover_assisted(handlerton *hton, THD* thd,
   MYSQL_ROW rdata;
   ulong *rlen;
   my_bool my_true= 1;
+  my_bool my_false= 0;
 
   if (parse_url(thd->mem_root, &tmp_share, table_s, 1))
     return HA_WRONG_CREATE_OPTION;
 
   mysql_init(&mysql);
-  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->csname);
+  mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, cs->cs_name.str);
   mysql_options(&mysql, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, (char*)&my_true);
+  mysql_options(&mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   if (!mysql_real_connect(&mysql, tmp_share.hostname, tmp_share.username,
                           tmp_share.password, tmp_share.database,
@@ -3712,7 +3731,7 @@ maria_declare_plugin(federatedx)
   &federatedx_storage_engine,
   "FEDERATED",
   "Patrick Galbraith",
-  "Allows to access tables on other MariaDB servers, supports transactions and more",
+  "Allows one to access tables on other MariaDB servers, supports transactions and more",
   PLUGIN_LICENSE_GPL,
   federatedx_db_init, /* Plugin Init */
   federatedx_done, /* Plugin Deinit */
@@ -3723,4 +3742,3 @@ maria_declare_plugin(federatedx)
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
-

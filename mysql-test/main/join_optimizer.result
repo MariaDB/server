@@ -4,20 +4,20 @@ drop table if exists t0,t1,t2,t3;
 #
 create table t0 (a int);
 insert into t0 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t1 (a varchar(32));
+create table t1 (a varchar(32)) charset=latin1;
 insert into t1 values ('owner'),('requester'),('admincc'),('cc');
 CREATE TABLE t2 (
 id int(11) NOT NULL,
 type varchar(32) default NULL,
 PRIMARY KEY  (id)
-);
+) CHARSET=latin1;
 insert into t2 values (1,'owner'), (2,'admincc');
 CREATE TABLE t3 (
 id int(11) NOT NULL,
 domain varchar(32) default NULL,
 type varchar(32) default NULL,
 PRIMARY KEY  (id)
-);
+) CHARSET=latin1;
 set @domain='system';
 set @pk=0;
 INSERT INTO t3 select @pk:=@pk+1, 'system', t1.a from t1;

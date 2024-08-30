@@ -123,7 +123,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `new_table` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 connection server_1;
 drop table t1;
 #
@@ -162,6 +162,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE TABLE `t2` (
   `a` int(11) DEFAULT NULL
 )
+slave-bin.000001	#	Annotate_rows	#	#	create table t2 select * from t9
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t2)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -173,6 +174,7 @@ slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
 slave-bin.000001	#	Query	#	#	use `test`; CREATE TABLE `t5` (
   `a` int(11) DEFAULT NULL
 )
+slave-bin.000001	#	Annotate_rows	#	#	create table t5 select * from t9
 slave-bin.000001	#	Table_map	#	#	table_id: # (test.t5)
 slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
 slave-bin.000001	#	Query	#	#	COMMIT
@@ -198,7 +200,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `server_2_ver_2` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 binlog from server 2
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info

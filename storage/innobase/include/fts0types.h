@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,7 +28,6 @@ Created 2007-03-27 Sunny Bains
 #define INNOBASE_FTS0TYPES_H
 
 #include "fts0fts.h"
-#include "fut0fut.h"
 #include "pars0pars.h"
 #include "que0types.h"
 #include "ut0byte.h"
@@ -114,26 +113,25 @@ struct fts_sync_t {
 	bool		in_progress;	/*!< flag whether sync is in progress.*/
 	bool		unlock_cache;	/*!< flag whether unlock cache when
 					write fts node */
-	os_event_t	event;		/*!< sync finish event;
-					only os_event_set() and os_event_wait()
-					are used */
+  /** condition variable for in_progress; used with table->fts->cache->lock */
+  pthread_cond_t cond;
 };
 
 /** The cache for the FTS system. It is a memory-based inverted index
 that new entries are added to, until it grows over the configured maximum
 size, at which time its contents are written to the INDEX table. */
-struct fts_cache_t {
-	rw_lock_t	lock;		/*!< lock protecting all access to the
-					memory buffer. FIXME: this needs to
-					be our new upgrade-capable rw-lock */
+struct fts_cache_t
+{
+  /** lock protecting all access to the memory buffer */
+  mysql_mutex_t lock;
+  /** cache initialization */
+  mysql_mutex_t init_lock;
 
-	rw_lock_t	init_lock;	/*!< lock used for the cache
-					intialization, it has different
-					SYNC level as above cache lock */
+  /** protection for deleted_doc_ids */
+  mysql_mutex_t deleted_lock;
 
-	ib_mutex_t	deleted_lock;	/*!< Lock covering deleted_doc_ids */
-
-	ib_mutex_t	doc_id_lock;	/*!< Lock covering Doc ID */
+  /** protection for DOC_ID */
+  mysql_mutex_t	doc_id_lock;
 
 	ib_vector_t*	deleted_doc_ids;/*!< Array of deleted doc ids, each
 					element is of type fts_update_t */
@@ -280,44 +278,6 @@ struct fts_token_t {
 extern const fts_index_selector_t fts_index_selector[];
 
 /******************************************************************//**
-Compare two fts_trx_row_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_trx_row_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Compare two fts_ranking_t instances doc_ids. */
-UNIV_INLINE
-int
-fts_ranking_doc_id_cmp(
-/*===================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
-Compare two doc_ids. */
-UNIV_INLINE
-int fts_doc_id_cmp(
-/*==================*/
-						/*!< out:
-						< 0 if n1 < n2,
-						0 if n1 == n2,
-						> 0 if n1 > n2 */
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2);			/*!< in: id2 */
-
-/******************************************************************//**
 Duplicate a string. */
 UNIV_INLINE
 void
@@ -329,6 +289,16 @@ fts_string_dup(
 						> 0 if n1 > n2 */
 	fts_string_t*		dst,		/*!< in: dup to here */
 	const fts_string_t*	src,		/*!< in: src string */
+	mem_heap_t*		heap);		/*!< in: heap to use */
+
+/******************************************************************//**
+Duplicate a string with lower case conversion. */
+UNIV_INLINE
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,
+	const fts_string_t&	src,		/*!< in: src string */
 	mem_heap_t*		heap);		/*!< in: heap to use */
 
 /******************************************************************//**

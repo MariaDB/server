@@ -4,6 +4,10 @@
 --source include/count_sessions.inc
 
 set default_storage_engine=innodb;
+# Ensure that the history list length will actually be decremented by purge.
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+
 CREATE TABLE `t` (
   `a` VARCHAR(100),
   `b` VARCHAR(100),
@@ -54,7 +58,7 @@ SHOW CREATE TABLE t;
 SELECT * FROM t;
 
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-ALTER TABLE t FORCE, LOCK=NONE;
+ALTER TABLE t FORCE, ALGORITHM=INPLACE, LOCK=NONE;
 if (0) {# MDEV-14341 TODO: re-enable this
 SET DEBUG_SYNC = 'innodb_inplace_alter_table_enter SIGNAL start_create WAIT_FOR go_ahead';
 --send ALTER TABLE t FORCE
@@ -295,7 +299,7 @@ SET lock_wait_timeout = 1;
 
 connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR s1';
-SET DEBUG_SYNC = 'row_ins_sec_index_enter SIGNAL s2 WAIT_FOR s3';
+SET DEBUG_SYNC = 'row_log_insert_handle SIGNAL s2 WAIT_FOR s3';
 --send INSERT INTO t1(a, b) VALUES(2, 2)
 
 connection con1;
@@ -311,5 +315,33 @@ INSERT INTO t1(a, b) VALUES(3, 3);
 SELECT * FROM t1;
 CHECK TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-28806 Assertion `flag == 1' failure in
+--echo # row_build_index_entry_low upon concurrent ALTER and UPDATE
+--echo #
+
+CREATE TABLE t1(a CHAR(8), b INT, c INT AS (b), KEY(a)) ENGINE=InnoDB;
+INSERT INTO t1(b) VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC="alter_table_inplace_before_lock_upgrade SIGNAL dml_start WAIT_FOR dml_commit";
+send ALTER TABLE t1 ADD KEY ind (c);
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+UPDATE t1 SET a ='foo';
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+# Cleanup
+--connection con1
+--reap
+CHECK TABLE t1;
+DROP TABLE t1;
+--disconnect con1
+connection default;
+SET DEBUG_SYNC=RESET;
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 
 --source include/wait_until_count_sessions.inc

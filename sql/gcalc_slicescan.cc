@@ -144,7 +144,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   size_t nbuf;
   char buf[1024];
   nbuf= strlen(header);
-  strcpy(buf, header);
+  safe_strcpy(buf, sizeof(buf), header);
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;
@@ -172,7 +172,7 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
 
 
 Gcalc_dyn_list::Gcalc_dyn_list(size_t blk_size, size_t sizeof_item):
-  m_blk_size(blk_size - ALLOC_ROOT_MIN_BLOCK_SIZE),
+  m_blk_size(blk_size),
   m_sizeof_item(ALIGN_SIZE(sizeof_item)),
   m_points_per_blk((uint)((m_blk_size - PH_DATA_OFFSET) / m_sizeof_item)),
   m_blk_hook(&m_first_blk),
@@ -208,7 +208,7 @@ void Gcalc_dyn_list::format_blk(void* block)
 
 Gcalc_dyn_list::Item *Gcalc_dyn_list::alloc_new_blk()
 {
-  void *new_block= my_malloc(m_blk_size, MYF(MY_WME));
+  void *new_block= my_malloc(PSI_INSTRUMENT_ME, m_blk_size, MYF(MY_WME));
   if (!new_block)
     return NULL;
   *m_blk_hook= new_block;

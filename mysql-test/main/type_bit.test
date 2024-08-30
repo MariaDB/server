@@ -562,3 +562,47 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20496 Assertion `field.is_sane()' failed in Protocol_text::store_field_metadata
+--echo #
+
+CREATE TABLE t1 (b BIT(1));
+--disable_view_protocol
+--disable_ps_protocol
+--enable_metadata
+SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
+--disable_metadata
+--enable_ps_protocol
+--enable_view_protocol
+CREATE TABLE t2 AS SELECT MIN(CASE WHEN 0 THEN b END) FROM t1;
+SHOW CREATE TABLE t2;
+DROP TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-32203 Raise notes when an index cannot be used on data type mismatch
+--echo #
+
+SET note_verbosity=unusable_keys;
+CREATE TABLE t1 (indexed_col BIT(64), KEY(indexed_col));
+DELIMITER $$;
+FOR i IN 1..31
+DO
+  INSERT INTO t1 VALUES (CONCAT(20230100+i));
+END FOR;
+$$
+DELIMITER ;$$
+--source unusable_keys_literals.inc
+--source unusable_keys_joins.inc
+DROP TABLE t1;
+SET note_verbosity=DEFAULT;

@@ -1,3 +1,4 @@
+RESET MASTER;
 connect  pause_purge,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
@@ -9,12 +10,12 @@ SELECT * FROM t WHERE sk = 100 FOR UPDATE;
 pk	sk
 10	100
 connect  con2,localhost,root;
-SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL insert_wait_started";
+SET DEBUG_SYNC="lock_wait_start SIGNAL insert_wait_started";
 INSERT INTO t VALUES (5, 100) # trx 1;
 connect  con3,localhost,root;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SET DEBUG_SYNC="now WAIT_FOR insert_wait_started";
-SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL delete_started_waiting";
+SET DEBUG_SYNC="lock_wait_start SIGNAL delete_started_waiting";
 BEGIN;
 UPDATE t SET sk = 200 WHERE sk = 100; # trx 2;
 connection con1;

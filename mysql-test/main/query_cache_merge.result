@@ -3,7 +3,7 @@ set @save_query_cache_type=@@global.query_cache_type;
 SET GLOBAL query_cache_type=ON;
 SET LOCAL query_cache_type=ON;
 SET @@global.query_cache_size=1355776;
-flush status;
+flush global status;
 select count(*) from t00;
 count(*)
 514

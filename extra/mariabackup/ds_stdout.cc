@@ -30,7 +30,7 @@ typedef struct {
 
 static ds_ctxt_t *stdout_init(const char *root);
 static ds_file_t *stdout_open(ds_ctxt_t *ctxt, const char *path,
-			     MY_STAT *mystat);
+			const MY_STAT *mystat, bool rewrite);
 static int stdout_write(ds_file_t *file, const uchar *buf, size_t len);
 static int stdout_close(ds_file_t *file);
 static void stdout_deinit(ds_ctxt_t *ctxt);
@@ -39,8 +39,11 @@ datasink_t datasink_stdout = {
 	&stdout_init,
 	&stdout_open,
 	&stdout_write,
+	nullptr,
 	&stdout_close,
 	&dummy_remove,
+	nullptr,
+	nullptr,
 	&stdout_deinit
 };
 
@@ -50,9 +53,9 @@ stdout_init(const char *root)
 {
 	ds_ctxt_t *ctxt;
 
-	ctxt = (ds_ctxt_t *)my_malloc(sizeof(ds_ctxt_t), MYF(MY_FAE));
+	ctxt = (ds_ctxt_t *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ds_ctxt_t), MYF(MY_FAE));
 
-	ctxt->root = my_strdup(root, MYF(MY_FAE));
+	ctxt->root = my_strdup(PSI_NOT_INSTRUMENTED, root, MYF(MY_FAE));
 
 	return ctxt;
 }
@@ -61,8 +64,9 @@ static
 ds_file_t *
 stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 	    const char *path __attribute__((unused)),
-	    MY_STAT *mystat __attribute__((unused)))
+	    const MY_STAT *mystat __attribute__((unused)), bool rewrite)
 {
+  DBUG_ASSERT(rewrite == false);
 	ds_stdout_file_t 	*stdout_file;
 	ds_file_t		*file;
 	size_t			pathlen;
@@ -70,14 +74,12 @@ stdout_open(ds_ctxt_t *ctxt __attribute__((unused)),
 
 	pathlen = strlen(fullpath) + 1;
 
-	file = (ds_file_t *) my_malloc(sizeof(ds_file_t) +
-				       sizeof(ds_stdout_file_t) +
-				       pathlen,
-				       MYF(MY_FAE));
+	file = (ds_file_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(ds_file_t) +
+				       sizeof(ds_stdout_file_t) + pathlen, MYF(MY_FAE));
 	stdout_file = (ds_stdout_file_t *) (file + 1);
 
 
-#ifdef __WIN__
+#ifdef _WIN32
 	setmode(fileno(stdout), _O_BINARY);
 #endif
 

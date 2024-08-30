@@ -1,0 +1,1 @@
+--plugin-load-add=$SQL_ERRLOG_SO --sql-error-log-with-db-and-thread-info=1 --lower_case_table_names=2

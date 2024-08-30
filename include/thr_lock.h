@@ -47,6 +47,8 @@ enum thr_lock_type { TL_IGNORE=-1,
 		     TL_READ_HIGH_PRIORITY,
 		     /* READ, Don't allow concurrent insert */
 		     TL_READ_NO_INSERT,
+		     /* READ, but skip locks if found */
+		     TL_READ_SKIP_LOCKED,
 		     /* 
 			Write lock, but allow other threads to read / write.
 			Used by BDB tables in MySQL to mark that someone is
@@ -67,10 +69,21 @@ enum thr_lock_type { TL_IGNORE=-1,
                      TL_WRITE_DEFAULT,
 		     /* WRITE lock that has lower priority than TL_READ */
 		     TL_WRITE_LOW_PRIORITY,
+		     /* WRITE, but skip locks if found */
+		     TL_WRITE_SKIP_LOCKED,
 		     /* Normal WRITE lock */
 		     TL_WRITE,
 		     /* Abort new lock request with an error */
 		     TL_WRITE_ONLY};
+
+/*
+  TL_FIRST_WRITE is here to impose some consistency in the sql
+  layer on determining read/write transactions and to
+  provide some API compatibility if additional transactions
+  are added. Above or equal to TL_FIRST_WRITE is a write transaction
+  while < TL_FIRST_WRITE is a read transaction.
+*/
+#define TL_FIRST_WRITE TL_WRITE_ALLOW_WRITE
 
 enum enum_thr_lock_result { THR_LOCK_SUCCESS= 0, THR_LOCK_ABORTED= 1,
                             THR_LOCK_WAIT_TIMEOUT= 2, THR_LOCK_DEADLOCK= 3 };
@@ -126,7 +139,7 @@ typedef struct st_thr_lock {
   /* write_lock_count is incremented for write locks and reset on read locks */
   ulong write_lock_count;
   uint read_no_write_count;
-  void (*get_status)(void*, my_bool);	/* When one gets a lock */
+  my_bool (*get_status)(void*, my_bool);/* Called when one gets a lock */
   void (*copy_status)(void*,void*);
   void (*update_status)(void*);		/* Before release of write */
   void (*restore_status)(void*);        /* Before release of read */
@@ -160,8 +173,6 @@ void thr_print_locks(void);		/* For debugging */
 my_bool thr_upgrade_write_delay_lock(THR_LOCK_DATA *data,
                                      enum thr_lock_type new_lock_type,
                                      ulong lock_wait_timeout);
-void    thr_downgrade_write_lock(THR_LOCK_DATA *data,
-                                 enum thr_lock_type new_lock_type);
 my_bool thr_reschedule_write_lock(THR_LOCK_DATA *data,
                                   ulong lock_wait_timeout);
 void thr_set_lock_wait_callback(void (*before_wait)(void),

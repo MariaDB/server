@@ -173,3 +173,21 @@ DROP TABLE IF EXISTS test.t1;
 DROP TABLE IF EXISTS test.t2;
 # ensure cleanup on slave as well:
 --sync_slave_with_master
+
+--echo #
+--echo # MDEV-30985 Replica stops with error on ALTER ONLINE with Geometry Types
+--echo #
+--connection master
+CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt));
+INSERT INTO t () VALUES (),(),();
+DELETE FROM t;
+
+DROP TABLE t;
+--sync_slave_with_master
+--connection master
+CREATE TABLE t(txt TEXT DEFAULT '111111111', blb LONGBLOB AS (txt) STORED);
+INSERT INTO t () VALUES (),(),();
+DELETE FROM t;
+
+DROP TABLE t;
+--sync_slave_with_master

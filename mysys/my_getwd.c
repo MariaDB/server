@@ -22,7 +22,7 @@
 #ifdef HAVE_GETWD
 #include <sys/param.h>
 #endif
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <m_ctype.h>
 #include <dos.h>
 #include <direct.h>

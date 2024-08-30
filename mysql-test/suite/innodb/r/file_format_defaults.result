@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Cannot add field `c1` in table `test`\\.`tab0`");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SELECT @@innodb_strict_mode;
 @@innodb_strict_mode
 1
@@ -27,3 +28,4 @@ SELECT @@innodb_strict_mode;
 1
 CREATE TABLE tab1(c1 int ) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
 DROP TABLE tab1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

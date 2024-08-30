@@ -1,5 +1,7 @@
 IF(RPM)
 
+MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
+
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
@@ -8,38 +10,38 @@ CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 SET(CPACK_RPM_COMPONENT_INSTALL ON)
 
 SET(CPACK_COMPONENT_SERVER_GROUP "server")
-SET(CPACK_COMPONENT_MANPAGESSERVER_GROUP "server")
 SET(CPACK_COMPONENT_INIFILES_GROUP "server")
 SET(CPACK_COMPONENT_SERVER_SCRIPTS_GROUP "server")
 SET(CPACK_COMPONENT_SUPPORTFILES_GROUP "server")
 SET(CPACK_COMPONENT_DEVELOPMENT_GROUP "devel")
+SET(CPACK_COMPONENT_DEVELOPMENTSYMLINKS_GROUP "devel")
 SET(CPACK_COMPONENT_MANPAGESDEVELOPMENT_GROUP "devel")
 SET(CPACK_COMPONENT_TEST_GROUP "test")
-SET(CPACK_COMPONENT_MANPAGESTEST_GROUP "test")
+SET(CPACK_COMPONENT_TESTSYMLINKS_GROUP "test")
 SET(CPACK_COMPONENT_CLIENT_GROUP "client")
-SET(CPACK_COMPONENT_MANPAGESCLIENT_GROUP "client")
 SET(CPACK_COMPONENT_README_GROUP "server")
 SET(CPACK_COMPONENT_SHAREDLIBRARIES_GROUP "shared")
 SET(CPACK_COMPONENT_COMMON_GROUP "common")
 SET(CPACK_COMPONENT_CLIENTPLUGINS_GROUP "common")
 SET(CPACK_COMPONENT_COMPAT_GROUP "compat")
 SET(CPACK_COMPONENT_BACKUP_GROUP "backup")
+SET(CPACK_COMPONENT_BACKUPSYMLINKS_GROUP "backup")
 
-SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
-                         SupportFiles Development ManPagesDevelopment
-                         ManPagesTest Readme ManPagesClient Test
-                         Common Client SharedLibraries ClientPlugins
-                         backup
+SET(CPACK_COMPONENTS_ALL Server IniFiles Server_Scripts SupportFiles
+                         Development ManPagesDevelopment Readme Test Common
+                         Client SharedLibraries ClientPlugins Backup
+                         TestSymlinks BackupSymlinks DevelopmentSymlinks
 )
 
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
+SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
 IF(CMAKE_VERSION VERSION_LESS "3.6.0")
-  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${SERVER_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 ELSE()
   SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   OPTION(CPACK_RPM_DEBUGINFO_PACKAGE "" ON)
   MARK_AS_ADVANCED(CPACK_RPM_DEBUGINFO_PACKAGE)
-  SET(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX "/usr/src/debug/${CPACK_RPM_PACKAGE_NAME}-${VERSION}")
+  SET(CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX "/usr/src/debug/${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}")
 ENDIF()
 
 SET(CPACK_RPM_PACKAGE_RELEASE "1%{?dist}")
@@ -105,6 +107,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %define _sysconfdir ${INSTALL_SYSCONFDIR}
 %define restart_flag_dir %{_localstatedir}/lib/rpm-state/mariadb
 %define restart_flag %{restart_flag_dir}/need-restart
+%define _lto_cflags %{nil}
 
 %define pretrans %{nil}
 
@@ -112,7 +115,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_requires_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
-%filter_from_requires /\\\\(lib\\\\(ft\\\\|lzma\\\\|tokuportability\\\\)\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
+%filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
 ")
@@ -154,6 +157,7 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/doc"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
+  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man3"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
@@ -161,7 +165,7 @@ SET(ignored
 SET(CPACK_RPM_server_USER_FILELIST
     ${ignored}
     "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
-    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mariadb"
     )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
@@ -178,12 +182,39 @@ MACRO(SETA var)
   ENDFOREACH()
 ENDMACRO(SETA)
 
+FOREACH(SYM_COMPONENT Server Client)
+  STRING(TOLOWER ${SYM_COMPONENT}-compat SYM)
+  SET(SYMCOMP ${SYM_COMPONENT}Symlinks)
+  STRING(TOUPPER ${SYMCOMP} SYMCOMP_UPPER)
+  SET(CPACK_COMPONENT_${SYMCOMP_UPPER}_GROUP "${SYM}")
+  SET(CPACK_COMPONENTS_ALL "${CPACK_COMPONENTS_ALL}" "${SYMCOMP}")
+  SET(CPACK_RPM_${SYM}_PACKAGE_SUMMARY "MySQL compatible symlinks for MariaDB database ${SYM_COMPONENT} binaries/scripts")
+  SET(CPACK_RPM_${SYM}_PACKAGE_DESCRIPTION "${CPACK_RPM_PACKAGE_DESCRIPTION}")
+  SET(CPACK_RPM_${SYM}_PACKAGE_ARCHITECTURE "noarch")
+  SET(CPACK_RPM_${SYM}_USER_FILELIST ${ignored})
+  STRING(TOLOWER ${SYM_COMPONENT} SYM_COMPONENT_LOWER)
+  SET(CPACK_RPM_${SYM}_PACKAGE_REQUIRES "MariaDB-${SYM_COMPONENT_LOWER} >= 11.0.0")
+  SETA(CPACK_RPM_${SYM_COMPONENT_LOWER}_PACKAGE_RECOMMENDS "MariaDB-${SYM}")
+ENDFOREACH()
+
+SETA(CPACK_RPM_client_symlinks_PACKAGE_CONFLICTS
+  "MariaDB-server < 11.0.0")
+
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
-  "MySQL-client")
+  "MySQL-client"
+  "mytop <= 1.7")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
-  "mysql-client")
+  "mysql-client"
+  "mytop")
+SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
+  "MariaDB-server < 11.0.0")
+SETA(CPACK_RPM_client_PACKAGE_REQUIRES
+  "MariaDB-common")
+
+SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
+  "MariaDB-server < 10.6.1")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
@@ -211,13 +242,14 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "MySQL-test")
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-  "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client")
+  "MariaDB-common >= 10.6.1"
+  "MariaDB-client >= 11.0.0")
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-    "galera-4" "rsync" "lsof" "grep" "gawk" "iproute"
+    "galera-4" "rsync" "grep" "gawk" "iproute"
     "coreutils" "findutils" "tar")
+  SETA(CPACK_RPM_server_PACKAGE_RECOMMENDS "lsof" "pv")
 ENDIF()
 
 SET(CPACK_RPM_server_PRE_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-prein.sh)
@@ -257,14 +289,14 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1:) # this is fedora
+  SET(epoch 1:)
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
   ALTERNATIVE_NAME("server" "mariadb-server")
   ALTERNATIVE_NAME("server" "mysql-compat-server")
   ALTERNATIVE_NAME("test"   "mariadb-test")
-ELSEIF(RPM MATCHES "(rhel|centos)8")
+ELSEIF(RPM MATCHES "(rhel|centos|rocky)[89]")
   SET(epoch 3:)
   ALTERNATIVE_NAME("backup" "mariadb-backup")
   ALTERNATIVE_NAME("client" "mariadb")
@@ -287,9 +319,14 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
-IF(RPM MATCHES "fedora" OR RPM MATCHES "(rocky|alma|rhel|centos)8")
-  SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
+
+# MDEV-24629, we need it outside of ELSIFs
+IF(RPM MATCHES "fedora")
+  ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
 ENDIF()
+
+SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,
 # extract compat libraries from MariaDB-shared-5.3 rpm
@@ -299,7 +336,7 @@ FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
     "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
 IF(compat53 AND compat101)
   FOREACH(compat_rpm "${compat53}" "${compat101}")
-    MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
+    MESSAGE(STATUS "Using ${compat_rpm} to build MariaDB-compat")
     INSTALL(CODE "EXECUTE_PROCESS(
                    COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
                    COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -
@@ -342,9 +379,7 @@ ENDIF()
 IF(CMAKE_VERSION VERSION_GREATER "3.9.99")
 
 SET(CPACK_SOURCE_GENERATOR "RPM")
-SETA(CPACK_RPM_SOURCE_PKG_BUILD_PARAMS
-  "-DRPM=${RPM}"
-  )
+SETA(CPACK_RPM_SOURCE_PKG_BUILD_PARAMS "-DRPM=${RPM}")
 
 MACRO(ADDIF var)
   IF(DEFINED ${var})
@@ -352,6 +387,7 @@ MACRO(ADDIF var)
   ENDIF()
 ENDMACRO()
 
+ADDIF(MYSQL_MAINTAINER_MODE)
 ADDIF(CMAKE_BUILD_TYPE)
 ADDIF(BUILD_CONFIG)
 ADDIF(WITH_SSL)

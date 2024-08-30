@@ -35,7 +35,7 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newdos.zip';
-SELECT * FROM t4;
+SELECT fn, uncsize, method FROM t4;
 DROP TABLE t1,t2,t3,t4;
 
 --echo #
@@ -75,7 +75,7 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='newcsv.zip';
-SELECT * FROM t4;
+SELECT fn,uncsize,method FROM t4;
 DROP TABLE t1,t2,t3,t4;
 
 --echo #
@@ -123,7 +123,7 @@ cmpsize BIGINT NOT NULL FLAG=1,
 uncsize BIGINT NOT NULL FLAG=2,
 method INT NOT NULL FLAG=3)
 ENGINE=CONNECT TABLE_TYPE=ZIP FILE_NAME='bios.zip';
-SELECT * FROM t4;
+SELECT fn,uncsize,method FROM t4;
 DROP TABLE t1,t2,t3,t4;
 
 #
@@ -133,4 +133,3 @@ DROP TABLE t1,t2,t3,t4;
 --remove_file $MYSQLD_DATADIR/test/newcsv.zip
 --remove_file $MYSQLD_DATADIR/test/bios.zip
 --remove_file $MYSQLD_DATADIR/test/bios.json
-

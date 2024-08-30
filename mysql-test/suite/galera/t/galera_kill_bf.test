@@ -1,0 +1,41 @@
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+CREATE TABLE t1(c1 INT PRIMARY KEY, c2 INT) ENGINE=InnoDB;
+INSERT into t1 values (1,1);
+
+SET DEBUG_SYNC = 'alter_table_after_open_tables SIGNAL bf_started WAIT_FOR bf_continue';
+--send ALTER TABLE t1 DROP COLUMN c2;
+
+--connection node_1
+SET SESSION wsrep_sync_wait = 0;
+SET DEBUG_SYNC = 'now WAIT_FOR bf_started';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE = 'debug sync point: alter_table_after_open_tables'
+--source include/wait_condition.inc
+
+--let $applier_thread = `SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'debug sync point:%' LIMIT 1`
+
+--replace_result $applier_thread ID
+--error ER_KILL_DENIED_ERROR
+--eval KILL $applier_thread
+
+--replace_result $applier_thread ID
+--error ER_KILL_DENIED_ERROR
+--eval KILL QUERY $applier_thread
+
+--connection node_1
+SET DEBUG_SYNC = 'now SIGNAL bf_continue';
+
+--connection con1
+--reap
+SET DEBUG_SYNC = 'RESET';
+SELECT * FROM t1;
+
+--connection node_1
+DROP TABLE t1;
+--disconnect con1

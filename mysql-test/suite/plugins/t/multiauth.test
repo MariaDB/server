@@ -1,4 +1,9 @@
 --source include/not_ubsan.inc
+
+let $REGEX_VERSION_ID=/$mysql_get_server_version/VERSION_ID/;
+let $REGEX_PASSWORD_LAST_CHANGED=/password_last_changed": [0-9]*/password_last_changed": #/;
+let $REGEX_GLOBAL_PRIV=$REGEX_PASSWORD_LAST_CHANGED $REGEX_VERSION_ID;
+
 #
 # MDEV-11340 Allow multiple alternative authentication methods for the same user
 #
@@ -23,6 +28,7 @@ select user(), current_user(), database();
 EOF
 
 --let $creplace=create user '$USER'
+--let $greplace=grant select on test.* to '$USER'
 --let $dreplace=drop user '$USER'
 
 #
@@ -30,7 +36,10 @@ EOF
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR mysql_native_password as password("GOOD");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via unix_socket OR mysql_native_password as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -47,7 +56,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as password("GOOD") OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via mysql_native_password as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -64,7 +76,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via unix_socket OR ed25519 as password("GOOD");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via unix_socket OR ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -81,7 +96,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket;
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -98,7 +116,10 @@ eval $dreplace, mysqltest1;
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via ed25519 as password("GOOD") OR unix_socket OR mysql_native_password as password("works");
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # name match = ok
 --exec $try_auth -u $USER
@@ -116,6 +137,7 @@ eval $dreplace, mysqltest1;
 # password,password
 #
 create user mysqltest1 identified via mysql_native_password as password("good") OR mysql_native_password as password("works");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # password good = ok
 --exec $try_auth -u mysqltest1 -pgood
@@ -131,7 +153,7 @@ drop user mysqltest1;
 #
 create user mysqltest1 identified via ed25519 as password("good") OR unix_socket OR mysql_native_password as password("works");
 show grants for mysqltest1;
---replace_regex /password_last_changed": [0-9]*/password_last_changed": #/
+--replace_regex $REGEX_GLOBAL_PRIV
 select json_detailed(priv) from mysql.global_priv where user='mysqltest1';
 select password,plugin,authentication_string from mysql.user where user='mysqltest1';
 flush privileges;
@@ -160,7 +182,10 @@ create user mysqltest1 identified via ed25519 as password("good") OR unix_socket
 #
 --replace_result $creplace "create user 'USER'"
 eval $creplace         identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
 create user mysqltest1 identified via mysql_native_password as '1234567890123456789012345678901234567890a' OR unix_socket;
+grant select on test.* to mysqltest1;
 update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
 flush privileges;
 show create user mysqltest1;
@@ -179,9 +204,11 @@ eval $dreplace, mysqltest1;
 # missing client-side plugin
 #
 create user mysqltest1 identified via ed25519 as password("good");
+grant select on test.* to mysqltest1;
 show create user mysqltest1;
 --echo # no plugin = failure
---replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/
+# covers Linux (1st re), FreeBSD (2nd), AIX (3rd and 4th)
+--replace_regex /loaded: .*client_ed25519.so: cannot open shared object file: No such file or directory/loaded: no such file/ /loaded: Cannot open.*client_ed25519.so./loaded: no such file/ /loaded: .*Could not load module.*client_ed25519.so.\n/loaded: no such file/ /System error: No such file or directory//
 --error 1
 --exec $try_auth -u mysqltest1 -pgood --plugin-dir=$plugindir/no
 alter user mysqltest1 identified via ed25519 as password("good") OR mysql_native_password as password("works");

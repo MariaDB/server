@@ -1,0 +1,18 @@
+-- source include/not_embedded.inc
+# Tests for sys schema
+# Verify the sys.sys_config table is as expected
+SELECT COUNT(*) FROM INFORMATION_SCHEMA.TRIGGERS WHERE TRIGGER_SCHEMA='sys';
+DESC sys.sys_config;
+
+SELECT variable, value, set_by FROM sys.sys_config ORDER BY 1;
+
+# Ensure the sys.sys_config_update_set_user trigger functions correctly
+UPDATE sys.sys_config SET value = 128 WHERE variable = 'statement_truncate_len';
+
+SELECT variable, value, set_by FROM sys.sys_config ORDER BY 1;
+
+INSERT INTO sys.sys_config (variable, value) VALUES ('foo', 'bar');
+
+SELECT variable, value, set_by FROM sys.sys_config ORDER BY 1;
+
+--source ../include/sys_config_cleanup.inc

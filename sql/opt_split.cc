@@ -229,6 +229,7 @@
 #include "mariadb.h"
 #include "sql_select.h"
 #include "opt_trace.h"
+#include "optimizer_defaults.h"
 
 /* Info on a splitting field */
 struct SplM_field_info
@@ -286,10 +287,10 @@ public:
   List<SplM_plan_info> plan_cache;
   /* Cost of best execution plan for join when nothing is pushed */
   double unsplit_cost;
+  /* Split operation cost (result form spl_postjoin_oper_cost()) */
+  double unsplit_oper_cost;
   /* Cardinality of T when nothing is pushed */
   double unsplit_card;
-  /* Lastly evaluated execution plan for 'join' with pushed equalities */
-  SplM_plan_info *last_plan;
   double last_refills;
 
   SplM_plan_info *find_plan(TABLE *table, uint key, uint parts);
@@ -392,7 +393,7 @@ bool JOIN::check_for_splittable_materialized()
   Json_writer_object trace_split(thd, "check_split_materialized");
 
   ORDER *ord;
-  Dynamic_array<SplM_field_ext_info> candidates;
+  Dynamic_array<SplM_field_ext_info> candidates(PSI_INSTRUMENT_MEM);
 
   /*
     Select from partition_list all candidates for splitting.
@@ -665,7 +666,7 @@ add_ext_keyuse_for_splitting(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
   keyuse_ext.sj_pred_no= added_key_field->sj_pred_no;
   keyuse_ext.validity_ref= 0;
   keyuse_ext.needed_in_prefix= added_key_field->val->used_tables() &
-			       ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
+                              ~(OUTER_REF_TABLE_BIT | RAND_TABLE_BIT);
   keyuse_ext.validity_var= false;
   return ext_keyuses->push(keyuse_ext);
 }
@@ -724,20 +725,28 @@ add_ext_keyuses_for_splitting_field(Dynamic_array<KEYUSE_EXT> *ext_keyuses,
 /*
   @brief
     Cost of the post join operation used in specification of splittable table
+    This does not include the cost of creating the temporary table as this
+    operation can be executed many times for the same temporary table.
 */
 
 static
 double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 {
   double cost;
-  cost=  get_tmp_table_write_cost(thd, join_record_count,rec_len) *
-         join_record_count;   // cost to fill tmp table
-  cost+= get_tmp_table_lookup_cost(thd, join_record_count,rec_len) *
-         join_record_count;   // cost to perform post join operation used here
-  cost+= get_tmp_table_lookup_cost(thd, join_record_count, rec_len) +
-         (join_record_count == 0 ? 0 :
-          join_record_count * log2 (join_record_count)) *
-         SORT_INDEX_CMP_COST;             // cost to perform  sorting
+  TMPTABLE_COSTS tmp_cost= get_tmp_table_costs(thd, join_record_count,
+                                               rec_len, 0, 1);
+  /* cost to fill tmp table */
+  cost= tmp_cost.write * join_record_count;
+  /* cost to perform post join operation used here */
+  cost+= tmp_cost.lookup * join_record_count;
+  /* cost to preform sorting */
+  /* QQQ
+     We should use cost_of_filesort() for computing sort.
+     Do we always preform sorting ? If not, this should be done conditionally
+  */
+  cost+= ((join_record_count == 0 ? 0 :
+           join_record_count * log2 (join_record_count)) *
+          SORT_INDEX_CMP_COST);
   return cost;
 }
 
@@ -766,10 +775,9 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 void JOIN::add_keyuses_for_splitting()
 {
   uint i;
-  uint idx;
+  size_t idx;
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
-  double oper_cost;
   uint rec_len;
   uint added_keyuse_count;
   TABLE *table= select_lex->master_unit()->derived->table;
@@ -777,7 +785,7 @@ void JOIN::add_keyuses_for_splitting()
   KEY_FIELD *added_key_field;
   if (!spl_opt_info->added_key_fields.elements)
     goto err;
-  if (!(ext_keyuses_for_splitting= new Dynamic_array<KEYUSE_EXT>))
+  if (!(ext_keyuses_for_splitting= new Dynamic_array<KEYUSE_EXT>(PSI_INSTRUMENT_MEM)))
     goto err;
   while ((added_key_field= li++))
   {
@@ -792,14 +800,20 @@ void JOIN::add_keyuses_for_splitting()
   if (ext_keyuses_for_splitting->push(keyuse_ext_end))
     goto err;
   // psergey-todo: trace anything here?
-  spl_opt_info->unsplit_card= join_record_count;
+  /*
+    Use the number of rows that was computed by
+    TABLE_LIST::fetch_number_of_rows():
+  */
+  spl_opt_info->unsplit_card=
+    rows2double(select_lex->master_unit()->derived->table->stat_records());
 
   rec_len= table->s->rec_buff_length;
 
-  oper_cost= spl_postjoin_oper_cost(thd, join_record_count, rec_len);
-
-  spl_opt_info->unsplit_cost= best_positions[table_count-1].read_time +
-                              oper_cost;
+  spl_opt_info->unsplit_oper_cost= spl_postjoin_oper_cost(thd,
+                                                          join_record_count,
+                                                          rec_len);
+  spl_opt_info->unsplit_cost= (best_positions[table_count-1].read_time +
+                               spl_opt_info->unsplit_oper_cost);
 
   if (!(save_qep= new Join_plan_state(table_count + 1)))
     goto err;
@@ -807,13 +821,11 @@ void JOIN::add_keyuses_for_splitting()
   save_query_plan(save_qep);
 
   if (!keyuse.buffer &&
-       my_init_dynamic_array(&keyuse, sizeof(KEYUSE), 20, 64,
-                             MYF(MY_THREAD_SPECIFIC)))
+       my_init_dynamic_array(PSI_INSTRUMENT_ME, &keyuse, sizeof(KEYUSE),
+                             20, 64, MYF(MY_THREAD_SPECIFIC)))
     goto err;
 
-  if (allocate_dynamic(&keyuse,
-                       save_qep->keyuse.elements +
-                       added_keyuse_count))
+  if (allocate_dynamic(&keyuse, save_qep->keyuse.elements + added_keyuse_count))
     goto err;
 
   idx= keyuse.elements= save_qep->keyuse.elements;
@@ -830,7 +842,7 @@ void JOIN::add_keyuses_for_splitting()
     added_keyuse->validity_ref= &keyuse_ext->validity_var;
   }
 
-  if (sort_and_filter_keyuse(thd, &keyuse, true))
+  if (sort_and_filter_keyuse(this, &keyuse, true))
     goto err;
   optimize_keyuse(this, &keyuse);
 
@@ -965,6 +977,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
   uint best_key= 0;
   uint best_key_parts= 0;
   table_map best_param_tables= 0L;
+  bool chosen, already_printed;
   Json_writer_object trace_obj(thd, "choose_best_splitting");
   Json_writer_array  trace_arr(thd, "considered_keys");
   /*
@@ -1035,8 +1048,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
     while (keyuse_ext->table == table);
   }
   trace_arr.end();
+  chosen= 0;
 
-  spl_opt_info->last_plan= 0;
   double refills= DBL_MAX;
   table_map excluded_tables= remaining_tables | this->join->sjm_lookup_tables;
   if (best_table)
@@ -1080,7 +1093,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       table_map all_table_map= (((table_map) 1) << join->table_count) - 1;
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, true);
-      choose_plan(join, all_table_map & ~join->const_table_map);
+      choose_plan(join, all_table_map & ~join->const_table_map, 0);
 
       wrapper.end();
       /*
@@ -1113,61 +1126,74 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
                             spl_opt_info->unsplit_card : 1); 
 
       uint rec_len= table->s->rec_buff_length;
-
       double split_card= spl_opt_info->unsplit_card * spl_plan->split_sel;
-      double oper_cost= split_card *
-                        spl_postjoin_oper_cost(thd, split_card, rec_len);
-      spl_plan->cost= join->best_positions[join->table_count-1].read_time +
-                      + oper_cost;
+      double oper_cost= (split_card *
+                         spl_postjoin_oper_cost(thd, split_card, rec_len));
+      spl_plan->cost= (join->best_positions[join->table_count-1].read_time +
+                       oper_cost);
 
+      chosen= (refills * spl_plan->cost + COST_EPS <
+               spl_opt_info->unsplit_cost);
+
+      if (unlikely(thd->trace_started()))
+      {
+        //psergey-merge:Json_writer_object wrapper(thd);
+        Json_writer_object find_trace(thd, "split_materialized");
+        find_trace.
+          add("table", best_table->alias.c_ptr()).
+          add("key", best_table->key_info[best_key].name).
+          add("org_cost",join->best_positions[join->table_count-1].read_time).
+          add("postjoin_cost", oper_cost).
+          add("one_splitting_cost", spl_plan->cost).
+          add("unsplit_postjoin_cost", spl_opt_info->unsplit_oper_cost).
+          add("unsplit_cost", spl_opt_info->unsplit_cost).
+          add("rows", split_card).
+          add("refills", refills).
+          add("total_splitting_cost", refills * spl_plan->cost).
+          add("chosen", chosen);
+      }
       memcpy((char *) spl_plan->best_positions,
              (char *) join->best_positions,
              sizeof(POSITION) * join->table_count);
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, excluded_tables, false);
+      already_printed= 1;
     }
     else
-      trace_obj.add("cached_plan_found", 1);
-
-    if (spl_plan)
     {
-      trace_obj.
-        add("lead_table", spl_plan->table->alias.ptr()).
-        add("index",      spl_plan->table->key_info[spl_plan->key].name).
-        add("parts",      spl_plan->parts).
-        add("split_sel",  spl_plan->split_sel).
-        add("cost",       spl_plan->cost).
-        add("records",    (ha_rows) (records * spl_plan->split_sel)).
-        add("refills",    refills);
-
-      if (refills * spl_plan->cost < spl_opt_info->unsplit_cost)
-      {
-        /*
-          The best plan that employs splitting is cheaper than
-          the plan without splitting
-	*/
-        spl_opt_info->last_plan= spl_plan;
-        spl_opt_info->last_refills= refills;
-        trace_obj.add("chosen", true);
-      }
-      else
-        trace_obj.add("chosen", false);
+      trace_obj.add("cached_plan_found", 1);
+      chosen= (refills * spl_plan->cost + COST_EPS <
+               spl_opt_info->unsplit_cost);
+      already_printed= 0;
     }
   }
 
   /* Set the cost of the preferred materialization for this partial join */
-  records= (ha_rows)spl_opt_info->unsplit_card;
-  spl_plan= spl_opt_info->last_plan;
-  if (spl_plan)
+  if (chosen)
   {
+    /*
+      The best plan that employs splitting is cheaper than
+      the plan without splitting
+    */
     startup_cost= spl_opt_info->last_refills * spl_plan->cost;
-    records= (ha_rows) (records * spl_plan->split_sel);
+    records= (ha_rows) (spl_opt_info->unsplit_card * spl_plan->split_sel);
+    if (unlikely(thd->trace_started()) && ! already_printed)
+    {
+      Json_writer_object trace(thd, "split_materialized");
+      trace.
+        add("one_splitting_cost", spl_plan->cost).
+        add("total_splitting_cost", startup_cost).
+        add("rows", records);
+    }
   }
   else
   {
-    startup_cost= spl_opt_info->unsplit_cost;
-    *spl_pd_boundary= 0;
+    /* Restore original values */
+    startup_cost=      spl_opt_info->unsplit_cost;
+    records= (ha_rows) spl_opt_info->unsplit_card;
+    spl_plan= 0;
   }
+
   return spl_plan;
 }
 
@@ -1334,6 +1360,7 @@ bool JOIN::fix_all_splittings_in_plan()
 {
   table_map prev_tables= 0;
   table_map all_tables= (table_map(1) << table_count) - 1;
+  table_map prev_sjm_lookup_tables= 0;
   for (uint tablenr= 0; tablenr < table_count; tablenr++)
   {
     POSITION *cur_pos= &best_positions[tablenr];
@@ -1342,7 +1369,7 @@ bool JOIN::fix_all_splittings_in_plan()
     {
       SplM_plan_info *spl_plan= cur_pos->spl_plan;
       table_map excluded_tables= (all_tables & ~prev_tables) |
-                                 sjm_lookup_tables;
+                                 prev_sjm_lookup_tables;
                                    ;
       if (spl_plan)
       {
@@ -1360,6 +1387,8 @@ bool JOIN::fix_all_splittings_in_plan()
           return true;
     }
     prev_tables|= tab->table->map;
+    if (cur_pos->sj_strategy == SJ_OPT_MATERIALIZE)
+        prev_sjm_lookup_tables|= tab->table->map;
   }
   return false;
 }

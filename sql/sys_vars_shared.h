@@ -52,9 +52,9 @@ class PolyLock_mutex: public PolyLock
   mysql_mutex_t *mutex;
 public:
   PolyLock_mutex(mysql_mutex_t *arg): mutex(arg) {}
-  void rdlock() { mysql_mutex_lock(mutex); }
-  void wrlock() { mysql_mutex_lock(mutex); }
-  void unlock() { mysql_mutex_unlock(mutex); }
+  void rdlock() override { mysql_mutex_lock(mutex); }
+  void wrlock() override { mysql_mutex_lock(mutex); }
+  void unlock() override { mysql_mutex_unlock(mutex); }
 };
 
 class PolyLock_rwlock: public PolyLock
@@ -62,9 +62,9 @@ class PolyLock_rwlock: public PolyLock
   mysql_rwlock_t *rwlock;
 public:
   PolyLock_rwlock(mysql_rwlock_t *arg): rwlock(arg) {}
-  void rdlock() { mysql_rwlock_rdlock(rwlock); }
-  void wrlock() { mysql_rwlock_wrlock(rwlock); }
-  void unlock() { mysql_rwlock_unlock(rwlock); }
+  void rdlock() override { mysql_rwlock_rdlock(rwlock); }
+  void wrlock() override { mysql_rwlock_wrlock(rwlock); }
+  void unlock() override { mysql_rwlock_unlock(rwlock); }
 };
 
 class AutoWLock

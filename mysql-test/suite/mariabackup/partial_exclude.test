@@ -28,12 +28,13 @@ echo # xtrabackup backup;
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log
-exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.*2" "--databases-exclude=db2" --target-dir=$targetdir;
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10 "--tables-exclude=test.*2" "--databases-exclude=db2" --target-dir=$targetdir;
 --enable_result_log
 
 COMMIT;
 
 # check that only t1 table is in backup (t2 is excluded)
+list_files $targetdir/test *.new;
 list_files $targetdir/test *.ibd;
 # check that db2 database is not in the backup (excluded)
 --error 1

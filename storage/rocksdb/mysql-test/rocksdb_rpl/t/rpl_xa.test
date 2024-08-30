@@ -1,0 +1,7 @@
+source include/have_rocksdb.inc;
+source include/have_innodb.inc;
+source include/master-slave.inc;
+source include/have_binlog_format_row.inc;
+
+source rpl_xa.inc;
+source include/rpl_end.inc;

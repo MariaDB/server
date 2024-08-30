@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_file_key_management_plugin.inc
+
+SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1 (
+  `id` int(10) unsigned NOT NULL,
+  UNIQUE KEY `id` (`id`)
+) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq FROM seq_1_to_65536;
+DROP TABLE t1;

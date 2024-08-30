@@ -20,14 +20,11 @@
 #include <my_bit.h>
 #include "ma_blockrec.h"
 #include "trnman_public.h"
+#include "trnman.h"
 #include "ma_crypt.h"
 
-#if defined(MSDOS) || defined(__WIN__)
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
-#else
-#include <process.h>			/* Prototype for getpid */
-#endif
 #endif
 #include <m_ctype.h>
 
@@ -75,13 +72,14 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   uint max_field_lengths, extra_header_size, column_nr;
   uint internal_table= flags & HA_CREATE_INTERNAL_TABLE;
   ulong reclength, real_reclength,min_pack_length;
-  char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr= NullS;
+  char kfilename[FN_REFLEN], klinkname[FN_REFLEN], *klinkname_ptr= 0;
   char dfilename[FN_REFLEN], dlinkname[FN_REFLEN], *dlinkname_ptr= 0;
   ulong pack_reclength;
   ulonglong tot_length,max_rows, tmp;
   enum en_fieldtype type;
   enum data_file_type org_datafile_type= datafile_type;
   MARIA_SHARE share;
+  TRN tmp_transaction_object;
   MARIA_KEYDEF *keydef,tmp_keydef;
   MARIA_UNIQUEDEF *uniquedef;
   HA_KEYSEG *keyseg,tmp_keyseg;
@@ -94,7 +92,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   my_bool tmp_table= FALSE; /* cache for presence of HA_OPTION_TMP_TABLE */
   my_bool forced_packed;
   uchar   *log_data= NULL;
-  my_bool encrypted= maria_encrypt_tables && datafile_type == BLOCK_RECORD;
+  my_bool encrypted= ci->encrypted && datafile_type == BLOCK_RECORD;
   my_bool insert_order= MY_TEST(flags & HA_PRESERVE_INSERT_ORDER);
   uint crypt_page_header_space= 0;
   DBUG_ENTER("maria_create");
@@ -147,7 +145,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   }
 
   if (!(rec_per_key_part=
-	(double*) my_malloc((keys + uniques)*HA_MAX_KEY_SEG*sizeof(double) +
+	(double*) my_malloc(PSI_INSTRUMENT_ME,
+                            (keys + uniques)*HA_MAX_KEY_SEG*sizeof(double) +
                             (keys + uniques)*HA_MAX_KEY_SEG*sizeof(ulong) +
                             sizeof(uint16) * columns,
                             MYF(common_flag | MY_ZEROFILL))))
@@ -330,6 +329,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   share.base.born_transactional= ci->transactional;
   share.base.max_field_lengths= max_field_lengths;
   share.base.field_offsets= 0;                  /* for future */
+  share.base.compression_algorithm= ci->compression_algorithm;
+  share.base.s3_block_size=         ci->s3_block_size;
 
   if (flags & HA_CREATE_CHECKSUM || (options & HA_OPTION_CHECKSUM))
   {
@@ -896,6 +897,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     fn_format(kfilename, name, "", MARIA_NAME_IEXT, MY_UNPACK_FILENAME |
               (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
+    klinkname_ptr= NullS;
     /*
       Replace the current file.
       Don't sync dir now if the data file has the same path.
@@ -976,7 +978,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   for (i=0; i < uniques ; i++)
   {
     tmp_keydef.keysegs=1;
-    tmp_keydef.flag=		HA_UNIQUE_CHECK;
     tmp_keydef.block_length=	(uint16) maria_block_size;
     tmp_keydef.keylength=	MARIA_UNIQUE_HASH_LENGTH + pointer;
     tmp_keydef.minlength=tmp_keydef.maxlength=tmp_keydef.keylength;
@@ -1027,7 +1028,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     /* Store columns in a more efficent order */
     MARIA_COLUMNDEF **col_order, **pos;
-    if (!(col_order= (MARIA_COLUMNDEF**) my_malloc(share.base.fields *
+    if (!(col_order= (MARIA_COLUMNDEF**) my_malloc(PSI_INSTRUMENT_ME,
+                                                   share.base.fields *
                                                    sizeof(MARIA_COLUMNDEF*),
                                                    common_flag)))
       goto err;
@@ -1081,7 +1083,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     /*
       we log the first bytes and then the size to which we extend; this is
-      not log 1 KB of mostly zeroes if this is a small table.
+      a log of about 1 KB of mostly zeroes if this is a small table.
     */
     char empty_string[]= "";
     LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 4];
@@ -1091,7 +1093,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     log_array[TRANSLOG_INTERNAL_PARTS + 1].length= 1 + 2 + 2 +
       (uint) kfile_size_before_extension;
     /* we are needing maybe 64 kB, so don't use the stack */
-    log_data= my_malloc(log_array[TRANSLOG_INTERNAL_PARTS + 1].length, MYF(0));
+    log_data= my_malloc(PSI_INSTRUMENT_ME,
+                        log_array[TRANSLOG_INTERNAL_PARTS + 1].length, MYF(0));
     if ((log_data == NULL) ||
         mysql_file_pread(file, 1 + 2 + 2 + log_data,
                  (size_t) kfile_size_before_extension, 0, MYF(MY_NABP)))
@@ -1145,9 +1148,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
        called external_lock(), so have no TRN. It does not matter, as all
        these operations are non-transactional and sync their files.
     */
+    trnman_init_tmp_trn_for_logging_trid(&tmp_transaction_object);
     if (unlikely(translog_write_record(&lsn,
                                        LOGREC_REDO_CREATE_TABLE,
-                                       &dummy_transaction_object, NULL,
+                                       &tmp_transaction_object, NULL,
                                        total_rec_length,
                                        sizeof(log_array)/sizeof(log_array[0]),
                                        log_array, NULL, NULL) ||
@@ -1168,7 +1172,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       store LSN into file, needed for Recovery to not be confused if a
       DROP+CREATE happened (applying REDOs to the wrong table).
     */
-    if (_ma_update_state_lsns_sub(&share, lsn, trnman_get_min_safe_trid(),
+    if (_ma_update_state_lsns_sub(&share, lsn, tmp_transaction_object.trid,
                                   FALSE, TRUE))
       goto err;
     my_free(log_data);
@@ -1208,6 +1212,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                 MY_UNPACK_FILENAME | MY_APPEND_EXT);
       create_flag= (flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
     }
+    ma_debug_crash_here("storage_engine_middle_of_create");
     if ((dfile=
          mysql_file_create_with_symlink(key_file_dfile, dlinkname_ptr,
                               dfilename, 0, create_mode,
@@ -1222,7 +1227,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 	/* Enlarge files */
   DBUG_PRINT("info", ("enlarge to keystart: %lu",
                       (ulong) share.base.keystart));
-  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)))
+  if (mysql_file_chsize(file,(ulong) share.base.keystart,0,MYF(0)) > 0)
     goto err;
 
   if (!internal_table && sync_dir && mysql_file_sync(file, MYF(0)))
@@ -1232,7 +1237,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
 #ifdef USE_RELOC
     if (mysql_file_chsize(key_file_dfile, dfile,
-                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0)))
+                          share.base.min_pack_length*ci->reloc_rows,0,MYF(0))
+        > 0)
       goto err;
 #endif
     if (!internal_table && sync_dir && mysql_file_sync(dfile, MYF(0)))
@@ -1457,6 +1463,7 @@ int _ma_update_state_lsns_sub(MARIA_SHARE *share, LSN lsn, TrID create_trid,
   File file= share->kfile.file;
   DBUG_ENTER("_ma_update_state_lsns_sub");
   DBUG_ASSERT(file >= 0);
+  CRASH_IF_S3_TABLE(share);
 
   if (lsn == LSN_IMPOSSIBLE)
   {

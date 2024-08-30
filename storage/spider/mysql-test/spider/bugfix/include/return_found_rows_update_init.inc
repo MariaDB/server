@@ -23,4 +23,4 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';

@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2012, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -1465,22 +1465,22 @@ static double my_strtod_int(const char *s00, char **se, int *error, char *buf, s
     s00= s;
     esign= 0;
     if (++s < end)
-      switch (c= *s) {
+      switch (*s) {
       case '-': esign= 1;
         /* fall through */
-      case '+': c= *++s;
+      case '+': s++;
       }
-    if (s < end && c >= '0' && c <= '9')
+    if (s < end && *s >= '0' && *s <= '9')
     {
-      while (s < end && c == '0')
-        c= *++s;
-      if (s < end && c > '0' && c <= '9') {
-        L= c - '0';
+      while (s < end && *s == '0')
+        s++;
+      if (s < end && *s > '0' && *s <= '9') {
+        L= *s - '0';
         s1= s;
-        while (++s < end && (c= *s) >= '0' && c <= '9')
+        while (++s < end && *s >= '0' && *s <= '9')
         {
           if (L < 19999)
-            L= 10*L + c - '0';
+            L= 10*L + *s - '0';
         }
         if (s - s1 > 8 || L > 19999)
           /* Avoid confusion from exponents

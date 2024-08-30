@@ -279,7 +279,9 @@ void slave_background_kill_request(THD *to_kill);
 void slave_background_gtid_pos_create_request
         (rpl_slave_state::gtid_pos_table *table_entry);
 void slave_background_gtid_pending_delete_request(void);
-
+void store_master_info(THD *thd, Master_info *mi, TABLE *table,
+                       String *gtid_pos);
+int cmp_mi_by_name(const Master_info **arg1, const Master_info **arg2);
 extern Master_info *active_mi; /* active_mi for multi-master */
 extern Master_info *default_master_info; /* To replace active_mi */
 extern Master_info_index *master_info_index;

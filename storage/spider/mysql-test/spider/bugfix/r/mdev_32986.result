@@ -10,6 +10,8 @@ OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
 create table t2 (c varchar(16));
 create table t1 (c varchar(16)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 insert into t1 values ('TestSpiderRegex');
 select c from t1 where c regexp '(Test|Spider|Regex)';
 c

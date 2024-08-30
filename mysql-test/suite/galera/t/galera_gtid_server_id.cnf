@@ -1,0 +1,16 @@
+!include ../galera_2nodes.cnf
+
+[mysqld.1]
+wsrep_gtid_domain_id=1
+wsrep_gtid_mode=ON
+server-id=11
+log_slave_updates
+log_bin
+
+[mysqld.2]
+wsrep_gtid_domain_id=1
+wsrep_gtid_mode=ON
+server-id=12
+log_slave_updates
+log_bin
+

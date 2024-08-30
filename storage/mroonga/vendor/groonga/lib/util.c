@@ -1155,7 +1155,7 @@ grn_geo_point_inspect(grn_ctx *ctx, grn_obj *buf, grn_obj *obj)
     point.latitude = latitude;
     point.longitude = longitude;
     grn_gton(encoded, &point, sizeof(grn_geo_point));
-    for (i = 0; i < sizeof(grn_geo_point); i++) {
+    for (i = 0; (uint) i < sizeof(grn_geo_point); i++) {
       if (i != 0) {
         GRN_TEXT_PUTS(ctx, buf, " ");
       }

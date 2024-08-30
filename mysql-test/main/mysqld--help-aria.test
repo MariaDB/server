@@ -1,0 +1,35 @@
+#
+# Check errors from mysqld--help when providing different datadir
+#
+flush tables;
+
+--let $args=--table-cache=5 --max-connections=10 --log-warnings=1 --silent-startup --lower-case-table-names=1 --help --verbose
+
+--exec $MYSQLD_CMD $args > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
+--cat_file $MYSQL_TMP_DIR/mysqld--help2.err
+
+--echo #
+--echo # Check that we don't write any data to wrong or not existing datadir
+--echo #
+
+--exec $MYSQLD_CMD $args --datadir=$MYSQL_TMP_DIR/help > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
+--replace_regex /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
+--cat_file $MYSQL_TMP_DIR/mysqld--help2.err
+
+--echo #
+--echo # Check with existing directory
+--echo #
+
+--mkdir $MYSQL_TMP_DIR/help
+--exec $MYSQLD_CMD $args --datadir=$MYSQL_TMP_DIR/help > $MYSQL_TMP_DIR/mysqld--help2.txt 2> $MYSQL_TMP_DIR/mysqld--help2.err
+--replace_regex /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
+--cat_file $MYSQL_TMP_DIR/mysqld--help2.err
+--list_files $MYSQL_TMP_DIR/help
+
+#
+# Cleanup
+#
+--rmdir $MYSQL_TMP_DIR/help
+--remove_file $MYSQL_TMP_DIR/mysqld--help2.txt
+--remove_file $MYSQL_TMP_DIR/mysqld--help2.err

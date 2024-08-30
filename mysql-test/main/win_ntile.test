@@ -152,17 +152,14 @@ select pk, a, b,
 from t1;
 
 select t1.a from t1 where pk = 13;
-#enable after fix MDEV-27871
---disable_view_protocol
 select pk, a, b,
-    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk) as ntile
 from t1;
 
 explain
 select pk, a, b,
-    ntile((select a from t1 where pk=13)) over (partition by b order by pk)
+    ntile((select a from t1 where pk=13)) over (partition by b order by pk) as ntile
 from t1;
---enable_view_protocol
 
 select a from t1;
 --error ER_SUBQUERY_NO_1_ROW

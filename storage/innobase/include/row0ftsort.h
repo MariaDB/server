@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,6 +33,7 @@ Created 10/13/2010 Jimmy Yang
 #include "rem0types.h"
 #include "row0merge.h"
 #include "btr0bulk.h"
+#include "srv0srv.h"
 
 /** This structure defineds information the scan thread will fetch
 and put to the linked list for parallel tokenization/sort threads
@@ -64,8 +65,7 @@ struct fts_psort_common_t {
 	ulint			old_zip_size;
 	trx_t*			trx;		/*!< transaction */
 	fts_psort_t*		all_info;	/*!< all parallel sort info */
-	os_event_t		sort_event;	/*!< sort event */
-	os_event_t		merge_event;	/*!< merge event */
+	pthread_cond_t		sort_cond;	/*!< sort completion */
 	ibool			opt_doc_id_size;/*!< whether to use 4 bytes
 						instead of 8 bytes integer to
 						store Doc ID during sort, if
@@ -81,20 +81,16 @@ struct fts_psort_t {
 						/*!< sort file */
 	row_merge_block_t*	merge_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to write to file */
-	row_merge_block_t*	block_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
 	row_merge_block_t*	crypt_block[FTS_NUM_AUX_INDEX];
 						/*!< buffer to crypt data */
-	row_merge_block_t*	crypt_alloc[FTS_NUM_AUX_INDEX];
-						/*!< buffer to allocated */
-	ulint			child_status;	/*!< child thread status */
-	ulint			state;		/*!< parent thread state */
+	ulint			child_status;	/*!< child task status */
+	ulint			state;		/*!< parent state */
 	fts_doc_list_t		fts_doc_list;	/*!< doc list to process */
 	fts_psort_common_t*	psort_common;	/*!< ptr to all psort info */
-	os_thread_t		thread_hdl;	/*!< thread handler */
+	tpool::waitable_task*	task;	/*!< threadpool task */
 	dberr_t			error;		/*!< db error during psort */
 	ulint			memory_used;	/*!< memory used by fts_doc_list */
-	ib_mutex_t		mutex;		/*!< mutex for fts_doc_list */
+	mysql_mutex_t		mutex;		/*!< mutex for fts_doc_list */
 };
 
 /** Row fts token for plugin parser */
@@ -160,7 +156,6 @@ typedef struct fts_psort_insert	fts_psort_insert_t;
 #define FTS_PARENT_COMPLETE	1
 #define FTS_PARENT_EXITING	2
 #define FTS_CHILD_COMPLETE	1
-#define FTS_CHILD_EXITING	2
 
 /** Print some debug information */
 #define	FTSORT_PRINT

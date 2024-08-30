@@ -6,9 +6,11 @@ mariadb.sys	mysql_native_password
 CREATE USER plug_user IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON `plug%dest` TO plug_user;
+GRANT ALL ON test_user_db.* TO plug_user;
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 REVOKE PROXY ON `plug%dest` FROM plug_user;
 GRANT PROXY ON plug_dest TO plug_user;
+GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 current_user()
 plug_dest@%
 user()
@@ -52,6 +54,7 @@ CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 1)
 ERROR 1045 (28000): Access denied for user 'plug_user'@'localhost' (using password: YES)
 GRANT PROXY ON plug_dest TO plug_user;
+GRANT ALL ON test_user_db.* TO 'plug_dest'@'%';
 2)
 current_user()
 plug_dest@%
@@ -103,14 +106,14 @@ CREATE USER plug_user
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect plug_user,localhost,plug_user,plug_dest;
+connect plug_user,localhost,plug_user,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug_user@localhost	plug_dest@%
 connection default;
 disconnect plug_user;
 RENAME USER plug_user TO new_user;
-connect plug_user,localhost,new_user,plug_dest;
+connect plug_user,localhost,new_user,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_user@localhost	plug_dest@%
@@ -134,7 +137,7 @@ CREATE USER plug_user
 IDENTIFIED WITH test_plugin_server AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 GRANT PROXY ON plug_dest TO plug_user;
-connect plug_user,localhost,plug_user,plug_dest;
+connect plug_user,localhost,plug_user,plug_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 plug_user@localhost	plug_dest@%
@@ -176,7 +179,7 @@ User	plugin	authentication_string
 mariadb.sys	mysql_native_password	
 new_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 new_user	test_plugin_server	new_dest
-connect plug_user,localhost,new_user,new_dest;
+connect plug_user,localhost,new_user,new_dest,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_user@localhost	new_dest@%
@@ -192,7 +195,7 @@ new_dest	mysql_native_password	*01422E86A6FFF84618914AF149F9AEF64B84170A
 new_user	test_plugin_server	new_dest
 plug_dest	mysql_native_password	*939AEE68989794C0F408277411C26055CDF41119
 GRANT ALL PRIVILEGES ON test.* TO new_user;
-connect plug_user,localhost,new_dest,new_dest_passwd;
+connect plug_user,localhost,new_dest,new_dest_passwd,"*NO-ONE*";
 select USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 new_dest@localhost	new_dest@%
@@ -207,7 +210,7 @@ User	plugin	authentication_string
 	test_plugin_server	proxied_user
 mariadb.sys	mysql_native_password	
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
-connect proxy_con,localhost,proxied_user,proxied_user_passwd;
+connect proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
@@ -219,13 +222,13 @@ connection default;
 disconnect proxy_con;
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect proxy_con,localhost,proxied_user,proxied_user_passwd;
+connect proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
 connection default;
 disconnect proxy_con;
-connect proxy_con,localhost,proxy_user,proxied_user;
+connect proxy_con,localhost,proxy_user,proxied_user,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxy_user@localhost	proxied_user@%
@@ -244,7 +247,7 @@ User	plugin	authentication_string
 	test_plugin_server	proxied_user
 mariadb.sys	mysql_native_password	
 proxied_user	mysql_native_password	*D7A51428CD38DB3C5293B9321DA1228BFB1611DD
-connect proxy_con,localhost,proxied_user,proxied_user_passwd;
+connect proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
@@ -255,13 +258,13 @@ connection default;
 disconnect proxy_con;
 ERROR 28000: Access denied for user 'proxy_user'@'localhost' (using password: YES)
 GRANT PROXY ON proxied_user TO ''@'%%';
-connect proxy_con,localhost,proxied_user,proxied_user_passwd;
+connect proxy_con,localhost,proxied_user,proxied_user_passwd,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxied_user@localhost	proxied_user@%
 connection default;
 disconnect proxy_con;
-connect proxy_con,localhost,proxy_user,proxied_user;
+connect proxy_con,localhost,proxy_user,proxied_user,"*NO-ONE*";
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()
 proxy_user@localhost	proxied_user@%
@@ -291,11 +294,11 @@ proxied_user_2	mysql_native_password	*3D948F77C6A988AFDCA9755AB2A6724362557220
 proxied_user_3	mysql_native_password	*41A18925D237DEE738C76581153990B037F462E3
 proxied_user_4	mysql_native_password	*F990073A9B96FF535C2D0721406042B8751E593F
 proxied_user_5	mysql_native_password	*5AA915C5D0B5B1336336FD2BF7768BC09FD1F5B2
-connect proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd';
-connect proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd;
-connect proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd;
-connect proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd;
-connect proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd;
+connect proxy_con_1,localhost,proxied_user_1,'proxied_user_1_pwd',"*NO-ONE*";
+connect proxy_con_2,localhost,proxied_user_2,proxied_user_2_pwd,"*NO-ONE*";
+connect proxy_con_3,localhost,proxied_user_3,proxied_user_3_pwd,"*NO-ONE*";
+connect proxy_con_4,localhost,proxied_user_4,proxied_user_4_pwd,"*NO-ONE*";
+connect proxy_con_5,localhost,proxied_user_5,proxied_user_5_pwd,"*NO-ONE*";
 connection proxy_con_1;
 SELECT USER(),CURRENT_USER();
 USER()	CURRENT_USER()

@@ -24,5 +24,5 @@ COUNT(*) = 1
 1
 connection node_1;
 DROP TABLE t1;
-CALL mtr.add_suppression("Unknown parameter 'socket\.ssl_compression'");
+CALL mtr.add_suppression("Unknown parameter 'socket\\.ssl_compression'");
 CALL mtr.add_suppression("Set options returned 7");

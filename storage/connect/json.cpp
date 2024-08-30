@@ -24,10 +24,8 @@
 
 #define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
-#if defined(_WIN32)
-#define EL  "\r\n"
-#else
-#define EL  "\n"
+#define EL "\n"
+#if !defined(_WIN32)
 #undef     SE_CATCH                  // Does not work for Linux
 #endif
 
@@ -1056,7 +1054,7 @@ int JOBJECT::GetSize(bool b) {
 
   for (PJPR jpp = First; jpp; jpp = jpp->Next)
     // If b return only non null pairs
-    if (!b || jpp->Val && !jpp->Val->IsNull())
+    if (!b || (jpp->Val && !jpp->Val->IsNull()))
       n++;
 
   return n;
@@ -1586,10 +1584,12 @@ PVAL JVALUE::GetValue(PGLOBAL g)
   PVAL valp = NULL;
 
   if (DataType != TYPE_JSON)
+  {
     if (DataType == TYPE_STRG)
       valp = AllocateValue(g, Strp, DataType, Nd);
     else
       valp = AllocateValue(g, &LLn, DataType, Nd);
+  }
 
   return valp;
 } // end of GetValue
@@ -1760,6 +1760,7 @@ void JVALUE::SetValue(PGLOBAL g, PVAL valp)
   case TYPE_TINY:
     B = valp->GetTinyValue() != 0;
     DataType = TYPE_BOOL;
+    break;
   case TYPE_INT:
     N = valp->GetIntValue();
     DataType = TYPE_INTG;

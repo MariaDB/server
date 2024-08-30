@@ -2,7 +2,7 @@
 # test of new fulltext search features
 #
 
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 source include/have_collation.inc;
 
 #

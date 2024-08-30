@@ -1,0 +1,14 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+SET @old_debug_dbug=@@debug_dbug;
+
+SET debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (c01 UUID, c02 UUID);
+SET debug_dbug=@old_debug_dbug;
+
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

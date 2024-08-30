@@ -7,5 +7,6 @@ drop function if exists check_row;
 drop function if exists check_row_slave;
 drop function if exists current_row_ts;
 drop function if exists check_row_ts;
+set @@global.time_zone= default;
 --enable_warnings
 --enable_query_log

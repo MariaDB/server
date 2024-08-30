@@ -1,0 +1,224 @@
+--source include/have_log_bin.inc
+--source include/have_innodb.inc
+--source include/have_archive.inc
+#
+# This test is based on the orginal test from Tencent for DROP TABLE ... FORCE
+# In MariaDB we did reuse the code but MariaDB does not require the FORCE
+# keyword to drop a table even if the .frm file or some engine files are
+# missing.
+# To make it easy to see the differences between the orginal code and
+# the new one, we have left some references to the original test case
+#
+
+CALL mtr.add_suppression("InnoDB: File .*test/t1\\.ibd was not found");
+
+let $DATADIR= `select @@datadir`;
+
+--echo #Test1: table with missing .ibd can be dropped directly
+# drop table without ibd
+create table t1(a int)engine=innodb;
+--remove_file $DATADIR/test/t1.ibd
+drop table t1;
+--list_files  $DATADIR/test/
+
+# Original DROP TABLE .. FORCE required SUPER privilege. MariaDB doesn't
+--echo # Test droping table without frm without super privilege
+
+# create table t1 and rm frm
+create table t1(a int) engine=innodb;
+--remove_file $DATADIR/test/t1.frm
+
+# create test user
+create user test identified by '123456';
+grant all privileges on test.t1 to 'test'@'%'identified by '123456';
+
+# connect as test
+connect (con_test, localhost, test,'123456', );
+--connection con_test
+
+# drop table with user test
+drop table t1;
+--error ER_BAD_TABLE_ERROR
+drop table t1;
+
+# connect as root
+--connection default
+
+--disconnect con_test
+drop user test;
+
+# check files in datadir about t1
+--list_files  $DATADIR/test/
+
+--echo #Test5: drop table with triger, and with missing frm
+# create table t1 with triger and rm frm
+create table t1(a int)engine=innodb;
+create trigger t1_trg before insert on t1 for each row begin end;
+
+let $DATADIR= `select @@datadir`;
+--remove_file $DATADIR/test/t1.frm
+
+drop table t1;
+--error ER_BAD_TABLE_ERROR
+drop table t1;
+
+# check files in datadir about t1
+--list_files  $DATADIR/test/
+
+--echo #Test6: table with foreign key references can not be dropped
+# create table with foreign key reference and rm frm
+CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
+CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;
+--remove_file $DATADIR/test/parent.frm
+
+# parent can not be dropped when there are foreign key references
+--error ER_ROW_IS_REFERENCED_2
+drop table parent;
+
+# parent can be dropped when there are no foreign key references
+drop table child;
+drop table parent;
+
+# check files in datadir about child and parent
+--list_files  $DATADIR/test/
+
+--echo #Test7: drop table twice
+create table t1(a int)engine=innodb;
+--remove_file $DATADIR/test/t1.frm
+
+# first drop table will success
+drop table t1;
+
+# check files in datadir about t1
+--list_files  $DATADIR/test/
+
+# second drop with if exists will also ok
+drop table if exists t1;
+
+# check files in datadir about t1
+--list_files  $DATADIR/test/
+
+--echo #Test9: check compatibility with restrict/cascade
+# create table with foreign key reference and rm frm
+CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
+CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;
+
+# parent can not be dropped when there are foreign key references
+--error ER_ROW_IS_REFERENCED_2
+drop table parent;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent restrict;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent cascade;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent restrict;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent cascade;
+
+# parent can be dropped when there are no foreign key references
+drop table child;
+drop table parent;
+
+--echo #Test10: drop non-innodb engine table returns ok
+# create myisam table t1 and rm .frm
+create table t1(a int) engine=myisam;
+--remove_file $DATADIR/test/t1.frm
+--replace_result \\ /
+drop table t1;
+
+# create myisam table t1 and rm .MYD
+create table t1(a int) engine=myisam;
+--remove_file $DATADIR/test/t1.MYD
+--replace_result \\ /
+drop table t1;
+
+# create myisam table t1 and rm .MYI
+create table t1(a int) engine=myisam;
+--remove_file $DATADIR/test/t1.MYI
+--replace_result \\ /
+drop table t1;
+--list_files  $DATADIR/test/
+
+# create Aria table t1 and rm .frm and .MAD
+create table t1(a int) engine=aria;
+--remove_file $DATADIR/test/t1.frm
+--remove_file $DATADIR/test/t1.MAD
+--list_files  $DATADIR/test/
+--error ER_BAD_TABLE_ERROR
+drop table t1;
+--replace_result \\ /
+show warnings;
+--list_files  $DATADIR/test/
+
+# create Aria table t2 and rm .frm and .MAI
+create table t2(a int) engine=aria;
+flush tables;
+--remove_file $DATADIR/test/t2.frm
+--remove_file $DATADIR/test/t2.MAI
+--list_files  $DATADIR/test/
+--error ER_BAD_TABLE_ERROR
+drop table t2;
+--replace_result \\ /
+show warnings;
+--list_files  $DATADIR/test/
+
+# create Aria table t2 and rm .MAI and .MAD
+create table t2(a int) engine=aria;
+flush tables;
+--remove_file $DATADIR/test/t2.MAD
+--remove_file $DATADIR/test/t2.MAI
+--list_files  $DATADIR/test/
+--replace_result \\ /
+drop table t2;
+
+# create CVS table t2 and rm .frm
+create table t2(a int not null) engine=CSV;
+flush tables;
+--remove_file $DATADIR/test/t2.frm
+drop table t2;
+--list_files  $DATADIR/test/
+
+# create CVS table t2 and rm .frm
+create table t2(a int not null) engine=CSV;
+flush tables;
+--remove_file $DATADIR/test/t2.CSV
+drop table t2;
+--list_files  $DATADIR/test/
+
+# create Archive table t2 and rm 
+# Note that as Archive has discovery, removing the
+# ARZ will automatically remove the .frm
+
+create table t2(a int not null) engine=archive;
+flush tables;
+--error 1
+--remove_file $DATADIR/test/t2.frm
+select * from t2;
+flush tables;
+--remove_file $DATADIR/test/t2.ARZ
+--error ER_NO_SUCH_TABLE
+select * from t2;
+--list_files  $DATADIR/test/
+--replace_result \\ /
+--error ER_BAD_TABLE_ERROR
+drop table t2;
+
+create table t2(a int not null) engine=archive;
+flush tables;
+--remove_file $DATADIR/test/t2.ARZ
+--error ER_BAD_TABLE_ERROR
+drop table t2;
+--list_files  $DATADIR/test/
+
+--echo #
+--echo # MDEV-23549 CREATE fails after DROP without FRM
+--echo #
+create table t1 (a int);
+select * from t1;
+--remove_file $datadir/test/t1.frm
+
+drop table t1;
+create table t1 (a int);
+drop table t1;

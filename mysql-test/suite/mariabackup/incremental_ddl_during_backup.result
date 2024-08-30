@@ -3,6 +3,7 @@ CREATE TABLE t1(i INT PRIMARY KEY) ENGINE INNODB;
 CREATE TABLE t2(i INT PRIMARY KEY) ENGINE INNODB;
 CREATE TABLE t3(i INT) ENGINE INNODB;
 CREATE TABLE t10(i INT PRIMARY KEY) ENGINE INNODB;
+set global innodb_log_checkpoint_now = 1;
 # Create full backup , modify table, then create incremental/differential backup
 INSERT into t1 values(1);
 # Prepare full backup, apply incremental one

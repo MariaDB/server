@@ -11,6 +11,7 @@
 connection default;
 let $default_db=`select database()`;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
+let $pid_file=`select @@pid_file`;
 
 #it will used at end of test for wait_for_status_var.inc primitive
 #let $status_var= Threads_connected;
@@ -23,6 +24,7 @@ wait-maria_empty_logs.inc
 EOF
 
 --source include/mysqladmin_shutdown.inc
+--source include/wait_until_no_pidfile.inc
 
 --disable_warnings
 if (!$mel_keep_control_file)
@@ -94,13 +96,15 @@ eval use $default_db;
 --enable_query_log
 
 #
-# Ensure that we don't get warnings from mysql.priv (used by check_mysqld)
-# or test running after this one.
+# Ensure that we don't get warnings from mysql.priv (used by check_mysqld),
+# sys_config or from test running after this one.
 #
 --disable_query_log
 --disable_warnings
 --disable_result_log
+# Zerofill all Aria tables in mysql and sys
 show table status from mysql;
+show table status from sys;
 --enable_result_log
 --enable_warnings
 --enable_query_log

@@ -204,6 +204,7 @@ Sql_condition::copy_opt_attributes(const Sql_condition *cond)
   copy_string(m_mem_root, & m_table_name, & cond->m_table_name);
   copy_string(m_mem_root, & m_column_name, & cond->m_column_name);
   copy_string(m_mem_root, & m_cursor_name, & cond->m_cursor_name);
+  m_row_number= cond->m_row_number;
 }
 
 
@@ -216,7 +217,7 @@ Sql_condition::set_builtin_message_text(const char* str)
   */
   const char* copy;
 
-  copy= strdup_root(m_mem_root, str);
+  copy= m_mem_root ? strdup_root(m_mem_root, str) : str;
   m_message_text.set(copy, strlen(copy), error_message_charset_info);
   DBUG_ASSERT(! m_message_text.is_alloced());
 }
@@ -302,21 +303,33 @@ void
 Diagnostics_area::reset_diagnostics_area()
 {
   DBUG_ENTER("reset_diagnostics_area");
-  m_skip_flush= FALSE;
 #ifdef DBUG_OFF
   m_can_overwrite_status= FALSE;
   /** Don't take chances in production */
   m_message[0]= '\0';
   Sql_state_errno::clear();
   Sql_user_condition_identity::clear();
-  m_affected_rows= 0;
   m_last_insert_id= 0;
-  m_statement_warn_count= 0;
+  if (!is_bulk_op())
+  {
+    m_affected_rows= 0;
+    m_statement_warn_count= 0;
+  }
 #endif
   get_warning_info()->clear_error_condition();
   set_is_sent(false);
   /** Tiny reset in debug mode to see garbage right away */
-  m_status= DA_EMPTY;
+  if (!is_bulk_op())
+    /*
+      For BULK DML operations (e.g. UPDATE) the data member m_status
+      has the value DA_OK_BULK. Keep this value in order to handle
+      m_affected_rows, m_statement_warn_count in correct way. Else,
+      the number of rows and the number of warnings affected by
+      the last statement executed as part of a trigger fired by the dml
+      (e.g. UPDATE statement fires a trigger on AFTER UPDATE) would counts
+      rows modified by trigger's statement.
+    */
+    m_status= DA_EMPTY;
   DBUG_VOID_RETURN;
 }
 
@@ -372,7 +385,7 @@ Diagnostics_area::set_eof_status(THD *thd)
 {
   DBUG_ENTER("set_eof_status");
   /* Only allowed to report eof if has not yet reported an error */
-  DBUG_ASSERT(! is_set());
+  DBUG_ASSERT(!is_set() || (m_status == DA_EOF_BULK && is_bulk_op()));
   /*
     In production, refuse to overwrite an error or a custom response
     with an EOF packet.
@@ -385,11 +398,23 @@ Diagnostics_area::set_eof_status(THD *thd)
     number of warnings, since they are not available to the client
     anyway.
   */
-  m_statement_warn_count= (thd->spcont ?
-                           0 :
-                           current_statement_warn_count());
+  if (m_status == DA_EOF_BULK)
+  {
+    if (!thd->spcont)
+      m_statement_warn_count+= current_statement_warn_count();
+  }
+  else
+  {
+    if (thd->spcont)
+    {
+      m_statement_warn_count= 0;
+      m_affected_rows= 0;
+    }
+    else
+      m_statement_warn_count= current_statement_warn_count();
+    m_status= (is_bulk_op() ? DA_EOF_BULK : DA_EOF);
+  }
 
-  m_status= DA_EOF;
   DBUG_VOID_RETURN;
 }
 
@@ -489,7 +514,7 @@ Diagnostics_area::disable_status()
 Warning_info::Warning_info(ulonglong warn_id_arg,
                            bool allow_unlimited_warnings, bool initialize)
   :m_current_statement_warn_count(0),
-  m_current_row_for_warning(1),
+  m_current_row_for_warning(0),
   m_warn_id(warn_id_arg),
   m_error_condition(NULL),
   m_allow_unlimited_warnings(allow_unlimited_warnings),
@@ -506,7 +531,7 @@ void Warning_info::init()
 {
   /* Initialize sub structures */
   DBUG_ASSERT(initialized == 0);
-  init_sql_alloc(&m_warn_root, "Warning_info", WARN_ALLOC_BLOCK_SIZE,
+  init_sql_alloc(PSI_INSTRUMENT_ME, &m_warn_root, WARN_ALLOC_BLOCK_SIZE,
                  WARN_ALLOC_PREALLOC_SIZE, MYF(MY_THREAD_SPECIFIC));
   initialized= 1;
 }
@@ -558,7 +583,7 @@ void Warning_info::clear(ulonglong new_id)
   free_memory();
   memset(m_warn_count, 0, sizeof(m_warn_count));
   m_current_statement_warn_count= 0;
-  m_current_row_for_warning= 1; /* Start counting from the first row */
+  m_current_row_for_warning= 0;
   clear_error_condition();
 }
 
@@ -664,7 +689,8 @@ void Warning_info::reserve_space(THD *thd, uint count)
 
 Sql_condition *Warning_info::push_warning(THD *thd,
                                           const Sql_condition_identity *value,
-                                          const char *msg)
+                                          const char *msg,
+                                          ulong current_row_number)
 {
   Sql_condition *cond= NULL;
 
@@ -673,7 +699,8 @@ Sql_condition *Warning_info::push_warning(THD *thd,
     if (m_allow_unlimited_warnings ||
         m_warn_list.elements() < thd->variables.max_error_count)
     {
-      cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg);
+      cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg,
+                                              current_row_number);
       if (cond)
         m_warn_list.push_back(cond);
     }
@@ -689,7 +716,8 @@ Sql_condition *Warning_info::push_warning(THD *thd,
                                           const Sql_condition *sql_condition)
 {
   Sql_condition *new_condition= push_warning(thd, sql_condition,
-                                             sql_condition->get_message_text());
+                                             sql_condition->get_message_text(),
+                                             sql_condition->m_row_number);
 
   if (new_condition)
     new_condition->copy_opt_attributes(sql_condition);
@@ -724,7 +752,7 @@ void push_warning(THD *thd, Sql_condition::enum_warning_level level,
   if (level == Sql_condition::WARN_LEVEL_ERROR)
     level= Sql_condition::WARN_LEVEL_WARN;
 
-  (void) thd->raise_condition(code, NULL, level, msg);
+  (void) thd->raise_condition(code, "\0\0\0\0\0", level, msg);
 
   /* Make sure we also count warnings pushed after calling set_ok_status(). */
   thd->get_stmt_da()->increment_warning();
@@ -756,7 +784,7 @@ void push_warning_printf(THD *thd, Sql_condition::enum_warning_level level,
   DBUG_ASSERT(format != NULL);
 
   va_start(args,format);
-  my_vsnprintf_ex(&my_charset_utf8_general_ci, warning,
+  my_vsnprintf_ex(&my_charset_utf8mb3_general_ci, warning,
                   sizeof(warning), format, args);
   va_end(args);
   push_warning(thd, level, code, warning);
@@ -795,7 +823,7 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   const Sql_condition *err;
   SELECT_LEX *sel= thd->lex->first_select_lex();
   SELECT_LEX_UNIT *unit= &thd->lex->unit;
-  ulonglong idx= 0;
+  ha_rows idx;
   Protocol *protocol=thd->protocol;
   DBUG_ENTER("mysqld_show_warnings");
 
@@ -820,23 +848,22 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
 
   Diagnostics_area::Sql_condition_iterator it=
     thd->get_stmt_da()->sql_conditions();
-  while ((err= it++))
+  for (idx= 0; (err= it++) ; idx++)
   {
     /* Skip levels that the user is not interested in */
     if (!(levels_to_show & ((ulong) 1 << err->get_level())))
       continue;
-    if (++idx <= unit->offset_limit_cnt)
-      continue;
-    if (idx > unit->select_limit_cnt)
+    if (unit->lim.check_offset(idx))
+      continue;                             // using limit offset,count
+    if (idx >= unit->lim.get_select_limit())
       break;
     protocol->prepare_for_resend();
     protocol->store(warning_level_names[err->get_level()].str,
 		    warning_level_names[err->get_level()].length,
                     system_charset_info);
     protocol->store((uint32) err->get_sql_errno());
-    protocol->store(err->get_message_text(),
-                    err->get_message_octet_length(),
-                    system_charset_info);
+    protocol->store_warning(err->get_message_text(),
+                            err->get_message_octet_length());
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -845,6 +872,26 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
   thd->get_stmt_da()->set_warning_info_read_only(FALSE);
 
   DBUG_RETURN(FALSE);
+}
+
+
+/**
+  This replaces U+0000 to '\0000', so the result error message string:
+  - is a good null-terminated string
+  - presents the entire data
+  For example:
+    SELECT CAST(_latin1 0x610062 AS SIGNED);
+  returns a warning:
+    Truncated incorrect INTEGER value: 'a\0000b'
+  Notice, the 0x00 byte is replaced to a 5-byte long string '\0000',
+  while 'a' and 'b' are printed as is.
+*/
+extern "C" int my_wc_mb_utf8_null_terminated(CHARSET_INFO *cs,
+                                             my_wc_t wc, uchar *r, uchar *e)
+{
+  return wc == '\0' ?
+         cs->wc_to_printable(wc, r, e) :
+         my_charset_utf8mb3_handler.wc_mb(cs, wc, r, e);
 }
 
 
@@ -858,11 +905,11 @@ bool mysqld_show_warnings(THD *thd, ulong levels_to_show)
    @param from_cs     charset from convert
  
    @retval
-   result string
+   result string length
 */
 
-char *err_conv(char *buff, uint to_length, const char *from,
-               uint from_length, CHARSET_INFO *from_cs)
+size_t err_conv(char *buff, uint to_length, const char *from,
+                uint from_length, CHARSET_INFO *from_cs)
 {
   char *to= buff;
   const char *from_start= from;
@@ -906,11 +953,14 @@ char *err_conv(char *buff, uint to_length, const char *from,
   else
   {
     uint errors;
-    res= copy_and_convert(to, to_length, system_charset_info,
-                          from, from_length, from_cs, &errors);
+    res= my_convert_using_func(to, to_length, system_charset_info,
+                               my_wc_mb_utf8_null_terminated,
+                               from, from_length, from_cs,
+                               from_cs->cset->mb_wc,
+                               &errors);
     to[res]= 0;
   }
-  return buff;
+  return res;
 }
 
 
@@ -933,64 +983,21 @@ size_t convert_error_message(char *to, size_t to_length, CHARSET_INFO *to_cs,
                              const char *from, size_t from_length,
                              CHARSET_INFO *from_cs, uint *errors)
 {
-  int  cnvres;
-  my_wc_t     wc;
-  const uchar *from_end= (const uchar*) from+from_length;
-  char *to_start= to;
-  uchar *to_end;
-  my_charset_conv_mb_wc mb_wc= from_cs->cset->mb_wc;
-  my_charset_conv_wc_mb wc_mb;
-  uint error_count= 0;
-  size_t length;
-
   DBUG_ASSERT(to_length > 0);
   /* Make room for the null terminator. */
   to_length--;
-  to_end= (uchar*) (to + to_length);
 
-  if (!to_cs || from_cs == to_cs || to_cs == &my_charset_bin)
-  {
-    length= MY_MIN(to_length, from_length);
-    memmove(to, from, length);
-    to[length]= 0;
-    return length;
-  }
-
-  wc_mb= to_cs->cset->wc_mb;
-  while (1)
-  {
-    if ((cnvres= (*mb_wc)(from_cs, &wc, (uchar*) from, from_end)) > 0)
-    {
-      if (!wc)
-        break;
-      from+= cnvres;
-    }
-    else if (cnvres == MY_CS_ILSEQ)
-    {
-      wc= (ulong) (uchar) *from;
-      from+=1;
-    }
-    else
-      break;
-
-    if ((cnvres= (*wc_mb)(to_cs, wc, (uchar*) to, to_end)) > 0)
-      to+= cnvres;
-    else if (cnvres == MY_CS_ILUNI)
-    {
-      length= (wc <= 0xFFFF) ? 6/* '\1234' format*/ : 9 /* '\+123456' format*/;
-      if ((uchar*)(to + length) >= to_end)
-        break;
-      cnvres= (int)my_snprintf(to, 9,
-                          (wc <= 0xFFFF) ? "\\%04X" : "\\+%06X", (uint) wc);
-      to+= cnvres;
-    }
-    else
-      break;
-  }
-
-  *to= 0;
-  *errors= error_count;
-  return (size_t) (to - to_start);
+  if (!to_cs || to_cs == &my_charset_bin)
+    to_cs= system_charset_info;
+  uint32 cnv_length= my_convert_using_func(to, to_length,
+                                           to_cs,
+                                           to_cs->cset->wc_to_printable,
+                                           from, from_length,
+                                           from_cs, from_cs->cset->mb_wc,
+                                           errors);
+  DBUG_ASSERT(to_length >= cnv_length);
+  to[cnv_length]= '\0';
+  return cnv_length;
 }
 
 
@@ -1020,4 +1027,14 @@ bool is_sqlstate_valid(const LEX_CSTRING *sqlstate)
   }
 
   return true;
+}
+
+
+void convert_error_to_warning(THD *thd)
+{
+  DBUG_ASSERT(thd->is_error());
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               thd->get_stmt_da()->sql_errno(),
+               thd->get_stmt_da()->message());
+  thd->clear_error();
 }

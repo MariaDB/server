@@ -64,11 +64,11 @@ my $plugin_suitedir_regex;
 my $overlay_regex;
 
 if (-d '../sql') {
-  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test');
-  $overlay_regex= '\b(?:storage|plugin)/(\w+)/mysql-test\b';
+  @plugin_suitedirs= ('storage/*/mysql-test', 'plugin/*/mysql-test', 'storage/*/*/mysql-test', );
+  $overlay_regex= '\b(?:storage|plugin|storage[/][^/]*)/(\w+)/mysql-test\b';
 } else {
-  @plugin_suitedirs= ('mysql-test/plugin/*');
-  $overlay_regex= '\bmysql-test/plugin/(\w+)\b';
+  @plugin_suitedirs= ('mariadb-test/plugin/*');
+  $overlay_regex= '\bmariadb-test/plugin/(\w+)\b';
 }
 $plugin_suitedir_regex= $overlay_regex;
 $plugin_suitedir_regex=~ s/\Q(\w+)\E/\\w+/;
@@ -288,8 +288,8 @@ sub load_suite_object {
 sub suite_for_file($) {
   my ($file) = @_;
   return ($2, $1) if $file =~ m@^(.*/$plugin_suitedir_regex/(\w+))/@o;
-  return ($2, $1) if $file =~ m@^(.*/mysql-test/suite/(\w+))/@;
-  return ('main', $1) if $file =~ m@^(.*/mysql-test)/@;
+  return ($2, $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test/suite/(\w+))/@;
+  return ('main', $1) if $file =~ m@^(.*/(?:mysql|mariadb)-test)/@;
   mtr_error("Cannot determine suite for $file");
 }
 
@@ -397,14 +397,15 @@ sub collect_suite_name($$)
     else
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
-                             ["mysql-test/suite", @plugin_suitedirs ],
-                             $suitename);
+                             ["mariadb-test/suite", "mysql-test/suite", @plugin_suitedirs ],
+                             $suitename,
+                             $::opt_skip_not_found ? NOT_REQUIRED : undef);
       #
       # if $suitename contained wildcards, we'll have many suites and
       # their overlays here. Let's group them appropriately.
       #
       for (@dirs) {
-        m@^.*/(?:mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
+        m@^.*/(?:mariadb-test/suite|mysql-test/suite|$plugin_suitedir_regex)/(.*)$@o or confess $_;
         push @{$suites{$1}}, $_;
       }
     }
@@ -759,7 +760,7 @@ sub collect_one_test_case {
     if ( $enable_disabled )
     {
       # User has selected to run all disabled tests
-      mtr_report(" - $tinfo->{name} wil be run although it's been disabled\n",
+      mtr_report(" - $tinfo->{name} will be run although it's been disabled\n",
 		 "  due to '$disable'");
     }
     else

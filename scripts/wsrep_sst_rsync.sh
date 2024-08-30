@@ -100,10 +100,9 @@ check_pid_and_port()
         local busy=0
 
         if [ $lsof_available -ne 0 ]; then
-            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | \
-                        grep -F '(LISTEN)')
+            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | grep -F '(LISTEN)')
             echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port[[:space:]]" && busy=1
+            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port[[:space:]]" && busy=1
         else
             local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
             if [ $sockstat_available -ne 0 ]; then
@@ -122,7 +121,7 @@ check_pid_and_port()
                     grep -F 'users:(' | grep -o -E "$filter")
             fi
             echo "$port_info" | \
-            grep -q -E "[[:space:]](\\*|\\[?::\\]?):$port\$" && busy=1
+            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port\$" && busy=1
         fi
 
         if [ $busy -eq 0 ]; then
@@ -614,11 +613,11 @@ FILTER="-f '- /lost+found'
 
         wsrep_log_info "Transfer of InnoDB data files done"
 
-        # second, we transfer InnoDB log files
+        # second, we transfer the InnoDB log file
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile0' \
               -f '- **' "$ib_log_dir/" \
               "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 

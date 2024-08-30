@@ -205,7 +205,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
       if (v == 'K') {
         // Skip this column
         snprintf(g->Message, sizeof(g->Message), "Column %s skipped (unsupported type)", colname);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
         continue;
         } // endif v
 
@@ -218,7 +218,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
         len = zconv;
         snprintf(g->Message, sizeof(g->Message), "Column %s converted to varchar(%d)",
                 colname, len);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, g->Message);
         } // endif v
 
     crp = crp->Next;                       // Data_Type
@@ -285,7 +285,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
 
     crp = crp->Next;                       // New (charset)
-    fld = (char *)fp->charset()->name;
+    fld = (char *)fp->charset()->coll_name.str;
     crp->Kdata->SetValue(fld, i);
 
     // Add this item
@@ -536,7 +536,7 @@ int TDBPRX::GetMaxSize(PGLOBAL g)
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
-/*  while ROWNUM will be the occurence rank in the multiple column.    */
+/*  while ROWNUM will be the occurrence rank in the multiple column.    */
 /***********************************************************************/
 int TDBPRX::RowNumber(PGLOBAL g, bool b)
 	{
@@ -686,7 +686,7 @@ char *PRXCOL::Decode(PGLOBAL g, const char *cnm)
   uint32 len= copy_and_convert(buf, strlen(cnm) + 1,
                                &my_charset_latin1,
                                cnm, strlen(cnm),
-                               &my_charset_utf8_general_ci,
+                               &my_charset_utf8mb3_general_ci,
                                &dummy_errors);
   buf[len]= '\0';
   return buf;

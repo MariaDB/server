@@ -71,9 +71,9 @@ BEGIN
   SELECT * FROM INFORMATION_SCHEMA.EVENTS;
   -- Dump all triggers	 except mtr internals, there should be none
   SELECT * FROM INFORMATION_SCHEMA.TRIGGERS
-         WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert');
+         WHERE TRIGGER_NAME NOT IN ('gs_insert', 'ts_insert') AND TRIGGER_SCHEMA != 'sys';
   -- Dump all created procedures, there should be none
-  SELECT * FROM INFORMATION_SCHEMA.ROUTINES;
+  SELECT * FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA != 'sys';
 
   SHOW STATUS LIKE 'slave_open_temp_tables';
 
@@ -87,7 +87,7 @@ BEGIN
     mysql.help_keyword,
     mysql.help_relation,
     mysql.plugin,
-    mysql.proc,
+--  mysql.proc,
     mysql.procs_priv,
     mysql.roles_mapping,
     mysql.tables_priv,
@@ -99,7 +99,8 @@ BEGIN
     mysql.global_priv;
 
   -- verify that no plugin changed its disabled/enabled state
-  SELECT * FROM INFORMATION_SCHEMA.PLUGINS;
+  SELECT * FROM INFORMATION_SCHEMA.PLUGINS
+           WHERE PLUGIN_STATUS != 'INACTIVE';
 
   select * from information_schema.session_variables
     where variable_name = 'debug_sync';

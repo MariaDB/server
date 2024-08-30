@@ -23,7 +23,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_global.h>
 #include <mysql_version.h>
-#include <fcntl.h>
 #include <stdarg.h>
 #include <my_sys.h>
 
@@ -143,16 +142,15 @@ static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const ch
 # define POSIX_FADV_NORMAL
 # define POSIX_FADV_SEQUENTIAL
 # define POSIX_FADV_DONTNEED
-# define posix_fadvise(a,b,c,d) do {} while(0)
+# define posix_fadvise(fd, offset, len, advice) do { (void)offset; } while(0)
 #endif
 
 /***********************************************************************
 Computes bit shift for a given value. If the argument is not a power
 of 2, returns 0.*/
-static inline size_t
-get_bit_shift(size_t value)
+static inline unsigned get_bit_shift(size_t value)
 {
-    size_t shift;
+    unsigned shift;
 
     if (value == 0)
 	return 0;

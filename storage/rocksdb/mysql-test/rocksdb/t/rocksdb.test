@@ -1,6 +1,7 @@
 --source include/have_rocksdb.inc
 --source include/have_partition.inc
 --source include/have_write_committed.inc
+--source include/test_db_charset_latin1.inc
 
 #
 # RocksDB Storage Engine tests
@@ -266,8 +267,8 @@ select * from t10;
 select * from t11;
 --replace_column 9 #
 EXPLAIN
-SELECT * FROM t10, t11 WHERE i=j;
-SELECT * FROM t10, t11 WHERE i=j;
+SELECT * FROM t11 straight_join t10 WHERE i=j;
+SELECT * FROM t11 straight_join t10 WHERE i=j;
 
 DROP TABLE t10,t11;
 
@@ -1962,5 +1963,15 @@ SET rocksdb_bulk_load_size= @save_rocksdb_bulk_load_size;
 SET rocksdb_commit_in_the_middle=0;
 DROP TABLE t1, t2;
 
+--echo #
+--echo # MDEV-21831: Assertion `length == pack_length()' failed in Field_inet6::sort_string upon
+--echo # INSERT into RocksDB table
+--echo #
+
+CREATE TABLE t1 (a INET6 NOT NULL, KEY (a)) ENGINE=RocksDB;
+INSERT INTO t1 VALUES ('41::1'),('61::1');
+DROP TABLE t1;
 
 SET GLOBAL ROCKSDB_PAUSE_BACKGROUND_WORK = @ORIG_PAUSE_BACKGROUND_WORK;
+
+--source include/test_db_charset_restore.inc

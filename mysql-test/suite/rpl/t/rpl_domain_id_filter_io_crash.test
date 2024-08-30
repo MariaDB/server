@@ -9,6 +9,7 @@ CREATE TABLE t1(i INT) ENGINE=INNODB;
 INSERT INTO t1 VALUES(1);
 SELECT * FROM t1;
 sync_slave_with_master;
+--source include/save_master_gtid.inc
 
 connection slave;
 
@@ -28,7 +29,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -44,7 +45,7 @@ START TRANSACTION;
 INSERT INTO t1 VALUES(2);
 INSERT INTO t1 VALUES(3);
 COMMIT;
-save_master_pos;
+--source include/save_master_gtid.inc
 SELECT * FROM t1;
 
 connection slave;
@@ -55,7 +56,7 @@ SET @@global.debug_dbug=@saved_dbug;
 
 START SLAVE io_thread;
 --source include/wait_for_slave_io_to_start.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 
 --echo # Case 1 : Start slave with IGNORE_DOMAIN_IDS=(1), then restart
@@ -70,7 +71,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -86,7 +87,7 @@ INSERT INTO t1 VALUES(4);
 INSERT INTO t1 VALUES(5);
 COMMIT;
 
-save_master_pos;
+--source include/save_master_gtid.inc
 SELECT * FROM t1;
 
 connection slave;
@@ -97,7 +98,7 @@ SET @@global.debug_dbug=@saved_dbug;
 
 START SLAVE io_thread;
 --source include/wait_for_slave_io_to_start.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 SELECT * FROM t1;
 
 --echo # Case 2 : Start slave with IGNORE_DOMAIN_IDS=(), then restart
@@ -112,7 +113,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -140,7 +141,7 @@ INSERT INTO t1 VALUES(10);
 INSERT INTO t1 VALUES(11);
 COMMIT;
 
-save_master_pos;
+--source include/save_master_gtid.inc
 SELECT * FROM t1;
 
 connection slave;
@@ -157,7 +158,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -178,7 +179,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -196,6 +197,15 @@ INSERT INTO t1 VALUES(12);
 INSERT INTO t1 VALUES(13);
 COMMIT; # IO thread gets killed here.
 
+# MDEV-14357
+# As the prior transaction will be ignored on slave because its domain id is
+# ignored, the replica's gtid_slave_pos will be updated to have seen it,
+# despite its eventual failure to queue the whole transaction to the relay log.
+# So for test consistency, we need to synchronize the SQL thread with this
+# position; otherwise, when restarting the server after resetting
+# IGNORE_DOMAIN_IDS, we will re-fetch this event and execute it.
+--source include/save_master_gtid.inc
+
 START TRANSACTION;
 INSERT INTO t1 VALUES(14);
 INSERT INTO t1 VALUES(15);
@@ -207,7 +217,6 @@ INSERT INTO t1 VALUES(16);
 INSERT INTO t1 VALUES(17);
 COMMIT;
 
-save_master_pos;
 SELECT * FROM t1;
 
 connection slave;
@@ -217,6 +226,11 @@ SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
 
+# MDEV-14357
+# Ensure the SQL thread is updated with the GTID of the ignored transaction
+# so we don't fetch it and execute it after restarting without any ignored
+# domain ids.
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -224,8 +238,12 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 --echo IGNORE_DOMAIN_IDS (BEFORE) : $ignore_domain_ids_before
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -246,7 +264,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -264,6 +282,11 @@ INSERT INTO t1 VALUES(18);
 INSERT INTO t1 VALUES(19); # IO thread gets killed here.
 COMMIT;
 
+# MDEV-14357
+# Synchronize gtid_slave_pos with the ignored event. See prior comments about
+# MDEV-14357 for details.
+--source include/save_master_gtid.inc
+
 START TRANSACTION;
 INSERT INTO t1 VALUES(20);
 INSERT INTO t1 VALUES(21);
@@ -275,7 +298,6 @@ INSERT INTO t1 VALUES(22);
 INSERT INTO t1 VALUES(23);
 COMMIT;
 
-save_master_pos;
 SELECT * FROM t1;
 
 connection slave;
@@ -285,6 +307,10 @@ SELECT * FROM t1;
 
 SET @@global.debug_dbug=@saved_dbug;
 
+# MDEV-14357
+# Synchronize gtid_slave_pos with the ignored event. See prior comments about
+# MDEV-14357 for details.
+--source include/sync_with_master_gtid.inc
 --source include/stop_slave_sql.inc
 let $do_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -292,8 +318,12 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 --echo IGNORE_DOMAIN_IDS (BEFORE) : $ignore_domain_ids_before
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+
+--connection master
+--source include/save_master_gtid.inc
+--connection slave
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -314,7 +344,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
@@ -343,7 +373,7 @@ INSERT INTO t1 VALUES(28);
 INSERT INTO t1 VALUES(29);
 COMMIT;
 
-save_master_pos;
+--source include/save_master_gtid.inc
 SELECT * FROM t1;
 
 connection slave;
@@ -361,7 +391,7 @@ let $ignore_domain_ids_before= query_get_value(SHOW SLAVE STATUS, Replicate_Igno
 
 CHANGE MASTER TO IGNORE_DOMAIN_IDS=(1), MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
-sync_with_master;
+--source include/sync_with_master_gtid.inc
 
 let $do_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
 let $ignore_domain_ids_after= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);

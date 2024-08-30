@@ -1,4 +1,5 @@
 /* Copyright (c) 2003, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -45,11 +46,12 @@
 
 static const char field_separator=',';
 
-ulonglong find_set(TYPELIB *lib, const char *str, size_t length, CHARSET_INFO *cs,
+ulonglong find_set(const TYPELIB *lib,
+                   const char *str, size_t length, CHARSET_INFO *cs,
                    char **err_pos, uint *err_len, bool *set_warning)
 {
   CHARSET_INFO *strip= cs ? cs : &my_charset_latin1;
-  const char *end= str + strip->cset->lengthsp(strip, str, length);
+  const char *end= str + strip->lengthsp(str, length);
   ulonglong found= 0;
   *err_pos= 0;                  // No error yet
   *err_len= 0;
@@ -67,8 +69,8 @@ ulonglong find_set(TYPELIB *lib, const char *str, size_t length, CHARSET_INFO *c
         for ( ; pos < end; pos+= mblen)
         {
           my_wc_t wc;
-          if ((mblen= cs->cset->mb_wc(cs, &wc, (const uchar *) pos, 
-                                               (const uchar *) end)) < 1)
+          if ((mblen= cs->mb_wc(&wc, (const uchar *) pos,
+                                     (const uchar *) end)) < 1)
             mblen= 1; // Not to hang on a wrong multibyte sequence
           else if (wc == (my_wc_t) field_separator)
             break;
@@ -172,8 +174,8 @@ uint find_type2(const TYPELIB *typelib, const char *x, size_t length,
 
   for (pos=0 ; (j=typelib->type_names[pos]) ; pos++)
   {
-    if (!my_strnncoll(cs, (const uchar*) x, length,
-                          (const uchar*) j, typelib->type_lengths[pos]))
+    if (!cs->strnncoll(x, length,
+                       j, typelib->type_lengths[pos]))
       DBUG_RETURN(pos+1);
   }
   DBUG_PRINT("exit",("Couldn't find type"));
@@ -340,8 +342,8 @@ int find_string_in_array(LEX_CSTRING * const haystack, LEX_CSTRING * const needl
 {
   const LEX_CSTRING *pos;
   for (pos= haystack; pos->str; pos++)
-    if (!cs->coll->strnncollsp(cs, (uchar *) pos->str, pos->length,
-                               (uchar *) needle->str, needle->length))
+    if (!cs->strnncollsp(pos->str, pos->length,
+                         needle->str, needle->length))
     {
       return (int)(pos - haystack);
     }
@@ -363,7 +365,7 @@ const char *set_to_string(THD *thd, LEX_CSTRING *result, ulonglong set,
 
   for (uint i= 0; set; i++, set >>= 1)
     if (set & 1) {
-      tmp.append(lib[i]);
+      tmp.append(lib[i], strlen(lib[i]));
       tmp.append(',');
     }
 
@@ -394,8 +396,11 @@ const char *flagset_to_string(THD *thd, LEX_CSTRING *result, ulonglong set,
   // note that the last element is always "default", and it's ignored below
   for (uint i= 0; lib[i+1]; i++, set >>= 1)
   {
-    tmp.append(lib[i]);
-    tmp.append(set & 1 ? "=on," : "=off,");
+    tmp.append(lib[i], strlen(lib[i]));
+    if (set & 1)
+      tmp.append(STRING_WITH_LEN("=on,"));
+    else
+      tmp.append(STRING_WITH_LEN("=off,"));
   }
 
   result->str=    thd->strmake(tmp.ptr(), tmp.length()-1);

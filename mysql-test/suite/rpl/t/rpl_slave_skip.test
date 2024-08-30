@@ -55,7 +55,7 @@ SELECT * FROM t2;
 
 STOP SLAVE;
 --source include/wait_for_slave_to_stop.inc
-RESET SLAVE;
+--source include/reset_slave.inc
 connection master;
 RESET MASTER;
 

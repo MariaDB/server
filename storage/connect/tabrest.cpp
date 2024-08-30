@@ -12,6 +12,7 @@
 /***********************************************************************/
 #include <my_global.h>    // All MariaDB stuff
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <sql_error.h>
 #if !defined(_WIN32) && !defined(_WINDOWS)
 #include <sys/types.h>
@@ -37,7 +38,7 @@
 #include "tabrest.h"
 
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -335,7 +336,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   // Do make the table/view definition
   if (Tdp && Tdp->Define(g, Cat, Name, Schema, "REST"))
-    Tdp = NULL; // Error occured
+    Tdp = NULL; // Error occurred
 
   if (xt)
     htrc("Tdp defined\n", rc);

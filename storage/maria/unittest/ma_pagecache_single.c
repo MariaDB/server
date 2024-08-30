@@ -576,11 +576,11 @@ int simple_delete_flush_test()
 
 int simple_big_test()
 {
-  unsigned char *buffw= (unsigned char *) my_malloc(TEST_PAGE_SIZE, MYF(MY_WME));
-  unsigned char *buffr= (unsigned char *) my_malloc(TEST_PAGE_SIZE, MYF(MY_WME));
+  unsigned char *buffw= (unsigned char *) my_malloc(PSI_NOT_INSTRUMENTED, TEST_PAGE_SIZE, MYF(MY_WME));
+  unsigned char *buffr= (unsigned char *) my_malloc(PSI_NOT_INSTRUMENTED, TEST_PAGE_SIZE, MYF(MY_WME));
   struct file_desc *desc= ((struct file_desc *)
-                           my_malloc((PCACHE_SIZE/(TEST_PAGE_SIZE/2) + 1) *
-                                     sizeof(struct file_desc), MYF(MY_WME)));
+                           my_malloc(PSI_NOT_INSTRUMENTED,
+              (PCACHE_SIZE/(TEST_PAGE_SIZE/2) + 1) * sizeof(struct file_desc), MYF(MY_WME)));
   int res, i;
   DBUG_ENTER("simple_big_test");
 
@@ -726,7 +726,7 @@ int main(int argc __attribute__((unused)),
   MY_INIT(argv[0]);
 
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
   default_dbug_option= "d:t:i:O,\\test_pagecache_single.trace";
 #else
   default_dbug_option= "d:t:i:o,/tmp/test_pagecache_single.trace";
@@ -794,10 +794,6 @@ int main(int argc __attribute__((unused)),
 	    error,errno);
     exit(1);
   }
-
-#ifdef HAVE_THR_SETCONCURRENCY
-  thr_setconcurrency(2);
-#endif
 
   if ((pagen= init_pagecache(&pagecache, PCACHE_SIZE, 0, 0,
                              TEST_PAGE_SIZE, 0, MYF(MY_WME))) == 0)

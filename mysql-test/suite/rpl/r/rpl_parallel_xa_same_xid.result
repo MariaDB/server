@@ -1,0 +1,23 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+call mtr.add_suppression("WSREP: handlerton rollback failed");
+include/stop_slave.inc
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+SET @old_parallel_threads = @@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_mode     ='optimistic';
+include/start_slave.inc
+connection master;
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b INT) ENGINE=InnoDB;
+include/sync_slave_sql_with_master.inc
+include/diff_tables.inc [master:t1, slave:t1]
+connection slave;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+include/start_slave.inc
+connection master;
+DROP TABLE t1, t2;
+include/rpl_end.inc

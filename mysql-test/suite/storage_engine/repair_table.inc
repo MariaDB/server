@@ -87,7 +87,7 @@ DROP TABLE t1, t2;
 if ($have_default_index)
 {
   call mtr.add_suppression("Got an error from thread_id=.*");
-  call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
+  call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
   call mtr.add_suppression(" '\..test.t1'");
   call mtr.add_suppression("Couldn't repair table: test.t1");
 

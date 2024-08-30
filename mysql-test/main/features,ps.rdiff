@@ -1,0 +1,21 @@
+--- features.result
++++ features,ps.result
+@@ -46,7 +46,7 @@
+ 1212
+ show status like "feature_dynamic_columns";
+ Variable_name	Value
+-Feature_dynamic_columns	2
++Feature_dynamic_columns	4
+ #
+ # Feature fulltext
+ #
+@@ -93,7 +93,7 @@
+ drop table t1;
+ show status like "feature_subquery";
+ Variable_name	Value
+-Feature_subquery	4
++Feature_subquery	5
+ #
+ # Feature timezone
+ #
+

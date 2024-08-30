@@ -74,8 +74,10 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) noexcept : node_(node)
-    { DBUG_ASSERT(node_ != nullptr); }
+    explicit Iterator(ListNode *node) noexcept : node_(node)
+    {
+      DBUG_ASSERT(node_ != nullptr);
+    }
 
     Iterator &operator++() noexcept
     {
@@ -93,7 +95,7 @@ public:
     Iterator &operator--() noexcept
     {
       node_= node_->prev;
-      DBUG_ASSERT(node_);
+      DBUG_ASSERT(node_ != nullptr);
       return *this;
     }
     Iterator operator--(int) noexcept
@@ -104,6 +106,10 @@ public:
     }
 
     reference operator*() noexcept { return *static_cast<pointer>(node_); }
+    const_reference operator*() const noexcept
+    {
+      return *static_cast<pointer>(node_);
+    }
     pointer operator->() noexcept { return static_cast<pointer>(node_); }
 
     friend bool operator==(const Iterator &lhs, const Iterator &rhs) noexcept
@@ -192,7 +198,7 @@ public:
     curr->next= nullptr;
 #endif
 
-    return next;
+    return Iterator(next);
   }
 
   void push_back(reference value) noexcept { insert(end(), value); }

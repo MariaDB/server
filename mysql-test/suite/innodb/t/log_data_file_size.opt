@@ -1,2 +1,3 @@
 --loose-innodb-sys-indexes
 --innodb-data-file-path=ibdata1:1M:autoextend
+--innodb-undo-tablespaces=0

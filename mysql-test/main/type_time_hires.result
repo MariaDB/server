@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a time(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a time(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 Warnings:
@@ -75,7 +75,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` time(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	time(4)	YES		NULL	
@@ -129,12 +129,12 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` time(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');
 Warnings:
@@ -156,7 +156,7 @@ t2	CREATE TABLE `t2` (
   `a-1` decimal(12,4) DEFAULT NULL,
   `a*1` decimal(12,4) DEFAULT NULL,
   `a/2` decimal(15,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -164,7 +164,7 @@ t3	CREATE TABLE `t3` (
   `min(a)` time(4) DEFAULT NULL,
   `sum(a)` decimal(33,4) DEFAULT NULL,
   `avg(a)` decimal(15,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3;
 create table t1 (f0_time time(0), f1_time time(1), f2_time time(2), f3_time time(3), f4_time time(4), f5_time time(5), f6_time time(6));
 insert t1 values ( '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432');
@@ -271,8 +271,8 @@ create table t1 (a time(6), b time(6));
 create procedure foo(x time, y time(4)) insert into t1 values (x, y);
 call foo('2010-02-03 4:5:6.789123', '2010-02-03 4:5:6.789123');
 Warnings:
-Note	1265	Data truncated for column 'x' at row 1
-Note	1265	Data truncated for column 'y' at row 1
+Note	1265	Data truncated for column 'x' at row 0
+Note	1265	Data truncated for column 'y' at row 0
 select * from t1;
 a	b
 04:05:06.000000	04:05:06.789100
@@ -284,7 +284,7 @@ insert t1 values (b, c + interval a microsecond);
 end|
 call bar(1111111, '2011-01-02 3:4:5.123456');
 Warnings:
-Note	1265	Data truncated for column 'c' at row 1
+Note	1265	Data truncated for column 'c' at row 0
 select * from t1;
 a	b
 04:05:06.000000	04:05:06.789100
@@ -297,7 +297,7 @@ select xyz('1:1:1.010101');
 xyz('1:1:1.010101')
 11:11:11.1111
 Warnings:
-Note	1265	Data truncated for column 'xyz('1:1:1.010101')' at row 1
+Note	1265	Data truncated for column 'xyz('1:1:1.010101')' at row 0
 drop function xyz;
 create view v1 as select * from t1 group by a,b;
 select * from v1;
@@ -314,7 +314,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(6) DEFAULT NULL,
   `b` time(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 a	b
 03:04:06.234500	03:04:06.234561
@@ -379,7 +379,7 @@ t2	CREATE TABLE `t2` (
   `r2` time NOT NULL,
   `t1` time DEFAULT NULL,
   `t2` time NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME(6));
@@ -681,7 +681,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `FLOOR(TIME'00:00:00.999999')` time NOT NULL,
   `CEILING(TIME'00:00:00.999999')` time NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES ('838:59:59.999999');
@@ -917,4 +917,25 @@ c
 drop table t1;
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-27712 Reduce the size of Lex_length_and_dec_st from 16 to 8
+#
+CREATE TABLE t1 (a TIME(4294967295));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+CREATE TABLE t1 (a TIME(4294967296));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+CREATE TABLE t1 (a TIME(999999999999999999999999999999));
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
+SELECT CAST(1 AS TIME(4294967295));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+SELECT CAST(1 AS TIME(4294967296));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+SELECT CAST(1 AS TIME(999999999999999999999999999999));
+ERROR 42000: Too big precision specified for '1'. Maximum is 6
+#
+# Start of 10.9 tests
 #

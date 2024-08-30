@@ -16,7 +16,9 @@ CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE TABLE t1_SPIDER (a INT) ENGINE=SPIDER COMMENT = "wrapper 'mysql', srv 's', table 't1'";
 
+--disable_ps_protocol
 CREATE TABLE t2 AS SELECT a FROM t1_SPIDER;
+--enable_ps_protocol
 SELECT * FROM t2;
 
 # Cleanup

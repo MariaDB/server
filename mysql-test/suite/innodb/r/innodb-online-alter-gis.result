@@ -22,8 +22,8 @@ t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   SPATIAL KEY `c` (`b`),
   KEY `d` (`d`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ALTER ONLINE TABLE t1 ADD PRIMARY KEY(a),DROP INDEX d, ALGORITHM=INPLACE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Do not support online operation on table with GIS index. Try LOCK=SHARED
 show warnings;
 Level	Code	Message
@@ -42,7 +42,7 @@ drop table t1;
 #
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 ALTER TABLE t1 ADD COLUMN b LINESTRING DEFAULT POINT(1,1);
-ERROR 22007: Incorrect LINESTRING value: 'POINT(1 1)' for column ``.``.`b` at row 1
+ERROR 22007: Incorrect LINESTRING value: 'POINT(1 1)' for column ``.``.`b` at row 0
 DESCRIBE t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -61,7 +61,7 @@ t1	CREATE TABLE `t1` (
   `f3` linestring NOT NULL,
   PRIMARY KEY (`f1`),
   SPATIAL KEY `f3` (`f3`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1
 INSERT INTO t1 VALUES (1, ST_linefromtext(concat('linestring', '( 0 0, 1 1, 2 2, 3 3, 4 4, 5 5, 6 6, 7 7, 8 8, 9 9, 10 10, 11 11, 12 12, 13 13, 14 14, 15 15, 16 16, 17 17, 18 18, 19 19, 20 20, 21 21, 22 22, 23 23, 24 24, 25 25, 26 26, 27 27, 28 28, 29 29, 30 30, 31 31, 32 32, 33 33, 34 34, 35 35, 36 36, 37 37, 38 38, 39 39, 40 40, 41 41, 42 42, 43 43, 44 44, 45 45, 46 46, 47 47, 48 48, 49 49, 50 50, 51 51, 52 52, 53 53, 54 54, 55 55, 56 56, 57 57, 58 58, 59 59, 60 60, 61 61, 62 62, 63 63, 64 64, 65 65, 66 66, 67 67, 68 68, 69 69, 70 70, 71 71, 72 72, 73 73, 74 74, 75 75, 76 76, 77 77, 78 78, 79 79, 9999 9999)')));;
 ALTER TABLE t1 ROW_FORMAT = DYNAMIC, KEY_BLOCK_SIZE=0, ALGORITHM=INPLACE;
 DROP TABLE t1;

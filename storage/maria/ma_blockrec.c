@@ -455,11 +455,14 @@ my_bool _ma_once_end_block_record(MARIA_SHARE *share)
       File must be synced as it is going out of the maria_open_list and so
       becoming unknown to Checkpoint.
     */
-    if (share->now_transactional &&
-        mysql_file_sync(share->bitmap.file.file, MYF(MY_WME)))
-      res= 1;
-    if (mysql_file_close(share->bitmap.file.file, MYF(MY_WME)))
-      res= 1;
+    if (!share->s3_path)
+    {
+      if (share->now_transactional &&
+          mysql_file_sync(share->bitmap.file.file, MYF(MY_WME)))
+        res= 1;
+      if (mysql_file_close(share->bitmap.file.file, MYF(MY_WME)))
+        res= 1;
+    }
     /*
       Trivial assignment to guard against multiple invocations
       (May happen if file are closed but we want to keep the maria object
@@ -489,7 +492,7 @@ my_bool _ma_init_block_record(MARIA_HA *info)
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
-  if (!my_multi_malloc(flag,
+  if (!my_multi_malloc(PSI_INSTRUMENT_ME, flag,
                        &row->empty_bits, share->base.pack_bytes,
                        &row->field_lengths,
                        share->base.max_field_lengths + 2,
@@ -528,11 +531,13 @@ my_bool _ma_init_block_record(MARIA_HA *info)
                      FULL_PAGE_SIZE(share) /
                      BLOB_SEGMENT_MIN_SIZE));
 
-  if (my_init_dynamic_array(&info->bitmap_blocks, sizeof(MARIA_BITMAP_BLOCK),
+  if (my_init_dynamic_array(PSI_INSTRUMENT_ME, &info->bitmap_blocks,
+                            sizeof(MARIA_BITMAP_BLOCK),
                             default_extents, 64, flag))
     goto err;
   info->cur_row.extents_buffer_length= default_extents * ROW_EXTENT_SIZE;
-  if (!(info->cur_row.extents= my_malloc(info->cur_row.extents_buffer_length,
+  if (!(info->cur_row.extents= my_malloc(PSI_INSTRUMENT_ME,
+                                         info->cur_row.extents_buffer_length,
                                          flag)))
     goto err;
 
@@ -916,7 +921,7 @@ static my_bool extend_area_on_page(MARIA_HA *info,
           DBUG_PRINT("error", ("Not enough space: "
                                "length: %u  request_length: %u",
                                length, request_length));
-          _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+          _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
           DBUG_RETURN(1);                       /* Error in block */
         }
         *empty_space= length;                   /* All space is here */
@@ -1783,7 +1788,10 @@ static my_bool get_head_or_tail_page(MARIA_HA *info,
     page_link.changed= res->buff != 0;
     push_dynamic(&info->pinned_pages, (void*) &page_link);
     if (!page_link.changed)
-      goto crashed;
+    {
+      _ma_set_fatal_error(info, my_errno);
+      DBUG_RETURN(1);
+    }
 
     DBUG_ASSERT((uint) (res->buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) ==
                 page_type);
@@ -1821,7 +1829,7 @@ static my_bool get_head_or_tail_page(MARIA_HA *info,
 
 crashed:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);  /* File crashed */
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);  /* File crashed */
   DBUG_RETURN(1);
 }
 
@@ -1879,7 +1887,10 @@ static my_bool get_rowpos_in_head_or_tail_page(MARIA_HA *info,
     page_link.changed= buff != 0;
     push_dynamic(&info->pinned_pages, (void*) &page_link);
     if (!page_link.changed)                     /* Read error */
-      goto err;
+    {
+      _ma_set_fatal_error(info, my_errno);
+      DBUG_RETURN(1);
+    }
     DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) ==
                 (uchar) page_type);
     if ((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) != (uchar) page_type)
@@ -1916,7 +1927,7 @@ static my_bool get_rowpos_in_head_or_tail_page(MARIA_HA *info,
 
 err:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);  /* File crashed */
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);  /* File crashed */
   DBUG_RETURN(1);
 }
 
@@ -2080,7 +2091,8 @@ static my_bool write_tail(MARIA_HA *info,
         data_file_length after writing any log record (FILE_ID/REDO/UNDO) (see
         collect_tables()).
       */
-      _ma_set_share_data_file_length(share, position + block_size);
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        res= 1;
     }
   }
   DBUG_RETURN(res);
@@ -2141,7 +2153,7 @@ static my_bool write_full_pages(MARIA_HA *info,
     {
       if (!--sub_blocks)
       {
-        _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+        _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
         DBUG_RETURN(1);
       }
 
@@ -2183,7 +2195,10 @@ static my_bool write_full_pages(MARIA_HA *info,
     DBUG_ASSERT(block->used & BLOCKUSED_USED);
   }
   if (share->state.state.data_file_length < max_position)
-    _ma_set_share_data_file_length(share, max_position);
+  {
+    if (_ma_set_share_data_file_length(info, max_position))
+      DBUG_RETURN(1);
+  }
   DBUG_RETURN(0);
 }
 
@@ -2455,11 +2470,12 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
     /* Compact events by removing filler and tail events */
     uchar *new_block= 0;
     uchar *end, *to, *compact_extent_info;
-    my_bool res;
+    my_bool res, buff_alloced;
     uint extents_count;
 
-    if (!(compact_extent_info= my_alloca(row->extents_count *
-                                         ROW_EXTENT_SIZE)))
+    alloc_on_stack(*info->stack_end_ptr, compact_extent_info, buff_alloced,
+                   row->extents_count * ROW_EXTENT_SIZE);
+    if (!compact_extent_info)
       DBUG_RETURN(1);
 
     to= compact_extent_info;
@@ -2498,7 +2514,7 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
         No ranges. This happens in the rear case when we have a allocated
         place for a blob on a tail page but it did fit into the main page.
       */
-      my_afree(compact_extent_info);
+      stack_alloc_free(compact_extent_info, buff_alloced);
       DBUG_RETURN(0);
     }
     extents_count= (uint) (extents_length / ROW_EXTENT_SIZE);
@@ -2513,7 +2529,7 @@ static my_bool free_full_pages(MARIA_HA *info, MARIA_ROW *row)
                                                   extents_length),
                                TRANSLOG_INTERNAL_PARTS + 2, log_array,
                                log_data, NULL);
-    my_afree(compact_extent_info);
+    stack_alloc_free(compact_extent_info, buff_alloced);
     if (res)
       DBUG_RETURN(1);
   }
@@ -2767,7 +2783,8 @@ static my_bool write_block_record(MARIA_HA *info,
     const uchar *field_pos;
     ulong length;
     if ((record[column->null_pos] & column->null_bit) ||
-        (row->empty_bits[column->empty_pos] & column->empty_bit))
+        (column->empty_bit &&
+         (row->empty_bits[column->empty_pos] & column->empty_bit)))
       continue;
 
     field_pos= record + column->offset;
@@ -3202,7 +3219,10 @@ static my_bool write_block_record(MARIA_HA *info,
     /* Increase data file size, if extended */
     position= (my_off_t) head_block->page * block_size;
     if (share->state.state.data_file_length <= position)
-      _ma_set_share_data_file_length(share, position + block_size);
+    {
+      if (_ma_set_share_data_file_length(info, position + block_size))
+        goto disk_err;
+    }
   }
 
   if (share->now_transactional && (tmp_data_used || blob_full_pages_exists))
@@ -3231,7 +3251,7 @@ static my_bool write_block_record(MARIA_HA *info,
     }
     else
     {
-      if (!my_multi_malloc(MY_WME, &log_array,
+      if (!my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME), &log_array,
                           (uint) ((bitmap_blocks->count +
                                    TRANSLOG_INTERNAL_PARTS + 2) *
                                   sizeof(*log_array)),
@@ -3468,7 +3488,7 @@ static my_bool write_block_record(MARIA_HA *info,
 crashed:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
   /* Something was wrong with data on page */
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 
 disk_err:
   /**
@@ -3677,6 +3697,15 @@ my_bool _ma_write_abort_block_record(MARIA_HA *info)
   _ma_bitmap_unlock(share);
   if (share->now_transactional)
   {
+    /*
+      Write clr to mark end of aborted row insert.
+      The above delete_head_or_tail() calls will only log redo, not undo.
+      The undo just before the row insert is stored in row->orig_undo_lsn.
+
+      When applying undo's, we can skip all undo records between current
+      lsn and row->orig_undo_lsn as logically things are as before the
+      attempted insert.
+    */
     if (_ma_write_clr(info, info->cur_row.orig_undo_lsn,
                       LOGREC_UNDO_ROW_INSERT,
                       share->calc_checksum != 0,
@@ -3743,7 +3772,10 @@ static my_bool _ma_update_block_record2(MARIA_HA *info,
   page_link.changed= buff != 0;
   push_dynamic(&info->pinned_pages, (void*) &page_link);
   if (!buff)
+  {
+    _ma_set_fatal_error(info, my_errno);
     goto err;
+  }
 
   org_empty_size= uint2korr(buff + EMPTY_SPACE_OFFSET);
   rownr= ma_recordpos_to_dir_entry(record_pos);
@@ -3931,7 +3963,10 @@ static my_bool _ma_update_at_original_place(MARIA_HA *info,
   page_link.changed= buff != 0;
   push_dynamic(&info->pinned_pages, (void*) &page_link);
   if (!buff)
+  {
+    _ma_set_fatal_error(info, my_errno);
     goto err;
+  }
 
   org_empty_size= uint2korr(buff + EMPTY_SPACE_OFFSET);
   dir= dir_entry_pos(buff, block_size, rownr);
@@ -3942,7 +3977,7 @@ static my_bool _ma_update_at_original_place(MARIA_HA *info,
                ("org_empty_size: %u  head_length: %u  length_on_page: %u",
                 org_empty_size, (uint) cur_row->head_length,
                 length_on_head_page));
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
     goto err;
   }
 
@@ -4184,7 +4219,10 @@ static my_bool delete_head_or_tail(MARIA_HA *info,
   page_link.changed= buff != 0;
   push_dynamic(&info->pinned_pages, (void*) &page_link);
   if (!buff)
+  {
+    _ma_set_fatal_error(info, my_errno);
     DBUG_RETURN(1);
+  }
   DBUG_ASSERT((buff[PAGE_TYPE_OFFSET] & PAGE_TYPE_MASK) ==
               (head ? HEAD_PAGE : TAIL_PAGE));
 
@@ -4592,7 +4630,7 @@ static uchar *read_next_extent(MARIA_HA *info, MARIA_EXTENT_CURSOR *extent,
 
 crashed:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_PRINT("error", ("wrong extent information"));
   DBUG_RETURN(0);
 }
@@ -4738,7 +4776,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     {
       /* File crashed */
       DBUG_ASSERT(!maria_assert_if_crashed_table);
-      _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+      _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
       DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
     }
     if (!trnman_can_read_from(info->trn, cur_row->trid))
@@ -4856,7 +4894,8 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     uchar *field_pos= record + column->offset;
     /* First check if field is present in record */
     if ((record[column->null_pos] & column->null_bit) ||
-        (cur_row->empty_bits[column->empty_pos] & column->empty_bit))
+        (column->empty_bit &&
+         (cur_row->empty_bits[column->empty_pos] & column->empty_bit)))
     {
       bfill(record + column->offset, column->fill_length,
             type == FIELD_SKIP_ENDSPACE ? ' ' : 0);
@@ -4896,9 +4935,11 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     case FIELD_VARCHAR:
     {
       ulong length;
+      uint pack_length __attribute__((unused));
       if (column->length <= 256)
       {
         length= (uint) (uchar) (*field_pos++= *field_length_data++);
+        pack_length= 1;
       }
       else
       {
@@ -4907,14 +4948,16 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         field_pos[1]= field_length_data[1];
         field_pos+= 2;
         field_length_data+= 2;
+        pack_length= 2;
       }
 #ifdef SANITY_CHECKS
-      if (length > column->length)
+      if (length > column->length - pack_length)
         goto err;
 #endif
       if (read_long_data(info, field_pos, length, &extent, &data,
                          &end_of_data))
         DBUG_RETURN(my_errno);
+      MEM_UNDEFINED(field_pos + length, column->length - length - pack_length);
       break;
     }
     case FIELD_BLOB:
@@ -4935,8 +4978,9 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         {
           uint size_length;
           if ((record[blob_field->null_pos] & blob_field->null_bit) ||
-              (cur_row->empty_bits[blob_field->empty_pos] &
-               blob_field->empty_bit))
+              (blob_field->empty_bit &
+               (cur_row->empty_bits[blob_field->empty_pos] &
+                blob_field->empty_bit)))
             continue;
           size_length= blob_field->length - portable_sizeof_char_ptr;
           blob_lengths+= _ma_calc_blob_length(size_length, length_data);
@@ -5022,7 +5066,7 @@ err:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
   /* Something was wrong with data on record */
   DBUG_PRINT("error", ("Found record with wrong data"));
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
 }
 
@@ -5190,13 +5234,12 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
   uchar *org_rec_buff, *old_record;
   size_t org_rec_buff_size;
   int error;
+  my_bool buff_alloced;
   DBUG_ENTER("_ma_cmp_block_unique");
 
-  /*
-    Don't allocate more than 16K on the stack to ensure we don't get
-    stack overflow.
-  */
-  if (!(old_record= my_safe_alloca(info->s->base.reclength)))
+  alloc_on_stack(*info->stack_end_ptr, old_record, buff_alloced,
+                 info->s->base.reclength);
+  if (!old_record)
     DBUG_RETURN(1);
 
   /* Don't let the compare destroy blobs that may be in use */
@@ -5218,7 +5261,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
     info->rec_buff_size= org_rec_buff_size;
   }
   DBUG_PRINT("exit", ("result: %d", error));
-  my_safe_afree(old_record, info->s->base.reclength);
+  stack_alloc_free(old_record, buff_alloced);
   DBUG_RETURN(error != 0);
 }
 
@@ -5255,7 +5298,8 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
   */
   if (!(info->scan.bitmap_buff ||
         ((info->scan.bitmap_buff=
-          (uchar *) my_malloc(share->block_size * 2, flag)))))
+          (uchar *) my_malloc(PSI_INSTRUMENT_ME, share->block_size * 2,
+                              flag)))))
     DBUG_RETURN(1);
   info->scan.page_buff= info->scan.bitmap_buff + share->block_size;
   info->scan.bitmap_end= info->scan.bitmap_buff + share->bitmap.max_total_size;
@@ -5310,7 +5354,8 @@ int _ma_scan_remember_block_record(MARIA_HA *info,
   DBUG_ENTER("_ma_scan_remember_block_record");
   if (!(info->scan_save))
   {
-    if (!(info->scan_save= my_malloc(ALIGN_SIZE(sizeof(*info->scan_save)) +
+    if (!(info->scan_save= my_malloc(PSI_INSTRUMENT_ME,
+                                     ALIGN_SIZE(sizeof(*info->scan_save)) +
                                      info->s->block_size * 2,
                                      MYF(MY_WME))))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -5532,7 +5577,7 @@ restart_bitmap_scan:
                (uint) (uchar) info->scan.page_buff[DIR_COUNT_OFFSET]) == 0)
           {
             DBUG_PRINT("error", ("Wrong page header"));
-            _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+            _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
             DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
           }
           DBUG_PRINT("info", ("Page %lu has %u rows",
@@ -5579,7 +5624,7 @@ restart_bitmap_scan:
 err:
   DBUG_ASSERT(!maria_assert_if_crashed_table);
   DBUG_PRINT("error", ("Wrong data on page"));
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_RETURN(HA_ERR_WRONG_IN_RECORD);
 }
 
@@ -5788,7 +5833,8 @@ static size_t fill_insert_undo_parts(MARIA_HA *info, const uchar *record,
     const uchar *column_pos;
     size_t column_length;
     if ((record[column->null_pos] & column->null_bit) ||
-        cur_row->empty_bits[column->empty_pos] & column->empty_bit)
+        (column->empty_bit &&
+         cur_row->empty_bits[column->empty_pos] & column->empty_bit))
       continue;
 
     column_pos=    record+ column->offset;
@@ -5969,7 +6015,8 @@ static size_t fill_update_undo_parts(MARIA_HA *info, const uchar *oldrec,
       */
       continue;
     }
-    if (old_row->empty_bits[column->empty_pos] & column->empty_bit)
+    if (column->empty_bit &&
+        (old_row->empty_bits[column->empty_pos] & column->empty_bit))
     {
       if (new_row->empty_bits[column->empty_pos] & column->empty_bit)
         continue;                               /* Both are empty; skip */
@@ -5985,8 +6032,9 @@ static size_t fill_update_undo_parts(MARIA_HA *info, const uchar *oldrec,
       log the original value
     */
     new_column_is_empty= ((newrec[column->null_pos] & column->null_bit) ||
-                          (new_row->empty_bits[column->empty_pos] &
-                           column->empty_bit));
+                          (column->empty_bit &&
+                           (new_row->empty_bits[column->empty_pos] &
+                            column->empty_bit)));
 
     old_column_pos=      oldrec + column->offset;
     new_column_pos=      newrec + column->offset;
@@ -6501,7 +6549,7 @@ uint _ma_apply_redo_insert_row_head_or_tail(MARIA_HA *info, LSN lsn,
   DBUG_RETURN(result);
 
 crashed_file:
-  _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+  _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
 err:
   error= my_errno;
   if (lock_method == PAGECACHE_LOCK_LEFT_WRITELOCKED)
@@ -6589,7 +6637,7 @@ uint _ma_apply_redo_purge_row_head_or_tail(MARIA_HA *info, LSN lsn,
 
   if (delete_dir_entry(share, buff, rownr, &empty_space) < 0)
   {
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
     goto err;
   }
 
@@ -7134,7 +7182,8 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
     row.blob_length= ma_get_length(&header);
 
   /* We need to build up a record (without blobs) in rec_buff */
-  if (!(record= my_malloc(share->base.reclength, MYF(MY_WME))))
+  if (!(record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength,
+                          MYF(MY_WME))))
     DBUG_RETURN(1);
 
   memcpy(record, null_bits, share->base.null_bytes);
@@ -7158,7 +7207,8 @@ my_bool _ma_apply_undo_row_delete(MARIA_HA *info, LSN undo_lsn,
        column++, null_field_lengths++)
   {
     if ((record[column->null_pos] & column->null_bit) ||
-        row.empty_bits[column->empty_pos] & column->empty_bit)
+        (column->empty_bit &&
+         row.empty_bits[column->empty_pos] & column->empty_bit))
     {
       if (column->type != FIELD_BLOB)
         *null_field_lengths= 0;
@@ -7359,7 +7409,8 @@ my_bool _ma_apply_undo_row_update(MARIA_HA *info, LSN undo_lsn,
   field_length_data_end= header;
 
   /* Allocate buffer for current row & original row */
-  if (!(current_record= my_malloc(share->base.reclength * 2, MYF(MY_WME))))
+  if (!(current_record= my_malloc(PSI_INSTRUMENT_ME, share->base.reclength * 2,
+                                  MYF(MY_WME))))
     DBUG_RETURN(1);
   orig_record= current_record+ share->base.reclength;
 

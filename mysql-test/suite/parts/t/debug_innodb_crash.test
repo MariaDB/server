@@ -1,0 +1,22 @@
+# Partitioning test that require debug features and InnoDB
+
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_partition.inc
+--source include/not_valgrind.inc
+--source include/not_embedded.inc
+
+# Checking with #innodb what this is...
+call mtr.add_suppression("InnoDB: Warning: allocated tablespace .*, old maximum was");
+# If there is a crash or failure between the ddl_log is written and the
+# operation is completed, mysql will try to drop a not yet created partition
+call mtr.add_suppression("table .* does not exist in the InnoDB internal");
+call mtr.add_suppression("InnoDB: Warning: MariaDB is trying to drop table ");
+
+--let $DATADIR= `SELECT @@datadir;`
+
+let $engine= 'InnoDB';
+
+--echo # Test crash recovery in fast_alter_partition_table.
+let $do_crash=1;
+--source suite/parts/inc/partition_mgm_crash.inc

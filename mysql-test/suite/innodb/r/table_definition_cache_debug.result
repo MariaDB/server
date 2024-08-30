@@ -1,4 +1,4 @@
-call mtr.add_suppression("InnoDB: innodb_open_files=13 is exceeded");
+call mtr.add_suppression("InnoDB: innodb_open_files=.* is exceeded");
 SET @save_tdc= @@GLOBAL.table_definition_cache;
 SET @save_toc= @@GLOBAL.table_open_cache;
 SET GLOBAL table_definition_cache= 400;
@@ -12,6 +12,7 @@ connection default;
 SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 BEGIN;
 INSERT INTO to_be_evicted VALUES(3, 2);
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL got_duplicate';
 connection ddl;
 ERROR 23000: Duplicate entry '2' for key 'b'

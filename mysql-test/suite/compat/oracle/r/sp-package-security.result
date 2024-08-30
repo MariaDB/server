@@ -55,7 +55,7 @@ Package	sql_mode	Create Package	character_set_client	collation_connection	Databa
 pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="root"@"localhost" PACKAGE "pkg1" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN TEXT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # u1 cannot SHOW yet:
 # - the standalone procedure earlier created by root
@@ -94,10 +94,10 @@ connect  conn1,localhost,u1,,db1;
 SET sql_mode=ORACLE;
 SHOW CREATE PROCEDURE db1.p1root;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE db1.pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Now revoke EXECUTE and grant CREATE ROUTINE instead
 #
@@ -118,10 +118,10 @@ SET sql_mode=ORACLE;
 #
 SHOW CREATE PROCEDURE p1root;
 Procedure	sql_mode	Create Procedure	character_set_client	collation_connection	Database Collation
-p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+p1root	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 #
 # Now u1 can CREATE, DROP and EXECUTE its own standalone procedures
 #
@@ -154,7 +154,7 @@ Package	sql_mode	Create Package	character_set_client	collation_connection	Databa
 pkg2	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="u1"@"localhost" PACKAGE "pkg2" AS
 PROCEDURE p1;
 FUNCTION f1 RETURN TEXT;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW GRANTS;
 Grants for u1@localhost
 GRANT USAGE ON *.* TO "u1"@"localhost"
@@ -175,13 +175,13 @@ END;
 $$
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg1;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
 pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	CREATE DEFINER="u1"@"localhost" PACKAGE BODY "pkg1" AS
 PROCEDURE p1 AS BEGIN SELECT 'This is pkg1.p1' AS `comment`; END;
 FUNCTION f1 RETURN TEXT AS BEGIN RETURN 'This is pkg1.f1'; END;
-END	latin1	latin1_swedish_ci	latin1_swedish_ci
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW GRANTS;
 Grants for u1@localhost
 GRANT USAGE ON *.* TO "u1"@"localhost"
@@ -211,10 +211,10 @@ $$
 connection conn1;
 SHOW CREATE PACKAGE pkg1;
 Package	sql_mode	Create Package	character_set_client	collation_connection	Database Collation
-pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SHOW CREATE PACKAGE BODY pkg1;
 Package body	sql_mode	Create Package Body	character_set_client	collation_connection	Database Collation
-pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	latin1_swedish_ci
+pkg1	PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ORACLE,NO_KEY_OPTIONS,NO_TABLE_OPTIONS,NO_FIELD_OPTIONS,NO_AUTO_CREATE_USER,SIMULTANEOUS_ASSIGNMENT	NULL	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 CALL pkg1.p1;
 ERROR 42000: execute command denied to user 'u1'@'localhost' for routine 'db1.pkg1'
 SELECT pkg1.f1();

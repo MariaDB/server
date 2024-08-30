@@ -1,0 +1,11 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-24422 Server crashes in GetTypeID / ha_connect::GetRealType upon
+--echo # altering table engine
+--echo #
+
+CREATE TABLE t1 (f INT) ENGINE=CONNECT;
+ALTER TABLE t1 ENGINE InnoDB;
+ALTER TABLE t1 ENGINE CONNECT;
+DROP TABLE t1;

@@ -52,8 +52,15 @@ id
 50
 80
 40
+DROP TABLE IF EXISTS v1;
+Warnings:
+Note	1965	'test.v1' is a view
 DROP VIEW IF EXISTS v1;
 DROP VIEW IF EXISTS v1;
 Warnings:
 Note	4092	Unknown VIEW: 'test.v1'
+DROP VIEW IF EXISTS t1;
+Warnings:
+Warning	1347	'test.t1' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.t1'
 DROP TABLE t1;

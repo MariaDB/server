@@ -156,7 +156,7 @@ DELETE FROM t_60905 WHERE i = 1;
 # should delete with a full scan (5 NULL fetch, 1 NULL delete)
 DELETE FROM t_60905 WHERE j = 8;
 
-# show the instrument data
+# show the instrument data.
 SELECT object_schema,
        object_name,
        index_name,
@@ -169,6 +169,24 @@ SELECT object_schema,
    AND object_name = 't_60905';
 
 DROP TABLE t_60905;
+
+#
+# Bug#71278 NUMBER OF ROWS IN PERFORMANCE SCHEMA TABLES
+#
+
+show global variables like "performance_schema_max_thread_instances";
+replace_result 512 256;
+explain select * from performance_schema.threads;
+
+#
+# Bug #73082 SHOW EVENTS in performance_schema gives Access Denied
+#
+
+use performance_schema;
+show events;
+show events from performance_schema;
+show events where Db= 'performance_schema';
+use test;
 
 
 #
@@ -187,7 +205,7 @@ select * from t1;
 select mysql_errno, returned_sqlstate, message_text, errors, warnings
   from performance_schema.events_statements_history where errors > 0;
   
---echo
+--echo #
 select mysql_errno, returned_sqlstate, message_text, errors, warnings from 
   performance_schema.events_statements_history_long where errors > 0;
 
@@ -270,3 +288,34 @@ enable_query_log;
 # an unexpected refcount.
 FLUSH TABLE t0;
 DROP TABLE t0;
+
+--echo #
+--echo # MDEV-24364 Alter rename table does not remove PFS share
+--echo #
+create or replace table yt4 (x int) engine innodb;
+alter table yt4 rename to t1, algorithm=copy;
+drop tables t1;
+
+select object_type, object_schema, object_name
+from performance_schema.objects_summary_global_by_type
+where object_schema="test";
+
+--echo #
+--echo # MDEV-28344: sys.ps_setup_save and dependent procedures fail
+--echo #             with ER_ILLEGAL_HA_CREATE_OPTION
+--echo #
+
+# It is not allowed to create temporary tables with performance schema
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 (t int) ENGINE = PERFORMANCE_SCHEMA;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 LIKE performance_schema.setup_actors;
+
+SET @default_storage_engine_old = @@default_storage_engine;
+SET default_storage_engine = performance_schema;
+
+--error ER_ILLEGAL_HA_CREATE_OPTION
+CREATE TEMPORARY TABLE t1 (t int);
+
+SET @@default_storage_engine = @default_storage_engine_old;

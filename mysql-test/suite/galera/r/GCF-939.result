@@ -8,6 +8,6 @@ INSERT INTO t1 VALUES (1);
 GRA_.log
 GRA_.log
 DROP TABLE t1;
-CALL mtr.add_suppression("Ignoring error 'Unknown table 'test.t1'' on query");
+CALL mtr.add_suppression("Ignoring error 'Unknown table 'test\\.t1'' on query");
 connection node_2;
-CALL mtr.add_suppression("Error 'Unknown table 'test.t1'' on query");
+CALL mtr.add_suppression("Error 'Unknown table 'test\\.t1'' on query");

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,12 +26,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_setup_timers.h"
 #include "pfs_column_values.h"
 #include "pfs_timer.h"
+#include "field.h"
+#include "derror.h" /* ER_THD */
 
-#define COUNT_SETUP_TIMERS 4
+#define COUNT_SETUP_TIMERS 5
 
 static row_setup_timers all_setup_timers_data[COUNT_SETUP_TIMERS]=
 {
@@ -50,31 +52,50 @@ static row_setup_timers all_setup_timers_data[COUNT_SETUP_TIMERS]=
   {
     { C_STRING_WITH_LEN("statement") },
     &statement_timer
+  },
+  {
+    { C_STRING_WITH_LEN("transaction") },
+    &transaction_timer
   }
 };
 
 THR_LOCK table_setup_timers::m_table_lock;
+
+PFS_engine_table_share_state
+table_setup_timers::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_setup_timers::m_share=
 {
   { C_STRING_WITH_LEN("setup_timers") },
   &pfs_updatable_acl,
-  &table_setup_timers::create,
+  table_setup_timers::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  COUNT_SETUP_TIMERS,
+  table_setup_timers::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_timers("
                       "NAME VARCHAR(64) not null comment 'Type of instrument the timer is used for.',"
-                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null comment 'Timer applying to the instrument type. Can be modified.')") }
+                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null comment 'Timer applying to the instrument type. Can be modified.')") },
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_setup_timers::create(void)
 {
+  warn_deprecated<1005>(current_thd, "performance_schema.setup_timers");
+
   return new table_setup_timers();
+}
+
+ha_rows
+table_setup_timers::get_row_count(void)
+{
+  return COUNT_SETUP_TIMERS;
 }
 
 table_setup_timers::table_setup_timers()
@@ -112,7 +133,7 @@ int table_setup_timers::rnd_next(void)
 int table_setup_timers::rnd_pos(const void *pos)
 {
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < COUNT_SETUP_TIMERS);
+  assert(m_pos.m_index < COUNT_SETUP_TIMERS);
   m_row= &all_setup_timers_data[m_pos.m_index];
   return 0;
 }
@@ -124,10 +145,10 @@ int table_setup_timers::read_row_values(TABLE *table,
 {
   Field *f;
 
-  DBUG_ASSERT(m_row);
+  assert(m_row);
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 0);
+  assert(table->s->null_bytes == 0);
 
   for (; (f= *fields) ; fields++)
   {
@@ -142,7 +163,7 @@ int table_setup_timers::read_row_values(TABLE *table,
         set_field_enum(f, *(m_row->m_timer_name_ptr));
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }
@@ -158,7 +179,7 @@ int table_setup_timers::update_row_values(TABLE *table,
   Field *f;
   longlong value;
 
-  DBUG_ASSERT(m_row);
+  assert(m_row);
 
   for (; (f= *fields) ; fields++)
   {
@@ -176,7 +197,7 @@ int table_setup_timers::update_row_values(TABLE *table,
           return HA_ERR_WRONG_COMMAND;
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

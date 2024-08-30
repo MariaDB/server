@@ -28,7 +28,7 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
   MYSQLDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "MYSQL";}
+  const char *GetType(void) override {return "MYSQL";}
   inline  PSZ  GetHostname(void) {return Hostname;};
 //inline  PSZ  GetDatabase(void) {return Tabschema;};
 //inline  PSZ  GetTabname(void) {return Tabname;}
@@ -39,8 +39,8 @@ class MYSQLDEF : public EXTDEF           {/* Logical table description */
 
   // Methods
 //virtual int  Indexable(void) {return 2;}
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
           bool ParseURL(PGLOBAL g, char *url, bool b = true);
           bool GetServerInfo(PGLOBAL g, const char *server_name);
 
@@ -77,30 +77,30 @@ class TDBMYSQL : public TDBEXT {
   TDBMYSQL(PTDBMY tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_MYSQL;}
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYSQL(this);}
+  AMT  GetAmType(void) override {return TYPE_AM_MYSQL;}
+  PTDB Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBMYSQL(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
+  PTDB Clone(PTABS t) override;
 //virtual int  GetAffectedRows(void) {return AftRows;}
-  virtual int  GetRecpos(void) {return N;}
-  virtual int  GetProgMax(PGLOBAL g);
-  virtual void ResetDB(void) {N = 0;}
-  virtual int  RowNumber(PGLOBAL g, bool b = false);
-  virtual bool IsView(void) {return Isview;}
-  virtual PCSZ GetServer(void) {return Server;}
+  int  GetRecpos(void) override {return N;}
+  int  GetProgMax(PGLOBAL g) override;
+  void ResetDB(void) override {N = 0;}
+  int  RowNumber(PGLOBAL g, bool b = false) override;
+  bool IsView(void) override {return Isview;}
+  PCSZ GetServer(void) override {return Server;}
           void SetDatabase(LPCSTR db) {Schema = (char*)db;}
 
   // Schema routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  Cardinality(PGLOBAL g);
-//virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
-  virtual int  DeleteDB(PGLOBAL g, int irc);
-  virtual void CloseDB(PGLOBAL g);
-  virtual bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  Cardinality(PGLOBAL g) override;
+//int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
+  int  DeleteDB(PGLOBAL g, int irc) override;
+  void CloseDB(PGLOBAL g) override;
+  bool ReadKey(PGLOBAL g, OPVAL op, const key_range *kr) override;
 
   // Specific routines
           bool SetColumnRanks(PGLOBAL g);
@@ -112,7 +112,7 @@ class TDBMYSQL : public TDBEXT {
   bool MakeSelect(PGLOBAL g, bool mx);
   bool MakeInsert(PGLOBAL g);
   int  BindColumns(PGLOBAL g __attribute__((unused)));
-  virtual bool MakeCommand(PGLOBAL g);
+  bool MakeCommand(PGLOBAL g) override;
 //int  MakeUpdate(PGLOBAL g);  
 //int  MakeDelete(PGLOBAL g);
   int  SendCommand(PGLOBAL g);
@@ -154,13 +154,13 @@ class MYSQLCOL : public COLBLK {
   MYSQLCOL(MYSQLCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_MYSQL;}
+  int  GetAmType(void) override {return TYPE_AM_MYSQL;}
           void InitBind(PGLOBAL g);
 
   // Methods
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
           bool FindRank(PGLOBAL g);
 
  protected:
@@ -182,19 +182,19 @@ class TDBMYEXC : public TDBMYSQL {
   TDBMYEXC(PTDBMYX tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_MYX;}
-  virtual PTDB Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBMYEXC(this);}
+  AMT  GetAmType(void) override {return TYPE_AM_MYX;}
+  PTDB Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBMYEXC(this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
-  virtual bool IsView(void) {return Isview;}
+  PTDB Clone(PTABS t) override;
+  bool IsView(void) override {return Isview;}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  ReadDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  ReadDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
 
  protected:
   // Internal functions
@@ -223,8 +223,8 @@ class MYXCOL : public MYSQLCOL {
   MYXCOL(MYXCOL *colp, PTDB tdbp);   // Constructor used in copy process
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
 
  protected:
   // Members
@@ -242,7 +242,7 @@ class TDBMCL : public TDBCAT {
 
  protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g);
+	PQRYRES GetResult(PGLOBAL g) override;
 
   // Members
   PCSZ Host;                      // Host machine to use            

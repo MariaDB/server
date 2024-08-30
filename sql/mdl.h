@@ -1,6 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 /* Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,17 +17,18 @@
    51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "sql_plist.h"
+#include "ilist.h"
 #include <my_sys.h>
 #include <m_string.h>
 #include <mysql_com.h>
 #include <lf.h>
+#include "lex_ident.h"
 
 class THD;
 
 class MDL_context;
 class MDL_lock;
 class MDL_ticket;
-bool  ok_for_lower_case_names(const char *name);
 
 typedef unsigned short mdl_bitmap_t;
 #define MDL_BIT(A) static_cast<mdl_bitmap_t>(1U << A)
@@ -355,7 +357,7 @@ enum enum_mdl_duration {
   or "name".
 */
 
-class MDL_key
+struct MDL_key
 {
 public:
 #ifdef HAVE_PSI_INTERFACE
@@ -433,7 +435,9 @@ public:
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
-    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK || ok_for_lower_case_names(db));
+    DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK ||
+                     Lex_ident_fs(db, m_db_name_length).
+                       ok_for_lower_case_names());
   }
   void mdl_key_init(const MDL_key *rhs)
   {
@@ -537,18 +541,23 @@ public:
   /** A lock is requested based on a fully qualified name and type. */
   MDL_key key;
 
+  const char *m_src_file;
+  uint m_src_line;
+
 public:
 
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
   static void operator delete(void *, MEM_ROOT *) {}
 
-  void init(MDL_key::enum_mdl_namespace namespace_arg,
+  void init_with_source(MDL_key::enum_mdl_namespace namespace_arg,
             const char *db_arg, const char *name_arg,
             enum_mdl_type mdl_type_arg,
-            enum_mdl_duration mdl_duration_arg);
-  void init(const MDL_key *key_arg, enum_mdl_type mdl_type_arg,
-            enum_mdl_duration mdl_duration_arg);
+            enum_mdl_duration mdl_duration_arg,
+            const char *src_file, uint src_line);
+  void init_by_key_with_source(const MDL_key *key_arg, enum_mdl_type mdl_type_arg,
+            enum_mdl_duration mdl_duration_arg,
+            const char *src_file, uint src_line);
   /** Set type of lock request. Can be only applied to pending locks. */
   inline void set_type(enum_mdl_type type_arg)
   {
@@ -612,6 +621,12 @@ public:
 
 
 typedef void (*mdl_cached_object_release_hook)(void *);
+
+#define MDL_REQUEST_INIT(R, P1, P2, P3, P4, P5) \
+  (*R).init_with_source(P1, P2, P3, P4, P5, __FILE__, __LINE__)
+
+#define MDL_REQUEST_INIT_BY_KEY(R, P1, P2, P3) \
+  (*R).init_by_key_with_source(P1, P2, P3, __FILE__, __LINE__)
 
 
 /**
@@ -677,7 +692,7 @@ public:
           threads/contexts.
 */
 
-class MDL_ticket : public MDL_wait_for_subgraph
+class MDL_ticket : public MDL_wait_for_subgraph, public ilist_node<>
 {
 public:
   /**
@@ -686,15 +701,19 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
+
+#ifndef DBUG_OFF
   /**
-    Pointers for participating in the list of satisfied/pending requests
-    for the lock. Externally accessible.
+    Duration of lock represented by this ticket.
+    Context public. Debug-only.
   */
-  MDL_ticket *next_in_lock;
-  MDL_ticket **prev_in_lock;
 public:
+  enum_mdl_duration m_duration;
+#endif
+  ulonglong m_time;
+
 #ifdef WITH_WSREP
-  void wsrep_report(bool debug);
+  void wsrep_report(bool debug) const;
 #endif /* WITH_WSREP */
   bool has_pending_conflicting_lock() const;
 
@@ -719,8 +738,13 @@ public:
   bool is_incompatible_when_waiting(enum_mdl_type type) const;
 
   /** Implement MDL_wait_for_subgraph interface. */
-  virtual bool accept_visitor(MDL_wait_for_graph_visitor *dvisitor);
-  virtual uint get_deadlock_weight() const;
+  bool accept_visitor(MDL_wait_for_graph_visitor *dvisitor) override;
+  uint get_deadlock_weight() const override;
+  /**
+    Status of lock request represented by the ticket as reflected in P_S.
+  */
+  enum enum_psi_status { PENDING = 0, GRANTED,
+                         PRE_ACQUIRE_NOTIFY, POST_RELEASE_NOTIFY };
 private:
   friend class MDL_context;
 
@@ -729,13 +753,21 @@ private:
              , enum_mdl_duration duration_arg
 #endif
             )
-   : m_type(type_arg),
+   :
 #ifndef DBUG_OFF
      m_duration(duration_arg),
 #endif
+     m_time(0),
+     m_type(type_arg),
      m_ctx(ctx_arg),
-     m_lock(NULL)
+     m_lock(NULL),
+     m_psi(NULL)
   {}
+
+  virtual ~MDL_ticket()
+  {
+    DBUG_ASSERT(m_psi == NULL);
+  }
 
   static MDL_ticket *create(MDL_context *ctx_arg, enum_mdl_type type_arg
 #ifndef DBUG_OFF
@@ -746,13 +778,7 @@ private:
 private:
   /** Type of metadata lock. Externally accessible. */
   enum enum_mdl_type m_type;
-#ifndef DBUG_OFF
-  /**
-    Duration of lock represented by this ticket.
-    Context private. Debug-only.
-  */
-  enum_mdl_duration m_duration;
-#endif
+
   /**
     Context of the owner of the metadata lock ticket. Externally accessible.
   */
@@ -762,6 +788,8 @@ private:
     Pointer to the lock object for this lock ticket. Externally accessible.
   */
   MDL_lock *m_lock;
+
+  PSI_metadata_lock *m_psi;
 
 private:
   MDL_ticket(const MDL_ticket &);               /* not implemented */
@@ -884,6 +912,10 @@ public:
     return !(m_tickets[MDL_STATEMENT].is_empty() &&
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
+  }
+  bool has_explicit_locks() const
+  {
+    return !m_tickets[MDL_EXPLICIT].is_empty();
   }
   inline bool has_transactional_locks() const
   {
@@ -1077,6 +1109,26 @@ private:
 
   /* metadata_lock_info plugin */
   friend int i_s_metadata_lock_info_fill_row(MDL_ticket*, void*);
+#ifndef DBUG_OFF
+public:
+  /**
+    This is for the case when the thread opening the table does not acquire
+    the lock itself, but utilizes a lock guarantee from another MDL context.
+
+    For example, in InnoDB, MDL is acquired by the purge_coordinator_task,
+    but the table may be opened and used in a purge_worker_task.
+    The coordinator thread holds the lock for the duration of worker's purge
+    job, or longer, possibly reusing shared MDL for different workers and jobs.
+  */
+  MDL_context *lock_warrant= NULL;
+
+  inline bool is_lock_warrantee(MDL_key::enum_mdl_namespace ns,
+                                const char *db, const char *name,
+                                enum_mdl_type mdl_type) const
+  {
+    return lock_warrant && lock_warrant->is_lock_owner(ns, db, name, mdl_type);
+  }
+#endif
 };
 
 

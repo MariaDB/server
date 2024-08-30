@@ -1,0 +1,21 @@
+# MDEV-24302 RESET MASTER hangs as Innodb does not report on binlog checkpoint
+# Testing binlog checkpoint notification works under stringent condition
+# set by innodb_force_recovery = 2.
+
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+
+# Binlog checkpoint notification consumers such as RESET MASTER
+# receive one when lsn_0 at the time of the request is finally gets flushed
+#   flush_lsn >= lsn_0
+# The bug situation was that when lsn_0 reflects a write of an internal innodb trx
+# and RESET MASTER was not followed by any more user transaction
+# it would hang.
+
+CREATE TABLE t1(a int) ENGINE=InnoDB;
+INSERT INTO t1 SET a=1;
+RESET MASTER;
+
+# final cleanup
+DROP TABLE t1;
+--echo End of the tests.

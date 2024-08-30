@@ -2,6 +2,11 @@
 # Various tests that require setting of a specific ssl_cipher
 # which currently doesn't work in OpenSSL 1.1.1
 #
+
+--disable_query_log
+CALL mtr.add_suppression("are insecure");
+--enable_query_log
+
 --source include/have_ssl_communication.inc
 
 if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
@@ -98,7 +103,7 @@ let $restart_parameters=--ssl-cipher=AES128-SHA;
 source include/restart_mysqld.inc;
 connect (ssl_con,localhost,root,,,,,SSL);
 SHOW STATUS LIKE 'Ssl_cipher';
-SHOW STATUS LIKE 'Ssl_cipher_list';
+SELECT VARIABLE_VALUE like '%AES128-SHA%' FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher_list';
 disconnect ssl_con;
 connection default;
 

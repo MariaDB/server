@@ -1,0 +1,38 @@
+################################################################################
+#  Support binlog_row_image FULL_NODUP mode
+#
+#  In FULL_NODUP:
+#  - before image includes all columns.
+#  - after image includes only changed columns.
+################################################################################
+
+--source include/have_binlog_format_row.inc
+--source include/test_db_charset_latin1.inc
+
+--echo #
+--echo # FULL_NODUP mode works as expected
+--echo #
+SET binlog_row_image = "FULL_NODUP";
+--source suite/binlog/include/row_img.test
+
+--echo #
+--echo # MINIMAL mode works as expected
+--echo #
+SET binlog_row_image = "MINIMAL";
+--source suite/binlog/include/row_img.test
+
+--echo #
+--echo # NOBLOB mode works as expected
+--echo #
+SET binlog_row_image = "NOBLOB";
+--source suite/binlog/include/row_img.test
+
+--echo #
+--echo # FULL mode works as expected
+--echo #
+SET binlog_row_image = "FULL";
+--source suite/binlog/include/row_img.test
+
+RESET MASTER;
+
+--source include/test_db_charset_restore.inc

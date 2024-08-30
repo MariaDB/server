@@ -15,4 +15,3 @@
 
 --let $galera_sync_point = before_certify_apply_monitor_enter
 --source GCF-1008.inc
-

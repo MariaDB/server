@@ -124,10 +124,10 @@ drop table t1;
 --echo #
 --echo # Bug#50402 Optimizer producing wrong results when using Index Merge on InnoDB
 --echo #
-CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1));
+CREATE TABLE t1 (f1 INT, PRIMARY KEY (f1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (2);
 CREATE TABLE t2 (f1 INT, f2 INT, f3 char(1),
-                 PRIMARY KEY (f1), KEY (f2), KEY (f3) );
+                 PRIMARY KEY (f1), KEY (f2), KEY (f3)) CHARSET=latin1;
 INSERT INTO t2 VALUES (1, 1, 'h'), (2, 3, 'h'), (3, 2, ''), (4, 2, '');
 
 SELECT t1.f1 FROM t1

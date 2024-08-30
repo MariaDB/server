@@ -13,6 +13,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#define VER "2.1"
 #include <my_global.h>
 #include <my_sys.h>
 #include <mysql.h>
@@ -24,6 +25,7 @@
 #include <mysql_version.h>
 #include <sql_common.h>
 #include <mysql/client_plugin.h>
+#include <welcome_copyright_notice.h>
 
 /*
   If non_blocking_api_enabled is true, we will re-define all the blocking
@@ -31,14 +33,12 @@
   and use poll()/select() to wait for them to complete. This way we can get
   a good coverage testing of the non-blocking API as well.
 */
-#include <my_context.h>
 static my_bool non_blocking_api_enabled= 0;
-#if !defined(EMBEDDED_LIBRARY) && !defined(MY_CONTEXT_DISABLE)
+#if !defined(EMBEDDED_LIBRARY)
 #define WRAP_NONBLOCK_ENABLED non_blocking_api_enabled
 #include "nonblock-wrappers.h"
 #endif
 
-#define VER "2.1"
 #define MAX_TEST_QUERY_LENGTH 300 /* MAX QUERY BUFFER LENGTH */
 #define MAX_KEY MAX_INDEXES
 #define MAX_SERVER_ARGS 64
@@ -252,6 +252,8 @@ static void print_st_error(MYSQL_STMT *stmt, const char *msg)
 static MYSQL *mysql_client_init(MYSQL* con)
 {
   MYSQL* res = mysql_init(con);
+  my_bool no= 0;
+  mysql_options(res, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &no);
   if (res && non_blocking_api_enabled)
     mysql_options(res, MYSQL_OPT_NONBLOCK, 0);
   if (opt_plugin_dir && *opt_plugin_dir)
@@ -569,6 +571,9 @@ static int my_process_result(MYSQL *mysql_arg)
 #define MAX_RES_FIELDS 50
 #define MAX_FIELD_DATA_SIZE 255
 
+/* Stack usage 18888 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static int my_process_stmt_result(MYSQL_STMT *stmt)
 {
   int         field_count;
@@ -657,6 +662,7 @@ static int my_process_stmt_result(MYSQL_STMT *stmt)
   mysql_free_result(result);
   return row_count;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 /* Prepare statement, execute, and process result set for given query */
@@ -1227,6 +1233,8 @@ static struct my_option client_test_long_options[] =
   {"socket", 'S', "Socket file to use for connection",
    &opt_unix_socket, &opt_unix_socket, 0, GET_STR,
    REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"ssl-verify-server-cert", 0, "for compatibility only, the value is ignored",
+    0, 0, 0, GET_BOOL, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"testcase", 'c',
    "May disable some code when runs as mysql-test-run testcase.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -1257,8 +1265,7 @@ static void usage(void)
 {
   /* show the usage string when the user asks for this */
   putc('\n', stdout);
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-	 my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+  print_version();
   puts("By Monty, Venu, Kent and others\n");
   printf("\
 Copyright (C) 2002-2004 MySQL AB\n\
@@ -1275,10 +1282,10 @@ static struct my_tests_st *get_my_tests();  /* To be defined in main .c file */
 static struct my_tests_st *my_testlist= 0;
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case '#':
     DBUG_PUSH(argument ? argument : default_dbug_option);
     break;
@@ -1288,10 +1295,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'p':
     if (argument)
     {
-      char *start=argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
-      opt_password= my_strdup(argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';               /* Destroy argument */
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
+      while (*argument)
+        *(char*) argument++= 'x';               /* Destroy argument */
       if (*start)
         start[1]=0;
     }
@@ -1321,7 +1333,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     }
     if (embedded_server_arg_count == MAX_SERVER_ARGS-1 ||
         !(embedded_server_args[embedded_server_arg_count++]=
-          my_strdup(argument, MYF(MY_FAE))))
+          my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE))))
     {
       DIE("Can't use server argument");
     }
@@ -1426,12 +1438,14 @@ int main(int argc, char **argv)
     tests_to_run[i]= NULL;
   }
 
-#ifdef _WIN32
-  /* must be the same in C/C and embedded, 1208 on 64bit, 968 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 60*sizeof(void*)+728);
-#else
-  /* must be the same in C/C and embedded, 1272 on 64bit, 964 on 32bit */
-  compile_time_assert(sizeof(MYSQL) == 77*sizeof(void*)+656);
+/*
+  this limited check is enough, if sizeof(MYSQL) changes, it changes
+  everywhere
+*/
+#if defined __x86_64__
+  compile_time_assert(sizeof(MYSQL) == 1272);
+#elif defined __i386__
+  compile_time_assert(sizeof(MYSQL) == 964);
 #endif
 
   if (mysql_server_init(embedded_server_arg_count,

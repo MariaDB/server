@@ -1,0 +1,31 @@
+--echo #
+--echo # MDEV-26158 SIGSEGV in spider_free_mem from ha_spider::open on INSERT
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE t (
+    c INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a"'
+PARTITION BY LIST COLUMNS(`c`) (
+    PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
+);
+
+--error ER_BAD_DB_ERROR
+INSERT INTO t SELECT * FROM t;
+
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

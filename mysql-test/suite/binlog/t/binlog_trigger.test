@@ -21,3 +21,31 @@ DROP TABLE t1;
 
 --let $binlog_file = LAST
 source include/show_binlog_events.inc;
+
+--echo #
+--echo # MDEV-25517 Atomic DDL: Assertion `query_arg' in THD::binlog_query
+--echo # upon DROP TRIGGER
+--echo #
+
+# This test case is 'random' by design.  For most cases the second DROP TRIGGER
+# will generate a warning "Dropped orphan trigger...", but if there is a timing
+# issue, we may get another error or warning later. This is ok as it enables
+# us to have more code paths tested over time.
+
+CREATE TABLE t1 (a INT);
+CREATE TRIGGER trg AFTER INSERT ON t1 FOR EACH ROW SET @x = 1;
+--disable_warnings
+--connect (con1,localhost,root,,test)
+--send
+  DROP TRIGGER trg;
+--connection default
+--error 0,ER_TRG_DOES_NOT_EXIST
+DROP TRIGGER trg;
+# Cleanup
+--connection con1
+--error 0,ER_TRG_DOES_NOT_EXIST
+--reap
+--disconnect con1
+--connection default
+--enable_warnings
+DROP TABLE t1;

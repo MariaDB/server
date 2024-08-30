@@ -6,7 +6,7 @@ BEGIN;
 INSERT INTO t SET a=2, c=2;
 connection default;
 BEGIN;
-SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL select_locked";
+SET DEBUG_SYNC="lock_wait_start SIGNAL select_locked";
 SELECT * FROM t FORCE INDEX(b) FOR UPDATE;
 connection con1;
 SET DEBUG_SYNC="now WAIT_FOR select_locked";

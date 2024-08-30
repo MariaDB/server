@@ -145,7 +145,7 @@ INSERT INTO t1 (koi8_ru_f,comment) VALUES (_koi8r'ñ','CYR CAPIT YA');
 SET CHARACTER SET utf8;
 SELECT koi8_ru_f,MIN(comment),COUNT(*) FROM t1 GROUP BY 1;
 
-ALTER TABLE t1 ADD utf8_f CHAR(32) CHARACTER SET utf8 NOT NULL default '';
+ALTER TABLE t1 ADD utf8_f CHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL default '';
 UPDATE t1 SET utf8_f=CONVERT(koi8_ru_f USING utf8);
 SET CHARACTER SET koi8r;
 SELECT * FROM t1;

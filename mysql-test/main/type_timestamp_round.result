@@ -69,15 +69,11 @@ SET time_zone='+00:00';
 CREATE TABLE t1 (ID INT, a TIMESTAMP(6), comment VARCHAR(64));
 INSERT INTO t1 VALUES (0, '2038-01-18 23:59:59.999999', 'Should round');
 INSERT INTO t1 VALUES (1, '2038-01-19 03:14:06.999999', 'Should round');
-INSERT INTO t1 VALUES (2, '2038-01-19 03:14:07.999999', 'Should truncate');
 ALTER TABLE t1 MODIFY a TIMESTAMP(5);
-Warnings:
-Warning	1264	Out of range value for column 'a' at row 3
 SELECT * FROM t1;
 ID	a	comment
 0	2038-01-19 00:00:00.00000	Should round
 1	2038-01-19 03:14:07.00000	Should round
-2	2038-01-19 03:14:07.99999	Should truncate
 DROP TABLE t1;
 SET time_zone=DEFAULT;
 #
@@ -179,13 +175,5 @@ UPDATE t1 SET ts0=COALESCE(ts1);
 SELECT * FROM t1;
 ts0	ts1
 2001-01-01 10:20:31	2001-01-01 10:20:30.9
-# Corner case
-UPDATE t1 SET ts1=FROM_UNIXTIME(2147483647.9);
-UPDATE t1 SET ts0=COALESCE(ts1);
-Warnings:
-Warning	1264	Out of range value for column 'ts0' at row 1
-SELECT * FROM t1;
-ts0	ts1
-2038-01-19 03:14:07	2038-01-19 03:14:07.9
 DROP TABLE t1;
 SET time_zone=DEFAULT;

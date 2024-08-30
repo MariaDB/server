@@ -1,0 +1,60 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-30164 System variable for default collations
+--echo #
+
+--connection master
+SET @@character_set_collations='utf8mb3=uca1400_ai_ci,'
+                               'utf8mb4=uca1400_ai_ci,'
+                               'ucs2=uca1400_ai_ci,'
+                               'utf16=uca1400_ai_ci,'
+                               'utf32=uca1400_ai_ci';
+
+--connection master
+CREATE TABLE t1 AS SELECT CHAR(0x61 USING utf8mb4);
+SHOW CREATE TABLE t1;
+--sync_slave_with_master
+SHOW CREATE TABLE t1;
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+--connection master
+CREATE TABLE t1 AS SELECT CONVERT('a' USING utf8mb4);
+SHOW CREATE TABLE t1;
+--sync_slave_with_master
+SHOW CREATE TABLE t1;
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+--connection master
+CREATE TABLE t1 (
+  c0 TEXT CHARACTER SET utf8mb3,
+  c1 TEXT CHARACTER SET utf8mb4,
+  c2 TEXT CHARACTER SET utf16,
+  c3 TEXT CHARACTER SET utf32,
+  c4 TEXT CHARACTER SET ucs2
+);
+SHOW CREATE TABLE t1;
+--sync_slave_with_master
+SHOW CREATE TABLE t1;
+--connection master
+DROP TABLE t1;
+--sync_slave_with_master
+
+
+--connection master
+CREATE DATABASE db1 CHARACTER SET utf8mb4;
+--sync_slave_with_master
+SHOW CREATE DATABASE db1;
+--connection master
+DROP DATABASE db1;
+--sync_slave_with_master
+
+
+--source include/rpl_end.inc

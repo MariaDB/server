@@ -47,6 +47,22 @@
 #define uid cr_uid
 #define ucred xucred
 
+#elif defined HAVE_UNPCBID
+#include <sys/un.h>
+#define level 0
+#define SO_PEERCRED LOCAL_PEEREID
+#define uid unp_euid
+#define ucred unpcbid
+
+#elif defined HAVE_GETPEERUCRED
+#include <ucred.h>
+
+#elif defined HAVE_PEERCRED_STRUCT
+#define level SOL_SOCKET
+#define SO_PEERCRED SO_PEERID
+#define uid euid
+#define ucred peercred_struct
+ 
 #else
 #error impossible
 #endif
@@ -64,10 +80,15 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 {
   unsigned char *pkt;
   MYSQL_PLUGIN_VIO_INFO vio_info;
+#ifdef HAVE_GETPEERUCRED
+  ucred_t *cred = NULL;
+#else
   struct ucred cred;
   socklen_t cred_len= sizeof(cred);
+#endif
   struct passwd pwd_buf, *pwd;
   char buf[1024];
+  uid_t u;
 
   /* no user name yet ? read the client handshake packet with the user name */
   if (info->user_name == 0)
@@ -83,19 +104,35 @@ static int socket_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
     return CR_ERROR;
 
   /* get the UID of the client process */
+#ifdef HAVE_GETPEERUCRED
+  if (getpeerucred(vio_info.socket, &cred) != 0)
+    return CR_ERROR;
+  u = ucred_geteuid(cred);
+  ucred_free(cred);
+#else
   if (getsockopt(vio_info.socket, level, SO_PEERCRED, &cred, &cred_len))
     return CR_ERROR;
 
   if (cred_len != sizeof(cred))
     return CR_ERROR;
 
-  /* and find the username for this uid */
-  getpwuid_r(cred.uid, &pwd_buf, buf, sizeof(buf), &pwd);
+  u = cred.uid;
+#endif
+
+  /* and find the socket user name for this uid */
+  getpwuid_r(u, &pwd_buf, buf, sizeof(buf), &pwd);
   if (pwd == NULL)
     return CR_ERROR;
 
-  /* now it's simple as that */
-  return strcmp(pwd->pw_name, info->user_name) ? CR_ERROR : CR_OK;
+  /* fill in the external user name used */
+  strncpy(info->external_user, pwd->pw_name, sizeof(info->external_user) - 1);
+  info->external_user[sizeof(info->external_user) - 1]= '\0';
+
+  /* compare with auth_string if it's defined, otherwise compare with DB user name*/
+  if (info->auth_string && info->auth_string[0])
+    return !strcmp(pwd->pw_name, info->auth_string) ? CR_OK : CR_ERROR;
+  else
+    return !strcmp(pwd->pw_name, info->user_name) ? CR_OK : CR_ERROR;
 }
 
 static struct st_mysql_auth socket_auth_handler=
@@ -116,10 +153,10 @@ maria_declare_plugin(auth_socket)
   PLUGIN_LICENSE_GPL,
   NULL,
   NULL,
-  0x0100,
+  0x0101,
   NULL,
   NULL,
-  "1.0",
+  "1.1",
   MariaDB_PLUGIN_MATURITY_STABLE
 }
 maria_declare_plugin_end;

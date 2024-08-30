@@ -32,7 +32,7 @@
 #ifdef	 HAVE_PWD_H
 #include <pwd.h>
 #endif
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -54,7 +54,7 @@
 extern ulong net_buffer_length;
 extern ulong max_allowed_packet;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define ERRNO WSAGetLastError()
 #define perror(A)
 #else
@@ -69,13 +69,6 @@ struct passwd *getpwuid(uid_t);
 char* getlogin(void);
 #endif
 
-#ifdef __WIN__
-static my_bool is_NT(void)
-{
-  char *os=getenv("OS");
-  return (os && !strcmp(os, "Windows_NT")) ? 1 : 0;
-}
-#endif
 
 int mysql_init_character_set(MYSQL *mysql);
 
@@ -85,7 +78,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
 		   uint port, const char *unix_socket,ulong client_flag)
 {
   char name_buff[USERNAME_LENGTH];
-
+  THD *org_current_thd= embedded_get_current_thd();
   DBUG_ENTER("mysql_real_connect");
   DBUG_PRINT("enter",("host: %s  db: %s  user: %s (libmysqld)",
 		      host ? host : "(Null)",
@@ -157,7 +150,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
       put extra 'my_free's in mysql_close.
       So we alloc it with the 'user' string to be freed at once
    */
-  mysql->user= my_strdup(user, MYF(0));
+  mysql->user= my_strdup(PSI_NOT_INSTRUMENTED, user, MYF(0));
 
   port=0;
   unix_socket=0;
@@ -175,7 +168,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
   if (db)
     client_flag|=CLIENT_CONNECT_WITH_DB;
 
-  mysql->info_buffer= my_malloc(MYSQL_ERRMSG_SIZE, MYF(0));
+  mysql->info_buffer= my_malloc(PSI_NOT_INSTRUMENTED, MYSQL_ERRMSG_SIZE, MYF(0));
   mysql->thd= create_embedded_thd(client_flag);
 
   init_embedded_mysql(mysql, client_flag);
@@ -207,6 +200,7 @@ mysql_real_connect(MYSQL *mysql,const char *host, const char *user,
       }
     }
   }
+  embedded_set_current_thd(org_current_thd);
 
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
@@ -223,6 +217,7 @@ error:
     mysql_close(mysql);
     mysql->free_me=free_me;
   }
+  embedded_set_current_thd(org_current_thd);
   DBUG_RETURN(0);
 }
 

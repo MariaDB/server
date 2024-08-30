@@ -1,4 +1,5 @@
 /* Copyright (c) 2002, 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,6 +96,9 @@ sp_pcontext::sp_pcontext()
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(NULL), m_pboundary(0),
+  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
+  m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
   m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
@@ -105,6 +109,9 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   : Sql_alloc(),
   m_max_var_index(0), m_max_cursor_index(0),
   m_parent(prev), m_pboundary(0),
+  m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
+  m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM), m_children(PSI_INSTRUMENT_MEM),
   m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
@@ -132,8 +139,7 @@ sp_pcontext *sp_pcontext::push_context(THD *thd, sp_pcontext::enum_scope scope)
 
 bool cmp_labels(sp_label *a, sp_label *b)
 {
-  return (lex_string_cmp(system_charset_info, &a->name, &b->name) == 0 &&
-          a->type == b->type);
+  return a->type == b->type && a->name.streq(b->name);
 }
 
 sp_pcontext *sp_pcontext::pop_context()
@@ -208,9 +214,7 @@ sp_variable *sp_pcontext::find_variable(const LEX_CSTRING *name,
   {
     sp_variable *p= m_vars.at(i);
 
-    if (my_strnncoll(system_charset_info,
-		     (const uchar *)name->str, name->length,
-		     (const uchar *)p->name.str, p->name.length) == 0)
+    if (p->name.streq(*name))
     {
       return p;
     }
@@ -304,7 +308,7 @@ sp_label *sp_pcontext::find_goto_label(const LEX_CSTRING *name, bool recusive)
 
   while ((lab= li++))
   {
-    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
+    if (lab->name.streq(*name))
       return lab;
   }
 
@@ -341,7 +345,7 @@ sp_label *sp_pcontext::find_label(const LEX_CSTRING *name)
 
   while ((lab= li++))
   {
-    if (lex_string_cmp(system_charset_info, name, &lab->name) == 0)
+    if (lab->name.streq(*name))
       return lab;
   }
 
@@ -377,7 +381,7 @@ sp_label *sp_pcontext::find_label_current_loop_start()
 
 
 bool sp_pcontext::add_condition(THD *thd,
-                                const LEX_CSTRING *name,
+                                const Lex_ident_column &name,
                                 sp_condition_value *value)
 {
   sp_condition *p= new (thd->mem_root) sp_condition(name, value);
@@ -436,12 +440,12 @@ static sp_condition_value
 static sp_condition sp_predefined_conditions[]=
 {
   // Warnings
-  sp_condition(STRING_WITH_LEN("NO_DATA_FOUND"), &cond_no_data_found),
+  sp_condition("NO_DATA_FOUND"_Lex_ident_column, &cond_no_data_found),
   // Errors
-  sp_condition(STRING_WITH_LEN("INVALID_CURSOR"), &cond_invalid_cursor),
-  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index),
-  sp_condition(STRING_WITH_LEN("DUP_VAL_ON_INDEX"), &cond_dup_val_on_index2),
-  sp_condition(STRING_WITH_LEN("TOO_MANY_ROWS"), &cond_too_many_rows)
+  sp_condition("INVALID_CURSOR"_Lex_ident_column, &cond_invalid_cursor),
+  sp_condition("DUP_VAL_ON_INDEX"_Lex_ident_column, &cond_dup_val_on_index),
+  sp_condition("DUP_VAL_ON_INDEX"_Lex_ident_column, &cond_dup_val_on_index2),
+  sp_condition("TOO_MANY_ROWS"_Lex_ident_column, &cond_too_many_rows)
 };
 
 
@@ -622,11 +626,7 @@ const sp_pcursor *sp_pcontext::find_cursor(const LEX_CSTRING *name,
 
   while (i--)
   {
-    LEX_CSTRING n= m_cursors.at(i);
-
-    if (my_strnncoll(system_charset_info,
-		     (const uchar *) name->str, name->length,
-		     (const uchar *) n.str, n.length) == 0)
+    if (m_cursors.at(i).streq(*name))
     {
       *poff= m_cursor_offset + i;
       return &m_cursors.at(i);

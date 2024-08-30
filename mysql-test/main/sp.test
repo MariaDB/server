@@ -19,6 +19,11 @@
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
 
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
+
 --source include/default_charset.inc
 set @save_character_set_client=@@character_set_client;
 set @save_userstat=@@global.userstat, @@global.userstat= 0;
@@ -382,7 +387,7 @@ create function sub3(i int) returns int deterministic
 
 call sub1("sub1a", (select 7))|
 call sub1("sub1b", (select max(i) from t2))|
---error ER_OPERAND_COLUMNS
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 call sub1("sub1c", (select i,d from t2 limit 1))|
 call sub1("sub1d", (select 1 from (select 1) a))|
 call sub2("sub2")|
@@ -1473,11 +1478,11 @@ call ifac(20)|
 select * from t3|
 drop table t3|
 --replace_column 4 'root@localhost' 5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
-show function status like '%f%'|
+show function status where name like '%f%' and Db <> 'sys'|
 drop procedure ifac|
 drop function fac|
 --replace_column 4 'root@localhost' 5 '0000-00-00 00:00:00' 6 '0000-00-00 00:00:00'
-show function status like '%f%'|
+show function status where name like '%f%' and Db <> 'sys'|
 
 
 # primes
@@ -3279,7 +3284,7 @@ call bug7013()|
 drop procedure bug7013|
 
 #
-# BUG#7743: 'Lost connection to MySQL server during query' on Stored Procedure
+# BUG#7743: 'Lost connection to server during query' on Stored Procedure
 #
 --disable_warnings
 drop table if exists t4|
@@ -3360,7 +3365,7 @@ drop procedure if exists bug6857|
 --enable_warnings
 create procedure bug6857()
 begin
-  declare t0, t1 int;
+  declare t0, t1 bigint;
   declare plus bool default 0;
   set t0 = unix_timestamp();
   select sleep(1.1);
@@ -6292,7 +6297,7 @@ BEGIN
 END|
 
 --error ER_WRONG_STRING_LENGTH
-CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
   FUNCTION bug16899_f1() RETURNS INT
 BEGIN
   RETURN 1;
@@ -7399,12 +7404,6 @@ DROP PROCEDURE p1;
 # Bug#25411 (trigger code truncated)
 #
 
---disable_warnings
-drop procedure if exists proc_25411_a;
-drop procedure if exists proc_25411_b;
-drop procedure if exists proc_25411_c;
---enable_warnings
-
 delimiter $$;
 
 create procedure proc_25411_a()
@@ -7445,7 +7444,7 @@ show create procedure proc_25411_a;
 call proc_25411_a();
 
 show create procedure proc_25411_b;
-select name, param_list, body from mysql.proc where name like "%25411%";
+select name, param_list, body from mysql.proc where name like "%25411%" order by name;
 call proc_25411_b(10, 20);
 
 show create procedure proc_25411_c;
@@ -8129,7 +8128,7 @@ DROP FUNCTION IF EXISTS f2;
 
 --echo
 
-CREATE FUNCTION f1() RETURNS VARCHAR(65525) RETURN 'Hello';
+CREATE FUNCTION f1() RETURNS VARCHAR(65525) CHARACTER SET latin1 RETURN 'Hello';
 
 --echo
 
@@ -8716,11 +8715,10 @@ create table t1 (a int);
 insert into t1 (a) values (1), (2), (3), (4), (5);
 --echo #
 --echo # Do we correctly resolve identifiers in LIMIT?
---echo # Since DROP and CREATE did not invalidate
---echo # the SP cache, we can't test until
---echo # we drop and re-create the procedure.
+--echo # DROP and CREATE results in SP statement recompilation
+--echo # so second execution of the procedure p1() doesn't lead
+--echo # to issuing an error
 --echo #
---error ER_BAD_FIELD_ERROR
 call p1();
 --echo # 
 --echo # Drop and recreate the procedure, then repeat
@@ -10586,4 +10584,112 @@ DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-29129: Performance regression starting in 10.6: unlimited "select order by limit"
+--echo #
+
+CREATE TABLE t1 (
+  lookupId int primary key,
+  value varchar(255)
+);
+insert into t1 select seq, seq from seq_1_to_100;
+
+-- echo # Note: the function is intentionally NOT declared as DETERMINISTIC
+delimiter //;
+CREATE FUNCTION f1(LOOKUPID_IN INT) RETURNS varchar(255) CHARSET utf8
+BEGIN
+  DECLARE LOOKUP_VALUE VARCHAR(255);
+  SET LOOKUP_VALUE = (SELECT value FROM t1 WHERE lookupId = LOOKUPID_IN);
+  set @counter=@counter+1;
+  RETURN LOOKUP_VALUE;
+END; 
+//
+delimiter ;//
+
+create table t2 (
+  col1 int,
+  col2 int
+);
+insert into t2 select mod(seq,100), seq from seq_1_to_1000;
+
+explain 
+select f1(col1) from t2 order by col2 desc limit 5;
+set @counter=0;
+select f1(col1) from t2 order by col2 desc limit 5;
+--echo # Must show 5, not 1000:
+select @counter;
+drop function f1;
+drop table t1,t2;
+
+--echo # 
+--echo # MDEV-31877: ASAN errors in Exec_time_tracker::get_cycles with innodb slow log verbosity
+--echo # 
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,2);
+SET @tmp=@@log_slow_verbosity;
+SET SESSION log_slow_verbosity= 'innodb';
+--delimiter $
+BEGIN NOT ATOMIC DECLARE r ROW TYPE OF t1 DEFAULT (SELECT * FROM t1); SELECT r.a; END $
+--delimiter ;
+
+SET SESSION log_slow_verbosity= @tmp;
+
+--echo # 
+--echo # MDEV-31616 Problems with a stored function EMPTY() on upgrade to 10.6.
+--echo # 
+CREATE OR REPLACE FUNCTION empty(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT empty('1');
+DROP FUNCTION empty;
+
+CREATE OR REPLACE FUNCTION json_table(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT json_table('1');
+DROP FUNCTION json_table;
+
+CREATE OR REPLACE FUNCTION nested(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT nested('1');
+DROP FUNCTION nested;
+
+CREATE OR REPLACE FUNCTION ordinality(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT ordinality('1');
+DROP FUNCTION ordinality;
+
+CREATE OR REPLACE FUNCTION path(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT path('1');
+DROP FUNCTION path;
+
+
+CREATE OR REPLACE FUNCTION fast(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT fast('1');
+DROP FUNCTION fast;
+
+CREATE OR REPLACE FUNCTION relay(a VARCHAR(128)) RETURNS int RETURN LENGTH(a)=0;
+SELECT relay('1');
+DROP FUNCTION relay;
+
+CREATE OR REPLACE FUNCTION database() RETURNS int RETURN 333;
+SELECT database();
+DROP FUNCTION database;
+
+
+# Cleanup
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-28129: MariaDB UAF issue at lex_end_nops(LEX*)
+--echo #
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT 1 INTO @;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SET @=1;
+
+--error ER_PARSE_ERROR
+CREATE PROCEDURE sp() SELECT @;
+
+--echo #
+--echo # End of 10.7 tests
 --echo #

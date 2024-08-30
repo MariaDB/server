@@ -11,8 +11,6 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 let $old_lock_wait_timeout = `SELECT @@global.lock_wait_timeout`;
 
 --echo #-----------------------------------------------------------------------
@@ -53,12 +51,13 @@ FROM information_schema.processlist WHERE id = @con1_id;
 
 BACKUP STAGE END;
 --source ../suite/innodb/include/wait_all_purged.inc
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 --connection con1
 --echo # The connection default has removed the backup lock.
 --echo # And so the current connection con1 can reap for its BACKUP STAGE START
 --reap
+
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 # con2, root high privileged user
 --connect(con2,localhost,root,,)
@@ -256,11 +255,11 @@ COMMIT;
 SELECT * FROM t_permanent_innodb ORDER BY col1;
 SELECT * FROM t_permanent_myisam ORDER BY col1;
 SET AUTOCOMMIT = 0;
-SET GLOBAL tx_read_only = 1;
+SET GLOBAL transaction_read_only = 1;
 --connection con12
 BACKUP STAGE START;
 BACKUP STAGE END;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 0;
 DROP VIEW v_some_view;
 DROP TABLE t_con1_innodb;
 DROP TABLE t_con1_myisam;
@@ -278,8 +277,8 @@ LOCK TABLES t_permanent_myisam READ;
 LOCK TABLES t_permanent_innodb WRITE;
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE FLUSH;
 --connection con11
@@ -292,8 +291,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE BLOCK_DDL;
 --connection con11
@@ -307,8 +306,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE BLOCK_COMMIT;
 --connection con11
@@ -322,8 +321,8 @@ LOCK TABLES t_permanent_innodb WRITE;
 --error ER_LOCK_WAIT_TIMEOUT
 LOCK TABLES t_permanent_myisam WRITE;
 UNLOCK TABLES;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 --connection backup
 BACKUP STAGE END;
 
@@ -386,4 +385,3 @@ SET GLOBAL lock_wait_timeout = $old_lock_wait_timeout;
 
 --connection default
 --source include/wait_until_count_sessions.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

@@ -1,3 +1,5 @@
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
 SELECT @@global.innodb_cmp_per_index_enabled;
 @@global.innodb_cmp_per_index_enabled
 0
@@ -61,3 +63,4 @@ uncompress_ops	0
 uncompress_time	0
 DROP TABLE t;
 SET GLOBAL innodb_cmp_per_index_enabled=default;
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;

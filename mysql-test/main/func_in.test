@@ -1,7 +1,3 @@
-# Initialise
---disable_warnings
-drop table if exists t1, t2;
---enable_warnings
 #
 # test of IN (NULL)
 #
@@ -190,7 +186,7 @@ drop table t2;
 #
 # Repeat the test for CHAR(N)
 #
-create table t2 (a varchar(10), filler char(200), key(a));
+create table t2 (a varchar(10), filler char(200), key(a)) charset=latin1;
 
 insert into t2 select 'foo', 'no' from t1 A, t1 B;
 insert into t2 select 'barbar', 'no' from t1 A, t1 B;
@@ -391,7 +387,7 @@ DROP TABLE t1;
 #
 # Bug#18360: Type aggregation for IN and CASE may lead to a wrong result 
 #
-create table t1(f1 char(1));
+create table t1(f1 char(1)) charset=latin1;
 insert into t1 values ('a'),('b'),('1');
 select f1 from t1 where f1 in ('a',1);
 select f1, case f1 when 'a' then '+' when 1 then '-' end from t1;
@@ -482,7 +478,7 @@ CREATE TABLE t1 (
   c_char CHAR(10) NOT NULL,
   INDEX(c_int), INDEX(c_decimal), INDEX(c_float), INDEX(c_bit), INDEX(c_date),
   INDEX(c_datetime), INDEX(c_timestamp), INDEX(c_time), INDEX(c_year),
-  INDEX(c_char));
+  INDEX(c_char)) CHARSET=latin1;
 
 INSERT IGNORE INTO t1 (c_int) VALUES (1), (2), (3), (4), (5);
 INSERT IGNORE INTO t1 (c_int) SELECT 0 FROM t1;
@@ -574,7 +570,7 @@ SELECT 1 IN (YEAR(FROM_UNIXTIME(NULL)) ,1);
 --echo #
 
 CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
+PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @a:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
 EXECUTE s;
 
 DROP TABLE t1;
@@ -602,15 +598,6 @@ select * from t1 where a='2.1';
 select * from t1 where b='2.1'; 
 select * from t1 where IF(1,a,a)='2.1'; 
 drop table t1;
---echo #
---echo # LP bug#992380 Crash when creating PS for a query with
---echo # subquery in WHERE (see also mysql bug#13012483)
---echo #
-CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
-EXECUTE s;
-
-DROP TABLE t1;
 
 --echo #
 --echo # End of 5.3 tests
@@ -665,14 +652,11 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
 --echo #
-#enable after fix MDEV-27871
---disable_view_protocol
-SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
-PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp;
+PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp";
 EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
---enable_view_protocol
 
 --echo #
 --echo # MDEV-11497 Wrong result for (int_expr IN (mixture of signed and unsigned expressions))
@@ -721,8 +705,234 @@ SELECT '0x' IN (0,1);
 SELECT ('0x',1) IN ((0,1));
 SELECT ('0x',1) IN ((0,1),(1,1));
 
-
 --echo #
 --echo # End of 10.4 tests
 --echo #
 
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-31303: Key not used
+--echo #
+CREATE TABLE `a` (
+  `id` bigint AUTO_INCREMENT PRIMARY KEY,
+  `c1` bigint unsigned,
+  KEY (`c1`)
+);
+
+INSERT INTO `a` VALUES (1,9223382399205928659),(2,9223384207280813348),
+(3,9223385953115437234),(4,9223387250780556749),(5,9223387354282558788),
+(6,9223387603870501596),(7,9223389270813433667),(8,9223389903231468827),
+(9,9223390280789586779),(10,9223391591398222899),(11,9223391875473564350),
+(12,9223393152250049433),(13,9223393939696790223),(14,9223394417225350415),
+(15,9223397646397141015),(16,9223398025879291243),(17,9223399038671098072),
+(18,9223399534968874556),(19,9223400449518009285),(20,9223400860292643549),
+(21,9223400940692256924),(22,9223401073791948119),(23,9223402820804649616),
+(24,9223403470951992681),(25,9223405581879567267),(26,9223405754978563829),
+(27,9223405972966828221), (28, 9223372036854775808), (29, 9223372036854775807) ;
+
+explain SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775807 );
+explain SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775808 );
+SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775807 );
+SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775808 );
+drop table `a`;
+
+--echo #
+--echo # MDEV-18319 BIGINT UNSIGNED Performance issue
+--echo #
+
+CREATE OR REPLACE TABLE t1 (
+  id bigint(20) unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY
+);
+DELIMITER $$;
+FOR i IN 0..255
+DO
+  INSERT INTO t1 VALUES ();
+END FOR
+$$
+DELIMITER ;$$
+SELECT MIN(id), MAX(id), COUNT(*) FROM t1;
+EXPLAIN SELECT id FROM t1 WHERE id IN (1,2);
+EXPLAIN SELECT id FROM t1 WHERE id IN (9223372036854775806, 9223372036854775807);
+EXPLAIN SELECT id FROM t1 WHERE id IN (9223372036854775807, 9223372036854775808);
+DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-18898 SELECT using wrong index when using operator IN with mixed types
+--echo #
+
+CREATE TEMPORARY TABLE t1 (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  name varchar(100) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `name` (`name`)
+);
+DELIMITER $$;
+FOR i IN 1..255
+DO
+  INSERT INTO t1 VALUES (i, MD5(i));
+END FOR
+$$
+DELIMITER ;$$
+--echo #
+--echo # Constants alone
+--echo #
+ANALYZE SELECT id, name FROM t1 WHERE id = 1;
+ANALYZE SELECT id, name FROM t1 WHERE id = '2';
+--echo #
+--echo # Two constants using IN
+--echo #
+ANALYZE SELECT id, name FROM t1 WHERE id IN (1, 2);
+ANALYZE SELECT id, name FROM t1 WHERE id IN ('1', 2) /* Used a wrong index */;
+ANALYZE SELECT id, name FROM t1 WHERE id IN (1, '2') /* Used a wrong index */;
+ANALYZE SELECT id, name FROM t1 WHERE id IN ('1', '2');
+--echo #
+--echo # Two constants using OR
+--echo #
+ANALYZE SELECT id, name FROM t1 WHERE id = 1 OR id = 2;
+ANALYZE SELECT id, name FROM t1 WHERE id = '1' OR id = '2';
+ANALYZE SELECT id, name FROM t1 WHERE id = 1 OR id = '2';
+ANALYZE SELECT id, name FROM t1 WHERE id = '1' OR id = 2;
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-29662 same values in `IN` set vs equal comparison produces
+--echo #            the different performance
+--echo #
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a IN (1,1);
+--echo # 'const' access since 'a IN (1,1)' is converted to equality 'a=1'
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1);
+EXPLAIN SELECT * FROM t1 WHERE a = 1;
+SELECT * FROM t1 WHERE a IN (1,1,2);
+--echo # Conversion to equality is impossible due to different values
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1,2);
+SELECT * FROM t1 WHERE a IN (1,NULL,1);
+--echo # Conversion to equality is impossible due to NULL in the IN list
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,NULL,1);
+
+SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+EXPLAIN SELECT * FROM t1 WHERE a != 3;
+SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+SELECT * FROM t1 WHERE a NOT IN (1,2,NULL,NULL);
+
+--echo # No conversion is possible since elements are not constant
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+EXPLAIN SELECT * FROM t1 WHERE a IN 
+  ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+
+--echo # There must be no conversion here:
+SELECT * FROM t1 WHERE a IN (3,2,3,3,1,2,3);
+
+--echo # Prepared statement
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN (3,3,3)";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Conversion to equality since SELECT 2 is evaluated as const
+--disable_warnings
+SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+EXPLAIN SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+--enable_warnings
+
+CREATE TABLE t2 (a INT, b VARCHAR(10), PRIMARY KEY(a,b)) CHARSET=latin1;
+INSERT INTO t2 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+--echo # 'const' access due to conversion to equality
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+--echo # No conversion due to different values
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+--echo # No conversion due to NULL
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+
+SELECT * FROM t2 WHERE (a,b) NOT IN ((2,'def'),(2,'def'),(2,NULL));
+
+SELECT * FROM t2 WHERE a IN (1,1,1,1);
+EXPLAIN SELECT * FROM t2 WHERE a IN (1,1,1,1);
+EXPLAIN SELECT * FROM t2 WHERE a = 1;
+
+SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+EXPLAIN SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+EXPLAIN SELECT * FROM t2 WHERE b != 'abc';
+
+--echo # Prepared statements
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'))";
+EXECUTE stmt;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+CREATE TABLE t3(a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3);
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t3 WHERE a IN (?,?,?)";
+EXECUTE stmt USING 1,1,1;
+EXECUTE stmt USING 2,3,4;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
+--echo # Nested joins
+CREATE TABLE t1 (a INT, b VARCHAR(10), PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+CREATE TABLE t2 (a INT, b VARCHAR(20), PRIMARY KEY(a));
+INSERT INTO t2 (a) VALUES (2),(3);
+CREATE TABLE t3 (a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3),(4);
+CREATE TABLE t4 (a INT);
+INSERT INTO t4 VALUES (2),(3);
+--echo # Conversion to equalities
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,2,2)
+    AND t3.a IN (1,1,1);
+--echo # No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,3)
+    AND t3.a IN (1,2);
+--echo # Conversion to equalities
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+    ON t1.a = t2.a WHERE t1.a IN (2,2,2);
+--echo # No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+    ON t1.a = t2.a WHERE t1.a IN (1,3);
+
+--echo # View
+CREATE VIEW v1 AS SELECT t1.*, t2.b AS t2_b FROM t1 LEFT JOIN t2
+    ON t1.a = t2.a;
+EXPLAIN SELECT * FROM v1 WHERE a IN (2,2,2);
+EXPLAIN SELECT * FROM v1 WHERE a IN (1,2,3);
+
+--echo # Stored procedures
+CREATE PROCEDURE p1(pa INT, pb INT)
+    EXPLAIN SELECT * FROM t1 WHERE a IN (pa, pb);
+CALL p1(1,1);
+CALL p1(2,1);
+
+DROP TABLE t1, t2, t3, t4;
+DROP VIEW v1;
+DROP PROCEDURE p1;
+
+--echo #
+--echo # MDEV-29895 prepared view crash server (unit.conc_view)
+--echo #
+
+create table t1 (username varchar(12) not null, id int(11) not null);
+create view v1 as select username from t1 where id = 0;
+prepare stmt from "select username from v1 where username in (?, ?)";
+execute stmt using "1", "1";
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2019, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -29,6 +30,7 @@ Created 2/2/1994 Heikki Tuuri
 #include "dict0types.h"
 #include "mtr0types.h"
 #include "rem0types.h"
+#include "ut0new.h"
 
 #include <map>
 
@@ -39,6 +41,8 @@ typedef	byte		page_t;
 #ifndef UNIV_INNOCHECKSUM
 /** Index page cursor */
 struct page_cur_t;
+/** Buffer pool block */
+struct buf_block_t;
 
 /** Compressed index page */
 typedef byte		page_zip_t;
@@ -84,26 +88,52 @@ enum page_cur_mode_t {
 	PAGE_CUR_RTREE_GET_FATHER	= 14
 };
 
+class buf_pool_t;
+class buf_page_t;
+
 /** Compressed page descriptor */
 struct page_zip_des_t
 {
 	page_zip_t*	data;		/*!< compressed page data */
 
-#ifdef UNIV_DEBUG
-	unsigned	m_start:16;	/*!< start offset of modification log */
-	bool		m_external;	/*!< Allocated externally, not from the
-					buffer pool */
-#endif /* UNIV_DEBUG */
-	unsigned	m_end:16;	/*!< end offset of modification log */
-	unsigned	m_nonempty:1;	/*!< TRUE if the modification log
+	uint32_t	m_end:16;	/*!< end offset of modification log */
+	uint32_t	m_nonempty:1;	/*!< TRUE if the modification log
 					is not empty */
-	unsigned	n_blobs:12;	/*!< number of externally stored
+	uint32_t	n_blobs:12;	/*!< number of externally stored
 					columns on the page; the maximum
 					is 744 on a 16 KiB page */
-	unsigned	ssize:PAGE_ZIP_SSIZE_BITS;
+	uint32_t	ssize:PAGE_ZIP_SSIZE_BITS;
 					/*!< 0 or compressed page shift size;
 					the size in bytes is
 					(UNIV_ZIP_SIZE_MIN >> 1) << ssize. */
+#ifdef UNIV_DEBUG
+	uint16_t	m_start;	/*!< start offset of modification log */
+	bool		m_external;	/*!< Allocated externally, not from the
+					buffer pool */
+#endif /* UNIV_DEBUG */
+
+	void clear() {
+		/* Clear everything except the member "fix". */
+		memset((void*) this, 0,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
+	}
+
+	page_zip_des_t() = default;
+	page_zip_des_t(const page_zip_des_t&) = default;
+
+	/* Initialize everything except the member "fix". */
+	page_zip_des_t(const page_zip_des_t& old, bool) {
+		memcpy((void*) this, (void*) &old,
+		       reinterpret_cast<char*>(&fix)
+		       - reinterpret_cast<char*>(this));
+	}
+
+private:
+	friend buf_pool_t;
+	friend buf_page_t;
+	/** fix count and state used in buf_page_t */
+	Atomic_relaxed<uint32_t> fix;
 };
 
 /** Compression statistics for a given page size */
@@ -144,47 +174,15 @@ extern page_zip_stat_t			page_zip_stat[PAGE_ZIP_SSIZE_MAX];
 extern page_zip_stat_per_index_t	page_zip_stat_per_index;
 
 /**********************************************************************//**
-Write the "deleted" flag of a record on a compressed page.  The flag must
-already have been written on the uncompressed page. */
-void
-page_zip_rec_set_deleted(
-/*=====================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the deleted flag (nonzero=TRUE) */
-	MY_ATTRIBUTE((nonnull));
-
-/**********************************************************************//**
 Write the "owned" flag of a record on a compressed page.  The n_owned field
 must already have been written on the uncompressed page. */
 void
 page_zip_rec_set_owned(
 /*===================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
+	buf_block_t*	block,	/*!< in/out: ROW_FORMAT=COMPRESSED page */
 	const byte*	rec,	/*!< in: record on the uncompressed page */
-	ulint		flag)	/*!< in: the owned flag (nonzero=TRUE) */
-	MY_ATTRIBUTE((nonnull));
-
-/**********************************************************************//**
-Shift the dense page directory when a record is deleted. */
-void
-page_zip_dir_delete(
-/*================*/
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page */
-	byte*		rec,	/*!< in: deleted record */
-	dict_index_t*	index,	/*!< in: index of rec */
-	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec) */
-	const byte*	free)	/*!< in: previous start of the free list */
-	MY_ATTRIBUTE((nonnull(1,2,3,4)));
-
-/**********************************************************************//**
-Add a slot to the dense page directory. */
-void
-page_zip_dir_add_slot(
-/*==================*/
-	page_zip_des_t*	page_zip,	/*!< in/out: compressed page */
-	ulint		is_clustered)	/*!< in: nonzero for clustered index,
-					zero for others */
+	ulint		flag,	/*!< in: the owned flag (nonzero=TRUE) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction */
 	MY_ATTRIBUTE((nonnull));
 #endif /* !UNIV_INNOCHECKSUM */
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, MariaDB
+/* Copyright (c) 2018, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,6 +15,8 @@
 
 #ifndef SQL_TYPE_INT_INCLUDED
 #define SQL_TYPE_INT_INCLUDED
+
+#include "my_bit.h" // my_count_bits()
 
 
 class Null_flag
@@ -49,6 +51,66 @@ public:
   Longlong_null(longlong nr, bool is_null)
    :Longlong(nr), Null_flag(is_null)
   { }
+  explicit Longlong_null()
+   :Longlong(0), Null_flag(true)
+  { }
+  explicit Longlong_null(longlong nr)
+   :Longlong(nr), Null_flag(false)
+  { }
+  Longlong_null operator|(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null(value() | other.value());
+  }
+  Longlong_null operator&(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null(value() & other.value());
+  }
+  Longlong_null operator^(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null((longlong) (value() ^ other.value()));
+  }
+  Longlong_null operator~() const
+  {
+    if (is_null())
+      return *this;
+    return Longlong_null((longlong) ~ (ulonglong) value());
+  }
+  Longlong_null operator<<(const Longlong_null &llshift) const
+  {
+    ulonglong res;
+    uint shift;
+    if (is_null() || llshift.is_null())
+      return Longlong_null();
+    shift= (uint) llshift.value();
+    res= 0;
+    if (shift < sizeof(longlong) * 8)
+      res= ((ulonglong) value()) << shift;
+    return Longlong_null((longlong) res);
+  }
+  Longlong_null operator>>(const Longlong_null &llshift) const
+  {
+    ulonglong res;
+    uint shift;
+    if (is_null() || llshift.is_null())
+      return Longlong_null();
+    shift= (uint) llshift.value();
+    res= 0;
+    if (shift < sizeof(longlong) * 8)
+      res= ((ulonglong) value()) >> shift;
+    return Longlong_null(res);
+  }
+  Longlong_null bit_count() const
+  {
+    if (is_null())
+      return *this;
+    return Longlong_null((longlong) my_count_bits((ulonglong) value()));
+  }
 };
 
 
@@ -109,14 +171,14 @@ public:
   */
   static ULonglong_null ullmul(ulonglong a, ulonglong b)
   {
-    ulong a1= a >> 32;
-    ulong b1= b >> 32;
+    ulong a1= (ulong)(a >> 32);
+    ulong b1= (ulong)(b >> 32);
 
     if (a1 && b1)
       return ULonglong_null(0, true);
 
-    ulong a0= 0xFFFFFFFFUL & a;
-    ulong b0= 0xFFFFFFFFUL & b;
+    ulong a0= (ulong)(0xFFFFFFFFUL & a);
+    ulong b0= (ulong)(0xFFFFFFFFUL & b);
 
     ulonglong res1= (ulonglong) a1 * b0 + (ulonglong) a0 * b1;
     if (res1 > 0xFFFFFFFFUL)

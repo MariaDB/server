@@ -24,8 +24,8 @@ SELECT * FROM t1 ORDER BY a;
 
 --connection server_1
 --replace_result $SLAVE_MYPORT SLAVE_PORT
-eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT,
-     master_user = 'root', master_use_gtid = current_pos;
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $SLAVE_MYPORT, master_ssl_verify_server_cert=0,
+     master_user = 'root', master_ssl_verify_server_cert=0;
 START SLAVE;
 --source include/wait_for_slave_to_start.inc
 
@@ -49,8 +49,7 @@ INSERT INTO t1 VALUES (6, 1);
 
 --connection server_2
 --replace_result $MASTER_MYPORT MASTER_PORT
-eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     master_use_gtid = current_pos;
+eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT, master_ssl_verify_server_cert=0;
 START SLAVE;
 --source include/sync_with_master_gtid.inc
 

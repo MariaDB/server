@@ -1,0 +1,39 @@
+--echo #
+--echo # MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+--echo #
+
+--character_set latin1
+
+--echo # default encoding
+--exec echo "t1" | $MARIADB_CONV
+--exec echo "t1" | $MARIADB_CONV -f filename --delimiter="\r\n"
+--exec echo "t1" | $MARIADB_CONV -t filename --delimiter="\r\n"
+
+--echo # invalid option
+--replace_regex /.*mariadb-conv.*: unknown/mariadb-conv: unknown/
+--error 1
+--exec echo "t1" | $MARIADB_CONV -f filename -r latin1  2>&1 > /dev/null
+
+--echo # unknown "to" character set
+--replace_regex /.*mariadb-conv.*: unknown/mariadb-conv: unknown/
+--error 1
+--exec echo "t1" | $MARIADB_CONV -f filename -t unknown-cs  2>&1 > /dev/null
+
+--echo # unknown "from" character set
+--replace_regex /.*mariadb-conv.*: unknown/mariadb-conv: unknown/
+--error 1
+--exec echo "t1" | $MARIADB_CONV -f unknown-cs -t latin1 2>&1 > /dev/null
+
+--echo # Bad delimiter
+--error 1
+--exec echo "t1" | $MARIADB_CONV --delimiter="\x" 2>&1 > /dev/null
+
+--echo # Conversion error
+--error 1
+--exec $MARIADB_CONV -f utf8 -t latin1    < $MYSQL_TEST_DIR/std_data/mariadb-conv/file01.utf8.txt 2>&1
+--exec $MARIADB_CONV -f utf8 -t latin1 -c < $MYSQL_TEST_DIR/std_data/mariadb-conv/file01.utf8.txt 2>&1
+
+--echo # Bad input character
+--error 1
+--exec $MARIADB_CONV -f utf8 -t latin1    < $MYSQL_TEST_DIR/std_data/mariadb-conv/file02.latin1.txt 2>&1
+--exec $MARIADB_CONV -f utf8 -t latin1 -c < $MYSQL_TEST_DIR/std_data/mariadb-conv/file02.latin1.txt 2>&1

@@ -1,5 +1,5 @@
-/* Copyright (C) 2008-2019 Kentoku Shiba
-   Copyright (C) 2019 MariaDB corp
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#define SPIDER_DB_WRAPPER_STR "mysql"
+#define SPIDER_DB_WRAPPER_STR "mariadb"
 #define SPIDER_DB_WRAPPER_LEN (sizeof(SPIDER_DB_WRAPPER_STR) - 1)
 #define SPIDER_DB_PK_NAME_STR "PRIMARY"
 #define SPIDER_DB_PK_NAME_LEN (sizeof(SPIDER_DB_PK_NAME_STR) - 1)
@@ -39,6 +39,10 @@
 #define SPIDER_SQL_OPEN_PAREN_LEN (sizeof(SPIDER_SQL_OPEN_PAREN_STR) - 1)
 #define SPIDER_SQL_CLOSE_PAREN_STR ")"
 #define SPIDER_SQL_CLOSE_PAREN_LEN (sizeof(SPIDER_SQL_CLOSE_PAREN_STR) - 1)
+#define SPIDER_SQL_OPEN_BRACE_STR "{"
+#define SPIDER_SQL_OPEN_BRACE_LEN (sizeof(SPIDER_SQL_OPEN_BRACE_STR) - 1)
+#define SPIDER_SQL_CLOSE_BRACE_STR "}"
+#define SPIDER_SQL_CLOSE_BRACE_LEN (sizeof(SPIDER_SQL_CLOSE_BRACE_STR) - 1)
 #define SPIDER_SQL_COMMA_STR ","
 #define SPIDER_SQL_COMMA_LEN (sizeof(SPIDER_SQL_COMMA_STR) - 1)
 #define SPIDER_SQL_UNION_ALL_STR ")union all("
@@ -267,8 +271,6 @@
 #define SPIDER_SQL_INDEX_FORCE_LEN (sizeof(SPIDER_SQL_INDEX_FORCE_STR) - 1)
 
 #define SPIDER_SQL_INT_LEN 20
-#define SPIDER_SQL_HANDLER_CID_LEN 6
-#define SPIDER_SQL_HANDLER_CID_FORMAT "t%05u"
 #define SPIDER_UDF_PING_TABLE_PING_ONLY                (1 << 0)
 #define SPIDER_UDF_PING_TABLE_USE_WHERE                (1 << 1)
 #define SPIDER_UDF_PING_TABLE_USE_ALL_MONITORING_NODES (1 << 2)
@@ -492,7 +494,6 @@ int spider_db_append_charset_name_before_string(
   CHARSET_INFO *cs
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_refetch_for_item_sum_funcs(
   ha_spider *spider
 );
@@ -507,7 +508,6 @@ int spider_db_fetch_for_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider
 );
-#endif
 
 int spider_db_append_match_fetch(
   ha_spider *spider,
@@ -540,10 +540,6 @@ int spider_db_append_show_index(
 
 void spider_db_free_show_index(
   SPIDER_SHARE *share
-);
-
-void spider_db_append_handler_next(
-  ha_spider *spider
 );
 
 void spider_db_get_row_from_tmp_tbl_rec(
@@ -614,6 +610,12 @@ int spider_db_store_result(
   TABLE *table
 );
 
+int spider_db_store_result_for_reuse_cursor(
+  ha_spider *spider,
+  int link_idx,
+  TABLE *table
+);
+
 void spider_db_discard_result(
   ha_spider *spider,
   int link_idx,
@@ -626,14 +628,6 @@ void spider_db_discard_multiple_result(
   SPIDER_CONN *conn
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_store_result(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx,
-  bool discard_result
-);
-#endif
 
 int spider_db_fetch(
   uchar *buf,
@@ -738,8 +732,8 @@ int spider_db_show_index(
 );
 
 ha_rows spider_db_explain_select(
-  key_range *start_key,
-  key_range *end_key,
+  const key_range *start_key,
+  const key_range *end_key,
   ha_spider *spider,
   int link_idx
 );
@@ -756,11 +750,6 @@ int spider_db_bulk_insert(
   bool bulk_end
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_bulk_insert(
-  ha_spider *spider
-);
-#endif
 
 int spider_db_update_auto_increment(
   ha_spider *spider,
@@ -789,32 +778,13 @@ int spider_db_update(
   const uchar *old_data
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_update(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *update_rows,
-  ha_rows *found_rows
-);
-#else
 int spider_db_direct_update(
   ha_spider *spider,
   TABLE *table,
   ha_rows *update_rows,
   ha_rows *found_rows
 );
-#endif
-#endif
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_direct_update(
-  ha_spider *spider,
-  ha_rows *update_rows
-);
-#endif
 
 int spider_db_bulk_delete(
   ha_spider *spider,
@@ -828,23 +798,11 @@ int spider_db_delete(
   const uchar *buf
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
-int spider_db_direct_delete(
-  ha_spider *spider,
-  TABLE *table,
-  KEY_MULTI_RANGE *ranges,
-  uint range_count,
-  ha_rows *delete_rows
-);
-#else
 int spider_db_direct_delete(
   ha_spider *spider,
   TABLE *table,
   ha_rows *delete_rows
 );
-#endif
-#endif
 
 int spider_db_delete_all_rows(
   ha_spider *spider
@@ -934,7 +892,6 @@ int spider_db_open_item_func(
   spider_fields *fields
 );
 
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
 int spider_db_open_item_sum_func(
   Item_sum *item_sum,
   ha_spider *spider,
@@ -945,7 +902,6 @@ int spider_db_open_item_sum_func(
   bool use_fields,
   spider_fields *fields
 );
-#endif
 
 int spider_db_open_item_ident(
   Item_ident *item_ident,
@@ -1046,7 +1002,6 @@ int spider_db_append_condition(
   bool test_flg
 );
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 int spider_db_append_update_columns(
   ha_spider *spider,
   spider_string *str,
@@ -1056,7 +1011,11 @@ int spider_db_append_update_columns(
   bool use_fields,
   spider_fields *fields
 );
-#endif
+
+bool spider_db_check_select_colum_in_group(
+  st_select_lex *select_lex,
+  Field *field
+);
 
 uint spider_db_check_ft_idx(
   Item_func *item_func,
@@ -1178,33 +1137,6 @@ int spider_db_udf_copy_tables(
   TABLE *table,
   longlong bulk_insert_rows
 );
-
-int spider_db_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-#endif
-
-int spider_db_close_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx,
-  uint tgt_conn_kind
-);
-
-#if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
-void spider_db_hs_request_buf_reset(
-  SPIDER_CONN *conn
-);
-#endif
 
 bool spider_db_conn_is_network_error(
   int error_num

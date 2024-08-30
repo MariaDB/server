@@ -34,8 +34,8 @@ struct worker_throbj {
 
 struct hstcpsvr : public hstcpsvr_i, private noncopyable {
   hstcpsvr(const config& c);
-  ~hstcpsvr();
-  virtual std::string start_listen();
+  ~hstcpsvr() override;
+  std::string start_listen() override;
  private:
   hstcpsvr_shared_c cshared;
   volatile hstcpsvr_shared_v vshared;

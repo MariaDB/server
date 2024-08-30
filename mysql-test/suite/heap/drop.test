@@ -1,0 +1,11 @@
+create table t1 (a int) engine=memory;
+let $DATADIR= `select @@datadir`;
+copy_file $DATADIR/test/t1.frm $DATADIR/test/t2.frm;
+#
+# drop a newly created MEMORY table
+#
+drop table t1;
+#
+# drop a MEMORY table after a server restart (frm only, nothing in memory)
+#
+drop table t2;

@@ -40,6 +40,13 @@ private:
    */
   bool m_filter;
 
+public:
+  /* domain id list types */
+  enum enum_list_type {
+    DO_DOMAIN_IDS= 0,
+    IGNORE_DOMAIN_IDS
+  };
+
   /*
     DO_DOMAIN_IDS (0):
       Ignore all the events which do not belong to any of the domain ids in the
@@ -49,13 +56,6 @@ private:
       Ignore the events which belong to one of the domain ids in the list.
   */
   DYNAMIC_ARRAY m_domain_ids[2];
-
-public:
-  /* domain id list types */
-  enum enum_list_type {
-    DO_DOMAIN_IDS= 0,
-    IGNORE_DOMAIN_IDS
-  };
 
   Domain_id_filter();
 
@@ -105,7 +105,8 @@ public:
     @retval void
   */
   void store_ids(THD *thd);
-
+  /* Same as above, but store the id's into a group of fields */
+  void store_ids(Field ***field);
   /*
     Initialize the given domain id list (DYNAMIC_ARRAY) with the
     space-separated list of numbers from the specified IO_CACHE where
@@ -144,8 +145,8 @@ typedef struct st_rows_event_tracker
   my_off_t first_seen;
   my_off_t last_seen;
   bool stmt_end_seen;
-  void update(const char* file_name, my_off_t pos,
-              const char* buf,
+  void update(const char *file_name, my_off_t pos,
+              const uchar *buf,
               const Format_description_log_event *fdle);
   void reset();
   bool check_and_report(const char* file_name, my_off_t pos);
@@ -231,17 +232,18 @@ class Master_info : public Slave_reporting_capability
   char ssl_ca[FN_REFLEN], ssl_capath[FN_REFLEN], ssl_cert[FN_REFLEN];
   char ssl_cipher[FN_REFLEN], ssl_key[FN_REFLEN];
   char ssl_crl[FN_REFLEN], ssl_crlpath[FN_REFLEN];
-  bool ssl_verify_server_cert;
+  my_bool ssl_verify_server_cert; /* MUST be my_bool, see mysql_option() */
 
   my_off_t master_log_pos;
   File fd; // we keep the file open, so we need to remember the file pointer
   IO_CACHE file;
 
-  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock;
+  mysql_mutex_t data_lock, run_lock, sleep_lock, start_stop_lock, start_alter_lock, start_alter_list_lock;
   mysql_cond_t data_cond, start_cond, stop_cond, sleep_cond;
   THD *io_thd;
   MYSQL* mysql;
   uint32 file_id;				/* for 3.23 load data infile */
+  uint mysql_version;
   Relay_log_info rli;
   uint port;
   Rpl_filter* rpl_filter;      /* Each replication can set its filter rule*/
@@ -250,7 +252,7 @@ class Master_info : public Slave_reporting_capability
     Initialized to novalue, then set to the queried from master
     @@global.binlog_checksum and deactivated once FD has been received.
   */
-  enum enum_binlog_checksum_alg checksum_alg_before_fd;
+  enum_binlog_checksum_alg checksum_alg_before_fd;
   uint connect_retry;
 #ifndef DBUG_OFF
   int events_till_disconnect;
@@ -362,6 +364,60 @@ class Master_info : public Slave_reporting_capability
     ACK from slave, or if delay_master is enabled.
   */
   int semi_ack;
+  /*
+    The flag has replicate_same_server_id semantics and is raised to accept
+    a same-server-id event group by the gtid strict mode semisync slave.
+    Own server-id events can normally appear as result of EITHER
+    A. this server semisync (failover to) slave crash-recovery:
+       the transaction was created on this server then being master,
+       got replicated elsewhere right before the crash before commit,
+       and finally at recovery the transaction gets evicted from the
+       server's binlog and its gtid (slave) state; OR
+    B. in a general circular configuration and then when a recieved (returned
+       to slave) gtid exists in the server's binlog. Then, in gtid strict mode,
+       it must be ignored similarly to the replicate-same-server-id rule.
+ */
+  bool do_accept_own_server_id= false;
+  /*
+    Set to 1 when semi_sync is enabled. Set to 0 if there is any transmit
+    problems to the slave, in which case any furter semi-sync reply is
+    ignored
+  */
+  bool semi_sync_reply_enabled;
+  List <start_alter_info> start_alter_list;
+  MEM_ROOT mem_root;
+  /*
+    Flag is raised at the parallel worker slave stop. Its purpose
+    is to mark the whole start_alter_list when slave stops.
+    The flag is read by Start Alter event to self-mark its state accordingly
+    at time its alter info struct is about to be appened to the list.
+  */
+  bool is_shutdown= false;
+
+  /*
+    A replica will default to Slave_Pos for using Using_Gtid; however, we
+    first need to test if the master supports GTIDs. If not, fall back to 'No'.
+    Cache the value so future RESET SLAVE commands don't revert to Slave_Pos.
+  */
+  bool master_supports_gtid= true;
+
+  /*
+    When TRUE, transition this server from being an active master to a slave.
+    This updates the replication state to account for any transactions which
+    were committed into the binary log. In particular, it merges
+    gtid_binlog_pos into gtid_slave_pos.
+  */
+  bool is_demotion= false;
+};
+
+struct start_alter_thd_args
+{
+  rpl_group_info *rgi;
+  LEX_CSTRING query;
+  LEX_CSTRING *db;
+  char *catalog;
+  bool shutdown;
+  CHARSET_INFO *cs;
 };
 
 int init_master_info(Master_info* mi, const char* master_info_fname,
@@ -375,7 +431,7 @@ int flush_master_info(Master_info* mi,
 void copy_filter_setting(Rpl_filter* dst_filter, Rpl_filter* src_filter);
 void update_change_master_ids(DYNAMIC_ARRAY *new_ids, DYNAMIC_ARRAY *old_ids);
 void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids);
-
+void field_store_ids(Field *field, DYNAMIC_ARRAY *ids);
 /*
   Multi master are handled trough this struct.
   Changes to this needs to be protected by LOCK_active_mi;
@@ -400,7 +456,7 @@ public:
   bool check_duplicate_master_info(LEX_CSTRING *connection_name,
                                    const char *host, uint port);
   bool add_master_info(Master_info *mi, bool write_to_file);
-  bool remove_master_info(Master_info *mi);
+  bool remove_master_info(Master_info *mi, bool clear_log_files);
   Master_info *get_master_info(const LEX_CSTRING *connection_name,
                                Sql_condition::enum_warning_level warning);
   bool start_all_slaves(THD *thd);

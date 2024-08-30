@@ -93,6 +93,8 @@ master-bin.000006	#	Start_encryption	#	#
 master-bin.000006	#	Gtid_list	#	#	[#-#-#]
 master-bin.000006	#	Binlog_checkpoint	#	#	master-bin.000004
 PURGE BINARY LOGS TO "master-bin.000006";
+Warnings:
+Note	1375	Binary log 'master-bin.000004' is not purged because it may be needed for crash recovery (XID)
 show binary logs;
 Log_name	File_size
 master-bin.000004	#

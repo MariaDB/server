@@ -1,0 +1,45 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) ENGINE=InnoDB;
+connection node_1;
+SET AUTOCOMMIT = OFF;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+connection node_2;
+SET AUTOCOMMIT = OFF;
+SET @@wsrep_gtid_seq_no = 100;
+START TRANSACTION;
+INSERT INTO t1 VALUES(1);
+connection node_1;
+COMMIT;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+connection node_2;
+COMMIT;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+# Expected GTID value 1-1-2 on both nodes
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-2
+SET AUTOCOMMIT = ON;
+INSERT INTO t1 VALUES(2);
+# Expected GTID value 1-1-100 on both nodes, seqno is set with wsrep_gtid_seq_no
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-100
+connection node_1;
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-100
+SET AUTOCOMMIT = ON;
+INSERT INTO t1 VALUES(3);
+# Expected GTID value 1-1-101 on both nodes
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-101
+connection node_2;
+SELECT @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-101
+DROP TABLE t1;
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

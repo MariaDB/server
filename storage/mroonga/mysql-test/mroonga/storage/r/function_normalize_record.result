@@ -1,6 +1,6 @@
 CREATE TABLE memos (
 content text
-);
+) CHARSET=latin1;
 INSERT INTO memos VALUES ('aBcＡｂＣ㍑');
 SELECT mroonga_normalize(content) FROM memos;
 mroonga_normalize(content)

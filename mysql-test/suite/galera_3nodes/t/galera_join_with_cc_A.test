@@ -15,6 +15,7 @@
 --let $galera_server_number = 3
 --source include/galera_connect.inc
 
+# Save original auto_increment_offset values.
 --let $node_1=node_1
 --let $node_2=node_2
 --let $node_3=node_3
@@ -258,12 +259,12 @@ INSERT INTO t1 VALUES (9, 2);
 
 DROP TABLE t1;
 
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
 
 --connection node_2
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
 
 --connection node_3
-call mtr.add_suppression("WSREP: Rejecting JOIN message from \(.*\): new State Transfer required.");
+call mtr.add_suppression("WSREP: Rejecting JOIN message from (.*): new State Transfer required\\.");
 
 --source ../galera/include/auto_increment_offset_restore.inc

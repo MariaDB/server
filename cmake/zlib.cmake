@@ -14,9 +14,12 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA 
 
 MACRO (MYSQL_USE_BUNDLED_ZLIB)
-  SET(ZLIB_INCLUDE_DIR  ${CMAKE_SOURCE_DIR}/zlib ${CMAKE_BINARY_DIR}/zlib)
+  SET(ZLIB_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/zlib ${CMAKE_BINARY_DIR}/zlib)
   SET(BUILD_BUNDLED_ZLIB 1)
-  SET(ZLIB_LIBRARY zlib CACHE INTERNAL "Bundled zlib library")
+  SET(ZLIB_LIBRARIES zlib CACHE INTERNAL "Bundled zlib library")
+  # temporarily define ZLIB_LIBRARY and ZLIB_INCLUDE_DIR for libmariadb
+  SET(ZLIB_LIBRARY ${ZLIB_LIBRARIES})
+  SET(ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIRS})
   SET(ZLIB_FOUND  TRUE)
   SET(WITH_ZLIB "bundled" CACHE STRING "Use bundled zlib")
   ADD_SUBDIRECTORY(zlib)
@@ -29,7 +32,7 @@ ENDMACRO()
 # If this is set,we use bundled zlib
 # If this is not set,search for system zlib. 
 # if system zlib is not found, use bundled copy
-# ZLIB_LIBRARIES, ZLIB_INCLUDE_DIR and ZLIB_SOURCES
+# ZLIB_LIBRARIES, ZLIB_INCLUDE_DIRS
 # are set after this macro has run
 
 MACRO (MYSQL_CHECK_ZLIB_WITH_COMPRESS)
@@ -37,10 +40,14 @@ MACRO (MYSQL_CHECK_ZLIB_WITH_COMPRESS)
   IF(WITH_ZLIB STREQUAL "bundled")
     MYSQL_USE_BUNDLED_ZLIB()
   ELSE()
-    INCLUDE(FindZLIB)
+    FIND_PACKAGE(PkgConfig QUIET)
+    IF(PKG_CONFIG_FOUND AND (COMMAND PKG_GET_VARIABLE) AND (NOT WIN32))
+      PKG_GET_VARIABLE(ZLIB_ROOT zlib prefix)
+    ENDIF()
+    FIND_PACKAGE(ZLIB)
     IF(ZLIB_FOUND)
      INCLUDE(CheckFunctionExists)
-      SET(CMAKE_REQUIRED_LIBRARIES z)
+      SET(CMAKE_REQUIRED_LIBRARIES ${ZLIB_LIBRARIES})
       CHECK_FUNCTION_EXISTS(crc32 HAVE_CRC32)
       CHECK_FUNCTION_EXISTS(compressBound HAVE_COMPRESSBOUND)
       CHECK_FUNCTION_EXISTS(deflateBound HAVE_DEFLATEBOUND)
@@ -48,7 +55,6 @@ MACRO (MYSQL_CHECK_ZLIB_WITH_COMPRESS)
       IF(HAVE_CRC32 AND HAVE_COMPRESSBOUND AND HAVE_DEFLATEBOUND)
         SET(WITH_ZLIB "system" CACHE STRING
           "Which zlib to use (possible values are 'bundled' or 'system')")
-        SET(ZLIB_SOURCES "")
       ELSE()
         SET(ZLIB_FOUND FALSE CACHE INTERNAL "Zlib found but not usable")
         MESSAGE(STATUS "system zlib found but not usable")

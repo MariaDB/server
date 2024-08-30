@@ -1,0 +1,33 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE '',user 'Spider', password 'foo');
+CREATE TABLE tSpider (a INT) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+CREATE TABLE t2 (c INT,c2 CHAR(1)) ENGINE=Spider COMMENT='WRAPPER "mysql",SRV "srv",TABLE "t"';
+XA START 'a';
+--disable_result_log
+--error 0,ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM information_schema.table_constraints;
+--enable_result_log
+SELECT SLEEP (1);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t2;
+SELECT SLEEP (1);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t2;
+SELECT SLEEP (1);
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM t2;
+xa end 'a';
+xa rollback 'a';
+drop table tSpider, t2;
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

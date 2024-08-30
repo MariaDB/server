@@ -4,7 +4,7 @@
 --source include/not_embedded.inc
 
 # Write file to make mysql-test-run.pl expect crash and restart
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Setup the mysqld to crash at shutdown
 SET debug_dbug="d,crash_shutdown";

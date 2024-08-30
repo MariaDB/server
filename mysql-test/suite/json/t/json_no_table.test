@@ -2286,3 +2286,19 @@ SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
                   GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
 FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
 
+--echo #
+--echo # Start of 11.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-25829 Change default collation to utf8mb4_1400_ai_ci
+--echo #
+
+SELECT
+  JSON_UNQUOTE("String"),
+  COERCIBILITY(JSON_UNQUOTE("String")),
+  COLLATION(JSON_UNQUOTE("String"));
+
+--echo #
+--echo # End of 11.4 tests
+--echo #

@@ -431,7 +431,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->on_expr= expr;
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
-    thd->where= "on clause";
+    thd->where= THD_WHERE::ON_CLAUSE;
     if (derived->on_expr &&
         derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
@@ -655,14 +655,29 @@ static
 bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 {
   SELECT_LEX_UNIT *unit= derived->get_unit();
-  bool res= FALSE;
+  SELECT_LEX *first_select;
+  bool res= FALSE, keep_row_order, distinct;
   DBUG_ENTER("mysql_derived_prepare");
   DBUG_PRINT("enter", ("unit: %p  table_list: %p  alias: '%s'",
                        unit, derived, derived->alias.str));
   if (!unit)
     DBUG_RETURN(FALSE);
 
-  SELECT_LEX *first_select= unit->first_select();
+  first_select= unit->first_select();
+  /*
+    If rownum() is used we have to preserve the insert row order
+    to make GROUP BY and ORDER BY with filesort work.
+
+    SELECT * from (SELECT a,b from t1 ORDER BY a)) WHERE rownum <= 0;
+
+    When rownum is not used the optimizer will skip the ORDER BY clause.
+    With rownum we have to keep the ORDER BY as this is what is expected.
+    We also have to create any sort result temporary table in such a way
+    that the inserted row order is maintained.
+  */
+  keep_row_order= (thd->lex->with_rownum &&
+                   (first_select->group_list.elements ||
+                    first_select->order_list.elements));
 
   if (derived->is_recursive_with_table() &&
       !derived->is_with_table_recursive_reference() &&
@@ -699,7 +714,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
                                   (first_select->options |
                                    thd->variables.option_bits |
                                    TMP_TABLE_ALL_COLUMNS),
-                                  &derived->alias, FALSE, FALSE, FALSE, 0);
+                                  &derived->alias, FALSE, FALSE,
+                                  keep_row_order, 0);
     thd->create_tmp_table_for_derived= FALSE;
 
     if (likely(!res) && !derived->table)
@@ -824,8 +840,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   if ((res= unit->prepare(derived, derived->derived_result, 0)))
     goto exit;
   if (derived->with &&
-      (res= derived->with->rename_columns_of_derived_unit(thd, unit)))
-    goto exit; 
+      (res= derived->with->process_columns_of_derived_unit(thd, unit)))
+    goto exit;
   if ((res= check_duplicate_names(thd, unit->types, 0)))
     goto exit;
 
@@ -839,23 +855,31 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     goto exit;
 
   /*
-    Temp table is created so that it hounours if UNION without ALL is to be 
+    Temp table is created so that it honors if UNION without ALL is to be
     processed
 
-    As 'distinct' parameter we always pass FALSE (0), because underlying
-    query will control distinct condition by itself. Correct test of
-    distinct underlying query will be is_unit_op &&
-    !unit->union_distinct->next_select() (i.e. it is union and last distinct
-    SELECT is last SELECT of UNION).
+    We pass as 'distinct' parameter in any of the above cases
+
+    1) It is an UNION and the last part of an union is distinct (as
+       thus the final temporary table should not contain duplicates).
+    2) It is not an UNION and the unit->distinct flag is set. This is the
+       case for WHERE A IN (...).
+
+    Note that the underlying query will also control distinct condition.
   */
   thd->create_tmp_table_for_derived= TRUE;
+  distinct= (unit->first_select()->next_select() ?
+             unit->union_distinct && !unit->union_distinct->next_select() :
+             unit->distinct);
+
   if (!(derived->table) &&
-      derived->derived_result->create_result_table(thd, &unit->types, FALSE,
+      derived->derived_result->create_result_table(thd, &unit->types,
+                                                   distinct,
                                                    (first_select->options |
                                                    thd->variables.option_bits |
                                                    TMP_TABLE_ALL_COLUMNS),
                                                    &derived->alias,
-                                                   FALSE, FALSE, FALSE,
+                                                   FALSE, FALSE, keep_row_order,
                                                    0))
   { 
     thd->create_tmp_table_for_derived= FALSE;
@@ -870,22 +894,6 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     first_select->mark_as_belong_to_derived(derived);
 
   derived->dt_handler= derived->find_derived_handler(thd);
-  if (derived->dt_handler)
-  {
-    char query_buff[4096];
-    String derived_query(query_buff, sizeof(query_buff), thd->charset());
-    derived_query.length(0);
-    derived->derived->print(&derived_query,
-                            enum_query_type(QT_VIEW_INTERNAL | 
-                                            QT_ITEM_ORIGINAL_FUNC_NULLIF |
-                                            QT_PARSABLE));
-    if (!thd->make_lex_string(&derived->derived_spec,
-                              derived_query.ptr(), derived_query.length()))
-    {
-      delete derived->dt_handler;
-      derived->dt_handler= NULL;
-    }
-  }
 
 exit:
   /* Hide "Unknown column" or "Unknown function" error */
@@ -1201,8 +1209,12 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                        (derived->alias.str ? derived->alias.str : "<NULL>"),
                        derived->get_unit()));
 
-  if (unit->executed && !unit->uncacheable && !unit->describe &&
-      !derived_is_recursive)
+  /*
+    Only fill derived tables once, unless the derived table is dependent in
+    which case we will delete all of its rows and refill it below.
+  */
+  if (unit->executed && !(unit->uncacheable & UNCACHEABLE_DEPENDENT) &&
+      !unit->describe && !derived_is_recursive)
     DBUG_RETURN(FALSE);
   /*check that table creation passed without problems. */
   DBUG_ASSERT(derived->table && derived->table->is_created());
@@ -1217,7 +1229,9 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
     /* Execute the query that specifies the derived table by a foreign engine */
     res= derived->pushdown_derived->execute();
     unit->executed= true;
+    if (res)
       DBUG_RETURN(res);
+    goto after_exec;
   }
 
   if (unit->executed && !derived_is_recursive &&
@@ -1259,15 +1273,15 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
   }
   else
   {
+    DBUG_ASSERT(!unit->executed || (unit->uncacheable & UNCACHEABLE_DEPENDENT));
     SELECT_LEX *first_select= unit->first_select();
     unit->set_limit(unit->global_parameters());
-    if (unit->select_limit_cnt == HA_POS_ERROR)
+    if (unit->lim.is_unlimited())
       first_select->options&= ~OPTION_FOUND_ROWS;
 
     lex->current_select= first_select;
     res= mysql_select(thd,
                       first_select->table_list.first,
-                      first_select->with_wild,
                       first_select->item_list, first_select->where,
                       (first_select->order_list.elements+
                        first_select->group_list.elements),
@@ -1279,6 +1293,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
                       derived_result, unit, first_select);
   }
 
+ after_exec:
   if (!res && !derived_is_recursive)
   {
     if (derived_result->flush())
@@ -1495,7 +1510,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     DBUG_RETURN(false);
 
   /* Do not push conditions into unit with global ORDER BY ... LIMIT */
-  if (unit->fake_select_lex && unit->fake_select_lex->explicit_limit)
+  if (unit->fake_select_lex &&
+      unit->fake_select_lex->limit_params.explicit_limit)
     DBUG_RETURN(false);
 
   /* Check whether any select of 'unit' allows condition pushdown */
@@ -1550,6 +1566,7 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (sl != first_sl)
     {
       DBUG_ASSERT(sl->item_list.elements == first_sl->item_list.elements);
+      sl->save_item_list_names(thd);
       List_iterator_fast<Item> it(sl->item_list);
       List_iterator_fast<Item> nm_it(unit->types);
       while (Item *item= it++)

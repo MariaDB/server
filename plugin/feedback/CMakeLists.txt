@@ -1,5 +1,5 @@
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/sql
-                    ${PCRE_INCLUDES}
+                    ${PCRE_INCLUDE_DIRS}
                     ${SSL_INCLUDE_DIRS})
 
 SET(FEEDBACK_SOURCES feedback.cc sender_thread.cc

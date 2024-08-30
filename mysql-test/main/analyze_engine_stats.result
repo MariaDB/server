@@ -1,0 +1,213 @@
+create table t1 (
+pk int not null, 
+a varchar(64),
+b varchar(64),
+c varchar(64)
+) engine=innodb;
+insert into t1 select
+seq, seq, seq, seq
+from
+seq_1_to_10000;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+# Note the r_engine_stats below.  Only non-zero members are printed
+select '$out' as X;
+X
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": 1.6664988,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 10000,
+          "r_rows": 10000,
+          "cost": 1.6664988,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": {
+            "pages_accessed": "REPLACED"
+          },
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "attached_condition": "t1.pk < 120000",
+          "r_filtered": 100
+        }
+      }
+    ]
+  }
+}
+set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_accessed'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_ACCESSED_MORE_THAN_ZERO;
+PAGES_ACCESSED_MORE_THAN_ZERO
+1
+#
+# Try an UPDATE
+#
+select '$out' as X;
+X
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "update": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 10000,
+      "r_rows": 10000,
+      "r_total_filtered": 100,
+      "r_total_time_ms": "REPLACED",
+      "r_engine_stats": {
+        "pages_accessed": "REPLACED",
+        "pages_updated": "REPLACED"
+      },
+      "attached_condition": "t1.pk < 120000",
+      "r_filtered": 100
+    }
+  }
+}
+set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_updated'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_UPDATED_MORE_THAN_ZERO;
+PAGES_UPDATED_MORE_THAN_ZERO
+1
+#
+# Try a DELETE
+#
+select '$out' as X;
+X
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "delete": 1,
+      "table_name": "t1",
+      "access_type": "ALL",
+      "rows": 10000,
+      "r_rows": 10000,
+      "r_total_filtered": 50,
+      "r_total_time_ms": "REPLACED",
+      "r_engine_stats": {
+        "pages_accessed": "REPLACED",
+        "pages_updated": "REPLACED"
+      },
+      "attached_condition": "t1.pk MOD 2 = 1",
+      "r_filtered": 50
+    }
+  }
+}
+set @js='$out';
+set @out=(select json_extract(@js,'$**.r_engine_stats.pages_updated'));
+select cast(json_extract(@out,'$[0]') as DOUBLE) > 0 as PAGES_UPDATED_MORE_THAN_ZERO;
+PAGES_UPDATED_MORE_THAN_ZERO
+1
+drop table t1;
+#
+# MDEV-31764: ASAN use-after-poison in trace_engine_stats upon ANALYZE FORMAT=JSON
+#
+ANALYZE FORMAT=JSON SELECT count(*) FROM information_schema.GLOBAL_STATUS;
+# Another testcase without I_S:
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 SELECT seq FROM seq_1_to_100;
+CREATE TABLE t2 (s INT);
+INSERT INTO t2 SELECT seq FROM seq_1_to_10;
+# Must use SJ-Materialization to hit the issue with temp.table:
+ANALYZE FORMAT=JSON SELECT * FROM t1 WHERE a IN (SELECT s FROM t2);
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "const_condition": "1",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 100,
+          "r_rows": 100,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["s"],
+          "ref": ["func"],
+          "r_loops": 100,
+          "r_table_loops": 110,
+          "rows": 1,
+          "r_rows": 0.1,
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "r_loops": 1,
+                    "rows": 10,
+                    "r_rows": 10,
+                    "cost": "REPLACED",
+                    "r_table_time_ms": "REPLACED",
+                    "r_other_time_ms": "REPLACED",
+                    "r_engine_stats": REPLACED,
+                    "filtered": 100,
+                    "r_total_filtered": 100,
+                    "r_filtered": 100
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+DROP TABLE t1, t2;

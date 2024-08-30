@@ -1,6 +1,0 @@
-#include "symlinks.h"
-symlink all_symlinks[]=
-{
-@ALL_SYMLINKS@
-{nullptr, nullptr}
-};

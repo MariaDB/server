@@ -1,0 +1,4 @@
+[new]
+
+[old]
+# remove when no longer building with OpenSSL 1.0

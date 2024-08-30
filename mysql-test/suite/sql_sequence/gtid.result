@@ -68,7 +68,7 @@ connection master;
 create sequence s2;
 alter table s2 add id int;
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Wrong number of columns)
-alter table s2 add index ind_x(start);
+alter table s2 add index ind_x(start_value);
 ERROR HY000: Sequence 's_db.s2' table structure is invalid (Sequence tables cannot have any keys)
 drop sequence s2;
 ###########################################

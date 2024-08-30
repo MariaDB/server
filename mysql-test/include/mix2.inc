@@ -55,7 +55,7 @@
 # Set the SESSION DEFAULT STORAGE ENGINE to a value <> storage engine
 # to be tested. This must not affect any CREATE TABLE statement, where
 # the storage engine is assigned explicitly,
-eval SET SESSION STORAGE_ENGINE = $other_engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $other_engine_type;
 
 #
 # Small basic test with ignore
@@ -776,7 +776,7 @@ eval create table t1 (id int unsigned not null auto_increment, code tinyint unsi
 
 BEGIN;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-SELECT @@tx_isolation,@@global.tx_isolation;
+SELECT @@transaction_isolation,@@global.transaction_isolation;
 insert into t1 (code, name) values (1, 'Tim'), (1, 'Monty'), (2, 'David');
 select id, code, name from t1 order by id;
 COMMIT;
@@ -1423,33 +1423,6 @@ show variables like "innodb_sync_spin_loops";
 set global innodb_sync_spin_loops=20;
 show variables like "innodb_sync_spin_loops";
 
-# Test for innodb_thread_concurrency variable
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=1001;
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=0;
-show variables like "innodb_thread_concurrency";
-set global innodb_thread_concurrency=16;
-show variables like "innodb_thread_concurrency";
-
-# Test for innodb_concurrency_tickets variable
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=1000;
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=0;
-show variables like "innodb_concurrency_tickets";
-set global innodb_concurrency_tickets=500;
-show variables like "innodb_concurrency_tickets";
-
-# Test for innodb_thread_sleep_delay variable
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=100000;
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=0;
-show variables like "innodb_thread_sleep_delay";
-set global innodb_thread_sleep_delay=10000;
-show variables like "innodb_thread_sleep_delay";
-
 }
 
 
@@ -1457,8 +1430,8 @@ show variables like "innodb_thread_sleep_delay";
 # Test varchar
 #
 
-let $default=`select @@storage_engine`;
-eval set storage_engine=$engine_type;
+let $default=`select @@default_storage_engine`;
+eval set default_storage_engine=$engine_type;
 source include/varchar.inc;
 
 #
@@ -1479,7 +1452,7 @@ create table t1 (v varchar(65530) character set utf8);
 show create table t1;
 drop table t1;
 
-eval set storage_engine=$default;
+eval set default_storage_engine=$default;
 
 # InnoDB specific varchar tests
 eval create table t1 (v varchar(16384)) engine=$engine_type;
@@ -2272,25 +2245,25 @@ drop table t1, t2, t3;
 # 3) CREATE ... SELECT
 
 connect (a,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (b,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (c,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (d,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (e,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (f,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (g,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (h,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (i,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connect (j,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 connection a;
 create table t1(a int not null, b int, primary key(a));
 insert into t1 values (1,2),(5,3),(4,2);

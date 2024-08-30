@@ -1,2 +1,2 @@
 --innodb
---innodb-sys-datafiles
+--innodb-sys-tablespaces

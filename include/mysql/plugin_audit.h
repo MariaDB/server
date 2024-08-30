@@ -48,6 +48,7 @@ extern "C" {
 #define MYSQL_AUDIT_GENERAL_ERROR 1
 #define MYSQL_AUDIT_GENERAL_RESULT 2
 #define MYSQL_AUDIT_GENERAL_STATUS 3
+#define MYSQL_AUDIT_GENERAL_WARNING 4
 
 struct mysql_event_general
 {

@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2001, 2011, Oracle and/or its affiliates.
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +23,7 @@
     (defined(__alpha__) && defined(__GNUC__))
 #define HAVE_STACKTRACE 1
 #endif
-#elif defined(__WIN__) || defined(HAVE_PRINTSTACK)
+#elif defined(_WIN32) || defined(HAVE_PRINTSTACK)
 #define HAVE_STACKTRACE 1
 #endif
 
@@ -45,12 +46,17 @@ void my_print_stacktrace(uchar* stack_bottom, ulong thread_stack,
                          my_bool silent);
 int my_safe_print_str(const char* val, size_t max_len);
 void my_write_core(int sig);
-#if BACKTRACE_DEMANGLE
+# if BACKTRACE_DEMANGLE
 char *my_demangle(const char *mangled_name, int *status);
-#endif /* BACKTRACE_DEMANGLE */
-#ifdef __WIN__
+# endif /* BACKTRACE_DEMANGLE */
+# ifdef _WIN32
+#  define my_setup_stacktrace()
 void my_set_exception_pointers(EXCEPTION_POINTERS *ep);
-#endif /* __WIN__ */
+# else
+void my_setup_stacktrace(void);
+# endif /* _WIN32 */
+#else
+# define my_setup_stacktrace()
 #endif /* ! (defined(HAVE_STACKTRACE) || defined(HAVE_BACKTRACE)) */
 
 #ifndef _WIN32

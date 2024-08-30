@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,15 +33,6 @@ Created 4/18/1996 Heikki Tuuri
 #include "buf0buf.h"
 #include "dict0dict.h"
 
-typedef	byte	dict_hdr_t;
-
-/**********************************************************************//**
-Gets a pointer to the dictionary header and x-latches its page.
-@return pointer to the dictionary header, page x-latched */
-dict_hdr_t*
-dict_hdr_get(
-/*=========*/
-	mtr_t*	mtr);	/*!< in: mtr */
 /**********************************************************************//**
 Returns a new table, index, or space id. */
 void
@@ -51,37 +42,8 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id);	/*!< out: space id
+	uint32_t*		space_id);	/*!< out: space id
 						(not assigned if NULL) */
-/**********************************************************************//**
-Writes the current value of the row id counter to the dictionary header file
-page. */
-void
-dict_hdr_flush_row_id(void);
-/*=======================*/
-/**********************************************************************//**
-Returns a new row id.
-@return the new id */
-UNIV_INLINE
-row_id_t
-dict_sys_get_new_row_id(void);
-/*=========================*/
-/**********************************************************************//**
-Reads a row id from a record or other 6-byte stored form.
-@return row id */
-UNIV_INLINE
-row_id_t
-dict_sys_read_row_id(
-/*=================*/
-	const byte*	field);	/*!< in: record field */
-/**********************************************************************//**
-Writes a row id to a record or other 6-byte stored form. */
-UNIV_INLINE
-void
-dict_sys_write_row_id(
-/*==================*/
-	byte*		field,	/*!< in: record field */
-	row_id_t	row_id);/*!< in: row id */
 /*****************************************************************//**
 Initializes the data dictionary memory structures when the database is
 started. This function is also called when the data dictionary is created.
@@ -102,12 +64,7 @@ dict_create(void)
 /*********************************************************************//**
 Check if a table id belongs to  system table.
 @return true if the table id belongs to a system table. */
-UNIV_INLINE
-bool
-dict_is_sys_table(
-/*==============*/
-	table_id_t	id)		/*!< in: table id to check */
-	MY_ATTRIBUTE((warn_unused_result));
+inline bool dict_is_sys_table(table_id_t id) { return id < DICT_HDR_FIRST_ID; }
 
 /* Space id and page no where the dictionary header resides */
 #define	DICT_HDR_SPACE		0	/* the SYSTEM tablespace */
@@ -126,7 +83,7 @@ dict_is_sys_table(
 
 /*-------------------------------------------------------------*/
 /* Dictionary header offsets */
-#define DICT_HDR_ROW_ID		0	/* The latest assigned row id */
+//#define DICT_HDR_ROW_ID	0	/* Was: latest assigned DB_ROW_ID */
 #define DICT_HDR_TABLE_ID	8	/* The latest assigned table id */
 #define DICT_HDR_INDEX_ID	16	/* The latest assigned index id */
 #define DICT_HDR_MAX_SPACE_ID	24	/* The latest assigned space id,or 0*/
@@ -282,37 +239,6 @@ enum dict_fld_sys_foreign_cols_enum {
 	DICT_FLD__SYS_FOREIGN_COLS__REF_COL_NAME	= 5,
 	DICT_NUM_FIELDS__SYS_FOREIGN_COLS		= 6
 };
-/* The columns in SYS_TABLESPACES */
-enum dict_col_sys_tablespaces_enum {
-	DICT_COL__SYS_TABLESPACES__SPACE		= 0,
-	DICT_COL__SYS_TABLESPACES__NAME			= 1,
-	DICT_COL__SYS_TABLESPACES__FLAGS		= 2,
-	DICT_NUM_COLS__SYS_TABLESPACES			= 3
-};
-/* The field numbers in the SYS_TABLESPACES clustered index */
-enum dict_fld_sys_tablespaces_enum {
-	DICT_FLD__SYS_TABLESPACES__SPACE		= 0,
-	DICT_FLD__SYS_TABLESPACES__DB_TRX_ID		= 1,
-	DICT_FLD__SYS_TABLESPACES__DB_ROLL_PTR		= 2,
-	DICT_FLD__SYS_TABLESPACES__NAME			= 3,
-	DICT_FLD__SYS_TABLESPACES__FLAGS		= 4,
-	DICT_NUM_FIELDS__SYS_TABLESPACES		= 5
-};
-/* The columns in SYS_DATAFILES */
-enum dict_col_sys_datafiles_enum {
-	DICT_COL__SYS_DATAFILES__SPACE			= 0,
-	DICT_COL__SYS_DATAFILES__PATH			= 1,
-	DICT_NUM_COLS__SYS_DATAFILES			= 2
-};
-/* The field numbers in the SYS_DATAFILES clustered index */
-enum dict_fld_sys_datafiles_enum {
-	DICT_FLD__SYS_DATAFILES__SPACE			= 0,
-	DICT_FLD__SYS_DATAFILES__DB_TRX_ID		= 1,
-	DICT_FLD__SYS_DATAFILES__DB_ROLL_PTR		= 2,
-	DICT_FLD__SYS_DATAFILES__PATH			= 3,
-	DICT_NUM_FIELDS__SYS_DATAFILES			= 4
-};
-
 /* The columns in SYS_VIRTUAL */
 enum dict_col_sys_virtual_enum {
 	DICT_COL__SYS_VIRTUAL__TABLE_ID		= 0,
@@ -334,12 +260,5 @@ enum dict_fld_sys_virtual_enum {
 length of thos fields. */
 #define	DICT_FLD_LEN_SPACE	4
 #define	DICT_FLD_LEN_FLAGS	4
-
-/* When a row id which is zero modulo this number (which must be a power of
-two) is assigned, the field DICT_HDR_ROW_ID on the dictionary header page is
-updated */
-#define DICT_HDR_ROW_ID_WRITE_MARGIN	256
-
-#include "dict0boot.inl"
 
 #endif

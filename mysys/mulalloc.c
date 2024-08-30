@@ -17,6 +17,11 @@
 #include "mysys_priv.h"
 #include <stdarg.h>
 
+#ifndef DBUG_OFF
+/* Put a protected barrier after every element when using my_multi_malloc() */
+#define ALLOC_BARRIER
+#endif
+
 /*
   Malloc many pointers at the same time
   Only ptr1 can be free'd, and doing this will free all
@@ -32,7 +37,7 @@
 	NULL
 */
 
-void* my_multi_malloc(myf myFlags, ...)
+void* my_multi_malloc(PSI_memory_key key, myf myFlags, ...)
 {
   va_list args;
   char **ptr,*start,*res;
@@ -45,10 +50,13 @@ void* my_multi_malloc(myf myFlags, ...)
   {
     length=va_arg(args,uint);
     tot_length+=ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    tot_length+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
 
-  if (!(start=(char *) my_malloc(tot_length,myFlags)))
+  if (!(start=(char *) my_malloc(key, tot_length,myFlags)))
     DBUG_RETURN(0); /* purecov: inspected */
 
   va_start(args,myFlags);
@@ -58,6 +66,10 @@ void* my_multi_malloc(myf myFlags, ...)
     *ptr=res;
     length=va_arg(args,uint);
     res+=ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    TRASH_FREE(res, ALIGN_SIZE(1));
+    res+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
   DBUG_RETURN((void*) start);
@@ -76,7 +88,7 @@ void* my_multi_malloc(myf myFlags, ...)
 	NULL
 */
 
-void *my_multi_malloc_large(myf myFlags, ...)
+void *my_multi_malloc_large(PSI_memory_key key, myf myFlags, ...)
 {
   va_list args;
   char **ptr,*start,*res;
@@ -89,10 +101,13 @@ void *my_multi_malloc_large(myf myFlags, ...)
   {
     length=va_arg(args,ulonglong);
     tot_length+=ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    tot_length+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
 
-  if (!(start=(char *) my_malloc((size_t) tot_length, myFlags)))
+  if (!(start=(char *) my_malloc(key, (size_t) tot_length, myFlags)))
     DBUG_RETURN(0); /* purecov: inspected */
 
   va_start(args,myFlags);
@@ -102,6 +117,10 @@ void *my_multi_malloc_large(myf myFlags, ...)
     *ptr=res;
     length=va_arg(args,ulonglong);
     res+=ALIGN_SIZE(length);
+#ifdef ALLOC_BARRIER
+    TRASH_FREE(res, ALIGN_SIZE(1));
+    res+= ALIGN_SIZE(1);
+#endif
   }
   va_end(args);
   DBUG_RETURN((void*) start);

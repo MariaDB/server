@@ -62,7 +62,7 @@ SELECT * FROM t1;
 --let $start_mysqld_params=--galera-unknown-option
 
 --echo Starting server ...
---exec echo "try:$start_mysqld_params" > $_expect_file_name
+--write_line "try:$start_mysqld_params" $_expect_file_name
 
 # Sleep to ensure that server exited...
 
@@ -107,7 +107,7 @@ SELECT * FROM t1;
 --let $start_mysqld_params=--galera-unknown-option
 
 --echo Starting server ...
---exec echo "try:$start_mysqld_params" > $_expect_file_name
+--write_line "try:$start_mysqld_params" $_expect_file_name
 
 # Sleep to ensure that server exited...
 
@@ -125,7 +125,7 @@ SELECT * FROM t1;
 
 # Sanity check (node 2 is running now and can perform SQL operators):
 
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 SELECT * FROM t1;
 
 --connection node_1

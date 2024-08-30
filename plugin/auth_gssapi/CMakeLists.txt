@@ -32,11 +32,13 @@ ELSE()
    ENDIF()
    SET(CMAKE_REQUIRED_INCLUDES ${GSSAPI_INCS})
    SET(CMAKE_REQUIRED_LIBRARIES ${GSSAPI_LIBS})
+   SET(CMAKE_REQUIRED_FLAGS "-Werror -Wall")
    INCLUDE(CheckCXXSymbolExists)
    CHECK_CXX_SYMBOL_EXISTS(krb5_xfree "krb5.h" HAVE_KRB5_XFREE)
    IF(HAVE_KRB5_XFREE)
      ADD_DEFINITIONS(-DHAVE_KRB5_XFREE=1)
    ENDIF()
+   MY_CHECK_AND_SET_COMPILER_FLAG(-Wl,--as-needed)
 
  ELSE()
    # Can't build plugin
@@ -44,11 +46,15 @@ ELSE()
  ENDIF()
 ENDIF ()
 
-
+IF(WIN32)
+  SET(AUTH_GSSAPI_DEFAULT DEFAULT)
+ELSE()
+  SET(AUTH_GSSAPI_DEFAULT)
+ENDIF()
 MYSQL_ADD_PLUGIN(auth_gssapi server_plugin.cc ${GSSAPI_SERVER} ${GSSAPI_ERRMSG}
-                 LINK_LIBRARIES ${GSSAPI_LIBS} 
-                 COMPONENT gssapi-server
-                 MODULE_ONLY)
+                 LINK_LIBRARIES ${GSSAPI_LIBS}
+                 ${AUTH_GSSAPI_DEFAULT}
+                 COMPONENT gssapi-server)
 
 # disabled in favor of libmariadb/plugins/auth/auth_gssapi_client.c
 #

@@ -57,7 +57,7 @@ int main(int argc __attribute__((unused)), char *argv[])
 
   bzero(long_tr_id, 6);
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
   default_dbug_option= "d:t:i:O,\\ma_test_loghandler_pagecache.trace";
 #else
   default_dbug_option= "d:t:i:o,/tmp/ma_test_loghandler_pagecache.trace";
@@ -69,7 +69,7 @@ int main(int argc __attribute__((unused)), char *argv[])
   }
 #endif
 
-  if (ma_control_file_open(TRUE, TRUE))
+  if (ma_control_file_open(TRUE, TRUE, TRUE, control_file_open_flags))
   {
     fprintf(stderr, "Can't init control file (%d)\n", errno);
     exit(1);

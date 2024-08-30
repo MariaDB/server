@@ -5,6 +5,7 @@ DROP FUNCTION IF EXISTS sp_vars_check_ret2;
 DROP FUNCTION IF EXISTS sp_vars_check_ret3;
 DROP FUNCTION IF EXISTS sp_vars_check_ret4;
 DROP FUNCTION IF EXISTS sp_vars_div_zero;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET @@sql_mode = 'ansi';
 CREATE PROCEDURE sp_vars_check_dflt()
 BEGIN
@@ -110,7 +111,7 @@ v7	v8	v9	v10	v11	v12	v13	v14	v15	v16
 v17	v18	v19	v20
 12.00	12.12	12.00	12.12
 Warnings:
-Note	1265	Data truncated for column 'v20' at row 1
+Note	1265	Data truncated for column 'v20' at row 0
 CALL sp_vars_check_assignment();
 i1	i2	i3	i4
 127	-128	127	-128
@@ -130,22 +131,22 @@ SELECT sp_vars_check_ret1();
 sp_vars_check_ret1()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
 sp_vars_check_ret2()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 sp_vars_div_zero()
 NULL
@@ -165,7 +166,7 @@ v7	v8	v9	v10	v11	v12	v13	v14	v15	v16
 v17	v18	v19	v20
 12.00	12.12	12.00	12.12
 Warnings:
-Note	1265	Data truncated for column 'v20' at row 1
+Note	1265	Data truncated for column 'v20' at row 0
 CALL sp_vars_check_assignment();
 i1	i2	i3	i4
 127	-128	127	-128
@@ -185,22 +186,22 @@ SELECT sp_vars_check_ret1();
 sp_vars_check_ret1()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
 sp_vars_check_ret2()
 127
 Warnings:
-Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 1
+Warning	1264	Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
 sp_vars_check_ret3()
 0
 Warnings:
-Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+Warning	1366	Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 sp_vars_div_zero()
 NULL
@@ -306,20 +307,20 @@ Calling the routines, created in TRADITIONAL mode.
 ---------------------------------------------------------------
 
 CALL sp_vars_check_dflt();
-ERROR 22003: Out of range value for column 'v1' at row 1
+ERROR 22003: Out of range value for column 'v1' at row 0
 CALL sp_vars_check_assignment();
-ERROR 22003: Out of range value for column 'i1' at row 1
+ERROR 22003: Out of range value for column 'i1' at row 0
 SELECT sp_vars_check_ret1();
-ERROR 22003: Out of range value for column 'sp_vars_check_ret1()' at row 1
+ERROR 22003: Out of range value for column 'sp_vars_check_ret1()' at row 0
 SELECT sp_vars_check_ret2();
-ERROR 22003: Out of range value for column 'sp_vars_check_ret2()' at row 1
+ERROR 22003: Out of range value for column 'sp_vars_check_ret2()' at row 0
 SELECT sp_vars_check_ret3();
-ERROR 22007: Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 1
+ERROR 22007: Incorrect integer value: 'Hello, world' for column ``.``.`sp_vars_check_ret3()` at row 0
 SELECT sp_vars_check_ret4();
 sp_vars_check_ret4()
 154.12
 Warnings:
-Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 1
+Note	1265	Data truncated for column 'sp_vars_check_ret4()' at row 0
 SELECT sp_vars_div_zero();
 ERROR 22012: Division by 0
 SET @@sql_mode = 'ansi';
@@ -385,7 +386,7 @@ FF
 HEX(v10)
 FF
 Warnings:
-Warning	1264	Out of range value for column 'v5' at row 1
+Warning	1264	Out of range value for column 'v5' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -602,7 +603,7 @@ CALL p1('alpha', 'abcdef');
 x	y
 alpha	abc
 Warnings:
-Warning	1265	Data truncated for column 'y' at row 1
+Warning	1265	Data truncated for column 'y' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -628,7 +629,7 @@ t1	CREATE TABLE "t1" (
   "x" datetime DEFAULT NULL
 )
 Warnings:
-Warning	1265	Data truncated for column 'x' at row 1
+Warning	1265	Data truncated for column 'x' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -777,17 +778,17 @@ SET var := arg;
 SELECT arg, var;
 END|
 CALL p1();
-ERROR 22003: Out of range value for column 'v' at row 1
+ERROR 22003: Out of range value for column 'v' at row 0
 CALL p2();
-ERROR 22003: Out of range value for column 'v' at row 1
+ERROR 22003: Out of range value for column 'v' at row 0
 CALL p3();
-ERROR 22001: Data too long for column 'v' at row 1
+ERROR 22001: Data too long for column 'v' at row 0
 CALL p4('aaa');
-ERROR 22001: Data too long for column 'arg' at row 1
+ERROR 22001: Data too long for column 'arg' at row 0
 CALL p5('aa');
-ERROR 22001: Data too long for column 'var' at row 1
+ERROR 22001: Data too long for column 'var' at row 0
 CALL p6(10);
-ERROR 22003: Out of range value for column 'var' at row 1
+ERROR 22003: Out of range value for column 'var' at row 0
 SET @@sql_mode = 'ansi';
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
@@ -817,7 +818,7 @@ CALL p1(1929.003);
 var
 1929.00
 Warnings:
-Note	1265	Data truncated for column 'arg' at row 1
+Note	1265	Data truncated for column 'arg' at row 0
 DROP PROCEDURE p1;
 
 ---------------------------------------------------------------
@@ -950,17 +951,17 @@ CALL p1('c');
 arg
 
 Warnings:
-Warning	1265	Data truncated for column 'arg' at row 1
+Warning	1265	Data truncated for column 'arg' at row 0
 CALL p2('a');
 arg	var
 a	
 Warnings:
-Warning	1265	Data truncated for column 'var' at row 1
+Warning	1265	Data truncated for column 'var' at row 0
 SELECT f1('a');
 f1('a')
 
 Warnings:
-Warning	1265	Data truncated for column 'f1('a')' at row 1
+Warning	1265	Data truncated for column 'f1('a')' at row 0
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 DROP FUNCTION f1;
@@ -987,10 +988,10 @@ CHARSET(arg)
 latin1
 CALL p2('t');
 CHARSET(arg)
-utf8
+utf8mb3
 CALL p2(_LATIN1 't');
 CHARSET(arg)
-utf8
+utf8mb3
 DROP PROCEDURE p1;
 DROP PROCEDURE p2;
 
@@ -1026,11 +1027,11 @@ BEGIN
 SELECT arg;
 END|
 CALL p1((1, 2));
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 CALL p1((SELECT * FROM t1 LIMIT 1));
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 CALL p1((SELECT col1, col2 FROM t1 LIMIT 1));
-ERROR 21000: Operand should contain 1 column(s)
+ERROR HY000: Cannot cast 'row' as 'tinyint' in assignment of `arg`
 DROP PROCEDURE p1;
 DROP TABLE t1;
 
@@ -1171,7 +1172,7 @@ SET j= 1 + i;
 END|
 CALL ctest();
 Warnings:
-Warning	1292	Truncated incorrect DOUBLE value: 'string          '
+Warning	1292	Truncated incorrect DOUBLE value: 'string'
 DROP PROCEDURE ctest;
 CREATE PROCEDURE vctest()
 BEGIN
@@ -1252,7 +1253,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" tinytext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  "var" tinytext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1263,7 +1264,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" text CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  "var" text CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1274,7 +1275,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  "var" mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1285,7 +1286,7 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" longtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  "var" longtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 )
 DROP TABLE t1;
 BEGIN NOT ATOMIC
@@ -1307,6 +1308,410 @@ $$
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "var" char(1) DEFAULT NULL
+  "var" varchar(1) DEFAULT NULL
 )
 DROP TABLE t1;
+#
+# MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
+#
+#
+# Simple cases (without subqueries) - the most typical problem:
+# a typo in an SP variable name
+#
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+IF (a < 0) THEN
+SET res= a_long_variable_name_with_a_typo;
+END IF;
+END;
+$$
+ERROR 42000: Undeclared variable: a_long_variable_name_with_a_typo
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+IF (a < 0) THEN
+SET res= 1 + a_long_variable_name_with_a_typo;
+END IF;
+END;
+$$
+ERROR 42000: Undeclared variable: a_long_variable_name_with_a_typo
+#
+# Complex cases with subqueries
+#
+#
+# Maybe a table field identifier (there are some tables) - no error
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(SELECT * FROM t1 LEFT OUTER JOIN t2 USING (c1));
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(SELECT * FROM t1 LEFT OUTER JOIN t2 ON (c1=c2));
+END;
+$$
+DROP PROCEDURE p1;
+#
+# One unknown identifier, no tables
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=unknown_ident;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=unknown_ident1.unknown_ident2;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident1
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=unknown_ident1.unknown_ident2.unknown_ident3;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident1
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident FROM dual);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident FROM dual));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT 1 WHERE unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT 1 WHERE unknown_ident=1);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT 1 LIMIT unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# GROUP, HAVING, ORDER are not tested yet for unknown identifiers
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT 1 GROUP BY unknown_ident);
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(SELECT 1 HAVING unknown_ident);
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT 1 ORDER BY unknown_ident);
+END;
+$$
+DROP PROCEDURE p1;
+#
+# HAVING + aggregate_function(unknown_identifier) is a special case
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(SELECT 1 HAVING SUM(unknown_ident));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# Known indentifier + unknown identifier, no tables
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=a+unknown_ident;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=a+(SELECT unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=a+(SELECT unknown_ident FROM dual);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (a+(SELECT unknown_ident)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (a+(SELECT unknown_ident FROM dual)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# Unknown indentifier + known identifier, no tables
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=unknown_ident+a;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident)+a;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident FROM dual)+a;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident)+a);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident FROM dual)+a);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# Maybe a table field indentifier + unknown identifier
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT c1 FROM t1)+unknown_ident;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT c1 FROM t1)+(SELECT unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT c1 FROM t1)+(SELECT unknown_ident FROM dual);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT ((SELECT c1 FROM t1)+(SELECT unknown_ident)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT ((SELECT c1 FROM t1)+(SELECT unknown_ident FROM dual)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# Unknown indentifier + maybe a table field identifier
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=unknown_ident+(SELECT c1 FROM t1);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident)+(SELECT c1 FROM t1);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT unknown_ident FROM dual)+(SELECT c1 FROM t1);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident)+(SELECT c1 FROM t1));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+SET a=(SELECT (SELECT unknown_ident FROM dual)+(SELECT c1 FROM t1));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# Maybe a table field identifier + maybe a field table identifier
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE a INT;
+-- c2 does not have a table on its level
+-- but it can be a field of a table on the uppder level, i.e. t1
+SET a=(SELECT c1+(SELECT c2) FROM t1);
+END;
+$$
+DROP PROCEDURE p1;
+#
+# TVC - unknown identifier
+#
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(unknown_ident));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(1),(unknown_ident));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES((SELECT unknown_ident)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(1),((SELECT unknown_ident)));
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(1) LIMIT unknown_ident);
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# TVC - ORDER BY - not tested yet for unknown identifiers
+#
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(1) ORDER BY unknown_ident);
+END;
+$$
+DROP PROCEDURE p1;
+#
+# TVC - maybe a table field identifier - no error
+#
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES((SELECT c1 FROM t1)));
+END;
+$$
+DROP PROCEDURE p1;
+CREATE PROCEDURE p1(a INT)
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=(VALUES(1),((SELECT c1 FROM t1)));
+END;
+$$
+DROP PROCEDURE p1;
+#
+# Functions DEFAULT(x) and VALUE(x)
+#
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=DEFAULT(unknown_ident);
+SELECT res;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+CREATE PROCEDURE p1()
+BEGIN
+DECLARE res INT DEFAULT 0;
+SET res=VALUE(unknown_ident);
+SELECT res;
+END;
+$$
+ERROR 42000: Undeclared variable: unknown_ident
+#
+# End of MDEV-14347 CREATE PROCEDURE returns no error when using an unknown variable
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

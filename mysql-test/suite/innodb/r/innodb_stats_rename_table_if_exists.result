@@ -1,5 +1,6 @@
-CREATE TABLE stats_rename1 (a INT, PRIMARY KEY (a))
+CREATE TABLE stats_rename1 (a INT PRIMARY KEY, b INT UNIQUE)
 ENGINE=INNODB STATS_PERSISTENT=1;
+BEGIN;
 INSERT INTO mysql.innodb_table_stats
 SELECT
 database_name,
@@ -10,7 +11,7 @@ clustered_index_size,
 sum_of_other_index_sizes
 FROM mysql.innodb_table_stats
 WHERE table_name = 'stats_rename1';
-INSERT INTO mysql.innodb_index_stats 
+INSERT INTO mysql.innodb_index_stats
 SELECT
 database_name,
 'stats_rename2' AS table_name,
@@ -22,6 +23,7 @@ sample_size,
 stat_description
 FROM mysql.innodb_index_stats
 WHERE table_name = 'stats_rename1';
+COMMIT;
 SELECT table_name, n_rows
 FROM mysql.innodb_table_stats
 WHERE table_name IN ('stats_rename1', 'stats_rename2');
@@ -44,6 +46,18 @@ table_name	stats_rename1
 index_name	PRIMARY
 stat_name	size
 stat_value	1
+table_name	stats_rename1
+index_name	b
+stat_name	n_diff_pfx01
+stat_value	0
+table_name	stats_rename1
+index_name	b
+stat_name	n_leaf_pages
+stat_value	1
+table_name	stats_rename1
+index_name	b
+stat_name	size
+stat_value	1
 table_name	stats_rename2
 index_name	PRIMARY
 stat_name	n_diff_pfx01
@@ -56,7 +70,32 @@ table_name	stats_rename2
 index_name	PRIMARY
 stat_name	size
 stat_value	567
+table_name	stats_rename2
+index_name	b
+stat_name	n_diff_pfx01
+stat_value	567
+table_name	stats_rename2
+index_name	b
+stat_name	n_leaf_pages
+stat_value	567
+table_name	stats_rename2
+index_name	b
+stat_name	size
+stat_value	567
 RENAME TABLE stats_rename1 TO stats_rename2;
+ERROR 23000: Can't write; duplicate key in table 'mysql.innodb_table_stats'
+BEGIN;
+DELETE FROM mysql.innodb_table_stats WHERE table_name='stats_rename2';
+DELETE FROM mysql.innodb_index_stats WHERE table_name='stats_rename2';
+COMMIT;
+RENAME TABLE stats_rename1 TO stats_rename2;
+UPDATE mysql.innodb_index_stats SET index_name='c'
+WHERE table_name='stats_rename2' AND index_name='PRIMARY';
+ALTER TABLE stats_rename2 CHANGE b d INT, RENAME INDEX b TO c;
+ERROR 23000: Can't write; duplicate key in table 'mysql.innodb_index_stats'
+UPDATE mysql.innodb_index_stats SET index_name='PRIMARY'
+WHERE table_name='stats_rename2' AND index_name='c';
+ALTER TABLE stats_rename2 CHANGE b d INT, RENAME INDEX b TO c;
 SELECT table_name, n_rows
 FROM mysql.innodb_table_stats
 WHERE table_name IN ('stats_rename1', 'stats_rename2');
@@ -75,6 +114,18 @@ stat_name	n_leaf_pages
 stat_value	1
 table_name	stats_rename2
 index_name	PRIMARY
+stat_name	size
+stat_value	1
+table_name	stats_rename2
+index_name	c
+stat_name	n_diff_pfx01
+stat_value	0
+table_name	stats_rename2
+index_name	c
+stat_name	n_leaf_pages
+stat_value	1
+table_name	stats_rename2
+index_name	c
 stat_name	size
 stat_value	1
 DROP TABLE stats_rename2;

@@ -15,6 +15,9 @@ INSERT INTO mysql.spider_link_mon_servers
 ('test', 't1', '0', 1, 'srv');
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_kind "2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'monitoring_kind' is deprecated and will be removed in a future release
 /* 1 */ insert into t1 values (42);
 ERROR HY000: Table 'test.t2' get a problem
 /* 2 */ insert into t1 values (42);
@@ -26,12 +29,18 @@ drop table t1, t2;
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", monitoring_bg_kind "2",
          monitoring_bg_interval "500000"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'monitoring_bg_kind' is deprecated and will be removed in a future release
+Warning	1287	'monitoring_bg_interval' is deprecated and will be removed in a future release
 /* 4 */ insert into t1 values (42);
 ERROR 42S02: Table 'test.t2' doesn't exist
 drop table t1;
 # testing query_cache_sync
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 create table t2 (c int);
 /* 5 */ insert into t1 values (42);
 select sql_cache * from t1;
@@ -45,6 +54,8 @@ drop table t1, t2;
 create table t2 (c int);
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 6 */ insert ignore into t1 values (42), (42);
 select * from t1;
 c
@@ -54,6 +65,8 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 7 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1022	Can't write; duplicate key in table 't1'
@@ -64,6 +77,8 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 /* 8 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1062	Duplicate entry '42' for key 'PRIMARY'
@@ -74,6 +89,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 /* 9 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1022	Can't write; duplicate key in table 't1'
@@ -84,6 +102,9 @@ drop table t1, t2;
 create table t2 (c int, unique key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 /* 9.1 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1062	Duplicate entry '42' for key 'PRIMARY'
@@ -94,6 +115,9 @@ drop table t1, t2;
 create table t2 (c int, unique key (c));
 create table t1 (c int, key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "f"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 /* 10 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1062	Duplicate entry '42' for key 'c'
@@ -104,6 +128,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 /* 11 */ insert ignore into t1 values (42), (42);
 Warnings:
 Warning	1022	Can't write; duplicate key in table 't1'
@@ -114,6 +141,9 @@ drop table t1, t2;
 create table t2 (c int, d int, unique key (c), unique key (d));
 create table t1 (c int, d int, key (c), key (d)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	1287	'pk_name' is deprecated and will be removed in a future release
 /* 12 */ insert ignore into t1 values (42, 43), (43, 43);
 Warnings:
 Warning	1062	Duplicate entry '43' for key 'd'
@@ -130,9 +160,11 @@ t2	CREATE TABLE `t2` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`c`),
   KEY `d` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t1 (c int, d int, primary key (c), key (d)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -140,7 +172,7 @@ t1	CREATE TABLE `t1` (
   `d` int(11) DEFAULT NULL,
   PRIMARY KEY (`c`),
   KEY `d` (`d`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"'
 /* 13 */ insert into t1 values (42, 23), (37, 93);
 select max(d) from t1;
 max(d)
@@ -156,9 +188,11 @@ t2	CREATE TABLE `t2` (
   PRIMARY KEY (`c`),
   UNIQUE KEY `e` (`e`),
   KEY `d` (`d`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table t1 (c int, d int, e int, primary key (c), key (d), unique key (e)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -168,7 +202,7 @@ t1	CREATE TABLE `t1` (
   PRIMARY KEY (`c`),
   UNIQUE KEY `e` (`e`),
   KEY `d` (`d`)
-) ENGINE=SPIDER DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"'
+) ENGINE=SPIDER DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"'
 /* 14 */ insert into t1 values (42, 23, 89), (37, 93, 47);
 select max(d) from t1;
 max(d)

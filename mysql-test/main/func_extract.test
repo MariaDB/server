@@ -263,3 +263,254 @@ SELECT
 FROM t1;
 DROP TABLE t1;
 --enable_view_protocol
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-33496 Out of range error in AVG(YEAR(datetime)) due to a wrong data type
+--echo #
+
+let select01=SELECT ?, CAST(? AS UNSIGNED), CAST(? AS SIGNED), ABS(?), ROUND(?), -?, ROUND(?,-1), ?+0, ?+0.0, CONCAT(?), LEAST(?,?), COALESCE(?), COALESCE(?,CAST(1 AS SIGNED)), COALESCE(?,CAST(1 AS UNSIGNED)), @a:=?;
+let pcount01=16;
+let select02=SELECT AVG(?), MIN(?), MAX(?), GROUP_CONCAT(?);
+let pcount02=4;
+let ts=TIMESTAMP'2001-12-13 10:20:30.999999';
+
+eval CREATE FUNCTION select01() RETURNS TEXT RETURN '$select01';
+eval CREATE FUNCTION select02() RETURNS TEXT RETURN '$select02';
+
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES ('2001-12-31 10:20:30.999999');
+
+DELIMITER $$;
+CREATE FUNCTION params(expr TEXT, count INT) RETURNS TEXT
+BEGIN
+  RETURN CONCAT(expr, REPEAT(CONCAT(', ', expr), count-1));
+END;
+$$
+CREATE PROCEDURE show_drop()
+BEGIN
+  SELECT TABLE_NAME, COLUMN_TYPE, COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA='test'
+     AND TABLE_NAME IN ('t1e_nm','t2e_nm','t1f_nm','t2f_nm',
+                        't1e_ps','t1f_ps','t2e_ps','t2f_ps')
+     ORDER BY LEFT(TABLE_NAME, 2), ORDINAL_POSITION, TABLE_NAME;
+
+  FOR rec IN (SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
+              WHERE TABLE_SCHEMA='test'
+              AND TABLE_NAME IN ('t1e_nm','t2e_nm','t1f_nm','t2f_nm',
+                                 't1e_ps','t1f_ps','t2e_ps','t2f_ps'))
+  DO
+    EXECUTE IMMEDIATE CONCAT('DROP TABLE ', rec.TABLE_NAME);
+  END FOR;
+END;
+$$
+CREATE PROCEDURE p1(unit VARCHAR(32))
+BEGIN
+  DECLARE do_extract BOOL DEFAULT unit NOT IN('DAYOFYEAR');
+
+  DECLARE query01 TEXT DEFAULT
+                  CONCAT('CREATE TABLE t2 AS ', select01(), ' FROM t1');
+
+  DECLARE query02 TEXT DEFAULT
+                  CONCAT('CREATE TABLE t2 AS ', select02(), ' FROM t1');
+
+  IF (do_extract)
+  THEN
+    EXECUTE IMMEDIATE REPLACE(REPLACE(query01,'t2','t1e_nm'),'?', CONCAT('EXTRACT(',unit,' FROM a)'));
+    EXECUTE IMMEDIATE REPLACE(REPLACE(query02,'t2','t2e_nm'),'?', CONCAT('EXTRACT(',unit,' FROM a)'));
+  END IF;
+  EXECUTE IMMEDIATE REPLACE(REPLACE(query01,'t2','t1f_nm'),'?', CONCAT(unit,'(a)'));
+  EXECUTE IMMEDIATE REPLACE(REPLACE(query02,'t2','t2f_nm'),'?', CONCAT(unit,'(a)'));
+END;
+$$
+DELIMITER ;$$
+
+
+--echo
+--echo
+--echo # EXTRACT(YEAR FROM expr) and YEAR(expr) are equivalent
+
+CALL p1('YEAR');
+let extr=EXTRACT(YEAR FROM $ts);
+let func=YEAR($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+
+--echo
+--echo
+--echo # EXTRACT(QUARTER FROM expr) and QUARTER(expr) are equavalent
+
+CALL p1('QUARTER');
+let extr=EXTRACT(QUARTER FROM $ts);
+let func=QUARTER($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(MONTH FROM expr) and MONTH(expr) are equavalent
+
+CALL p1('MONTH');
+let extr=EXTRACT(MONTH FROM $ts);
+let func=MONTH($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(WEEK FROM expr) and WEEK(expr) are equavalent
+
+CALL p1('WEEK');
+let extr=EXTRACT(WEEK FROM $ts);
+let func=WEEK($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(DAY FROM expr) returns hours/24 and includes the sign for TIME
+--echo # DAY(expr) returns the DD part of CAST(expr AS DATETIME)
+
+CALL p1('DAY');
+let extr=EXTRACT(DAY FROM $ts);
+let func=DAY($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(HOUR FROM expr) returns hours%24 and includes the sign for TIME
+--echo # HOUR(expr) returns the hh part of CAST(expr AS DATETIME)
+
+CALL p1('HOUR');
+let extr=EXTRACT(HOUR FROM $ts);
+let func=HOUR($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(MINUTE FROM expr) includes the sign for TIME
+--echo # MINUTE(expr) returns the absolute value
+
+CALL p1('MINUTE');
+let extr=EXTRACT(MINUTE FROM $ts);
+let func=MINUTE($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(SECONDS FROM expr) includes the sign for TIME
+--echo # SECONDS(expr) returns the absolute value
+
+CALL p1('SECOND');
+let extr=EXTRACT(SECOND FROM $ts);
+let func=SECOND($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # EXTRACT(MICROSECONDS FROM expr) includes the sign for TIME
+--echo # MICROSECONDS(expr) returns the absolute value
+
+CALL p1('MICROSECOND');
+let extr=EXTRACT(MICROSECOND FROM $ts);
+let func=MICROSECOND($ts);
+let extr01=`SELECT params("$extr", $pcount01) AS p`;
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let extr02=`SELECT params("$extr", $pcount02) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1e_ps AS $select01' USING $extr01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2e_ps AS $select02' USING $extr02;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+--echo
+--echo
+--echo # DAYOFYEAR
+
+CALL p1('DAYOFYEAR');
+let func=DAYOFYEAR($ts);
+let func01=`SELECT params("$func", $pcount01) AS p`;
+let func02=`SELECT params("$func", $pcount02) AS p`;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t1f_ps AS $select01' USING $func01;
+eval EXECUTE IMMEDIATE 'CREATE TABLE t2f_ps AS $select02' USING $func02;
+CALL show_drop;
+
+
+DROP TABLE t1;
+DROP PROCEDURE p1;
+DROP PROCEDURE show_drop;
+DROP FUNCTION params;
+
+DROP FUNCTION select01;
+DROP FUNCTION select02;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

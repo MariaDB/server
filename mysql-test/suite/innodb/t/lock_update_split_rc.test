@@ -1,0 +1,76 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/count_sessions.inc
+
+CREATE TABLE t (
+  `a` INT NOT NULL,
+  `b` INT NOT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB;
+
+--disable_query_log
+SET @old_innodb_limit_optimistic_insert_debug = @@innodb_limit_optimistic_insert_debug;
+--enable_query_log
+
+SET GLOBAL innodb_limit_optimistic_insert_debug = 3;
+
+INSERT INTO t VALUES(10, 0);
+INSERT INTO t VALUES(20, 0);
+INSERT INTO t VALUES(30, 0);
+
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+XA START '1';
+REPLACE INTO t VALUES(10, 1);
+REPLACE INTO t VALUES(20, 1);
+
+# We need the following sync point because mysql_insert() resets
+# trx->duplicates with the following condition:
+#
+#  if (duplic == DUP_REPLACE &&
+#      (!table->triggers || !table->triggers->has_delete_triggers()))
+#    table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
+#
+# and ha_innobase::extra() resets trx_t::duplicates, but we need
+# lock_update_split_right() to be invoked when trx->duplicates is set to
+# repeat the bug. So the transaction will hang just after
+# row_insert_for_mysql() call until another transaction inserts new row and
+# splits the page.
+SET DEBUG_SYNC= 'ib_after_row_insert SIGNAL inserted WAIT_FOR cont';
+--send REPLACE INTO t VALUES(30, 1)
+
+connect (con1,localhost,root);
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+XA START '2';
+SET DEBUG_SYNC= 'now WAIT_FOR inserted';
+# The following statement will cause page split and (20, ...) will be split
+# record. As the previous REPLACE set non-gap X-lock on it,
+# lock_update_split_right() and lock_rec_inherit_to_gap() will 'inherit' the
+# lock from the very first (20, ...) new right page record to the supremum of
+# the old left page, what should not be for READ COMMITTED isolation level
+INSERT INTO t VALUES(40, 2);
+SET DEBUG_SYNC= 'now SIGNAL cont';
+
+--connection default
+--reap
+XA END '1';
+# This will cause the assertion failure, because the supremum of the left page
+# has X-lock.
+XA PREPARE '1';
+--connection default
+XA COMMIT '1';
+
+--connection con1
+XA END '2';
+XA PREPARE '2';
+XA COMMIT '2';
+--disconnect con1
+
+--connection default
+SET DEBUG_SYNC= "RESET";
+DROP TABLE t;
+
+--disable_query_log
+SET GLOBAL innodb_limit_optimistic_insert_debug = @old_innodb_limit_optimistic_insert_debug;
+--enable_query_log
+
+--source include/wait_until_count_sessions.inc

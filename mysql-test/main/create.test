@@ -193,17 +193,17 @@ drop table if exists t1;
 #
 # Test default table type
 #
-SET SESSION storage_engine="heap";
-SELECT @@storage_engine;
+SET SESSION default_storage_engine="heap";
+SELECT @@default_storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
 --error ER_UNKNOWN_STORAGE_ENGINE
-SET SESSION storage_engine="gemini";
-SELECT @@storage_engine;
+SET SESSION default_storage_engine="gemini";
+SELECT @@default_storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
-SET SESSION storage_engine=default;
+SET SESSION default_storage_engine=default;
 drop table t1;
 
 
@@ -353,17 +353,17 @@ drop tables t1, t2;
 #
 # Test default table type
 #
-SET SESSION storage_engine="heap";
-SELECT @@storage_engine;
+SET SESSION default_storage_engine="heap";
+SELECT @@default_storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
 drop table t1;
 --error ER_UNKNOWN_STORAGE_ENGINE
-SET SESSION storage_engine="gemini";
-SELECT @@storage_engine;
+SET SESSION default_storage_engine="gemini";
+SELECT @@default_storage_engine;
 CREATE TABLE t1 (a int not null);
 show create table t1;
-SET SESSION storage_engine=default;
+SET SESSION default_storage_engine=default;
 drop table t1;
 
 #
@@ -748,7 +748,7 @@ create table t1 select * from t1;
 --error ER_CANT_AGGREGATE_2COLLATIONS
 create table t1 select coalesce('a' collate latin1_swedish_ci,'b' collate latin1_bin);
 # Error during table creation
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 create table t1 (primary key(a)) select "b" as b;
 # Error in select_create::prepare() which is not related to table creation
 create table t1 (a int);
@@ -1062,9 +1062,9 @@ SET sql_mode = NO_ZERO_DATE;
 --error ER_INVALID_DEFAULT
 CREATE TABLE t2(c1 TIMESTAMP, c2 TIMESTAMP DEFAULT 0);
 
---echo
---error ER_INVALID_DEFAULT
-CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
+#--echo
+#--error ER_INVALID_DEFAULT
+#CREATE TABLE t2(c1 TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, c2 TIMESTAMP NOT NULL);
 
 --echo
 --echo # -- Check that NULL column still can be created.
@@ -1879,7 +1879,7 @@ drop table t1;
 --echo #
 --echo # MDEV-18428 Memory: If transactional=0 is specified in CREATE TABLE, it is not possible to ALTER TABLE
 --echo #
---error ER_ILLEGAL_HA_CREATE_OPTION
+--error ER_UNKNOWN_OPTION
 create table t1 (c int(10) unsigned) engine=memory transactional=0;
 
 --echo #
@@ -1927,3 +1927,21 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+#
+# MDEV-22199 Add VISIBLE option for indexes in create table
+#
+
+CREATE TABLE t1 (id1 INT, id2 INT, primary key (id1), unique index (id2) visible);
+drop table t1;
+
+--echo #
+--echo # MDEV-32376 SHOW CREATE DATABASE statement crashes the server when db name contains some unicode characters, ASAN stack-buffer-overflow
+--echo #
+
+SET NAMES utf8mb3;
+--error ER_WRONG_DB_NAME
+SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭`;
+SET NAMES DEFAULT;
+
+--echo # End of 10.5 Test

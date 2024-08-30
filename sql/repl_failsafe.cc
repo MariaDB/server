@@ -101,7 +101,7 @@ void THD::unregister_slave()
     mysql_mutex_lock(&LOCK_thd_data);
     slave_info= 0;
     mysql_mutex_unlock(&LOCK_thd_data);
-    delete old_si;
+    my_free(old_si);
     binlog_dump_thread_count--;
   }
 }
@@ -122,9 +122,10 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   uchar *p= packet, *p_end= packet + packet_length;
   const char *errmsg= "Wrong parameters to function register_slave";
 
-  if (check_access(this, REPL_SLAVE_ACL, any_db, NULL, NULL, 0, 0))
+  if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db.str, NULL,NULL,0,0))
     return 1;
-  if (!(si= new Slave_info))
+  if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
+                                   MYF(MY_WME))))
     return 1;
 
   variables.server_id= si->server_id= uint4korr(p);
@@ -147,6 +148,9 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   if (!(si->master_id= uint4korr(p)))
     si->master_id= global_system_variables.server_id;
 
+  if (!*si->host)
+    ::strmake(si->host, main_security_ctx.host_or_ip, sizeof(si->host));
+
   unregister_slave();
   mysql_mutex_lock(&LOCK_thd_data);
   slave_info= si;
@@ -155,7 +159,7 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   return 0;
 
 err:
-  delete si;
+  my_free(si);
   my_message(ER_UNKNOWN_ERROR, errmsg, MYF(0)); /* purecov: inspected */
   return 1;
 }
@@ -179,11 +183,11 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
   {
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
-    protocol->store(si->host, &my_charset_bin);
+    protocol->store(si->host, strlen(si->host), &my_charset_bin);
     if (opt_show_slave_auth_info)
     {
-      protocol->store(si->user, &my_charset_bin);
-      protocol->store(si->password, &my_charset_bin);
+      protocol->store(si->user, safe_strlen(si->user), &my_charset_bin);
+      protocol->store(si->password, safe_strlen(si->password), &my_charset_bin);
     }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);

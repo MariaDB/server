@@ -18,20 +18,18 @@
 
 #include <my_sys.h>                    /* alloc_root, MEM_ROOT, TRASH */
 
-THD *thd_get_current_thd();
-
-/* mysql standard class memory allocator */
+/* MariaDB standard class memory allocator */
 
 class Sql_alloc
 {
 public:
   static void *operator new(size_t size) throw ()
   {
-    return thd_alloc(thd_get_current_thd(), size);
+    return thd_alloc(_current_thd(), size);
   }
   static void *operator new[](size_t size) throw ()
   {
-    return thd_alloc(thd_get_current_thd(), size);
+    return thd_alloc(_current_thd(), size);
   }
   static void *operator new[](size_t size, MEM_ROOT *mem_root) throw ()
   { return alloc_root(mem_root, size); }
@@ -42,9 +40,5 @@ public:
   static void operator delete[](void *, MEM_ROOT *)
   { /* never called */ }
   static void operator delete[](void *ptr, size_t size) { TRASH_FREE(ptr, size); }
-#ifdef HAVE_valgrind
-  bool dummy_for_valgrind;
-  inline Sql_alloc() :dummy_for_valgrind(0) {}
-#endif
 };
 #endif /* SQL_ALLOC_INCLUDED */

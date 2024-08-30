@@ -1,1 +1,5 @@
---thread-handling=no-threads --loose-performance-schema-max-thread_instances=10 --default-storage-engine=MyISAM --skip-innodb
+--thread-handling=no-threads
+--loose-performance-schema-max-thread_instances=50
+--default-storage-engine=MyISAM
+--default-tmp-storage-engine=MyISAM
+--loose-skip-innodb

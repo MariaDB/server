@@ -158,13 +158,6 @@
 .*/groonga/lib/tokenizer\.c : missing initializer
 
 #
-# TokuDB
-#
-
-# This one is marked with __attribute__, but we still get a (wrong) warning
-.*/liblzma/lz/lz_encoder\.c : variable.*in_used.*set but not used
-
-#
 # pcre
 #
 .*/pcre/pcre_exec\.c: noclone.*attribute directive ignored

@@ -9,8 +9,8 @@ if [ $? -eq 0 -a -n "$installed" ]; then
   myvendor='%{mysql_vendor}'
   myversion='%{mysqlversion}'
 
-  old_family=`echo $version   | sed -n -e 's,^\([1-9][0-9]*\.[0-9][0-9]*\)\..*$,\1,p'`
-  new_family=`echo $myversion | sed -n -e 's,^\([1-9][0-9]*\.[0-9][0-9]*\)\..*$,\1,p'`
+  old_family=`echo $version   | sed -n -e 's,^\([1-9][0-9]*\)\..*$,\1,p'`
+  new_family=`echo $myversion | sed -n -e 's,^\([1-9][0-9]*\)\..*$,\1,p'`
 
   [ -z "$vendor" ] && vendor='<unknown>'
   [ -z "$old_family" ] && old_family="<unrecognized version $version>"

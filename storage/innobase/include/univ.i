@@ -1,14 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2022, MariaDB Corporation.
-Copyright (c) 2008, Google Inc.
-
-Portions of this file contain modifications contributed and copyrighted by
-Google, Inc. Those modifications are gratefully acknowledged and are described
-briefly in the InnoDB documentation. The contributions by Google are
-incorporated with their permission, and subject to the conditions contained in
-the file COPYING.Google.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,41 +24,11 @@ Version control for database, common definitions, and include files
 Created 1/20/1994 Heikki Tuuri
 ****************************************************************************/
 
-#ifndef univ_i
-#define univ_i
-
-/* aux macros to convert M into "123" (string) if M is defined like
-#define M 123 */
-#define _IB_TO_STR(s)	#s
-#define IB_TO_STR(s)	_IB_TO_STR(s)
-
-/* The following is the InnoDB version as shown in
-SELECT plugin_version FROM information_schema.plugins;
-calculated in make_version_string() in sql/sql_show.cc like this:
-"version >> 8" . "version & 0xff"
-because the version is shown with only one dot, we skip the last
-component, i.e. we show M.N.P as M.N */
-#define INNODB_VERSION_SHORT	\
-	(MYSQL_VERSION_MAJOR << 8 | MYSQL_VERSION_MINOR)
-
-#define INNODB_VERSION_STR			\
-	IB_TO_STR(MYSQL_VERSION_MAJOR) "."	\
-	IB_TO_STR(MYSQL_VERSION_MINOR) "."	\
-	IB_TO_STR(MYSQL_VERSION_PATCH)
+#pragma once
 
 /** How far ahead should we tell the service manager the timeout
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
-
-#ifdef MYSQL_DYNAMIC_PLUGIN
-/* In the dynamic plugin, redefine some externally visible symbols
-in order not to conflict with the symbols of a builtin InnoDB. */
-
-/* Rename all C++ classes that contain virtual functions, because we
-have not figured out how to apply the visibility=hidden attribute to
-the virtual method table (vtable) in GCC 3. */
-# define ha_innobase ha_innodb
-#endif /* MYSQL_DYNAMIC_PLUGIN */
 
 #if defined(_WIN32)
 # include <windows.h>
@@ -78,16 +41,9 @@ support cross-platform development and expose comonly used SQL names. */
 
 #include <my_global.h>
 #include "my_counter.h"
-
-/* JAN: TODO: missing 5.7 header */
-#ifdef HAVE_MY_THREAD_H
-//# include <my_thread.h>
-#endif
-
-#ifndef UNIV_INNOCHECKSUM
-# include <m_string.h>
-# include <mysqld_error.h>
-#endif /* !UNIV_INNOCHECKSUM */
+#include "aligned.h"
+#include <m_string.h>
+#include <mysqld_error.h>
 
 /* Include <sys/stat.h> to get S_I... macros defined for os0file.cc */
 #include <sys/stat.h>
@@ -114,22 +70,11 @@ HAVE_PSI_INTERFACE is defined. */
 # define UNIV_PFS_IO
 # define UNIV_PFS_THREAD
 
-// JAN: TODO: MySQL 5.7 PSI
-// # include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
+# include "mysql/psi/psi.h" /* HAVE_PSI_MEMORY_INTERFACE */
 # ifdef HAVE_PSI_MEMORY_INTERFACE
 #  define UNIV_PFS_MEMORY
 # endif /* HAVE_PSI_MEMORY_INTERFACE */
 
-/* There are mutexes/rwlocks that we want to exclude from
-instrumentation even if their corresponding performance schema
-define is set. And this PFS_NOT_INSTRUMENTED is used
-as the key value to identify those objects that would
-be excluded from instrumentation. */
-# define PFS_NOT_INSTRUMENTED		ULINT32_UNDEFINED
-
-# define PFS_IS_INSTRUMENTED(key)	((key) != PFS_NOT_INSTRUMENTED)
-
-/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_THREAD_PROVIDER_H
 /* For PSI_MUTEX_CALL() and similar. */
 #include "pfs_thread_provider.h"
@@ -137,7 +82,6 @@ be excluded from instrumentation. */
 
 #include "mysql/psi/mysql_thread.h"
 /* For PSI_FILE_CALL(). */
-/* JAN: TODO: missing 5.7 header */
 #ifdef HAVE_PFS_FILE_PROVIDER_H
 #include "pfs_file_provider.h"
 #endif
@@ -184,8 +128,6 @@ using the call command. */
 						some debug print functions */
 #define UNIV_AHI_DEBUG				/* Enable adaptive hash index
 						debugging without UNIV_DEBUG */
-#define UNIV_BUF_DEBUG				/* Enable buffer pool
-						debugging without UNIV_DEBUG */
 #define UNIV_BLOB_LIGHT_DEBUG			/* Enable off-page column
 						debugging without UNIV_DEBUG */
 #define UNIV_DEBUG_LOCK_VALIDATE		/* Enable
@@ -193,17 +135,11 @@ using the call command. */
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
 #define UNIV_HASH_DEBUG				/* debug HASH_ macros */
-#define UNIV_LOG_LSN_DEBUG			/* write LSN to the redo log;
-this will break redo log file compatibility, but it may be useful when
-debugging redo log application problems. */
-#define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance
                                                 related stuff. */
 #define UNIV_SEARCH_PERF_STAT			/* statistics for the
 						adaptive hash index */
-#define UNIV_SRV_PRINT_LATCH_WAITS		/* enable diagnostic output
-						in sync0sync.cc */
 #define UNIV_BTR_PRINT				/* enable functions for
 						printing B-trees */
 #define UNIV_ZIP_DEBUG				/* extensive consistency checks
@@ -220,26 +156,7 @@ debugging redo log application problems. */
                                                 info output */
 #endif
 
-#define UNIV_BTR_DEBUG				/* check B-tree links */
-#define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
-
 // #define UNIV_SQL_DEBUG
-
-/* Linkage specifier for non-static InnoDB symbols (variables and functions)
-that are only referenced from within InnoDB, not from MySQL. We disable the
-GCC visibility directive on all Sun operating systems because there is no
-easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-# define UNIV_INTERN __attribute__((visibility ("hidden")))
-#else
-# define UNIV_INTERN
-#endif
-
-#if defined(__GNUC__) && (__GNUC__ >= 11)
-# define ATTRIBUTE_ACCESS(X) __attribute__((access X))
-#else
-# define ATTRIBUTE_ACCESS(X)
-#endif
 
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
@@ -261,36 +178,6 @@ management to ensure correct alignment for doubles etc. */
 			DATABASE VERSION CONTROL
 			========================
 */
-
-#ifdef HAVE_LZO
-#define IF_LZO(A,B) A
-#else
-#define IF_LZO(A,B) B
-#endif
-
-#ifdef HAVE_LZ4
-#define IF_LZ4(A,B) A
-#else
-#define IF_LZ4(A,B) B
-#endif
-
-#ifdef HAVE_LZMA
-#define IF_LZMA(A,B) A
-#else
-#define IF_LZMA(A,B) B
-#endif
-
-#ifdef HAVE_BZIP2
-#define IF_BZIP2(A,B) A
-#else
-#define IF_BZIP2(A,B) B
-#endif
-
-#ifdef HAVE_SNAPPY
-#define IF_SNAPPY(A,B) A
-#else
-#define IF_SNAPPY(A,B) B
-#endif
 
 #if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
 #define IF_PUNCH_HOLE(A,B) A
@@ -408,16 +295,19 @@ typedef ssize_t lint;
 #ifdef _WIN32
 /* Use the integer types and formatting strings defined in Visual Studio. */
 # define UINT32PF	"%u"
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
 #elif defined __APPLE__
 /* Apple prefers to call the 64-bit types 'long long'
 in both 32-bit and 64-bit environments. */
 # define UINT32PF	"%" PRIu32
-# define INT64PF	"%lld"
 # define UINT64scan     "llu"
 # define UINT64PFx	"%016llx"
+#elif defined _AIX
+/* Workaround for macros expension trouble */
+# define UINT32PF      "%u"
+# define UINT64scan    "lu"
+# define UINT64PFx     "%016lx"
 #else
 /* Use the integer types and formatting strings defined in the C99 standard. */
 # define UINT32PF	"%" PRIu32
@@ -425,12 +315,6 @@ in both 32-bit and 64-bit environments. */
 # define UINT64scan	PRIu64
 # define UINT64PFx	"%016" PRIx64
 #endif
-
-#ifdef UNIV_INNOCHECKSUM
-extern bool 			strict_verify;
-extern FILE* 			log_file;
-extern uint32_t			cur_page_num;
-#endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;
@@ -444,8 +328,6 @@ typedef	ib_uint64_t		lsn_t;
 
 /** The 'undefined' value for a ulint */
 #define ULINT_UNDEFINED		((ulint)(-1))
-
-#define ULONG_UNDEFINED		((ulong)(-1))
 
 /** The 'undefined' value for a ib_uint64_t */
 #define UINT64_UNDEFINED	((ib_uint64_t)(-1))
@@ -529,14 +411,21 @@ it is read or written. */
 # define UNIV_PREFETCH_R(addr) ((void) 0)
 # define UNIV_PREFETCH_RW(addr) sun_prefetch_write_many(addr)
 
-# elif defined __WIN__
-# include <xmmintrin.h>
+# elif defined _MSC_VER
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)
-// __MM_HINT_T0 - (temporal data)
-// prefetch data into all levels of the cache hierarchy.
-# define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
-# define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# if defined _M_IX86 || defined _M_X64
+   // __MM_HINT_T0 - (temporal data)
+   // prefetch data into all levels of the cache hierarchy.
+#  define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+#  define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# elif defined _M_ARM64
+#  define UNIV_PREFETCH_R(addr) __prefetch(addr)
+#  define UNIV_PREFETCH_RW(addr) __prefetch(addr)
+# else
+#  define UNIV_PREFETCH_R ((void) 0)
+#  define  UNIV_PREFETCH_RW(addr) ((void) 0)
+# endif
 #else
 /* Dummy versions of the macros */
 # define UNIV_EXPECT(expr,value) (expr)
@@ -553,36 +442,58 @@ it is read or written. */
 /* Compile-time constant of the given array's size. */
 #define UT_ARR_SIZE(a) (sizeof(a) / sizeof((a)[0]))
 
-/* The return type from a thread's start function differs between Unix and
-Windows, so define a typedef for it and a macro to use at the end of such
-functions. */
-
-#ifdef _WIN32
-typedef DWORD os_thread_ret_t;
-# define OS_THREAD_DUMMY_RETURN		return(0)
-# define OS_PATH_SEPARATOR		'\\'
-# define OS_PATH_SEPARATOR_ALT		'/'
-#else
-typedef void* os_thread_ret_t;
-# define OS_THREAD_DUMMY_RETURN		return(NULL)
-# define OS_PATH_SEPARATOR		'/'
-# define OS_PATH_SEPARATOR_ALT		'\\'
-#endif
-
 #include <stdio.h>
 #include "db0err.h"
 #include "ut0dbg.h"
 #include "ut0lst.h"
 #include "ut0ut.h"
-#include "sync0types.h"
 
-extern ulong	srv_page_size_shift;
+extern uint32_t srv_page_size_shift;
 extern ulong	srv_page_size;
-
-static const size_t UNIV_SECTOR_SIZE = 512;
 
 /* Dimension of spatial object we support so far. It has its root in
 myisam/sp_defs.h. We only support 2 dimension data */
 #define SPDIMS          2
 
-#endif
+#ifdef HAVE_PSI_INTERFACE
+typedef unsigned int mysql_pfs_key_t;
+
+# ifdef UNIV_PFS_MUTEX
+extern mysql_pfs_key_t buf_pool_mutex_key;
+extern mysql_pfs_key_t dict_foreign_err_mutex_key;
+extern mysql_pfs_key_t fil_system_mutex_key;
+extern mysql_pfs_key_t flush_list_mutex_key;
+extern mysql_pfs_key_t fts_cache_mutex_key;
+extern mysql_pfs_key_t fts_cache_init_mutex_key;
+extern mysql_pfs_key_t fts_delete_mutex_key;
+extern mysql_pfs_key_t fts_doc_id_mutex_key;
+extern mysql_pfs_key_t recalc_pool_mutex_key;
+extern mysql_pfs_key_t purge_sys_pq_mutex_key;
+extern mysql_pfs_key_t recv_sys_mutex_key;
+extern mysql_pfs_key_t rtr_active_mutex_key;
+extern mysql_pfs_key_t rtr_match_mutex_key;
+extern mysql_pfs_key_t rtr_path_mutex_key;
+extern mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
+extern mysql_pfs_key_t srv_innodb_monitor_mutex_key;
+extern mysql_pfs_key_t srv_misc_tmpfile_mutex_key;
+extern mysql_pfs_key_t srv_monitor_file_mutex_key;
+extern mysql_pfs_key_t buf_dblwr_mutex_key;
+extern mysql_pfs_key_t trx_pool_mutex_key;
+extern mysql_pfs_key_t trx_pool_manager_mutex_key;
+extern mysql_pfs_key_t lock_wait_mutex_key;
+extern mysql_pfs_key_t srv_threads_mutex_key;
+# endif /* UNIV_PFS_MUTEX */
+
+# ifdef UNIV_PFS_RWLOCK
+extern mysql_pfs_key_t dict_operation_lock_key;
+extern mysql_pfs_key_t fil_space_latch_key;
+extern mysql_pfs_key_t trx_i_s_cache_lock_key;
+extern mysql_pfs_key_t trx_purge_latch_key;
+extern mysql_pfs_key_t index_tree_rw_lock_key;
+extern mysql_pfs_key_t index_online_log_key;
+extern mysql_pfs_key_t trx_sys_rw_lock_key;
+extern mysql_pfs_key_t lock_latch_key;
+extern mysql_pfs_key_t log_latch_key;
+extern mysql_pfs_key_t trx_rseg_latch_key;
+# endif /* UNIV_PFS_RWLOCK */
+#endif /* HAVE_PSI_INTERFACE */

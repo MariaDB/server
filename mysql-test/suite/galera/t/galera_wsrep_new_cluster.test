@@ -30,7 +30,7 @@
 
 --echo Starting server ...
 --let $restart_noprint=2
---let $start_mysqld_params="--wsrep-new-cluster"
+--let $start_mysqld_params=--wsrep-new-cluster
 --source include/start_mysqld.inc
 --source include/wait_until_ready.inc
 

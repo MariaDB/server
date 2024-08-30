@@ -7,6 +7,7 @@ CREATE TABLE t2(i int) ENGINE=INNODB;
 CREATE TABLE t3(a CHAR(36)) ENGINE INNODB;
 INSERT INTO t3 SELECT UUID() FROM seq_1_to_1000;
 
+set global innodb_log_checkpoint_now=1;
 # this will table and populate it, after backup has list of tables to be copied
 --let before_copy_test_t1=BEGIN NOT ATOMIC DROP TABLE test.t1;CREATE TABLE test.t1 ENGINE=INNODB SELECT UUID() from test.seq_1_to_100; END
 --let after_copy_test_t2=BEGIN NOT ATOMIC  DROP TABLE test.t2;CREATE TABLE test.t2 ENGINE=INNODB SELECT UUID() from test.seq_1_to_1000; END

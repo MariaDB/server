@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,7 +31,7 @@ Created 1/8/1996 Heikki Tuuri
 Gets the minimum number of bytes per character.
 @return minimum multi-byte char size, in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_mbminlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -42,7 +42,7 @@ dict_col_get_mbminlen(
 Gets the maximum number of bytes per character.
 @return maximum multi-byte char size, in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_mbmaxlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -93,7 +93,7 @@ dict_col_type_assert_equal(
 Returns the minimum size of the column.
 @return minimum size */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_min_size(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -116,7 +116,7 @@ dict_col_get_max_size(
 Returns the size of a fixed size column, 0 if not a fixed size column.
 @return fixed size, or 0 */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_fixed_size(
 /*====================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -130,7 +130,7 @@ Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a column.
 For fixed length types it is the fixed length of the type, otherwise 0.
 @return SQL null storage size in ROW_FORMAT=REDUNDANT */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_sql_null_size(
 /*=======================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -143,7 +143,7 @@ dict_col_get_sql_null_size(
 Gets the column number.
 @return col->ind, table column position (starting from 0) */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_no(
 /*============*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -244,10 +244,10 @@ dict_table_get_next_index(
 /********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
-@return number of user-defined (e.g., not ROW_ID) non-virtual
+@return number of user-defined (e.g., not DB_ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -264,7 +264,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of non-virtual columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -277,7 +277,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_v_cols(
 	const dict_table_t*	table)
 {
@@ -296,7 +296,7 @@ dict_table_has_indexed_v_cols(
 	const dict_table_t*	table)
 {
 
-	for (ulint i = 0; i < table->n_v_cols; i++) {
+	for (unsigned i = 0; i < table->n_v_cols; i++) {
 		const dict_v_col_t*     col = dict_table_get_nth_v_col(table, i);
 		if (col->m_col.ord_part) {
 			return(true);
@@ -304,56 +304,6 @@ dict_table_has_indexed_v_cols(
 	}
 
 	return(false);
-}
-
-/********************************************************************//**
-Gets the approximately estimated number of rows in the table.
-@return estimated number of rows */
-UNIV_INLINE
-ib_uint64_t
-dict_table_get_n_rows(
-/*==================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table->stat_initialized);
-
-	return(table->stat_n_rows);
-}
-
-/********************************************************************//**
-Increment the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_inc(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	if (table->stat_initialized) {
-		ib_uint64_t	n_rows = table->stat_n_rows;
-		if (n_rows < 0xFFFFFFFFFFFFFFFFULL) {
-			table->stat_n_rows = n_rows + 1;
-		}
-	}
-}
-
-/********************************************************************//**
-Decrement the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_dec(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	if (table->stat_initialized) {
-		ib_uint64_t	n_rows = table->stat_n_rows;
-		if (n_rows > 0) {
-			table->stat_n_rows = n_rows - 1;
-		}
-	}
 }
 
 #ifdef UNIV_DEBUG
@@ -399,7 +349,7 @@ dict_col_t*
 dict_table_get_sys_col(
 /*===================*/
 	const dict_table_t*	table,	/*!< in: table */
-	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
+	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	dict_col_t*	col;
 	col = dict_table_get_nth_col(table,
@@ -415,11 +365,11 @@ dict_table_get_sys_col(
 Gets the given system column number of a table.
 @return column number */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_sys_col_no(
 /*======================*/
 	const dict_table_t*	table,	/*!< in: table */
-	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
+	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
 {
 	ut_ad(sys < DATA_N_SYS_COLS);
 	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
@@ -618,19 +568,16 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
 {
-	ulint fsp_flags;
-	ulint page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(
+	uint32_t fsp_flags;
+	uint32_t page_compression_level = DICT_TF_GET_PAGE_COMPRESSION_LEVEL(
 		table_flags);
 
 	ut_ad((DICT_TF_GET_PAGE_COMPRESSION(table_flags) == 0)
 	      == (page_compression_level == 0));
 
-	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure",
-			return(ULINT_UNDEFINED););
+	DBUG_EXECUTE_IF("dict_tf_to_fsp_flags_failure", return UINT32_MAX;);
 
 	/* No ROW_FORMAT=COMPRESSED for innodb_checksum_algorithm=full_crc32 */
 	if ((srv_checksum_algorithm == SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
@@ -641,7 +588,8 @@ dict_tf_to_fsp_flags(ulint table_flags)
 			| FSP_FLAGS_FCRC32_PAGE_SSIZE();
 
 		if (page_compression_level) {
-			fsp_flags |= innodb_compression_algorithm
+			fsp_flags |= static_cast<uint32_t>(
+				innodb_compression_algorithm)
 				<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
 		}
 	} else {
@@ -705,34 +653,12 @@ dict_tf_to_sys_tables_type(
 	return(type);
 }
 
-/*********************************************************************//**
-Returns true if the particular FTS index in the table is still syncing
-in the background, false otherwise.
-@param [in] table      Table containing FTS index
-@return True if sync of fts index is still going in the background  */
-UNIV_INLINE
-bool
-dict_fts_index_syncing(
-	dict_table_t*   table)
-{
-	 dict_index_t*   index;
-
-	for (index = dict_table_get_first_index(table);
-	    index != NULL;
-	    index = dict_table_get_next_index(index)) {
-		if (index->index_fts_syncing) {
-			 return(true);
-		}
-	}
-	return(false);
-}
-
 /********************************************************************//**
 Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_fields(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal
@@ -750,7 +676,7 @@ we do not take multiversioning into account: in the B-tree use the value
 returned by dict_index_get_n_unique_in_tree.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -767,7 +693,7 @@ which uniquely determine the position of an index entry in the index, if
 we also take multiversioning into account.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique_in_tree(
 /*============================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -792,7 +718,7 @@ include page no field.
 @param[in]	index	index
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique_in_tree_nonleaf(
 	const dict_index_t*	index)
 {
@@ -816,7 +742,7 @@ to make a clustered index unique, but this function returns the number of
 fields the user defined in the index as ordering fields.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_ordering_defined_by_user(
 /*======================================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -901,27 +827,25 @@ dict_index_get_nth_col_pos(
 Returns the minimum data size of an index record.
 @return minimum data size in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
 {
-	ulint	n	= dict_index_get_n_fields(index);
-	ulint	size	= 0;
+  unsigned n= dict_index_get_n_fields(index);
+  unsigned size= 0;
 
-	while (n--) {
-		size += dict_col_get_min_size(dict_index_get_nth_col(index,
-								     n));
-	}
+  while (n--)
+    size+= dict_col_get_min_size(dict_index_get_nth_col(index, n));
 
-	return(size);
+  return size;
 }
 
 /*********************************************************************//**
 Gets the page number of the root of the index tree.
 @return page number */
 UNIV_INLINE
-ulint
+uint32_t
 dict_index_get_page(
 /*================*/
 	const dict_index_t*	index)	/*!< in: index */
@@ -929,20 +853,6 @@ dict_index_get_page(
 	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
 
 	return(index->page);
-}
-
-/*********************************************************************//**
-Gets the read-write lock of the index tree.
-@return read-write lock */
-UNIV_INLINE
-rw_lock_t*
-dict_index_get_lock(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
-{
-	ut_ad(index->magic_n == DICT_INDEX_MAGIC_N);
-
-	return(&(index->lock));
 }
 
 /********************************************************************//**
@@ -1001,7 +911,7 @@ dict_index_set_online_status(
 	enum online_index_status	status)	/*!< in: status */
 {
 	ut_ad(!(index->type & DICT_FTS));
-	ut_ad(rw_lock_own(dict_index_get_lock(index), RW_LOCK_X));
+	ut_ad(index->lock.have_x());
 
 #ifdef UNIV_DEBUG
 	switch (dict_index_get_online_status(index)) {
@@ -1016,7 +926,7 @@ dict_index_set_online_status(
 	}
 #endif /* UNIV_DEBUG */
 
-	index->online_status = status;
+	index->online_status = status & 3;
 	ut_ad(dict_index_get_online_status(index) == status);
 }
 
@@ -1138,19 +1048,6 @@ dict_max_v_field_len_store_undo(
 	return(max_log_len);
 }
 
-/********************************************************************//**
-Check whether the table is corrupted.
-@return nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-{
-	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
-	return(table->corrupted);
-}
-
 /** Check if the table is found is a file_per_table tablespace.
 This test does not use table flags2 since some REDUNDANT tables in the
 system tablespace may have garbage in the MIX_LEN field where flags2 is
@@ -1177,12 +1074,10 @@ dict_table_is_file_per_table(
 }
 
 /** Acquire the table handle. */
-inline
-void
-dict_table_t::acquire()
+inline void dict_table_t::acquire()
 {
-	ut_ad(mutex_own(&dict_sys.mutex));
-	n_ref_count++;
+  ut_ad(dict_sys.frozen());
+  n_ref_count++;
 }
 
 /** Release the table handle.

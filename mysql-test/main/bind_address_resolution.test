@@ -1,0 +1,22 @@
+--source include/check_ipv6.inc
+--source include/not_embedded.inc
+
+# The server is started with --bind-address=localhost, and should
+# listen on all addresses 'localhost' resolves to. With at least
+# 127.0.0.1 and ::1 amongst them.
+
+CREATE TABLE t (a TEXT);
+--connect(con1,localhost,root,,test)
+SELECT * FROM t;
+--connect(con2,127.0.0.1,root,,test)
+SELECT * FROM t;
+# Temporary disable.
+# Some cloud-init services don't resolve localhost->::1
+# bb - kvm-asan, kvm-deb-focal-amd64, kvm-deb-groovy-amd64
+#--connect(con3,::1,root,,test)
+#SELECT * FROM t;
+--connection default
+DROP TABLE t;
+--disconnect con1
+--disconnect con2
+#--disconnect con3

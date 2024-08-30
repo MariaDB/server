@@ -1,0 +1,31 @@
+--source include/have_rocksdb.inc
+--source include/have_log_bin.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # MDEV-25305: MyRocks: Killing server during RESET MASTER can lose last transactions
+--echo #
+
+set global rocksdb_flush_log_at_trx_commit=1;
+
+create table t1 (a int, b int, key(a)) engine=rocksdb;
+insert into t1 values (1,1),(2,2);
+select * from t1;
+flush tables;
+
+--write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+restart
+EOF
+
+set @@debug_dbug="+d,crash_after_reset_master";
+
+--disable_reconnect
+--error 0,2013
+RESET MASTER;
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+--echo # Must show the inserted rows:
+select * from t1;
+
+drop table t1;
+

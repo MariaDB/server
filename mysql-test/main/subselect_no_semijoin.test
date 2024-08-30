@@ -24,6 +24,7 @@ INSERT INTO t3 VALUES (4),(5);
 SET @tmp19714=@@optimizer_switch;
 SET optimizer_switch='subquery_cache=off';
 
+--source include/explain-no-costs.inc
 explain format=json
 SELECT ( SELECT b FROM t2 WHERE b = a OR EXISTS ( SELECT c FROM t3 WHERE c = b ) ) FROM t1;
 

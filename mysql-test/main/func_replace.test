@@ -1,0 +1,86 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-17226 Column Data in Truncated on UNION to the length of the first value if using REPLACE
+--echo #
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (2),
+  col2 VARCHAR (2),
+  PRIMARY KEY (id)
+);
+CREATE TABLE t2 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (1),
+  col2 VARCHAR (2),
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ("a", "ba");
+INSERT INTO t2 (col1, col2) VALUES ("a", "ba");
+SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t2;
+SELECT REPLACE('z', col1, col2) FROM t1 UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+SELECT REPLACE('z', col1, col2) FROM t2 UNION ALL SELECT REPLACE('a', col1, col2) FROM t2;
+DROP TABLE t1, t2;
+
+
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (2),
+  col2 VARCHAR (2),
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'ba');
+SELECT REPLACE('a', col1, col2) FROM t1;
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('a', col1, col2) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (1),
+  col2 VARCHAR (10),
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', '0123456789');
+SELECT REPLACE('aa', col1, col2) FROM t1;
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aa', col1, col2) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (1),
+  col2 VARCHAR (20),
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'aaaaaaaaaabbbbbbbbbb');
+SELECT REPLACE('aa', col1, col2) FROM t1;
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aa', col1, col2) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+CREATE TABLE t1 (
+  id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  col1 VARCHAR (1),
+  col2 VARCHAR (30),
+  PRIMARY KEY (id)
+);
+INSERT INTO t1 (col1, col2) VALUES ('a', 'aaaaaaaaaabbbbbbbbbbcccccccccc');
+SELECT REPLACE('aaa', col1, col2) FROM t1;
+CREATE TABLE t2 AS SELECT 'a' UNION ALL SELECT REPLACE('aaa', col1, col2) FROM t1;
+SELECT * FROM t2;
+SHOW CREATE TABLE t2;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

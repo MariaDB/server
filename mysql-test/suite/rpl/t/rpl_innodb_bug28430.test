@@ -5,7 +5,7 @@
 --source include/master-slave.inc
 
 # Set the default connection to 'master'
-
+--enable_prepare_warnings
 --vertical_results
 
 let $engine_type= 'innodb';
@@ -151,7 +151,7 @@ SELECT count(*) "Slave bykey" FROM test.bykey_tbl;
 SELECT count(*) "Slave byrange" FROM test.byrange_tbl;
 
 ###### CLEAN UP SECTION ##############
-
+--disable_prepare_warnings
 connection master;
 DROP PROCEDURE test.proc_norm;
 DROP PROCEDURE test.proc_bykey;

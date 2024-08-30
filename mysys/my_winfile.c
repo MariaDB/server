@@ -89,17 +89,15 @@ static void invalidate_fd(File fd)
 /* Get Windows handle for a file descriptor */
 HANDLE my_get_osfhandle(File fd)
 {
-  DBUG_ENTER("my_get_osfhandle");
   DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int)my_file_limit);
-  DBUG_RETURN(my_file_info[fd].fhandle);
+  return (my_file_info[fd].fhandle);
 }
 
 
 static int my_get_open_flags(File fd)
 {
-  DBUG_ENTER("my_get_open_flags");
   DBUG_ASSERT(fd >= MY_FILE_MIN && fd < (int)my_file_limit);
-  DBUG_RETURN(my_file_info[fd].oflag);
+  return (my_file_info[fd].oflag);
 }
 
 /*
@@ -140,6 +138,25 @@ static HANDLE my_create_file_with_retries(
 }
 
 /*
+  Default security attributes for files and directories
+  Usually NULL, but can be set
+  - by either mysqld --bootstrap when started from
+    mysql_install_db.exe, and creating windows service
+  - or by mariabackup --copy-back.
+
+  The objective in both cases is to fix file or directory
+  privileges for those files that are outside of the usual
+  datadir, so that unprivileged service account has full
+  access to the files.
+*/
+LPSECURITY_ATTRIBUTES my_win_file_secattr()
+{
+  return my_dir_security_attributes.lpSecurityDescriptor?
+    &my_dir_security_attributes : NULL;
+}
+
+
+/*
   Open a file with sharing. Similar to _sopen() from libc, but allows managing
   share delete on win32
 
@@ -164,7 +181,6 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
   DWORD fileshare;                        /* OS file sharing mode */
   DWORD filecreate;                       /* OS method of opening/creating */
   DWORD fileattrib;                       /* OS file attribute flags */
-  SECURITY_ATTRIBUTES SecurityAttributes;
 
   DBUG_ENTER("my_win_sopen");
 
@@ -173,9 +189,6 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     errno= EACCES;
     DBUG_RETURN(-1);
   }
-  SecurityAttributes.nLength= sizeof(SecurityAttributes);
-  SecurityAttributes.lpSecurityDescriptor= NULL;
-  SecurityAttributes.bInheritHandle= !(oflag & _O_NOINHERIT);
 
   /* decode the access flags  */
   switch (oflag & (_O_RDONLY | _O_WRONLY | _O_RDWR)) {
@@ -283,7 +296,7 @@ File my_win_sopen(const char *path, int oflag, int shflag, int pmode)
     fileattrib|= FILE_FLAG_RANDOM_ACCESS;
 
   /* try to open/create the file  */
-  if ((osfh= my_create_file_with_retries(path, fileaccess, fileshare, &SecurityAttributes, 
+  if ((osfh= my_create_file_with_retries(path, fileaccess, fileshare,my_win_file_secattr(),
     filecreate, fileattrib, NULL)) == INVALID_HANDLE_VALUE)
   {
     DWORD last_error= GetLastError();
@@ -332,10 +345,8 @@ size_t my_win_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset)
   OVERLAPPED    ov= {0};
   LARGE_INTEGER li;
 
-  DBUG_ENTER("my_win_pread");
-
   if(!Count)
-    DBUG_RETURN(0);
+    return(0);
 #ifdef _WIN64
   if(Count > UINT_MAX)
     Count= UINT_MAX;
@@ -354,11 +365,11 @@ size_t my_win_pread(File Filedes, uchar *Buffer, size_t Count, my_off_t offset)
       through e.g. a command pipe in windows : see MSDN on ReadFile.
     */
     if(lastError == ERROR_HANDLE_EOF || lastError == ERROR_BROKEN_PIPE)
-      DBUG_RETURN(0); /*return 0 at EOF*/
+      return(0); /*return 0 at EOF*/
     my_osmaperr(lastError);
-    DBUG_RETURN((size_t)-1);
+    return((size_t)-1);
   }
-  DBUG_RETURN(nBytesRead);
+  return(nBytesRead);
 }
 
 
@@ -367,9 +378,8 @@ size_t my_win_read(File Filedes, uchar *Buffer, size_t Count)
   DWORD         nBytesRead;
   HANDLE        hFile;
 
-  DBUG_ENTER("my_win_read");
   if(!Count)
-    DBUG_RETURN(0);
+    return(0);
 #ifdef _WIN64
   if(Count > UINT_MAX)
     Count= UINT_MAX;
@@ -385,11 +395,11 @@ size_t my_win_read(File Filedes, uchar *Buffer, size_t Count)
       through e.g. a command pipe in windows : see MSDN on ReadFile.
     */
     if(lastError == ERROR_HANDLE_EOF || lastError == ERROR_BROKEN_PIPE)
-      DBUG_RETURN(0); /*return 0 at EOF*/
+      return(0); /*return 0 at EOF*/
     my_osmaperr(lastError);
-    DBUG_RETURN((size_t)-1);
+    return((size_t)-1);
   }
-  DBUG_RETURN(nBytesRead);
+  return(nBytesRead);
 }
 
 
@@ -401,12 +411,8 @@ size_t my_win_pwrite(File Filedes, const uchar *Buffer, size_t Count,
   OVERLAPPED    ov= {0};
   LARGE_INTEGER li;
 
-  DBUG_ENTER("my_win_pwrite");
-  DBUG_PRINT("my",("Filedes: %d, Buffer: %p, Count: %llu, offset: %llu", 
-    Filedes, Buffer, (ulonglong)Count, (ulonglong)offset));
-
   if(!Count)
-    DBUG_RETURN(0);
+    return(0);
 
 #ifdef _WIN64
   if(Count > UINT_MAX)
@@ -421,10 +427,10 @@ size_t my_win_pwrite(File Filedes, const uchar *Buffer, size_t Count,
   if(!WriteFile(hFile, Buffer, (DWORD)Count, &nBytesWritten, &ov))
   {
     my_osmaperr(GetLastError());
-    DBUG_RETURN((size_t)-1);
+    return((size_t)-1);
   }
   else
-    DBUG_RETURN(nBytesWritten);
+    return(nBytesWritten);
 }
 
 
@@ -433,11 +439,9 @@ my_off_t my_win_lseek(File fd, my_off_t pos, int whence)
   LARGE_INTEGER offset;
   LARGE_INTEGER newpos;
 
-  DBUG_ENTER("my_win_lseek");
-
   /* Check compatibility of Windows and Posix seek constants */
-  compile_time_assert(FILE_BEGIN == SEEK_SET && FILE_CURRENT == SEEK_CUR 
-    && FILE_END == SEEK_END);
+  compile_time_assert(FILE_BEGIN == SEEK_SET && FILE_CURRENT == SEEK_CUR &&
+                      FILE_END == SEEK_END);
 
   offset.QuadPart= pos;
   if(!SetFilePointerEx(my_get_osfhandle(fd), offset, &newpos, whence))
@@ -445,7 +449,7 @@ my_off_t my_win_lseek(File fd, my_off_t pos, int whence)
     my_osmaperr(GetLastError());
     newpos.QuadPart= -1;
   }
-  DBUG_RETURN(newpos.QuadPart);
+  return(newpos.QuadPart);
 }
 
 
@@ -459,12 +463,8 @@ size_t my_win_write(File fd, const uchar *Buffer, size_t Count)
   OVERLAPPED *pov= NULL;
   HANDLE hFile;
 
-  DBUG_ENTER("my_win_write");
-  DBUG_PRINT("my",("Filedes: %d, Buffer: %p, Count %llu", fd, Buffer, 
-      (ulonglong)Count));
-
   if(!Count)
-    DBUG_RETURN(0);
+    return(0);
 
 #ifdef _WIN64
   if(Count > UINT_MAX)
@@ -487,9 +487,9 @@ size_t my_win_write(File fd, const uchar *Buffer, size_t Count)
   if(!WriteFile(hFile, Buffer, (DWORD)Count, &nWritten, pov))
   {
     my_osmaperr(GetLastError());
-    DBUG_RETURN((size_t)-1);
+    return((size_t)-1);
   }
-  DBUG_RETURN(nWritten);
+  return(nWritten);
 }
 
 
@@ -497,7 +497,6 @@ int my_win_chsize(File fd,  my_off_t newlength)
 {
   HANDLE hFile;
   LARGE_INTEGER length;
-  DBUG_ENTER("my_win_chsize");
 
   hFile= (HANDLE) my_get_osfhandle(fd);
   length.QuadPart= newlength;
@@ -505,11 +504,11 @@ int my_win_chsize(File fd,  my_off_t newlength)
     goto err;
   if (!SetEndOfFile(hFile))
     goto err;
-  DBUG_RETURN(0);
+  return(0);
 err:
   my_osmaperr(GetLastError());
   my_errno= errno;
-  DBUG_RETURN(-1);
+  return(-1);
 }
 
 
@@ -536,13 +535,11 @@ static File my_get_stdfile_descriptor(FILE *stream)
 }
 
 
-File my_win_fileno(FILE *file)
+File my_win_handle2File(HANDLE hFile)
 {
-  HANDLE hFile= (HANDLE)_get_osfhandle(fileno(file));
   int retval= -1;
   uint i;
-
-  DBUG_ENTER("my_win_fileno");
+  DBUG_ENTER("my_win_handle2File");
 
   for(i= MY_FILE_MIN; i < my_file_limit; i++)
   {
@@ -552,6 +549,14 @@ File my_win_fileno(FILE *file)
       break;
     }
   }
+  DBUG_RETURN(retval);
+}
+
+
+File my_win_fileno(FILE *file)
+{
+  DBUG_ENTER("my_win_fileno");
+  int retval= my_win_handle2File((HANDLE) _get_osfhandle(fileno(file)));
   if(retval == -1)
     /* try std stream */
     DBUG_RETURN(my_get_stdfile_descriptor(file));
@@ -601,7 +606,6 @@ FILE * my_win_fdopen(File fd, const char *type)
   FILE *file;
   int crt_fd;
   int flags= 0;
-
   DBUG_ENTER("my_win_fdopen");
 
   if(strchr(type,'a') != NULL)
@@ -619,8 +623,8 @@ FILE * my_win_fdopen(File fd, const char *type)
 int my_win_fclose(FILE *file)
 {
   File fd;
-
   DBUG_ENTER("my_win_fclose");
+
   fd= my_fileno(file);
   if(fd < 0)
     DBUG_RETURN(-1);
@@ -643,7 +647,6 @@ int my_win_fstat(File fd, struct _stati64 *buf)
   int crt_fd;
   int retval;
   HANDLE hFile, hDup;
-
   DBUG_ENTER("my_win_fstat");
 
   hFile= my_get_osfhandle(fd);

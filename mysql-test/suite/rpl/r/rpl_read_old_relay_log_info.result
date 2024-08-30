@@ -6,7 +6,7 @@ DROP TABLE t1;
 connection slave;
 ==== Check that we still understand the old format of relay-log.info ====
 include/stop_slave.inc
-RESET SLAVE;
+include/reset_slave.inc
 # Read relay-log.info
 START SLAVE IO_THREAD;
 include/wait_for_slave_io_to_start.inc

@@ -153,7 +153,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   UNIQUE KEY `a_key` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci STATS_PERSISTENT=1
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci STATS_PERSISTENT=1
 drop table t;
 create table rename_column_and_index (
 a int,
@@ -170,7 +170,7 @@ Table	Create Table
 rename_column_and_index	CREATE TABLE `rename_column_and_index` (
   `aa` int(11) DEFAULT NULL,
   UNIQUE KEY `aa_key` (`aa`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 check table rename_column_and_index;
 Table	Op	Msg_type	Msg_text
 test.rename_column_and_index	check	status	OK
@@ -232,5 +232,17 @@ t1	ind3	n_diff_pfx01
 t1	ind3	n_diff_pfx02
 t1	ind3	n_leaf_pages
 t1	ind3	size
+ALTER TABLE t1 DROP b, FORCE;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name
+t1	GEN_CLUST_INDEX	n_diff_pfx01
+t1	GEN_CLUST_INDEX	n_leaf_pages
+t1	GEN_CLUST_INDEX	size
+t1	ind2	n_diff_pfx01
+t1	ind2	n_diff_pfx02
+t1	ind2	n_leaf_pages
+t1	ind2	size
 UPDATE t1 SET a = 1 WHERE c = 'foo';
 DROP TABLE t1;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+table_name	index_name	stat_name

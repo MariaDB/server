@@ -1,0 +1,42 @@
+CREATE TABLE t1 (a INET6);
+Field   1:  `a`
+Org_field:  `a`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       STRING (type=inet6)
+Collation:  latin1_swedish_ci (8)
+Length:     39
+Max_length: 0
+Decimals:   0
+Flags:      UNSIGNED BINARY 
+
+Field   2:  `b`
+Org_field:  ``
+Catalog:    `def`
+Database:   ``
+Table:      ``
+Org_table:  ``
+Type:       STRING (type=inet6)
+Collation:  latin1_swedish_ci (8)
+Length:     39
+Max_length: 0
+Decimals:   0
+Flags:      NOT_NULL UNSIGNED 
+
+Field   3:  `c`
+Org_field:  ``
+Catalog:    `def`
+Database:   ``
+Table:      ``
+Org_table:  ``
+Type:       STRING (type=inet6)
+Collation:  latin1_swedish_ci (8)
+Length:     39
+Max_length: 0
+Decimals:   0
+Flags:      UNSIGNED 
+
+
+DROP TABLE t1;

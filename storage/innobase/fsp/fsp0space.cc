@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -28,6 +28,7 @@ Created 2012-11-16 by Sunny Bains as srv/srv0space.cc
 #include "fsp0fsp.h"
 #include "os0file.h"
 #include "my_sys.h"
+#include "lex_ident.h"
 
 /** Check if two tablespaces have common data file names.
 @param other_space	Tablespace to check against this.
@@ -59,7 +60,7 @@ Tablespace::shutdown()
 	m_files.clear();
 	ut_free(m_path);
 	m_path = NULL;
-	m_space_id = ULINT_UNDEFINED;
+	m_space_id = UINT32_MAX;
 }
 
 /** Note that the data file was found.
@@ -88,25 +89,25 @@ Tablespace::open_or_create(bool is_temp)
 	ut_ad(!m_files.empty());
 
 	for (iterator it = begin(); it != end(); ++it) {
-
 		if (it->m_exists) {
 			err = it->open_or_create(
 				m_ignore_read_only
 				? false : srv_read_only_mode);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
 		} else {
 			err = it->open_or_create(
 				m_ignore_read_only
 				? false : srv_read_only_mode);
 
+			if (err != DB_SUCCESS) {
+				return err;
+			}
+
 			/* Set the correct open flags now that we have
 			successfully created the file. */
-			if (err == DB_SUCCESS) {
-				file_found(*it);
-			}
-		}
-
-		if (err != DB_SUCCESS) {
-			break;
+			file_found(*it);
 		}
 
 		/* We can close the handle now and open the tablespace
@@ -118,7 +119,7 @@ Tablespace::open_or_create(bool is_temp)
 
 			/* Create the tablespace entry for the multi-file
 			tablespace in the tablespace manager. */
-			ulint fsp_flags = 0;
+			uint32_t fsp_flags;
 
 			switch (srv_checksum_algorithm) {
 			case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
@@ -130,20 +131,22 @@ Tablespace::open_or_create(bool is_temp)
 				fsp_flags = FSP_FLAGS_PAGE_SSIZE();
 			}
 
-			space = fil_space_create(
-				m_name, m_space_id, fsp_flags,
+			mysql_mutex_lock(&fil_system.mutex);
+			space = fil_space_t::create(
+				m_space_id, fsp_flags,
 				is_temp
 				? FIL_TYPE_TEMPORARY : FIL_TYPE_TABLESPACE,
 				NULL);
 			if (!space) {
+				mysql_mutex_unlock(&fil_system.mutex);
 				return DB_ERROR;
 			}
+		} else {
+			mysql_mutex_lock(&fil_system.mutex);
 		}
-
-		ut_a(fil_validate());
-
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
 			   false, true);
+		mysql_mutex_unlock(&fil_system.mutex);
 	}
 
 	return(err);
@@ -154,9 +157,10 @@ Tablespace::open_or_create(bool is_temp)
 bool
 Tablespace::find(const char* filename) const
 {
+	const Lex_ident_column filename_ident = Lex_cstring_strlen(filename);
 	for (const_iterator it = begin(); it != end(); ++it) {
 
-		if (innobase_strcasecmp(filename, it->m_filename) == 0) {
+		if (filename_ident.streq(Lex_cstring_strlen(it->m_filename))) {
 			return(true);
 		}
 	}
@@ -178,7 +182,7 @@ Tablespace::delete_files()
 
 		if (success && file_pre_exists) {
 			ib::info() << "Removed temporary tablespace data"
-				" file: \"" << it->m_name << "\"";
+				" file: \"" << it->m_filepath << "\"";
 		}
 	}
 }
@@ -191,17 +195,12 @@ must end with the extension .ibd and have a basename of at least 1 byte.
 
 Set tablespace m_path member and add a Datafile with the filename.
 @param[in]	datafile_path	full path of the tablespace file. */
-dberr_t
-Tablespace::add_datafile(
-	const char*	datafile_added)
+dberr_t Tablespace::add_datafile(const char *filepath)
 {
 	/* The path provided ends in ".ibd".  This was assured by
 	validate_create_tablespace_info() */
-	ut_d(const char* dot = strrchr(datafile_added, '.'));
+	ut_d(const char* dot = strrchr(filepath, '.'));
 	ut_ad(dot != NULL && 0 == strcmp(dot, DOT_IBD));
-
-	char* filepath = mem_strdup(datafile_added);
-	os_normalize_path(filepath);
 
 	/* If the path is an absolute path, separate it onto m_path and a
 	basename. For relative paths, make the whole thing a basename so that
@@ -219,12 +218,9 @@ Tablespace::add_datafile(
 
 	/* Now add a new Datafile and set the filepath
 	using the m_path created above. */
-	m_files.push_back(Datafile(m_name, m_flags,
-				   FIL_IBD_FILE_INITIAL_SIZE, 0));
-	Datafile* datafile = &m_files.back();
-	datafile->make_filepath(m_path, basename, IBD);
-
-	ut_free(filepath);
+	m_files.push_back(Datafile(m_flags, FIL_IBD_FILE_INITIAL_SIZE, 0));
+	m_files.back().make_filepath(m_path, {basename, strlen(basename) - 4},
+				     IBD);
 
 	return(DB_SUCCESS);
 }

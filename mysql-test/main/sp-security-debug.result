@@ -1,0 +1,294 @@
+set @@global.collation_server=@@session.collation_server;
+#
+# MDEV-29167: new db-level SHOW CREATE ROUTINE privilege
+#
+###
+### SHOW-Like commad test
+###
+SET @save_sql_mode=@@sql_mode;
+#
+### Prepare functions for the test and SHOW-like by owner
+#
+create database test_db;
+use test_db;
+create procedure test_db.sp() select 1;
+show procedure code test_db.sp;
+Pos	Instruction
+0	stmt 0 "select 1"
+CREATE FUNCTION test_db.fn() RETURNS INT RETURN 1;
+show function code test_db.fn;
+Pos	Instruction
+0	freturn int 1
+SET sql_mode=ORACLE;
+CREATE PACKAGE test_db.pk AS
+FUNCTION pkf() RETURN INT;
+PROCEDURE pkp();
+END;
+$$
+CREATE PACKAGE BODY test_db.pk AS
+pkv INT:=1;
+PROCEDURE pkhp() AS
+BEGIN
+SELECT pkv FROM DUAL;
+END;
+FUNCTION pkhf() RETURN INT AS
+BEGIN
+RETURN pkv;
+END;
+PROCEDURE pkp() AS
+BEGIN
+CALL pkhp();
+END;
+FUNCTION pkf() RETURN INT AS
+BEGIN
+RETURN pkhf();
+END;
+BEGIN
+pkv:=2;
+END;
+$$
+SET sql_mode=@save_sql_mode;
+show package code test_db.pk;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'code test_db.pk' at line 1
+show package body code test_db.pk;
+Pos	Instruction
+0	set pkv@0 1
+1	set pkv@0 2
+use test;
+###
+### Pre-"SHOW-CREATE-ROUTINE" behaviour tests
+###
+#
+### Rights on mysql.proc
+#
+create user user@localhost;
+grant all privileges on mysql.* to user@localhost;
+grant all privileges on test.* to user@localhost;
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+Pos	Instruction
+0	stmt 0 "select 1"
+show function code test_db.fn;
+Pos	Instruction
+0	freturn int 1
+show package body code test_db.pk;
+Pos	Instruction
+0	set pkv@0 1
+1	set pkv@0 2
+connection default;
+disconnect conn1;
+revoke all privileges on mysql.* from user@localhost;
+#
+### No privileges
+#
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+show function code test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+#
+### Execute provilege PROCEDURE/FUNCTION
+#
+grant execute on procedure test_db.sp to user@localhost;
+grant execute on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+show function code test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+connection default;
+disconnect conn1;
+revoke execute on procedure test_db.sp from user@localhost;
+revoke execute on function test_db.fn from user@localhost;
+#
+### Execute provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant execute on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke execute on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Execute provilege PACKAGE- PACKAGE BODY+
+#
+SET sql_mode=ORACLE;
+grant execute on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke execute on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Alter routine provilege PROCEDURE/FUNCTION
+#
+grant alter routine on procedure test_db.sp to user@localhost;
+grant alter routine on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+show function code test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+connection default;
+disconnect conn1;
+revoke alter routine on procedure test_db.sp from user@localhost;
+revoke alter routine on function test_db.fn from user@localhost;
+#
+### Alter routine provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant alter routine on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke alter routine on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Alter routine provilege PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant alter routine on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke alter routine on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+###
+### SHOW CREATE PROCEDURE tests
+###
+#
+### Global "show create routine" test
+#
+grant show create routine on *.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT SHOW CREATE ROUTINE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+Pos	Instruction
+0	stmt 0 "select 1"
+show function code test_db.fn;
+Pos	Instruction
+0	freturn int 1
+show package body code test_db.pk;
+Pos	Instruction
+0	set pkv@0 1
+1	set pkv@0 2
+connection default;
+disconnect conn1;
+revoke show create routine on *.* from user@localhost;
+#
+### DB-level "show create routine" but other DB test
+#
+grant show create routine on db_test.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT USAGE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+GRANT SHOW CREATE ROUTINE ON `db_test`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+ERROR 42000: PROCEDURE sp does not exist
+show function code test_db.fn;
+ERROR 42000: FUNCTION fn does not exist
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+revoke show create routine on db_test.* from user@localhost;
+#
+### DB-level "show create routine" test
+#
+grant show create routine on test_db.* to user@localhost;
+show grants for user@localhost;
+Grants for user@localhost
+GRANT USAGE ON *.* TO `user`@`localhost`
+GRANT ALL PRIVILEGES ON `test`.* TO `user`@`localhost`
+GRANT SHOW CREATE ROUTINE ON `test_db`.* TO `user`@`localhost`
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+Pos	Instruction
+0	stmt 0 "select 1"
+show function code test_db.fn;
+Pos	Instruction
+0	freturn int 1
+show package body code test_db.pk;
+Pos	Instruction
+0	set pkv@0 1
+1	set pkv@0 2
+connection default;
+disconnect conn1;
+revoke show create routine on test_db.* from user@localhost;
+#
+### Routine-level "show create routine" PROCEDURE and FUNCTION
+#
+grant show create routine on procedure test_db.sp to user@localhost;
+grant show create routine on function test_db.fn to user@localhost;
+connect conn1, localhost, user, , test;
+show procedure code test_db.sp;
+Pos	Instruction
+0	stmt 0 "select 1"
+show function code test_db.fn;
+Pos	Instruction
+0	freturn int 1
+connection default;
+disconnect conn1;
+revoke show create routine on procedure test_db.sp from user@localhost;
+revoke show create routine on function test_db.fn from user@localhost;
+#
+### Routine-level "show create routine" PACKAGE+ PACKAGE BODY-
+#
+SET sql_mode=ORACLE;
+grant show create routine on package test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+ERROR 42000: PACKAGE BODY pk does not exist
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke show create routine on package test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+#
+### Routine-level "show create routine" PACKAGE- PACKAGE BODY+
+#
+SET sql_mode=ORACLE;
+grant show create routine on package body test_db.pk to user@localhost;
+SET sql_mode=@save_sql_mode;
+connect conn1, localhost, user, , test;
+show package body code test_db.pk;
+Pos	Instruction
+0	set pkv@0 1
+1	set pkv@0 2
+connection default;
+disconnect conn1;
+SET sql_mode=ORACLE;
+revoke show create routine on package body test_db.pk from user@localhost;
+SET sql_mode=@save_sql_mode;
+drop database test_db;
+drop user user@localhost;
+#
+# End of 11.3 tests
+#

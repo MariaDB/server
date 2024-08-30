@@ -1,0 +1,1 @@
+--thread-handling=pool-of-threads --loose-thread-pool-mode=generic --loose-thread-pool-groups=ON --loose-thread-pool-queues=ON --thread-pool-stats=ON --thread-pool-waits=ON --thread-pool-size=1 --thread-pool-max-threads=2 --thread-pool-dedicated-listener

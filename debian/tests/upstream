@@ -1,0 +1,74 @@
+#!/bin/sh
+# autopkgtest check: Build and run the upstream test suite.
+# (C) 2012 Canonical Ltd.
+# Author: Daniel Kessel <d.kessel@gmx.de>
+
+# running the mysql testsuite as described in:
+# https://bugs.launchpad.net/ubuntu/+source/mysql-5.5/+bug/959683
+
+echo "Running test 'testsuite'"
+set -e
+
+MTR_SKIP_TEST_LIST=$(mktemp)
+ARCH=$(dpkg --print-architecture)
+
+WORKDIR=$(mktemp -d)
+trap 'rm -rf $WORKDIR $MTR_SKIP_TEST_LIST' 0 INT QUIT ABRT PIPE TERM
+cd "$WORKDIR"
+
+mkdir var
+mkdir tmp
+
+echo "using vardir: $WORKDIR/var"
+echo "using tmpdir: $WORKDIR/tmp"
+
+echo "Setting up skip-tests-list"
+
+# Also use the arch specific skiplists if exist
+if [ -f "/usr/share/mariadb/mariadb-test/unstable-tests.$ARCH" ]
+then
+  cat "/usr/share/mariadb/mariadb-test/unstable-tests.$ARCH" >> "$SKIP_TEST_LST"
+fi
+
+# Skip tests that cannot run properly on ci.debian.net / autopkgtests.ubuntu.com
+cat >> "$MTR_SKIP_TEST_LIST" << EOF
+binlog.binlog_server_start_options : Requires writable /usr
+main.ctype_uca : Requires writable /usr
+rpl.rpl_gtid_mode : Requires starting server as root ref http://bugs.mysql.com/bug.php?id=70517
+EOF
+
+# Skip tests that cannot run properly on Gitlab-CI
+if [ -n "$GITLAB_CI" ]
+then
+  cat >> "$MTR_SKIP_TEST_LIST" << EOF
+main.mysqld--help : For unknown reason table-cache is 4000 instead of default 421
+EOF
+fi
+
+if [ "$ARCH" = "s390x" ]
+then
+  echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> "$MTR_SKIP_TEST_LIST"
+elif [ "$ARCH" = "armhf" ] || [ "$ARCH" = "i386" ]
+then
+  echo "main.failed_auth_unixsocket : Test returns wrong exit code on armhf and i386 (but only in debci) https://jira.mariadb.org/browse/MDEV-23933" >> "$MTR_SKIP_TEST_LIST"
+fi
+
+# Store skipped test list in artifacts so it can be viewed while debugging
+# failed autopkgtest runs
+cp -v "$MTR_SKIP_TEST_LIST" "$AUTOPKGTEST_ARTIFACTS"
+
+cd /usr/share/mysql/mysql-test
+echo "starting mariadb-test-tun.pl..."
+export MTR_PRINT_CORE=detailed
+# The $MTR_ARGUMENTS_APPEND is intentionally used to pass in extra arguments
+# shellcheck disable=SC2086
+eatmydata perl -I. ./mariadb-test-run.pl \
+    --force --testcase-timeout=120 --suite-timeout=540 --retry=3 \
+    --verbose-restart --max-save-core=1 --max-save-datadir=1 \
+    --parallel=auto --skip-rpl --suite=main \
+    --skip-test-list="$MTR_SKIP_TEST_LIST" \
+    --vardir="$WORKDIR/var" --tmpdir="$WORKDIR/tmp" \
+    --xml-report="$AUTOPKGTEST_ARTIFACTS/mariadb-test-run-junit.xml" \
+    $MTR_ARGUMENTS_APPEND \
+    "$@" 2>&1
+echo "run: OK"

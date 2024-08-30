@@ -4,7 +4,7 @@ connect  con1,localhost,root,,test,$MASTER_MYPORT,;
 connection default;
 set @initial_query_cache_size = @@global.query_cache_size;
 set @@global.query_cache_size=102400;
-flush status;
+flush global status;
 drop table if exists t1;
 create table t1(c1 int);
 insert into t1 values(1),(10),(100);
@@ -408,9 +408,9 @@ EXECUTE stmt_a_2;
 SELECT * FROM mysqltest1.t1;
 msg
 mysqltest1
-utf8_unicode_ci
+utf8mb3_unicode_ci
 mysqltest1
-utf8_unicode_ci
+utf8mb3_unicode_ci
 
 SELECT * FROM mysqltest2.t1;
 msg
@@ -480,51 +480,51 @@ DROP DATABASE mysqltest2;
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 
 EXECUTE stmt_c_1;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 
 EXECUTE stmt_c_2;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 Warnings:
 Note	1049	Unknown database 'mysqltest2'
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 
 PREPARE stmt_c_3 FROM 'SELECT DATABASE(), @@collation_database';
 
 EXECUTE stmt_c_3;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 
 use mysqltest1;
 
 EXECUTE stmt_c_2;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 Warnings:
 Note	1049	Unknown database 'mysqltest2'
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 EXECUTE stmt_c_3;
 DATABASE()	@@collation_database
-NULL	latin1_swedish_ci
+NULL	utf8mb4_uca1400_ai_ci
 
 SELECT DATABASE(), @@collation_database;
 DATABASE()	@@collation_database
-mysqltest1	utf8_unicode_ci
+mysqltest1	utf8mb3_unicode_ci
 
 DROP DATABASE mysqltest1;
 
@@ -540,7 +540,7 @@ use test;
 drop table if exists t1;
 create table t1 (a varchar(255));
 insert into t1 (a) values ("Pack my box with five dozen liquor jugs.");
-flush status;
+flush global status;
 prepare stmt from "select a from t1";
 execute stmt;
 a

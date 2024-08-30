@@ -19,14 +19,26 @@
 
 /*
   Portable time_t replacement.
-  Should be signed and hold seconds for 1902 -- 2038-01-19 range
-  i.e at least a 32bit variable
+  For 32 bit systems holds seconds for 1970 - 2038-01-19
+  For 64 bit systems holds seconds for 1970 - 2106-02-07
 
   Using the system built in time_t is not an option as
   we rely on the above requirements in the time functions   
 */
-typedef long my_time_t;
 
+#ifndef MYSQL_ABI_CHECK
+/*
+  long is 64bit on all 64bit systems, except Windows where it is 32 bit.
+  long is 32bit on all 32bit systems.
+  The following code ensures that my_time_t is 64 bit on all 64 bit
+  systems.
+*/
+#ifdef _WIN64
+typedef long long my_time_t;
+#else
+typedef long my_time_t;
+#endif
+#endif /* MYSQL_ABI_CHECK */
 
 /*
   Time declarations shared between the server and client API:

@@ -5,7 +5,7 @@ SET NAMES UTF8;
 CREATE TABLE diaries (
 title TEXT,
 FULLTEXT KEY (title)
-) DEFAULT CHARSET=utf8;
+) DEFAULT CHARSET=utf8 COLLATE utf8_general_ci;
 SELECT mroonga_command('dump --dump_plugins no');
 mroonga_command('dump --dump_plugins no')
 table_create diaries TABLE_NO_KEY

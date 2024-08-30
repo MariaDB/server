@@ -21,7 +21,7 @@
 #include "sp_defs.h"
 #include <my_bit.h>
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
 #endif
 #include <m_ctype.h>
@@ -94,7 +94,8 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     ci->reloc_rows=ci->max_rows;		/* Check if wrong parameter */
 
   if (!(rec_per_key_part=
-	(ulong*) my_malloc((keys + uniques)*HA_MAX_KEY_SEG*sizeof(long),
+	(ulong*) my_malloc(mi_key_memory_MYISAM_SHARE,
+                           (keys + uniques) * HA_MAX_KEY_SEG * sizeof(long),
 			   MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(my_errno);
 
@@ -622,6 +623,7 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
     fn_format(kfilename, name, "", MI_NAME_IEXT, MY_UNPACK_FILENAME |
               (internal_table ? 0 : MY_RETURN_REAL_PATH) |
               (have_iext ? MY_REPLACE_EXT : MY_APPEND_EXT));
+    klinkname_ptr= 0;
     /* Replace the current file */
     create_flag=(flags & HA_CREATE_KEEP_FILES) ? 0 : MY_DELETE_OLD;
   }
@@ -752,7 +754,6 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
   for (i=0; i < uniques ; i++)
   {
     tmp_keydef.keysegs=1;
-    tmp_keydef.flag=		HA_UNIQUE_CHECK;
     tmp_keydef.block_length=	(uint16)myisam_block_size;
     tmp_keydef.keylength=	MI_UNIQUE_HASH_LENGTH + pointer;
     tmp_keydef.minlength=tmp_keydef.maxlength=tmp_keydef.keylength;
@@ -813,14 +814,14 @@ int mi_create(const char *name,uint keys,MI_KEYDEF *keydefs,
 
 	/* Enlarge files */
   DBUG_PRINT("info", ("enlarge to keystart: %lu", (ulong) share.base.keystart));
-  if (mysql_file_chsize(file, (ulong) share.base.keystart, 0, MYF(0)))
+  if (mysql_file_chsize(file, (ulong) share.base.keystart, 0, MYF(0)) > 0)
     goto err;
 
   if (! (flags & HA_DONT_TOUCH_DATA))
   {
 #ifdef USE_RELOC
     if (mysql_file_chsize(dfile, share.base.min_pack_length*ci->reloc_rows,
-                          0, MYF(0)))
+                          0, MYF(0)) > 0)
       goto err;
 #endif
     errpos=2;

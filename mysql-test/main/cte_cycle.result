@@ -1,0 +1,156 @@
+#
+# check errors
+#
+WITH RECURSIVE cte AS (
+SELECT 1 AS a UNION ALL
+SELECT NULL FROM cte WHERE a IS NOT NULL)
+CYCLE a, a RESTRICT
+SELECT * FROM cte;
+ERROR 42S21: Duplicate column name 'a'
+WITH RECURSIVE cte AS (
+SELECT 1 AS a UNION ALL
+SELECT NULL FROM cte WHERE a IS NOT NULL)
+CYCLE b RESTRICT
+SELECT * FROM cte;
+ERROR 42S22: Unknown column 'b' in 'CYCLE clause'
+WITH cte AS (
+SELECT 1 AS a UNION ALL
+SELECT NULL FROM cte WHERE a IS NOT NULL)
+CYCLE b RESTRICT
+SELECT * FROM cte;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'CYCLE b RESTRICT
+SELECT * FROM cte' at line 4
+#
+# A degenerate case
+#
+WITH RECURSIVE cte AS (
+SELECT 1 AS a, 2 as b)
+CYCLE b RESTRICT
+SELECT * FROM cte;
+a	b
+1	2
+#
+# A simple case
+#
+WITH RECURSIVE cte AS (
+SELECT 1 AS a, 2 as b UNION ALL
+SELECT 2, 2 FROM cte WHERE a IS NOT NULL)
+CYCLE b RESTRICT
+SELECT * FROM cte;
+a	b
+1	2
+#
+# MDEV-20632 case (with fixed syntax)
+#
+create table t1 (from_ int, to_ int);
+insert into t1 values (1,2), (1,100), (2,3), (3,4), (4,1);
+WITH RECURSIVE cte (depth, from_, to_) as (
+SELECT 0,1,1
+UNION
+SELECT depth+1, t1.from_, t1.to_
+FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+depth	from_	to_
+0	1	1
+1	1	2
+1	1	100
+2	2	3
+3	3	4
+4	4	1
+create view v1 as WITH RECURSIVE cte (depth, from_, to_) as (
+SELECT 0,1,1
+UNION
+SELECT depth+1, t1.from_, t1.to_
+FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS with recursive cte(`depth`,`from_`,`to_`) as (select 0 AS `depth`,1 AS `from_`,1 AS `to_` union select `cte`.`depth` + 1 AS `depth+1`,`t1`.`from_` AS `from_`,`t1`.`to_` AS `to_` from (`t1` join `cte`) where `t1`.`from_` = `cte`.`to_`) CYCLE `from_`,`to_` RESTRICT select `cte`.`depth` AS `depth`,`cte`.`from_` AS `from_`,`cte`.`to_` AS `to_` from `cte`	latin1	latin1_swedish_ci
+select * from v1;
+depth	from_	to_
+0	1	1
+1	1	2
+1	1	100
+2	2	3
+3	3	4
+4	4	1
+delete from t1;
+insert into t1 values (1,2), (1,NULL), (NULL,NULL), (NULL, 1);
+select * from v1;
+depth	from_	to_
+0	1	1
+1	1	2
+1	1	NULL
+drop view v1;
+drop table t1;
+#
+# A simple blob case
+#
+create table t1 (a int, b text);
+insert into t1 values (1, "a");
+WITH RECURSIVE cte AS (
+SELECT a, b  from t1 UNION ALL
+SELECT a, b FROM cte WHERE a IS NOT NULL)
+CYCLE b RESTRICT
+SELECT * FROM cte;
+a	b
+1	a
+drop table t1;
+#
+# check bit types
+#
+create table t1 (from_ bit(3), to_ bit(3));
+insert into t1 values (1,2), (1,7), (2,3), (3,4), (4,1);
+WITH RECURSIVE cte (depth, from_, to_) as (
+SELECT 0,1,1
+UNION
+SELECT depth+1, t1.from_, t1.to_
+FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_ RESTRICT
+select * from cte;
+depth	from_	to_
+0	1	1
+1	1	2
+1	1	7
+2	2	3
+3	3	4
+4	4	1
+drop table t1;
+#
+# check bit types with BLOBs (TEXT)
+#
+create table t1 (from_ bit(3), to_ bit(3), load_ text);
+insert into t1 values (1,2,"A"), (1,7,"A"), (2,3,"A"), (3,4,"A"), (4,1,"A");
+WITH RECURSIVE cte (depth, from_, to_, load_) as (
+SELECT 0,1,1,"A"
+   UNION
+SELECT depth+1, t1.from_, t1.to_, t1.load_
+FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_, load_ RESTRICT
+select * from cte;
+depth	from_	to_	load_
+0	1	1	A
+1	1	2	A
+1	1	7	A
+2	2	3	A
+3	3	4	A
+4	4	1	A
+insert into t1 values (4,1,"B");
+WITH RECURSIVE cte (depth, from_, to_, load_) as (
+SELECT 0,1,1,"A"
+   UNION
+SELECT depth+1, t1.from_, t1.to_, t1.load_
+FROM t1, cte WHERE t1.from_ = cte.to_
+) CYCLE from_, to_, load_ RESTRICT
+select * from cte;
+depth	from_	to_	load_
+0	1	1	A
+1	1	2	A
+1	1	7	A
+2	2	3	A
+3	3	4	A
+4	4	1	A
+4	4	1	B
+drop table t1;

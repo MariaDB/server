@@ -1,0 +1,44 @@
+#
+# MDEV-31463 SIGSEGV in server_mysql_send_query | server_mysql_real_query
+#
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+CREATE TABLE t1 (a INT) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+CREATE TABLE t2 (a INT) ENGINE=Spider COMMENT='table "t1", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+connect  master_1_another, localhost, root, , auto_test_local, $MASTER_1_MYPORT, $MASTER_1_MYSOCK;
+SET DEBUG_SYNC='spider_set_lock_wait_timeout_before_query SIGNAL ready WAIT_FOR go';
+insert into t2 values (42);
+connection master_1;
+SET DEBUG_SYNC='now WAIT_FOR ready';
+connection child2_1;
+connection master_1;
+SET DEBUG_SYNC='now SIGNAL go';
+connection master_1_another;
+ERROR HY000: Got an error writing communication packets
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+# restart
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+#
+# end test
+#

@@ -32,6 +32,7 @@ Usage: $0 [-h|-n] [configure-options]
   -n, --just-print        Don't actually run any commands; just print them.
   -c, --just-configure    Stop after running configure.
                           Combined with --just-print shows configure options.
+  --just-clean            Clean up compilation files and update sub modules
   --extra-configs=xxx     Add this to configure options
   --extra-flags=xxx       Add this C and CXX flags
   --extra-cflags=xxx      Add this to C flags
@@ -71,6 +72,8 @@ parse_options()
       just_configure=1;;
     -n | --just-print | --print)
       just_print=1;;
+    --just-clean)
+    just_clean=1;;
     --verbose)
       verbose_make=1;;
     -h | --help)
@@ -94,6 +97,7 @@ fi
 
 prefix="/usr/local/mysql"
 just_print=
+just_clean=
 just_configure=
 warning_mode=
 maintainer_mode=
@@ -122,8 +126,10 @@ get_make_parallel_flag
 # SSL library to use.--with-ssl will select our bundled yaSSL
 # implementation of SSL. --with-ssl=yes will first try system library
 # then the bundled one  --with-ssl=system will use the system library.
-# We use bundled by default as this is guaranteed to work with Galera
-SSL_LIBRARY=--with-ssl
+# We normally use bundled by default as this is guaranteed to work with Galera
+# However as bundled gives problem on SuSE with tls_version1.test, system
+# is used
+SSL_LIBRARY=--with-ssl=system
 
 if [ "x$warning_mode" = "xpedantic" ]; then
   warnings="-W -Wall -ansi -pedantic -Wno-long-long -Wno-unused -D_POSIX_SOURCE"
@@ -197,9 +203,8 @@ base_configs="--prefix=$prefix --enable-assembler "
 base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
-base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables"
-# Following is to get tokudb to work
-base_configs="$base_configs --with-jemalloc=NO"
+base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
+base_configs="$base_configs $SSL_LIBRARY"
 
 if test -d "$path/../cmd-line-utils/readline"
 then
@@ -209,18 +214,18 @@ then
     base_configs="$base_configs --with-libedit"
 fi
 
-max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
-max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --without-plugin-tokudb --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
-all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
+max_plugins="--with-plugins=max"
+max_no_embedded_configs="$max_plugins"
+max_no_qc_configs="$max_plugins --without-query-cache"
+max_configs="$max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC --with-plugin-hashicorp_key_management=DYNAMIC --with-plugin-auth_gssapi=DYNAMIC"
+all_configs="$max_configs"
 
 #
 # CPU and platform specific compilation flags.
 #
 alpha_cflags="$check_cpu_cflags -Wa,-m$cpu_flag"
-amd64_cflags="$check_cpu_cflags"
-amd64_cxxflags=""  # If dropping '--with-big-tables', add here  "-DBIG_TABLES"
 pentium_cflags="$check_cpu_cflags -m32"
+amd64_cflags="$check_cpu_cflags -m64"
 pentium64_cflags="$check_cpu_cflags -m64"
 ppc_cflags="$check_cpu_cflags"
 sparc_cflags=""
@@ -262,6 +267,12 @@ if test `$CC -v 2>&1 | tail -1 | sed 's/ .*$//'` = 'gcc' ; then
   fi
 fi
 
+if test `$CC -v 2>&1 | head -1 | sed 's/ .*$//'` = 'clang' ; then
+    dbug_cflags="$dbug_cflags -Wframe-larger-than=16384 -fno-inline"
+    c_warnings="$c_warnings -Wframe-larger-than=16384"
+    cxx_warnings="$cxx_warnings -Wframe-larger-than=16384"
+fi
+
 
 # If ccache (a compiler cache which reduces build time)
 # (http://samba.org/ccache) is installed, use it.
@@ -271,13 +282,7 @@ fi
 # As cmake doesn't like CC and CXX with a space, use symlinks from
 # /usr/lib64/ccache if they exits.
 
-if test "$USING_GCOV" != "1"
-then
-  # Not using gcov; Safe to use ccache
-  CCACHE_GCOV_VERSION_ENABLED=1
-fi
-
-if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1"
+if ccache -V > /dev/null 2>&1 && test "$CCACHE_DISABLE" != "1" && test "$CC" = "gcc"
 then
     if test -x /usr/lib64/ccache/gcc
     then
@@ -302,7 +307,7 @@ gcov_compile_flags="$gcov_compile_flags -DMYSQL_SERVER_SUFFIX=-gcov -DHAVE_gcov"
 
 #
 # The following plugins doesn't work on 32 bit systems
-disable_64_bit_plugins="--without-plugin-tokudb --without-plugin-rocksdb"
+disable_64_bit_plugins="--without-plugin-rocksdb"
 
 
 # GCC4 needs -fprofile-arcs -ftest-coverage on the linker command line (as well
@@ -314,10 +319,11 @@ gcov_configs="--with-gcov"
 
 # gprof
 
-gprof_compile_flags="-O2 -pg -g"
+gprof_compile_flags="-O2"
 
+# Rest of the flags are set in CmakeFile.txt
 gprof_link_flags="--disable-shared $static_link"
 
-disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga"
+disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga --with-gprof"
 
 disable_asan_plugins="--without-plugin-rocksdb"

@@ -1,0 +1,1012 @@
+CREATE FUNCTION DML_FUNC()
+RETURNS INT
+BEGIN
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+RETURN 1;
+END|
+CREATE PROCEDURE NESTED_PROC()
+BEGIN
+SELECT DML_FUNC();
+END|
+CREATE PROCEDURE PREPARE_EXECUTE_PROC()
+BEGIN
+PREPARE p_stmt_select FROM "SELECT 1";
+PREPARE p_stmt_insert FROM "INSERT INTO t1 (b) VALUES (1), (2)";
+PREPARE p_stmt_update FROM "UPDATE t1 SET b = 1";
+EXECUTE p_stmt_select;
+EXECUTE p_stmt_insert;
+EXECUTE p_stmt_update;
+DEALLOCATE PREPARE p_stmt_select;
+DEALLOCATE PREPARE p_stmt_insert;
+DEALLOCATE PREPARE p_stmt_update;
+END|
+SET default_storage_engine=InnoDB;
+
+============================
+= Test for simple DML and DDL
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT UNSIGNED NOT NULL DEFAULT 0);
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+SELECT * FROM t1;
+a	b
+1	1
+2	1
+DELETE FROM t1;
+ALTER TABLE t1 ADD COLUMN (c INT);
+DROP TABLE t1;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	7	      3.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	6	      3.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT(10) UNSIGNED NOT NULL DEFAULT 0);
+
+============================
+= Test for SELECT+DML
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+SELECT DML_FUNC();
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for nested calls
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CALL NESTED_PROC();
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+==============================================
+= Test for PREPARE-EXECUTE in stored procedure
+==============================================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CALL PREPARE_EXECUTE_PROC();
+1
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	9	      4.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	7	      3.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'PREPARE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+PREPARE rw_stmt FROM 'DELETE FROM t1';
+PREPARE ro_stmt FROM 'SELECT * FROM t1';
+PREPARE select_dml_stmt FROM 'SELECT DML_FUNC()';
+PREPARE nested_call_stmt FROM 'CALL NESTED_PROC()';
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'EXECUTE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+EXECUTE rw_stmt;
+EXECUTE ro_stmt;
+a	b
+EXECUTE select_dml_stmt;
+DML_FUNC()
+1
+EXECUTE nested_call_stmt;
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	5	      2.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'DEALLOCATE PREPARE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+DEALLOCATE PREPARE rw_stmt;
+DEALLOCATE PREPARE ro_stmt;
+DEALLOCATE PREPARE select_dml_stmt;
+DEALLOCATE PREPARE nested_call_stmt;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for transactions
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+SELECT * FROM t1;
+a	b
+7	1
+8	1
+9	1
+10	1
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+SELECT * FROM t1;
+a	b
+7	1
+8	1
+9	1
+10	1
+11	1
+12	1
+DELETE FROM t1;
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	6	      3.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+SELECT DML_FUNC();
+DML_FUNC()
+1
+CALL NESTED_PROC();
+DML_FUNC()
+1
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+ROLLBACK;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for implicit commit
+============================
+
+SET autocommit = 0;
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+INSERT INTO t1 (b) VALUES (1), (2);
+CREATE INDEX ab ON t1 (a, b);
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SET autocommit = 1;
+
+============================
+= Test for trigger
+============================
+
+CREATE TABLE t2 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT UNSIGNED NOT NULL DEFAULT 0);
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CREATE TRIGGER test_trigger BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2 SET b = NEW.b;
+INSERT INTO t2 SET b = NEW.b;
+END;
+|
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+INSERT INTO t1 (b) VALUES (1), (2);
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+DROP TABLE t1;
+DROP TABLE t2;
+SET default_storage_engine=InnoDB;
+SET default_storage_engine=MyISAM;
+
+==========================
+= Test for Innodb engine
+==========================
+
+============================
+= Test for simple DML and DDL
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT UNSIGNED NOT NULL DEFAULT 0);
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+SELECT * FROM t1;
+a	b
+1	1
+2	1
+DELETE FROM t1;
+ALTER TABLE t1 ADD COLUMN (c INT);
+DROP TABLE t1;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	7	      3.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	6	      3.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+CREATE TABLE t1 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT(10) UNSIGNED NOT NULL DEFAULT 0);
+
+============================
+= Test for SELECT+DML
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+SELECT DML_FUNC();
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for nested calls
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CALL NESTED_PROC();
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+==============================================
+= Test for PREPARE-EXECUTE in stored procedure
+==============================================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CALL PREPARE_EXECUTE_PROC();
+1
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	9	      4.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	7	      3.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'PREPARE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+PREPARE rw_stmt FROM 'DELETE FROM t1';
+PREPARE ro_stmt FROM 'SELECT * FROM t1';
+PREPARE select_dml_stmt FROM 'SELECT DML_FUNC()';
+PREPARE nested_call_stmt FROM 'CALL NESTED_PROC()';
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'EXECUTE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+EXECUTE rw_stmt;
+EXECUTE ro_stmt;
+a	b
+EXECUTE select_dml_stmt;
+DML_FUNC()
+1
+EXECUTE nested_call_stmt;
+DML_FUNC()
+1
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	5	      2.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for 'DEALLOCATE PREPARE'
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+DEALLOCATE PREPARE rw_stmt;
+DEALLOCATE PREPARE ro_stmt;
+DEALLOCATE PREPARE select_dml_stmt;
+DEALLOCATE PREPARE nested_call_stmt;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for transactions
+============================
+
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+SELECT * FROM t1;
+a	b
+7	1
+8	1
+9	1
+10	1
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+SELECT * FROM t1;
+a	b
+7	1
+8	1
+9	1
+10	1
+11	1
+12	1
+DELETE FROM t1;
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	6	      3.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+SELECT DML_FUNC();
+DML_FUNC()
+1
+CALL NESTED_PROC();
+DML_FUNC()
+1
+COMMIT;
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	4	      2.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+BEGIN;
+INSERT INTO t1 (b) VALUES (1), (2);
+UPDATE t1 SET b = 1;
+ROLLBACK;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	5	      2.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	3	      1.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+
+============================
+= Test for implicit commit
+============================
+
+SET autocommit = 0;
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+INSERT INTO t1 (b) VALUES (1), (2);
+CREATE INDEX ab ON t1 (a, b);
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	2	      1.000000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SET autocommit = 1;
+
+============================
+= Test for trigger
+============================
+
+CREATE TABLE t2 (a INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+b INT UNSIGNED NOT NULL DEFAULT 0);
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+CREATE TRIGGER test_trigger BEFORE INSERT ON t1
+FOR EACH ROW
+BEGIN
+INSERT INTO t2 SET b = NEW.b;
+INSERT INTO t2 SET b = NEW.b;
+END;
+|
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+------------------Test body begin--------------------
+INSERT INTO t1 (b) VALUES (1), (2);
+------------------Test body end----------------------
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_READ WHERE count != 0;
+TIME	COUNT	TOTAL
+SELECT * FROM INFORMATION_SCHEMA.QUERY_RESPONSE_TIME_WRITE WHERE count != 0;
+TIME	COUNT	TOTAL
+      1.000000	1	      0.500000
+include/assert.inc [The sum of query counts in read and write tables must be equal to query count of the common table]
+include/assert.inc [QUERY_RESPONSE_TIME query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_READ query counts must be equal regardless of the table name case]
+include/assert.inc [QUERY_RESPONSE_TIME_WRITE query counts must be equal regardless of the table name case]
+DROP TABLE t1;
+DROP TABLE t2;
+SET default_storage_engine=default;
+DROP FUNCTION DML_FUNC;
+DROP PROCEDURE NESTED_PROC;
+DROP PROCEDURE PREPARE_EXECUTE_PROC;
+#
+# MDEV-33931 QUERY_RESPONSE_TIME counts SHOW statements and I_S queries
+# as "writes"
+#
+set global query_response_time_stats=1;
+flush query_response_time_read_write;
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+count(*)
+0
+select count(*) from information_schema.query_response_time_read_write where write_count > 0;
+count(*)
+0
+select count(*) > 0 from information_schema.query_response_time_read_write where read_count > 0;
+count(*) > 0
+1
+set global query_response_time_stats= 0;

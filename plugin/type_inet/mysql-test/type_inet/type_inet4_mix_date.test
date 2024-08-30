@@ -1,0 +1,26 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+#
+# The DATE data type has loose control on the incoming data,
+# so values like '0.0.0.0' do not fail when get inserted to a DATE field
+# even though there is an obvious redundant part - the fourth number.
+# Using '99.99.99.99' to make sure the month part is out of the range
+# to guarantee the failure.
+
+CREATE TABLE t1 (target INET4 DEFAULT '99.99.99.99', source DATE DEFAULT '2001-01-01');
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+CREATE TABLE t1 (target DATE DEFAULT '2001-01-01', source INET4 DEFAULT '99.99.99.99');
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

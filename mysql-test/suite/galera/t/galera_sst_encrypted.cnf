@@ -7,7 +7,6 @@ loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
 loose-file-key-management-encryption-algorithm=aes_cbc
 wsrep-debug=1
 innodb_encryption_threads = 4
-innodb_file_per_table=1
 wsrep_sst_method=rsync
 
 [mysqld.1]

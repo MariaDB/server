@@ -43,7 +43,8 @@ typedef struct st_decimal_t {
 int internal_str2dec(const char *from, decimal_t *to, char **end,
                      my_bool fixed);
 int decimal2string(const decimal_t *from, char *to, int *to_len,
-                   int fixed_precision, int fixed_decimals,
+                   decimal_digits_t fixed_precision,
+                   decimal_digits_t fixed_decimals,
                    char filler);
 int decimal2ulonglong(const decimal_t *from, ulonglong *to);
 int ulonglong2decimal(ulonglong from, decimal_t *to);
@@ -51,16 +52,18 @@ int decimal2longlong(const decimal_t *from, longlong *to);
 int longlong2decimal(longlong from, decimal_t *to);
 int decimal2double(const decimal_t *from, double *to);
 int double2decimal(double from, decimal_t *to);
-int decimal_actual_fraction(const decimal_t *from);
-int decimal2bin(const decimal_t *from, uchar *to, int precision, int scale);
-int bin2decimal(const uchar *from, decimal_t *to, int precision, int scale);
+decimal_digits_t decimal_actual_fraction(const decimal_t *from);
+int decimal2bin(const decimal_t *from, uchar *to, decimal_digits_t precision,
+                decimal_digits_t scale);
+int bin2decimal(const uchar *from, decimal_t *to, decimal_digits_t precision,
+                decimal_digits_t scale);
 
-int decimal_size(int precision, int scale);
-int decimal_bin_size(int precision, int scale);
-int decimal_result_size(decimal_t *from1, decimal_t *from2, char op,
-                        int param);
+uint decimal_size(decimal_digits_t precision, decimal_digits_t scale);
+uint decimal_bin_size(decimal_digits_t precision, decimal_digits_t scale);
+uint decimal_result_size(decimal_t *from1, decimal_t *from2, char op,
+                         int param);
 
-int decimal_intg(const decimal_t *from);
+decimal_digits_t decimal_intg(const decimal_t *from);
 int decimal_add(const decimal_t *from1, const decimal_t *from2, decimal_t *to);
 int decimal_sub(const decimal_t *from1, const decimal_t *from2, decimal_t *to);
 int decimal_cmp(const decimal_t *from1, const decimal_t *from2);
@@ -71,7 +74,8 @@ int decimal_mod(const decimal_t *from1, const decimal_t *from2, decimal_t *to);
 int decimal_round(const decimal_t *from, decimal_t *to, int new_scale,
                   decimal_round_mode mode);
 int decimal_is_zero(const decimal_t *from);
-void max_decimal(int precision, int frac, decimal_t *to);
+void max_decimal(decimal_digits_t precision, decimal_digits_t frac,
+                 decimal_t *to);
 
 #define string2decimal(A,B,C) internal_str2dec((A), (B), (C), 0)
 #define string2decimal_fixed(A,B,C) internal_str2dec((A), (B), (C), 1)

@@ -1,3 +1,0 @@
-usr/bin/mysql_install_db usr/bin/mariadb-install-db
-usr/bin/mysql_upgrade usr/bin/mariadb-upgrade
-usr/sbin/mysqld usr/sbin/mariadbd

@@ -39,7 +39,9 @@ eval CREATE TABLE tbl_a (
   PRIMARY KEY(id)
 ) $MASTER_1_ENGINE $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO tbl_a (val) VALUES (1);
+--enable_ps_protocol
 
 --echo
 --echo test 1

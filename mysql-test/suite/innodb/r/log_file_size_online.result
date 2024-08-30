@@ -1,0 +1,47 @@
+SET GLOBAL innodb_log_file_size=4194304;
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	4194304
+SELECT global_value FROM information_schema.system_variables
+WHERE variable_name = 'innodb_log_file_size';
+global_value
+4194304
+CREATE TABLE t (
+a INT PRIMARY KEY AUTO_INCREMENT,
+b CHAR(255) NOT NULL)
+ENGINE=INNODB;
+INSERT INTO t SELECT NULL, REPEAT('a', 255) FROM seq_1_to_20000;
+# restart: --innodb-log-file-size=4194304
+SELECT COUNT(*) FROM t;
+COUNT(*)
+20000
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	4194304
+FOUND 1 /InnoDB: Resized log to 4\.000MiB/ in mysqld.1.err
+UPDATE t SET b='' WHERE a<10;
+SET GLOBAL innodb_log_file_size=5242880;
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	5242880
+SELECT global_value FROM information_schema.system_variables
+WHERE variable_name = 'innodb_log_file_size';
+global_value
+5242880
+# restart
+SELECT * FROM t WHERE a<10;
+a	b
+1	
+2	
+3	
+4	
+5	
+6	
+7	
+8	
+9	
+SHOW VARIABLES LIKE 'innodb_log_file_size';
+Variable_name	Value
+innodb_log_file_size	5242880
+FOUND 1 /InnoDB: Resized log to 5\.000MiB/ in mysqld.1.err
+DROP TABLE t;

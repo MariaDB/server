@@ -3,9 +3,7 @@
 # PXC-391
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 --source include/have_query_cache.inc
---source include/have_wsrep_replicate_myisam.inc
 
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2, x1, x2;
@@ -14,6 +12,7 @@ DROP TABLE IF EXISTS t1, t2, x1, x2;
 # The following FLUSH LOCAL statements should *not* be replicated
 #
 --connection node_1
+SET GLOBAL wsrep_mode = REPLICATE_MYISAM;
 CREATE TABLE t1 (f1 INTEGER);
 CREATE TABLE t2 (f1 INT PRIMARY KEY AUTO_INCREMENT, f2 INTEGER);
 CREATE TABLE x1 (f1 INTEGER) ENGINE=MyISAM;
@@ -68,10 +67,10 @@ REPAIR LOCAL TABLE x1, x2;
 --eval SELECT $wsrep_last_committed_after = $wsrep_last_committed_before AS wsrep_last_committed_diff;
 --enable_query_log
 
-SELECT COUNT(*) = 10 FROM t1;
-SELECT COUNT(*) = 10 FROM x1;
-SELECT COUNT(*) = 10000 FROM t2;
-SELECT COUNT(*) = 10 FROM x2;
+SELECT COUNT(*) AS EXPECT_10 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM x1;
+SELECT COUNT(*) AS EXPECT_10000 FROM t2;
+SELECT COUNT(*) AS EXPECT_10 FROM x2;
 
 
 --connection node_1
@@ -133,11 +132,16 @@ REPAIR TABLE x1, x2;
 --eval SELECT $wsrep_last_committed_after2 = $wsrep_last_committed_before + 9 AS wsrep_last_committed_diff2;
 --enable_query_log
 
-SELECT COUNT(*) = 10 FROM t1;
-SELECT COUNT(*) = 10 FROM x1;
-SELECT COUNT(*) = 10000 FROM t2;
-SELECT COUNT(*) = 10 FROM x2;
+SELECT COUNT(*) AS EXPECT_10 FROM t1;
+SELECT COUNT(*) AS EXPECT_10 FROM x1;
+SELECT COUNT(*) AS EXPECT_10000 FROM t2;
+SELECT COUNT(*) AS EXPECT_10 FROM x2;
 
 --connection node_1
 set wsrep_on=1;
 DROP TABLE t1, t2, x1, x2;
+
+--disable_query_log
+SET GLOBAL wsrep_mode = DEFAULT;
+--enable_query_log
+

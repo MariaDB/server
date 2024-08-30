@@ -1,0 +1,2 @@
+etc/mysql/mariadb.conf.d/provider_lz4.cnf
+usr/lib/mysql/plugin/provider_lz4.so

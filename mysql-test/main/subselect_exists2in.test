@@ -1,4 +1,5 @@
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -20,13 +21,13 @@ drop table t1;
 --echo # LP BUG#884657 Wrong result with exists2in , correlated subquery
 --echo #
 
-CREATE TABLE t1 ( a varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c'),('b');
 
-CREATE TABLE t2 ( b varchar(1)) ;
+CREATE TABLE t2 ( b varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES ('v'),('v'),('c'),(NULL),('x'),('i'),('e'),('p'),('s'),('j'),('z'),('c'),('a'),('q'),('y'),(NULL),('r'),('v'),(NULL),('r');
 
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c');
 
 SELECT *
@@ -72,7 +73,7 @@ drop table t1,t2,t3;
 --echo # 
 create table t1 (
   a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 
 insert into t1 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -118,7 +119,7 @@ analyze table t1;
 
 create table t2 (
   a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t2 select * from t1;
 # add few rows with NULL's in the MIN/MAX column
 insert into t2 (a1, a2, b, c, d) values
@@ -151,7 +152,7 @@ analyze table t2;
 
 create table t3 (
   a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
-);
+) charset=latin1;
 
 insert into t3 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
@@ -238,13 +239,14 @@ group by a1,a2,b;
 
 drop table t1, t2, t3;
 
-#
-# LP BUG#901835 - incorrect semi-join conversion after exists2in
-#
+--echo #
+--echo # LP BUG#901835 - incorrect semi-join conversion after exists2in
+--echo #
 CREATE TABLE t1 ( a INT );
-INSERT INTO t1 VALUES (7),(0);
+INSERT INTO t1 VALUES (7),(0),(100);
 CREATE TABLE t2 ( b INT );
-INSERT INTO t2 VALUES (0),(8);
+INSERT INTO t2 VALUES (0),(8),(1000),(2000),(3000),(4000),(5000);
+insert into t2 select seq from seq_6000_to_6100;
 
 SELECT * FROM t1 WHERE
   EXISTS ( SELECT * FROM t2 WHERE b = a )
@@ -292,10 +294,10 @@ set optimizer_switch='exists_to_in=on';
 drop table t1,t2,t3;
 
 --echo # multi condition test
-CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) ;
+CREATE TABLE t1 ( a varchar(1), a1 varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES ('c', 'c'), ('b', 'b');
 
-CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) ;
+CREATE TABLE t3 ( a int NOT NULL , b varchar(1), b1 varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (29,'c','c');
 INSERT INTO t3 VALUES (2,'c','c');
 alter table t1 add index aa (a,a1);
@@ -458,7 +460,7 @@ set optimizer_switch='exists_to_in=on';
 --echo # exists_to_in + materialization, EXISTS subquery
 --echo #
 
-SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,engine_condition_pushdown=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=off,exists_to_in=on';
+SET optimizer_switch='index_merge=on,index_merge_union=on,index_merge_sort_union=on,index_merge_intersection=on,index_merge_sort_intersection=off,index_condition_pushdown=on,derived_merge=on,derived_with_keys=on,firstmatch=on,loosescan=on,materialization=on,in_to_exists=on,semijoin=on,partial_match_rowid_merge=on,partial_match_table_scan=on,subquery_cache=on,mrr=off,mrr_cost_based=off,mrr_sort_keys=off,outer_join_with_cache=on,semijoin_with_cache=on,join_cache_incremental=on,join_cache_hashed=on,join_cache_bka=on,optimize_join_buffer_size=off,table_elimination=on,extended_keys=off,exists_to_in=on';
 
 CREATE TABLE t1 ( a VARCHAR(1), b VARCHAR(1) );
 INSERT INTO t1 VALUES ('v','v'),('s','v');
@@ -567,8 +569,10 @@ set optimizer_switch='exists_to_in=on';
 --echo # correct calculation of reserved items (postreview-fix)
 --echo #
 create table t1 (col1 int, col2 int, col3 int); 
-insert into t1 values (1,2,3),(2,3,4),(4,5,6);
+insert into t1 values (1,2,3),(2,3,4),(4,5,6),(7,8,9);
 create table t2 as select * from t1;
+insert into t2 select seq,seq,seq from seq_1000_to_1200;
+
 explain extended
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);
 select * from t1 where exists (select col2 from t2 where t2.col1=t1.col1 and t2.col2=t1.col2);

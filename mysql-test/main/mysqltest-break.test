@@ -1,0 +1,87 @@
+--source include/not_embedded.inc
+#
+# MDEV-12130 improve mysqltest language
+#
+# test "break" statement
+#
+
+# Break in a single loop
+
+let $cnt= 4;
+while($cnt > 1)
+{
+  dec $cnt;
+  break;
+  --echo $cnt
+  --echo Break did not stop a single loop
+}
+
+# Break stops inner loop
+
+let $outer= 4;
+while($outer > 1)
+{
+  let $inner= 4;
+  while($inner > 1)
+  {
+    if($outer == 2)
+    {
+      --echo OK
+    }
+    if($inner == 2)
+    {
+      break;
+    }
+    dec $inner;
+  }
+  dec $outer;
+  --echo $outer
+}
+
+# Break stops outer loop
+let $inner= 4;
+let $outer= 4;
+while($outer > 1)
+{
+  break;
+  while($inner > 1)
+  {
+    dec $inner;
+    --echo Outer loop`s break did not stop inner loop
+  }
+  dec $outer;
+  --echo $outer
+}
+
+# Break stops loop in if
+let $cnt= 4;
+if($cnt > 1)
+{
+  while($cnt)
+  {
+    break;
+  }
+  dec $cnt;
+}
+
+--echo cnt=$cnt
+
+# Break in inner if
+
+let $cnt= 4;
+while($cnt > 1)
+{
+  if($cnt == 2)
+  {
+    break;
+    --echo "if" is working after break
+  }
+  dec $cnt;
+}
+
+--echo cnt=$cnt
+
+# Stray break
+
+--error 1
+--exec echo "break;" | $MYSQL_TEST 2>&1

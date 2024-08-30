@@ -10,5 +10,5 @@ Table	Create Table
 t	CREATE TEMPORARY TABLE `t` (
   `i` int(11) DEFAULT NULL,
   `extrac` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t;

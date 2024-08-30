@@ -30,7 +30,7 @@ aя	a@r1	яa	61407231	40723161
 #
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
-utf8	utf8	utf8
+utf8mb3	utf8mb3	utf8mb3
 SET @old_character_set_client= @@character_set_client;
 SET @old_character_set_connection= @@character_set_connection;
 SET @old_character_set_results= @@character_set_results;
@@ -38,7 +38,7 @@ SET NAMES 'filename';
 ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
 SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
 @@character_set_client	@@character_set_connection	@@character_set_results
-utf8	utf8	utf8
+utf8mb3	utf8mb3	utf8mb3
 CREATE VIEW v2 AS SELECT 1;
 SHOW TABLE STATUS;
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
@@ -59,3 +59,96 @@ SELECT doc.`Children`.0 FROM t1;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.0 FROM t1' at line 1
 SET NAMES latin1;
 # End of 10.3 tests
+#
+# MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
+#
+SET NAMES filename;
+ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
+EXECUTE IMMEDIATE _latin1 0x01;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\0001' at line 1
+SET NAMES utf8;
+#
+# MDEV-23435 Functions do not convert numbers to character_set_results
+#
+SET NAMES utf8, character_set_results=filename;
+CREATE TABLE t1 (a DATETIME(6));
+INSERT INTO t1 VALUES ('2001-01-01 00:00:00.000000');
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+2001@002d01@002d01@002000@003a00@003a00@002e000000	2001@002d01@002d01@002000@003a00@003a00@002e000000
+DROP TABLE t1;
+CREATE TABLE t1 (a TIME(6));
+INSERT INTO t1 VALUES ('00:00:00.000000');
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+00@003a00@003a00@002e000000	00@003a00@003a00@002e000000
+DROP TABLE t1;
+CREATE TABLE t1 (a DATE);
+INSERT INTO t1 VALUES ('2001-01-01');
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+2001@002d01@002d01	2001@002d01@002d01
+DROP TABLE t1;
+CREATE TABLE t1 (a TINYINT);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a SMALLINT);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a MEDIUMINT);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a BIGINT);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a DECIMAL(10.2));
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a FLOAT);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+CREATE TABLE t1 (a DOUBLE);
+INSERT INTO t1 VALUES (-1);
+SELECT a, COALESCE(a) AS c FROM t1;
+a	c
+@002d1	@002d1
+DROP TABLE t1;
+SET NAMES utf8;
+# End of 10.5 tests
+#
+# Start of 10.9 tests
+#
+#
+# MDEV-28481 SIGSEGV in Lex_charset_collation_st::find_bin_collation
+#
+SET SESSION collation_server=filename;
+CREATE DATABASE db1;
+USE db1;
+CREATE TABLE t (c CHAR BINARY);
+ERROR HY000: Unknown collation: 'filename_bin'
+DROP DATABASE db1;
+USE test;
+SET NAMES latin1;
+CREATE TABLE t1 (c CHAR BINARY) CHARACTER SET filename;
+ERROR HY000: Unknown collation: 'filename_bin'
+#
+# End of 10.9 tests
+#

@@ -1,0 +1,209 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table .*");
+CREATE TABLE t1(a int, b varchar(50)) ENGINE=INNODB;
+CREATE TABLE t2(a int, b varchar(50)) ENGINE=MYISAM;
+CREATE TABLE t3(a int, b varchar(50)) ENGINE=MEMORY;
+CREATE TABLE t4(a int, b varchar(50)) ENGINE=ARIA;
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA";
+SET GLOBAL log_warnings=2;
+INSERT INTO t1 values (1,'test1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t2 values (1,'myisam1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t3 values (1,'memory1');
+INSERT INTO t4 values (1,'aria1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_ARIA";
+INSERT INTO t2 values (2,'myisam2');
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM";
+INSERT INTO t4 values (2,'ARIA2');
+SET GLOBAL wsrep_mode = "REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM,REPLICATE_ARIA";
+SET GLOBAL log_warnings=1;
+INSERT INTO t1 values (21,'not1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (22,'not2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t2 values (21,'not1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (22,'not2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t4 values (21,'not1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (22,'not2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+include/assert_grep.inc [WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.]
+SET GLOBAL log_warnings=2;
+INSERT INTO t1 values (6,'test6');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (7,'test7');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (8,'test8');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (9,'test9');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (10,'test10');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (11,'test11');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (12,'test12');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (13,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (33,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (34,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (35,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (36,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (37,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (38,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t1 values (39,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t1' should have PRIMARY KEY defined.
+INSERT INTO t2 values (6,'test6');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (7,'test7');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (8,'test8');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (9,'test9');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (10,'test10');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (11,'test11');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (12,'test12');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (13,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (33,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (34,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (35,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (36,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (37,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (38,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t2 values (39,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t2' should have PRIMARY KEY defined.
+INSERT INTO t4 values (6,'test6');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (7,'test7');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (8,'test8');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (9,'test9');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (10,'test10');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (11,'test11');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (12,'test12');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (13,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (33,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (34,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (35,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (36,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (37,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (38,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+INSERT INTO t4 values (39,'test13');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled. Table 'test'.'t4' should have PRIMARY KEY defined.
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+EXPECT_18
+18
+SELECT COUNT(*) AS EXPECT_19 FROM t2;
+EXPECT_19
+19
+SELECT COUNT(*) AS EXPECT_1 FROM t3;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_19 FROM t4;
+EXPECT_19
+19
+connection node_2;
+SELECT COUNT(*) AS EXPECT_18 FROM t1;
+EXPECT_18
+18
+SELECT COUNT(*) AS EXPECT_18 FROM t2;
+EXPECT_18
+18
+SELECT COUNT(*) AS EXPECT_0 FROM t3;
+EXPECT_0
+0
+SELECT COUNT(*) AS EXPECT_18 FROM t4;
+EXPECT_18
+18
+connection node_1;
+DROP TABLE t1,t2,t3,t4;
+include/assert_grep.inc [WSREP: wsrep_mode = REQUIRED_PRIMARY_KEY enabled.]
+include/assert_grep.inc [WSREP: Suppressing warnings of type 'WSREP_REQUIRE_PRIMARY_KEY' for up to 300 seconds because of flooding]

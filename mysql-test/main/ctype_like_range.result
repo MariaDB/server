@@ -284,7 +284,7 @@ id	name	val
 32	mn	63616161616161616161616161616161
 32	mx	63616161616161616161616161616161
 32	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_general_ci;
 INSERT INTO t1 (a) VALUES (_ucs2 0x0425),(_ucs2 0x045F);
 INSERT INTO t1 (a) VALUES (_ucs2 0x2525),(_ucs2 0x5F5F);
 SELECT * FROM v1;
@@ -407,6 +407,153 @@ id	name	val
 29	sp	--------------------------------
 30	a	cch%
 30	mn	63636800000000000000000000000000
+30	mx	636368EFBFBFEFBFBFEFBFBFEFBFBF20
+30	sp	--------------------------------
+31	a	aaaaaaaaaaaaaaaaaaaa
+31	mn	6161616161
+31	mx	6161616161
+31	sp	--------------------------------
+32	a	caaaaaaaaaaaaaaaaaaa
+32	mn	6361616161
+32	mx	6361616161
+32	sp	--------------------------------
+33	a	Х
+33	mn	D0A5
+33	mx	D0A5
+33	sp	--------------------------------
+34	a	џ
+34	mn	D19F
+34	mx	D19F
+34	sp	--------------------------------
+35	a	┥
+35	mn	E294A5
+35	mx	E294A5
+35	sp	--------------------------------
+36	a	彟
+36	mn	E5BD9F
+36	mx	E5BD9F
+36	sp	--------------------------------
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8 COLLATE utf8_uca1400_ai_ci;
+SELECT * FROM v1;
+id	name	val
+1	a	
+1	mn	
+1	mx	
+1	sp	--------------------------------
+2	a	_
+2	mn	09090909090909090909090909090909
+2	mx	EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF20
+2	sp	--------------------------------
+3	a	%
+3	mn	09090909090909090909090909090909
+3	mx	EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF20
+3	sp	--------------------------------
+4	a	\_
+4	mn	5F
+4	mx	5F
+4	sp	--------------------------------
+5	a	\%
+5	mn	25
+5	mx	25
+5	sp	--------------------------------
+6	a	\
+6	mn	5C
+6	mx	5C
+6	sp	--------------------------------
+7	a	a
+7	mn	61
+7	mx	61
+7	sp	--------------------------------
+8	a	c
+8	mn	63
+8	mx	63
+8	sp	--------------------------------
+9	a	a_
+9	mn	61090909090909090909090909090909
+9	mx	61EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF
+9	sp	--------------------------------
+10	a	c_
+10	mn	63090909090909090909090909090909
+10	mx	63EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF
+10	sp	--------------------------------
+11	a	a%
+11	mn	61090909090909090909090909090909
+11	mx	61EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF
+11	sp	--------------------------------
+12	a	c%
+12	mn	63090909090909090909090909090909
+12	mx	63EFBFBFEFBFBFEFBFBFEFBFBFEFBFBF
+12	sp	--------------------------------
+13	a	aa
+13	mn	6161
+13	mx	6161
+13	sp	--------------------------------
+14	a	cc
+14	mn	6363
+14	mx	6363
+14	sp	--------------------------------
+15	a	ch
+15	mn	6368
+15	mx	6368
+15	sp	--------------------------------
+16	a	aa_
+16	mn	61610909090909090909090909090909
+16	mx	6161EFBFBFEFBFBFEFBFBFEFBFBF2020
+16	sp	--------------------------------
+17	a	cc_
+17	mn	63630909090909090909090909090909
+17	mx	6363EFBFBFEFBFBFEFBFBFEFBFBF2020
+17	sp	--------------------------------
+18	a	ch_
+18	mn	63680909090909090909090909090909
+18	mx	6368EFBFBFEFBFBFEFBFBFEFBFBF2020
+18	sp	--------------------------------
+19	a	aa%
+19	mn	61610909090909090909090909090909
+19	mx	6161EFBFBFEFBFBFEFBFBFEFBFBF2020
+19	sp	--------------------------------
+20	a	cc%
+20	mn	63630909090909090909090909090909
+20	mx	6363EFBFBFEFBFBFEFBFBFEFBFBF2020
+20	sp	--------------------------------
+21	a	ch%
+21	mn	63680909090909090909090909090909
+21	mx	6368EFBFBFEFBFBFEFBFBFEFBFBF2020
+21	sp	--------------------------------
+22	a	aaa
+22	mn	616161
+22	mx	616161
+22	sp	--------------------------------
+23	a	ccc
+23	mn	636363
+23	mx	636363
+23	sp	--------------------------------
+24	a	cch
+24	mn	636368
+24	mx	636368
+24	sp	--------------------------------
+25	a	aaa_
+25	mn	61616109090909090909090909090909
+25	mx	616161EFBFBFEFBFBFEFBFBFEFBFBF20
+25	sp	--------------------------------
+26	a	ccc_
+26	mn	63636309090909090909090909090909
+26	mx	636363EFBFBFEFBFBFEFBFBFEFBFBF20
+26	sp	--------------------------------
+27	a	cch_
+27	mn	63636809090909090909090909090909
+27	mx	636368EFBFBFEFBFBFEFBFBFEFBFBF20
+27	sp	--------------------------------
+28	a	aaa%
+28	mn	61616109090909090909090909090909
+28	mx	616161EFBFBFEFBFBFEFBFBFEFBFBF20
+28	sp	--------------------------------
+29	a	ccc%
+29	mn	63636309090909090909090909090909
+29	mx	636363EFBFBFEFBFBFEFBFBFEFBFBF20
+29	sp	--------------------------------
+30	a	cch%
+30	mn	63636809090909090909090909090909
 30	mx	636368EFBFBFEFBFBFEFBFBFEFBFBF20
 30	sp	--------------------------------
 31	a	aaaaaaaaaaaaaaaaaaaa
@@ -1021,7 +1168,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -1143,6 +1290,153 @@ id	name	val
 30	a	cch%
 30	mn	63636800000000000000000000000000
 30	mx	636368EFBFBFEFBFBFEFBFBFEFBFBF20
+30	sp	--------------------------------
+31	a	aaaaaaaaaaaaaaaaaaaa
+31	mn	61616161
+31	mx	61616161
+31	sp	--------------------------------
+32	a	caaaaaaaaaaaaaaaaaaa
+32	mn	63616161
+32	mx	63616161
+32	sp	--------------------------------
+33	a	Х
+33	mn	D0A5
+33	mx	D0A5
+33	sp	--------------------------------
+34	a	џ
+34	mn	D19F
+34	mx	D19F
+34	sp	--------------------------------
+35	a	┥
+35	mn	E294A5
+35	mx	E294A5
+35	sp	--------------------------------
+36	a	彟
+36	mn	E5BD9F
+36	mx	E5BD9F
+36	sp	--------------------------------
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
+SELECT * FROM v1;
+id	name	val
+1	a	
+1	mn	
+1	mx	
+1	sp	--------------------------------
+2	a	_
+2	mn	09090909090909090909090909090909
+2	mx	F48FBFBFF48FBFBFF48FBFBFF48FBFBF
+2	sp	--------------------------------
+3	a	%
+3	mn	09090909090909090909090909090909
+3	mx	F48FBFBFF48FBFBFF48FBFBFF48FBFBF
+3	sp	--------------------------------
+4	a	\_
+4	mn	5F
+4	mx	5F
+4	sp	--------------------------------
+5	a	\%
+5	mn	25
+5	mx	25
+5	sp	--------------------------------
+6	a	\
+6	mn	5C
+6	mx	5C
+6	sp	--------------------------------
+7	a	a
+7	mn	61
+7	mx	61
+7	sp	--------------------------------
+8	a	c
+8	mn	63
+8	mx	63
+8	sp	--------------------------------
+9	a	a_
+9	mn	61090909090909090909090909090909
+9	mx	61F48FBFBFF48FBFBFF48FBFBF202020
+9	sp	--------------------------------
+10	a	c_
+10	mn	63090909090909090909090909090909
+10	mx	63F48FBFBFF48FBFBFF48FBFBF202020
+10	sp	--------------------------------
+11	a	a%
+11	mn	61090909090909090909090909090909
+11	mx	61F48FBFBFF48FBFBFF48FBFBF202020
+11	sp	--------------------------------
+12	a	c%
+12	mn	63090909090909090909090909090909
+12	mx	63F48FBFBFF48FBFBFF48FBFBF202020
+12	sp	--------------------------------
+13	a	aa
+13	mn	6161
+13	mx	6161
+13	sp	--------------------------------
+14	a	cc
+14	mn	6363
+14	mx	6363
+14	sp	--------------------------------
+15	a	ch
+15	mn	6368
+15	mx	6368
+15	sp	--------------------------------
+16	a	aa_
+16	mn	61610909090909090909090909090909
+16	mx	6161F48FBFBFF48FBFBFF48FBFBF2020
+16	sp	--------------------------------
+17	a	cc_
+17	mn	63630909090909090909090909090909
+17	mx	6363F48FBFBFF48FBFBFF48FBFBF2020
+17	sp	--------------------------------
+18	a	ch_
+18	mn	63680909090909090909090909090909
+18	mx	6368F48FBFBFF48FBFBFF48FBFBF2020
+18	sp	--------------------------------
+19	a	aa%
+19	mn	61610909090909090909090909090909
+19	mx	6161F48FBFBFF48FBFBFF48FBFBF2020
+19	sp	--------------------------------
+20	a	cc%
+20	mn	63630909090909090909090909090909
+20	mx	6363F48FBFBFF48FBFBFF48FBFBF2020
+20	sp	--------------------------------
+21	a	ch%
+21	mn	63680909090909090909090909090909
+21	mx	6368F48FBFBFF48FBFBFF48FBFBF2020
+21	sp	--------------------------------
+22	a	aaa
+22	mn	616161
+22	mx	616161
+22	sp	--------------------------------
+23	a	ccc
+23	mn	636363
+23	mx	636363
+23	sp	--------------------------------
+24	a	cch
+24	mn	636368
+24	mx	636368
+24	sp	--------------------------------
+25	a	aaa_
+25	mn	61616109090909090909090909090909
+25	mx	616161F48FBFBFF48FBFBFF48FBFBF20
+25	sp	--------------------------------
+26	a	ccc_
+26	mn	63636309090909090909090909090909
+26	mx	636363F48FBFBFF48FBFBFF48FBFBF20
+26	sp	--------------------------------
+27	a	cch_
+27	mn	63636809090909090909090909090909
+27	mx	636368F48FBFBFF48FBFBFF48FBFBF20
+27	sp	--------------------------------
+28	a	aaa%
+28	mn	61616109090909090909090909090909
+28	mx	616161F48FBFBFF48FBFBFF48FBFBF20
+28	sp	--------------------------------
+29	a	ccc%
+29	mn	63636309090909090909090909090909
+29	mx	636363F48FBFBFF48FBFBFF48FBFBF20
+29	sp	--------------------------------
+30	a	cch%
+30	mn	63636809090909090909090909090909
+30	mx	636368F48FBFBFF48FBFBFF48FBFBF20
 30	sp	--------------------------------
 31	a	aaaaaaaaaaaaaaaaaaaa
 31	mn	61616161
@@ -1903,7 +2197,7 @@ id	name	val
 36	mn	E5BD9F
 36	mx	E5BD9F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -2638,7 +2932,7 @@ id	name	val
 36	mn	5F5F
 36	mx	5F5F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf16 COLLATE utf16_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -3520,7 +3814,7 @@ id	name	val
 36	mn	5F5F
 36	mx	5F5F
 36	sp	--------------------------------
-ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32;
+ALTER TABLE t1 MODIFY a VARCHAR(32) CHARACTER SET utf32 COLLATE utf32_general_ci;
 SELECT * FROM v1;
 id	name	val
 1	a	
@@ -4414,7 +4708,7 @@ CREATE TABLE t1 (
 a VARCHAR(10),
 mn VARCHAR(10) DEFAULT LIKE_RANGE_MIN(a,10),
 mx VARCHAR(10) DEFAULT LIKE_RANGE_MAX(a,10)
-);
+) CHARACTER SET latin1;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -4476,4 +4770,19 @@ a	HEX(LIKE_RANGE_MIN(a,200))
 DROP TABLE t1;
 #
 # End of 10.2 tests
+#
+#
+# Start of 11.5 tests
+#
+#
+# MDEV-33806 Server crashes when executing Admin SQL/DML after setting character_set_collations to utf8mb3_general1400_as_ci
+#
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_general1400_as_ci);
+INSERT INTO t1 VALUES ('111%');
+SELECT a, HEX(LIKE_RANGE_MAX(a,40)) FROM t1 ORDER BY a;
+a	HEX(LIKE_RANGE_MAX(a,40))
+111%	313131EFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBFEFBFBF20
+DROP TABLE t1;
+#
+# End of 11.5 tests
 #

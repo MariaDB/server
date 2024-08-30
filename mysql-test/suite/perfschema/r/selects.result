@@ -93,8 +93,6 @@ SELECT thread_id FROM performance_schema.threads
 WHERE PROCESSLIST_ID = conid INTO pid;
 END;
 |
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL t_ps_proc(connection_id(), @p_id);
 DROP FUNCTION IF EXISTS t_ps_proc;
 CREATE FUNCTION t_ps_func(conid INT) RETURNS int

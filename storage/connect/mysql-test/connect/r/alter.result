@@ -1,7 +1,7 @@
 #
 # Testing indexing with ALTER on inward table (in-place)
 #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -20,12 +20,12 @@ CREATE INDEX xd ON t1(d);
 DROP INDEX xd ON t1;
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 #
 # Testing modifying columns inward table (not in-place)
 #
@@ -63,7 +63,7 @@ t1	CREATE TABLE `t1` (
   `d` char(10) NOT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=CSV `HEADER`=1 `QUOTED`=1
 # create an outward table used to see the t1 file
-CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv';
+CREATE TABLE t2 (line VARCHAR(100) NOT NULL) ENGINE=CONNECT FILE_NAME='t1.csv' CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 SELECT * FROM t2;
@@ -76,7 +76,7 @@ line
 # Testing changing engine
 #
 DROP TABLE t1;
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT CHARSET=latin1;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -92,9 +92,9 @@ t1	CREATE TABLE `t1` (
   KEY `xd` (`d`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE		
-t1	1	xd	1	d	A	NULL	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		BTREE			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		BTREE			NO
 SELECT * FROM t1;
 c	d
 1	One
@@ -110,9 +110,9 @@ t1	CREATE TABLE `t1` (
   KEY `xd` (`d`)
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci `TABLE_TYPE`=DBF
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 SELECT * FROM t1;
 c	d
 1	One
@@ -122,7 +122,7 @@ DROP TABLE t1, t2;
 #
 # Testing ALTER on outward tables
 #
-CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1;
+CREATE TABLE t1 (c INT NOT NULL, d CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=fix FILE_NAME='tf1.txt' ENDING=1 CHARSET=latin1;
 INSERT INTO t1 VALUES (1,'One'), (2,'Two'), (3,'Three');
 SELECT * FROM t1;
 c	d
@@ -142,15 +142,15 @@ line
 #
 ALTER TABLE t1 ADD INDEX xc (c), ADD INDEX xd (d);
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX		
-t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	xc	1	c	A	NULL	NULL	NULL		XINDEX			NO
+t1	1	xd	1	d	A	NULL	NULL	NULL		XINDEX			NO
 SELECT d FROM t1 WHERE c = 2;
 d
 Two
 ALTER TABLE t1 DROP INDEX xc, DROP INDEX xd;
 SHOW INDEX FROM t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 #
 # Other alterations do not modify the file
 #

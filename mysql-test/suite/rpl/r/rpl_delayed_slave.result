@@ -3,6 +3,9 @@ include/master-slave.inc
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
 connection slave;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
 connection master;
 [on master]
 CREATE TABLE t1 (a VARCHAR(100), b INT);
@@ -66,6 +69,9 @@ connection slave;
 include/stop_slave.inc
 # CHANGE MASTER TO MASTER_DELAY = 2*T
 include/start_slave.inc
+connection master;
+INSERT INTO t1 VALUES ('Syncing slave', 5);
+connection slave;
 connection master;
 INSERT INTO t1 VALUES (delay_on_slave(1), 6);
 Warnings:
@@ -153,7 +159,9 @@ CHANGE MASTER TO MASTER_DELAY = 71;
 include/start_slave.inc
 # Asserted this: Delay should be 71 when we set it to 71
 include/stop_slave.inc
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 [on master]
 connection master;
 RESET MASTER;
@@ -185,7 +193,7 @@ DROP FUNCTION delay_on_slave;
 connection slave;
 SELECT @@GLOBAL.slave_parallel_mode;
 @@GLOBAL.slave_parallel_mode
-conservative
+optimistic
 SELECT @@GLOBAL.slave_parallel_threads;
 @@GLOBAL.slave_parallel_threads
 0

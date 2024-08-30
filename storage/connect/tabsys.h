@@ -27,11 +27,11 @@ class DllExport INIDEF : public TABDEF {      /* INI table description */
   INIDEF(void);
 
   // Implementation
-  virtual const char *GetType(void) {return "INI";}
+  const char *GetType(void) override {return "INI";}
 
   // Methods
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE m);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE m) override;
 
  protected:
   // Members
@@ -53,30 +53,30 @@ class TDBINI : public TDBASE {
   TDBINI(PTDBINI tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_INI;}
-  virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBINI(this);}
+  AMT   GetAmType(void) override {return TYPE_AM_INI;}
+  PTDB  Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBINI(this);}
 
   // Methods
-  virtual PTDB  Clone(PTABS t);
-  virtual int   GetRecpos(void) {return N;}
-  virtual int   GetProgCur(void) {return N;}
+  PTDB  Clone(PTABS t) override;
+  int   GetRecpos(void) override {return N;}
+  int   GetProgCur(void) override {return N;}
 //virtual int   GetAffectedRows(void) {return 0;}
-  virtual PCSZ  GetFile(PGLOBAL g) {return Ifile;}
-  virtual void  SetFile(PGLOBAL g, PCSZ fn) {Ifile = fn;}
-  virtual void  ResetDB(void) {Seclist = Section = NULL; N = 0;}
-  virtual void  ResetSize(void) {MaxSize = -1; Seclist = NULL;}
-  virtual int   RowNumber(PGLOBAL g, bool b = false) {return N;}
+  PCSZ  GetFile(PGLOBAL g) override {return Ifile;}
+  void  SetFile(PGLOBAL g, PCSZ fn) override {Ifile = fn;}
+  void  ResetDB(void) override {Seclist = Section = NULL; N = 0;}
+  void  ResetSize(void) override {MaxSize = -1; Seclist = NULL;}
+  int   RowNumber(PGLOBAL g, bool b = false) override {return N;}
           char *GetSeclist(PGLOBAL g);
 
   // Database routines
-  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
-  virtual int   WriteDB(PGLOBAL g);
-  virtual int   DeleteDB(PGLOBAL g, int irc);
-  virtual void  CloseDB(PGLOBAL g);
+  PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int   Cardinality(PGLOBAL g) override;
+  int   GetMaxSize(PGLOBAL g) override;
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
+  int   WriteDB(PGLOBAL g) override;
+  int   DeleteDB(PGLOBAL g, int irc) override;
+  void  CloseDB(PGLOBAL g) override;
 
  protected:
   // Members
@@ -97,13 +97,13 @@ class INICOL : public COLBLK {
   INICOL(INICOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_INI;}
-  virtual void SetTo_Val(PVAL valp) {To_Val = valp;}
+  int  GetAmType(void) override {return TYPE_AM_INI;}
+  void SetTo_Val(PVAL valp) override {To_Val = valp;}
 
   // Methods
-  virtual bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  bool SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
   virtual void AllocBuf(PGLOBAL g);
 
  protected:
@@ -132,24 +132,24 @@ class TDBXIN : public TDBINI {
   TDBXIN(PTDBXIN tdbp);
 
   // Implementation
-  virtual AMT   GetAmType(void) {return TYPE_AM_INI;}
-  virtual PTDB  Duplicate(PGLOBAL g) {return (PTDB)new(g) TDBXIN(this);}
+  AMT   GetAmType(void) override {return TYPE_AM_INI;}
+  PTDB  Duplicate(PGLOBAL g) override {return (PTDB)new(g) TDBXIN(this);}
 
   // Methods
-  virtual PTDB  Clone(PTABS t);
-  virtual int   GetRecpos(void);
-  virtual bool  SetRecpos(PGLOBAL g, int recpos);
-  virtual void  ResetDB(void)
+  PTDB  Clone(PTABS t) override;
+  int   GetRecpos(void) override;
+  bool  SetRecpos(PGLOBAL g, int recpos) override;
+  void  ResetDB(void) override
                 {Seclist = Section = Keycur = NULL; N = 0; Oldsec = -1;}
           char *GetKeylist(PGLOBAL g, char *sec);
 
   // Database routines
-  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
-  virtual int   WriteDB(PGLOBAL g);
-  virtual int   DeleteDB(PGLOBAL g, int irc);
+  PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int   Cardinality(PGLOBAL g) override;
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
+  int   WriteDB(PGLOBAL g) override;
+  int   DeleteDB(PGLOBAL g, int irc) override;
 
  protected:
   // Members
@@ -171,8 +171,8 @@ class XINCOL : public INICOL {
   // Implementation
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
 
  protected:
   // Default constructor not to be used

@@ -23,7 +23,7 @@ create temporary table t2
 --source suite/innodb/include/dml_ops.inc
 drop temporary table t1,t2;
 #
---error ER_UNSUPPORT_COMPRESSED_TEMPORARY_TABLE
+--error ER_UNSUPPORTED_COMPRESSED_TABLE
 create temporary table t1
 	(keyc int, c1 char(100), c2 char(100),
 	 primary key(keyc), index sec_index(c1)

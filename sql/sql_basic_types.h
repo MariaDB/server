@@ -23,6 +23,8 @@
 typedef ulonglong sql_mode_t;
 typedef int64 query_id_t;
 
+enum enum_nullability { NOT_NULL, NULLABLE };
+
 
 /*
   "fuzzydate" with strict data type control.
@@ -148,9 +150,11 @@ public:
   explicit time_round_mode_t(ulonglong mode)
    :m_mode((value_t) mode)
   {
+#ifdef MYSQL_SERVER
     DBUG_ASSERT(mode == FRAC_NONE ||
                 mode == FRAC_TRUNCATE ||
                 mode == FRAC_ROUND);
+#endif
   }
   // Conversion operators
   explicit operator ulonglong() const

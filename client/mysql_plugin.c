@@ -15,17 +15,14 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335  USA
 */
 
+#define VER "1.0"
 #include <my_global.h>
 #include <m_string.h>
 #include <mysql.h>
 #include <my_getopt.h>
 #include <my_dir.h>
 #include <mysql_version.h>
-
-#define SHOW_VERSION "1.0.0"
-#define PRINT_VERSION do { printf("%s  Ver %s Distrib %s\n",    \
-                        my_progname, SHOW_VERSION, MYSQL_SERVER_VERSION);    \
-                      } while(0)
+#include <welcome_copyright_notice.h>
 
 /* Global variables. */
 static uint my_end_arg= 0;
@@ -193,7 +190,7 @@ static char *get_value(char *line, const char *item)
     char *s= 0;
 
     s = line + item_len + 1;
-    destination= my_strndup(s, line_len - start, MYF(MY_FAE));
+    destination= my_strndup(PSI_NOT_INSTRUMENTED, s, line_len - start, MYF(MY_FAE));
     destination[line_len - item_len - 2]= 0;
   }
   return destination;
@@ -235,7 +232,7 @@ static int run_command(char* cmd, const char *mode)
 }
 
 
-#ifdef __WIN__
+#ifdef _WIN32
 /**
   Check to see if there are spaces in a path.
 
@@ -261,7 +258,7 @@ static int has_spaces(const char *path)
 static char *convert_path(const char *argument)
 {
   /* Convert / to \\ to make Windows paths */
-  char *winfilename= my_strdup(argument, MYF(MY_FAE));
+  char *winfilename= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
   char *pos, *end;
   size_t length= strlen(argument);
 
@@ -293,7 +290,7 @@ static char *add_quotes(const char *path)
   else
     snprintf(windows_cmd_friendly, sizeof(windows_cmd_friendly),
              "%s", path);
-  return my_strdup(windows_cmd_friendly, MYF(MY_FAE));
+  return my_strdup(PSI_NOT_INSTRUMENTED, windows_cmd_friendly, MYF(MY_FAE));
 }
 #endif
 
@@ -332,7 +329,7 @@ static int get_default_values()
     if ((error= make_tempfile(defaults_file, "txt")))
       goto exit;
 
-#ifdef __WIN__
+#ifdef _WIN32
     {
       char *format_str= 0;
 
@@ -379,16 +376,16 @@ static int get_default_values()
 
       if ((opt_datadir == 0) && ((value= get_value(line, "--datadir"))))
       {
-        opt_datadir= my_strdup(value, MYF(MY_FAE));
+        opt_datadir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
       if ((opt_basedir == 0) && ((value= get_value(line, "--basedir"))))
       {
-        opt_basedir= my_strdup(value, MYF(MY_FAE));
+        opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
       if ((opt_plugin_dir == 0) && ((value= get_value(line, "--plugin_dir")) ||
           (value= get_value(line, "--plugin-dir"))))
       {
-        opt_plugin_dir= my_strdup(value, MYF(MY_FAE));
+        opt_plugin_dir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
       if ((opt_lc_messages_dir == 0) &&
           ((value= get_value(line, "--lc_messages_dir")) ||
@@ -396,7 +393,7 @@ static int get_default_values()
           (value= get_value(line, "--lc-messages_dir")) ||
           (value= get_value(line, "--lc-messages-dir"))))
       {
-        opt_lc_messages_dir= my_strdup(value, MYF(MY_FAE));
+        opt_lc_messages_dir= my_strdup(PSI_NOT_INSTRUMENTED, value, MYF(MY_FAE));
       }
 
     }
@@ -418,7 +415,7 @@ exit:
 
 static void usage(void)
 {
-  PRINT_VERSION;
+  print_version();
   puts("Copyright (c) 2011, 2015, Oracle and/or its affiliates. "
        "All rights reserved.\n");
   puts("Enable or disable plugins.");
@@ -488,11 +485,11 @@ static void print_default_values(void)
 */
 
 static my_bool
-get_one_option(int optid,
-               const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt,
+               const char *argument,
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'n':
     opt_no_defaults++;
     break;
@@ -504,7 +501,7 @@ get_one_option(int optid,
     opt_verbose++;
     break;
   case 'V':
-    PRINT_VERSION;
+    print_version();
     exit(0);
     break;
   case '?':
@@ -512,25 +509,25 @@ get_one_option(int optid,
     usage();
     exit(0);
   case 'd':
-    opt_datadir= my_strdup(argument, MYF(MY_FAE));
+    opt_datadir= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'b':
-    opt_basedir= my_strdup(argument, MYF(MY_FAE));
+    opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'p':
-    opt_plugin_dir= my_strdup(argument, MYF(MY_FAE));
+    opt_plugin_dir= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'i':
-    opt_plugin_ini= my_strdup(argument, MYF(MY_FAE));
+    opt_plugin_ini= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'm':
-    opt_mysqld= my_strdup(argument, MYF(MY_FAE));
+    opt_mysqld= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'f':
-    opt_my_print_defaults= my_strdup(argument, MYF(MY_FAE));
+    opt_my_print_defaults= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
   case 'l':
-    opt_lc_messages_dir= my_strdup(argument, MYF(MY_FAE));
+    opt_lc_messages_dir= my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
     break;
 
   }
@@ -639,7 +636,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   if (opt_plugin_ini == 0)
   {
     fn_format(path, config_file, opt_plugin_dir, "", MYF(0));
-    opt_plugin_ini= my_strdup(path, MYF(MY_FAE));
+    opt_plugin_ini= my_strdup(PSI_NOT_INSTRUMENTED, path, MYF(MY_FAE));
   }
   if (!file_exists(opt_plugin_ini))
   {
@@ -655,7 +652,7 @@ static int load_plugin_data(char *plugin_name, char *config_file)
   }
 
   /* save name */
-  plugin_data.name= my_strdup(plugin_name, MYF(MY_WME));
+  plugin_data.name= my_strdup(PSI_NOT_INSTRUMENTED, plugin_name, MYF(MY_WME));
 
   /* Read plugin components */
   while (i < 16)
@@ -686,21 +683,21 @@ static int load_plugin_data(char *plugin_name, char *config_file)
     if (i == -1) /* if first pass, read this line as so_name */
     {
       /* Add proper file extension for soname */
-      if (safe_strcpy(line + line_len - 1, sizeof(line), FN_SOEXT))
+      if (safe_strcpy_truncated(line + line_len - 1, sizeof line, FN_SOEXT))
       {
         reason= "Plugin name too long.";
         fclose(file_ptr);
         goto error;
       }
       /* save so_name */
-      plugin_data.so_name= my_strdup(line, MYF(MY_WME|MY_ZEROFILL));
+      plugin_data.so_name= my_strdup(PSI_NOT_INSTRUMENTED, line, MYF(MY_WME|MY_ZEROFILL));
       i++;
     }
     else
     {
       if (line_len > 0)
       {
-        plugin_data.components[i]= my_strdup(line, MYF(MY_WME));
+        plugin_data.components[i]= my_strdup(PSI_NOT_INSTRUMENTED, line, MYF(MY_WME));
         i++;
       }
       else
@@ -749,7 +746,7 @@ static int check_options(int argc, char **argv, char *operation)
   const char *plugin_dir_prefix = "--plugin_dir=";
   size_t plugin_dir_len= strlen(plugin_dir_prefix);
 
-  strcpy(plugin_name, "");
+  *plugin_name= '\0';
   for (i = 0; i < argc && num_found < 5; i++)
   {
 
@@ -766,29 +763,29 @@ static int check_options(int argc, char **argv, char *operation)
     else if ((strncasecmp(argv[i], basedir_prefix, basedir_len) == 0) &&
              !opt_basedir)
     {
-      opt_basedir= my_strndup(argv[i]+basedir_len,
+      opt_basedir= my_strndup(PSI_NOT_INSTRUMENTED, argv[i]+basedir_len,
                               strlen(argv[i])-basedir_len, MYF(MY_FAE));
       num_found++;
     }
     else if ((strncasecmp(argv[i], datadir_prefix, datadir_len) == 0) &&
              !opt_datadir)
     {
-      opt_datadir= my_strndup(argv[i]+datadir_len,
+      opt_datadir= my_strndup(PSI_NOT_INSTRUMENTED, argv[i]+datadir_len,
                               strlen(argv[i])-datadir_len, MYF(MY_FAE));
       num_found++;
     }
     else if ((strncasecmp(argv[i], plugin_dir_prefix, plugin_dir_len) == 0) &&
              !opt_plugin_dir)
     {
-      opt_plugin_dir= my_strndup(argv[i]+plugin_dir_len,
+      opt_plugin_dir= my_strndup(PSI_NOT_INSTRUMENTED, argv[i]+plugin_dir_len,
                                  strlen(argv[i])-plugin_dir_len, MYF(MY_FAE));
       num_found++;
     }
     /* read the plugin config file and check for match against argument */
     else
     {
-      if (safe_strcpy(plugin_name, sizeof(plugin_name), argv[i]) ||
-          safe_strcpy(config_file, sizeof(config_file), argv[i]) ||
+      if (safe_strcpy_truncated(plugin_name, sizeof plugin_name, argv[i]) ||
+          safe_strcpy_truncated(config_file, sizeof config_file, argv[i]) ||
           safe_strcat(config_file, sizeof(config_file), ".ini"))
       {
         fprintf(stderr, "ERROR: argument is too long.\n");
@@ -887,7 +884,7 @@ static int process_options(int argc, char *argv[], char *operation)
       buff[basedir_len + 1]= '\0';
 
       my_free(opt_basedir);
-      opt_basedir= my_strdup(buff, MYF(MY_FAE));
+      opt_basedir= my_strdup(PSI_NOT_INSTRUMENTED, buff, MYF(MY_FAE));
     }
   }
 
@@ -963,7 +960,7 @@ static int check_access()
   }
   if (opt_mysqld && (error= my_access(opt_mysqld, F_OK)))
   {
-    fprintf(stderr, "ERROR: Cannot access mysqld path '%s'.\n",
+    fprintf(stderr, "ERROR: Cannot access mariadbd path '%s'.\n",
             opt_mysqld);
     goto exit;
   }
@@ -1198,7 +1195,7 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
   char lc_messages_dir_str[FN_REFLEN]= {0};
   int error= 0;
 
-#ifdef __WIN__
+#ifdef _WIN32
   char *format_str= 0;
   const char *verbose_str= NULL;
 #endif
@@ -1207,7 +1204,7 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
     snprintf(lc_messages_dir_str, sizeof(lc_messages_dir_str), "--lc-messages-dir=%s",
              opt_lc_messages_dir);
 
-#ifdef __WIN__
+#ifdef _WIN32
   if (opt_verbose)
     verbose_str= "--console";
   else

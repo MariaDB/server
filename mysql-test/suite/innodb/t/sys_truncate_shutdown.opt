@@ -1,0 +1,3 @@
+--innodb_data_file_path=ibdata1:1M:autoextend
+--innodb_sys_tablespaces
+--innodb_page_size=4k

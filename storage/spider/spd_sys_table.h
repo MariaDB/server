@@ -37,15 +37,15 @@
 #define SPIDER_SYS_XA_COL_CNT 5
 #define SPIDER_SYS_XA_PK_COL_CNT 3
 #define SPIDER_SYS_XA_IDX1_COL_CNT 1
-#define SPIDER_SYS_XA_MEMBER_COL_CNT 18
+#define SPIDER_SYS_XA_MEMBER_COL_CNT 21
 #define SPIDER_SYS_XA_MEMBER_PK_COL_CNT 6
-#define SPIDER_SYS_TABLES_COL_CNT 25
+#define SPIDER_SYS_TABLES_COL_CNT 28
 #define SPIDER_SYS_TABLES_PK_COL_CNT 3
 #define SPIDER_SYS_TABLES_IDX1_COL_CNT 1
 #define SPIDER_SYS_TABLES_UIDX1_COL_CNT 3
-#define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 19
+#define SPIDER_SYS_LINK_MON_TABLE_COL_CNT 22
 #define SPIDER_SYS_LINK_FAILED_TABLE_COL_CNT 4
-#define SPIDER_SYS_XA_FAILED_TABLE_COL_CNT 21
+#define SPIDER_SYS_XA_FAILED_TABLE_COL_CNT 24
 #define SPIDER_SYS_POS_FOR_RECOVERY_TABLE_COL_CNT 7
 #define SPIDER_SYS_TABLE_STS_COL_CNT 11
 #define SPIDER_SYS_TABLE_STS_PK_COL_CNT 2
@@ -73,33 +73,25 @@ TABLE *spider_open_sys_table(
   const char *table_name,
   int table_name_length,
   bool write,
-  Open_tables_backup *open_tables_backup,
-  bool need_lock,
+  SPIDER_Open_tables_backup *open_tables_backup,
   int *error_num
 );
 
-void spider_close_sys_table(
-  THD *thd,
-  TABLE *table,
-  Open_tables_backup *open_tables_backup,
-  bool need_lock
-);
-
-bool spider_sys_open_tables(
+bool spider_sys_open_and_lock_tables(
   THD *thd,
   TABLE_LIST **tables,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 
 TABLE *spider_sys_open_table(
   THD *thd,
   TABLE_LIST *tables,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 
 void spider_sys_close_table(
   THD *thd,
-  Open_tables_backup *open_tables_backup
+  SPIDER_Open_tables_backup *open_tables_backup
 );
 
 int spider_sys_index_init(
@@ -235,11 +227,6 @@ void spider_store_tables_connect_info(
 void spider_store_tables_link_status(
   TABLE *table,
   long link_status
-);
-
-void spider_store_link_chk_server_id(
-  TABLE *table,
-  uint32 server_id
 );
 
 void spider_store_binlog_pos_failed_link_idx(
@@ -418,13 +405,6 @@ int spider_get_sys_tables_monitoring_binlog_pos_at_failing(
 
 int spider_get_sys_tables_link_status(
   TABLE *table,
-  SPIDER_SHARE *share,
-  int link_idx,
-  MEM_ROOT *mem_root
-);
-
-int spider_get_sys_tables_link_status(
-  TABLE *table,
   long *link_status,
   MEM_ROOT *mem_root
 );
@@ -447,24 +427,21 @@ int spider_sys_update_tables_link_status(
   char *name,
   uint name_length,
   int link_idx,
-  long link_status,
-  bool need_lock
+  long link_status
 );
 
 int spider_sys_log_tables_link_failed(
   THD *thd,
   char *name,
   uint name_length,
-  int link_idx,
-  bool need_lock
+  int link_idx
 );
 
 int spider_sys_log_xa_failed(
   THD *thd,
   XID *xid,
   SPIDER_CONN *conn,
-  const char *status,
-  bool need_lock
+  const char *status
 );
 
 int spider_get_sys_link_mon_key(
@@ -497,7 +474,6 @@ int spider_sys_replace(
   bool *modified_non_trans_table
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table(
   THD *thd,
   TABLE *table,
@@ -505,15 +481,6 @@ TABLE *spider_mk_sys_tmp_table(
   const LEX_CSTRING *field_name,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table(
   THD *thd,
@@ -521,7 +488,6 @@ void spider_rm_sys_tmp_table(
   TMP_TABLE_PARAM *tmp_tbl_prm
 );
 
-#ifdef SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 TABLE *spider_mk_sys_tmp_table_for_result(
   THD *thd,
   TABLE *table,
@@ -531,17 +497,6 @@ TABLE *spider_mk_sys_tmp_table_for_result(
   const LEX_CSTRING *field_name3,
   CHARSET_INFO *cs
 );
-#else
-TABLE *spider_mk_sys_tmp_table_for_result(
-  THD *thd,
-  TABLE *table,
-  TMP_TABLE_PARAM *tmp_tbl_prm,
-  const char *field_name1,
-  const char *field_name2,
-  const char *field_name3,
-  CHARSET_INFO *cs
-);
-#endif
 
 void spider_rm_sys_tmp_table_for_result(
   THD *thd,

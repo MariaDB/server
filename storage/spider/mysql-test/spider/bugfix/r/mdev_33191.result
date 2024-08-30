@@ -2,7 +2,13 @@ INSTALL SONAME 'ha_spider';
 set spider_same_server_link=on;
 CREATE TABLE t2(c INT);
 CREATE TABLE t1(c INT) ENGINE=Spider COMMENT='socket "$SOCKET", user "root", table "t2 t3"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 ALTER TABLE t1 ENGINE=Spider;
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	The high availability feature of Spider has been deprecated and will be removed in a future release
 TRUNCATE TABLE t1;
 ERROR 42S02: Table 'test.t3' doesn't exist
 drop table t1, t2;

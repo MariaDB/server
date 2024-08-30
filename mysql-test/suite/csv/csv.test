@@ -1402,9 +1402,13 @@ connection default;
 
 CREATE TABLE test_repair_table ( val integer not null ) ENGINE = CSV;
 
+INSERT into test_repair_table values (1),(2);
+
 CHECK TABLE test_repair_table;
 REPAIR TABLE test_repair_table;
-
+SELECT * from test_repair_table;
+REPAIR TABLE test_repair_table USE_FRM;
+SELECT * from test_repair_table;
 DROP TABLE test_repair_table;
 
 #

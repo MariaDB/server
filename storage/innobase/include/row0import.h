@@ -33,6 +33,7 @@ Created 2012-02-08 by Sunny Bains
 struct trx_t;
 struct dict_table_t;
 struct row_prebuilt_t;
+struct HA_CREATE_INFO;
 
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
@@ -63,5 +64,14 @@ dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
 dberr_t
 row_import_update_index_root(trx_t* trx, dict_table_t* table, bool reset)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Prepare the create info to create a new stub table for import.
+@param thd          Connection
+@param name         Table name, format: "db/table_name".
+@param create_info  The create info for creating a stub.
+@return ER_ error code
+@retval 0 on success */
+int prepare_create_stub_for_import(THD *thd, const char *name,
+                                   HA_CREATE_INFO& create_info);
 
 #endif /* row0import_h */

@@ -235,6 +235,11 @@ class ha_rocksdb : public my_core::handler {
   */
   uchar *m_pack_buffer;
 
+  /*
+    A buffer long enough to store table record
+   */
+  uchar *m_record_buffer;
+
   /* class to convert between Mysql format and RocksDB format*/
   std::shared_ptr<Rdb_converter> m_converter;
 
@@ -392,7 +397,7 @@ class ha_rocksdb : public my_core::handler {
     current lookup to be covered. If the bitmap field is null, that means this
     index does not cover the current lookup for any record.
    */
-  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, nullptr, 0, 0};
+  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0, 0};
 
   int alloc_key_buffers(const TABLE *const table_arg,
                         const Rdb_tbl_def *const tbl_def_arg,
@@ -436,7 +441,7 @@ class ha_rocksdb : public my_core::handler {
 
   ha_rocksdb(my_core::handlerton *const hton,
              my_core::TABLE_SHARE *const table_arg);
-  virtual ~ha_rocksdb() override {
+  ~ha_rocksdb() override {
     int err MY_ATTRIBUTE((__unused__));
     err = finalize_bulk_load(false);
     if (err != 0) {
@@ -453,7 +458,7 @@ class ha_rocksdb : public my_core::handler {
 
     const char *table_type() const
 
-    is non-virtual in class handler, so there's no point to override it.
+    is non-in class handler, so there's no point to override it.
   */
 
   /* The following is only used by SHOW KEYS: */
@@ -497,12 +502,6 @@ public:
     DBUG_ENTER_FUNC();
 
     DBUG_RETURN(&key_map_full);
-  }
-
-  bool primary_key_is_clustered() override {
-    DBUG_ENTER_FUNC();
-
-    DBUG_RETURN(true);
   }
 
   bool should_store_row_debug_checksums() const {
@@ -624,15 +623,19 @@ public:
                        bool sorted) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
-  virtual double scan_time() override {
+  IO_AND_CPU_COST scan_time() override
+  {
+    IO_AND_CPU_COST cost;
     DBUG_ENTER_FUNC();
-
-    DBUG_RETURN(
-        static_cast<double>((stats.records + stats.deleted) / 20.0 + 10));
+    cost= handler::scan_time();
+    cost.cpu+= stats.deleted * ROW_NEXT_FIND_COST; // We have to skip over deleted rows
+    DBUG_RETURN(cost);
   }
+  IO_AND_CPU_COST keyread_time(uint index, ulong ranges,
+                               ha_rows rows, ulonglong blocks) override;
 
-  virtual double read_time(uint, uint, ha_rows rows) override;
-  virtual void print_error(int error, myf errflag) override;
+  ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
+  void print_error(int error, myf errflag) override;
 
   int open(const char *const name, int mode, uint test_if_locked) override
       MY_ATTRIBUTE((__warn_unused_result__));
@@ -906,8 +909,10 @@ public:
   int check(THD *const thd, HA_CHECK_OPT *const check_opt) override
       MY_ATTRIBUTE((__warn_unused_result__));
   int remove_rows(Rdb_tbl_def *const tbl);
-  ha_rows records_in_range(uint inx, key_range *const min_key,
-                           key_range *const max_key) override
+  ha_rows records_in_range(uint inx,
+                           const key_range *const min_key,
+                           const key_range *const max_key,
+                           page_range *pages) override
       MY_ATTRIBUTE((__warn_unused_result__));
 
   int delete_table(Rdb_tbl_def *const tbl);
@@ -970,17 +975,20 @@ public:
       my_core::Alter_inplace_info *const ha_alter_info, bool commit) override;
 
   void set_skip_unique_check_tables(const char *const whitelist);
+
+  virtual ulonglong table_version() const override;
+
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
   bool is_read_free_rpl_table() const;
 #endif
 
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
  public:
-  virtual void rpl_before_delete_rows() override;
-  virtual void rpl_after_delete_rows() override;
-  virtual void rpl_before_update_rows() override;
-  virtual void rpl_after_update_rows() override;
-  virtual bool use_read_free_rpl() const override;
+  void rpl_before_delete_rows() override;
+  void rpl_after_delete_rows() override;
+  void rpl_before_update_rows() override;
+  void rpl_after_update_rows() override;
+  bool use_read_free_rpl() const override;
 #endif // MARIAROCKS_NOT_YET
 
  private:
@@ -1057,8 +1065,6 @@ struct Rdb_inplace_alter_ctx : public my_core::inplace_alter_handler_ctx {
 std::string rdb_corruption_marker_file_name();
 
 const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
-
-extern bool prevent_myrocks_loading;
 
 extern uint32_t rocksdb_ignore_datadic_errors;
 

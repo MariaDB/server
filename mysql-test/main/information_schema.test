@@ -1,8 +1,6 @@
 # This test  uses grants, which can't get tested for embedded server
 -- source include/not_embedded.inc
-
-#Don't run this test when thread_pool active
---source include/not_threadpool.inc
+-- source include/have_perfschema.inc
 
 # check that CSV engine was compiled in, as the result of the test depends
 # on the presence of the log tables (which are CSV-based).
@@ -190,19 +188,19 @@ drop view v1;
 
 connect (user1,localhost,mysqltest_1,,);
 connection user1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 --error ER_SP_DOES_NOT_EXIST
 show create function sub1;
 connection user3;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 connection default;
 grant all privileges on test.* to mysqltest_1@localhost;
 connect (user2,localhost,mysqltest_1,,);
 connection user2;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 create function sub2(i int) returns int
   return i+1;
-select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES;
+select ROUTINE_NAME, ROUTINE_DEFINITION from information_schema.ROUTINES WHERE ROUTINE_SCHEMA <> 'sys';
 show create procedure sel2;
 show create function sub1;
 show create function sub2;
@@ -236,7 +234,7 @@ where COLLATION_NAME like "latin1%";
 select * from v4;
 show keys from v4;
 --sorted_result
-select * from information_schema.views where TABLE_NAME like "v%";
+select * from information_schema.views where TABLE_NAME like "v%" AND TABLE_SCHEMA <> 'sys';
 drop view v0, v1, v2, v3, v4;
 
 #
@@ -288,7 +286,7 @@ create view v1 (c) as select a from t1 with check option;
 create view v2 (c) as select a from t1 WITH LOCAL CHECK OPTION;
 create view v3 (c) as select a from t1 WITH CASCADED CHECK OPTION;
 --sorted_result
-select * from information_schema.views;
+select * from information_schema.views where table_schema <> 'sys';
 grant select (a) on test.t1 to joe@localhost with grant option;
 select * from INFORMATION_SCHEMA.COLUMN_PRIVILEGES;
 select * from INFORMATION_SCHEMA.TABLE_PRIVILEGES;
@@ -674,7 +672,7 @@ drop procedure if exists p2;
 create procedure p1 () modifies sql data set @a = 5;
 create procedure p2 () set @a = 5;
 select sql_data_access from information_schema.routines
-where specific_name like 'p%';
+where specific_name like 'p%' and routine_schema = 'test';
 drop procedure p1;
 drop procedure p2;
 
@@ -838,7 +836,7 @@ CREATE FUNCTION func2() RETURNS BIGINT RETURN 1;
 delimiter //;
 CREATE FUNCTION func1() RETURNS BIGINT
 BEGIN
-  RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS);
+  RETURN ( SELECT COUNT(*) FROM INFORMATION_SCHEMA.VIEWS WHERE TABLE_SCHEMA <> 'sys');
 END//
 delimiter ;//
 
@@ -970,8 +968,8 @@ CREATE FUNCTION get_value()
   RETURNS TEXT
   DETERMINISTIC
 BEGIN
-  DECLARE col1, col2, col3, col4, col6 CHAR(255);
-  DECLARE default_val VARCHAR(65532);
+  DECLARE col1, col2, col3, col4, col6 CHAR(255) CHARACTER SET latin1;
+  DECLARE default_val VARCHAR(65532) CHARACTER SET latin1;
   DECLARE done INT DEFAULT 0;
   DECLARE cur1 CURSOR FOR SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_KEY, COLUMN_DEFAULT, EXTRA FROM INFORMATION_SCHEMA.COLUMNS where TABLE_NAME='bug23037';
   DECLARE CONTINUE HANDLER FOR SQLSTATE '02000' SET done = 1;
@@ -983,7 +981,7 @@ end|
 DELIMITER ;|
 
 let $body=`SELECT REPEAT('A', 65532)`;
-eval CREATE TABLE bug23037(fld1 VARCHAR(65532) CHARACTER SET latin1 DEFAULT "$body");
+eval CREATE TABLE bug23037(fld1 VARCHAR(65532) CHARACTER SET latin1 DEFAULT "$body") CHARACTER SET latin1;
 --enable_query_log
 
 SELECT COLUMN_NAME, MD5(COLUMN_DEFAULT), LENGTH(COLUMN_DEFAULT) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='bug23037';
@@ -2072,7 +2070,7 @@ DROP TABLE t1;
 --echo #
 --echo # MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
 --echo #
-create table t1 ( name varchar(64) character set utf8, len int);
+create table t1 ( name varchar(64) character set utf8 collate utf8_general_ci, len int);
 select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
 drop table t1;
 
@@ -2136,4 +2134,28 @@ DROP PROCEDURE sp1;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+--echo #
+
+CREATE TABLE t1 (a int);
+CREATE ALGORITHM=TEMPTABLE VIEW i AS
+  SELECT a.created
+  FROM t1 w JOIN INFORMATION_SCHEMA.routines a
+  WHERE a.routine_name='not existing'
+  ORDER BY a.last_altered;
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+SELECT * FROM i;
+SET SESSION sql_mode=DEFAULT;
+DROP VIEW i;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

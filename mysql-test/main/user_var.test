@@ -267,8 +267,11 @@ drop table t1;
 #
 --disable_ps2_protocol
 create table t1(b bigint);
-insert into t1 (b) values (10), (30), (10);
+insert into t1 (b) values (10), (30), (10), (10);
 set @var := 0;
+explain select if(b=@var, 999, b) , @var := b from t1  order by b;
+set @var := 0;
+--sorted_result
 select if(b=@var, 999, b) , @var := b from t1  order by b;
 drop table t1;
 
@@ -498,7 +501,7 @@ DROP TABLE t1;
 --disable_service_connection
 # Execute twice so number stablizes a bit
 let $tmp= `select memory_used from information_schema.processlist`;
-set @var= repeat('a',20000);
+set @var= repeat('a',30000);
 let $tmp2= `select memory_used from information_schema.processlist`;
 --disable_query_log
 --disable_column_names

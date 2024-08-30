@@ -27,9 +27,8 @@ Query optimization produces two data structures:
 produce output of SHOW EXPLAIN, EXPLAIN [FORMAT=JSON], or 
 ANALYZE [FORMAT=JSON], without accessing the execution data structures.
 
-(the only exception is that Explain data structures keep Item* pointers,
-and we require that one might call item->print(QT_EXPLAIN) when printing
-FORMAT=JSON output)
+The exception is that Explain data structures have Item* pointers. See
+ExplainDataStructureLifetime below for details.
 
 === ANALYZE data ===
 EXPLAIN data structures have embedded ANALYZE data structures. These are 
@@ -74,7 +73,6 @@ class Json_writer;
 *************************************************************************************/
 
 
-const int FAKE_SELECT_LEX_ID= (int)UINT_MAX;
 
 class Explain_query;
 
@@ -86,6 +84,7 @@ class Explain_node : public Sql_alloc
 public:
   Explain_node(MEM_ROOT *root) :
     cache_tracker(NULL),
+    subq_materialization(NULL),
     connection_type(EXPLAIN_NODE_OTHER),
     children(root)
   {}
@@ -108,12 +107,18 @@ public:
   };
 
   virtual enum explain_node_type get_type()= 0;
-  virtual int get_select_id()= 0;
+  virtual uint get_select_id()= 0;
 
   /**
     expression cache statistics
   */
   Expression_cache_tracker* cache_tracker;
+
+  /**
+    If not NULL, this node is a SELECT (or UNION) in a materialized
+    IN-subquery.
+  */
+  Explain_subq_materialization* subq_materialization;
 
   /*
     How this node is connected to its parent.
@@ -143,6 +148,8 @@ public:
   void print_explain_json_for_children(Explain_query *query,
                                        Json_writer *writer, bool is_analyze);
   bool print_explain_json_cache(Json_writer *writer, bool is_analyze);
+  bool print_explain_json_subq_materialization(Json_writer *writer,
+                                               bool is_analyze);
   virtual ~Explain_node() = default;
 };
 
@@ -161,21 +168,21 @@ class Explain_table_access;
 class Explain_basic_join : public Explain_node
 {
 public:
-  enum explain_node_type get_type() { return EXPLAIN_BASIC_JOIN; }
+  enum explain_node_type get_type() override { return EXPLAIN_BASIC_JOIN; }
   
   Explain_basic_join(MEM_ROOT *root) : Explain_node(root), join_tabs(NULL) {}
   ~Explain_basic_join();
 
   bool add_table(Explain_table_access *tab, Explain_query *query);
 
-  int get_select_id() { return select_id; }
+  uint get_select_id() override { return select_id; }
 
-  int select_id;
+  uint select_id;
 
   int print_explain(Explain_query *query, select_result_sink *output,
-                    uint8 explain_flags, bool is_analyze);
+                    uint8 explain_flags, bool is_analyze) override;
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze) override;
 
   void print_explain_json_interns(Explain_query *query, Json_writer *writer,
                                   bool is_analyze);
@@ -205,7 +212,7 @@ class Explain_aggr_node;
 class Explain_select : public Explain_basic_join
 {
 public:
-  enum explain_node_type get_type() { return EXPLAIN_SELECT; }
+  enum explain_node_type get_type() override { return EXPLAIN_SELECT; }
 
   Explain_select(MEM_ROOT *root, bool is_analyze) : 
   Explain_basic_join(root),
@@ -217,6 +224,7 @@ public:
     message(NULL),
     having(NULL), having_value(Item::COND_UNDEF),
     using_temporary(false), using_filesort(false),
+    cost(0.0),
     time_tracker(is_analyze),
     aggr_tree(NULL)
   {}
@@ -250,9 +258,10 @@ public:
   bool using_temporary;
   bool using_filesort;
 
+  double cost;
   /* ANALYZE members */
   Time_and_counter_tracker time_tracker;
-  
+
   /* 
     Part of query plan describing sorting, temp.table usage, and duplicate 
     removal
@@ -260,9 +269,9 @@ public:
   Explain_aggr_node* aggr_tree;
 
   int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
+                    uint8 explain_flags, bool is_analyze) override;
   void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+                          bool is_analyze) override;
   
   Table_access_tracker *get_using_temporary_read_tracker()
   {
@@ -299,7 +308,7 @@ class Explain_aggr_filesort : public Explain_aggr_node
   List<Item> sort_items;
   List<ORDER::enum_order> sort_directions;
 public:
-  enum_explain_aggr_node_type get_type() { return AGGR_OP_FILESORT; }
+  enum_explain_aggr_node_type get_type() override { return AGGR_OP_FILESORT; }
   Filesort_tracker tracker;
 
   Explain_aggr_filesort(MEM_ROOT *mem_root, bool is_analyze, 
@@ -311,20 +320,20 @@ public:
 class Explain_aggr_tmp_table : public Explain_aggr_node
 {
 public:
-  enum_explain_aggr_node_type get_type() { return AGGR_OP_TEMP_TABLE; }
+  enum_explain_aggr_node_type get_type() override { return AGGR_OP_TEMP_TABLE; }
 };
 
 class Explain_aggr_remove_dups : public Explain_aggr_node
 {
 public:
-  enum_explain_aggr_node_type get_type() { return AGGR_OP_REMOVE_DUPLICATES; }
+  enum_explain_aggr_node_type get_type() override { return AGGR_OP_REMOVE_DUPLICATES; }
 };
 
 class Explain_aggr_window_funcs : public Explain_aggr_node
 {
   List<Explain_aggr_filesort> sorts;
 public:
-  enum_explain_aggr_node_type get_type() { return AGGR_OP_WINDOW_FUNCS; }
+  enum_explain_aggr_node_type get_type() override { return AGGR_OP_WINDOW_FUNCS; }
 
   void print_json_members(Json_writer *writer, bool is_analyze);
   friend class Window_funcs_computation;
@@ -333,11 +342,12 @@ public:
 /////////////////////////////////////////////////////////////////////////////
 
 extern const char *unit_operation_text[4];
+extern const char *pushed_unit_operation_text[4];
 extern const char *pushed_derived_text;
 extern const char *pushed_select_text;
 
 /*
-  Explain structure for a UNION.
+  Explain structure for a UNION [ALL].
 
   A UNION may or may not have "Using filesort".
 */
@@ -346,15 +356,15 @@ class Explain_union : public Explain_node
 {
 public:
   Explain_union(MEM_ROOT *root, bool is_analyze) : 
-    Explain_node(root),
-    is_recursive_cte(false),
+    Explain_node(root), union_members(PSI_INSTRUMENT_MEM),
+    is_recursive_cte(false), is_pushed_down_to_engine(false),
     fake_select_lex_explain(root, is_analyze)
   {}
 
-  enum explain_node_type get_type() { return EXPLAIN_UNION; }
+  enum explain_node_type get_type() override { return EXPLAIN_UNION; }
   unit_common_op operation;
 
-  int get_select_id()
+  uint get_select_id() override
   {
     DBUG_ASSERT(union_members.elements() > 0);
     return union_members.at(0);
@@ -376,15 +386,20 @@ public:
   {
     union_members.append(select_no);
   }
-  int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze) override;
+  void print_explain_json_regular(Explain_query *query, Json_writer *writer,
                           bool is_analyze);
+  void print_explain_json_pushed_down(Explain_query *query,
+                                      Json_writer *writer, bool is_analyze);
 
   const char *fake_select_type;
   bool using_filesort;
   bool using_tmp;
   bool is_recursive_cte;
+  bool is_pushed_down_to_engine;
   
   /*
     Explain data structure for "fake_select_lex" (i.e. for the degenerate
@@ -403,6 +418,10 @@ public:
   }
 private:
   uint make_union_table_name(char *buf);
+  int print_explain_regular(Explain_query *query, select_result_sink *output,
+                            uint8 explain_flags, bool is_analyze);
+  int print_explain_pushed_down(select_result_sink *output,
+                                uint8 explain_flags, bool is_analyze);
   
   Table_access_tracker fake_select_lex_tracker;
   /* This one is for reading after ORDER BY */
@@ -418,36 +437,54 @@ class Explain_insert;
 /*
   Explain structure for a query (i.e. a statement).
 
-  This should be able to survive when the query plan was deleted. Currently, 
-  we do not intend for it survive until after query's MEM_ROOT is freed. It
-  does surivive freeing of query's items.
-   
-  For reference, the process of post-query cleanup is as follows:
+  This should be able to survive when the query plan was deleted. Currently,
+  we do not intend for it survive until after query's MEM_ROOT is freed.
+
+  == ExplainDataStructureLifetime ==
 
     >dispatch_command
     | >mysql_parse
-    | |  ...
-    | | lex_end()
-    | |  ...
-    | | >THD::cleanup_after_query
-    | | | ...
-    | | | free_items()
-    | | | ...
-    | | <THD::cleanup_after_query
+    | | ...
+    | |
+    | | explain->query_plan_ready(); // (1)
+    | |
+    | |   some_join->cleanup(); //  (2)
+    | |
+    | | explain->notify_tables_are_closed(); // (3)
+    | | close_thread_tables();  // (4)
+    | | ...
+    | | free_items(); // (5)
+    | | ...
     | |
     | <mysql_parse
     |
-    | log_slow_statement()
-    | 
+    | log_slow_statement() // (6)
+    |
     | free_root()
-    | 
+    |
     >dispatch_command
-  
-  That is, the order of actions is:
-    - free query's Items
-    - write to slow query log 
-    - free query's MEM_ROOT
-    
+
+  (1) - Query plan construction is finished and it is available for reading.
+
+  (2) - Temporary tables are freed (with exception of derived tables
+        which are freed at step (4)).
+        The tables are no longer accessible but one can still call
+        item->print(), even for items that refer to temp.tables (see
+        Item_field::print() for details)
+
+  (3) - Notification about (4).
+  (4) - Tables used by the query are closed. One consequence of this is that
+        the values of the const tables' fields are not available anymore.
+        We could adjust the code in Item_field::print() to handle this but
+        instead we make step (3) disallow production of FORMAT=JSON output.
+        We also disable processing of SHOW EXPLAIN|ANALYZE output because
+        the query is about to finish anyway.
+
+  (5) - Item objects are freed. After this, it's certainly not possible to
+        print them into FORMAT=JSON output.
+
+  (6) - We may decide to log tabular EXPLAIN output to the slow query log.
+
 */
 
 class Explain_query : public Sql_alloc
@@ -479,17 +516,23 @@ public:
   /* Return tabular EXPLAIN output as a text string */
   bool print_explain_str(THD *thd, String *out_str, bool is_analyze);
 
-  void print_explain_json(select_result_sink *output, bool is_analyze);
+  int print_explain_json(select_result_sink *output, bool is_analyze,
+                         ulonglong query_time_in_progress_ms= 0);
 
   /* If true, at least part of EXPLAIN can be printed */
   bool have_query_plan() { return insert_plan || upd_del_plan|| get_node(1) != NULL; }
 
   void query_plan_ready();
+  void notify_tables_are_closed();
 
   MEM_ROOT *mem_root;
 
   Explain_update *get_upd_del_plan() { return upd_del_plan; }
 private:
+  bool print_query_blocks_json(Json_writer *writer, const bool is_analyze);
+  void print_query_optimization_json(Json_writer *writer);
+  void send_explain_json_to_output(Json_writer *writer, select_result_sink *output);
+ 
   /* Explain_delete inherits from Explain_update */
   Explain_update *upd_del_plan;
 
@@ -499,7 +542,7 @@ private:
   Dynamic_array<Explain_union*> unions;
   Dynamic_array<Explain_select*> selects;
   
-  THD *thd; // for APC start/stop
+  THD *stmt_thd; // for APC start/stop
   bool apc_enabled;
   /* 
     Debugging aid: count how many times add_node() was called. Ideally, it
@@ -508,6 +551,11 @@ private:
     is unacceptable.
   */
   longlong operations;
+#ifndef DBUG_OFF
+  bool can_print_json= false;
+#endif
+
+  Exec_time_tracker optimization_time_tracker;
 };
 
 
@@ -552,6 +600,7 @@ enum explain_extra_tag
   ET_CONST_ROW_NOT_FOUND,
   ET_UNIQUE_ROW_NOT_FOUND,
   ET_IMPOSSIBLE_ON_CONDITION,
+  ET_TABLE_FUNCTION,
 
   ET_total
 };
@@ -564,7 +613,7 @@ enum explain_extra_tag
 class EXPLAIN_BKA_TYPE
 {
 public:
-  EXPLAIN_BKA_TYPE() : join_alg(NULL) {}
+  EXPLAIN_BKA_TYPE() : join_alg(NULL), is_bka(false) {}
 
   size_t join_buffer_size;
 
@@ -575,6 +624,9 @@ public:
     Other values: BNL, BNLH, BKA, BKAH.
   */
   const char *join_alg;
+
+  /* true <=> BKA is used */
+  bool is_bka;
 
   /* Information about MRR usage.  */
   StringBuffer<64> mrr_type;
@@ -636,14 +688,6 @@ public:
 
   void print_explain_json(Explain_query *query, Json_writer *writer,
                           bool is_analyze);
-
-  /*
-    TODO:
-      Here should be ANALYZE members:
-      - r_rows for the quick select
-      - An object that tracked the table access time
-      - real selectivity of the filter.
-  */
 };
 
 
@@ -724,6 +768,8 @@ public:
   Explain_table_access(MEM_ROOT *root, bool timed) :
     derived_select_number(0),
     non_merged_sjm_number(0),
+    cost(0.0),
+    loops(0.0),
     extra_tags(root),
     range_checked_fer(NULL),
     full_scan_on_null_key(false),
@@ -734,6 +780,7 @@ public:
     pushed_index_cond(NULL),
     sjm_nest(NULL),
     pre_join_sort(NULL),
+    handler_for_stats(NULL),
     jbuf_unpack_tracker(timed),
     rowid_filter(NULL)
   {}
@@ -792,6 +839,10 @@ public:
   ha_rows rows;
   double filtered;
 
+  /* Total cost incurred during one execution of this select */
+  double cost;
+
+  double loops;
   /* 
     Contents of the 'Extra' column. Some are converted into strings, some have
     parameters, values for which are stored below.
@@ -823,7 +874,7 @@ public:
   /*
     This is either pushed index condition, or BKA's index condition. 
     (the latter refers to columns of other tables and so can only be checked by
-     BKA code). Examine extra_tags to tell which one it is.
+     BKA code). Examine extra_tags (or bka_type.is_bka) to tell which one it is.
   */
   Item *pushed_index_cond;
 
@@ -840,12 +891,39 @@ public:
   /* Tracker for reading the table */
   Table_access_tracker tracker;
   Exec_time_tracker op_tracker;
-  Table_access_tracker jbuf_tracker;
+  Gap_time_tracker extra_time_tracker;
 
   /*
-    Track the time to unpack rows from the join buffer.
+    Handler object to get the handler_stats from.
+
+    Notes:
+    This pointer is only valid until notify_tables_are_closed() is called.
+    After that, the tables may be freed or reused, together with their
+    handler_stats objects.
+    notify_tables_are_closed() disables printing of FORMAT=JSON output.
+    r_engine_stats is only printed in FORMAT=JSON output, so we're fine.
+
+    We do not store pointers to temporary (aka "work") tables here.
+    Temporary tables may be freed (e.g. by JOIN::cleanup()) or re-created
+    during query execution (when HEAP table is converted into Aria).
   */
+  handler *handler_for_stats;
+
+  /* When using join buffer: Track the reads from join buffer */
+  Table_access_tracker jbuf_tracker;
+
+  /* When using join buffer: time spent unpacking rows from the join buffer */
   Time_and_counter_tracker jbuf_unpack_tracker;
+
+  /*
+    When using join buffer: time spent after unpacking rows from the join
+    buffer. This will capture the time spent checking the Join Condition:
+    the condition that depends on this table and preceding tables.
+  */
+  Gap_time_tracker jbuf_extra_time_tracker;
+
+  /* When using join buffer: Track the number of incoming record combinations */
+  Counter_tracker jbuf_loops_tracker;
 
   Explain_rowid_filter *rowid_filter;
 
@@ -881,11 +959,12 @@ public:
   Explain_update(MEM_ROOT *root, bool is_analyze) : 
     Explain_node(root),
     filesort_tracker(NULL),
-    command_tracker(is_analyze)
+    command_tracker(is_analyze),
+    handler_for_stats(NULL)
   {}
 
-  virtual enum explain_node_type get_type() { return EXPLAIN_UPDATE; }
-  virtual int get_select_id() { return 1; /* always root */ }
+  enum explain_node_type get_type() override { return EXPLAIN_UPDATE; }
+  uint get_select_id() override { return 1; /* always root */ }
 
   const char *select_type;
 
@@ -941,10 +1020,13 @@ public:
   /* TODO: This tracks time to read rows from the table */
   Exec_time_tracker table_tracker;
 
-  virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags, bool is_analyze);
-  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+  /* The same as  Explain_table_access::handler_for_stats */
+  handler *handler_for_stats;
+
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze) override;
 };
 
 
@@ -964,13 +1046,13 @@ public:
 
   StringBuffer<64> table_name;
 
-  enum explain_node_type get_type() { return EXPLAIN_INSERT; }
-  int get_select_id() { return 1; /* always root */ }
+  enum explain_node_type get_type() override { return EXPLAIN_INSERT; }
+  uint get_select_id() override { return 1; /* always root */ }
 
-  int print_explain(Explain_query *query, select_result_sink *output, 
-                    uint8 explain_flags, bool is_analyze);
-  void print_explain_json(Explain_query *query, Json_writer *writer, 
-                          bool is_analyze);
+  int print_explain(Explain_query *query, select_result_sink *output,
+                    uint8 explain_flags, bool is_analyze) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze) override;
 };
 
 
@@ -991,14 +1073,36 @@ public:
   */
   bool deleting_all_rows;
 
-  virtual enum explain_node_type get_type() { return EXPLAIN_DELETE; }
-  virtual int get_select_id() { return 1; /* always root */ }
+  enum explain_node_type get_type() override { return EXPLAIN_DELETE; }
+  uint get_select_id() override { return 1; /* always root */ }
 
-  virtual int print_explain(Explain_query *query, select_result_sink *output, 
-                            uint8 explain_flags, bool is_analyze);
-  virtual void print_explain_json(Explain_query *query, Json_writer *writer,
-                                  bool is_analyze);
+  int print_explain(Explain_query *query, select_result_sink *output, 
+                    uint8 explain_flags, bool is_analyze) override;
+  void print_explain_json(Explain_query *query, Json_writer *writer,
+                          bool is_analyze) override;
 };
 
+
+/*
+  EXPLAIN data structure for subquery materialization.
+
+  All decisions are made at execution time so here we just store the tracker
+  that has all the info.
+*/
+
+class Explain_subq_materialization : public Sql_alloc
+{
+public:
+  Explain_subq_materialization(MEM_ROOT *mem_root)
+    : tracker(mem_root)
+  {}
+
+  Subq_materialization_tracker *get_tracker() { return &tracker; }
+
+  void print_explain_json(Json_writer *writer, bool is_analyze);
+
+private:
+  Subq_materialization_tracker tracker;
+};
 
 #endif //SQL_EXPLAIN_INCLUDED

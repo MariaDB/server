@@ -26,28 +26,6 @@ ALWAYS
 connect  con1, localhost, root,,;
 connect  con2, localhost, root,,;
 connection default;
-drop table if exists t0, t1, t2, t3, t4, t5;
-drop view if exists v1, v2;
-drop procedure if exists p1;
-drop procedure if exists p2;
-drop procedure if exists p3;
-drop function if exists f1;
-drop function if exists f2;
-drop function if exists f3;
-drop function if exists f4;
-drop function if exists f5;
-drop function if exists f6;
-drop function if exists f7;
-drop function if exists f8;
-drop function if exists f9;
-drop function if exists f10;
-drop function if exists f11;
-drop function if exists f12;
-drop function if exists f13;
-drop function if exists f14;
-drop function if exists f15;
-drop function if exists f16;
-drop function if exists f17;
 create table t1 (i int primary key);
 insert into t1 values (1), (2), (3), (4), (5);
 create table t2 (j int primary key);
@@ -67,8 +45,6 @@ declare j int;
 select i from t1 where i = 1 into j;
 return j;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f2() returns int
 begin
 declare k int;
@@ -76,8 +52,6 @@ select i from t1 where i = 1 into k;
 insert into t2 values (k + 5);
 return 0;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f3() returns int
 begin
 return (select i from t1 where i = 3);
@@ -101,16 +75,12 @@ declare k int;
 select i from v1 where i = 1 into k;
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f7() returns int
 begin
 declare k int;
 select j from v2 where j = 1 into k;
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f8() returns int
 begin
 declare k int;
@@ -118,8 +88,6 @@ select i from v1 where i = 1 into k;
 insert into t2 values (k+5);
 return k;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f9() returns int
 begin
 update v2 set j=j+10 where j=1;
@@ -149,8 +117,6 @@ create procedure p2(inout p int)
 begin
 select i from t1 where i = 1 into p;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create function f14() returns int
 begin
 declare k int;
@@ -178,8 +144,6 @@ select i from t1 where i = 1 into j;
 call p3;
 return 1;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create procedure p3()
 begin
 create temporary table if not exists temp1 (a int);
@@ -192,8 +156,6 @@ declare k int;
 select i from t1 where i=1 into k;
 set new.l= k+1;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create trigger t4_bu before update on t4 for each row
 begin
 if (select i from t1 where i=1) then
@@ -878,3 +840,28 @@ SET DEBUG_SYNC="RESET";
 disconnect con1;
 disconnect con2;
 DROP TABLES t1, t2;
+#
+# MDEV-28567 Assertion `0' in open_tables upon function-related operation
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TRIGGER tr1 BEFORE INSERT ON t1 FOR EACH ROW UPDATE t2 SET b = 0;
+CREATE TRIGGER tr2 BEFORE INSERT ON t2 FOR EACH ROW UPDATE t1 SET a = 6;
+CREATE VIEW v1 AS SELECT * FROM t1;
+SET AUTOCOMMIT=OFF;
+SELECT * FROM t1;
+a
+DROP TRIGGER tr1;
+INSERT INTO t2 SELECT * FROM t2;
+SELECT f() FROM t2;
+ERROR 42000: FUNCTION test.f does not exist
+set debug_sync= 'after_open_table_mdl_shared signal s1';
+ALTER VIEW v1 AS SELECT f() FROM t1;
+CREATE FUNCTION f() RETURNS INT RETURN 1;
+set debug_sync= 'now wait_for s1';
+SELECT * FROM ( SELECT * FROM v1 ) sq;
+COMMIT;
+DROP VIEW v1;
+DROP FUNCTION IF EXISTS f;
+DROP TABLE t1, t2;
+set debug_sync= 'reset';

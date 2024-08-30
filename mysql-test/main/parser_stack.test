@@ -1,3 +1,7 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for ps-protocol
+}
 #
 # These tests are designed to cause an internal parser stack overflow,
 # and trigger my_yyoverflow().

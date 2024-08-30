@@ -22,27 +22,41 @@
 #include <m_ctype.h>
 #include <signal.h>
 #include <mysql/psi/mysql_stage.h>
-#ifdef __WIN__
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef _WIN32
 #ifdef _MSC_VER
 #include <locale.h>
 #include <crtdbg.h>
 /* WSAStartup needs winsock library*/
 #pragma comment(lib, "ws2_32")
 #endif
-my_bool have_tcpip=0;
 static void my_win_init(void);
 static my_bool win32_init_tcp_ip();
+static void setup_codepages();
 #else
 #define my_win_init()
 #endif
 
-extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
+#if defined(_SC_PAGE_SIZE) && !defined(_SC_PAGESIZE)
+#define _SC_PAGESIZE _SC_PAGE_SIZE
+#endif
+
+#if defined(__linux__)
+#define EXE_LINKPATH "/proc/self/exe"
+#elif defined(__FreeBSD__)
+/* unfortunately, not mounted by default */
+#define EXE_LINKPATH "/proc/curproc/file"
+#endif
+
 
 #define SCALE_SEC       100
 #define SCALE_USEC      10000
 
 my_bool my_init_done= 0;
 uint	mysys_usage_id= 0;              /* Incremented for each my_init() */
+size_t  my_system_page_size= 8192;	/* Default if no sysconf() */
 
 ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
@@ -60,6 +74,68 @@ static ulong atoi_octal(const char *str)
 MYSQL_FILE *mysql_stdin= NULL;
 static MYSQL_FILE instrumented_stdin;
 
+#ifdef _WIN32
+static UINT orig_console_cp, orig_console_output_cp;
+
+static void reset_console_cp(void)
+{
+  /*
+    We try not to call SetConsoleCP unnecessarily, to workaround a bug on
+    older Windows 10 (1803), which could switch truetype console fonts to
+    raster, eventhough SetConsoleCP would be a no-op (switch from UTF8 to UTF8).
+  */
+  if (GetConsoleCP() != orig_console_cp)
+    SetConsoleCP(orig_console_cp);
+  if (GetConsoleOutputCP() != orig_console_output_cp)
+    SetConsoleOutputCP(orig_console_output_cp);
+}
+
+/*
+  The below fixes discrepancies in console output and
+  command line parameter encoding. command line is in
+  ANSI codepage, output to console by default is in OEM, but
+  we like them to be in the same encoding.
+
+  We do this only if current codepage is UTF8, i.e when we
+  know we're on Windows that can handle UTF8 well.
+*/
+static void setup_codepages()
+{
+  UINT acp;
+  BOOL is_a_tty= fileno(stdout) >= 0 && isatty(fileno(stdout));
+
+  if (is_a_tty)
+  {
+    /*
+      Save console codepages, in case we change them,
+      to restore them on exit.
+    */
+    orig_console_cp= GetConsoleCP();
+    orig_console_output_cp= GetConsoleOutputCP();
+    if (orig_console_cp && orig_console_output_cp)
+      atexit(reset_console_cp);
+  }
+
+  if ((acp= GetACP()) != CP_UTF8)
+    return;
+
+  /*
+    Use setlocale to make mbstowcs/mkdir/getcwd behave, see
+    https://docs.microsoft.com/en-us/cpp/c-runtime-library/reference/setlocale-wsetlocale
+  */
+  setlocale(LC_ALL, "en_US.UTF8");
+
+  if (is_a_tty && (orig_console_cp != acp || orig_console_output_cp != acp))
+  {
+    /*
+      If ANSI codepage is UTF8, we actually want to switch console
+      to it as well.
+    */
+    SetConsoleCP(acp);
+    SetConsoleOutputCP(acp);
+  }
+}
+#endif
 
 /**
   Initialize my_sys functions, resources and variables
@@ -81,6 +157,9 @@ my_bool my_init(void)
   my_umask= 0660;                       /* Default umask for new files */
   my_umask_dir= 0700;                   /* Default umask for new directories */
   my_global_flags= 0;
+#ifdef _SC_PAGESIZE
+  my_system_page_size= sysconf(_SC_PAGESIZE);
+#endif
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)
@@ -96,14 +175,33 @@ my_bool my_init(void)
   mysql_stdin= & instrumented_stdin;
 
   my_progname_short= "unknown";
-  if (my_progname)
-    my_progname_short= my_progname + dirname_length(my_progname);
-
   /* Initialize our mutex handling */
   my_mutex_init();
 
   if (my_thread_global_init())
     return 1;
+
+  if (my_progname)
+  {
+    char link_name[FN_REFLEN];
+    my_progname_short= my_progname + dirname_length(my_progname);
+    /*
+      if my_progname_short doesn't start from "mariadb", but it's
+      a symlink to an actual executable, that does - warn the user.
+      First try to find the actual name via /proc, but if it's unmounted
+      (which it usually is on FreeBSD) resort to my_progname
+    */
+    if (strncmp(my_progname_short, "mariadb", 7))
+    {
+      int res= 1;
+#ifdef EXE_LINKPATH
+      res= my_readlink(link_name, EXE_LINKPATH, MYF(0));
+#endif
+      if ((res == 0 || my_readlink(link_name, my_progname, MYF(0)) == 0) &&
+           strncmp(link_name + dirname_length(link_name), "mariadb", 7) == 0)
+      my_error(EE_NAME_DEPRECATED, MYF(MY_WME), link_name);
+    }
+  }
 
 #if defined(SAFEMALLOC) && !defined(DBUG_OFF)
   dbug_sanity= sf_sanity;
@@ -119,8 +217,9 @@ my_bool my_init(void)
     my_time_init();
     my_win_init();
     DBUG_PRINT("exit", ("home: '%s'", home_dir));
-#ifdef __WIN__
-    win32_init_tcp_ip();
+#ifdef _WIN32
+    if (win32_init_tcp_ip())
+      DBUG_RETURN(1);
 #endif
 #ifdef CHECK_UNLIKELY
     init_my_likely();
@@ -218,7 +317,7 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
 	      rus.ru_msgsnd, rus.ru_msgrcv, rus.ru_nsignals,
 	      rus.ru_nvcsw, rus.ru_nivcsw);
 #endif
-#if defined(__WIN__) && defined(_MSC_VER)
+#if defined(_MSC_VER)
    _CrtSetReportMode( _CRT_WARN, _CRTDBG_MODE_FILE );
    _CrtSetReportFile( _CRT_WARN, _CRTDBG_FILE_STDERR );
    _CrtSetReportMode( _CRT_ERROR, _CRTDBG_MODE_FILE );
@@ -245,14 +344,12 @@ Voluntary context switches %ld, Involuntary context switches %ld\n",
                  (FILE *) 0);
 #endif /* defined(SAFE_MUTEX) */
 
-#ifdef __WIN__
-  if (have_tcpip)
-    WSACleanup();
-#endif /* __WIN__ */
+#ifdef _WIN32
+   WSACleanup();
+#endif
  
   /* At very last, delete mysys key, it is used everywhere including DBUG */
-  pthread_key_delete(THR_KEY_mysys);
-  my_init_done= my_thr_key_mysys_exists= 0;
+  my_init_done= 0;
 } /* my_end */
 
 #ifdef DBUG_ASSERT_EXISTS
@@ -263,16 +360,14 @@ void my_debug_put_break_here(void)
 }
 #endif
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 
 /*
   my_parameter_handler
   
   Invalid parameter handler we will use instead of the one "baked"
-  into the CRT for MSC v8.  This one just prints out what invalid
-  parameter was encountered.  By providing this routine, routines like
-  lseek will return -1 when we expect them to instead of crash.
+  into the CRT.
 */
 
 void my_parameter_handler(const wchar_t * expression, const wchar_t * function,
@@ -311,77 +406,13 @@ int handle_rtc_failure(int err_type, const char *file, int line,
 #pragma runtime_checks("", restore)
 #endif
 
-/*
-  Open HKEY_LOCAL_MACHINE\SOFTWARE\MySQL and set any strings found
-  there as environment variables
-*/
-static void win_init_registry(void)
-{
-  HKEY key_handle;
-
-  if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, (LPCTSTR)"SOFTWARE\\MySQL",
-                    0, KEY_READ, &key_handle) == ERROR_SUCCESS)
-  {
-    LONG ret;
-    DWORD index= 0;
-    DWORD type;
-    char key_name[256], key_data[1024];
-    DWORD key_name_len= sizeof(key_name) - 1;
-    DWORD key_data_len= sizeof(key_data) - 1;
-
-    while ((ret= RegEnumValue(key_handle, index++,
-                              key_name, &key_name_len,
-                              NULL, &type, (LPBYTE)&key_data,
-                              &key_data_len)) != ERROR_NO_MORE_ITEMS)
-    {
-      char env_string[sizeof(key_name) + sizeof(key_data) + 2];
-
-      if (ret == ERROR_MORE_DATA)
-      {
-        /* Registry value larger than 'key_data', skip it */
-        DBUG_PRINT("error", ("Skipped registry value that was too large"));
-      }
-      else if (ret == ERROR_SUCCESS)
-      {
-        if (type == REG_SZ)
-        {
-          strxmov(env_string, key_name, "=", key_data, NullS);
-
-          /* variable for putenv must be allocated ! */
-          putenv(strdup(env_string)) ;
-        }
-      }
-      else
-      {
-        /* Unhandled error, break out of loop */
-        break;
-      }
-
-      key_name_len= sizeof(key_name) - 1;
-      key_data_len= sizeof(key_data) - 1;
-    }
-
-    RegCloseKey(key_handle);
-  }
-}
-
 
 static void my_win_init(void)
 {
   DBUG_ENTER("my_win_init");
 
 #if defined(_MSC_VER)
-#if _MSC_VER < 1300
-  /*
-    Clear the OS system variable TZ and avoid the 100% CPU usage
-    Only for old versions of Visual C++
-  */
-  _putenv("TZ=");
-#endif
-#if _MSC_VER >= 1400
-  /* this is required to make crt functions return -1 appropriately */
   _set_invalid_parameter_handler(my_parameter_handler);
-#endif
 #endif
 
 #ifdef __MSVC_RUNTIME_CHECKS
@@ -394,75 +425,32 @@ static void my_win_init(void)
 
   _tzset();
 
-  win_init_registry();
-
-  DBUG_VOID_RETURN;
-}
-
-
-/*------------------------------------------------------------------
-  Name: CheckForTcpip| Desc: checks if tcpip has been installed on system
-  According to Microsoft Developers documentation the first registry
-  entry should be enough to check if TCP/IP is installed, but as expected
-  this doesn't work on all Win32 machines :(
-------------------------------------------------------------------*/
-
-#define TCPIPKEY  "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters"
-#define WINSOCK2KEY "SYSTEM\\CurrentControlSet\\Services\\Winsock2\\Parameters"
-#define WINSOCKKEY  "SYSTEM\\CurrentControlSet\\Services\\Winsock\\Parameters"
-
-static my_bool win32_have_tcpip(void)
-{
-  HKEY hTcpipRegKey;
-  if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, TCPIPKEY, 0, KEY_READ,
-		      &hTcpipRegKey) != ERROR_SUCCESS)
+  /* Disable automatic LF->CRLF translation. */
+  FILE* stdf[]= {stdin, stdout, stderr};
+  for (int i= 0; i < array_elements(stdf); i++)
   {
-    if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, WINSOCK2KEY, 0, KEY_READ,
-		      &hTcpipRegKey) != ERROR_SUCCESS)
-    {
-      if (RegOpenKeyEx ( HKEY_LOCAL_MACHINE, WINSOCKKEY, 0, KEY_READ,
-			 &hTcpipRegKey) != ERROR_SUCCESS)
-	if (!getenv("HAVE_TCPIP") || have_tcpip)	/* Provide a workaround */
-	  return (FALSE);
-    }
+    int fd= fileno(stdf[i]);
+    if (fd >= 0)
+      (void) _setmode(fd, O_BINARY);
   }
-  RegCloseKey ( hTcpipRegKey);
-  return (TRUE);
+  _set_fmode(O_BINARY);
+  setup_codepages();
+  DBUG_VOID_RETURN;
 }
 
 
 static my_bool win32_init_tcp_ip()
 {
-  if (win32_have_tcpip())
+  WORD wVersionRequested = MAKEWORD( 2, 2 );
+  WSADATA wsaData;
+  if (WSAStartup(wVersionRequested, &wsaData))
   {
-    WORD wVersionRequested = MAKEWORD( 2, 2 );
-    WSADATA wsaData;
- 	/* Be a good citizen: maybe another lib has already initialised
- 		sockets, so don't clobber them unless necessary */
-    if (WSAStartup( wVersionRequested, &wsaData ))
-    {
-      /* Load failed, maybe because of previously loaded
-	 incompatible version; try again */
-      WSACleanup( );
-      if (!WSAStartup( wVersionRequested, &wsaData ))
-	have_tcpip=1;
-    }
-    else
-    {
-      if (wsaData.wVersion != wVersionRequested)
-      {
-	/* Version is no good, try again */
-	WSACleanup( );
-	if (!WSAStartup( wVersionRequested, &wsaData ))
-	  have_tcpip=1;
-      }
-      else
-	have_tcpip=1;
-    }
+    fprintf(stderr, "WSAStartup() failed with error: %d\n", WSAGetLastError());
+    return 1;
   }
   return(0);
 }
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 PSI_stage_info stage_waiting_for_table_level_lock=
 {0, "Waiting for table level lock", 0};
@@ -478,7 +466,7 @@ PSI_mutex_key key_LOCK_localtime_r;
 
 PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock,
-  key_LOCK_alarm, key_LOCK_timer,
+  key_LOCK_timer,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
@@ -497,7 +485,6 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_IO_CACHE_append_buffer_lock, "IO_CACHE::append_buffer_lock", 0},
   { &key_IO_CACHE_SHARE_mutex, "IO_CACHE::SHARE_mutex", 0},
   { &key_KEY_CACHE_cache_lock, "KEY_CACHE::cache_lock", 0},
-  { &key_LOCK_alarm, "LOCK_alarm", PSI_FLAG_GLOBAL},
   { &key_LOCK_timer, "LOCK_timer", PSI_FLAG_GLOBAL},
   { &key_my_thread_var_mutex, "my_thread_var::mutex", 0},
   { &key_THR_LOCK_charset, "THR_LOCK_charset", PSI_FLAG_GLOBAL},
@@ -514,13 +501,12 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_LOCK_uuid_generator, "LOCK_uuid_generator", PSI_FLAG_GLOBAL }
 };
 
-PSI_cond_key key_COND_alarm, key_COND_timer, key_IO_CACHE_SHARE_cond,
+PSI_cond_key key_COND_timer, key_IO_CACHE_SHARE_cond,
   key_IO_CACHE_SHARE_cond_writer, key_my_thread_var_suspend,
   key_THR_COND_threads, key_WT_RESOURCE_cond;
 
 static PSI_cond_info all_mysys_conds[]=
 {
-  { &key_COND_alarm, "COND_alarm", PSI_FLAG_GLOBAL},
   { &key_COND_timer, "COND_timer", PSI_FLAG_GLOBAL},
   { &key_IO_CACHE_SHARE_cond, "IO_CACHE_SHARE::cond", 0},
   { &key_IO_CACHE_SHARE_cond_writer, "IO_CACHE_SHARE::cond_writer", 0},
@@ -536,30 +522,18 @@ static PSI_rwlock_info all_mysys_rwlocks[]=
   { &key_SAFEHASH_mutex, "SAFE_HASH::mutex", 0}
 };
 
-#ifdef USE_ALARM_THREAD
-PSI_thread_key key_thread_alarm;
-#endif
 PSI_thread_key key_thread_timer;
 
 static PSI_thread_info all_mysys_threads[]=
 {
-#ifdef USE_ALARM_THREAD
-  { &key_thread_alarm, "alarm", PSI_FLAG_GLOBAL},
-#endif
   { &key_thread_timer, "statement_timer", PSI_FLAG_GLOBAL}
 };
 
 
-#ifdef HUGETLB_USE_PROC_MEMINFO
-PSI_file_key key_file_proc_meminfo;
-#endif /* HUGETLB_USE_PROC_MEMINFO */
 PSI_file_key key_file_charset, key_file_cnf;
 
 static PSI_file_info all_mysys_files[]=
 {
-#ifdef HUGETLB_USE_PROC_MEMINFO
-  { &key_file_proc_meminfo, "proc_meminfo", 0},
-#endif /* HUGETLB_USE_PROC_MEMINFO */
   { &key_file_charset, "charset", 0},
   { &key_file_cnf, "cnf", 0}
 };

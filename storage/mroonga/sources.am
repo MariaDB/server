@@ -1,4 +1,5 @@
 sources =					\
+	mrn.hpp					\
 	mrn_macro.hpp				\
 	mrn_constants.hpp			\
 	ha_mroonga.cpp				\

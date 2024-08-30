@@ -3,11 +3,11 @@ include/master-slave.inc
 connection slave;
 include/stop_slave.inc
 change master to master_host='127.0.0.1',master_user='root',
-master_password='',master_port=MASTER_PORT;
+master_password='',master_port=MASTER_PORT, master_ssl_verify_server_cert=0;
 include/start_slave.inc
 connection master;
 change master to master_host='127.0.0.1',master_user='root',
-master_password='',master_port=SLAVE_PORT;
+master_password='',master_port=SLAVE_PORT, master_ssl_verify_server_cert=0;
 include/start_slave.inc
 flush logs;
 include/stop_slave.inc

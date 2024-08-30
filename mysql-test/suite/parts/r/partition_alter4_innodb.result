@@ -74,7 +74,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -534,7 +534,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -1005,7 +1005,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -1477,7 +1477,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -1943,7 +1943,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -2415,7 +2415,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -2892,7 +2892,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -3367,7 +3367,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -3832,7 +3832,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -4292,7 +4292,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -4763,7 +4763,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -5235,7 +5235,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -5701,7 +5701,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -6173,7 +6173,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -6650,7 +6650,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -7125,7 +7125,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -7576,7 +7576,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -7590,7 +7590,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -8036,7 +8036,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8050,7 +8050,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -8507,7 +8507,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8521,7 +8521,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -8979,7 +8979,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -8993,7 +8993,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -9445,7 +9445,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9459,7 +9459,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -9917,7 +9917,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -9931,7 +9931,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -10394,7 +10394,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10408,7 +10408,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -10869,7 +10869,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -10883,7 +10883,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -11334,7 +11334,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11348,7 +11348,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -11794,7 +11794,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -11808,7 +11808,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -12265,7 +12265,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12279,7 +12279,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -12737,7 +12737,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -12751,7 +12751,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -13203,7 +13203,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13217,7 +13217,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -13675,7 +13675,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -13689,7 +13689,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -14152,7 +14152,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14166,7 +14166,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -14627,7 +14627,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 ANALYZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -14641,7 +14641,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -15106,7 +15106,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -15566,7 +15566,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -16037,7 +16037,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -16509,7 +16509,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -16975,7 +16975,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -17447,7 +17447,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -17924,7 +17924,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -18399,7 +18399,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -18867,7 +18867,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -19327,7 +19327,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -19798,7 +19798,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -20270,7 +20270,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -20736,7 +20736,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -21208,7 +21208,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -21685,7 +21685,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -22160,7 +22160,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -22625,7 +22625,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -23085,7 +23085,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -23556,7 +23556,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -24028,7 +24028,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -24494,7 +24494,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -24966,7 +24966,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -25443,7 +25443,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -25918,7 +25918,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -26369,7 +26369,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26383,7 +26383,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -26829,7 +26829,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -26843,7 +26843,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -27300,7 +27300,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27314,7 +27314,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -27772,7 +27772,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -27786,7 +27786,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -28238,7 +28238,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28252,7 +28252,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -28710,7 +28710,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -28724,7 +28724,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -29187,7 +29187,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29201,7 +29201,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -29662,7 +29662,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -29676,7 +29676,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -30127,7 +30127,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30141,7 +30141,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -30587,7 +30587,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -30601,7 +30601,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -31058,7 +31058,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31072,7 +31072,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -31530,7 +31530,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -31544,7 +31544,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -31996,7 +31996,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32010,7 +32010,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -32468,7 +32468,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32482,7 +32482,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -32945,7 +32945,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -32959,7 +32959,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -33420,7 +33420,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 CHECK PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -33434,7 +33434,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -33899,7 +33899,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -34359,7 +34359,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -34830,7 +34830,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -35302,7 +35302,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -35768,7 +35768,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -36240,7 +36240,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -36717,7 +36717,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -37192,7 +37192,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -37661,7 +37661,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -38122,7 +38122,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -38594,7 +38594,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -39067,7 +39067,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -39534,7 +39534,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -40007,7 +40007,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -40485,7 +40485,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -40961,7 +40961,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -41427,7 +41427,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -41888,7 +41888,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -42360,7 +42360,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -42833,7 +42833,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -43300,7 +43300,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -43773,7 +43773,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -44251,7 +44251,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -44727,7 +44727,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -45178,7 +45178,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45192,7 +45192,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -45638,7 +45638,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -45652,7 +45652,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -46109,7 +46109,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46123,7 +46123,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -46581,7 +46581,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -46595,7 +46595,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -47047,7 +47047,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47061,7 +47061,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -47519,7 +47519,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -47533,7 +47533,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -47996,7 +47996,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48010,7 +48010,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -48471,7 +48471,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48485,7 +48485,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -48936,7 +48936,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -48950,7 +48950,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -49396,7 +49396,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49410,7 +49410,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -49867,7 +49867,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -49881,7 +49881,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -50339,7 +50339,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50353,7 +50353,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -50805,7 +50805,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -50819,7 +50819,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -51277,7 +51277,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51291,7 +51291,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -51754,7 +51754,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -51768,7 +51768,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -52229,7 +52229,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 OPTIMIZE PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -52243,7 +52243,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -52709,7 +52709,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -53170,7 +53170,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -53642,7 +53642,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -54115,7 +54115,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -54582,7 +54582,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -55055,7 +55055,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -55533,7 +55533,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -56009,7 +56009,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -56475,7 +56475,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -56933,7 +56933,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -57402,7 +57402,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -57872,7 +57872,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -58336,7 +58336,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -58806,7 +58806,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -59281,7 +59281,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -59754,7 +59754,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -60217,7 +60217,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -60675,7 +60675,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -61144,7 +61144,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -61614,7 +61614,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -62078,7 +62078,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -62548,7 +62548,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -63023,7 +63023,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -63496,7 +63496,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -63946,7 +63946,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -63961,7 +63961,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -63984,7 +63984,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64005,7 +64005,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64024,7 +64024,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64047,7 +64047,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64070,7 +64070,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64089,7 +64089,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_2,part_5,part_6,part_10;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 #  4.4 ALTER ... REBUILD PARTITION part_1,part_1,part_1;
 DROP TABLE IF EXISTS t1;
@@ -64106,7 +64106,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64121,7 +64121,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64144,7 +64144,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64165,7 +64165,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64184,7 +64184,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64207,7 +64207,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64230,7 +64230,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 CREATE TABLE t1 (
 f_int1 INTEGER DEFAULT 0,
@@ -64249,7 +64249,7 @@ INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REBUILD PARTITION part_1,part_1,part_1;
-ERROR HY000: Error in list of partitions to REBUILD
+ERROR HY000: Wrong partition name or partition list
 DROP TABLE t1;
 #  4.5 ALTER ... REBUILD PARTITION ALL;
 DROP TABLE IF EXISTS t1;
@@ -64279,7 +64279,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -64737,7 +64737,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -65206,7 +65206,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -65676,7 +65676,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -66140,7 +66140,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -66610,7 +66610,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -67085,7 +67085,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -67558,7 +67558,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -68026,7 +68026,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -68486,7 +68486,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -68957,7 +68957,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -69429,7 +69429,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -69895,7 +69895,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -70367,7 +70367,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -70844,7 +70844,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -71319,7 +71319,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -71784,7 +71784,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -72244,7 +72244,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -72715,7 +72715,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -73187,7 +73187,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -73653,7 +73653,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -74125,7 +74125,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -74602,7 +74602,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -75077,7 +75077,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -75528,7 +75528,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -75542,7 +75542,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -75988,7 +75988,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76002,7 +76002,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -76459,7 +76459,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76473,7 +76473,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -76931,7 +76931,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -76945,7 +76945,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -77397,7 +77397,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77411,7 +77411,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -77869,7 +77869,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -77883,7 +77883,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -78346,7 +78346,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78360,7 +78360,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -78821,7 +78821,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_2,part_5,part_6,part_10;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -78835,7 +78835,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -79286,7 +79286,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79300,7 +79300,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -79746,7 +79746,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -79760,7 +79760,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -80217,7 +80217,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80231,7 +80231,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -80689,7 +80689,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -80703,7 +80703,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -81155,7 +81155,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81169,7 +81169,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -81627,7 +81627,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -81641,7 +81641,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -82104,7 +82104,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82118,7 +82118,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -82579,7 +82579,7 @@ SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN 1 AND @max_row_div2 - 1;
 ALTER TABLE t1 REPAIR PARTITION part_1,part_1,part_1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 INSERT INTO t1(f_int1,f_int2,f_char1,f_char2,f_charbig)
 SELECT f_int1,f_int2,f_char1,f_char2,f_charbig FROM t0_template
 WHERE f_int1 BETWEEN @max_row_div2 AND @max_row;
@@ -82593,7 +82593,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -83058,7 +83058,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY HASH (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB)
@@ -83518,7 +83518,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` ENGINE = InnoDB,
  PARTITION `part_2` ENGINE = InnoDB,
@@ -83989,7 +83989,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (`f_int1` MOD 4)
 (PARTITION `part_3` VALUES IN (-3) ENGINE = InnoDB,
  PARTITION `part_2` VALUES IN (-2) ENGINE = InnoDB,
@@ -84461,7 +84461,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 (PARTITION `parta` VALUES LESS THAN (0) ENGINE = InnoDB,
  PARTITION `part_1` VALUES LESS THAN (5) ENGINE = InnoDB,
@@ -84927,7 +84927,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1` DIV 2)
 SUBPARTITION BY HASH (`f_int1`)
 SUBPARTITIONS 2
@@ -85399,7 +85399,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY RANGE (`f_int1`)
 SUBPARTITION BY KEY (`f_int1`)
 (PARTITION `part_1` VALUES LESS THAN (0)
@@ -85876,7 +85876,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 3))
 SUBPARTITION BY HASH (`f_int1` + 1)
 (PARTITION `part_1` VALUES IN (0)
@@ -86351,7 +86351,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
  PARTITION BY LIST (abs(`f_int1` MOD 2))
 SUBPARTITION BY KEY (`f_int1`)
 SUBPARTITIONS 3
@@ -86817,7 +86817,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -87238,7 +87238,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -87272,7 +87272,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -87693,7 +87693,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -87735,7 +87735,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -88156,7 +88156,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -88196,7 +88196,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -88617,7 +88617,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -88655,7 +88655,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -89076,7 +89076,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -89118,7 +89118,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -89539,7 +89539,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -89581,7 +89581,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -90002,7 +90002,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	
@@ -90040,7 +90040,7 @@ t1	CREATE TABLE `t1` (
   `f_char1` char(20) DEFAULT NULL,
   `f_char2` char(20) DEFAULT NULL,
   `f_charbig` varchar(1000) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 
 # check prerequisites-1 success:    1
 # check COUNT(*) success:    1
@@ -90461,7 +90461,7 @@ test.t1	optimize	status	OK
 # check layout success:    1
 REPAIR   TABLE t1 EXTENDED;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	note	The storage engine for the table doesn't support repair
+test.t1	repair	status	OK
 # check layout success:    1
 TRUNCATE t1;
 	

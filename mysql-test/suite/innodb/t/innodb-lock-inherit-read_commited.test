@@ -6,9 +6,6 @@
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
-
 let $i=0;
 
 while ($i <=1 )
@@ -29,8 +26,8 @@ connect  purge_control,localhost,root;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
-SET @old_tx_isolation = @@tx_isolation;
-SET GLOBAL tx_isolation = 'READ-COMMITTED';
+SET @old_tx_isolation = @@transaction_isolation;
+SET GLOBAL transaction_isolation = 'READ-COMMITTED';
 
 SET @old_innodb_lock_wait_timeout = @@innodb_lock_wait_timeout;
 SET GLOBAL innodb_lock_wait_timeout = 1;
@@ -61,7 +58,7 @@ INSERT INTO t1 values (1,2) ON DUPLICATE KEY UPDATE a=2;
 
 SET debug_sync = 'now WAIT_FOR con1_locks_done';
 
-SET debug_sync = 'lock_wait_suspend_thread_enter SIGNAL con2_blocked
+SET debug_sync = 'lock_wait_start SIGNAL con2_blocked
 WAIT_FOR con2_go';
 SET debug_sync = 'ha_commit_trans_after_acquire_commit_lock
 WAIT_FOR con2_finish';
@@ -106,10 +103,8 @@ CHECK TABLE t1;
 DROP TABLE t1;
 
 SET GLOBAL innodb_stats_auto_recalc = @old_innodb_stats_auto_recalc;
-SET GLOBAL tx_isolation = @old_tx_isolation;
+SET GLOBAL transaction_isolation = @old_tx_isolation;
 SET GLOBAL innodb_lock_wait_timeout = @old_innodb_lock_wait_timeout;
 
 --inc $i
 }
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

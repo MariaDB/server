@@ -30,8 +30,7 @@ wait for work items to be available and take them off the queue for
 processing.
 ************************************************************************/
 
-#ifndef IB_WORK_QUEUE_H
-#define IB_WORK_QUEUE_H
+#pragma once
 
 #include "ut0list.h"
 #include "mem0mem.h"
@@ -42,15 +41,12 @@ struct ib_list_t;
 /** Work queue */
 struct ib_wqueue_t
 {
-	/** Mutex protecting everything */
-	ib_mutex_t	mutex;
-	/** Work item list */
-	ib_list_t*	items;
-	/** ib_list_len(*items) */
-	size_t		length;
-	/** event we use to signal additions to list;
-	os_event_set() and os_event_reset() are protected by the mutex */
-	os_event_t	event;
+  /** Mutex protecting everything */
+  mysql_mutex_t mutex;
+  /** Work item list */
+  ib_list_t *items;
+  /** ib_list_len(*items) */
+  size_t length;
 };
 
 /****************************************************************//**
@@ -81,23 +77,6 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap,
 @return whether the queue is empty */
 bool ib_wqueue_is_empty(ib_wqueue_t* wq);
 
-/****************************************************************//**
-Wait for a work item to appear in the queue.
-@return work item */
-void*
-ib_wqueue_wait(
-/*===========*/
-	ib_wqueue_t*	wq);		/*!< in: work queue */
-
-/********************************************************************
-Wait for a work item to appear in the queue for specified time. */
-void*
-ib_wqueue_timedwait(
-/*================*/
-					/* out: work item or NULL on timeout*/
-	ib_wqueue_t*	wq,		/* in: work queue */
-	ulint		wait_in_usecs); /* in: wait time in micro seconds */
-
 /********************************************************************
 Return first item on work queue or NULL if queue is empty
 @return work item or NULL */
@@ -105,5 +84,3 @@ void*
 ib_wqueue_nowait(
 /*=============*/
 	ib_wqueue_t*	wq);		/*<! in: work queue */
-
-#endif /* IB_WORK_QUEUE_H */

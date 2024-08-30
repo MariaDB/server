@@ -2,6 +2,8 @@
 --source include/innodb_encrypt_log.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
 
 SET GLOBAL innodb_monitor_reset_all=all;
 --disable_warnings
@@ -13,11 +15,7 @@ SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
 # these will be triggered by DISCARD TABLESPACE
 call mtr.add_suppression("InnoDB: Error: table 'test/t1'");
-call mtr.add_suppression("MySQL is trying to open a table handle but the .ibd file for");
-
-# DISCARD TABLESPACE needs file-per-table
-SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;
-SET GLOBAL innodb_file_per_table = on;
+call mtr.add_suppression("MariaDB is trying to open a table handle but the .ibd file for");
 
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
@@ -54,11 +52,11 @@ SET @saved_debug_dbug = @@SESSION.debug_dbug;
 SET DEBUG_DBUG = '+d,innodb_OOM_prepare_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
-SET SESSION DEBUG = @saved_debug_dbug;
-SET SESSION DEBUG = '+d,innodb_OOM_inplace_alter';
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
+SET SESSION DEBUG_DBUG = '+d,innodb_OOM_inplace_alter';
 --error ER_OUT_OF_RESOURCES
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
-SET SESSION DEBUG = @saved_debug_dbug;
+SET SESSION DEBUG_DBUG = @saved_debug_dbug;
 ALTER TABLE t1 ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 
 connection default;
@@ -105,7 +103,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 eval $innodb_metrics_select;
 
 # Insert a duplicate entry (4) for the already started UNIQUE INDEX(c1).
-BEGIN;
 INSERT INTO t1 VALUES(4,7,2);
 SET DEBUG_SYNC = 'now SIGNAL insert_done';
 
@@ -115,7 +112,7 @@ connection con1;
 # error on the (4,7,2).
 --error ER_DUP_ENTRY
 reap;
-
+DELETE FROM t1 WHERE c1=4 and c2=7;
 connection default;
 ROLLBACK;
 
@@ -199,27 +196,20 @@ ALTER TABLE t1 ROW_FORMAT=COMPACT
 PAGE_COMPRESSED = YES PAGE_COMPRESSION_LEVEL = 1, ALGORITHM = INPLACE;
 
 # Generate some log (delete-mark, delete-unmark, insert etc.)
-# while the index creation is blocked. Some of this may run
-# in parallel with the clustered index scan.
+# while the index creation is blocked.
 connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 INSERT INTO t1 SELECT  80 + c1, c2, c3 FROM t1;
 INSERT INTO t1 SELECT 160 + c1, c2, c3 FROM t1;
 UPDATE t1 SET c2 = c2 + 1;
-SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 # At this point, the clustered index scan must have completed,
 # but the modification log keeps accumulating due to the DEBUG_SYNC.
 eval $innodb_metrics_select;
-let $c= 3;
+let $c= 8;
 while ($c)
 {
-  BEGIN;
-  DELETE FROM t1;
-  ROLLBACK;
   UPDATE t1 SET c2 = c2 + 1;
-  BEGIN;
-  UPDATE t1 SET c2 = c2 + 1;
-  DELETE FROM t1;
-  ROLLBACK;
+  UPDATE t1 SET c2 = c2 + 2;
   dec $c;
 }
 # Temporary table should exist until the DDL thread notices the overflow.
@@ -266,6 +256,7 @@ SET @rowlog_decrypt_1=
 (SELECT CAST(variable_value AS INTEGER) FROM information_schema.global_status
 WHERE variable_name = 'innodb_encryption_n_rowlog_blocks_decrypted');
 
+SET GLOBAL innodb_max_purge_lag_wait=0;
 # Accumulate and apply some modification log.
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL rebuilt3 WAIT_FOR dml3_done';
 --error ER_MULTIPLE_PRI_KEY
@@ -284,11 +275,8 @@ eval $innodb_metrics_select;
 BEGIN;
 INSERT INTO t1 SELECT 320 + c1, c2, c3 FROM t1 WHERE c1 > 240;
 DELETE FROM t1 WHERE c1 > 320;
-ROLLBACK;
-BEGIN;
 UPDATE t1 SET c2 = c2 + 1;
-DELETE FROM t1;
-ROLLBACK;
+COMMIT;
 eval $innodb_metrics_select;
 # Release con1.
 SET DEBUG_SYNC = 'now SIGNAL dml3_done';
@@ -328,7 +316,7 @@ SELECT
 ALTER TABLE t1 DROP PRIMARY KEY, ADD PRIMARY KEY c3p5(c3(5));
 UPDATE t1 SET c3 = NULL WHERE c3 = '';
 SET lock_wait_timeout = 1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 ALTER TABLE t1 DROP COLUMN c22f, ADD PRIMARY KEY c3p5(c3(5));
 # NULL -> NOT NULL is only allowed INPLACE without IGNORE.
 # Adding a PRIMARY KEY will add NOT NULL implicitly!
@@ -351,16 +339,13 @@ SET DEBUG_SYNC = 'now WAIT_FOR c3p5_created0';
 BEGIN;
 INSERT INTO t1 VALUES(347,33101,'Pikku kakkosen posti','YLETV2');
 INSERT INTO t1 VALUES(33101,347,NULL,'');
+COMMIT;
 SET DEBUG_SYNC = 'now SIGNAL ins_done0';
 
 connection con1;
---error WARN_DATA_TRUNCATED
+--error ER_INVALID_USE_OF_NULL
 reap;
-
-connection default;
-ROLLBACK;
-
-connection con1;
+DELETE FROM t1 WHERE c1= 347 and c22f = 33101;
 ALTER TABLE t1 MODIFY c3 CHAR(255) NOT NULL;
 
 SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL c3p5_created WAIT_FOR ins_done';
@@ -395,9 +380,30 @@ ALTER TABLE t1 DISCARD TABLESPACE;
 
 connection default;
 SHOW CREATE TABLE t1;
-SET DEBUG_SYNC = 'RESET';
 SET GLOBAL innodb_monitor_disable = module_ddl;
 DROP TABLE t1;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b blob) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(0,NULL);
+
+connection con1;
+SET DEBUG_SYNC = 'row_log_table_apply1_before SIGNAL created WAIT_FOR ins';
+send ALTER TABLE t1 FORCE;
+
+connection default;
+SET DEBUG_SYNC = 'now WAIT_FOR created';
+BEGIN;
+INSERT INTO t1 VALUES(1, repeat('a', 10000));
+ROLLBACK;
+SET DEBUG_SYNC = 'now SIGNAL ins';
+
+connection con1;
+reap;
+
+connection default;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET DEBUG_SYNC = 'RESET';
 
 --echo #
 --echo # MDEV-29600 Memory leak in row_log_table_apply_update()
@@ -437,6 +443,32 @@ connection con1;
 reap;
 DROP TABLE t1;
 connection default;
+
+--echo #
+--echo #  MDEV-28122 Optimize table crash while applying online log
+--echo #
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 CHAR(200), f4 CHAR(200),
+                f5 VARCHAR(87), PRIMARY KEY(f1))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(6000, 6000, "InnoDB",
+                      "MariaDB", repeat('a', 87));
+
+SET DEBUG_SYNC="inplace_after_index_build SIGNAL dml_start WAIT_FOR dml_commit";
+SEND ALTER TABLE t1 FORCE;
+
+connection con1;
+SET DEBUG_SYNC="now WAIT_FOR dml_start";
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, "IDB", "MDB", repeat('a', 87) FROM seq_1_to_127;
+INSERT INTO t1 VALUES(128, 128, "IDB", "MDB", repeat('a', 86));
+INSERT INTO t1 VALUES(129, 129, "idb", "mdb", repeat('a', 2));
+COMMIT;
+SET DEBUG_SYNC="now SIGNAL dml_commit";
+
+connection default;
+reap;
+CHECK TABLE t1;
+DROP TABLE t1;
 SET DEBUG_SYNC=RESET;
 disconnect con1;
 
@@ -444,8 +476,9 @@ disconnect con1;
 # gone so execution of other tests won't be affected by their presence.
 --source include/wait_until_count_sessions.inc
 
-SET GLOBAL innodb_file_per_table = @global_innodb_file_per_table_orig;
 --disable_warnings
 SET GLOBAL innodb_monitor_enable  = default;
 SET GLOBAL innodb_monitor_disable = default;
 --enable_warnings
+
+--source include/test_db_charset_restore.inc

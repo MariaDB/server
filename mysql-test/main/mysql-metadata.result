@@ -1,0 +1,92 @@
+#
+# MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
+#
+SET NAMES utf8;
+CREATE TABLE t1 (
+js0 JSON,
+js1 TEXT CHECK (JSON_VALID(js1)),
+js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
+js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
+) CHARACTER SET utf8;
+--------------
+SELECT * FROM t1
+--------------
+
+Field   1:  `js0`
+Org_field:  `js0`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       BLOB (format=json)
+Collation:  latin1_swedish_ci (8)
+Length:     4294967295
+Max_length: 0
+Decimals:   0
+Flags:      BLOB BINARY 
+
+Field   2:  `js1`
+Org_field:  `js1`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       BLOB (format=json)
+Collation:  latin1_swedish_ci (8)
+Length:     65535
+Max_length: 0
+Decimals:   0
+Flags:      BLOB 
+
+Field   3:  `js2`
+Org_field:  `js2`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       BLOB (format=json)
+Collation:  latin1_swedish_ci (8)
+Length:     65535
+Max_length: 0
+Decimals:   0
+Flags:      BLOB 
+
+Field   4:  `js3`
+Org_field:  `js3`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       BLOB
+Collation:  latin1_swedish_ci (8)
+Length:     65535
+Max_length: 0
+Decimals:   0
+Flags:      BLOB 
+
+
+0 rows in set (TIME)
+
+Bye
+--------------
+SELECT JSON_COMPACT(js0) FROM t1
+--------------
+
+Field   1:  `JSON_COMPACT(js0)`
+Org_field:  ``
+Catalog:    `def`
+Database:   ``
+Table:      ``
+Org_table:  ``
+Type:       LONG_BLOB (format=json)
+Collation:  latin1_swedish_ci (8)
+Length:     4294967295
+Max_length: 0
+Decimals:   0
+Flags:      BINARY 
+
+
+0 rows in set (TIME)
+
+Bye
+DROP TABLE t1;

@@ -2,8 +2,8 @@ connect  slave1,127.0.0.1,root,,,$SERVER_MYPORT_3;
 connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
 connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
 connection slave1;
-CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
-CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+CHANGE MASTER 'slave1' TO master_port=MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
+CHANGE MASTER 'slave2' TO master_port=MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'slave1';
 START SLAVE;
 include/wait_for_slave_to_start.inc

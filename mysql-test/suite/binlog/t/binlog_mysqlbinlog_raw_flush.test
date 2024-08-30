@@ -23,6 +23,8 @@
 # Test needs to reset the binlog as it is checking specific GTID.
 RESET MASTER;
 
+RESET MASTER;
+
 --echo #
 --echo # MDEV-30698 Cover missing test cases for mariadb-binlog options
 --echo #            --raw [and] --flashback

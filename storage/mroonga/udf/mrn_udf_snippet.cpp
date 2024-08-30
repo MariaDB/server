@@ -19,6 +19,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_mysql_compat.h>
 #include <mrn_err.h>
@@ -59,13 +60,15 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
   grn_snip_mapping *mapping = NULL;
   grn_rc rc;
   String *result_str = &snip_info->result_str;
+  myf utf8_flag= current_thd->get_utf8_flag();
 
   *snippet = NULL;
   snip_max_len = *((long long *) args->args[1]);
   snip_max_num = *((long long *) args->args[2]);
 
   if (args->arg_type[3] == STRING_RESULT) {
-    if (!(cs = get_charset_by_name(args->args[3], MYF(0)))) {
+    if (!(cs = get_charset_by_name(args->args[3],
+                                   MYF(utf8_flag)))) {
       snprintf(message, MYSQL_ERRMSG_SIZE,
                "Unknown charset: <%s>", args->args[3]);
       goto error;
@@ -80,7 +83,7 @@ static my_bool mrn_snippet_prepare(st_mrn_snip_info *snip_info, UDF_ARGS *args,
   }
   if (!mrn::encoding::set_raw(ctx, cs)) {
     snprintf(message, MYSQL_ERRMSG_SIZE,
-             "Unsupported charset: <%s>", cs->name);
+             "Unsupported charset: <%s>", cs->coll_name.str);
     goto error;
   }
 
@@ -135,6 +138,13 @@ MRN_API my_bool mroonga_snippet_init(UDF_INIT *init, UDF_ARGS *args, char *messa
   st_mrn_snip_info *snip_info = NULL;
   bool can_open_snippet = TRUE;
   init->ptr = NULL;
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "mroonga_snippet(): Mroonga isn't initialized");
+    goto error;
+  }
   if (args->arg_count < 11 || (args->arg_count - 11) % 3)
   {
     sprintf(message, "Incorrect number of arguments for mroonga_snippet(): %u",

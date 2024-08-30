@@ -1,0 +1,1 @@
+--max-allowed-packet=1024 --net-buffer-length=1024

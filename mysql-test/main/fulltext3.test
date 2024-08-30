@@ -7,6 +7,8 @@
 DROP TABLE IF EXISTS t1;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 
 #
 # BUG#29299 - repeatable myisam fulltext index corruption
@@ -47,3 +49,5 @@ create table t1 (
 select * from t1 where match (business_name, street_address) against ('some business name and address here');
 select * from t1 where match (business_name, street_address) against ('some business name and address here' in boolean mode);
 drop table t1;
+
+--source include/test_db_charset_restore.inc

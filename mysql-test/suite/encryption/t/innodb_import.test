@@ -21,3 +21,22 @@ ALTER TABLE t2 DROP KEY idx;
 ALTER TABLE t2 IMPORT TABLESPACE;
 SELECT * FROM t2;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-26137 ALTER TABLE IMPORT enhancement
+--echo #
+
+--echo # with encryption and page_compressed
+CREATE TABLE t1 (a int, b varchar(50)) ENGINE=InnoDB ENCRYPTED=YES ENCRYPTION_KEY_ID=6 PAGE_COMPRESSED=1;
+INSERT INTO t1 VALUES(42, "hello");
+FLUSH TABLES t1 FOR EXPORT;
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--copy_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/t2.frm
+--copy_file $MYSQLD_DATADIR/test/t1.ibd $MYSQLD_DATADIR/test/t2.ibd
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+# Embedded server uses absolute path, causing result mismatch in warning messages when .cfg is not copied over. Given we have tested importing without copying cfg in other tests, we don't do it here.

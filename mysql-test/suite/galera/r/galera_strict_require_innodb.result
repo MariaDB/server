@@ -1,0 +1,120 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine .*");
+CREATE TABLE t1(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=INNODB;
+CREATE TABLE t2(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MYISAM;
+CREATE TABLE t3(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=ARIA;
+CREATE TABLE t4(a int NOT NULL PRIMARY KEY, b varchar(50)) ENGINE=MEMORY;
+SET GLOBAL log_warnings=2;
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_MYISAM,REPLICATE_ARIA";
+INSERT INTO t1 values (1,'innodb1');
+INSERT INTO t2 values (1,'myisam1');
+INSERT INTO t3 values (1,'aria1');
+INSERT INTO t4 values (1,'memory1');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_ARIA";
+INSERT INTO t2 values (2,'myisam2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MyISAM for table 'test'.'t2' is not supported in Galera
+SET GLOBAL wsrep_mode = "STRICT_REPLICATION,REPLICATE_MYISAM";
+INSERT INTO t3 values (2,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+SET GLOBAL log_warnings=1;
+INSERT INTO t1 values (3,'innodb3');
+INSERT INTO t2 values (3,'myisam3');
+INSERT INTO t3 values (3,'aria3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (3,'memory3');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+include/assert_grep.inc [WSREP: wsrep_mode = STRICT_REPLICATION enabled.]
+SET GLOBAL log_warnings=2;
+INSERT INTO t2 values (4,'myisam3');
+INSERT INTO t3 values (4,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (4,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (5,'myisam3');
+INSERT INTO t3 values (5,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (5,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (6,'myisam3');
+INSERT INTO t3 values (6,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (6,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (7,'myisam3');
+INSERT INTO t3 values (7,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (7,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (8,'myisam3');
+INSERT INTO t3 values (8,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (8,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (9,'myisam3');
+INSERT INTO t3 values (9,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (9,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (10,'myisam3');
+INSERT INTO t3 values (10,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (10,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+INSERT INTO t2 values (11,'myisam3');
+INSERT INTO t3 values (11,'aria2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine Aria for table 'test'.'t3' is not supported in Galera
+INSERT INTO t4 values (11,'memory2');
+Warnings:
+Warning	1290	WSREP: wsrep_mode = STRICT_REPLICATION enabled. Storage engine MEMORY for table 'test'.'t4' is not supported in Galera
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_10 FROM t2;
+EXPECT_10
+11
+SELECT COUNT(*) AS EXPECT_10 FROM t3;
+EXPECT_10
+11
+SELECT COUNT(*) AS EXPECT_10 FROM t4;
+EXPECT_10
+10
+connection node_2;
+SELECT COUNT(*) AS EXPECT_2 FROM t1;
+EXPECT_2
+2
+SELECT COUNT(*) AS EXPECT_10 FROM t2;
+EXPECT_10
+10
+SELECT COUNT(*) AS EXPECT_1 FROM t3;
+EXPECT_1
+1
+SELECT COUNT(*) AS EXPECT_0 FROM t4;
+EXPECT_0
+0
+connection node_1;
+SET GLOBAL wsrep_mode= DEFAULT;
+DROP TABLE t1,t2,t3,t4;
+include/assert_grep.inc [WSREP: wsrep_mode = STRICT_REPLICATION enabled.]
+include/assert_grep.inc [WSREP: Suppressing warnings of type 'WSREP_REQUIRE_INNODB' for up to 300 seconds because of flooding]

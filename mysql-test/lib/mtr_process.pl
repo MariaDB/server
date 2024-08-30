@@ -108,10 +108,11 @@ sub sleep_until_file_created ($$$$$) {
   my $timeout= shift;
   my $proc=     shift;
   my $warn_seconds = shift;
-  my $sleeptime= 100; # Milliseconds
+  my $sleeptime= 10; # Milliseconds
   my $loops= ($timeout * 1000) / $sleeptime;
+  my $message_time= 60;
 
-  for ( my $loop= 1; $loop <= $loops; $loop++ )
+  for ( my $loop= 0; $loop <= $loops; $loop++ )
   {
     if ( -r $pidfile )
     {
@@ -132,9 +133,10 @@ sub sleep_until_file_created ($$$$$) {
     mtr_debug("Sleep $sleeptime milliseconds waiting for $pidfile");
 
     # Print extra message every $warn_seconds seconds
-    if ( $seconds > 1 && ($seconds*10) % ($warn_seconds*10) == 0 && $seconds < $timeout )
+    if ( $seconds >= $message_time)
     {
-      my $left= $timeout - $seconds;
+      $message_time= $message_time+60;
+      my $left= $timeout - int($seconds);
       mtr_warning("Waited $seconds seconds for $pidfile to be created, " .
                   "still waiting for $left seconds...");
     }

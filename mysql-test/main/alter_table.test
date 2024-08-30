@@ -3,10 +3,6 @@
 #
 # Test of alter table
 #
---disable_warnings
-drop table if exists t1,t2;
-drop database if exists mysqltest;
---enable_warnings
 set @save_max_allowed_packet=@@global.max_allowed_packet;
 
 create table t1 (
@@ -247,20 +243,6 @@ alter table t1 rename to ``;
 --error ER_WRONG_TABLE_NAME
 rename table t1 to ``;
 drop table t1;
-
-#
-# BUG#6236 - ALTER TABLE MODIFY should set implicit NOT NULL on PK columns
-#
-drop table if exists t1, t2;
-create table t1 ( a varchar(10) not null primary key ) engine=myisam;
-create table t2 ( a varchar(10) not null primary key ) engine=merge union=(t1);
-flush tables;
-alter table t1 modify a varchar(10);
-show create table t2;
-flush tables;
-alter table t1 modify a varchar(10) not null;
-show create table t2;
-drop table if exists t1, t2;
 
 # The following is also part of bug #6236 (CREATE TABLE didn't properly count
 # not null columns for primary keys)
@@ -652,11 +634,11 @@ set sql_mode="no_zero_date";
 create table t1(f1 int);
 alter table t1 add column f2 datetime not null, add column f21 date not null;
 insert into t1 values(1,'2000-01-01','2000-01-01');
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 datetime not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f3 date not null;
---error 1292
+--error ER_TRUNCATED_WRONG_VALUE
 alter table t1 add column f4 datetime not null default '2002-02-02',
   add column f41 date not null;
 alter table t1 add column f4 datetime not null default '2002-02-02',
@@ -1480,16 +1462,14 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE;
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 
 --echo #
---echo # 2: Test ALGORITHM + old_alter_table
+--echo # 2: Test ALGORITHM keywords
 --echo #
 
 --enable_info
-SET SESSION old_alter_table= 1;
 ALTER TABLE t1 ADD INDEX i1(b);
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= DEFAULT;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= COPY;
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= INPLACE;
-SET SESSION old_alter_table= 0;
 --disable_info
 
 ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
@@ -1535,8 +1515,13 @@ ALTER TABLE t1 DROP INDEX i1, DROP INDEX i2, DROP INDEX i3, DROP INDEX i4;
 ALTER TABLE t1 ADD INDEX i1(b), ALGORITHM= INPLACE, LOCK= NONE;
 ALTER TABLE t1 ADD INDEX i2(b), ALGORITHM= INPLACE, LOCK= SHARED;
 ALTER TABLE t1 ADD INDEX i3(b), ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--disable_info
+--disable_warnings
+--error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+# COPY/NONE works now, but still an error in embedded
 ALTER TABLE t1 ADD INDEX i4(b), ALGORITHM= COPY, LOCK= NONE;
+--enable_warnings
+--enable_info
 ALTER TABLE t1 ADD INDEX i5(b), ALGORITHM= COPY, LOCK= SHARED;
 ALTER TABLE t1 ADD INDEX i6(b), ALGORITHM= COPY, LOCK= EXCLUSIVE;
 
@@ -1545,10 +1530,11 @@ ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= NONE;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= SHARED;
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= INPLACE, LOCK= EXCLUSIVE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+--disable_info
+--error 0,ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
+# COPY/NONE works now, but still an error in embedded
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= NONE;
---error ER_ALTER_OPERATION_NOT_SUPPORTED
-ALTER ONLINE TABLE m1 ADD COLUMN c int;
+--enable_info
 # This works because the lock will be SNW for the copy phase.
 # It will still require exclusive lock for actually enabling keys.
 ALTER TABLE m1 ENABLE KEYS, ALGORITHM= COPY, LOCK= SHARED;
@@ -1973,7 +1959,7 @@ show create table t1;
 drop table t1;
 
 create table t1 (a int, b int, c int, unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column a;
 alter table t1 drop column a, drop index a;
 show create table t1;
@@ -2104,47 +2090,6 @@ drop table t1;
 drop view v1;
 
 --echo #
---echo # MDEV-25803 Inplace ALTER breaks MyISAM/Aria tables when order of keys is changed
---echo #
-set @save_default_engine= @@default_storage_engine;
---disable_query_log
-if ($MTR_COMBINATION_INNODB)
-{
-  set default_storage_engine= innodb;
-}
-if ($MTR_COMBINATION_ARIA)
-{
-  set default_storage_engine= aria;
-}
---enable_query_log
-
-if (!$MTR_COMBINATION_INNODB)
-{
-  --disable_query_log
-  --disable_result_log
-  # There is no inplace ADD INDEX for MyISAM/Aria:
-  create or replace table t1 (x int);
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED
-  alter table t1 add unique (x), algorithm=inplace;
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED
-  alter table t1 add primary key(x), algorithm=inplace;
-  --error ER_ALTER_OPERATION_NOT_SUPPORTED
-  alter table t1 add index(x), algorithm=inplace;
-  --enable_query_log
-  --enable_result_log
-}
-
-create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x)) engine myisam;
-alter table t1 change x xx int, algorithm=inplace;
-check table t1;
-create or replace table t1 (x int, y int, unique (y), unique (x), primary key(x));
-alter table t1 change x xx int, algorithm=inplace;
-check table t1;
-# cleanup
-drop table t1;
-set @@default_storage_engine= @save_default_engine;
-
---echo #
 --echo # End of 10.3 tests
 --echo #
 
@@ -2191,3 +2136,306 @@ insert into t1 (id,name,enabled,domain_id) values (1,"Monty",1,"domain_id");
 insert into t1 (id,name,enabled,domain_id) values (2,"Monty2",1,"domain_id2");
 ALTER TABLE t1 ADD CONSTRAINT ixu_user2_name_domain_id UNIQUE (domain_id, name);
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-7318 RENAME INDEX
+--echo #
+
+--echo #
+--echo # 1) Tests for syntax and semantics of ALTER TABLE RENAME
+--echo #    KEY/INDEX result.
+--echo #
+--echo # 1.a) Both RENAME KEY and RENAME INDEX variants should be
+--echo #      allowed and produce expected results.
+create table t1 (pk int primary key, i int, j int, key a(i));
+alter table t1 rename key a to b;
+show create table t1;
+alter table t1 rename index b to c;
+show create table t1;
+
+--echo # 1.b) It should be impossible to rename index that doesn't
+--echo #      exists, dropped or added within the same ALTER TABLE.
+--error ER_KEY_DOES_NOT_EXISTS
+alter table t1 rename key d to e;
+alter table t1 rename key if exists d to e;
+show create table t1;
+--error ER_KEY_DOES_NOT_EXISTS
+alter table t1 drop key c, rename key c to d;
+show create table t1;
+--error ER_KEY_DOES_NOT_EXISTS
+alter table t1 add key d(j), rename key d to e;
+show create table t1;
+
+--echo # 1.c) It should be impossible to rename index to a name
+--echo #      which is already used by another index, or is used
+--echo #      by index which is added within the same ALTER TABLE.
+alter table t1 add key d(j);
+--error ER_DUP_KEYNAME
+alter table t1 rename key c to d;
+show create table t1;
+alter table t1 drop key d;
+--error ER_DUP_KEYNAME
+alter table t1 add key d(j), rename key c to d;
+show create table t1;
+
+--echo # 1.d) It should be possible to rename index to a name
+--echo #      which belongs to index which is dropped within the
+--echo #      same ALTER TABLE.
+alter table t1 add key d(j);
+alter table t1 drop key c, rename key d to c;
+show create table t1;
+
+--echo # 1.e) We disallow renaming from/to PRIMARY as it might
+--echo #      lead to some other key becoming "primary" internally,
+--echo #      which will be interpreted as dropping/addition of
+--echo #      primary key.
+--error ER_PARSE_ERROR
+alter table t1 rename key primary to d;
+show create table t1;
+--echo # Even using 'funny' syntax.
+--error ER_WRONG_NAME_FOR_INDEX
+alter table t1 rename key `primary` to d;
+show create table t1;
+--error ER_PARSE_ERROR
+alter table t1 rename key c to primary;
+show create table t1;
+--error ER_WRONG_NAME_FOR_INDEX
+alter table t1 rename key c to `primary`;
+show create table t1;
+drop table t1;
+
+
+--echo #
+--echo # 2) More complex tests for semantics of ALTER TABLE.
+--echo #
+--echo # 2.a) Check that standalone RENAME KEY works as expected
+--echo #      for unique and non-unique indexes.
+create table t1 (a int, unique u(a), b int, key k(b));
+alter table t1 rename key u to uu;
+show create table t1;
+alter table t1 rename key k to kk;
+show create table t1;
+
+--echo # 2.b) Check how that this clause can be mixed with other
+--echo #      clauses which don't affect key or its columns.
+alter table t1 rename key kk to kkk, add column c int;
+show create table t1;
+alter table t1 rename key uu to uuu, add key c(c);
+show create table t1;
+alter table t1 rename key kkk to k, drop key uuu;
+show create table t1;
+alter table t1 rename key k to kk, rename to t2;
+show create table t2;
+drop table t2;
+
+
+--echo #
+--echo # 3) Test coverage for handling of RENAME INDEX clause in
+--echo #    various storage engines and using different ALTER
+--echo #    algorithm.
+--echo #
+--echo # 3.a) Test coverage for simple storage engines (MyISAM/Heap).
+create table t1 (i int, key k(i)) engine=myisam;
+insert into t1 values (1);
+create table t2 (i int, key k(i)) engine=memory;
+insert into t2 values (1);
+--echo # MyISAM and Heap should be able to handle key renaming in-place.
+alter table t1 algorithm=inplace, rename key k to kk;
+alter table t2 algorithm=inplace, rename key k to kk;
+show create table t1;
+show create table t2;
+--echo # So by default in-place algorithm should be chosen.
+--echo # (ALTER TABLE should report 0 rows affected).
+--enable_info
+alter table t1 rename key kk to kkk;
+alter table t2 rename key kk to kkk;
+--disable_info
+show create table t1;
+show create table t2;
+--echo # Copy algorithm should work as well.
+alter table t1 algorithm=copy, rename key kkk to kkkk;
+alter table t2 algorithm=copy, rename key kkk to kkkk;
+show create table t1;
+show create table t2;
+--echo # When renaming is combined with other in-place operation
+--echo # it still works as expected (i.e. works in-place).
+alter table t1 algorithm=inplace, rename key kkkk to k, alter column i set default 100;
+alter table t2 algorithm=inplace, rename key kkkk to k, alter column i set default 100;
+show create table t1;
+show create table t2;
+--echo # Combining with non-inplace operation results in the whole ALTER
+--echo # becoming non-inplace.
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 algorithm=inplace, rename key k to kk, add column j int;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t2 algorithm=inplace, rename key k to kk, add column j int;
+drop table t1, t2;
+
+--echo # 3.b) Basic tests for InnoDB. More tests can be found in
+--echo #      innodb.innodb_rename_index*
+create table t1 (i int, key k(i)) engine=innodb;
+insert into t1 values (1);
+--echo # Basic rename, inplace algorithm should be chosen
+--enable_info
+alter table t1 algorithm=inplace, rename key k to kk;
+--disable_info
+show create table t1;
+--echo # copy algorithm should work as well.
+--enable_info
+alter table t1 algorithm=copy, rename key kk to kkk;
+--disable_info
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # 4) Additional coverage for complex cases in which code
+--echo #    in ALTER TABLE comparing old and new table version
+--echo #    got confused.
+--echo #
+--echo # Once InnoDB starts to support in-place index renaming the result
+--echo # of below statements should stay the same. Information about
+--echo # indexes returned by SHOW CREATE TABLE (from .FRM) and by
+--echo # InnoDB (from InnoDB data-dictionary) should be consistent.
+--echo #
+create table t1 ( a int, b int, c int, d int,
+                  primary key (a), index i1 (b), index i2 (c) ) engine=innodb;
+alter table t1 add index i1 (d), rename index i1 to x;
+show create table t1;
+select i.name as k, f.name as c from information_schema.innodb_sys_tables as t,
+                                     information_schema.innodb_sys_indexes as i,
+                                     information_schema.innodb_sys_fields as f
+where t.name='test/t1' and t.table_id = i.table_id and i.index_id = f.index_id
+order by k, c;
+drop table t1;
+create table t1 (a int, b int, c int, d int,
+                 primary key (a), index i1 (b), index i2 (c)) engine=innodb;
+alter table t1 add index i1 (d), rename index i1 to i2, drop index i2;
+show create table t1;
+select i.name as k, f.name as c from information_schema.innodb_sys_tables as t,
+                                     information_schema.innodb_sys_indexes as i,
+                                     information_schema.innodb_sys_fields as f
+where t.name='test/t1' and t.table_id = i.table_id and i.index_id = f.index_id
+order by k, c;
+drop table t1;
+
+--echo #
+--echo # ALTER TABLE IF EXISTS
+--echo #
+
+create table t1 (a int);
+alter table if exists t1 add column b int;
+alter table if exists t2 add column c int;
+alter table if exists t9 rename t1;
+alter table if exists t1 rename t2;
+show create table t2;
+drop table t2;
+
+--echo #
+--echo # MDEV-22881 Unexpected errors, corrupt output, Valgrind / ASAN errors in Item_ident::print or append_identifier
+--echo #
+create table t1 (a int check (a >= 0));
+lock tables t1 write;
+alter table t1 rename column a to a;
+alter table t1 rename key if exists x to xx;
+
+# cleanup
+unlock tables;
+drop table t1;
+
+--echo #
+--echo # MDEV-23852 alter table rename column to uppercase doesn't work
+--echo #
+create table t1 (abc int);
+alter table t1 rename column abc to Abc, algorithm=copy;
+show create table t1;
+alter table t1 rename column abc to ABc, algorithm=inplace;
+show create table t1;
+alter table t1 rename column abc to ABC;
+show create table t1;
+drop table t1;
+
+--echo #
+--echo # MDEV-25555 Server crashes in tree_record_pos after INPLACE-recreating index on HEAP table
+--echo #
+create table t1 (a int, key idx1(a), key idx2 using btree(a)) engine=memory;
+alter table t1 rename index idx1 to idx3, algorithm=inplace;
+delete from t1 where a = 10;
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter table t1 drop key idx3, add key idx1(a), algorithm=inplace;
+delete from t1 where a = 11;
+# cleanup
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-32449 Server crashes in Alter_info::add_stat_drop_index upon CREATE TABLE
+--echo #
+
+CREATE TABLE t1 (
+  `altcol1` blob DEFAULT '',
+  KEY `altcol1` (`altcol1`(2300))
+) ROW_FORMAT=PAGE, ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY h (`altcol1`) REFERENCES t1 (`altcol1`) ON UPDATE SET DEFAULT, ALGORITHM=COPY;
+create or replace table t2 like t1;
+show create table t1;
+show create table t2;
+drop table t1,t2;
+
+--echo # Another test for MDEV-32449
+
+CREATE TABLE t1 (a POINT, b POINT, KEY(a)) ENGINE=Aria;
+ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t (b);
+CREATE TEMPORARY TABLE t2 LIKE t1;
+DROP TEMPORARY TABLE t2;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-33313 Incorrect error message for "ALTER TABLE ... DROP CONSTRAINT ..., DROP col, DROP col"
+--echo #
+create table t2(id int primary key) engine=innodb;
+create table t1(id int primary key, t2_id int, constraint t1_fk_t2_id foreign key(t2_id) references t2(id)) engine=innodb;
+--error ER_CANT_DROP_FIELD_OR_KEY
+alter table t1 drop constraint t1_fk_t2_id, drop t2_id, drop t2_id;
+drop table t1, t2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-26767 Server crashes when rename table and alter storage engine
+--echo #
+--error ER_NO_SUCH_TABLE
+alter table txxx engine=innodb, rename to tyyy;
+
+--echo #
+--echo # MDEV-27048 UBSAN: runtime error: shift exponent 32 is too large for 32-bit type 'unsigned int'
+--echo #
+CREATE TABLE t (a INT,b INT,c INT,x TEXT,y TEXT,z TEXT,id INT UNSIGNED AUTO_INCREMENT,i INT,KEY(id),UNIQUE KEY a (a,b,c));
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+ALTER TABLE t ADD CONSTRAINT test UNIQUE (id) USING HASH;
+DROP TABLE t;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-33655 Remove alter_algorithm
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (a INT) ENGINE=MERGE, UNION(t1);
+ALTER TABLE t2 COMMENT 'x', LOCK=SHARED;
+DROP TABLE t2,t1;
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

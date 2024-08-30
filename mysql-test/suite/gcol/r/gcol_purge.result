@@ -1,0 +1,24 @@
+SET @save_dbug=@@GLOBAL.debug_dbug;
+CREATE TABLE t1(f1 INT NOT NULL, f2 int not null,
+f3 int generated always as (f2 * 2) VIRTUAL,
+primary key(f1), INDEX (f3))ENGINE=InnoDB STATS_PERSISTENT=0;
+connect con1,localhost,root,,,;
+InnoDB		0 transactions not purged
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+INSERT INTO t1(f1, f2) VALUES(1,2);
+DELETE from t1 where f1 = 1;
+connect con2,localhost,root,,,;
+begin;
+INSERT INTO t1 (f1, f2) VALUES(1,2);
+set global debug_dbug="+d,ib_purge_virtual_index_callback";
+connection con1;
+COMMIT;
+SET GLOBAL innodb_max_purge_lag_wait=1;
+connection con2;
+commit;
+disconnect con1;
+disconnect con2;
+connection default;
+SET GLOBAL debug_dbug=@save_dbug;
+DROP TABLE t1;

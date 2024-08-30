@@ -9,6 +9,6 @@ SELECT COUNT(*) = 20000 FROM t1;
 COUNT(*) = 20000
 1
 wsrep_last_committed_diff
-1
+0
 connection node_1;
 DROP TABLE t1;

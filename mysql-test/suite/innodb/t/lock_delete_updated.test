@@ -10,7 +10,7 @@ BEGIN;
 UPDATE t SET a = 2;
 
 connect con1,localhost,root;
-SET DEBUG_SYNC="lock_wait_suspend_thread_enter SIGNAL del_locked";
+SET DEBUG_SYNC="lock_wait_start SIGNAL del_locked";
 send DELETE FROM t;
 
 connection default;

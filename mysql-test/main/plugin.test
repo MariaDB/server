@@ -4,6 +4,10 @@
 --error ER_UNKNOWN_STORAGE_ENGINE
 CREATE TABLE t1(a int) ENGINE=EXAMPLE;
 
+--replace_regex /\.dll/.so/
+--error ER_CANT_FIND_DL_ENTRY
+INSTALL PLUGIN non_exist SONAME 'ha_example';
+
 INSTALL PLUGIN example SONAME 'ha_example';
 --replace_regex /\.dll/.so/
 --error ER_PLUGIN_INSTALLED

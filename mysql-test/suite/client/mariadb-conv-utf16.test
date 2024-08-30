@@ -1,0 +1,21 @@
+-- source include/have_utf16.inc
+-- source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-17088 Provide tools to encode/decode mysql-encoded file system names
+--echo #
+
+--character_set utf8
+SET NAMES utf8;
+
+--echo # Bad delimiter
+--error 1
+--exec $MARIADB_CONV -f utf16 -t utf8 --delimiter="\r\n" $MYSQL_TEST_DIR/std_data/mariadb-conv/file01.utf16.txt 2>&1
+
+--echo # Bad delimiter
+--error 1
+--exec $MARIADB_CONV -f utf8 -t utf16 --delimiter="\r\n" $MYSQL_TEST_DIR/std_data/mariadb-conv/file01.utf8.txt 2>&1
+
+--echo # Start of file01.utf16.txt
+--exec $MARIADB_CONV -f utf16 -t utf8 $MYSQL_TEST_DIR/std_data/mariadb-conv/file01.utf16.txt 2>&1
+--echo # End of file01.utf16.txt

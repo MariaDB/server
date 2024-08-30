@@ -8,6 +8,7 @@ SET sql_mode='ORACLE';
 CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY) engine=innodb;
 INSERT INTO t1 VALUES (1);
 START TRANSACTION;
+--enable_prepare_warnings
 SELECT a AS a_con1 FROM t1 INTO @a FOR UPDATE;
 
 --connect(con2,localhost,root,,)
@@ -23,6 +24,8 @@ COMMIT;
 --reap
 SELECT a AS con2 FROM t1;
 COMMIT;
+
+--disable_prepare_warnings
 
 --connection default
 DROP TABLE t1;

@@ -1,0 +1,3 @@
+--source include/import_begin.inc
+--copy_file $MYSQLD_DATADIR/test/t1.cfg $MYSQLD_DATADIR/test/t2.cfg
+--source include/import_end.inc

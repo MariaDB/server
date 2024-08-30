@@ -1,13 +1,13 @@
 set system_versioning_alter_history=keep;
 create or replace table t (a int);
 alter table t add system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try LOCK=SHARED
+alter table t drop system versioning;
 alter table t add system versioning, algorithm=inplace;
 ERROR 0A000: ALGORITHM=INPLACE is not supported. Reason: Not implemented for system-versioned timestamp tables. Try ALGORITHM=COPY
 alter table t add system versioning, lock=shared;
 alter table t add column b int, change column a a int without system versioning, lock=none;
 alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: DROP SYSTEM VERSIONING. Try LOCK=SHARED
 alter table t drop system versioning, algorithm=inplace;
 create or replace table t (
 a int, b int,
@@ -107,7 +107,7 @@ t	CREATE TABLE `t` (
   `row_start` SYS_DATATYPE GENERATED ALWAYS AS ROW START INVISIBLE,
   `row_end` SYS_DATATYPE GENERATED ALWAYS AS ROW END INVISIBLE,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 select count(*) from t for system_time all;
 count(*)
 1
@@ -127,7 +127,7 @@ alter table t drop column b, algorithm=instant;
 alter table t add index idx(a), lock=none;
 alter table t drop column s, drop column e;
 alter table t drop system versioning, lock=none;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Not implemented for system-versioned operations. Try LOCK=SHARED
+ERROR 0A000: LOCK=NONE is not supported. Reason: DROP SYSTEM VERSIONING. Try LOCK=SHARED
 #
 # MDEV-17697 Broken versioning info after instant drop column
 #

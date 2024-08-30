@@ -67,6 +67,8 @@ delimiter $$;
 --echo # Schema integrity enforcement
 --echo #
 
+--enable_prepare_warnings
+
 create procedure check_pk_person(in person_type char, in id integer)
 begin
   declare x integer;
@@ -157,6 +159,8 @@ begin
   end if;
 end
 $$
+
+--disable_prepare_warnings
 
 create trigger po_order_bi before insert on po_order
 for each row

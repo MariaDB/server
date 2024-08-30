@@ -1,1 +1,1 @@
---binlog-optimize-thread-scheduling=0 --skip-stack-trace --skip-core-file
+--binlog-optimize-thread-scheduling=0 --loose-skip-stack-trace --skip-core-file

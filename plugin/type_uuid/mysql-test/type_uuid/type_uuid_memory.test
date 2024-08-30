@@ -1,0 +1,15 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-4958 Adding datatype UUID
+--echo #
+
+SET default_storage_engine=MEMORY;
+--source type_uuid_engines.inc
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

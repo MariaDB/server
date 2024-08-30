@@ -32,7 +32,7 @@ DELIMITER ;//
 CALL populate_t1;
 SET autocommit=1;
 
-SET SESSION debug="+d,fts_instrument_result_cache_limit";
+SET SESSION debug_dbug="+d,fts_instrument_result_cache_limit";
 
 ALTER TABLE t1 ADD FULLTEXT INDEX `text_content_idx` (`text_content`);
 

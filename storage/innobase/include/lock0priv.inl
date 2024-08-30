@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,20 +36,6 @@ methods but they are used only in that file. */
 #include "row0row.h"
 
 /*********************************************************************//**
-Gets the type of a lock.
-@return LOCK_TABLE or LOCK_REC */
-UNIV_INLINE
-ulint
-lock_get_type_low(
-/*==============*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ut_ad(lock);
-
-	return(lock->type_mode & LOCK_TYPE_MASK);
-}
-
-/*********************************************************************//**
 Checks if some transaction has an implicit x-lock on a record in a clustered
 index.
 @return transaction id of the transaction which has the x-lock, or 0 */
@@ -81,7 +67,7 @@ lock_rec_get_n_bits(
 
 /**********************************************************************//**
 Sets the nth bit of a record lock to TRUE. */
-UNIV_INLINE
+inline
 void
 lock_rec_set_nth_bit(
 /*=================*/
@@ -91,16 +77,27 @@ lock_rec_set_nth_bit(
 	ulint	byte_index;
 	ulint	bit_index;
 
-	ut_ad(lock);
-	ut_ad(lock_get_type_low(lock) == LOCK_REC);
+	ut_ad(!lock->is_table());
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
 
 	byte_index = i / 8;
 	bit_index = i % 8;
 
-	((byte*) &lock[1])[byte_index] |= 1 << bit_index;
-
-	++lock->trx->lock.n_rec_locks;
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion" /* GCC 4 and 5 need this here */
+#endif
+	((byte*) &lock[1])[byte_index] |= static_cast<byte>(1 << bit_index);
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
+#ifdef SUX_LOCK_GENERIC
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+#else
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || (xtest() && !lock->trx->mutex_is_locked()));
+#endif
+	lock->trx->lock.n_rec_locks++;
 }
 
 /*********************************************************************//**
@@ -112,69 +109,7 @@ lock_rec_get_next_on_page(
 /*======================*/
 	lock_t*	lock)	/*!< in: a record lock */
 {
-	return((lock_t*) lock_rec_get_next_on_page_const(lock));
-}
-
-/*********************************************************************//**
-Gets the first record lock on a page, where the page is identified by its
-file address.
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t*
-lock_rec_get_first_on_page_addr(
-/*============================*/
-	hash_table_t*	lock_hash,	/* Lock hash table */
-	ulint		space,		/*!< in: space */
-	ulint		page_no)	/*!< in: page number */
-{
-	ut_ad(lock_mutex_own());
-
-	for (lock_t* lock = static_cast<lock_t*>(
-			HASH_GET_FIRST(lock_hash,
-				       lock_rec_hash(space, page_no)));
-	     lock != NULL;
-	     lock = static_cast<lock_t*>(HASH_GET_NEXT(hash, lock))) {
-
-		if (lock->un_member.rec_lock.space == space
-		    && lock->un_member.rec_lock.page_no == page_no) {
-
-			return(lock);
-		}
-	}
-
-	return(NULL);
-}
-
-/*********************************************************************//**
-Gets the first record lock on a page, where the page is identified by a
-pointer to it.
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t*
-lock_rec_get_first_on_page(
-/*=======================*/
-	hash_table_t*		lock_hash,	/*!< in: lock hash table */
-	const buf_block_t*	block)		/*!< in: buffer block */
-{
-	ut_ad(lock_mutex_own());
-
-	ulint	space	= block->page.id.space();
-	ulint	page_no	= block->page.id.page_no();
-	ulint	hash = buf_block_get_lock_hash_val(block);
-
-	for (lock_t* lock = static_cast<lock_t*>(
-			HASH_GET_FIRST(lock_hash, hash));
-	     lock != NULL;
-	     lock = static_cast<lock_t*>(HASH_GET_NEXT(hash, lock))) {
-
-		if (lock->un_member.rec_lock.space == space
-		    && lock->un_member.rec_lock.page_no == page_no) {
-
-			return(lock);
-		}
-	}
-
-	return(NULL);
+  return const_cast<lock_t*>(lock_rec_get_next_on_page_const(lock));
 }
 
 /*********************************************************************//**
@@ -187,10 +122,7 @@ lock_rec_get_next(
 	ulint	heap_no,/*!< in: heap number of the record */
 	lock_t*	lock)	/*!< in: lock */
 {
-	ut_ad(lock_mutex_own());
-
 	do {
-		ut_ad(lock_get_type_low(lock) == LOCK_REC);
 		lock = lock_rec_get_next_on_page(lock);
 	} while (lock && !lock_rec_get_nth_bit(lock, heap_no));
 
@@ -207,30 +139,7 @@ lock_rec_get_next_const(
 	ulint		heap_no,/*!< in: heap number of the record */
 	const lock_t*	lock)	/*!< in: lock */
 {
-	return(lock_rec_get_next(heap_no, (lock_t*) lock));
-}
-
-/*********************************************************************//**
-Gets the first explicit lock request on a record.
-@return	first lock, NULL if none exists */
-UNIV_INLINE
-lock_t*
-lock_rec_get_first(
-/*===============*/
-	hash_table_t*		hash,	/*!< in: hash chain the lock on */
-	const buf_block_t*	block,	/*!< in: block containing the record */
-	ulint			heap_no)/*!< in: heap number of the record */
-{
-	ut_ad(lock_mutex_own());
-
-	for (lock_t* lock = lock_rec_get_first_on_page(hash, block); lock;
-	     lock = lock_rec_get_next_on_page(lock)) {
-		if (lock_rec_get_nth_bit(lock, heap_no)) {
-			return(lock);
-		}
-	}
-
-	return(NULL);
+  return lock_rec_get_next(heap_no, const_cast<lock_t*>(lock));
 }
 
 /*********************************************************************//**
@@ -245,8 +154,7 @@ lock_rec_get_nth_bit(
 {
 	const byte*     b;
 
-	ut_ad(lock);
-	ut_ad(lock_get_type_low(lock) == LOCK_REC);
+	ut_ad(!lock->is_table());
 
 	if (i >= lock->un_member.rec_lock.n_bits) {
 
@@ -267,37 +175,14 @@ lock_rec_get_next_on_page_const(
 /*============================*/
 	const lock_t*	lock)	/*!< in: a record lock */
 {
-	ut_ad(lock_mutex_own());
-	ut_ad(lock_get_type_low(lock) == LOCK_REC);
+  ut_ad(!lock->is_table());
 
-	ulint	space = lock->un_member.rec_lock.space;
-	ulint	page_no = lock->un_member.rec_lock.page_no;
+  const page_id_t page_id{lock->un_member.rec_lock.page_id};
 
-	while ((lock = static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock)))
-	       != NULL) {
-
-		if (lock->un_member.rec_lock.space == space
-		    && lock->un_member.rec_lock.page_no == page_no) {
-
-			return(lock);
-		}
-	}
-
-	return(NULL);
-}
-
-/*********************************************************************//**
-Gets the mode of a lock.
-@return mode */
-UNIV_INLINE
-enum lock_mode
-lock_get_mode(
-/*==========*/
-	const lock_t*	lock)   /*!< in: lock */
-{
-	ut_ad(lock);
-
-	return(static_cast<enum lock_mode>(lock->type_mode & LOCK_MODE_MASK));
+  while (!!(lock= static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))))
+    if (lock->un_member.rec_lock.page_id == page_id)
+      break;
+  return lock;
 }
 
 /*********************************************************************//**
@@ -333,51 +218,6 @@ lock_mode_stronger_or_eq(
 }
 
 /*********************************************************************//**
-Gets the wait flag of a lock.
-@return LOCK_WAIT if waiting, 0 if not */
-UNIV_INLINE
-ulint
-lock_get_wait(
-/*==========*/
-	const lock_t*	lock)	/*!< in: lock */
-{
-	ut_ad(lock);
-
-	return(lock->type_mode & LOCK_WAIT);
-}
-
-/*********************************************************************//**
-Looks for a suitable type record lock struct by the same trx on the same page.
-This can be used to save space when a new record lock should be set on a page:
-no new struct is needed, if a suitable old is found.
-@return lock or NULL */
-UNIV_INLINE
-lock_t*
-lock_rec_find_similar_on_page(
-/*==========================*/
-	ulint           type_mode,      /*!< in: lock type_mode field */
-	ulint           heap_no,        /*!< in: heap number of the record */
-	lock_t*         lock,           /*!< in: lock_rec_get_first_on_page() */
-	const trx_t*    trx)            /*!< in: transaction */
-{
-	ut_ad(lock_mutex_own());
-
-	for (/* No op */;
-	     lock != NULL;
-	     lock = lock_rec_get_next_on_page(lock)) {
-
-		if (lock->trx == trx
-		    && lock->type_mode == type_mode
-		    && lock_rec_get_n_bits(lock) > heap_no) {
-
-			return(lock);
-		}
-	}
-
-	return(NULL);
-}
-
-/*********************************************************************//**
 Checks if a transaction has the specified table lock, or stronger. This
 function should only be called by the thread that owns the transaction.
 @return lock or NULL */
@@ -400,22 +240,16 @@ lock_table_has(
 			continue;
 		}
 
-		lock_mode	mode = lock_get_mode(lock);
-
 		ut_ad(trx == lock->trx);
-		ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
-		ut_ad(lock->un_member.tab_lock.table != NULL);
+		ut_ad(lock->is_table());
+		ut_ad(lock->un_member.tab_lock.table);
 
 		if (table == lock->un_member.tab_lock.table
-		    && lock_mode_stronger_or_eq(mode, in_mode)) {
-
-			ut_ad(!lock_get_wait(lock));
-
+		    && lock_mode_stronger_or_eq(lock->mode(), in_mode)) {
+			ut_ad(!lock->is_waiting());
 			return(lock);
 		}
 	}
 
 	return(NULL);
 }
-
-/* vim: set filetype=c: */

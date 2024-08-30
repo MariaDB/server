@@ -1,0 +1,7 @@
+#
+--echo # Specialized --skip-log-bin slave version of parallel_backup test.
+#
+--echo # MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
+--echo # MDEV-30423: dealock XA COMMIT vs BACKUP
+--let $rpl_server_skip_log_bin= 1
+--source parallel_backup.test

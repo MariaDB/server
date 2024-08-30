@@ -36,11 +36,11 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   DOSDEF(void);
 
   // Implementation
-  virtual AMT         GetDefType(void) {return TYPE_AM_DOS;}
-  virtual const char *GetType(void) {return "DOS";}
-  virtual PIXDEF      GetIndx(void) {return To_Indx;}
-  virtual void        SetIndx(PIXDEF xdp) {To_Indx = xdp;}
-  virtual bool        IsHuge(void) {return Huge;}
+  AMT         GetDefType(void) override {return TYPE_AM_DOS;}
+  const char *GetType(void) override {return "DOS";}
+  PIXDEF      GetIndx(void) override {return To_Indx;}
+  void        SetIndx(PIXDEF xdp) override {To_Indx = xdp;}
+  bool        IsHuge(void) override {return Huge;}
   PCSZ    GetFn(void) {return Fn;}
   PCSZ    GetOfn(void) {return Ofn;}
 	PCSZ    GetEntry(void) {return Entry;}
@@ -63,11 +63,11 @@ class DllExport DOSDEF : public TABDEF {  /* Logical table description */
   int    *GetTo_Pos(void) {return To_Pos;}
 
   // Methods
-	virtual int  Indexable(void)
+	int  Indexable(void) override
   	{return (!Multiple && !Mulentries && Compressed != 1) ? 1 : 0;}
 	virtual bool DeleteIndexFile(PGLOBAL g, PIXDEF pxdf);
-  virtual bool DefineAM(PGLOBAL g, LPCSTR am, int poff);
-  virtual PTDB GetTable(PGLOBAL g, MODE mode);
+  bool DefineAM(PGLOBAL g, LPCSTR am, int poff) override;
+  PTDB GetTable(PGLOBAL g, MODE mode) override;
           bool InvalidateIndex(PGLOBAL g);
           bool GetOptFileName(PGLOBAL g, char *filename);
           void RemoveOptValues(PGLOBAL g);
@@ -133,62 +133,62 @@ class DllExport TDBDOS : public TDBASE {
   inline  PXOB *GetLink(void) {return To_Link;}
 
   // Implementation
-  virtual AMT   GetAmType(void) {return Txfp->GetAmType();}
-  virtual PCSZ  GetFile(PGLOBAL) {return Txfp->To_File;}
-  virtual void  SetFile(PGLOBAL, PCSZ fn) {Txfp->To_File = fn;}
-  virtual void  SetAbort(bool b) {Abort = b;}
-  virtual RECFM GetFtype(void) {return Ftype;}
+  AMT   GetAmType(void) override {return Txfp->GetAmType();}
+  PCSZ  GetFile(PGLOBAL) override {return Txfp->To_File;}
+  void  SetFile(PGLOBAL, PCSZ fn) override {Txfp->To_File = fn;}
+  void  SetAbort(bool b) override {Abort = b;}
+  RECFM GetFtype(void) override {return Ftype;}
   virtual bool  SkipHeader(PGLOBAL) {return false;}
-  virtual void  RestoreNrec(void) {Txfp->SetNrec(1);}
-  virtual PTDB  Duplicate(PGLOBAL g)
+  void  RestoreNrec(void) override {Txfp->SetNrec(1);}
+  PTDB  Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBDOS(g, this);}
 
   // Methods
-  virtual PTDB  Clone(PTABS t);
-  virtual void  ResetDB(void) {Txfp->Reset();}
-  virtual bool  IsUsingTemp(PGLOBAL g);
-  virtual bool  IsIndexed(void) {return Indxd;}
-  virtual void  ResetSize(void) {MaxSize = Cardinal = -1;}
-  virtual int   ResetTableOpt(PGLOBAL g, bool dop, bool dox);
+  PTDB  Clone(PTABS t) override;
+  void  ResetDB(void) override {Txfp->Reset();}
+  bool  IsUsingTemp(PGLOBAL g) override;
+  bool  IsIndexed(void) override {return Indxd;}
+  void  ResetSize(void) override {MaxSize = Cardinal = -1;}
+  int   ResetTableOpt(PGLOBAL g, bool dop, bool dox) override;
   virtual int   MakeBlockValues(PGLOBAL g);
   virtual bool  SaveBlockValues(PGLOBAL g);
-  virtual bool  GetBlockValues(PGLOBAL g);
+  bool  GetBlockValues(PGLOBAL g) override;
   virtual PBF   InitBlockFilter(PGLOBAL g, PFIL filp);
 //virtual PBX   InitBlockIndex(PGLOBAL g);
   virtual int   TestBlock(PGLOBAL g);
-  virtual void  PrintAM(FILE *f, char *m);
+  void  PrintAM(FILE *f, char *m) override;
 
   // Database routines
-  virtual PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
+  PCOL  MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
   virtual char *GetOpenMode(PGLOBAL, char*) {return NULL;}
   virtual int   GetFileLength(PGLOBAL g) {return Txfp->GetFileLength(g);}
-  virtual int   GetProgMax(PGLOBAL g);
-  virtual int   GetProgCur(void);
+  int   GetProgMax(PGLOBAL g) override;
+  int   GetProgCur(void) override;
 //virtual int   GetAffectedRows(void) {return Txfp->GetDelRows();}
-  virtual int   GetRecpos(void) {return Txfp->GetPos();}
-  virtual bool  SetRecpos(PGLOBAL g, int recpos)
+  int   GetRecpos(void) override {return Txfp->GetPos();}
+  bool  SetRecpos(PGLOBAL g, int recpos) override
                 {return Txfp->SetPos(g, recpos);}
-  virtual int   RowNumber(PGLOBAL g, bool b = false);
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
-  virtual bool  OpenDB(PGLOBAL g);
-  virtual int   ReadDB(PGLOBAL g);
-  virtual int   WriteDB(PGLOBAL g);
-  virtual int   DeleteDB(PGLOBAL g, int irc);
-  virtual void  CloseDB(PGLOBAL g);
+  int   RowNumber(PGLOBAL g, bool b = false) override;
+  int   Cardinality(PGLOBAL g) override;
+  int   GetMaxSize(PGLOBAL g) override;
+  bool  OpenDB(PGLOBAL g) override;
+  int   ReadDB(PGLOBAL g) override;
+  int   WriteDB(PGLOBAL g) override;
+  int   DeleteDB(PGLOBAL g, int irc) override;
+  void  CloseDB(PGLOBAL g) override;
   virtual int   ReadBuffer(PGLOBAL g) {return Txfp->ReadBuffer(g);}
 
   // Specific routine
   virtual int   EstimatedLength(void);
 
   // Optimization routines
-  virtual int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add);
+  int   MakeIndex(PGLOBAL g, PIXDEF pxdf, bool add) override;
           bool  InitialyzeIndex(PGLOBAL g, PIXDEF xdp, bool sorted);
           void  ResetBlockFilter(PGLOBAL g);
           bool  GetDistinctColumnValues(PGLOBAL g, int nrec);
 
  protected:
-  virtual bool  PrepareWriting(PGLOBAL g);
+  bool  PrepareWriting(PGLOBAL g) override;
           PBF   CheckBlockFilari(PGLOBAL g, PXOB *arg, int op, bool *cnv);
 
   // Members
@@ -219,10 +219,10 @@ class DllExport DOSCOL : public COLBLK {
   DOSCOL(DOSCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int    GetAmType(void) {return TYPE_AM_DOS;}
-  virtual void   SetTo_Val(PVAL valp) {To_Val = valp;}
-  virtual int    GetClustered(void) {return Clustered;}
-  virtual int    IsClustered(void) {return (Clustered &&
+  int    GetAmType(void) override {return TYPE_AM_DOS;}
+  void   SetTo_Val(PVAL valp) override {To_Val = valp;}
+  int    GetClustered(void) override {return Clustered;}
+  int    IsClustered(void) override {return (Clustered &&
                  ((PDOSDEF)(((PTDBDOS)To_Tdb)->To_Def))->IsOptimized());}
   virtual int    IsSorted(void) {return Sorted;}
   virtual PVBLK  GetMin(void) {return Min;}
@@ -233,10 +233,10 @@ class DllExport DOSCOL : public COLBLK {
   virtual PVBLK  GetDval(void) {return Dval;}
 
   // Methods
-  virtual bool   VarSize(void);
-  virtual bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
-  virtual void   ReadColumn(PGLOBAL g);
-  virtual void   WriteColumn(PGLOBAL g);
+  bool   VarSize(void) override;
+  bool   SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check) override;
+  void   ReadColumn(PGLOBAL g) override;
+  void   WriteColumn(PGLOBAL g) override;
 
  protected:
   virtual bool   SetMinMax(PGLOBAL g);

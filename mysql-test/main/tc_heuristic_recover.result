@@ -22,11 +22,11 @@ NOT FOUND /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
 FOUND 2 /was in the XA prepared state/ in mysqld.1.err
 FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
 FOUND 1 /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
-FOUND 1 /Please restart mysqld without --tc-heuristic-recover/ in mysqld.1.err
+FOUND 1 /Please restart without --tc-heuristic-recover/ in mysqld.1.err
 FOUND 3 /was in the XA prepared state/ in mysqld.1.err
 FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err
 FOUND 2 /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
-FOUND 2 /Please restart mysqld without --tc-heuristic-recover/ in mysqld.1.err
+FOUND 2 /Please restart without --tc-heuristic-recover/ in mysqld.1.err
 # restart
 FOUND 3 /was in the XA prepared state/ in mysqld.1.err
 FOUND 1 /Found 1 prepared transactions!/ in mysqld.1.err

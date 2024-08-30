@@ -406,6 +406,11 @@ end|
 delimiter ;|
 --echo # Reset Handler_commit and Handler_prepare counters
 flush status;
+
+--echo #
+--echo # Count of reading of p_verify_status_increment() from mysql.proc
+call p_verify_status_increment(2, 0, 2, 0);
+
 --echo #
 --echo # 1. Read-only statement: SELECT
 --echo #
@@ -563,7 +568,7 @@ begin
   return 2;
 end|
 delimiter ;|
-call p_verify_status_increment(0, 0, 0, 0);
+call p_verify_status_increment(4, 0, 4, 0);
 
 --echo # 16. A function changes non-trans-table.
 --echo #
@@ -572,7 +577,7 @@ call p_verify_status_increment(0, 0, 0, 0);
 --echo # the binary log. 
 --echo #
 select f1();
-call p_verify_status_increment(1, 0, 1, 0);
+call p_verify_status_increment(3, 0, 3, 0);
 commit;
 call p_verify_status_increment(1, 0, 1, 0);
 
@@ -608,13 +613,17 @@ call p_verify_status_increment(2, 0, 2, 0);
 drop table t2;
 set sql_mode=no_engine_substitution;
 create temporary table t2 (a int);
-call p_verify_status_increment(1, 0, 0, 0);
+# One commit for the create temporary table, and two for committing the
+# read of the stored procedure from Aria table (creating temporary table
+# clears the sp cache).
+call p_verify_status_increment(3, 0, 2, 0);
 set sql_mode=default;
 --echo # 19. A function changes temp-trans-table.
 --echo #
 select f1();
---echo # Two commits because a binary log record is written
-call p_verify_status_increment(2, 0, 1, 0);
+--echo # Two commits because a binary log record is written, and another two
+--echo # as the function f1() is reloaded after creating temporary table.
+call p_verify_status_increment(4, 0, 3, 0);
 commit;
 call p_verify_status_increment(2, 0, 1, 0);
 
@@ -651,7 +660,7 @@ call p_verify_status_increment(0, 0, 0, 0);
 --echo # 24. DDL: TRUNCATE TEMPORARY TABLE
 --echo
 truncate table t2;
-call p_verify_status_increment(4, 0, 4, 0);
+call p_verify_status_increment(2, 0, 2, 0);
 commit;
 --echo # There is nothing left to commit
 call p_verify_status_increment(0, 0, 0, 0);
@@ -667,9 +676,11 @@ call p_verify_status_increment(2, 0, 1, 0);
 --echo # 25. DDL: DROP TEMPORARY TABLE, does not start a transaction
 --echo #
 drop temporary table t2;
-call p_verify_status_increment(1, 0, 1, 0);
+# Dropping temporary table clears SP caches, so get another two commit
+# increments from loading the p_verify_status_increment procedure.
+call p_verify_status_increment(3, 0, 2, 0);
 commit;
-call p_verify_status_increment(1, 0, 1, 0);
+call p_verify_status_increment(1, 0, 0, 0);
 
 --echo # 26. Verify that SET AUTOCOMMIT issues an implicit commit
 --echo #
@@ -716,7 +727,9 @@ call p_verify_status_increment(1, 0, 1, 0);
 create table t2 (a int);
 call p_verify_status_increment(0, 0, 0, 0);
 do (select f1() from t1 where a=2);
-call p_verify_status_increment(2, 2, 2, 2);
+# Again extra 2 commit increments from re-loading function f1 after
+# dropping temporary table.
+call p_verify_status_increment(4, 2, 4, 2);
 commit;
 call p_verify_status_increment(2, 2, 2, 2);
 
@@ -764,7 +777,7 @@ call p_verify_status_increment(0, 0, 0, 0);
 truncate table t3;
 call p_verify_status_increment(2, 0, 2, 0);
 create view v1 as select * from t2;
-call p_verify_status_increment(2, 0, 2, 0);
+call p_verify_status_increment(4, 0, 4, 0);
 check table t1;
 call p_verify_status_increment(2, 0, 2, 0);
 --echo # Sic: after this bug is fixed, CHECK leaves no pending transaction
@@ -775,7 +788,7 @@ call p_verify_status_increment(4, 0, 4, 0);
 commit;
 call p_verify_status_increment(0, 0, 0, 0);
 drop view v1;
-call p_verify_status_increment(0, 0, 0, 0);
+call p_verify_status_increment(2, 0, 2, 0);
 
 --echo #
 --echo # Cleanup

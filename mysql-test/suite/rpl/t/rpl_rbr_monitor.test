@@ -1,0 +1,76 @@
+#
+# Mdev-7409 On RBR, extend the PROCESSLIST info to include at least the name of
+#  the recently used table
+# This testcase create Write_rows_log_event , Update_rows_log_event and
+#  Delete_rows_log_event which is blocked on slave and we will check whether
+#  whether processinfo includes table name or not.
+--source include/have_innodb.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+--enable_connect_log
+
+--connection master
+create table t1(a int primary key) engine=innodb;
+
+--sync_slave_with_master
+--connection slave1
+begin;
+insert into t1(a) values(1);
+--connection master
+select * from t1;
+
+insert into t1(a) values(1);
+--save_master_pos
+
+--echo #monitoring write rows
+--connection slave
+
+
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+      WHERE DB = 'test' AND STATE LIKE  "Write_rows_log_event::write_row(%) on table %";
+--source include/wait_condition.inc
+
+
+--echo #monitoring update rows
+--connection slave1
+rollback;
+--sync_with_master
+begin;
+select a from t1 for update;
+
+--connection master
+update t1 set a = a + 1 ;
+--save_master_pos
+
+--connection slave
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Update_rows_log_event::find_row(%) on table %";
+--source include/wait_condition.inc
+
+--echo #monitoring delete rows
+--connection slave1
+rollback;
+--sync_with_master
+begin;
+select * from t1 for update;
+
+--connection master
+delete from t1;
+--save_master_pos
+
+--connection slave
+select * from t1;
+let $wait_condition= SELECT COUNT(*) = 1 FROM  INFORMATION_SCHEMA.PROCESSLIST
+  WHERE DB = 'test' AND STATE LIKE  "Delete_rows_log_event::find_row(%) on table %";
+--source include/wait_condition.inc
+
+#CleanUp
+--connection slave1
+rollback;
+--sync_with_master
+
+--connection master
+drop table t1;
+--sync_slave_with_master
+
+--source include/rpl_end.inc

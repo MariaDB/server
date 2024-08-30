@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, 2020 MariaDB Corporation.
+Copyright (c) 2017, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -316,16 +316,6 @@ dtuple_get_n_ext(
 /*=============*/
 	const dtuple_t*	tuple)	/*!< in: tuple */
 	MY_ATTRIBUTE((nonnull));
-/** Compare two data tuples.
-@param[in] tuple1 first data tuple
-@param[in] tuple2 second data tuple
-@return positive, 0, negative if tuple1 is greater, equal, less, than tuple2,
-respectively */
-int
-dtuple_coll_cmp(
-	const dtuple_t*	tuple1,
-	const dtuple_t*	tuple2)
-	MY_ATTRIBUTE((warn_unused_result));
 /** Fold a prefix given as the number of fields of a tuple.
 @param[in]	tuple		index record
 @param[in]	n_fields	number of complete fields to fold
@@ -496,7 +486,7 @@ struct dfield_t{
 		ut_ad(type.vers_sys_end());
 		if (type.mtype == DATA_FIXBINARY) {
 			ut_ad(len == sizeof timestamp_max_bytes);
-			return 0 != memcmp(data, timestamp_max_bytes, len);
+			return !IS_MAX_TIMESTAMP(data);
 		} else {
 			ut_ad(type.mtype == DATA_INT);
 			ut_ad(len == sizeof trx_id_max_bytes);
@@ -578,6 +568,10 @@ struct dtuple_t {
 	/** @return whether this is a hidden metadata record
 	for instant ADD COLUMN or ALTER TABLE */
 	bool is_metadata() const { return is_metadata(info_bits); }
+
+	/** Copy type information from index fields.
+	@param index	index field to be copied */
+	inline void copy_field_types(const dict_index_t &index);
 };
 
 inline ulint dtuple_get_n_fields(const dtuple_t* tuple)

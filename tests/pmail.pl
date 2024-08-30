@@ -60,7 +60,7 @@ if ($opt_help || !$ARGV[0])
 #### Connect and parsing the query to MySQL
 ####
 
-$dbh= DBI->connect("DBI:mysql:$opt_db:$opt_host:port=$opt_port:mysql_socket=$opt_socket", $opt_user,$opt_password, { PrintError => 0})
+$dbh= DBI->connect("DBI:MariaDB:$opt_db:$opt_host:port=$opt_port:mariadb_socket=$opt_socket", $opt_user,$opt_password, { PrintError => 0})
 || die $DBI::errstr;
 
 main();

@@ -80,3 +80,38 @@ drop table t1, t2, t3;
 #
 # End of 10.4 tests
 #
+#
+# MDEV-9938 Prepared statement return wrong result (missing row)
+#
+CREATE TABLE t1 (a_id INT AUTO_INCREMENT PRIMARY KEY, a_text VARCHAR(20));
+CREATE TABLE t2 (b_id INT AUTO_INCREMENT PRIMARY KEY, b_a_id INT);
+INSERT INTO t1 VALUES (NULL, 'word1');
+INSERT INTO t2 VALUES (NULL, 1), (NULL, NULL);
+PREPARE q FROM 'SELECT * FROM t2
+ LEFT JOIN t1 ON (t1.a_id = t2.b_a_id)
+WHERE ((? IS NULL) OR (t1.a_text = ?))';
+SET @var = 'word1';
+expect row count 1
+EXECUTE q USING @var, @var;
+b_id	b_a_id	a_id	a_text
+1	1	1	word1
+expect row count = 2
+EXECUTE q USING @nul, @nul;
+b_id	b_a_id	a_id	a_text
+1	1	1	word1
+2	NULL	NULL	NULL
+PREPARE q2 FROM 'SELECT * FROM t2
+ LEFT JOIN t1 ON (t1.a_id = t2.b_a_id)
+WHERE ((? IS NULL) OR (t1.a_text = ?))';
+expect row count 2
+SET @var = 'word1';
+EXECUTE q2 USING @nul, @nul;
+b_id	b_a_id	a_id	a_text
+1	1	1	word1
+2	NULL	NULL	NULL
+deallocate prepare q;
+deallocate prepare q2;
+drop table t1,t2;
+#
+# End of 10.6 tests
+#

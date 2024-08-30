@@ -48,3 +48,16 @@ update graph set origid=123;
 DROP TABLE graph_base;
 DROP TABLE graph;
 
+--echo #
+--echo # End of 10.0 tests
+--echo #
+
+--echo #
+--echo # MDEV-25373 DROP TABLE doesn't raise error while dropping non-existing table in MariaDB 10.5.9 when OQGraph SE is loaded to the server
+--echo #
+--error 1051
+drop table foobar;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

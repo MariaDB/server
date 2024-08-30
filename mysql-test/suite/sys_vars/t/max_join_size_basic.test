@@ -23,7 +23,7 @@ select * from information_schema.session_variables where variable_name='max_join
 # show that it's writable
 #
 set global max_join_size=10;
-set session max_join_size=20;
+set session max_join_size=100;
 select @@global.max_join_size;
 select @@session.max_join_size;
 show global variables like 'max_join_size';

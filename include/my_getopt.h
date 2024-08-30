@@ -21,6 +21,8 @@
 /* my_getopt and my_default are almost always used together */
 #include <my_default.h>
 
+#include <ctype.h>
+
 C_MODE_START
 
 #define GET_NO_ARG     1
@@ -43,6 +45,8 @@ C_MODE_START
 #define GET_ASK_ADDR     128
 #define GET_AUTO          64
 #define GET_TYPE_MASK     63
+
+#define IS_DEPRECATED_NO_REPLACEMENT(X) (*(X) == 0)
 
 /**
   Enumeration of the my_option::arg_type attributes.
@@ -72,7 +76,7 @@ struct my_option
                                            nor one-letter short equivalent
                                            use id=0
                                          */
-  const char *comment;                  /**< option comment, for autom. --help.
+  const char *comment;                  /**< Option comment, for automated --help.
                                            if it's NULL the option is not
                                            visible in --help.
                                          */
@@ -84,12 +88,16 @@ struct my_option
   longlong   def_value;                 /**< Default value */
   longlong   min_value;                 /**< Min allowed value (for numbers) */
   ulonglong  max_value;                 /**< Max allowed value (for numbers) */
-  longlong   sub_size;                  /**< Unused                          */
+  const char *deprecation_substitute;   /**< Name of the substitute variable which deprecates
+                                           this one. Use DEPRECATED_NO_REPLACEMENT when
+                                           no replacement exists for the given variable. NULL
+                                           value means the variable is not deprecated.
+                                         */
   long       block_size;                /**< Value should be a mult. of this (for numbers) */
   void       *app_type;                 /**< To be used by an application */
 };
 
-typedef my_bool (*my_get_one_option)(int, const struct my_option *, char *);
+typedef my_bool (*my_get_one_option)(const struct my_option *, const char *, const char *);
 
 /**
   Used to retrieve a reference to the object (variable) that holds the value
@@ -100,7 +108,6 @@ typedef my_bool (*my_get_one_option)(int, const struct my_option *, char *);
 typedef void *(*my_getopt_value)(const char *, uint, const struct my_option *,
                                  int *);
 
-
 extern char *disabled_my_option;
 extern char *autoset_my_option;
 extern my_bool my_getopt_print_errors;
@@ -108,13 +115,14 @@ extern my_bool my_getopt_skip_unknown;
 extern my_bool my_getopt_prefix_matching;
 extern my_bool my_handle_options_init_variables;
 extern my_error_reporter my_getopt_error_reporter;
+extern my_getopt_value my_getopt_get_addr;
 
 extern int handle_options (int *argc, char ***argv, 
-			   const struct my_option *longopts, my_get_one_option);
+			   const struct my_option *longopts, my_get_one_option)
+  __attribute__((nonnull));
 extern void my_cleanup_options(const struct my_option *options);
 extern void my_print_help(const struct my_option *options);
 extern void my_print_variables(const struct my_option *options);
-extern void my_getopt_register_get_addr(my_getopt_value);
 
 ulonglong getopt_ull_limit_value(ulonglong num, const struct my_option *optp,
                                  my_bool *fix);
@@ -122,12 +130,20 @@ longlong getopt_ll_limit_value(longlong, const struct my_option *,
                                my_bool *fix);
 double getopt_double_limit_value(double num, const struct my_option *optp,
                                  my_bool *fix);
-my_bool getopt_compare_strings(const char *s, const char *t, uint length);
 
 ulonglong getopt_double2ulonglong(double);
 double getopt_ulonglong2double(ulonglong);
+void my_getopt_init_one_value(const struct my_option *, void *, longlong);
+
+static inline void convert_underscore_to_dash(char *str, size_t len)
+{
+  for (char *p= str; p <= str+len; p++)
+    if (*p == '_')
+      *p= '-';
+    else if (*p != '-' && isalnum(*p) == 0)
+      break;
+}
 
 C_MODE_END
 
 #endif /* _my_getopt_h */
-

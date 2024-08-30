@@ -225,5 +225,9 @@ ALTER TABLE t1 DROP INDEX ind2, ADD INDEX ind3(b),
 
 SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
 
+ALTER TABLE t1 DROP b, FORCE;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;
+
 UPDATE t1 SET a = 1 WHERE c = 'foo';
 DROP TABLE t1;
+SELECT table_name, index_name, stat_name FROM mysql.innodb_index_stats;

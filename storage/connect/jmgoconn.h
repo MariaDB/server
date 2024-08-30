@@ -61,9 +61,9 @@ public:
 
 	// Implementation
 public:
-	virtual void AddJars(PSTRG jpop, char sep);
-	virtual bool Connect(PJPARM sop);
-	virtual bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options, PCSZ filter, bool pipe);
+	void AddJars(PSTRG jpop, char sep) override;
+	bool Connect(PJPARM sop) override;
+	bool MakeCursor(PGLOBAL g, PTDB tdbp, PCSZ options, PCSZ filter, bool pipe) override;
 //	PQRYRES AllocateResult(PGLOBAL g, TDBEXT *tdbp, int n);
 
 	// Attributes

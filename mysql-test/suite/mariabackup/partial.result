@@ -4,9 +4,17 @@ CREATE TABLE t21(i INT) ENGINE INNODB;
 INSERT INTO t21 VALUES(1);
 CREATE TABLE t2(i int) ENGINE INNODB;
 # xtrabackup backup
-t1.ibd
-t21.ibd
+t1.new
+t21.new
 # xtrabackup prepare
+t1.cfg
+t21.cfg
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 IMPORT TABLESPACE;
+SELECT * FROM t1;
+i
+1
+# MDEV-33023 Crash in mariadb-backup --prepare --export after --prepare
 t1.cfg
 t21.cfg
 ALTER TABLE t1 DISCARD TABLESPACE;

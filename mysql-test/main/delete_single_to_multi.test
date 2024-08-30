@@ -1,0 +1,1083 @@
+--disable_warnings
+DROP DATABASE IF EXISTS dbt3_s001;
+--enable_warnings
+
+CREATE DATABASE dbt3_s001 CHARACTER SET latin1;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+create index i_n_name on nation(n_name);
+analyze table
+  nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
+
+
+--echo # Pullout
+--echo # =======
+
+let $c1=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey in (select c_custkey from customer
+                        where c_nationkey in (select n_nationkey from nation
+                                                where n_name='PERU'));
+
+eval
+explain
+select o_orderkey, o_totalprice from orders where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select o_orderkey, o_totalprice from orders where $c1;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table t as
+select * from orders where $c1;
+
+eval
+explain
+delete from orders where $c1;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from orders where $c1;
+eval
+delete from orders where $c1;
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+
+
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+drop table t;
+
+
+let $c2=
+       (ps_partkey, ps_suppkey) in
+         (select p_partkey, s_suppkey from part, supplier
+            where p_retailprice between 901 and 910 and
+                  s_nationkey in (select n_nationkey from nation
+                                    where n_name='PERU'));
+
+eval
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+--sorted_result
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+eval
+create table t as
+select * from partsupp where $c2;
+
+eval
+explain
+delete from partsupp where $c2;
+eval
+delete from partsupp where $c2;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+
+insert into partsupp select * from t;
+--sorted_result
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c2;
+drop table t;
+
+
+let $c3=
+        ps_partkey in (select p_partkey from part
+                         where p_retailprice between 901 and 910) and
+        ps_suppkey in (select s_suppkey from supplier
+                         where s_nationkey in (select n_nationkey from nation
+                                                 where n_name='PERU'));
+eval
+explain
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+--sorted_result
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+eval
+create table t as
+select * from partsupp where $c3;
+
+eval
+explain
+delete from partsupp where $c3;
+eval
+delete from partsupp where $c3;
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+
+insert into partsupp select * from t;
+--sorted_result
+eval
+select ps_partkey, ps_suppkey, ps_supplycost from partsupp where $c3;
+drop table t;
+
+
+let $c4=
+        l_orderkey in (select o_orderkey from orders
+                         where o_custkey in
+                               (select c_custkey from customer
+                                  where c_nationkey in
+                                        (select n_nationkey from nation
+                                           where n_name='PERU'))
+                               and
+                              o_orderDATE between '1992-06-30' and '1992-12-31')
+        and
+        (l_partkey, l_suppkey) in
+        (select p_partkey, s_suppkey from part, supplier
+           where p_retailprice between 901 and 1000 and
+                 s_nationkey in (select n_nationkey from nation
+                                   where n_name='PERU'));
+
+eval
+explain
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+--sorted_result
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+eval
+create table t as
+select * from lineitem where $c4;
+
+eval
+explain
+delete from lineitem where $c4;
+eval
+delete from lineitem where $c4;
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+
+insert into lineitem select * from t;
+--sorted_result
+eval
+select l_orderkey, l_linenumber, l_tax from lineitem where $c4;
+drop table t;
+
+
+--echo # FirstMatch
+--echo # ==========
+
+set optimizer_switch='materialization=off';
+
+let $c5=
+        c_nationkey in (select n_nationkey from nation
+                          where n_regionkey in (1,2))
+        and
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-10-09' and '1993-06-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c5;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c5;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+eval
+create table t as
+select * from customer where $c5;
+
+eval
+explain
+delete from customer where $c5;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from customer where $c5;
+eval
+delete from customer where $c5;
+eval
+select c_name, c_acctbal from customer where $c5;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+drop table t;
+
+set optimizer_switch='materialization=default';
+
+
+let $c6=
+        c_nationkey in (select n_nationkey from nation where n_name='PERU')
+        and
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between "1992-01-09" and "1993-01-08");
+
+eval
+explain
+select c_name, c_acctbal from customer where $c6;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c6;
+eval
+create table t as
+select * from customer where $c6;
+
+eval
+explain
+delete from customer where $c6;
+eval
+delete from customer where $c6;
+eval
+select c_name, c_acctbal from customer where $c6;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c6;
+drop table t;
+
+
+--echo # Materialization
+--echo # ===============
+
+set optimizer_switch='firstmatch=off';
+
+let $c7=
+        c_nationkey in (select n_nationkey from nation where
+           n_name in ('JAPAN', 'INDONESIA', 'PERU', 'ARGENTINA'))
+        and
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between "1992-01-09" and "1995-01-08");
+
+eval
+explain
+select c_name, c_acctbal from customer where $c7;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c7;
+eval
+create table t as
+select * from customer where $c7;
+
+eval
+explain
+delete from customer where $c7;
+eval
+delete from customer where $c7;
+eval
+select c_name, c_acctbal from customer where $c7;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c7;
+drop table t;
+
+set optimizer_switch='firstmatch=default';
+
+let $c8=
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-01-09' and '1993-03-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c8;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c8;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+eval
+create table t as
+select * from customer where $c8;
+
+eval
+explain
+delete from customer where $c8;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from customer where $c8;
+eval
+delete from customer where $c8;
+eval
+select c_name, c_acctbal from customer where $c8;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+drop table t;
+
+
+let $c9=
+        c_custkey in (select o_custkey from orders
+                      where o_orderDATE between '1992-06-09' and '1993-01-08');
+
+eval
+explain
+select c_name, c_acctbal from customer where $c9;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c9;
+eval
+create table t as
+select * from customer where $c9;
+
+eval
+explain
+delete from customer where $c9;
+eval
+delete from customer where $c9;
+eval
+select c_name, c_acctbal from customer where $c9;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c9;
+drop table t;
+
+
+--echo # Materialization SJM
+--echo # ===================
+
+let $c10=
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-01-09' and '1992-03-08'
+                      group by o_custkey having count(o_custkey) > 1);
+
+eval
+explain
+select c_name, c_acctbal from customer where $c10;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select c_name, c_acctbal from customer where $c10;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+eval
+create table t as
+select * from customer where $c10;
+
+eval
+explain
+delete from customer where $c10;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from customer where $c10;
+eval
+delete from customer where $c10;
+eval
+select c_name, c_acctbal from customer where $c10;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+drop table t;
+
+
+let $c11=
+        c_custkey in (select o_custkey from orders
+                        where o_orderDATE between '1992-01-09' and '1993-03-08'
+                      group by o_custkey having count(o_custkey) > 5);
+
+eval
+explain
+select c_name, c_acctbal from customer where $c11;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c11;
+eval
+create table t as
+select * from customer where $c11;
+
+eval
+explain
+delete from customer where $c11;
+eval
+delete from customer where $c11;
+eval
+select c_name, c_acctbal from customer where $c11;
+
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c11;
+drop table t;
+
+
+--echo # Pullout PS
+--echo # ==========
+
+eval
+prepare stmt from "
+delete from orders where $c1;
+";
+
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table t as
+select * from orders where $c1;
+execute stmt;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table r as
+select * from orders where $c1;
+execute stmt;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+insert into orders select * from r;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+drop table t,r;
+
+deallocate prepare stmt;
+
+
+--echo # FirstMatch PS
+--echo # =============
+
+set optimizer_switch='materialization=off';
+
+eval
+prepare stmt from "
+delete from customer where $c5;
+";
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+eval
+create table t as
+select * from customer where $c5;
+execute stmt;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+eval
+create table r as
+select * from customer where $c5;
+execute stmt;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+drop table t,r;
+
+deallocate prepare stmt;
+
+set optimizer_switch='materialization=default';
+
+--echo # Materialization PS
+--echo # ==================
+
+eval
+prepare stmt from "
+delete from customer where $c8 and c_name like ?;
+";
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+set @a1='Customer#%1_';
+eval
+create table t as
+select * from customer where $c8 and c_name like @a1;
+execute stmt using @a1;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+set @a2='Customer#%3_';
+eval
+create table r as
+select * from customer where $c8 and c_name like @a2;
+execute stmt using @a2;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+drop table t,r;
+
+deallocate prepare stmt;
+
+
+--echo # Materialization SJM PS
+--echo # ======================
+
+eval
+prepare stmt from "
+delete from customer where $c10 and c_acctbal between ? and ?;
+";
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+set @a1=3500;
+set @a2=4000;
+eval
+create table t as
+select * from customer where $c10 and c_acctbal between @a1 and @a2;
+execute stmt using @a1, @a2;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+set @a3=-1000;
+set @a4=3500;
+eval
+create table r as
+select * from customer where $c10 and c_acctbal between @a3 and @a4;
+execute stmt using @a3, @a4;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+drop table t,r;
+
+deallocate prepare stmt;
+
+
+--echo # Pullout SP
+--echo # ==========
+
+eval
+create procedure p(a1 int, a2 int)
+delete from orders where $c1 and o_totalprice between a1 and a2;
+
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table t as
+select * from orders where $c1 and o_totalprice between 150000 and 200000;
+call p(150000, 200000);
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+eval
+create table r as
+select * from orders where $c1 and o_totalprice between 180000 and 210000;
+call p(180000, 210000);
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+insert into orders select * from r;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c1;
+drop table t,r;
+
+drop procedure p;
+
+
+--echo # FirstMatch SP
+--echo # =============
+
+set optimizer_switch='materialization=off';
+
+eval
+create procedure p(a int)
+delete from customer where $c5 and c_acctbal > a;
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+eval
+create table t as
+select * from customer where $c5 and c_acctbal > 4000;
+call p(4000);
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+eval
+create table r as
+select * from customer where $c5 and c_acctbal > 2000;
+call p(2000);
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c5;
+drop table t,r;
+
+drop procedure p;
+
+set optimizer_switch='materialization=default';
+
+
+--echo # Materialization SP
+--echo # ==================
+
+eval
+create procedure p()
+delete from customer where $c8;
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+eval
+create table t as
+select * from customer where $c8;
+call p();
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+eval
+create table r as
+select * from customer where $c8;
+call p();
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c8;
+drop table t,r;
+
+drop procedure p;
+
+
+--echo # Materialization SJM SP
+--echo # ======================
+
+eval
+create procedure p()
+delete from customer where $c10;
+
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+eval
+create table t as
+select * from customer where $c10;
+call p();
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+eval
+create table r as
+select * from customer where $c10;
+call p();
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+insert into customer select * from r;
+--sorted_result
+eval
+select c_name, c_acctbal from customer where $c10;
+drop table t,r;
+
+drop procedure p;
+
+--echo # Checking limitations
+--echo # ====================
+
+--echo # Check for DELETE ... RETURNING with SJ subquery in WHERE
+
+--sorted_result
+eval
+select c_name from customer where $c8;
+eval
+create table t as
+select * from customer where $c8;
+eval
+explain
+delete from customer where $c8 returning c_name;
+--sorted_result
+eval
+delete from customer where $c8 returning c_name;
+--sorted_result
+eval
+select c_name from customer where $c8;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name from customer where $c8;
+drop table t;
+
+--sorted_result
+eval
+select c_name from customer where $c10;
+eval
+create table t as
+select * from customer where $c10;
+eval
+explain
+delete from customer where $c10 returning c_name;
+--sorted_result
+eval
+delete from customer where $c10 returning c_name;
+--sorted_result
+eval
+select c_name from customer where $c10;
+insert into customer select * from t;
+--sorted_result
+eval
+select c_name from customer where $c10;
+drop table t;
+
+--echo # Check for DELETE ... ORDER BY ...LIMIT  with SJ subquery in WHERE
+
+let $c11=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey in (select c_custkey from customer
+                        where c_nationkey in (1,2));
+
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+
+--echo # Should not use semi-join conversion because has ORDER BY ... LIMIT
+eval
+explain
+delete from orders where $c11
+order by o_totalprice limit 500;
+eval
+create table t as
+select * from orders where $c11;
+select o_orderkey, o_totalprice from t;
+eval
+delete from orders where $c11
+order by o_totalprice limit 500;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+drop table t;
+
+--echo # Should use semi-join converion
+eval
+explain
+delete from orders where $c11;
+eval
+create table t as
+select * from orders where $c11;
+select o_orderkey, o_totalprice from t;
+eval
+delete from orders where $c11;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+insert into orders select * from t;
+--sorted_result
+eval
+select o_orderkey, o_totalprice from orders where $c11;
+drop table t;
+
+
+CREATE TABLE partsupp_small (
+  ps_partkey int(11) NOT NULL DEFAULT '0',
+  ps_suppkey int(11) NOT NULL DEFAULT '0',
+  ps_availqty int(11) DEFAULT NULL,
+  ps_supplycost double DEFAULT NULL,
+  ps_comment varchar(199) DEFAULT NULL,
+  PRIMARY KEY (ps_partkey,ps_suppkey),
+  KEY i_ps_partkey (ps_partkey),
+  KEY i_ps_suppkey (ps_suppkey)
+);
+
+create index i_ps_sup_part on partsupp_small(ps_suppkey, ps_partkey);
+insert into partsupp_small select * from partsupp where ps_partkey <50;
+analyze table partsupp_small  persistent for all;
+
+--echo # LooseScan
+--echo # =========
+
+let $c12 = l_partkey in
+                (select ps_partkey from partsupp_small
+                                where ps_suppkey in (1,2,3));
+
+eval
+explain
+select count(*) from lineitem where $c12;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select count(*) from lineitem where $c12;
+eval
+explain
+select l_partkey from lineitem where $c12;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select l_partkey from lineitem where $c12;
+eval
+select count(*) from lineitem where $c12;
+eval
+create table t as
+select * from lineitem where $c12;
+
+eval
+explain
+delete from lineitem where $c12;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from lineitem where $c12;
+eval
+delete from lineitem where $c12;
+eval
+select count(*) from lineitem where $c12;
+
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c12;
+
+drop table t;
+
+--echo # LooseScan PS
+--echo # ============
+
+eval
+prepare stmt from "
+delete from lineitem where $c12;
+";
+
+eval
+select count(*) from lineitem where $c12;
+eval
+create table t as
+select * from lineitem where $c12;
+execute stmt;
+eval
+select count(*) from lineitem where $c12;
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c12;
+
+eval
+create table r as
+select * from lineitem where $c12;
+execute stmt;
+eval
+select count(*) from lineitem where $c12;
+insert into lineitem select * from r;
+eval
+select count(*) from lineitem where $c12;
+
+drop tables r, t;
+deallocate prepare stmt;
+
+--echo # LooseScan SP
+--echo # ============
+
+eval
+create procedure p()
+delete from lineitem where $c12;
+
+eval
+select count(*) from lineitem where $c12;
+eval
+create table t as
+select * from lineitem where $c12;
+call p();
+eval
+select count(*) from lineitem where $c12;
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c12;
+
+eval
+create table r as
+select * from lineitem where $c12;
+call p();
+eval
+select count(*) from lineitem where $c12;
+insert into lineitem select * from r;
+eval
+select count(*) from lineitem where $c12;
+
+drop tables r, t;
+drop procedure p;
+
+--echo # DuplicateWeedout
+--echo # ================
+
+set @tmp_optimizer_switch= @@optimizer_switch;
+set optimizer_switch='materialization=off';
+
+analyze table lineitem;
+analyze table orders;
+
+let $c13 = l_partkey in (
+   select ps_partkey
+   from partsupp_small join lineitem on ps_partkey=l_partkey
+   where ps_suppkey in (
+    select s_suppkey from supplier  where  s_suppkey < 2
+  )
+);
+
+eval
+explain
+select count(*) from lineitem where $c13;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select count(*) from lineitem where $c13;
+eval
+explain
+select l_partkey from lineitem where $c13;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+select l_partkey from lineitem where $c13;
+eval
+select count(*) from lineitem where $c13;
+eval
+create table t as
+select * from lineitem where $c13;
+
+eval
+explain
+delete from lineitem where $c13;
+--source include/explain-no-costs.inc
+eval
+explain format=json
+delete from lineitem where $c13;
+eval
+delete from lineitem where $c13;
+eval
+select count(*) from lineitem where $c13;
+
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c13;
+
+drop table t;
+
+--echo # DuplicateWeedout PS
+--echo # ===================
+
+eval
+prepare stmt from "
+delete from lineitem where $c13;
+";
+
+eval
+select count(*) from lineitem where $c13;
+eval
+create table t as
+select * from lineitem where $c13;
+execute stmt;
+eval
+select count(*) from lineitem where $c13;
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c13;
+
+eval
+create table r as
+select * from lineitem where $c13;
+execute stmt;
+eval
+select count(*) from lineitem where $c13;
+insert into lineitem select * from r;
+eval
+select count(*) from lineitem where $c13;
+
+drop tables r, t;
+deallocate prepare stmt;
+
+--echo # DuplicateWeedout SP
+--echo # ===================
+
+eval
+create procedure p()
+delete from lineitem where $c13;
+
+eval
+select count(*) from lineitem where $c13;
+eval
+create table t as
+select * from lineitem where $c13;
+call p();
+eval
+select count(*) from lineitem where $c13;
+insert into lineitem select * from t;
+eval
+select count(*) from lineitem where $c13;
+
+eval
+create table r as
+select * from lineitem where $c13;
+call p();
+eval
+select count(*) from lineitem where $c13;
+insert into lineitem select * from r;
+eval
+select count(*) from lineitem where $c13;
+
+drop tables r, t;
+drop procedure p;
+
+set @@optimizer_switch=@tmp_optimizer_switch;
+
+drop table partsupp_small;
+
+DROP DATABASE dbt3_s001;

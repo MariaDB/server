@@ -3,6 +3,11 @@
 # this collation before including this file
 #
 
+
+--echo #
+--echo # Bug#31081 server crash in regexp function
+--echo #
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings

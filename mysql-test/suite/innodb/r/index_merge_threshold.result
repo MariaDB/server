@@ -1,5 +1,5 @@
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 CREATE TABLE tab(a BIGINT PRIMARY KEY,c1 TINYTEXT,c2 TEXT,c3 MEDIUMTEXT,
 c4 TINYBLOB,c5 BLOB,c6 MEDIUMBLOB,c7 LONGBLOB) ENGINE=InnoDB;
 CREATE INDEX index1 ON tab(c1(255)) COMMENT 'Check index level merge MERGE_THRESHOLD=51';
@@ -48,7 +48,7 @@ tab	CREATE TABLE `tab` (
   KEY `index5` (`c5`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=30',
   KEY `index6` (`c6`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=35',
   KEY `index7` (`c7`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=40'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT t.NAME as TABLE_NAME, i.NAME as INDEX_NAME, i.MERGE_THRESHOLD
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES t, INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 WHERE t.TABLE_ID = i.TABLE_ID AND t.NAME = 'test/tab';
@@ -84,7 +84,7 @@ tab	CREATE TABLE `tab` (
   KEY `index5` (`c5`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=30',
   KEY `index6` (`c6`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=35',
   KEY `index7` (`c7`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=40'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='MERGE_THRESHOLD=49'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='MERGE_THRESHOLD=49'
 SELECT t.NAME as TABLE_NAME, i.NAME as INDEX_NAME, i.MERGE_THRESHOLD
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES t, INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 WHERE t.TABLE_ID = i.TABLE_ID AND t.NAME = 'test/tab';
@@ -120,7 +120,7 @@ tab	CREATE TABLE `tab` (
   KEY `index5` (`c5`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=30',
   KEY `index6` (`c6`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=35',
   KEY `index7` (`c7`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=40'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='MERGE_THRESHOLD=49'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='MERGE_THRESHOLD=49'
 SELECT t.NAME as TABLE_NAME, i.NAME as INDEX_NAME, i.MERGE_THRESHOLD
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES t, INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 WHERE t.TABLE_ID = i.TABLE_ID AND t.NAME = 'test/tab';
@@ -158,7 +158,7 @@ tab	CREATE TABLE `tab` (
   KEY `index6` (`c6`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=35',
   KEY `index7` (`c7`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=40',
   KEY `index8` (`c7`(750)) COMMENT 'Check index level merge MERGE_THRESHOLD=45'
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='MERGE_THRESHOLD=49'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='MERGE_THRESHOLD=49'
 SELECT t.NAME as TABLE_NAME, i.NAME as INDEX_NAME, i.MERGE_THRESHOLD
 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLES t, INFORMATION_SCHEMA.INNODB_SYS_INDEXES i
 WHERE t.TABLE_ID = i.TABLE_ID AND t.NAME = 'test/tab';
@@ -1309,4 +1309,4 @@ name	count_reset
 index_page_merge_attempts	2
 index_page_merge_successful	2
 DROP TABLE tab1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

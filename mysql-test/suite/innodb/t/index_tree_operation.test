@@ -9,12 +9,6 @@
 # Otherwise, the follwing records 999,998,997 cause each page per record.
 #
 
---disable_query_log
-SET @old_innodb_file_per_table = @@innodb_file_per_table;
---enable_query_log
-
-SET GLOBAL innodb_file_per_table=ON;
-
 CREATE TABLE t1 (a BIGINT PRIMARY KEY, b VARCHAR(4096)) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (0, REPEAT('a', 4096));
 INSERT INTO t1 VALUES (1000, REPEAT('a', 4096));
@@ -68,7 +62,3 @@ WHERE s1.space = s2.space AND name = 'test/t1'
 AND page_type = "INDEX" ORDER BY page_number;
 
 DROP TABLE t1;
-
---disable_query_log
-SET GLOBAL innodb_file_per_table = @old_innodb_file_per_table;
---enable_query_log

@@ -1,0 +1,15 @@
+--echo #
+--echo # Start of 11.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-31340 Remove MY_COLLATION_HANDLER::strcasecmp()
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general1400_as_ci;
+--source include/ctype_unicode_casefold_bmp.inc
+--source include/ctype_unicode_casefold_supplementary.inc
+
+--echo #
+--echo # End of 11.5 tests
+--echo #

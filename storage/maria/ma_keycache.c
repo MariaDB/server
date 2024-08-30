@@ -80,7 +80,7 @@ int maria_assign_to_pagecache(MARIA_HA *info,
   {
     error= my_errno;
     /* Mark that table must be checked */
-    _ma_set_fatal_error(share, error);
+    _ma_set_fatal_error(info, error);
   }
 
   /*

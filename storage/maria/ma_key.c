@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -32,7 +33,9 @@ static int _ma_put_key_in_record(MARIA_HA *info, uint keynr,
 #define FIX_LENGTH(cs, pos, length, char_length)                            \
             do {                                                            \
               if (length > char_length)                                     \
-                char_length= (uint) my_charpos(cs, pos, pos+length, char_length); \
+                char_length= (uint) my_ci_charpos(cs, (const char *) pos,   \
+                                                      (const char *) pos+length, \
+                                                      char_length);         \
               set_if_smaller(char_length,length);                           \
             } while(0)
 
@@ -237,7 +240,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
     {
       if (type != HA_KEYTYPE_NUM)
       {
-        length= (uint) cs->cset->lengthsp(cs, (const char*)pos, length);
+        length= (uint) my_ci_lengthsp(cs, (const char*)pos, length);
       }
       else
       {
@@ -312,7 +315,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
     FIX_LENGTH(cs, pos, length, char_length);
     memcpy(key, pos, char_length);
     if (length > char_length)
-      cs->cset->fill(cs, (char*) key+char_length, length-char_length, ' ');
+      my_ci_fill(cs, (char*) key+char_length, length-char_length, ' ');
     key+= length;
   }
   _ma_dpointer(info->s, key, filepos);
@@ -438,7 +441,7 @@ MARIA_KEY *_ma_pack_key(register MARIA_HA *info, MARIA_KEY *int_key,
     FIX_LENGTH(cs, pos, length, char_length);
     memcpy(key, pos, char_length);
     if (length > char_length)
-      cs->cset->fill(cs, (char*) key+char_length, length-char_length, ' ');
+      my_ci_fill(cs, (char*) key+char_length, length-char_length, ' ');
     key+= length;
   }
   if (last_used_keyseg)
@@ -545,8 +548,7 @@ static int _ma_put_key_in_record(register MARIA_HA *info, uint keynr,
       if (keyseg->type != (int) HA_KEYTYPE_NUM)
       {
         memcpy(pos,key,(size_t) length);
-        keyseg->charset->cset->fill(keyseg->charset,
-                                    (char*) pos + length,
+        my_ci_fill(keyseg->charset, (char*) pos + length,
                                     keyseg->length - length,
                                     ' ');
       }
@@ -642,7 +644,7 @@ int _ma_read_key_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
     {				/* Read only key */
       if (_ma_put_key_in_record(info, (uint)info->lastinx, TRUE, buf))
       {
-        _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
 	return -1;
       }
       info->update|= HA_STATE_AKTIV; /* We should find a record */
@@ -676,22 +678,44 @@ int _ma_read_key_record(MARIA_HA *info, uchar *buf, MARIA_RECORD_POS filepos)
     CHECK_OUT_OF_RANGE to indicate that we don't have any active row.
 */
 
-check_result_t ma_check_index_cond(register MARIA_HA *info, uint keynr,
-                                   uchar *record)
+check_result_t ma_check_index_cond_real(register MARIA_HA *info, uint keynr,
+                                        uchar *record)
 {
   check_result_t res= CHECK_POS;
+  DBUG_ASSERT(info->index_cond_func || info->rowid_filter_func);
+
+  if (_ma_put_key_in_record(info, keynr, FALSE, record))
+  {
+    /* Impossible case; Can only happen if bug in code */
+    _ma_print_error(info, HA_ERR_CRASHED, 0);
+    info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
+    my_errno= HA_ERR_CRASHED;
+    return CHECK_ERROR;
+  }
+
   if (info->index_cond_func)
   {
-    if (_ma_put_key_in_record(info, keynr, FALSE, record))
+    if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
-      /* Impossible case; Can only happen if bug in code */
-      maria_print_error(info->s, HA_ERR_CRASHED);
+      /* We got beyond the end of scanned range */
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */
-      my_errno= HA_ERR_CRASHED;
-      res= CHECK_ERROR;
+      my_errno= HA_ERR_END_OF_FILE;
+      return res;
     }
-    else if ((res= info->index_cond_func(info->index_cond_func_arg)) ==
-             CHECK_OUT_OF_RANGE)
+    /*
+      If we got an error, out-of-range condition, or ICP condition computed to
+      FALSE - we don't need to check the Rowid Filter.
+    */
+    if (res != CHECK_POS)
+      return res;
+  }
+
+  /* Check the Rowid Filter, if present */
+  if (info->rowid_filter_func)
+  {
+    if ((res= info->rowid_filter_func(info->rowid_filter_func_arg)) ==
+        CHECK_OUT_OF_RANGE)
     {
       /* We got beyond the end of scanned range */
       info->cur_row.lastpos= HA_OFFSET_ERROR;   /* No active record */

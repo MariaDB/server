@@ -1170,7 +1170,6 @@ bool VCTFAM::ResetTableSize(PGLOBAL g, int block, int last)
     if (!Header) {
       // Update catalog values for Block and Last
       PVCTDEF defp = (PVCTDEF)Tdbp->GetDef();
-      LPCSTR  name __attribute__((unused))= Tdbp->GetName();
 
       defp->SetBlock(Block);
       defp->SetLast(Last);
