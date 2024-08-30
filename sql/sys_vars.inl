@@ -100,7 +100,7 @@
 
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
-TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+TYPELIB bool_typelib= CREATE_TYPELIB_FOR(bool_values);
 
 
 template<class BASE, privilege_t GLOBAL_PRIV, privilege_t SESSION_PRIV>
@@ -315,7 +315,7 @@ public:
           ulonglong def_val, PolyLock *lock,
           enum binlog_status_enum binlog_status_arg,
           on_check_function on_check_func, on_update_function on_update_func,
-          const char *substitute)
+          const char *substitute, int *hidden_values)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
               getopt.arg_type, show_val_type_arg, def_val, lock,
               binlog_status_arg, on_check_func,
@@ -324,6 +324,7 @@ public:
     for (typelib.count= 0; values[typelib.count]; typelib.count++) /*no-op */;
     typelib.name="";
     typelib.type_names= values;
+    typelib.hidden_values= hidden_values;
     typelib.type_lengths= 0;    // only used by Fields_enum and Field_set
     option.typelib= &typelib;
   }
@@ -385,7 +386,7 @@ public:
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_ENUM;
     option.min_value= 0;
@@ -456,7 +457,7 @@ public:
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_MY_BOOL, bool_values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_BOOL;
     global_var(my_bool)= def_val;
@@ -1284,11 +1285,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0, int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, hidden_values)
   {
     option.var_type|= GET_FLAGSET;
     global_var(ulonglong)= def_val;
@@ -1397,11 +1398,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0,int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_CHAR, values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, hidden_values)
   {
     option.var_type|= GET_SET;
     option.min_value= 0;
@@ -1450,6 +1451,13 @@ public:
           !my_charset_latin1.strnncollsp(res->to_lex_cstring(), all_clex_str))
       {
         var->save_result.ulonglong_value= ((1ULL << (typelib.count)) -1);
+        if (typelib.hidden_values)
+        {
+          for (const int *p= typelib.hidden_values; *p >= 0; p++)
+          {
+            var->save_result.ulonglong_value &= ~(1ull << *p);
+          }
+        }
         error_len= 0;
       }
       /*
@@ -1848,11 +1856,11 @@ public:
           enum binlog_status_enum binlog_status_arg=VARIABLE_NOT_IN_BINLOG,
           on_check_function on_check_func=0,
           on_update_function on_update_func=0,
-          const char *substitute=0)
+          const char *substitute=0, int *hidden_values=nullptr)
     : Sys_var_typelib(name_arg, comment, flag_args, off, getopt,
                       SHOW_MY_BOOL, bool_values, def_val, lock,
                       binlog_status_arg, on_check_func, on_update_func,
-                      substitute)
+                      substitute, nullptr)
   {
     option.var_type|= GET_BIT;
     reverse_semantics= my_count_bits(bitmask_arg) > 1;

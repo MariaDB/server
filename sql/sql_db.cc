@@ -52,8 +52,7 @@
 #define MAX_DROP_TABLE_Q_LEN      1024
 
 const char *del_exts[]= {".BAK", ".opt", NullS};
-static TYPELIB deletable_extensions=
-{array_elements(del_exts)-1,"del_exts", del_exts, NULL};
+static TYPELIB deletable_extensions= CREATE_TYPELIB_FOR(del_exts);
 
 static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
                                               const char *, TABLE_LIST **);

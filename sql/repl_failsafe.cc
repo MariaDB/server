@@ -55,8 +55,7 @@ ulong rpl_status=RPL_NULL;
 mysql_mutex_t LOCK_rpl_status;
 
 const char *rpl_role_type[] = {"MASTER","SLAVE",NullS};
-TYPELIB rpl_role_typelib = {array_elements(rpl_role_type)-1,"",
-			    rpl_role_type, NULL};
+TYPELIB rpl_role_typelib = CREATE_TYPELIB_FOR(rpl_role_type);
 
 const char* rpl_status_type[]=
 {

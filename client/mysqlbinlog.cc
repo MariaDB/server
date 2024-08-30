@@ -113,9 +113,7 @@ static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin=
 static bool opt_hexdump= 0, opt_version= 0;
 const char *base64_output_mode_names[]=
 {"NEVER", "AUTO", "UNSPEC", "DECODE-ROWS", NullS};
-TYPELIB base64_output_mode_typelib=
-  { array_elements(base64_output_mode_names) - 1, "",
-    base64_output_mode_names, NULL };
+TYPELIB base64_output_mode_typelib=CREATE_TYPELIB_FOR(base64_output_mode_names);
 static enum_base64_output_mode opt_base64_output_mode= BASE64_OUTPUT_UNSPEC;
 static char *opt_base64_output_mode_str= NullS;
 static char* database= 0;

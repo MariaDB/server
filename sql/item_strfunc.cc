@@ -507,10 +507,7 @@ err:
 
 const char *histogram_types[] =
            {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
-static TYPELIB histogram_types_typelib=
-  { array_elements(histogram_types),
-    "histogram_types",
-    histogram_types, NULL};
+static TYPELIB histogram_types_typelib= CREATE_TYPELIB_FOR(histogram_types);
 const char *representation_by_type[]= {"%.3f", "%.5f"};
 
 String *Item_func_decode_histogram::val_str(String *str)

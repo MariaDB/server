@@ -81,13 +81,7 @@ unsigned int binlog_checksum_type_length[]= {
   0
 };
 
-TYPELIB binlog_checksum_typelib=
-{
-  array_elements(binlog_checksum_type_names) - 1, "",
-  binlog_checksum_type_names,
-  binlog_checksum_type_length
-};
-
+TYPELIB binlog_checksum_typelib= CREATE_TYPELIB_FOR(binlog_checksum_type_names);
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 

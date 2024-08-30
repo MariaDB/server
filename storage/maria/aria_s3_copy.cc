@@ -30,7 +30,7 @@
 #include "s3_func.h"
 
 static const char *op_types[]= {"to_s3", "from_s3", "delete_from_s3", NullS};
-static TYPELIB op_typelib= {array_elements(op_types)-1,"", op_types, NULL};
+static TYPELIB op_typelib= CREATE_TYPELIB_FOR(op_types);
 #define OP_IMPOSSIBLE array_elements(op_types)
 
 static const char *load_default_groups[]= { "aria_s3_copy", 0 };

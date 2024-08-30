@@ -394,10 +394,7 @@ static const char *event_names[]=
   "CONNECT", "QUERY", "TABLE", "QUERY_DDL", "QUERY_DML", "QUERY_DCL",
   "QUERY_DML_NO_SELECT", NULL
 };
-static TYPELIB events_typelib=
-{
-  array_elements(event_names) - 1, "", event_names, NULL
-};
+static TYPELIB events_typelib= CREATE_TYPELIB_FOR(event_names);
 static MYSQL_SYSVAR_SET(events, events, PLUGIN_VAR_RQCMDARG,
        "Specifies the set of events to monitor. Can be CONNECT, QUERY, TABLE,"
            " QUERY_DDL, QUERY_DML, QUERY_DML_NO_SELECT, QUERY_DCL.",
@@ -416,11 +413,7 @@ static const char *output_type_names[]= {
   "syslog",
 #endif
   "file", 0 };
-static TYPELIB output_typelib=
-{
-    array_elements(output_type_names) - 1, "output_typelib",
-    output_type_names, NULL
-};
+static TYPELIB output_typelib=CREATE_TYPELIB_FOR(output_type_names);
 static MYSQL_SYSVAR_ENUM(output_type, output_type, PLUGIN_VAR_RQCMDARG,
        out_type_desc,
        0, update_output_type, OUTPUT_FILE,
@@ -488,11 +481,7 @@ static unsigned int syslog_facility_codes[]=
   LOG_LOCAL4, LOG_LOCAL5, LOG_LOCAL6, LOG_LOCAL7,
 };
 #endif
-static TYPELIB syslog_facility_typelib=
-{
-    array_elements(syslog_facility_names) - 1, "syslog_facility_typelib",
-    syslog_facility_names, NULL
-};
+static TYPELIB syslog_facility_typelib=CREATE_TYPELIB_FOR(syslog_facility_names);
 static MYSQL_SYSVAR_ENUM(syslog_facility, syslog_facility, PLUGIN_VAR_RQCMDARG,
        "The 'facility' parameter of the SYSLOG record."
        " The default is LOG_USER.", 0, update_syslog_facility, 0/*LOG_USER*/,
@@ -513,11 +502,7 @@ static unsigned int syslog_priority_codes[]=
 };
 #endif
 
-static TYPELIB syslog_priority_typelib=
-{
-    array_elements(syslog_priority_names) - 1, "syslog_priority_typelib",
-    syslog_priority_names, NULL
-};
+static TYPELIB syslog_priority_typelib=CREATE_TYPELIB_FOR(syslog_priority_names);
 static MYSQL_SYSVAR_ENUM(syslog_priority, syslog_priority, PLUGIN_VAR_RQCMDARG,
        "The 'priority' parameter of the SYSLOG record."
        " The default is LOG_INFO.", 0, update_syslog_priority, 6/*LOG_INFO*/,

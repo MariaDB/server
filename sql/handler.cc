@@ -150,10 +150,9 @@ const LEX_CSTRING ha_row_type[]=
 const char *tx_isolation_names[]=
 { "READ-UNCOMMITTED", "READ-COMMITTED", "REPEATABLE-READ", "SERIALIZABLE",
   NullS};
-TYPELIB tx_isolation_typelib= {array_elements(tx_isolation_names)-1,"",
-			       tx_isolation_names, NULL};
+TYPELIB tx_isolation_typelib= CREATE_TYPELIB_FOR(tx_isolation_names);
 
-static TYPELIB known_extensions= {0,"known_exts", NULL, NULL};
+static TYPELIB known_extensions= {0,"known_exts", NULL, NULL, NULL};
 uint known_extensions_id= 0;
 
 

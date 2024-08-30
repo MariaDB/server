@@ -201,6 +201,23 @@ enum enum_binlog_row_image {
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 #define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
 
+
+/*
+  Bits for @@new_mode -> thd->variables.new_behaviour system variable
+  See sys_vars.cc /new_mode_all_names
+*/
+
+#define NEW_MODE_MAX                                                         0
+
+/* Definitions above that have transitioned from new behaviour to default */
+
+#define NOW_DEFAULT                                             -1
+#define NEW_MODE_TEST_WARNING1                               NOW_DEFAULT
+#define NEW_MODE_TEST_WARNING2                               NOW_DEFAULT
+
+#define TEST_NEW_MODE_FLAG(thd, flag) \
+  (flag == NOW_DEFAULT ? TRUE : thd->variables.new_behavior & flag)
+
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
@@ -704,6 +721,7 @@ typedef struct system_variables
   ulonglong optimizer_trace;
   sql_mode_t sql_mode; ///< which non-standard SQL behaviour should be enabled
   sql_mode_t old_behavior; ///< which old SQL behaviour should be enabled
+  sql_mode_t new_behavior; ///< which new SQL behaviour should be enabled
   ulonglong option_bits; ///< OPTION_xxx constants, e.g. OPTION_PROFILING
   ulonglong join_buff_space_limit;
   ulonglong log_slow_filter; 

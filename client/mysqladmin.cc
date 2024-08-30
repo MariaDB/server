@@ -128,8 +128,7 @@ static const char *command_names[]= {
   NullS
 };
 
-static TYPELIB command_typelib=
-{ array_elements(command_names)-1,"commands", command_names, NULL};
+static TYPELIB command_typelib= CREATE_TYPELIB_FOR(command_names);
 
 static struct my_option my_long_options[] =
 {

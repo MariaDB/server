@@ -767,17 +767,13 @@ static std::shared_ptr<rocksdb::RateLimiter> rocksdb_rate_limiter;
 static const char *write_policy_names[] = {"write_committed", "write_prepared",
                                            "write_unprepared", NullS};
 
-static TYPELIB write_policy_typelib = {array_elements(write_policy_names) - 1,
-                                       "write_policy_typelib",
-                                       write_policy_names, nullptr};
+static TYPELIB write_policy_typelib = CREATE_TYPELIB_FOR(write_policy_names);
 
 #if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 /* This array needs to be kept up to date with myrocks::read_free_rpl_type */
 static const char *read_free_rpl_names[] = {"OFF", "PK_ONLY", "PK_SK", NullS};
 
-static TYPELIB read_free_rpl_typelib = {array_elements(read_free_rpl_names) - 1,
-                                        "read_free_rpl_typelib",
-                                        read_free_rpl_names, nullptr};
+static TYPELIB read_free_rpl_typelib = CREATE_TYPELIB_FOR(read_free_rpl_names);
 #endif
 
 /* This enum needs to be kept up to date with rocksdb::InfoLogLevel */
@@ -785,9 +781,7 @@ static const char *info_log_level_names[] = {"debug_level", "info_level",
                                              "warn_level",  "error_level",
                                              "fatal_level", NullS};
 
-static TYPELIB info_log_level_typelib = {
-    array_elements(info_log_level_names) - 1, "info_log_level_typelib",
-    info_log_level_names, nullptr};
+static TYPELIB info_log_level_typelib = CREATE_TYPELIB_FOR(info_log_level_names);
 
 static void rocksdb_set_rocksdb_info_log_level(
     THD *const thd, struct st_mysql_sys_var *const var, void *const var_ptr,
@@ -902,9 +896,7 @@ static int rocksdb_compact_column_family(THD *const thd,
 
 static const char *index_type_names[] = {"kBinarySearch", "kHashSearch", NullS};
 
-static TYPELIB index_type_typelib = {array_elements(index_type_names) - 1,
-                                     "index_type_typelib", index_type_names,
-                                     nullptr};
+static TYPELIB index_type_typelib = CREATE_TYPELIB_FOR(index_type_names);
 
 const ulong RDB_MAX_LOCK_WAIT_SECONDS = 1024 * 1024 * 1024;
 const ulong RDB_DEFAULT_MAX_ROW_LOCKS = 1024 * 1024;

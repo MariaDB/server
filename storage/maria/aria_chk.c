@@ -639,9 +639,7 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
 
 const char *maria_stats_method_names[] = {"nulls_unequal", "nulls_equal",
                                            "nulls_ignored", NullS};
-TYPELIB maria_stats_method_typelib= {
-  array_elements(maria_stats_method_names) - 1, "",
-  maria_stats_method_names, NULL};
+TYPELIB maria_stats_method_typelib= CREATE_TYPELIB_FOR(maria_stats_method_names);
 
 	 /* Read options */
 

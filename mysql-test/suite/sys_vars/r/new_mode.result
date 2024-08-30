@@ -1,0 +1,60 @@
+SET @global_start_value = @@global.new_mode;
+SELECT @global_start_value;
+@global_start_value
+
+SET @session_start_value = @@session.new_mode;
+SELECT @session_start_value;
+@session_start_value
+
+SET @@global.new_mode = DEFAULT;
+SELECT @@global.new_mode;
+@@global.new_mode
+
+SELECT @@session.new_mode;
+@@session.new_mode
+
+SET @@session.new_mode = "TEST_WARNING1";
+Warnings:
+Warning	1234	Incorrect usage/placement of 'new_mode=TEST_WARNING1'
+SET @@session.new_mode = "TEST_WARNING1,TEST_WARNING2";
+Warnings:
+Warning	1234	Incorrect usage/placement of 'new_mode=TEST_WARNING1'
+Warning	1234	Incorrect usage/placement of 'new_mode=TEST_WARNING2'
+SET @@session.new_mode = "TEST_WARNING1,TEST_WARNING2,TEST_WARNING3";
+ERROR 42000: Variable 'new_mode' can't be set to the value of 'TEST_WARNING3'
+SET @@session.new_mode = "ALL";
+select @@session.new_mode;
+@@session.new_mode
+
+SET @@global.new_mode = NULL;
+ERROR 42000: Variable 'new_mode' can't be set to the value of 'NULL'
+SET @@global.new_mode = '';
+SELECT @@global.new_mode;
+@@global.new_mode
+
+SET @@global.new_mode = ' ';
+SELECT @@global.new_mode;
+@@global.new_mode
+
+SET @@session.new_mode = NULL;
+ERROR 42000: Variable 'new_mode' can't be set to the value of 'NULL'
+SET @@session.new_mode = '';
+SELECT @@session.new_mode;
+@@session.new_mode
+
+SET @@session.new_mode = ' ';
+SELECT @@session.new_mode;
+@@session.new_mode
+
+SET @@global.new_mode = OFF;
+ERROR 42000: Variable 'new_mode' can't be set to the value of 'OFF'
+SET @@session.new_mode = OFF;
+ERROR 42000: Variable 'new_mode' can't be set to the value of 'OFF'
+SET @@global.new_mode = @global_start_value;
+SELECT @@global.new_mode;
+@@global.new_mode
+
+SET @@session.new_mode = @session_start_value;
+SELECT @@session.new_mode;
+@@session.new_mode
+

@@ -586,8 +586,7 @@ struct st_command
   enum enum_commands type;
 };
 
-TYPELIB command_typelib= {array_elements(command_names),"",
-			  command_names, 0};
+TYPELIB command_typelib= CREATE_TYPELIB_FOR(command_names);
 
 DYNAMIC_STRING ds_res;
 /* Points to ds_warning in run_query, so it can be freed */
