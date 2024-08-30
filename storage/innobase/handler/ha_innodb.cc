@@ -12334,8 +12334,10 @@ create_table_info_t::create_foreign_keys()
 	ulint                 number          = 1;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
+	/* Quoted form `db`.`table` used for warning messages */
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
+	/* Name of original table in filename charset (or system charset for mysql50 name) */
 	char db_name[MAX_DATABASE_NAME_LEN + 1];
 	char t_name[MAX_TABLE_NAME_LEN + 1];
 	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
@@ -12344,6 +12346,7 @@ create_table_info_t::create_foreign_keys()
 	const char*	      operation = "Create ";
 
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(m_thd));
+        /* Name of innodb table with db */
 	LEX_CSTRING name= {m_table_name, strlen(m_table_name)};
 
 	if (sqlcom == SQLCOM_ALTER_TABLE) {
@@ -15612,7 +15615,7 @@ get_foreign_key_info(
 	f_key_info.referenced_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
-	/* Dependent (child) database name */
+	/* Foreign (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
 	ut_a(len < sizeof(tmp_buff));
 	memcpy(tmp_buff, foreign->foreign_table_name, len);
@@ -15622,7 +15625,7 @@ get_foreign_key_info(
 	f_key_info.foreign_db = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
-	/* Dependent (child) table name */
+	/* Foreign (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_table = thd_make_lex_string(

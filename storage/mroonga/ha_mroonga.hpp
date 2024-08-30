@@ -604,7 +604,6 @@ protected:
   int index_last(uchar *buf) mrn_override;
 #endif
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share_arg) mrn_override;
-  bool is_fk_defined_on_table_or_index(uint index) mrn_override;
   char *get_foreign_key_create_info() mrn_override;
 #ifdef MRN_HANDLER_HAVE_GET_TABLESPACE_NAME
   char *get_tablespace_name(THD *thd, char *name, uint name_len);

@@ -748,6 +748,11 @@ close_all_tables_for_name(THD *thd, TABLE_SHARE *share,
   size_t key_length= share->table_cache_key.length;
   bool remove_from_locked_tables= extra != HA_EXTRA_NOT_USED;
 
+  /* We cannot just use any extra, remove_from_locked_tables depends on that! */
+  DBUG_ASSERT(extra == HA_EXTRA_NOT_USED ||
+              extra == HA_EXTRA_PREPARE_FOR_DROP ||
+              extra == HA_EXTRA_PREPARE_FOR_RENAME);
+
   memcpy(key, share->table_cache_key.str, key_length);
 
   for (TABLE **prev= &thd->open_tables; *prev; )
