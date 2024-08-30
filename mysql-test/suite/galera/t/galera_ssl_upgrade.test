@@ -7,6 +7,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 --source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+--source include/force_restart.inc
 
 # Save original auto_increment_offset values.
 --let $node_1=node_1
