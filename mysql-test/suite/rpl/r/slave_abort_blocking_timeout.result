@@ -1,0 +1,74 @@
+include/master-slave.inc
+[connection master]
+*** Testcase to show how a long-running SELECT can block replication from proceeding
+*** past a DDL. Intention to implement a timeout after which such SELECT can be
+*** killed.
+connection master;
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 SELECT seq, 100+seq FROM seq_1_to_20;
+connection slave;
+include/stop_slave.inc
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+@@GLOBAL.slave_abort_blocking_timeout
+31536000.000000
+SET @old_abort_timeout= @@slave_abort_blocking_timeout;
+SET GLOBAL slave_abort_blocking_timeout= -1;
+Warnings:
+Warning	1292	Truncated incorrect slave_abort_blocking_timeout value: '-1'
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+@@GLOBAL.slave_abort_blocking_timeout
+0.000000
+SET GLOBAL slave_abort_blocking_timeout= 1.0;
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+@@GLOBAL.slave_abort_blocking_timeout
+1.000000
+connection server_2;
+SELECT X.a, SLEEP(IF((X.b MOD 2)=0, 0.4, 0.6)) FROM t1 X CROSS JOIN t1 Y;
+connection slave;
+connection master;
+UPDATE t1 SET b=b+1000 WHERE a=1;
+ALTER TABLE t1 ADD INDEX b_idx(b);
+UPDATE t1 SET b=b+1000 WHERE a=20;
+connection slave;
+include/start_slave.inc
+connection server_2;
+ERROR 70100: Query execution was interrupted
+connection slave;
+SHOW CREATE TABLE t1;
+Table	t1
+Create Table	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `b_idx` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+include/stop_slave.inc
+SET GLOBAL slave_abort_blocking_timeout= 0;
+SELECT @@GLOBAL.slave_abort_blocking_timeout;
+@@GLOBAL.slave_abort_blocking_timeout
+0.000000
+connection server_2;
+SELECT X.a, SLEEP(IF((X.b MOD 2)=0, 0.4, 0.6)) FROM t1 X CROSS JOIN t1 Y;
+connection slave;
+connection master;
+UPDATE t1 SET b=b+1000 WHERE a=1;
+ALTER TABLE t1 DROP INDEX b_idx;
+UPDATE t1 SET b=b+1000 WHERE a=20;
+connection slave;
+include/start_slave.inc
+connection server_2;
+ERROR 70100: Query execution was interrupted
+connection slave;
+SHOW CREATE TABLE t1;
+Table	t1
+Create Table	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+include/stop_slave.inc
+SET GLOBAL slave_abort_blocking_timeout= @old_abort_timeout;
+include/start_slave.inc
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc
