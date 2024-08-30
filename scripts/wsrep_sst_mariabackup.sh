@@ -848,7 +848,7 @@ recv_joiner()
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
             wsrep_log_info "Contents of datadir:"
-            wsrep_log_info $(ls -l "$dir/"*)
+            wsrep_log_info "$(ls -l "$dir/"*)"
             exit 32
         fi
 
@@ -1365,7 +1365,7 @@ else # joiner
         # Compact backups are not supported by mariadb-backup
         if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
-            wsrel_log_error "Compact backups are not supported by mariadb-backup"
+            wsrep_log_error "Compact backups are not supported by mariadb-backup"
             exit 2
         fi
 
