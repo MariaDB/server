@@ -333,7 +333,8 @@ const char *block_encryption_mode_values[]= {
   "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
   "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
   NullS };
-TYPELIB block_encryption_mode_typelib= {9, 0, block_encryption_mode_values, 0};
+TYPELIB block_encryption_mode_typelib=
+        CREATE_TYPELIB_FOR(block_encryption_mode_values);
 static inline uint block_encryption_mode_to_key_length(ulong bem)
 { return (bem % 3 + 2) * 64; }
 static inline my_aes_mode block_encryption_mode_to_aes_mode(ulong bem)
@@ -678,10 +679,7 @@ err:
 
 const char *histogram_types[] =
     {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", "JSON_HB", 0};
-static TYPELIB histogram_types_typelib=
-  { array_elements(histogram_types),
-    "histogram_types",
-    histogram_types, NULL};
+static TYPELIB histogram_types_typelib= CREATE_TYPELIB_FOR(histogram_types);
 const char *representation_by_type[]= {"%.3f", "%.5f"};
 
 String *Item_func_decode_histogram::val_str(String *str)

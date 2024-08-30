@@ -389,8 +389,7 @@ static ulong innodb_flush_method;
 
 static const char *binlog_info_values[] = {"off", "lockless", "on", "auto",
 					   NullS};
-static TYPELIB binlog_info_typelib = {array_elements(binlog_info_values)-1, "",
-				      binlog_info_values, NULL};
+static TYPELIB binlog_info_typelib = CREATE_TYPELIB_FOR(binlog_info_values);
 ulong opt_binlog_info;
 
 char *opt_incremental_history_name;
@@ -407,8 +406,7 @@ char *opt_log_bin;
 
 const char *query_type_names[] = { "ALL", "UPDATE", "SELECT", NullS};
 
-TYPELIB query_type_typelib= {array_elements(query_type_names) - 1, "",
-	query_type_names, NULL};
+TYPELIB query_type_typelib= CREATE_TYPELIB_FOR(query_type_names);
 
 ulong opt_lock_wait_query_type;
 ulong opt_kill_long_query_type;

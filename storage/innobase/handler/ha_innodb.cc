@@ -296,12 +296,8 @@ static const char* innodb_stats_method_names[] = {
 
 /** Used to define an enumerate type of the system variable innodb_stats_method.
 This is the same as "myisam_stats_method_typelib" */
-static TYPELIB innodb_stats_method_typelib = {
-	array_elements(innodb_stats_method_names) - 1,
-	"innodb_stats_method_typelib",
-	innodb_stats_method_names,
-	NULL
-};
+static TYPELIB innodb_stats_method_typelib =
+			CREATE_TYPELIB_FOR(innodb_stats_method_names);
 
 /** Possible values for system variable "innodb_linux_aio" */
 #ifdef __linux__
@@ -333,12 +329,8 @@ const char* innodb_checksum_algorithm_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_checksum_algorithm. */
-TYPELIB innodb_checksum_algorithm_typelib = {
-	array_elements(innodb_checksum_algorithm_names) - 1,
-	"innodb_checksum_algorithm_typelib",
-	innodb_checksum_algorithm_names,
-	NULL
-};
+TYPELIB innodb_checksum_algorithm_typelib =
+			CREATE_TYPELIB_FOR(innodb_checksum_algorithm_names);
 
 /** Possible values for system variable "innodb_default_row_format". */
 static const char* innodb_default_row_format_names[] = {
@@ -350,12 +342,8 @@ static const char* innodb_default_row_format_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_default_row_format. */
-static TYPELIB innodb_default_row_format_typelib = {
-	array_elements(innodb_default_row_format_names) - 1,
-	"innodb_default_row_format_typelib",
-	innodb_default_row_format_names,
-	NULL
-};
+static TYPELIB innodb_default_row_format_typelib =
+			CREATE_TYPELIB_FOR(innodb_default_row_format_names);
 
 /** Names of allowed values of innodb_flush_method */
 static const char* innodb_flush_method_names[] = {
@@ -376,12 +364,8 @@ static const char* innodb_flush_method_names[] = {
 static constexpr ulong innodb_flush_method_default = IF_WIN(6,4);
 
 /** Enumeration of innodb_flush_method */
-TYPELIB innodb_flush_method_typelib = {
-	array_elements(innodb_flush_method_names) - 1,
-	"innodb_flush_method_typelib",
-	innodb_flush_method_names,
-	NULL
-};
+TYPELIB innodb_flush_method_typelib =
+			CREATE_TYPELIB_FOR(innodb_flush_method_names);
 
 /** Deprecated parameter */
 static ulong innodb_flush_method;
@@ -391,12 +375,8 @@ static const char *innodb_doublewrite_names[]=
   {"OFF", "ON", "fast", nullptr};
 
 /** Enumeration of innodb_doublewrite */
-TYPELIB innodb_doublewrite_typelib= {
-  array_elements(innodb_doublewrite_names) - 1,
-  "innodb_doublewrite_typelib",
-  innodb_doublewrite_names,
-  nullptr
-};
+TYPELIB innodb_doublewrite_typelib=
+			CREATE_TYPELIB_FOR(innodb_doublewrite_names);
 
 /** Names of allowed values of innodb_deadlock_report */
 static const char *innodb_deadlock_report_names[]= {
@@ -411,12 +391,8 @@ static_assert(Deadlock::REPORT_BASIC == 1, "compatibility");
 static_assert(Deadlock::REPORT_FULL == 2, "compatibility");
 
 /** Enumeration of innodb_deadlock_report */
-static TYPELIB innodb_deadlock_report_typelib = {
-	array_elements(innodb_deadlock_report_names) - 1,
-	"innodb_deadlock_report_typelib",
-	innodb_deadlock_report_names,
-	NULL
-};
+static TYPELIB innodb_deadlock_report_typelib =
+			CREATE_TYPELIB_FOR(innodb_deadlock_report_names);
 
 /** Allowed values of innodb_instant_alter_column_allowed */
 const char* innodb_instant_alter_column_allowed_names[] = {
@@ -427,12 +403,8 @@ const char* innodb_instant_alter_column_allowed_names[] = {
 };
 
 /** Enumeration of innodb_instant_alter_column_allowed */
-static TYPELIB innodb_instant_alter_column_allowed_typelib = {
-	array_elements(innodb_instant_alter_column_allowed_names) - 1,
-	"innodb_instant_alter_column_allowed_typelib",
-	innodb_instant_alter_column_allowed_names,
-	NULL
-};
+static TYPELIB innodb_instant_alter_column_allowed_typelib =
+		CREATE_TYPELIB_FOR(innodb_instant_alter_column_allowed_names);
 
 /** Retrieve the FTS Relevance Ranking result for doc with doc_id
 of m_prebuilt->fts_doc_id
@@ -19757,10 +19729,7 @@ static MYSQL_SYSVAR_BOOL(alter_copy_bulk, innodb_alter_copy_bulk,
 
 const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
-{
-  array_elements(page_compression_algorithms) - 1, 0,
-  page_compression_algorithms, 0
-};
+		CREATE_TYPELIB_FOR(page_compression_algorithms);
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
   "Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, bzip2, or snappy",
@@ -19781,10 +19750,8 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   0);
 
 static const char* srv_encrypt_tables_names[] = { "OFF", "ON", "FORCE", 0 };
-static TYPELIB srv_encrypt_tables_typelib = {
-	array_elements(srv_encrypt_tables_names)-1, 0, srv_encrypt_tables_names,
-	NULL
-};
+static TYPELIB srv_encrypt_tables_typelib =
+		CREATE_TYPELIB_FOR(srv_encrypt_tables_names);
 static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "

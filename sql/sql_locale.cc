@@ -78,13 +78,13 @@ static const char *my_locale_day_names_ar_AE[8] =
 static const char *my_locale_ab_day_names_ar_AE[8] = 
  {"ن","ث","ر","خ","ج","س","ح", NullS };
 static TYPELIB my_locale_typelib_month_names_ar_AE = 
- { array_elements(my_locale_month_names_ar_AE)-1, "", my_locale_month_names_ar_AE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ar_AE);
 static TYPELIB my_locale_typelib_ab_month_names_ar_AE = 
- { array_elements(my_locale_ab_month_names_ar_AE)-1, "", my_locale_ab_month_names_ar_AE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ar_AE);
 static TYPELIB my_locale_typelib_day_names_ar_AE = 
- { array_elements(my_locale_day_names_ar_AE)-1, "", my_locale_day_names_ar_AE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ar_AE);
 static TYPELIB my_locale_typelib_ab_day_names_ar_AE = 
- { array_elements(my_locale_ab_day_names_ar_AE)-1, "", my_locale_ab_day_names_ar_AE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ar_AE);
 MY_LOCALE my_locale_ar_AE
 (
   6,
@@ -114,13 +114,13 @@ static const char *my_locale_day_names_ar_BH[8] =
 static const char *my_locale_ab_day_names_ar_BH[8] = 
  {"ن","ث","ر","خ","ج","س","ح", NullS };
 static TYPELIB my_locale_typelib_month_names_ar_BH = 
- { array_elements(my_locale_month_names_ar_BH)-1, "", my_locale_month_names_ar_BH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ar_BH);
 static TYPELIB my_locale_typelib_ab_month_names_ar_BH = 
- { array_elements(my_locale_ab_month_names_ar_BH)-1, "", my_locale_ab_month_names_ar_BH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ar_BH);
 static TYPELIB my_locale_typelib_day_names_ar_BH = 
- { array_elements(my_locale_day_names_ar_BH)-1, "", my_locale_day_names_ar_BH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ar_BH);
 static TYPELIB my_locale_typelib_ab_day_names_ar_BH = 
- { array_elements(my_locale_ab_day_names_ar_BH)-1, "", my_locale_ab_day_names_ar_BH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ar_BH);
 MY_LOCALE my_locale_ar_BH
 (
   7,
@@ -150,13 +150,13 @@ static const char *my_locale_day_names_ar_JO[8] =
 static const char *my_locale_ab_day_names_ar_JO[8] = 
  {"الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت","الأحد", NullS };
 static TYPELIB my_locale_typelib_month_names_ar_JO = 
- { array_elements(my_locale_month_names_ar_JO)-1, "", my_locale_month_names_ar_JO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ar_JO);
 static TYPELIB my_locale_typelib_ab_month_names_ar_JO = 
- { array_elements(my_locale_ab_month_names_ar_JO)-1, "", my_locale_ab_month_names_ar_JO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ar_JO);
 static TYPELIB my_locale_typelib_day_names_ar_JO = 
- { array_elements(my_locale_day_names_ar_JO)-1, "", my_locale_day_names_ar_JO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ar_JO);
 static TYPELIB my_locale_typelib_ab_day_names_ar_JO = 
- { array_elements(my_locale_ab_day_names_ar_JO)-1, "", my_locale_ab_day_names_ar_JO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ar_JO);
 MY_LOCALE my_locale_ar_JO
 (
   8,
@@ -186,13 +186,13 @@ static const char *my_locale_day_names_ar_SA[8] =
 static const char *my_locale_ab_day_names_ar_SA[8] = 
  {"Mon","Tue","Wed","Thu","Fri","Sat","Sun", NullS };
 static TYPELIB my_locale_typelib_month_names_ar_SA = 
- { array_elements(my_locale_month_names_ar_SA)-1, "", my_locale_month_names_ar_SA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ar_SA);
 static TYPELIB my_locale_typelib_ab_month_names_ar_SA = 
- { array_elements(my_locale_ab_month_names_ar_SA)-1, "", my_locale_ab_month_names_ar_SA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ar_SA);
 static TYPELIB my_locale_typelib_day_names_ar_SA = 
- { array_elements(my_locale_day_names_ar_SA)-1, "", my_locale_day_names_ar_SA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ar_SA);
 static TYPELIB my_locale_typelib_ab_day_names_ar_SA = 
- { array_elements(my_locale_ab_day_names_ar_SA)-1, "", my_locale_ab_day_names_ar_SA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ar_SA);
 MY_LOCALE my_locale_ar_SA
 (
   9,
@@ -222,13 +222,13 @@ static const char *my_locale_day_names_ar_SY[8] =
 static const char *my_locale_ab_day_names_ar_SY[8] = 
  {"الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة","السبت","الأحد", NullS };
 static TYPELIB my_locale_typelib_month_names_ar_SY = 
- { array_elements(my_locale_month_names_ar_SY)-1, "", my_locale_month_names_ar_SY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ar_SY);
 static TYPELIB my_locale_typelib_ab_month_names_ar_SY = 
- { array_elements(my_locale_ab_month_names_ar_SY)-1, "", my_locale_ab_month_names_ar_SY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ar_SY);
 static TYPELIB my_locale_typelib_day_names_ar_SY = 
- { array_elements(my_locale_day_names_ar_SY)-1, "", my_locale_day_names_ar_SY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ar_SY);
 static TYPELIB my_locale_typelib_ab_day_names_ar_SY = 
- { array_elements(my_locale_ab_day_names_ar_SY)-1, "", my_locale_ab_day_names_ar_SY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ar_SY);
 MY_LOCALE my_locale_ar_SY
 (
   10,
@@ -258,13 +258,13 @@ static const char *my_locale_day_names_be_BY[8] =
 static const char *my_locale_ab_day_names_be_BY[8] = 
  {"Пан","Аўт","Срд","Чцв","Пят","Суб","Няд", NullS };
 static TYPELIB my_locale_typelib_month_names_be_BY = 
- { array_elements(my_locale_month_names_be_BY)-1, "", my_locale_month_names_be_BY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_be_BY);
 static TYPELIB my_locale_typelib_ab_month_names_be_BY = 
- { array_elements(my_locale_ab_month_names_be_BY)-1, "", my_locale_ab_month_names_be_BY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_be_BY);
 static TYPELIB my_locale_typelib_day_names_be_BY = 
- { array_elements(my_locale_day_names_be_BY)-1, "", my_locale_day_names_be_BY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_be_BY);
 static TYPELIB my_locale_typelib_ab_day_names_be_BY = 
- { array_elements(my_locale_ab_day_names_be_BY)-1, "", my_locale_ab_day_names_be_BY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_be_BY);
 MY_LOCALE my_locale_be_BY
 (
   11,
@@ -294,13 +294,13 @@ static const char *my_locale_day_names_bg_BG[8] =
 static const char *my_locale_ab_day_names_bg_BG[8] = 
  {"пн","вт","ср","чт","пт","сб","нд", NullS };
 static TYPELIB my_locale_typelib_month_names_bg_BG = 
- { array_elements(my_locale_month_names_bg_BG)-1, "", my_locale_month_names_bg_BG, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_bg_BG);
 static TYPELIB my_locale_typelib_ab_month_names_bg_BG = 
- { array_elements(my_locale_ab_month_names_bg_BG)-1, "", my_locale_ab_month_names_bg_BG, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_bg_BG);
 static TYPELIB my_locale_typelib_day_names_bg_BG = 
- { array_elements(my_locale_day_names_bg_BG)-1, "", my_locale_day_names_bg_BG, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_bg_BG);
 static TYPELIB my_locale_typelib_ab_day_names_bg_BG = 
- { array_elements(my_locale_ab_day_names_bg_BG)-1, "", my_locale_ab_day_names_bg_BG, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_bg_BG);
 MY_LOCALE my_locale_bg_BG
 (
   12,
@@ -330,13 +330,13 @@ static const char *my_locale_day_names_ca_ES[8] =
 static const char *my_locale_ab_day_names_ca_ES[8] = 
  {"dl","dt","dc","dj","dv","ds","dg", NullS };
 static TYPELIB my_locale_typelib_month_names_ca_ES = 
- { array_elements(my_locale_month_names_ca_ES)-1, "", my_locale_month_names_ca_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ca_ES);
 static TYPELIB my_locale_typelib_ab_month_names_ca_ES = 
- { array_elements(my_locale_ab_month_names_ca_ES)-1, "", my_locale_ab_month_names_ca_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ca_ES);
 static TYPELIB my_locale_typelib_day_names_ca_ES = 
- { array_elements(my_locale_day_names_ca_ES)-1, "", my_locale_day_names_ca_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ca_ES);
 static TYPELIB my_locale_typelib_ab_day_names_ca_ES = 
- { array_elements(my_locale_ab_day_names_ca_ES)-1, "", my_locale_ab_day_names_ca_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ca_ES);
 MY_LOCALE my_locale_ca_ES
 (
   13,
@@ -366,13 +366,13 @@ static const char *my_locale_day_names_cs_CZ[8] =
 static const char *my_locale_ab_day_names_cs_CZ[8] = 
  {"Po","Út","St","Čt","Pá","So","Ne", NullS };
 static TYPELIB my_locale_typelib_month_names_cs_CZ = 
- { array_elements(my_locale_month_names_cs_CZ)-1, "", my_locale_month_names_cs_CZ, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_cs_CZ);
 static TYPELIB my_locale_typelib_ab_month_names_cs_CZ = 
- { array_elements(my_locale_ab_month_names_cs_CZ)-1, "", my_locale_ab_month_names_cs_CZ, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_cs_CZ);
 static TYPELIB my_locale_typelib_day_names_cs_CZ = 
- { array_elements(my_locale_day_names_cs_CZ)-1, "", my_locale_day_names_cs_CZ, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_cs_CZ);
 static TYPELIB my_locale_typelib_ab_day_names_cs_CZ = 
- { array_elements(my_locale_ab_day_names_cs_CZ)-1, "", my_locale_ab_day_names_cs_CZ, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_cs_CZ);
 MY_LOCALE my_locale_cs_CZ
 (
   14,
@@ -402,13 +402,13 @@ static const char *my_locale_day_names_da_DK[8] =
 static const char *my_locale_ab_day_names_da_DK[8] = 
  {"man","tir","ons","tor","fre","lør","søn", NullS };
 static TYPELIB my_locale_typelib_month_names_da_DK = 
- { array_elements(my_locale_month_names_da_DK)-1, "", my_locale_month_names_da_DK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_da_DK);
 static TYPELIB my_locale_typelib_ab_month_names_da_DK = 
- { array_elements(my_locale_ab_month_names_da_DK)-1, "", my_locale_ab_month_names_da_DK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_da_DK);
 static TYPELIB my_locale_typelib_day_names_da_DK = 
- { array_elements(my_locale_day_names_da_DK)-1, "", my_locale_day_names_da_DK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_da_DK);
 static TYPELIB my_locale_typelib_ab_day_names_da_DK = 
- { array_elements(my_locale_ab_day_names_da_DK)-1, "", my_locale_ab_day_names_da_DK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_da_DK);
 MY_LOCALE my_locale_da_DK
 (
   15,
@@ -438,13 +438,13 @@ static const char *my_locale_day_names_de_AT[8] =
 static const char *my_locale_ab_day_names_de_AT[8] = 
  {"Mon","Die","Mit","Don","Fre","Sam","Son", NullS };
 static TYPELIB my_locale_typelib_month_names_de_AT = 
- { array_elements(my_locale_month_names_de_AT)-1, "", my_locale_month_names_de_AT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_de_AT);
 static TYPELIB my_locale_typelib_ab_month_names_de_AT = 
- { array_elements(my_locale_ab_month_names_de_AT)-1, "", my_locale_ab_month_names_de_AT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_de_AT);
 static TYPELIB my_locale_typelib_day_names_de_AT = 
- { array_elements(my_locale_day_names_de_AT)-1, "", my_locale_day_names_de_AT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_de_AT);
 static TYPELIB my_locale_typelib_ab_day_names_de_AT = 
- { array_elements(my_locale_ab_day_names_de_AT)-1, "", my_locale_ab_day_names_de_AT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_de_AT);
 MY_LOCALE my_locale_de_AT
 (
   16,
@@ -474,13 +474,13 @@ static const char *my_locale_day_names_de_DE[8] =
 static const char *my_locale_ab_day_names_de_DE[8] = 
  {"Mo","Di","Mi","Do","Fr","Sa","So", NullS };
 static TYPELIB my_locale_typelib_month_names_de_DE = 
- { array_elements(my_locale_month_names_de_DE)-1, "", my_locale_month_names_de_DE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_de_DE);
 static TYPELIB my_locale_typelib_ab_month_names_de_DE = 
- { array_elements(my_locale_ab_month_names_de_DE)-1, "", my_locale_ab_month_names_de_DE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_de_DE);
 static TYPELIB my_locale_typelib_day_names_de_DE = 
- { array_elements(my_locale_day_names_de_DE)-1, "", my_locale_day_names_de_DE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_de_DE);
 static TYPELIB my_locale_typelib_ab_day_names_de_DE = 
- { array_elements(my_locale_ab_day_names_de_DE)-1, "", my_locale_ab_day_names_de_DE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_de_DE);
 MY_LOCALE my_locale_de_DE
 (
   4,
@@ -510,13 +510,13 @@ static const char *my_locale_day_names_en_US[8] =
 static const char *my_locale_ab_day_names_en_US[8] = 
  {"Mon","Tue","Wed","Thu","Fri","Sat","Sun", NullS };
 static TYPELIB my_locale_typelib_month_names_en_US = 
- { array_elements(my_locale_month_names_en_US)-1, "", my_locale_month_names_en_US, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_en_US);
 static TYPELIB my_locale_typelib_ab_month_names_en_US = 
- { array_elements(my_locale_ab_month_names_en_US)-1, "", my_locale_ab_month_names_en_US, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_en_US);
 static TYPELIB my_locale_typelib_day_names_en_US = 
- { array_elements(my_locale_day_names_en_US)-1, "", my_locale_day_names_en_US, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_en_US);
 static TYPELIB my_locale_typelib_ab_day_names_en_US = 
- { array_elements(my_locale_ab_day_names_en_US)-1, "", my_locale_ab_day_names_en_US, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_en_US);
 MY_LOCALE my_locale_en_US
 (
   0,
@@ -546,13 +546,13 @@ static const char *my_locale_day_names_es_ES[8] =
 static const char *my_locale_ab_day_names_es_ES[8] = 
  {"lun","mar","mié","jue","vie","sáb","dom", NullS };
 static TYPELIB my_locale_typelib_month_names_es_ES = 
- { array_elements(my_locale_month_names_es_ES)-1, "", my_locale_month_names_es_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_es_ES);
 static TYPELIB my_locale_typelib_ab_month_names_es_ES = 
- { array_elements(my_locale_ab_month_names_es_ES)-1, "", my_locale_ab_month_names_es_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_es_ES);
 static TYPELIB my_locale_typelib_day_names_es_ES = 
- { array_elements(my_locale_day_names_es_ES)-1, "", my_locale_day_names_es_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_es_ES);
 static TYPELIB my_locale_typelib_ab_day_names_es_ES = 
- { array_elements(my_locale_ab_day_names_es_ES)-1, "", my_locale_ab_day_names_es_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_es_ES);
 MY_LOCALE my_locale_es_ES
 (
   17,
@@ -582,13 +582,13 @@ static const char *my_locale_day_names_et_EE[8] =
 static const char *my_locale_ab_day_names_et_EE[8] = 
  {"E","T","K","N","R","L","P", NullS };
 static TYPELIB my_locale_typelib_month_names_et_EE = 
- { array_elements(my_locale_month_names_et_EE)-1, "", my_locale_month_names_et_EE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_et_EE);
 static TYPELIB my_locale_typelib_ab_month_names_et_EE = 
- { array_elements(my_locale_ab_month_names_et_EE)-1, "", my_locale_ab_month_names_et_EE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_et_EE);
 static TYPELIB my_locale_typelib_day_names_et_EE = 
- { array_elements(my_locale_day_names_et_EE)-1, "", my_locale_day_names_et_EE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_et_EE);
 static TYPELIB my_locale_typelib_ab_day_names_et_EE = 
- { array_elements(my_locale_ab_day_names_et_EE)-1, "", my_locale_ab_day_names_et_EE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_et_EE);
 MY_LOCALE my_locale_et_EE
 (
   18,
@@ -618,13 +618,13 @@ static const char *my_locale_day_names_eu_ES[8] =
 static const char *my_locale_ab_day_names_eu_ES[8] = 
  {"al.","ar.","az.","og.","or.","lr.","ig.", NullS };
 static TYPELIB my_locale_typelib_month_names_eu_ES = 
- { array_elements(my_locale_month_names_eu_ES)-1, "", my_locale_month_names_eu_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_eu_ES);
 static TYPELIB my_locale_typelib_ab_month_names_eu_ES = 
- { array_elements(my_locale_ab_month_names_eu_ES)-1, "", my_locale_ab_month_names_eu_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_eu_ES);
 static TYPELIB my_locale_typelib_day_names_eu_ES = 
- { array_elements(my_locale_day_names_eu_ES)-1, "", my_locale_day_names_eu_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_eu_ES);
 static TYPELIB my_locale_typelib_ab_day_names_eu_ES = 
- { array_elements(my_locale_ab_day_names_eu_ES)-1, "", my_locale_ab_day_names_eu_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_eu_ES);
 MY_LOCALE my_locale_eu_ES
 (
   19,
@@ -654,13 +654,13 @@ static const char *my_locale_day_names_fi_FI[8] =
 static const char *my_locale_ab_day_names_fi_FI[8] = 
  {"ma","ti","ke","to","pe","la","su", NullS };
 static TYPELIB my_locale_typelib_month_names_fi_FI = 
- { array_elements(my_locale_month_names_fi_FI)-1, "", my_locale_month_names_fi_FI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_fi_FI);
 static TYPELIB my_locale_typelib_ab_month_names_fi_FI = 
- { array_elements(my_locale_ab_month_names_fi_FI)-1, "", my_locale_ab_month_names_fi_FI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_fi_FI);
 static TYPELIB my_locale_typelib_day_names_fi_FI = 
- { array_elements(my_locale_day_names_fi_FI)-1, "", my_locale_day_names_fi_FI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_fi_FI);
 static TYPELIB my_locale_typelib_ab_day_names_fi_FI = 
- { array_elements(my_locale_ab_day_names_fi_FI)-1, "", my_locale_ab_day_names_fi_FI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_fi_FI);
 MY_LOCALE my_locale_fi_FI
 (
   20,
@@ -690,13 +690,13 @@ static const char *my_locale_day_names_fo_FO[8] =
 static const char *my_locale_ab_day_names_fo_FO[8] = 
  {"mán","týs","mik","hós","frí","ley","sun", NullS };
 static TYPELIB my_locale_typelib_month_names_fo_FO = 
- { array_elements(my_locale_month_names_fo_FO)-1, "", my_locale_month_names_fo_FO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_fo_FO);
 static TYPELIB my_locale_typelib_ab_month_names_fo_FO = 
- { array_elements(my_locale_ab_month_names_fo_FO)-1, "", my_locale_ab_month_names_fo_FO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_fo_FO);
 static TYPELIB my_locale_typelib_day_names_fo_FO = 
- { array_elements(my_locale_day_names_fo_FO)-1, "", my_locale_day_names_fo_FO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_fo_FO);
 static TYPELIB my_locale_typelib_ab_day_names_fo_FO = 
- { array_elements(my_locale_ab_day_names_fo_FO)-1, "", my_locale_ab_day_names_fo_FO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_fo_FO);
 MY_LOCALE my_locale_fo_FO
 (
   21,
@@ -726,13 +726,13 @@ static const char *my_locale_day_names_fr_FR[8] =
 static const char *my_locale_ab_day_names_fr_FR[8] = 
  {"lun","mar","mer","jeu","ven","sam","dim", NullS };
 static TYPELIB my_locale_typelib_month_names_fr_FR = 
- { array_elements(my_locale_month_names_fr_FR)-1, "", my_locale_month_names_fr_FR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_fr_FR);
 static TYPELIB my_locale_typelib_ab_month_names_fr_FR = 
- { array_elements(my_locale_ab_month_names_fr_FR)-1, "", my_locale_ab_month_names_fr_FR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_fr_FR);
 static TYPELIB my_locale_typelib_day_names_fr_FR = 
- { array_elements(my_locale_day_names_fr_FR)-1, "", my_locale_day_names_fr_FR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_fr_FR);
 static TYPELIB my_locale_typelib_ab_day_names_fr_FR = 
- { array_elements(my_locale_ab_day_names_fr_FR)-1, "", my_locale_ab_day_names_fr_FR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_fr_FR);
 MY_LOCALE my_locale_fr_FR
 (
   5,
@@ -762,13 +762,13 @@ static const char *my_locale_day_names_gl_ES[8] =
 static const char *my_locale_ab_day_names_gl_ES[8] = 
  {"Lun","Mar","Mér","Xov","Ven","Sáb","Dom", NullS };
 static TYPELIB my_locale_typelib_month_names_gl_ES = 
- { array_elements(my_locale_month_names_gl_ES)-1, "", my_locale_month_names_gl_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_gl_ES);
 static TYPELIB my_locale_typelib_ab_month_names_gl_ES = 
- { array_elements(my_locale_ab_month_names_gl_ES)-1, "", my_locale_ab_month_names_gl_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_gl_ES);
 static TYPELIB my_locale_typelib_day_names_gl_ES = 
- { array_elements(my_locale_day_names_gl_ES)-1, "", my_locale_day_names_gl_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_gl_ES);
 static TYPELIB my_locale_typelib_ab_day_names_gl_ES = 
- { array_elements(my_locale_ab_day_names_gl_ES)-1, "", my_locale_ab_day_names_gl_ES, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_gl_ES);
 MY_LOCALE my_locale_gl_ES
 (
   22,
@@ -798,13 +798,13 @@ static const char *my_locale_day_names_gu_IN[8] =
 static const char *my_locale_ab_day_names_gu_IN[8] = 
  {"સોમ","મન્ગળ","બુધ","ગુરુ","શુક્ર","શનિ","રવિ", NullS };
 static TYPELIB my_locale_typelib_month_names_gu_IN = 
- { array_elements(my_locale_month_names_gu_IN)-1, "", my_locale_month_names_gu_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_gu_IN);
 static TYPELIB my_locale_typelib_ab_month_names_gu_IN = 
- { array_elements(my_locale_ab_month_names_gu_IN)-1, "", my_locale_ab_month_names_gu_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_gu_IN);
 static TYPELIB my_locale_typelib_day_names_gu_IN = 
- { array_elements(my_locale_day_names_gu_IN)-1, "", my_locale_day_names_gu_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_gu_IN);
 static TYPELIB my_locale_typelib_ab_day_names_gu_IN = 
- { array_elements(my_locale_ab_day_names_gu_IN)-1, "", my_locale_ab_day_names_gu_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_gu_IN);
 MY_LOCALE my_locale_gu_IN
 (
   23,
@@ -834,13 +834,13 @@ static const char *my_locale_day_names_he_IL[8] =
 static const char *my_locale_ab_day_names_he_IL[8] = 
  {"ב'","ג'","ד'","ה'","ו'","ש'","א'", NullS };
 static TYPELIB my_locale_typelib_month_names_he_IL = 
- { array_elements(my_locale_month_names_he_IL)-1, "", my_locale_month_names_he_IL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_he_IL);
 static TYPELIB my_locale_typelib_ab_month_names_he_IL = 
- { array_elements(my_locale_ab_month_names_he_IL)-1, "", my_locale_ab_month_names_he_IL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_he_IL);
 static TYPELIB my_locale_typelib_day_names_he_IL = 
- { array_elements(my_locale_day_names_he_IL)-1, "", my_locale_day_names_he_IL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_he_IL);
 static TYPELIB my_locale_typelib_ab_day_names_he_IL = 
- { array_elements(my_locale_ab_day_names_he_IL)-1, "", my_locale_ab_day_names_he_IL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_he_IL);
 MY_LOCALE my_locale_he_IL
 (
   24,
@@ -870,13 +870,13 @@ static const char *my_locale_day_names_hi_IN[8] =
 static const char *my_locale_ab_day_names_hi_IN[8] = 
  {"सोम ","मंगल ","बुध ","गुरु ","शुक्र ","शनि ","रवि ", NullS };
 static TYPELIB my_locale_typelib_month_names_hi_IN = 
- { array_elements(my_locale_month_names_hi_IN)-1, "", my_locale_month_names_hi_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_hi_IN);
 static TYPELIB my_locale_typelib_ab_month_names_hi_IN = 
- { array_elements(my_locale_ab_month_names_hi_IN)-1, "", my_locale_ab_month_names_hi_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_hi_IN);
 static TYPELIB my_locale_typelib_day_names_hi_IN = 
- { array_elements(my_locale_day_names_hi_IN)-1, "", my_locale_day_names_hi_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_hi_IN);
 static TYPELIB my_locale_typelib_ab_day_names_hi_IN = 
- { array_elements(my_locale_ab_day_names_hi_IN)-1, "", my_locale_ab_day_names_hi_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_hi_IN);
 MY_LOCALE my_locale_hi_IN
 (
   25,
@@ -906,13 +906,13 @@ static const char *my_locale_day_names_hr_HR[8] =
 static const char *my_locale_ab_day_names_hr_HR[8] = 
  {"Pon","Uto","Sri","Čet","Pet","Sub","Ned", NullS };
 static TYPELIB my_locale_typelib_month_names_hr_HR = 
- { array_elements(my_locale_month_names_hr_HR)-1, "", my_locale_month_names_hr_HR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_hr_HR);
 static TYPELIB my_locale_typelib_ab_month_names_hr_HR = 
- { array_elements(my_locale_ab_month_names_hr_HR)-1, "", my_locale_ab_month_names_hr_HR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_hr_HR);
 static TYPELIB my_locale_typelib_day_names_hr_HR = 
- { array_elements(my_locale_day_names_hr_HR)-1, "", my_locale_day_names_hr_HR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_hr_HR);
 static TYPELIB my_locale_typelib_ab_day_names_hr_HR = 
- { array_elements(my_locale_ab_day_names_hr_HR)-1, "", my_locale_ab_day_names_hr_HR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_hr_HR);
 MY_LOCALE my_locale_hr_HR
 (
   26,
@@ -942,13 +942,13 @@ static const char *my_locale_day_names_hu_HU[8] =
 static const char *my_locale_ab_day_names_hu_HU[8] = 
  {"h","k","sze","cs","p","szo","v", NullS };
 static TYPELIB my_locale_typelib_month_names_hu_HU = 
- { array_elements(my_locale_month_names_hu_HU)-1, "", my_locale_month_names_hu_HU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_hu_HU);
 static TYPELIB my_locale_typelib_ab_month_names_hu_HU = 
- { array_elements(my_locale_ab_month_names_hu_HU)-1, "", my_locale_ab_month_names_hu_HU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_hu_HU);
 static TYPELIB my_locale_typelib_day_names_hu_HU = 
- { array_elements(my_locale_day_names_hu_HU)-1, "", my_locale_day_names_hu_HU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_hu_HU);
 static TYPELIB my_locale_typelib_ab_day_names_hu_HU = 
- { array_elements(my_locale_ab_day_names_hu_HU)-1, "", my_locale_ab_day_names_hu_HU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_hu_HU);
 MY_LOCALE my_locale_hu_HU
 (
   27,
@@ -978,13 +978,13 @@ static const char *my_locale_day_names_id_ID[8] =
 static const char *my_locale_ab_day_names_id_ID[8] = 
  {"Sen","Sel","Rab","Kam","Jum","Sab","Min", NullS };
 static TYPELIB my_locale_typelib_month_names_id_ID = 
- { array_elements(my_locale_month_names_id_ID)-1, "", my_locale_month_names_id_ID, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_id_ID);
 static TYPELIB my_locale_typelib_ab_month_names_id_ID = 
- { array_elements(my_locale_ab_month_names_id_ID)-1, "", my_locale_ab_month_names_id_ID, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_id_ID);
 static TYPELIB my_locale_typelib_day_names_id_ID = 
- { array_elements(my_locale_day_names_id_ID)-1, "", my_locale_day_names_id_ID, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_id_ID);
 static TYPELIB my_locale_typelib_ab_day_names_id_ID = 
- { array_elements(my_locale_ab_day_names_id_ID)-1, "", my_locale_ab_day_names_id_ID, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_id_ID);
 MY_LOCALE my_locale_id_ID
 (
   28,
@@ -1014,13 +1014,13 @@ static const char *my_locale_day_names_is_IS[8] =
 static const char *my_locale_ab_day_names_is_IS[8] = 
  {"mán","þri","mið","fim","fös","lau","sun", NullS };
 static TYPELIB my_locale_typelib_month_names_is_IS = 
- { array_elements(my_locale_month_names_is_IS)-1, "", my_locale_month_names_is_IS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_is_IS);
 static TYPELIB my_locale_typelib_ab_month_names_is_IS = 
- { array_elements(my_locale_ab_month_names_is_IS)-1, "", my_locale_ab_month_names_is_IS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_is_IS);
 static TYPELIB my_locale_typelib_day_names_is_IS = 
- { array_elements(my_locale_day_names_is_IS)-1, "", my_locale_day_names_is_IS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_is_IS);
 static TYPELIB my_locale_typelib_ab_day_names_is_IS = 
- { array_elements(my_locale_ab_day_names_is_IS)-1, "", my_locale_ab_day_names_is_IS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_is_IS);
 MY_LOCALE my_locale_is_IS
 (
   29,
@@ -1050,13 +1050,13 @@ static const char *my_locale_day_names_it_CH[8] =
 static const char *my_locale_ab_day_names_it_CH[8] = 
  {"lun","mar","mer","gio","ven","sab","dom", NullS };
 static TYPELIB my_locale_typelib_month_names_it_CH = 
- { array_elements(my_locale_month_names_it_CH)-1, "", my_locale_month_names_it_CH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_it_CH);
 static TYPELIB my_locale_typelib_ab_month_names_it_CH = 
- { array_elements(my_locale_ab_month_names_it_CH)-1, "", my_locale_ab_month_names_it_CH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_it_CH);
 static TYPELIB my_locale_typelib_day_names_it_CH = 
- { array_elements(my_locale_day_names_it_CH)-1, "", my_locale_day_names_it_CH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_it_CH);
 static TYPELIB my_locale_typelib_ab_day_names_it_CH = 
- { array_elements(my_locale_ab_day_names_it_CH)-1, "", my_locale_ab_day_names_it_CH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_it_CH);
 MY_LOCALE my_locale_it_CH
 (
   30,
@@ -1086,13 +1086,13 @@ static const char *my_locale_day_names_ja_JP[8] =
 static const char *my_locale_ab_day_names_ja_JP[8] = 
  {"月","火","水","木","金","土","日", NullS };
 static TYPELIB my_locale_typelib_month_names_ja_JP = 
- { array_elements(my_locale_month_names_ja_JP)-1, "", my_locale_month_names_ja_JP, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ja_JP);
 static TYPELIB my_locale_typelib_ab_month_names_ja_JP = 
- { array_elements(my_locale_ab_month_names_ja_JP)-1, "", my_locale_ab_month_names_ja_JP, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ja_JP);
 static TYPELIB my_locale_typelib_day_names_ja_JP = 
- { array_elements(my_locale_day_names_ja_JP)-1, "", my_locale_day_names_ja_JP, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ja_JP);
 static TYPELIB my_locale_typelib_ab_day_names_ja_JP = 
- { array_elements(my_locale_ab_day_names_ja_JP)-1, "", my_locale_ab_day_names_ja_JP, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ja_JP);
 MY_LOCALE my_locale_ja_JP
 (
   2,
@@ -1122,13 +1122,13 @@ static const char *my_locale_day_names_ko_KR[8] =
 static const char *my_locale_ab_day_names_ko_KR[8] = 
  {"월","화","수","목","금","토","일", NullS };
 static TYPELIB my_locale_typelib_month_names_ko_KR = 
- { array_elements(my_locale_month_names_ko_KR)-1, "", my_locale_month_names_ko_KR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ko_KR);
 static TYPELIB my_locale_typelib_ab_month_names_ko_KR = 
- { array_elements(my_locale_ab_month_names_ko_KR)-1, "", my_locale_ab_month_names_ko_KR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ko_KR);
 static TYPELIB my_locale_typelib_day_names_ko_KR = 
- { array_elements(my_locale_day_names_ko_KR)-1, "", my_locale_day_names_ko_KR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ko_KR);
 static TYPELIB my_locale_typelib_ab_day_names_ko_KR = 
- { array_elements(my_locale_ab_day_names_ko_KR)-1, "", my_locale_ab_day_names_ko_KR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ko_KR);
 MY_LOCALE my_locale_ko_KR
 (
   31,
@@ -1158,13 +1158,13 @@ static const char *my_locale_day_names_lt_LT[8] =
 static const char *my_locale_ab_day_names_lt_LT[8] = 
  {"Pr","An","Tr","Kt","Pn","Št","Sk", NullS };
 static TYPELIB my_locale_typelib_month_names_lt_LT = 
- { array_elements(my_locale_month_names_lt_LT)-1, "", my_locale_month_names_lt_LT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_lt_LT);
 static TYPELIB my_locale_typelib_ab_month_names_lt_LT = 
- { array_elements(my_locale_ab_month_names_lt_LT)-1, "", my_locale_ab_month_names_lt_LT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_lt_LT);
 static TYPELIB my_locale_typelib_day_names_lt_LT = 
- { array_elements(my_locale_day_names_lt_LT)-1, "", my_locale_day_names_lt_LT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_lt_LT);
 static TYPELIB my_locale_typelib_ab_day_names_lt_LT = 
- { array_elements(my_locale_ab_day_names_lt_LT)-1, "", my_locale_ab_day_names_lt_LT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_lt_LT);
 MY_LOCALE my_locale_lt_LT
 (
   32,
@@ -1194,13 +1194,13 @@ static const char *my_locale_day_names_lv_LV[8] =
 static const char *my_locale_ab_day_names_lv_LV[8] = 
  {"P ","O ","T ","C ","Pk","S ","Sv", NullS };
 static TYPELIB my_locale_typelib_month_names_lv_LV = 
- { array_elements(my_locale_month_names_lv_LV)-1, "", my_locale_month_names_lv_LV, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_lv_LV);
 static TYPELIB my_locale_typelib_ab_month_names_lv_LV = 
- { array_elements(my_locale_ab_month_names_lv_LV)-1, "", my_locale_ab_month_names_lv_LV, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_lv_LV);
 static TYPELIB my_locale_typelib_day_names_lv_LV = 
- { array_elements(my_locale_day_names_lv_LV)-1, "", my_locale_day_names_lv_LV, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_lv_LV);
 static TYPELIB my_locale_typelib_ab_day_names_lv_LV = 
- { array_elements(my_locale_ab_day_names_lv_LV)-1, "", my_locale_ab_day_names_lv_LV, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_lv_LV);
 MY_LOCALE my_locale_lv_LV
 (
   33,
@@ -1230,13 +1230,13 @@ static const char *my_locale_day_names_mk_MK[8] =
 static const char *my_locale_ab_day_names_mk_MK[8] = 
  {"пон","вто","сре","чет","пет","саб","нед", NullS };
 static TYPELIB my_locale_typelib_month_names_mk_MK = 
- { array_elements(my_locale_month_names_mk_MK)-1, "", my_locale_month_names_mk_MK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_mk_MK);
 static TYPELIB my_locale_typelib_ab_month_names_mk_MK = 
- { array_elements(my_locale_ab_month_names_mk_MK)-1, "", my_locale_ab_month_names_mk_MK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_mk_MK);
 static TYPELIB my_locale_typelib_day_names_mk_MK = 
- { array_elements(my_locale_day_names_mk_MK)-1, "", my_locale_day_names_mk_MK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_mk_MK);
 static TYPELIB my_locale_typelib_ab_day_names_mk_MK = 
- { array_elements(my_locale_ab_day_names_mk_MK)-1, "", my_locale_ab_day_names_mk_MK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_mk_MK);
 MY_LOCALE my_locale_mk_MK
 (
   34,
@@ -1266,13 +1266,13 @@ static const char *my_locale_day_names_mn_MN[8] =
 static const char *my_locale_ab_day_names_mn_MN[8] = 
  {"Да","Мя","Лх","Пү","Ба","Бя","Ня", NullS };
 static TYPELIB my_locale_typelib_month_names_mn_MN = 
- { array_elements(my_locale_month_names_mn_MN)-1, "", my_locale_month_names_mn_MN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_mn_MN);
 static TYPELIB my_locale_typelib_ab_month_names_mn_MN = 
- { array_elements(my_locale_ab_month_names_mn_MN)-1, "", my_locale_ab_month_names_mn_MN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_mn_MN);
 static TYPELIB my_locale_typelib_day_names_mn_MN = 
- { array_elements(my_locale_day_names_mn_MN)-1, "", my_locale_day_names_mn_MN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_mn_MN);
 static TYPELIB my_locale_typelib_ab_day_names_mn_MN = 
- { array_elements(my_locale_ab_day_names_mn_MN)-1, "", my_locale_ab_day_names_mn_MN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_mn_MN);
 MY_LOCALE my_locale_mn_MN
 (
   35,
@@ -1302,13 +1302,13 @@ static const char *my_locale_day_names_ms_MY[8] =
 static const char *my_locale_ab_day_names_ms_MY[8] = 
  {"Isn","Sel","Rab","Kha","Jum","Sab","Ahd", NullS };
 static TYPELIB my_locale_typelib_month_names_ms_MY = 
- { array_elements(my_locale_month_names_ms_MY)-1, "", my_locale_month_names_ms_MY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ms_MY);
 static TYPELIB my_locale_typelib_ab_month_names_ms_MY = 
- { array_elements(my_locale_ab_month_names_ms_MY)-1, "", my_locale_ab_month_names_ms_MY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ms_MY);
 static TYPELIB my_locale_typelib_day_names_ms_MY = 
- { array_elements(my_locale_day_names_ms_MY)-1, "", my_locale_day_names_ms_MY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ms_MY);
 static TYPELIB my_locale_typelib_ab_day_names_ms_MY = 
- { array_elements(my_locale_ab_day_names_ms_MY)-1, "", my_locale_ab_day_names_ms_MY, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ms_MY);
 MY_LOCALE my_locale_ms_MY
 (
   36,
@@ -1338,13 +1338,13 @@ static const char *my_locale_day_names_nb_NO[8] =
 static const char *my_locale_ab_day_names_nb_NO[8] = 
  {"man","tir","ons","tor","fre","lør","søn", NullS };
 static TYPELIB my_locale_typelib_month_names_nb_NO = 
- { array_elements(my_locale_month_names_nb_NO)-1, "", my_locale_month_names_nb_NO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_nb_NO);
 static TYPELIB my_locale_typelib_ab_month_names_nb_NO = 
- { array_elements(my_locale_ab_month_names_nb_NO)-1, "", my_locale_ab_month_names_nb_NO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_nb_NO);
 static TYPELIB my_locale_typelib_day_names_nb_NO = 
- { array_elements(my_locale_day_names_nb_NO)-1, "", my_locale_day_names_nb_NO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_nb_NO);
 static TYPELIB my_locale_typelib_ab_day_names_nb_NO = 
- { array_elements(my_locale_ab_day_names_nb_NO)-1, "", my_locale_ab_day_names_nb_NO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_nb_NO);
 MY_LOCALE my_locale_nb_NO
 (
   37,
@@ -1374,13 +1374,13 @@ static const char *my_locale_day_names_nl_NL[8] =
 static const char *my_locale_ab_day_names_nl_NL[8] = 
  {"ma","di","wo","do","vr","za","zo", NullS };
 static TYPELIB my_locale_typelib_month_names_nl_NL = 
- { array_elements(my_locale_month_names_nl_NL)-1, "", my_locale_month_names_nl_NL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_nl_NL);
 static TYPELIB my_locale_typelib_ab_month_names_nl_NL = 
- { array_elements(my_locale_ab_month_names_nl_NL)-1, "", my_locale_ab_month_names_nl_NL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_nl_NL);
 static TYPELIB my_locale_typelib_day_names_nl_NL = 
- { array_elements(my_locale_day_names_nl_NL)-1, "", my_locale_day_names_nl_NL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_nl_NL);
 static TYPELIB my_locale_typelib_ab_day_names_nl_NL = 
- { array_elements(my_locale_ab_day_names_nl_NL)-1, "", my_locale_ab_day_names_nl_NL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_nl_NL);
 MY_LOCALE my_locale_nl_NL
 (
   38,
@@ -1410,13 +1410,13 @@ static const char *my_locale_day_names_pl_PL[8] =
 static const char *my_locale_ab_day_names_pl_PL[8] = 
  {"pon","wto","śro","czw","pią","sob","nie", NullS };
 static TYPELIB my_locale_typelib_month_names_pl_PL = 
- { array_elements(my_locale_month_names_pl_PL)-1, "", my_locale_month_names_pl_PL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_pl_PL);
 static TYPELIB my_locale_typelib_ab_month_names_pl_PL = 
- { array_elements(my_locale_ab_month_names_pl_PL)-1, "", my_locale_ab_month_names_pl_PL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_pl_PL);
 static TYPELIB my_locale_typelib_day_names_pl_PL = 
- { array_elements(my_locale_day_names_pl_PL)-1, "", my_locale_day_names_pl_PL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_pl_PL);
 static TYPELIB my_locale_typelib_ab_day_names_pl_PL = 
- { array_elements(my_locale_ab_day_names_pl_PL)-1, "", my_locale_ab_day_names_pl_PL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_pl_PL);
 MY_LOCALE my_locale_pl_PL
 (
   39,
@@ -1446,13 +1446,13 @@ static const char *my_locale_day_names_pt_BR[8] =
 static const char *my_locale_ab_day_names_pt_BR[8] = 
  {"Seg","Ter","Qua","Qui","Sex","Sáb","Dom", NullS };
 static TYPELIB my_locale_typelib_month_names_pt_BR = 
- { array_elements(my_locale_month_names_pt_BR)-1, "", my_locale_month_names_pt_BR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_pt_BR);
 static TYPELIB my_locale_typelib_ab_month_names_pt_BR = 
- { array_elements(my_locale_ab_month_names_pt_BR)-1, "", my_locale_ab_month_names_pt_BR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_pt_BR);
 static TYPELIB my_locale_typelib_day_names_pt_BR = 
- { array_elements(my_locale_day_names_pt_BR)-1, "", my_locale_day_names_pt_BR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_pt_BR);
 static TYPELIB my_locale_typelib_ab_day_names_pt_BR = 
- { array_elements(my_locale_ab_day_names_pt_BR)-1, "", my_locale_ab_day_names_pt_BR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_pt_BR);
 MY_LOCALE my_locale_pt_BR
 (
   40,
@@ -1482,13 +1482,13 @@ static const char *my_locale_day_names_pt_PT[8] =
 static const char *my_locale_ab_day_names_pt_PT[8] = 
  {"Seg","Ter","Qua","Qui","Sex","Sáb","Dom", NullS };
 static TYPELIB my_locale_typelib_month_names_pt_PT = 
- { array_elements(my_locale_month_names_pt_PT)-1, "", my_locale_month_names_pt_PT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_pt_PT);
 static TYPELIB my_locale_typelib_ab_month_names_pt_PT = 
- { array_elements(my_locale_ab_month_names_pt_PT)-1, "", my_locale_ab_month_names_pt_PT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_pt_PT);
 static TYPELIB my_locale_typelib_day_names_pt_PT = 
- { array_elements(my_locale_day_names_pt_PT)-1, "", my_locale_day_names_pt_PT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_pt_PT);
 static TYPELIB my_locale_typelib_ab_day_names_pt_PT = 
- { array_elements(my_locale_ab_day_names_pt_PT)-1, "", my_locale_ab_day_names_pt_PT, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_pt_PT);
 MY_LOCALE my_locale_pt_PT
 (
   41,
@@ -1518,13 +1518,13 @@ static const char *my_locale_day_names_ro_RO[8] =
 static const char *my_locale_ab_day_names_ro_RO[8] = 
  {"Lu","Ma","Mi","Jo","Vi","Sâ","Du", NullS };
 static TYPELIB my_locale_typelib_month_names_ro_RO = 
- { array_elements(my_locale_month_names_ro_RO)-1, "", my_locale_month_names_ro_RO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ro_RO);
 static TYPELIB my_locale_typelib_ab_month_names_ro_RO = 
- { array_elements(my_locale_ab_month_names_ro_RO)-1, "", my_locale_ab_month_names_ro_RO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ro_RO);
 static TYPELIB my_locale_typelib_day_names_ro_RO = 
- { array_elements(my_locale_day_names_ro_RO)-1, "", my_locale_day_names_ro_RO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ro_RO);
 static TYPELIB my_locale_typelib_ab_day_names_ro_RO = 
- { array_elements(my_locale_ab_day_names_ro_RO)-1, "", my_locale_ab_day_names_ro_RO, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ro_RO);
 MY_LOCALE my_locale_ro_RO
 (
   42,
@@ -1554,13 +1554,13 @@ static const char *my_locale_day_names_ru_RU[8] =
 static const char *my_locale_ab_day_names_ru_RU[8] = 
  {"Пнд","Втр","Срд","Чтв","Птн","Сбт","Вск", NullS };
 static TYPELIB my_locale_typelib_month_names_ru_RU = 
- { array_elements(my_locale_month_names_ru_RU)-1, "", my_locale_month_names_ru_RU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ru_RU);
 static TYPELIB my_locale_typelib_ab_month_names_ru_RU = 
- { array_elements(my_locale_ab_month_names_ru_RU)-1, "", my_locale_ab_month_names_ru_RU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ru_RU);
 static TYPELIB my_locale_typelib_day_names_ru_RU = 
- { array_elements(my_locale_day_names_ru_RU)-1, "", my_locale_day_names_ru_RU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ru_RU);
 static TYPELIB my_locale_typelib_ab_day_names_ru_RU = 
- { array_elements(my_locale_ab_day_names_ru_RU)-1, "", my_locale_ab_day_names_ru_RU, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ru_RU);
 MY_LOCALE my_locale_ru_RU
 (
   43,
@@ -1590,13 +1590,13 @@ static const char *my_locale_day_names_ru_UA[8] =
 static const char *my_locale_ab_day_names_ru_UA[8] = 
  {"Пнд","Вто","Срд","Чтв","Птн","Суб","Вск", NullS };
 static TYPELIB my_locale_typelib_month_names_ru_UA = 
- { array_elements(my_locale_month_names_ru_UA)-1, "", my_locale_month_names_ru_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ru_UA);
 static TYPELIB my_locale_typelib_ab_month_names_ru_UA = 
- { array_elements(my_locale_ab_month_names_ru_UA)-1, "", my_locale_ab_month_names_ru_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ru_UA);
 static TYPELIB my_locale_typelib_day_names_ru_UA = 
- { array_elements(my_locale_day_names_ru_UA)-1, "", my_locale_day_names_ru_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ru_UA);
 static TYPELIB my_locale_typelib_ab_day_names_ru_UA = 
- { array_elements(my_locale_ab_day_names_ru_UA)-1, "", my_locale_ab_day_names_ru_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ru_UA);
 MY_LOCALE my_locale_ru_UA
 (
   44,
@@ -1626,13 +1626,13 @@ static const char *my_locale_day_names_sk_SK[8] =
 static const char *my_locale_ab_day_names_sk_SK[8] = 
  {"Po","Ut","St","Št","Pi","So","Ne", NullS };
 static TYPELIB my_locale_typelib_month_names_sk_SK = 
- { array_elements(my_locale_month_names_sk_SK)-1, "", my_locale_month_names_sk_SK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sk_SK);
 static TYPELIB my_locale_typelib_ab_month_names_sk_SK = 
- { array_elements(my_locale_ab_month_names_sk_SK)-1, "", my_locale_ab_month_names_sk_SK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sk_SK);
 static TYPELIB my_locale_typelib_day_names_sk_SK = 
- { array_elements(my_locale_day_names_sk_SK)-1, "", my_locale_day_names_sk_SK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sk_SK);
 static TYPELIB my_locale_typelib_ab_day_names_sk_SK = 
- { array_elements(my_locale_ab_day_names_sk_SK)-1, "", my_locale_ab_day_names_sk_SK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sk_SK);
 MY_LOCALE my_locale_sk_SK
 (
   45,
@@ -1662,13 +1662,13 @@ static const char *my_locale_day_names_sl_SI[8] =
 static const char *my_locale_ab_day_names_sl_SI[8] = 
  {"pon","tor","sre","čet","pet","sob","ned", NullS };
 static TYPELIB my_locale_typelib_month_names_sl_SI = 
- { array_elements(my_locale_month_names_sl_SI)-1, "", my_locale_month_names_sl_SI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sl_SI);
 static TYPELIB my_locale_typelib_ab_month_names_sl_SI = 
- { array_elements(my_locale_ab_month_names_sl_SI)-1, "", my_locale_ab_month_names_sl_SI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sl_SI);
 static TYPELIB my_locale_typelib_day_names_sl_SI = 
- { array_elements(my_locale_day_names_sl_SI)-1, "", my_locale_day_names_sl_SI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sl_SI);
 static TYPELIB my_locale_typelib_ab_day_names_sl_SI = 
- { array_elements(my_locale_ab_day_names_sl_SI)-1, "", my_locale_ab_day_names_sl_SI, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sl_SI);
 MY_LOCALE my_locale_sl_SI
 (
   46,
@@ -1698,13 +1698,13 @@ static const char *my_locale_day_names_sq_AL[8] =
 static const char *my_locale_ab_day_names_sq_AL[8] = 
  {"Hën ","Mar ","Mër ","Enj ","Pre ","Sht ","Die ", NullS };
 static TYPELIB my_locale_typelib_month_names_sq_AL = 
- { array_elements(my_locale_month_names_sq_AL)-1, "", my_locale_month_names_sq_AL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sq_AL);
 static TYPELIB my_locale_typelib_ab_month_names_sq_AL = 
- { array_elements(my_locale_ab_month_names_sq_AL)-1, "", my_locale_ab_month_names_sq_AL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sq_AL);
 static TYPELIB my_locale_typelib_day_names_sq_AL = 
- { array_elements(my_locale_day_names_sq_AL)-1, "", my_locale_day_names_sq_AL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sq_AL);
 static TYPELIB my_locale_typelib_ab_day_names_sq_AL = 
- { array_elements(my_locale_ab_day_names_sq_AL)-1, "", my_locale_ab_day_names_sq_AL, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sq_AL);
 MY_LOCALE my_locale_sq_AL
 (
   47,
@@ -1734,13 +1734,13 @@ static const char *my_locale_day_names_sr_RS[8] =
 static const char *my_locale_ab_day_names_sr_RS[8] = 
  {"pon","uto","sre","čet","pet","sub","ned", NullS };
 static TYPELIB my_locale_typelib_month_names_sr_RS = 
- { array_elements(my_locale_month_names_sr_RS)-1, "", my_locale_month_names_sr_RS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sr_RS);
 static TYPELIB my_locale_typelib_ab_month_names_sr_RS = 
- { array_elements(my_locale_ab_month_names_sr_RS)-1, "", my_locale_ab_month_names_sr_RS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sr_RS);
 static TYPELIB my_locale_typelib_day_names_sr_RS = 
- { array_elements(my_locale_day_names_sr_RS)-1, "", my_locale_day_names_sr_RS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sr_RS);
 static TYPELIB my_locale_typelib_ab_day_names_sr_RS = 
- { array_elements(my_locale_ab_day_names_sr_RS)-1, "", my_locale_ab_day_names_sr_RS, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sr_RS);
 
 MY_LOCALE my_locale_sr_RS
 (
@@ -1771,13 +1771,13 @@ static const char *my_locale_day_names_sv_SE[8] =
 static const char *my_locale_ab_day_names_sv_SE[8] = 
  {"mån","tis","ons","tor","fre","lör","sön", NullS };
 static TYPELIB my_locale_typelib_month_names_sv_SE = 
- { array_elements(my_locale_month_names_sv_SE)-1, "", my_locale_month_names_sv_SE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sv_SE);
 static TYPELIB my_locale_typelib_ab_month_names_sv_SE = 
- { array_elements(my_locale_ab_month_names_sv_SE)-1, "", my_locale_ab_month_names_sv_SE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sv_SE);
 static TYPELIB my_locale_typelib_day_names_sv_SE = 
- { array_elements(my_locale_day_names_sv_SE)-1, "", my_locale_day_names_sv_SE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sv_SE);
 static TYPELIB my_locale_typelib_ab_day_names_sv_SE = 
- { array_elements(my_locale_ab_day_names_sv_SE)-1, "", my_locale_ab_day_names_sv_SE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sv_SE);
 MY_LOCALE my_locale_sv_SE
 (
   3,
@@ -1807,13 +1807,13 @@ static const char *my_locale_day_names_ta_IN[8] =
 static const char *my_locale_ab_day_names_ta_IN[8] = 
  {"த","ச","ப","வ","வ","ச","ஞ", NullS };
 static TYPELIB my_locale_typelib_month_names_ta_IN = 
- { array_elements(my_locale_month_names_ta_IN)-1, "", my_locale_month_names_ta_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ta_IN);
 static TYPELIB my_locale_typelib_ab_month_names_ta_IN = 
- { array_elements(my_locale_ab_month_names_ta_IN)-1, "", my_locale_ab_month_names_ta_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ta_IN);
 static TYPELIB my_locale_typelib_day_names_ta_IN = 
- { array_elements(my_locale_day_names_ta_IN)-1, "", my_locale_day_names_ta_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ta_IN);
 static TYPELIB my_locale_typelib_ab_day_names_ta_IN = 
- { array_elements(my_locale_ab_day_names_ta_IN)-1, "", my_locale_ab_day_names_ta_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ta_IN);
 MY_LOCALE my_locale_ta_IN
 (
   49,
@@ -1843,13 +1843,13 @@ static const char *my_locale_day_names_te_IN[8] =
 static const char *my_locale_ab_day_names_te_IN[8] = 
  {"సోమ","మంగళ","బుధ","గురు","శుక్ర","శని","ఆది", NullS };
 static TYPELIB my_locale_typelib_month_names_te_IN = 
- { array_elements(my_locale_month_names_te_IN)-1, "", my_locale_month_names_te_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_te_IN);
 static TYPELIB my_locale_typelib_ab_month_names_te_IN = 
- { array_elements(my_locale_ab_month_names_te_IN)-1, "", my_locale_ab_month_names_te_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_te_IN);
 static TYPELIB my_locale_typelib_day_names_te_IN = 
- { array_elements(my_locale_day_names_te_IN)-1, "", my_locale_day_names_te_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_te_IN);
 static TYPELIB my_locale_typelib_ab_day_names_te_IN = 
- { array_elements(my_locale_ab_day_names_te_IN)-1, "", my_locale_ab_day_names_te_IN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_te_IN);
 MY_LOCALE my_locale_te_IN
 (
   50,
@@ -1879,13 +1879,13 @@ static const char *my_locale_day_names_th_TH[8] =
 static const char *my_locale_ab_day_names_th_TH[8] = 
  {"จ.","อ.","พ.","พฤ.","ศ.","ส.","อา.", NullS };
 static TYPELIB my_locale_typelib_month_names_th_TH = 
- { array_elements(my_locale_month_names_th_TH)-1, "", my_locale_month_names_th_TH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_th_TH);
 static TYPELIB my_locale_typelib_ab_month_names_th_TH = 
- { array_elements(my_locale_ab_month_names_th_TH)-1, "", my_locale_ab_month_names_th_TH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_th_TH);
 static TYPELIB my_locale_typelib_day_names_th_TH = 
- { array_elements(my_locale_day_names_th_TH)-1, "", my_locale_day_names_th_TH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_th_TH);
 static TYPELIB my_locale_typelib_ab_day_names_th_TH = 
- { array_elements(my_locale_ab_day_names_th_TH)-1, "", my_locale_ab_day_names_th_TH, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_th_TH);
 MY_LOCALE my_locale_th_TH
 (
   51,
@@ -1915,13 +1915,13 @@ static const char *my_locale_day_names_tr_TR[8] =
 static const char *my_locale_ab_day_names_tr_TR[8] = 
  {"Pzt","Sal","Çrş","Prş","Cum","Cts","Paz", NullS };
 static TYPELIB my_locale_typelib_month_names_tr_TR = 
- { array_elements(my_locale_month_names_tr_TR)-1, "", my_locale_month_names_tr_TR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_tr_TR);
 static TYPELIB my_locale_typelib_ab_month_names_tr_TR = 
- { array_elements(my_locale_ab_month_names_tr_TR)-1, "", my_locale_ab_month_names_tr_TR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_tr_TR);
 static TYPELIB my_locale_typelib_day_names_tr_TR = 
- { array_elements(my_locale_day_names_tr_TR)-1, "", my_locale_day_names_tr_TR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_tr_TR);
 static TYPELIB my_locale_typelib_ab_day_names_tr_TR = 
- { array_elements(my_locale_ab_day_names_tr_TR)-1, "", my_locale_ab_day_names_tr_TR, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_tr_TR);
 MY_LOCALE my_locale_tr_TR
 (
   52,
@@ -1951,13 +1951,13 @@ static const char *my_locale_day_names_uk_UA[8] =
 static const char *my_locale_ab_day_names_uk_UA[8] = 
  {"Пнд","Втр","Срд","Чтв","Птн","Сбт","Ндл", NullS };
 static TYPELIB my_locale_typelib_month_names_uk_UA = 
- { array_elements(my_locale_month_names_uk_UA)-1, "", my_locale_month_names_uk_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_uk_UA);
 static TYPELIB my_locale_typelib_ab_month_names_uk_UA = 
- { array_elements(my_locale_ab_month_names_uk_UA)-1, "", my_locale_ab_month_names_uk_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_uk_UA);
 static TYPELIB my_locale_typelib_day_names_uk_UA = 
- { array_elements(my_locale_day_names_uk_UA)-1, "", my_locale_day_names_uk_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_uk_UA);
 static TYPELIB my_locale_typelib_ab_day_names_uk_UA = 
- { array_elements(my_locale_ab_day_names_uk_UA)-1, "", my_locale_ab_day_names_uk_UA, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_uk_UA);
 MY_LOCALE my_locale_uk_UA
 (
   53,
@@ -1987,13 +1987,13 @@ static const char *my_locale_day_names_ur_PK[8] =
 static const char *my_locale_ab_day_names_ur_PK[8] = 
  {"پير","منگل","بدھ","جمعرات","جمعه","هفته","اتوار", NullS };
 static TYPELIB my_locale_typelib_month_names_ur_PK = 
- { array_elements(my_locale_month_names_ur_PK)-1, "", my_locale_month_names_ur_PK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ur_PK);
 static TYPELIB my_locale_typelib_ab_month_names_ur_PK = 
- { array_elements(my_locale_ab_month_names_ur_PK)-1, "", my_locale_ab_month_names_ur_PK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ur_PK);
 static TYPELIB my_locale_typelib_day_names_ur_PK = 
- { array_elements(my_locale_day_names_ur_PK)-1, "", my_locale_day_names_ur_PK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ur_PK);
 static TYPELIB my_locale_typelib_ab_day_names_ur_PK = 
- { array_elements(my_locale_ab_day_names_ur_PK)-1, "", my_locale_ab_day_names_ur_PK, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ur_PK);
 MY_LOCALE my_locale_ur_PK
 (
   54,
@@ -2023,13 +2023,13 @@ static const char *my_locale_day_names_vi_VN[8] =
 static const char *my_locale_ab_day_names_vi_VN[8] = 
  {"Th 2 ","Th 3 ","Th 4 ","Th 5 ","Th 6 ","Th 7 ","CN ", NullS };
 static TYPELIB my_locale_typelib_month_names_vi_VN = 
- { array_elements(my_locale_month_names_vi_VN)-1, "", my_locale_month_names_vi_VN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_vi_VN);
 static TYPELIB my_locale_typelib_ab_month_names_vi_VN = 
- { array_elements(my_locale_ab_month_names_vi_VN)-1, "", my_locale_ab_month_names_vi_VN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_vi_VN);
 static TYPELIB my_locale_typelib_day_names_vi_VN = 
- { array_elements(my_locale_day_names_vi_VN)-1, "", my_locale_day_names_vi_VN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_vi_VN);
 static TYPELIB my_locale_typelib_ab_day_names_vi_VN = 
- { array_elements(my_locale_ab_day_names_vi_VN)-1, "", my_locale_ab_day_names_vi_VN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_vi_VN);
 MY_LOCALE my_locale_vi_VN
 (
   55,
@@ -2059,13 +2059,13 @@ static const char *my_locale_day_names_zh_CN[8] =
 static const char *my_locale_ab_day_names_zh_CN[8] = 
  {"一","二","三","四","五","六","日", NullS };
 static TYPELIB my_locale_typelib_month_names_zh_CN = 
- { array_elements(my_locale_month_names_zh_CN)-1, "", my_locale_month_names_zh_CN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_zh_CN);
 static TYPELIB my_locale_typelib_ab_month_names_zh_CN = 
- { array_elements(my_locale_ab_month_names_zh_CN)-1, "", my_locale_ab_month_names_zh_CN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_zh_CN);
 static TYPELIB my_locale_typelib_day_names_zh_CN = 
- { array_elements(my_locale_day_names_zh_CN)-1, "", my_locale_day_names_zh_CN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_zh_CN);
 static TYPELIB my_locale_typelib_ab_day_names_zh_CN = 
- { array_elements(my_locale_ab_day_names_zh_CN)-1, "", my_locale_ab_day_names_zh_CN, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_zh_CN);
 MY_LOCALE my_locale_zh_CN
 (
   56,
@@ -2095,13 +2095,13 @@ static const char *my_locale_day_names_zh_TW[8] =
 static const char *my_locale_ab_day_names_zh_TW[8] = 
  {"一","二","三","四","五","六","日", NullS };
 static TYPELIB my_locale_typelib_month_names_zh_TW = 
- { array_elements(my_locale_month_names_zh_TW)-1, "", my_locale_month_names_zh_TW, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_zh_TW);
 static TYPELIB my_locale_typelib_ab_month_names_zh_TW = 
- { array_elements(my_locale_ab_month_names_zh_TW)-1, "", my_locale_ab_month_names_zh_TW, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_zh_TW);
 static TYPELIB my_locale_typelib_day_names_zh_TW = 
- { array_elements(my_locale_day_names_zh_TW)-1, "", my_locale_day_names_zh_TW, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_zh_TW);
 static TYPELIB my_locale_typelib_ab_day_names_zh_TW = 
- { array_elements(my_locale_ab_day_names_zh_TW)-1, "", my_locale_ab_day_names_zh_TW, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_zh_TW);
 MY_LOCALE my_locale_zh_TW
 (
   57,
@@ -3331,16 +3331,16 @@ static const char *my_locale_ab_day_names_ka_GE[8] =
  {"ორშ","სამშ","ოთხშ","ხუთშ","პარ","შაბ","კვ", NullS };
 
 static TYPELIB my_locale_typelib_month_names_ka_GE =
- { array_elements(my_locale_month_names_ka_GE)-1, "", my_locale_month_names_ka_GE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_ka_GE);
 
 static TYPELIB my_locale_typelib_ab_month_names_ka_GE =
- { array_elements(my_locale_ab_month_names_ka_GE)-1, "", my_locale_ab_month_names_ka_GE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_ka_GE);
 
 static TYPELIB my_locale_typelib_day_names_ka_GE =
- { array_elements(my_locale_day_names_ka_GE)-1, "", my_locale_day_names_ka_GE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_ka_GE);
 
 static TYPELIB my_locale_typelib_ab_day_names_ka_GE =
- { array_elements(my_locale_ab_day_names_ka_GE)-1, "", my_locale_ab_day_names_ka_GE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_ka_GE);
 
 MY_LOCALE my_locale_ka_GE
 (
@@ -3371,13 +3371,13 @@ static const char *my_locale_day_names_sw_KE[8] =
 static const char *my_locale_ab_day_names_sw_KE[8] = 
  {"Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili", NullS };
 static TYPELIB my_locale_typelib_month_names_sw_KE = 
- { array_elements(my_locale_month_names_sw_KE)-1, "", my_locale_month_names_sw_KE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_month_names_sw_KE);
 static TYPELIB my_locale_typelib_ab_month_names_sw_KE = 
- { array_elements(my_locale_ab_month_names_sw_KE)-1, "", my_locale_ab_month_names_sw_KE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_month_names_sw_KE);
 static TYPELIB my_locale_typelib_day_names_sw_KE = 
- { array_elements(my_locale_day_names_sw_KE)-1, "", my_locale_day_names_sw_KE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_day_names_sw_KE);
 static TYPELIB my_locale_typelib_ab_day_names_sw_KE = 
- { array_elements(my_locale_ab_day_names_sw_KE)-1, "", my_locale_ab_day_names_sw_KE, NULL };
+ CREATE_TYPELIB_FOR(my_locale_ab_day_names_sw_KE);
 MY_LOCALE my_locale_sw_KE
 (
   112,

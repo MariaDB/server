@@ -2540,12 +2540,8 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
 static const char *slave_parallel_mode_names[] = {
   "none", "minimal", "conservative", "optimistic", "aggressive", NULL
 };
-export TYPELIB slave_parallel_mode_typelib = {
-  array_elements(slave_parallel_mode_names)-1,
-  "",
-  slave_parallel_mode_names,
-  NULL
-};
+export TYPELIB slave_parallel_mode_typelib =
+  CREATE_TYPELIB_FOR(slave_parallel_mode_names);
 
 static Sys_var_on_access_global<Sys_var_slave_parallel_mode,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MODE>

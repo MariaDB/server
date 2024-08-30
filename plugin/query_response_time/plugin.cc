@@ -36,6 +36,13 @@ static void query_response_time_flush_update(
   query_response_time_flush();
 }
 
+enum session_stat
+{
+  session_stat_global,
+  session_stat_on,
+  session_stat_off
+};
+
 
 static MYSQL_SYSVAR_ULONG(range_base, opt_query_response_time_range_base,
        PLUGIN_VAR_RQCMDARG,

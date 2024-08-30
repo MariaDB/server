@@ -131,5 +131,4 @@ my_bool my_disable_copystat_in_redel=0;
 const char *sql_protocol_names_lib[] =
 { "TCP", "SOCKET", "PIPE", NullS };
 
-TYPELIB sql_protocol_typelib ={ array_elements(sql_protocol_names_lib) - 1, "",
-                                sql_protocol_names_lib, NULL };
+TYPELIB sql_protocol_typelib= CREATE_TYPELIB_FOR(sql_protocol_names_lib);
