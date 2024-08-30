@@ -139,10 +139,7 @@ LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
   "process","file","grant","references","index","alter"};
-
-static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
-                               "grant_types",
-                               grant_names, NULL};
+static TYPELIB grant_types = CREATE_TYPELIB_FOR(grant_names);
 #endif
 
 /* Match the values of enum ha_choice */
