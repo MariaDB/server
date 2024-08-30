@@ -878,7 +878,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
       if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
-          keyinfo->algorithm != HA_KEY_ALG_MHNSW)
+          keyinfo->algorithm != HA_KEY_ALG_VECTOR)
         rec_per_key++;
       key_part->fieldnr=  (uint16) (uint2korr(strpos) & FIELD_NR_MASK);
       key_part->offset=   (uint) uint2korr(strpos+2)-1;
@@ -920,7 +920,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       share->ext_key_parts++;
     }
 
-    if (keyinfo->algorithm != HA_KEY_ALG_MHNSW)
+    if (keyinfo->algorithm != HA_KEY_ALG_VECTOR)
       share->keys++;
 
     if (i && share->use_ext_keys && !((keyinfo->flags & HA_NOSAME)))

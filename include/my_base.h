@@ -110,7 +110,7 @@ enum ha_key_alg {
   HA_KEY_ALG_FULLTEXT=    4,            /* FULLTEXT                     */
   HA_KEY_ALG_LONG_HASH=   5,            /* long BLOB keys               */
   HA_KEY_ALG_UNIQUE_HASH= 6,            /* Internal UNIQUE hash (Aria)  */
-  HA_KEY_ALG_MHNSW=       7             /* HNSW for k-ANN vector search */
+  HA_KEY_ALG_VECTOR=      7             /* Vector search index          */
 };
 
         /* Storage media types */ 

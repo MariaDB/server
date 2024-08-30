@@ -46,7 +46,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
-  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_MHNSW);
+  DBUG_ASSERT(keyinfo->algorithm == HA_KEY_ALG_VECTOR);
   DBUG_ASSERT(keyinfo->usable_key_parts == 1);
   DBUG_ASSERT(field->binary());
   DBUG_ASSERT(field->cmp_type() == STRING_RESULT);
