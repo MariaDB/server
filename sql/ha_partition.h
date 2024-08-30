@@ -1626,9 +1626,9 @@ public:
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);
-    uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
+    const uint32 sub_factor= m_part_info->num_subparts ? m_part_info->num_subparts : 1;
     uint32 part_id= part_elem->id * sub_factor;
-    uint32 part_id_end= part_id + sub_factor;
+    const uint32 part_id_end= part_id + sub_factor;
     DBUG_ASSERT(part_id_end <= m_tot_parts);
     ha_rows part_recs= 0;
     for (; part_id < part_id_end; ++part_id)

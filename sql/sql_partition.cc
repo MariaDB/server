@@ -5533,11 +5533,6 @@ that are reorganised.
         my_error(ER_PARTITION_DOES_NOT_EXIST, MYF(0));
         goto err;
       }
-      if (table->file->is_fk_defined_on_table_or_index(MAX_KEY))
-      {
-        my_error(ER_ROW_IS_REFERENCED, MYF(0));
-        goto err;
-      }
       DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT) ||
                   num_parts_dropped == 1);
       /* NOTE: num_parts is used in generate_partition_syntax() */
