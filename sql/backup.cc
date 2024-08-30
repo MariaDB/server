@@ -45,8 +45,7 @@
 static const char *stage_names[]=
 {"START", "FLUSH", "BLOCK_DDL", "BLOCK_COMMIT", "END", 0};
 
-TYPELIB backup_stage_names=
-{ array_elements(stage_names)-1, "", stage_names, 0 };
+TYPELIB backup_stage_names= CREATE_TYPELIB_FOR(stage_names);
 
 static MDL_ticket *backup_flush_ticket;
 static File volatile backup_log= -1;

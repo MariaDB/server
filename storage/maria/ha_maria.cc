@@ -87,55 +87,35 @@ const char *maria_recover_names[]=
   */
   "NORMAL", "BACKUP", "FORCE", "QUICK", "OFF", NullS
 };
-TYPELIB maria_recover_typelib=
-{
-  array_elements(maria_recover_names) - 1, "",
-  maria_recover_names, NULL
-};
+TYPELIB maria_recover_typelib= CREATE_TYPELIB_FOR(maria_recover_names);
 
 const char *maria_stats_method_names[]=
 {
   "nulls_unequal", "nulls_equal",
   "nulls_ignored", NullS
 };
-TYPELIB maria_stats_method_typelib=
-{
-  array_elements(maria_stats_method_names) - 1, "",
-  maria_stats_method_names, NULL
-};
+TYPELIB maria_stats_method_typelib= CREATE_TYPELIB_FOR(maria_stats_method_names);
 
 /* transactions log purge mode */
 const char *maria_translog_purge_type_names[]=
 {
   "immediate", "external", "at_flush", NullS
 };
-TYPELIB maria_translog_purge_type_typelib=
-{
-  array_elements(maria_translog_purge_type_names) - 1, "",
-  maria_translog_purge_type_names, NULL
-};
+TYPELIB maria_translog_purge_type_typelib= CREATE_TYPELIB_FOR(maria_translog_purge_type_names);
 
 /* transactional log directory sync */
 const char *maria_sync_log_dir_names[]=
 {
   "NEVER", "NEWFILE", "ALWAYS", NullS
 };
-TYPELIB maria_sync_log_dir_typelib=
-{
-  array_elements(maria_sync_log_dir_names) - 1, "",
-  maria_sync_log_dir_names, NULL
-};
+TYPELIB maria_sync_log_dir_typelib= CREATE_TYPELIB_FOR(maria_sync_log_dir_names);
 
 /* transactional log group commit */
 const char *maria_group_commit_names[]=
 {
   "none", "hard", "soft", NullS
 };
-TYPELIB maria_group_commit_typelib=
-{
-  array_elements(maria_group_commit_names) - 1, "",
-  maria_group_commit_names, NULL
-};
+TYPELIB maria_group_commit_typelib= CREATE_TYPELIB_FOR(maria_group_commit_names);
 
 /** Interval between background checkpoints in seconds */
 static ulong checkpoint_interval;

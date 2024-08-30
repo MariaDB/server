@@ -105,7 +105,7 @@ extern const char *UNUSED_HELP;
 
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
-TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+TYPELIB bool_typelib= CREATE_TYPELIB_FOR(bool_values);
 
 
 template<class BASE, privilege_t GLOBAL_PRIV, privilege_t SESSION_PRIV>
