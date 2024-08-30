@@ -2631,7 +2631,7 @@ row_rename_table_for_mysql(
 		goto funct_exit;
 
 	} else if (fk == RENAME_ALTER_COPY && !old_is_tmp && new_is_tmp) {
-		/* Non-native ALTER TABLE is renaming the
+		/* ALOGRITHM=COPY ALTER TABLE is renaming the
 		original table to a temporary name. We want to preserve
 		the original foreign key constraint definitions despite the
 		name change. An exception is those constraints for which
