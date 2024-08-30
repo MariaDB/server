@@ -673,11 +673,7 @@ struct st_mariadb_encryption aws_key_management_plugin= {
 };
 
 
-static TYPELIB key_spec_typelib =
-{
-  array_elements(key_spec_names) - 1, "",
-  key_spec_names, NULL
-};
+static TYPELIB key_spec_typelib = CREATE_TYPELIB_FOR(key_spec_names);
 
 const char *log_level_names[] =
 {
@@ -691,11 +687,7 @@ const char *log_level_names[] =
   0
 };
 
-static TYPELIB log_level_typelib =
-{
-  array_elements(log_level_names) - 1, "",
-  log_level_names, NULL
-};
+static TYPELIB log_level_typelib = CREATE_TYPELIB_FOR(log_level_names);
 
 static MYSQL_SYSVAR_STR(master_key_id, master_key_id,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,

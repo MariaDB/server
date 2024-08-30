@@ -176,8 +176,7 @@ static enum {MODE_GET, MODE_PUT, MODE_DELETE} opt_mode;
 static char **file_list = NULL;
 static int file_list_size = 0;
 
-TYPELIB storage_typelib =
-{array_elements(storage_names)-1, "", storage_names, NULL};
+TYPELIB storage_typelib = CREATE_TYPELIB_FOR(storage_names);
 
 enum {
 	OPT_STORAGE = 256,
