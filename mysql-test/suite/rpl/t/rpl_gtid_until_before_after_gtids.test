@@ -1,0 +1,45 @@
+#
+#   This test validates the behavior of SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS
+# of a slave's START SLAVE UNTIL command. Notably, it tests the following
+# scenarios:
+#  1. Single domain id in binary log with a single domain id in the UNTIL
+#     condition
+#  2. Multiple domain ids in binary log with a single domain id in the UNTIL
+#     condition
+#  3. Multiple domain ids in binary log with multiple domain ids in the UNTIL
+#     condition
+#  4. A gap in the binary log with the UNTIL condition GTID pointed to the
+#     missing transaction
+#  5. Syntax errors using the new options
+#
+#
+# References:
+#   MDEV-27247: Add keywords "exclusive" and "inclusive" for START SLAVE UNTIL
+#
+
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/master-slave.inc
+
+--let $ssu_before_gtids=1
+--source include/rpl_gtid_until_before_after_gtids.test
+
+--let $ssu_before_gtids=0
+--source include/rpl_gtid_until_before_after_gtids.test
+
+--echo #
+--echo # Error Case 2: Providing both SQL_BEFORE_GTIDS and SQL_AFTER_GTIDS
+--echo # should result in a syntax error
+--connection slave
+--error ER_PARSE_ERROR
+START SLAVE UNTIL SQL_AFTER_GTIDS="0-1-1" SQL_BEFORE_GTIDS="0-1-1";
+
+--echo #
+--echo # Cleanup
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+
+--source include/rpl_end.inc
+--echo # End of rpl_gtid_until_before_gtids.test

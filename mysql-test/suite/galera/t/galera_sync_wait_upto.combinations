@@ -1,0 +1,6 @@
+[binlogoff]
+
+[binlogon]
+--log-bin=master-bin
+--log-bin-index=master-bin
+--log-slave-updates

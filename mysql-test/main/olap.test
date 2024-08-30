@@ -1,3 +1,5 @@
+--source include/test_db_charset_latin1.inc
+
 set @sav_dpi= @@div_precision_increment;
 set div_precision_increment= 5;
 show variables like 'div_precision_increment';
@@ -51,7 +53,10 @@ select product, country_id , year, sum(profit) from t1 group by product, country
 select concat(product,':',country_id) as 'prod', concat(":",year,":") as 'year',1+1, sum(profit)/count(*) from t1 group by 1,2 with rollup;
 select product, sum(profit)/count(*) from t1 group by product with rollup;
 select left(product,4) as prod, sum(profit)/count(*) from t1 group by prod with rollup;
+#check after fix MDEV-29601
+--disable_service_connection
 select concat(product,':',country_id), 1+1, sum(profit)/count(*) from t1 group by concat(product,':',country_id) with rollup;
+--enable_service_connection
 
 # Joins
 select product, country , year, sum(profit) from t1,t2 where t1.country_id=t2.country_id group by product, country, year with rollup;
@@ -433,13 +438,6 @@ DROP TABLE t1;
 --echo # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
 --echo #
 
---echo # Note, different MariaDB versions can return different results
---echo # in the two rows (such as "latin1" vs "binary"). This is wrong.
---echo # Both lines should return equal values.
---echo # The point in this test is to make sure it does not crash.
---echo # As this is a minor issue, bad result will be fixed
---echo # in a later version, presumably in 10.4.
-
 CREATE TABLE t (d DATE) ENGINE=MyISAM;
 INSERT INTO t VALUES ('2018-12-12');
 SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
@@ -537,3 +535,5 @@ SELECT NULLIF( CAST( 'foo' AS DATE ), NULL & 'bar' ) AS f FROM t1 GROUP BY f WIT
 DROP TABLE t1;
 
 --echo # End of 10.3 Tests
+
+--source include/test_db_charset_restore.inc

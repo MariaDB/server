@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21967 Bind REPLICATION {MASTER|SLAVE} ADMIN to rpl_semi_sync_* variables
+--echo #
+
+--let var = rpl_semi_sync_master_trace_level
+--let grant = REPLICATION MASTER ADMIN
+--let value = 64
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc

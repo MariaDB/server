@@ -5,9 +5,6 @@
 --source include/have_innodb.inc
 --source include/have_metadata_lock_info.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 --echo #
 --echo # Check backup and FTWRL
 --echo #
@@ -56,7 +53,7 @@ unlock tables;
 --disable_service_connection
 backup stage start;
 unlock tables;
-select lock_mode from information_schema.metadata_lock_info;
+select lock_mode from information_schema.metadata_lock_info where thread_id>0;
 
 --error ER_BACKUP_LOCK_IS_ACTIVE
 lock table t1 write;
@@ -126,9 +123,9 @@ drop table t1;
 create table t1(a int) stats_persistent=0, engine=InnoDB;
 begin;
 insert into t1 values(1);
-select lock_mode from information_schema.metadata_lock_info;
+select lock_mode from information_schema.metadata_lock_info where thread_id>0;
 backup stage start;
-select lock_mode from information_schema.metadata_lock_info;
+select lock_mode from information_schema.metadata_lock_info where thread_id>0;
 backup stage block_commit;
 commit;
 backup stage end;
@@ -231,9 +228,9 @@ backup stage start;
 backup stage block_commit;
 begin;
 select * from t1;
-select lock_mode from information_schema.metadata_lock_info;
+select lock_mode from information_schema.metadata_lock_info where thread_id>0;
 backup stage end;
-select lock_mode from information_schema.metadata_lock_info;
+select lock_mode from information_schema.metadata_lock_info where thread_id>0;
 drop table t1;
 --enable_view_protocol
 
@@ -304,21 +301,21 @@ HANDLER t1_myisam CLOSE;
 BACKUP STAGE END;
 drop table t1_innodb,t1_myisam;
 
---echo # Show the fate and impact of some SET GLOBAL tx_read_only = 1/0
+--echo # Show the fate and impact of some SET GLOBAL transaction_read_only = 1/0
 --echo # sliding through the sequence.
 
 BACKUP STAGE START;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE FLUSH;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_DDL;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE BLOCK_COMMIT;
-SET GLOBAL tx_read_only = 1;
-SET GLOBAL tx_read_only = 0;
+SET GLOBAL transaction_read_only = 1;
+SET GLOBAL transaction_read_only = 0;
 BACKUP STAGE END;
 
 --echo # Show the fate and impact of some SET SESSION sql_log_bin = 0/1
@@ -525,4 +522,3 @@ FLUSH TABLE t1 FOR EXPORT;
 FLUSH TABLE t1 WITH READ LOCK;
 BACKUP STAGE END;
 DROP TABLE t1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

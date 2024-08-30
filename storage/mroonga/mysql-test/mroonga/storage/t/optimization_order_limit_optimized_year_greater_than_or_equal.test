@@ -20,7 +20,7 @@
 DROP TABLE IF EXISTS mroonga_releases;
 --enable_warnings
 
-FLUSH STATUS;
+FLUSH GLOBAL STATUS;
 
 CREATE TABLE mroonga_releases (
   id INT PRIMARY KEY AUTO_INCREMENT,

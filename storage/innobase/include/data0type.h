@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,9 +24,7 @@ Data types
 Created 1/16/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef data0type_h
-#define data0type_h
-
+#pragma once
 #include "univ.i"
 
 /** Special length indicating a missing instantly added column */
@@ -35,7 +33,6 @@ Created 1/16/1996 Heikki Tuuri
 /** @return whether a length is actually stored in a field */
 #define len_is_stored(len) (len != UNIV_SQL_NULL && len != UNIV_SQL_DEFAULT)
 
-extern ulint	data_mysql_default_charset_coll;
 #define DATA_MYSQL_BINARY_CHARSET_COLL 63
 
 /* SQL data type struct */
@@ -181,7 +178,8 @@ be less than 256 */
 				BLOB columns.
 */
 #define DATA_GIS_MBR	2048U	/* Used as GIS MBR column */
-#define DATA_MBR_LEN	SPDIMS * 2 * sizeof(double) /* GIS MBR length*/
+/** the size of a GIS maximum bounding rectangle */
+constexpr uint8_t DATA_MBR_LEN= uint8_t(SPDIMS * 2 * sizeof(double));
 
 #define	DATA_LONG_TRUE_VARCHAR 4096U	/* this is ORed to the precise data
 				type when the column is true VARCHAR where
@@ -195,18 +193,7 @@ be less than 256 */
 /** system-versioned user data column */
 #define DATA_VERSIONED (DATA_VERS_START|DATA_VERS_END)
 
-/** Check whether locking is disabled (never). */
-#define dict_table_is_locking_disabled(table) false
-
 /*-------------------------------------------*/
-
-/* This many bytes we need to store the type information affecting the
-alphabetical order for a single field and decide the storage size of an
-SQL null*/
-#define DATA_ORDER_NULL_TYPE_BUF_SIZE		4
-/* In the >= 4.1.x storage format we add 2 bytes more so that we can also
-store the charset-collation number; one byte is left unused, though */
-#define DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE	6
 
 /* Maximum multi-byte character length in bytes, plus 1 */
 #define DATA_MBMAX	8
@@ -324,15 +311,14 @@ dtype_get_prtype(
 
 /*********************************************************************//**
 Compute the mbminlen and mbmaxlen members of a data type structure. */
-UNIV_INLINE
 void
 dtype_get_mblen(
 /*============*/
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type (and collation) */
-	ulint*	mbminlen,	/*!< out: minimum length of a
+	unsigned* mbminlen,	/*!< out: minimum length of a
 				multi-byte character */
-	ulint*	mbmaxlen);	/*!< out: maximum length of a
+	unsigned* mbmaxlen);	/*!< out: maximum length of a
 				multi-byte character */
 /**
 Get the charset-collation code for string types.
@@ -349,13 +335,11 @@ charset-collation code.
 				DATA_BINARY_TYPE etc.
 @param[in]	charset_coll	character-set collation code
 @return precise type, including the charset-collation code */
-UNIV_INLINE
-uint32_t
-dtype_form_prtype(ulint old_prtype, ulint charset_coll)
+inline uint32_t dtype_form_prtype(ulint old_prtype, ulint charset_coll)
 {
-	ut_ad(old_prtype < 256 * 256);
-	ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
-	return(uint32_t(old_prtype + (charset_coll << 16)));
+  ut_ad(old_prtype <= 0xffff);
+  ut_ad(charset_coll <= MAX_CHAR_COLL_NUM);
+  return uint32_t(old_prtype | (charset_coll << 16));
 }
 
 /*********************************************************************//**
@@ -399,7 +383,7 @@ dtype_get_mbmaxlen(
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_fixed_size_low(
 /*=====================*/
 	ulint	mtype,		/*!< in: main type */
@@ -415,7 +399,7 @@ dtype_get_fixed_size_low(
 Returns the minimum size of a data type.
 @return minimum size */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_min_size_low(
 /*===================*/
 	ulint	mtype,		/*!< in: main type */
@@ -444,53 +428,6 @@ dtype_get_sql_null_size(
 	const dtype_t*	type,	/*!< in: type */
 	ulint		comp);	/*!< in: nonzero=ROW_FORMAT=COMPACT  */
 
-/**********************************************************************//**
-Reads to a type the stored information which determines its alphabetical
-ordering and the storage size of an SQL NULL value. */
-UNIV_INLINE
-void
-dtype_read_for_order_and_null_size(
-/*===============================*/
-	dtype_t*	type,	/*!< in: type struct */
-	const byte*	buf);	/*!< in: buffer for the stored order info */
-/**********************************************************************//**
-Stores for a type the information which determines its alphabetical ordering
-and the storage size of an SQL NULL value. This is the >= 4.1.x storage
-format. */
-UNIV_INLINE
-void
-dtype_new_store_for_order_and_null_size(
-/*====================================*/
-	byte*		buf,	/*!< in: buffer for
-				DATA_NEW_ORDER_NULL_TYPE_BUF_SIZE
-				bytes where we store the info */
-	const dtype_t*	type,	/*!< in: type struct */
-	ulint		prefix_len);/*!< in: prefix length to
-				replace type->len, or 0 */
-/**********************************************************************//**
-Reads to a type the stored information which determines its alphabetical
-ordering and the storage size of an SQL NULL value. This is the 4.1.x storage
-format. */
-UNIV_INLINE
-void
-dtype_new_read_for_order_and_null_size(
-/*===================================*/
-	dtype_t*	type,	/*!< in: type struct */
-	const byte*	buf);	/*!< in: buffer for stored type order info */
-
-/*********************************************************************//**
-Returns the type's SQL name (e.g. BIGINT UNSIGNED) from mtype,prtype,len
-@return the SQL type name */
-UNIV_INLINE
-char*
-dtype_sql_name(
-/*===========*/
-	unsigned	mtype,	/*!< in: mtype */
-	unsigned	prtype,	/*!< in: prtype */
-	unsigned	len,	/*!< in: len */
-	char*		name,	/*!< out: SQL name */
-	unsigned	name_sz);/*!< in: size of the name buffer */
-
 /*********************************************************************//**
 Validates a data type structure.
 @return TRUE if ok */
@@ -506,12 +443,12 @@ dtype_print(
 	const dtype_t*	type);
 #endif /* UNIV_DEBUG */
 
+struct dict_col_t;
+
 /* Structure for an SQL data type.
 If you add fields to this structure, be sure to initialize them everywhere.
 This structure is initialized in the following functions:
 dtype_set()
-dtype_read_for_order_and_null_size()
-dtype_new_read_for_order_and_null_size()
 sym_tab_add_null_lit() */
 
 struct dtype_t{
@@ -561,6 +498,10 @@ struct dtype_t{
 		mbminlen = 0;
 		mbmaxlen = 0;
 	}
+
+	/** Copy the type information from a column.
+	@param col column type to be copied */
+	void assign(const dict_col_t &col);
 };
 
 /** The DB_TRX_ID,DB_ROLL_PTR values for "no history is available" */
@@ -601,5 +542,3 @@ static const byte REC_INFO_METADATA_ALTER
 	= REC_INFO_METADATA_ADD | REC_INFO_DELETED_FLAG;
 
 #include "data0type.inl"
-
-#endif

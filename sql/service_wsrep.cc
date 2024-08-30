@@ -67,13 +67,14 @@ extern "C" const char* wsrep_thd_transaction_state_str(const THD *thd)
   return wsrep::to_c_string(thd->wsrep_cs().transaction().state());
 }
 
-
 extern "C" const char *wsrep_thd_query(const THD *thd)
 {
-  if (thd)
+  if (!thd)
+    return "NULL";
+
+  switch(thd->lex->sql_command)
   {
-    switch(thd->lex->sql_command)
-    {
+    // Mask away some security related details from error log
     case SQLCOM_CREATE_USER:
       return "CREATE USER";
     case SQLCOM_GRANT:
@@ -82,12 +83,10 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
       return "REVOKE";
     case SQLCOM_SET_OPTION:
       if (thd->lex->definer)
-	return "SET PASSWORD";
+        return "SET PASSWORD";
       /* fallthrough */
     default:
-      if (thd->query())
-        return thd->query();
-    }
+      return (thd->query() ? thd->query() : "NULL");
   }
   return "NULL";
 }
@@ -194,8 +193,6 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
   if (!victim_thd || !wsrep_on(bf_thd)) return;
 
-  wsrep_thd_LOCK(victim_thd);
-
   WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
@@ -208,6 +205,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     DEBUG_SYNC(victim_thd, "wsrep_before_SR_rollback");
   }
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   if (bf_thd)
   {
     wsrep_bf_abort(bf_thd, victim_thd);
@@ -216,9 +214,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
-
-  wsrep_thd_UNLOCK(victim_thd);
-
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   if (bf_thd)
   {
     wsrep_store_threadvars(bf_thd);
@@ -230,35 +226,19 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 {
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-#ifdef ENABLED_DEBUG_SYNC
-  DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-                 {
-                   const char act[]=
-                     "now "
-                     "SIGNAL sync.before_wsrep_thd_abort_reached "
-                     "WAIT_FOR signal.before_wsrep_thd_abort";
-                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-                                                      STRING_WITH_LEN(act)));
-                 };);
-#endif
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
     have wsrep on. Note that this should never interrupt RSU
     as RSU has paused the provider.
    */
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
-  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
-
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
     victim_thd->wsrep_aborter= bf_thd->thread_id;
-    victim_thd->awake_no_mutex(KILL_QUERY);
+    victim_thd->awake_no_mutex(KILL_QUERY_HARD);
+  } else {
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake, signal %d", signal);
   }
-  else
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake for %llu",
-                thd_get_thread_id(victim_thd));
-
   return ret;
 }
 
@@ -269,18 +249,23 @@ extern "C" my_bool wsrep_thd_skip_locking(const THD *thd)
 
 extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 {
-  if (wsrep_thd_is_BF(left, false) &&
-      wsrep_thd_is_BF(right, false) &&
-      wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right)) {
-    WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(left),
-                (long long)wsrep_thd_trx_seqno(right));
-    return TRUE;
-  }
-  WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-              (long long)wsrep_thd_trx_seqno(left),
-              (long long)wsrep_thd_trx_seqno(right));
-  return FALSE;
+  my_bool before= (wsrep_thd_is_BF(left, false) &&
+                   wsrep_thd_is_BF(right, false) &&
+                   wsrep_thd_trx_seqno(left) < wsrep_thd_trx_seqno(right));
+
+  WSREP_DEBUG("wsrep_thd_order_before: %s thread=%llu seqno=%llu query=%s "
+              "%s %s thread=%llu, seqno=%llu query=%s",
+              (wsrep_thd_is_BF(left, false) ? "BF" : "def"),
+              thd_get_thread_id(left),
+              wsrep_thd_trx_seqno(left),
+              wsrep_thd_query(left),
+              (before ? " TRUE " : " FALSE "),
+              (wsrep_thd_is_BF(right, false) ? "BF" : "def"),
+              thd_get_thread_id(right),
+              wsrep_thd_trx_seqno(right),
+              wsrep_thd_query(right));
+
+  return before;
 }
 
 /** Check if wsrep transaction is aborting state.
@@ -311,7 +296,6 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
     case wsrep::transaction::s_aborting:
-    case wsrep::transaction::s_aborted:
       return true;
     default:
       break;
@@ -350,18 +334,55 @@ extern "C" int wsrep_thd_append_key(THD *thd,
     }
     ret= client_state.append_key(wsrep_key);
   }
+  /*
+    In case of `wsrep_gtid_mode` when WS will be replicated, we need to set
+    `server_id` for events that are going to be written in IO, and in case of
+    manual SET gtid_seq_no=X we are ignoring value.
+   */
+  if (!ret && wsrep_gtid_mode && !thd->slave_thread && !wsrep_thd_is_applying(thd))
+  {
+    thd->variables.server_id= wsrep_gtid_server.server_id;
+    thd->variables.gtid_seq_no= 0;
+  }
   return ret;
 }
 
 extern "C" void wsrep_commit_ordered(THD *thd)
 {
   if (wsrep_is_active(thd) &&
-      thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
-      !wsrep_commit_will_write_binlog(thd))
+      (thd->wsrep_trx().state() == wsrep::transaction::s_committing ||
+       thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit))
   {
-    DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
-    thd->wsrep_cs().ordered_commit();
+    wsrep_gtid_server.signal_waiters(thd->wsrep_current_gtid_seqno, false);
+    if (wsrep_thd_is_local(thd))
+    {
+      thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
+    }
+    if (thd->wsrep_trx().state() != wsrep::transaction::s_ordered_commit &&
+        !wsrep_commit_will_write_binlog(thd))
+    {
+      DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
+      thd->wsrep_cs().ordered_commit();
+    }
   }
+}
+
+extern "C" my_bool wsrep_thd_has_ignored_error(const THD *thd)
+{
+  return thd->wsrep_has_ignored_error;
+}
+
+extern "C" void wsrep_thd_set_ignored_error(THD *thd, my_bool val)
+{
+  thd->wsrep_has_ignored_error= val;
+}
+
+extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd)
+{
+  if (thd)
+    return(thd->variables.wsrep_OSU_method);
+  else
+    return(global_system_variables.wsrep_OSU_method);
 }
 
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
@@ -393,4 +414,15 @@ extern "C" void  wsrep_thd_set_PA_unsafe(THD *thd)
   {
     WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
   }
+}
+
+extern "C" uint32 wsrep_get_domain_id()
+{
+  return wsrep_gtid_domain_id;
+}
+
+extern "C" my_bool wsrep_thd_is_local_transaction(const THD *thd)
+{
+  return (wsrep_thd_is_local(thd) &&
+	  thd->wsrep_cs().transaction().active());
 }

@@ -200,3 +200,34 @@ select 30 + (20010101 + interval 2 day), x from v1;
 20010133	20010133
 drop view v1;
 End of 10.2 tests
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-30931 UBSAN: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in get_interval_value on SELECT
+#
+SELECT DATE_ADD('01-01-23',INTERVAL '9223372036854775808-02' WEEK);
+DATE_ADD('01-01-23',INTERVAL '9223372036854775808-02' WEEK)
+NULL
+Warnings:
+Warning	1292	Truncated incorrect INTEGER value: '9223372036854775808-02'
+Warning	1441	Datetime function: datetime field overflow
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775807 WEEK);
+DATE_ADD('01-01-23',INTERVAL -9223372036854775807 WEEK)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775808 WEEK);
+DATE_ADD('01-01-23',INTERVAL -9223372036854775808 WEEK)
+NULL
+Warnings:
+Warning	1441	Datetime function: datetime field overflow
+SELECT DATE_ADD('01-01-23',INTERVAL -9223372036854775809 WEEK);
+DATE_ADD('01-01-23',INTERVAL -9223372036854775809 WEEK)
+NULL
+Warnings:
+Warning	1916	Got overflow when converting '-9223372036854775809' to INT. Value truncated
+Warning	1441	Datetime function: datetime field overflow
+#
+# End of 10.5 tests
+#

@@ -13,7 +13,7 @@
 # 4. Import/Discard of temp-table (to check blocked action)		#
 # 5. Renaming of temp-table						#
 # 6. Creating temp-table with large prefix.				#
-# 7. Check Temp table info not stored in I_S datafile and tables	#
+# 7. Check Temp table info not stored in InnoDB system tables           #
 #########################################################################
 
 
@@ -233,11 +233,8 @@ drop table t;
 #
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;
 CREATE TEMPORARY TABLE t2 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 CREATE TEMPORARY table t3 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 DROP TABLE t1,t2,t3;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';

@@ -85,6 +85,8 @@
   authentication protocol is not known in advance, and the client plugin
   needs to read one packet more to determine if the authentication is finished
   or not.
+
+  Server plugins should not return this value.
 */
 #define CR_OK_HANDSHAKE_COMPLETE -2
 

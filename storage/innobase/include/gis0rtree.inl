@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,6 +57,9 @@ rtr_page_cal_mbr(
 	page = buf_block_get_frame(block);
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
+	if (UNIV_UNLIKELY(!rec)) {
+		return;
+	}
 	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page)
 				  ? index->n_fields : 0,
 				  ULINT_UNDEFINED, &heap);
@@ -97,10 +100,10 @@ void
 rtr_non_leaf_stack_push(
 /*====================*/
 	rtr_node_path_t*	path,		/*!< in/out: search path */
-	ulint			pageno,		/*!< in: pageno to insert */
+	uint32_t		pageno,		/*!< in: pageno to insert */
 	node_seq_t		seq_no,		/*!< in: Node sequence num */
 	ulint			level,		/*!< in: index page level */
-	ulint			child_no,	/*!< in: child page no */
+	uint32_t		child_no,	/*!< in: child page no */
 	btr_pcur_t*		cursor,		/*!< in: position cursor */
 	double			mbr_inc)	/*!< in: MBR needs to be
 						enlarged */
@@ -176,12 +179,12 @@ rtr_get_parent_node(
 		return(NULL);
 	}
 
-	mutex_enter(&btr_cur->rtr_info->rtr_path_mutex);
+	mysql_mutex_lock(&btr_cur->rtr_info->rtr_path_mutex);
 
 	num = btr_cur->rtr_info->parent_path->size();
 
 	if (!num) {
-		mutex_exit(&btr_cur->rtr_info->rtr_path_mutex);
+		mysql_mutex_unlock(&btr_cur->rtr_info->rtr_path_mutex);
 		return(NULL);
 	}
 
@@ -204,7 +207,7 @@ rtr_get_parent_node(
 		}
 	}
 
-	mutex_exit(&btr_cur->rtr_info->rtr_path_mutex);
+	mysql_mutex_unlock(&btr_cur->rtr_info->rtr_path_mutex);
 
 	return(found_node);
 }
@@ -237,6 +240,9 @@ rtr_info_reinit_in_cursor(
 	bool		need_prdt)	/*!< in: Whether predicate lock is
 					needed */
 {
+	que_thr_t* thr = cursor->rtr_info->thr;
+	ut_ad(thr);
 	rtr_clean_rtr_info(cursor->rtr_info, false);
 	rtr_init_rtr_info(cursor->rtr_info, need_prdt, cursor, index, true);
+	cursor->rtr_info->thr = thr;
 }

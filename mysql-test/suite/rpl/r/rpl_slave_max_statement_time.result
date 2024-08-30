@@ -1,0 +1,170 @@
+include/master-slave.inc
+[connection master]
+#
+# Set up
+#
+connection master;
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+connection slave;
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Slave log event execution was interrupted");
+SET STATEMENT sql_log_bin=0 FOR CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+SET @save_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+#
+# Test Case 1) Using a serial slave, the SQL thread should time out when
+# its underlying event executes for longer than @@slave_max_statement_time.
+#
+connection master;
+create table t1(a int not null auto_increment, b int, primary key(a)) engine=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Long running command due to a lock conflict
+INSERT INTO t1(b) VALUES (1);
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4192]
+# Ensuring event was not processed..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+connection slave1;
+ROLLBACK;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 2) Using a parallel slave, a worker thread should time out
+# when its underlying event executes for longer than
+# @@slave_max_statement_time
+#
+include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET GLOBAL slave_parallel_threads=2;
+SET GLOBAL slave_parallel_mode='optimistic';
+include/start_slave.inc
+connection master;
+create table t1(a int not null auto_increment, b int, primary key(a)) engine=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Long running command due to a lock conflict
+INSERT INTO t1(b) VALUES (1);
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4192]
+# Ensuring event was not processed..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+connection slave1;
+ROLLBACK;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+#
+# Test Case 3) Load-based log events (from LOAD DATA INFILE) should time
+# out if their execution time exceeds @@slave_max_statement_time
+#
+connection master;
+create table t1(a int not null auto_increment, b int, primary key(a)) engine=InnoDB;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET GLOBAL slave_max_statement_time=0.75;
+connection master;
+# Long running command due to a lock conflict
+load data infile '../../std_data/rpl_loaddata.dat' into table t1;
+include/save_master_gtid.inc
+connection slave1;
+BEGIN;
+INSERT INTO t1(b) VALUES (1);
+connection slave;
+# Starting slave to receive event which will take longer to execute
+# than slave_max_statement_time
+START SLAVE;
+include/wait_for_slave_sql_error.inc [errno=4192]
+# Ensuring event was not processed..
+# ..success
+# Remove slave timeout and catch up to master
+SET GLOBAL slave_max_statement_time=0;
+connection slave1;
+ROLLBACK;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+# Test case cleanup
+connection master;
+DROP TABLE t1;
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_gtid.inc
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+#
+# Test Case 4) Locally executed long running statements should not time
+# out due to @@slave_max_statement_time
+#
+connection slave;
+include/stop_slave.inc
+SET @old_slave_max_statement_time=@@GLOBAL.slave_max_statement_time;
+SET @old_gtid_domain_id=@@GLOBAL.gtid_domain_id;
+SET @@GLOBAL.slave_max_statement_time=0.75;
+SET @@GLOBAL.gtid_domain_id=1;
+include/start_slave.inc
+CREATE TABLE t2 (a int);
+SET STATEMENT sql_log_bin=0 FOR INSERT INTO t2 SELECT SLEEP(1);
+DROP TABLE t2;
+include/stop_slave.inc
+SET GLOBAL gtid_domain_id=@old_gtid_domain_id;
+SET GLOBAL slave_max_statement_time=@old_slave_max_statement_time;
+include/start_slave.inc
+# Cleanup
+include/stop_slave.inc
+SET GLOBAL slave_max_statement_time=@save_slave_max_statement_time;
+include/start_slave.inc
+include/rpl_end.inc
+# End of rpl_slave_max_statement_time.test

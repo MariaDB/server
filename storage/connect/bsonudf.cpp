@@ -9,6 +9,7 @@
 /*********************************************************************************/
 #include <my_global.h>
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <mysql.h>
 #include <sql_error.h>
 #include <stdio.h>
@@ -22,7 +23,7 @@
 
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -88,6 +89,7 @@ static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp)
 /*********************************************************************************/
 /*  SubAlloc a new BJNX class with protection against memory exhaustion.         */
 /*********************************************************************************/
+#ifdef NOT_USED
 static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
 {
 	PBJNX bjnx;
@@ -104,7 +106,7 @@ static PBJNX BjnxNew(PGLOBAL g, PBVAL vlp, int type, int len)
 
 	return bjnx;
 } /* end of BjnxNew */
-
+#endif
 /* ----------------------------------- BSNX ------------------------------------ */
 
 /*********************************************************************************/
@@ -498,6 +500,7 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 			break;
 		case TYPE_NULL:
 			vp->SetNull(true);
+                        /* fall through */
 		default:
 			vp->Reset();
 		} // endswitch Type
@@ -2901,7 +2904,7 @@ my_bool bson_array_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		return true;
 
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-	PBJNX   bxp = new(g) BJNX(g);
+	(void)  new(g) BJNX(g);
 
 	JsonMemSave(g);
 	return false;
@@ -2974,7 +2977,7 @@ my_bool bson_object_grp_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 		return true;
 
 	PGLOBAL g = (PGLOBAL)initid->ptr;
-	PBJNX   bxp = new(g) BJNX(g);
+	(void) new(g) BJNX(g);
 
 	JsonMemSave(g);
 	return false;
@@ -3569,7 +3572,7 @@ char *bson_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
-		JTYP  type;
+		JTYP  type= TYPE_JAR;
 		BJNX  bnx(g);
 		PBVAL jvp = NULL, top = NULL;
 		PBVAL jsp[2] = {NULL, NULL};
@@ -4689,7 +4692,7 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -4812,7 +4815,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (*g->Message)
+		if (g->Message[0] != '\0')
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");
@@ -5722,7 +5725,7 @@ char *bbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
-		JTYP  type;
+		JTYP  type = TYPE_JAR;
 		BJNX  bnx(g);
 		PBVAL jvp = NULL, top = NULL;
 		PBVAL jsp[2] = {NULL, NULL};

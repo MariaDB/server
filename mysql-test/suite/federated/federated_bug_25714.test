@@ -13,12 +13,20 @@ connection master;
 SET @OLD_MASTER_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
 
+#
+# use a user with the password, so that the test client $MYSQL_BUG25714
+# would be able to connect when ssl and certificate validation are
+# enabled by default (MDEV-31857, MDEV-31855)
+#
+create user fed@127.0.0.1 identified by 'def';
+grant all privileges on federated.* to fed@127.0.0.1;
+
 connection slave;
 SET @OLD_SLAVE_CONCURRENT_INSERT= @@GLOBAL.CONCURRENT_INSERT;
 SET @@GLOBAL.CONCURRENT_INSERT= 0;
---disable_warnings
-DROP TABLE IF EXISTS federated.bug_13118_table;
---enable_warnings
+
+create user fed@127.0.0.1 identified by 'def';
+grant all privileges on federated.* to fed@127.0.0.1;
 
 CREATE TABLE federated.t1 (
     `id` int auto_increment primary key, 
@@ -29,9 +37,6 @@ INSERT INTO federated.t1 SET value=2;
 INSERT INTO federated.t1 SET value=2;
 
 connection master;
---disable_warnings
-DROP TABLE IF EXISTS federated.t1;
---enable_warnings
 
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval CREATE TABLE federated.t1 (
@@ -52,11 +57,11 @@ SELECT LAST_INSERT_ID();
 SELECT * from federated.t1;
 
 DROP TABLE federated.t1;
+drop user fed@127.0.0.1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_MASTER_CONCURRENT_INSERT;
 connection slave;
 DROP TABLE federated.t1;
+drop user fed@127.0.0.1;
 SET @@GLOBAL.CONCURRENT_INSERT= @OLD_SLAVE_CONCURRENT_INSERT;
-
-
 
 source suite/federated/include/federated_cleanup.inc;

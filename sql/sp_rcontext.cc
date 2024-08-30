@@ -23,6 +23,7 @@
 #include "mysql.h"
 #include "sp_head.h"
 #include "sql_cursor.h"
+#include "sp_instr.h"                       // class sp_instr, ...
 #include "sp_rcontext.h"
 #include "sp_pcontext.h"
 #include "sql_select.h"                     // create_virtual_tmp_table
@@ -62,11 +63,11 @@ const LEX_CSTRING *Sp_rcontext_handler_package_body::get_name_prefix() const
 ///////////////////////////////////////////////////////////////////////////
 
 
-sp_rcontext::sp_rcontext(const sp_head *owner,
+sp_rcontext::sp_rcontext(sp_head *owner,
                          const sp_pcontext *root_parsing_ctx,
                          Field *return_value_fld,
                          bool in_sub_stmt)
-  :end_partial_result_set(false),
+  :callers_arena(nullptr), end_partial_result_set(false),
    pause_state(false), quit_func(false), instr_ptr(0),
    m_sp(owner),
    m_root_parsing_ctx(root_parsing_ctx),
@@ -74,6 +75,7 @@ sp_rcontext::sp_rcontext(const sp_head *owner,
    m_return_value_fld(return_value_fld),
    m_return_value_set(false),
    m_in_sub_stmt(in_sub_stmt),
+   m_handlers(PSI_INSTRUMENT_MEM), m_handler_call_stack(PSI_INSTRUMENT_MEM),
    m_ccount(0)
 {
 }
@@ -89,7 +91,7 @@ sp_rcontext::~sp_rcontext()
 
 
 sp_rcontext *sp_rcontext::create(THD *thd,
-                                 const sp_head *owner,
+                                 sp_head *owner,
                                  const sp_pcontext *root_parsing_ctx,
                                  Field *return_value_fld,
                                  Row_definition_list &field_def_lst)
@@ -209,12 +211,12 @@ bool sp_rcontext::init_var_table(THD *thd,
 */
 static inline bool
 check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
-                                const char *str, size_t length,
+                                const Lex_ident_column &name,
                                 Field *fld)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   table_list->table->grant.want_privilege= SELECT_ACL;
-  return check_column_grant_in_table_ref(thd, table_list, str, length, fld);
+  return check_column_grant_in_table_ref(thd, table_list, name, fld);
 #else
   return false;
 #endif
@@ -224,7 +226,8 @@ check_column_grant_for_type_ref(THD *thd, TABLE_LIST *table_list,
 /**
   This method implementation is very close to fill_schema_table_by_open().
 */
-bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
+bool Qualified_column_ident::resolve_type_ref(THD *thd,
+                                              Column_definition *def) const
 {
   Open_tables_backup open_tables_state_backup;
   thd->reset_n_backup_open_tables_state(&open_tables_state_backup);
@@ -242,7 +245,7 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
   thd->temporary_tables= open_tables_state_backup.temporary_tables;
 
   if ((table_list=
-         lex.first_select_lex()->add_table_to_list(thd, this, NULL, 0,
+         lex.first_select_lex()->add_table_to_list(thd, (Table_ident*)this, NULL, 0,
                                                    TL_READ_NO_INSERT,
                                                    MDL_SHARED_READ)) &&
       !check_table_access(thd, SELECT_ACL, table_list, TRUE, UINT_MAX, FALSE) &&
@@ -252,8 +255,7 @@ bool Qualified_column_ident::resolve_type_ref(THD *thd, Column_definition *def)
     if (likely((src= lex.query_tables->table->find_field_by_name(&m_column))))
     {
       if (!(rc= check_column_grant_for_type_ref(thd, table_list,
-                                                m_column.str,
-                                                m_column.length, src)))
+                                                m_column, src)))
       {
         *def= Column_definition(thd, src, NULL/*No defaults,no constraints*/);
         def->flags&= (uint) ~NOT_NULL_FLAG;
@@ -315,10 +317,9 @@ bool Table_ident::resolve_table_rowtype_ref(THD *thd,
          as the table will be closed and freed soon,
          in the end of this method.
       */
-      LEX_CSTRING tmp= src[0]->field_name;
+      const Lex_ident_column tmp= src[0]->field_name;
       Spvar_definition *def;
-      if ((rc= check_column_grant_for_type_ref(thd, table_list,
-                                               tmp.str, tmp.length,src[0])) ||
+      if ((rc= check_column_grant_for_type_ref(thd, table_list, tmp, src[0])) ||
           (rc= !(src[0]->field_name.str= thd->strmake(tmp.str, tmp.length))) ||
           (rc= !(def= new (thd->mem_root) Spvar_definition(thd, *src))))
         break;
@@ -517,7 +518,8 @@ bool sp_rcontext::handle_sql_condition(THD *thd,
       found_condition=
         new (callers_arena->mem_root) Sql_condition(callers_arena->mem_root,
                                                     da->get_error_condition_identity(),
-                                                    da->message());
+                                                    da->message(),
+                                                    da->current_row_for_warning());
     }
   }
   else if (da->current_statement_warn_count())
@@ -713,7 +715,7 @@ Item_cache *sp_rcontext::create_case_expr_holder(THD *thd,
 bool sp_rcontext::set_case_expr(THD *thd, int case_expr_id,
                                 Item **case_expr_item_ptr)
 {
-  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr);
+  Item *case_expr_item= thd->sp_prepare_func_item(case_expr_item_ptr, 1);
   if (!case_expr_item)
     return true;
 

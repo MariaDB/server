@@ -8,9 +8,12 @@ innodb-buffer-pool-size=24M
 
 [16k]
 innodb-page-size=16K
+--skip-innodb-read-only-compressed
 
 [8k]
 innodb-page-size=8K
+--skip-innodb-read-only-compressed
 
 [4k]
 innodb-page-size=4K
+--skip-innodb-read-only-compressed

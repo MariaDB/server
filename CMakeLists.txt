@@ -27,20 +27,17 @@ IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
    "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 ENDIF()
 
-IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 NEW)
-ENDIF()
-IF(POLICY CMP0048)
-  CMAKE_POLICY(SET CMP0048 NEW)
-ENDIF()
-IF(POLICY CMP0054)
-  CMAKE_POLICY(SET CMP0054 NEW)
-ENDIF()
-IF(POLICY CMP0075)
-  CMAKE_POLICY(SET CMP0075 NEW)
-ENDIF()
+# Remove the following comment if you don't want to have striped binaries
+# in RPM's:
 
-PROJECT(MySQL)
+#set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0074 CMP0075 CMP0069 CMP0135)
+  IF(POLICY ${p})
+    CMAKE_POLICY(SET ${p} NEW)
+  ENDIF()
+ENDFOREACH()
+
+PROJECT(MariaDB)
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -91,6 +88,7 @@ ELSE()
   SET(CMAKE_CXX_STANDARD 11)
 ENDIF()
 
+# Lower case package names from PROJECT are used if not explictly upper case.
 SET(CPACK_PACKAGE_NAME "MariaDB")
 SET(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MariaDB: a very fast and robust SQL database server")
 SET(CPACK_PACKAGE_URL "http://mariadb.org")
@@ -163,6 +161,7 @@ INCLUDE(readline)
 INCLUDE(libutils)
 INCLUDE(dtrace)
 INCLUDE(pcre)
+INCLUDE(libfmt)
 INCLUDE(ctest)
 INCLUDE(plugin)
 INCLUDE(install_macros)
@@ -170,7 +169,6 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
-INCLUDE(crc32)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -179,6 +177,10 @@ IF(DISABLE_SHARED)
   SET(WITHOUT_DYNAMIC_PLUGINS 1)
 ENDIF()
 OPTION(ENABLED_PROFILING "Enable profiling" ON)
+OPTION(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS "Enable Json_writer_object / Json_writer_array checking to produce consistent JSON output" OFF)
+IF(ENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
+  ADD_DEFINITIONS(-DENABLED_JSON_WRITER_CONSISTENCY_CHECKS)
+ENDIF()
 OPTION(WITHOUT_SERVER "Build only the client library and clients" OFF)
 IF(UNIX)
   OPTION(WITH_VALGRIND "Valgrind instrumentation" OFF)
@@ -186,18 +188,21 @@ ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 
 IF (WITHOUT_SERVER)
-  SET (SKIP_COMPONENTS "Server|IniFiles|SuportFiles|Readme")
+  SET (SKIP_COMPONENTS "Server|IniFiles|SupportFiles|Readme")
 ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
 
-OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system libraries. Only set it you never plan to distribute the resulting binaries" OFF)
+
+SET(MEMPROTECT_DEFAULT ON)
+
+OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build"
+${MEMPROTECT_DEFAULT})
 
 #
 #  Enable protection of statement's memory root after first SP/PS execution.
 #  Can be switched on only for debug build.
 #
-OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" ON)
 IF (WITH_PROTECT_STATEMENT_MEMROOT)
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
@@ -245,18 +250,24 @@ IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
+OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
+IF (WITH_GPROF)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g -no-pie -fPIC")
+ENDIF()
+
+# Be nice to profilers etc
+MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
+
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
   MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
 ENDIF()
-
-INCLUDE(wsrep)
 
 OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_RETURN()/DBUG_PRINT()" ON)
 IF(WITH_DBUG_TRACE)
@@ -268,10 +279,20 @@ ENDIF()
 # Always enable debug sync for debug builds.
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
- 
+
+IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+  # Enable extra checks when using a recent enough version of GNU libstdc++
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
+ENDIF()
+
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+ENDIF()
+
+OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
+IF(WITHOUT_PACKED_SORT_KEYS)
+  ADD_DEFINITIONS(-DWITHOUT_PACKED_SORT_KEYS)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
@@ -324,6 +345,8 @@ ELSEIF(TRASH_FREED_MEMORY MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND AND
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTRASH_FREED_MEMORY")
 ENDIF()
 
+INCLUDE(wsrep)
+
 # Set commonly used variables
 IF(WIN32)
   SET(DEFAULT_MYSQL_HOME "C:/Program Files/MariaDB ${MYSQL_BASE_VERSION}")
@@ -359,13 +382,14 @@ ENDIF()
 # Run platform tests
 INCLUDE(configure.cmake)
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
+# Use mysys/my_new.cc if '#include <new>'  doesn't work.
+# One can also specify -DUSE_MYSYS_NEW explicitly, see mysys/my_new.cc
 IF(NOT HAVE_CXX_NEW)
   ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (wolfssl, readline, pcre, etc)
+# (wolfssl, readline, pcre2, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
@@ -374,7 +398,8 @@ ADD_DEFINITIONS(-DHAVE_CONFIG_H)
 IF(_FILE_OFFSET_BITS)
   ADD_DEFINITIONS(-D_FILE_OFFSET_BITS=${_FILE_OFFSET_BITS})
 ENDIF()
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/include
+                    ${CMAKE_SOURCE_DIR}/include/providers)
 
 # Add bundled or system zlib.
 MYSQL_CHECK_ZLIB_WITH_COMPRESS()
@@ -386,10 +411,11 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 
 CHECK_PCRE()
-
+CHECK_LIBFMT()
+ADD_SUBDIRECTORY(tpool)
 CHECK_SYSTEMD()
 
-IF(CMAKE_CROSSCOMPILING)
+IF(CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
   INCLUDE(${IMPORT_EXECUTABLES})
 ENDIF()
@@ -425,7 +451,7 @@ INCLUDE(cpack_tgz)
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
@@ -475,8 +501,8 @@ ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
-IF(NOT CMAKE_CROSSCOMPILING)
-  SET(EXPORTED comp_err comp_sql factorial)
+IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
+  SET(EXPORTED comp_err comp_sql factorial uca-dump)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)
   ENDIF()
@@ -534,7 +560,10 @@ INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
 #                      ${CMAKE_BINARY_DIR}/Docs/INFO_BIN)
 
 IF(UNIX)
-  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY Docs/README-wsrep COMPONENT Readme)
+  INSTALL_DOCUMENTATION(Docs/INSTALL-BINARY COMPONENT Readme)
+  IF(WITH_WSREP)
+    INSTALL_DOCUMENTATION(Docs/README-wsrep COMPONENT Readme)
+  ENDIF()
 ENDIF()
 
 INCLUDE(build_depends)
@@ -566,20 +595,21 @@ IF(NOT WITHOUT_SERVER)
   ADD_DEPENDENCIES(minbuild
    aria_chk
    aria_pack
-   mysql
-   mysqladmin
-   mysqlbinlog
-   mysqlcheck
-   mysql_client_test
-   mysqldump
-   mysqlimport
-   mysql_plugin
-   mysqlshow
-   mysqlslap
-   mysqltest
-   mysql_tzinfo_to_sql
-   mysql_upgrade
-   mysqld
+   mariadb
+   mariadb-admin
+   mariadb-binlog
+   mariadb-check
+   mariadb-client-test
+   mariadb-conv
+   mariadb-dump
+   mariadb-import
+   mariadb-plugin
+   mariadb-show
+   mariadb-slap
+   mariadb-test
+   mariadb-tzinfo-to-sql
+   mariadb-upgrade
+   mariadbd
    my_print_defaults
    my_safe_process
    myisam_ftdump
@@ -589,7 +619,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo mysql_install_db my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st

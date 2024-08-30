@@ -1,9 +1,3 @@
---disable_warnings
-DROP TABLE IF EXISTS t1;
---enable_warnings
-
---echo Start of 5.4 tests
-
 --echo #
 --echo # WL#4642 Greek locale for DAYNAME, MONTHNAME, DATE_FORMAT
 --echo #
@@ -34,8 +28,8 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#46633 Obsolete Serbian locale name
 --echo #
+--error ER_UNKNOWN_LOCALE
 SET lc_messages=sr_YU;
-SHOW VARIABLES LIKE 'lc_messages';
 SET lc_messages=sr_RS;
 SHOW VARIABLES LIKE 'lc_messages';
 SET lc_time_names=sr_RS;
@@ -194,4 +188,56 @@ SET lc_messages=DEFAULT;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-30789 Add Georgian error messages and locale
+--echo #
+
+SET lc_messages=ka_GE;
+--error ER_BAD_FIELD_ERROR
+SELECT x;
+
+SET lc_messages=DEFAULT;
+
+
+--echo #
+--echo # Add Swahili error messages and locale
+--echo #
+
+SET lc_messages=sw_KE;
+--error ER_BAD_FIELD_ERROR
+SELECT x;
+
+SET lc_messages=DEFAULT;
+
+
+--echo #
+--echo # MDEV-30997 SIGSEGV in __strlen_avx2 | make_date_time | Item_func_date_format::val_str
+--echo #
+
+SET lc_messages=en_US;
+SET lc_time_names=111;
+SELECT DATE_FORMAT('1-12-01','%c %b %M');
+CREATE TABLE t1 (i INT);
+INSERT INTO t1 VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10),(11),(12);
+SELECT d, DATE_FORMAT(d, '%b') AS MONTH_ABBR, MONTHNAME(d) FROM
+(
+  SELECT CAST(CONCAT('2001-', i, '-01') AS DATE) AS d FROM t1
+) d1 ORDER BY d;
+
+SELECT d, WEEKDAY(d), DATE_FORMAT(d, '%a') AS DAY_ABBR, DAYNAME(d) FROM
+(
+  SELECT CAST(CONCAT('2001-01-', i) AS DATE) AS d FROM t1 WHERE i BETWEEN 1 AND 7
+) d1 ORDER BY d;
+
+
+DROP TABLE t1;
+SET lc_time_names=DEFAULT;
+SET lc_messages=DEFAULT;
+
+
+--echo #
+--echo # End of 10.11 tests
 --echo #

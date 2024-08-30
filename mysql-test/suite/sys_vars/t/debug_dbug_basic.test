@@ -4,14 +4,14 @@
 #
 set session debug_dbug="L";
 
-select @@global.debug_dbug="1"; # just to show that global.debug exists
-select @@session.debug;    # here we know the value and can display it
+select @@global.debug_dbug="1"; # just to show that global.debug_dbug exists
+select @@session.debug_dbug;    # here we know the value and can display it
 --replace_column 2 #
-show global variables like 'debug';
-show session variables like 'debug';
+show global variables like 'debug_dbug';
+show session variables like 'debug_dbug';
 --replace_column 2 #
-select * from information_schema.global_variables where variable_name="debug";
-select * from information_schema.session_variables where variable_name="debug";
+select * from information_schema.global_variables where variable_name='debug_dbug';
+select * from information_schema.session_variables where variable_name='debug_dbug';
 
 --error ER_WRONG_TYPE_FOR_VAR
 set @@global.debug_dbug=1;

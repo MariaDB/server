@@ -162,3 +162,50 @@ drop table t1,t2;
 --enable_view_protocol
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33533: multi-delete using rowid filter
+--echo #
+
+set @save_default_storage_engine=@@default_storage_engine;
+set default_storage_engine=InnoDB;
+
+CREATE DATABASE dbt3_s001;
+
+use dbt3_s001;
+
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/dbt3_s001.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+create index i_n_name on nation(n_name);
+analyze table
+  nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
+
+let $c1=
+        o_orderDATE between '1992-01-01' and '1992-06-30' and
+        o_custkey =  c_custkey and
+        c_nationkey = n_nationkey and
+        n_name='PERU';
+
+
+explain
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+ o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+--source include/explain-no-costs.inc
+explain format=json
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+ o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+ o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+
+DROP DATABASE dbt3_s001;
+
+set default_storage_engine=@save_default_storage_engine;
+

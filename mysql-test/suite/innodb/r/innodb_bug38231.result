@@ -1,2 +1,2 @@
-SET storage_engine=InnoDB;
+SET default_storage_engine=InnoDB;
 connection default;

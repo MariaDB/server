@@ -14,7 +14,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
-# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1335 USA
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA
 
 # Run gcov and report test coverage on only those code lines touched by
 # a given list of commits.
@@ -112,8 +112,7 @@ sub print_gcov_for_diff {
     $acc.=sprintf '%9s:%5s:%s', '', $lnum, $' if /^ /;
     ++$printme, $acc.=sprintf '%9s:%5s:%s', gcov_prefix($fcov->{$lnum}), $lnum, $' if /^\+/;
     die "$_^^^ dying", unless /^[- +]/;
-    ++$lnum;
-    --$cnt;
+    ++$lnum, --$cnt unless /^-/;
   }
   print $acc if $printme;
   close PIPE or die "command '$cmd' failed: $!: $?";
@@ -165,10 +164,16 @@ sub gcov_one_file {
     system($cmd)==0 or die "system($cmd): $? $!";
   }
 
+  (my $filename = $_)=~ s/\.[^.]+$//; # remove extension
+  my $gcov_file_path= $File::Find::dir."/$filename.gcov";
+  if (! -f $gcov_file_path)
+  {
+    return;
+  }
   # now, read the generated file
   if ($gcc_version <9){
     for my $gcov_file (<$_*.gcov>) {
-      open FH, '<', "$gcov_file" or die "open(<$gcov_file): $!";
+      open FH, '<', "$gcov_file_path" or die "open(<$gcov_file_path): $!";
       my $fname;
       while (<FH>) {
         chomp;
@@ -181,7 +186,7 @@ sub gcov_one_file {
         }
         next if /^lcount:\d+,-\d+/; # whatever that means
         unless (/^lcount:(\d+),(\d+)/ and $fname) {
-          warn "unknown line '$_' in $gcov_file";
+          warn "unknown line '$_' in $gcov_file_path";
           next;
         }
         $cov{$fname}->{$1}+=$2;

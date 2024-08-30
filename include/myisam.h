@@ -291,7 +291,9 @@ extern int mi_extra(struct st_myisam_info *file,
 		    void *extra_arg);
 extern int mi_reset(struct st_myisam_info *file);
 extern ha_rows mi_records_in_range(MI_INFO *info,int inx,
-                                   key_range *min_key, key_range *max_key);
+                                   const key_range *min_key,
+                                   const key_range *max_key,
+                                   page_range *pages);
 extern int mi_log(int activate_log);
 extern int mi_is_changed(struct st_myisam_info *info);
 extern int mi_delete_all_rows(struct st_myisam_info *info);
@@ -309,6 +311,8 @@ extern int mi_make_backup_of_index(struct st_myisam_info *info,
 #define   MYISAMCHK_VERIFY 2  /* Verify, run repair if failure */
 
 typedef uint mi_bit_type;
+typedef struct st_sort_key_blocks SORT_KEY_BLOCKS;
+typedef struct st_sort_ftbuf SORT_FT_BUF;
 
 typedef struct st_mi_bit_buff
 {                                       /* Used for packing of record */
@@ -353,6 +357,7 @@ typedef struct st_mi_sort_param
   MEM_ROOT wordroot;
   uchar *record;
   MY_TMPDIR *tmpdir;
+  HA_CHECK *check_param;
 
   /*
     The next two are used to collect statistics, see update_key_parts for
@@ -431,6 +436,8 @@ int thr_write_keys(MI_SORT_PARAM *sort_param);
 int sort_write_record(MI_SORT_PARAM *sort_param);
 int _create_index_by_sort(MI_SORT_PARAM *info,my_bool no_messages, ulonglong);
 my_bool mi_too_big_key_for_sort(MI_KEYDEF *key, ha_rows rows);
+struct OPTIMIZER_COSTS;
+void myisam_update_optimizer_costs(struct OPTIMIZER_COSTS *costs);
 
 #ifdef	__cplusplus
 }

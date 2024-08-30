@@ -19,8 +19,8 @@ COUNT(*)
 connect  con1,localhost,root,,;
 connection con1;
 SET GLOBAL TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 SELECT COUNT(*) FROM tab;
 COUNT(*)
@@ -32,8 +32,8 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_AsText(c4)	ST_AsText(c5)
 connect  con2,localhost,root,,;
 connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-COMMITTED
 START TRANSACTION;
 INSERT INTO tab(c1,c2,c3,c4,c5) 
@@ -106,8 +106,8 @@ COUNT(*)
 connect  con1,localhost,root,,;
 connection con1;
 SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 REPEATABLE-READ
 SELECT COUNT(*) FROM tab;
 COUNT(*)
@@ -119,8 +119,8 @@ c1	ST_AsText(c2)	ST_AsText(c3)	ST_AsText(c4)	ST_AsText(c5)
 connect  con2,localhost,root,,;
 connection con2;
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
-SELECT @@tx_isolation;
-@@tx_isolation
+SELECT @@transaction_isolation;
+@@transaction_isolation
 READ-COMMITTED
 START TRANSACTION;
 INSERT INTO tab(c1,c2,c3,c4,c5) 

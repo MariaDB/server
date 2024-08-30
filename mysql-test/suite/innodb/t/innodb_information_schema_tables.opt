@@ -19,7 +19,6 @@
 --loose-innodb_sys_foreign_cols
 --loose-innodb_changed_pages
 --loose-innodb_rseg
---loose-innodb_undo_logs
 --loose-innodb_sys_stats
 --loose-innodb_table_stats
 --loose-innodb_index_stats

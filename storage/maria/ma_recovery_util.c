@@ -87,7 +87,7 @@ void eprint(FILE *trace_file __attribute__ ((unused)),
   if (!trace_file)
     trace_file= stderr;
 
-  if (procent_printed)
+  if (procent_printed && trace_file == stderr)
   {
     procent_printed= 0;
     /* In silent mode, print on another line than the 0% 10% 20% line */

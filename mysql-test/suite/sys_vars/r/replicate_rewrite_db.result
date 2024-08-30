@@ -1,0 +1,97 @@
+#
+# MDEV-15530: Variable replicate_rewrite_db
+#             cannot be found in "show global variables"
+#
+SET @save_replicate_rewrite_db = @@GLOBAL.replicate_rewrite_db;
+SELECT @save_replicate_rewrite_db;
+@save_replicate_rewrite_db
+test->rewrite,mysqltest1->test,a->b
+# Test session/Scope (it is global variable)
+select @@global.replicate_rewrite_db;
+@@global.replicate_rewrite_db
+test->rewrite,mysqltest1->test,a->b
+SELECT @@SESSION.replicate_rewrite_db;
+ERROR HY000: Variable 'replicate_rewrite_db' is a GLOBAL variable
+SET @@SESSION.replicate_rewrite_db = "";
+ERROR HY000: Variable 'replicate_rewrite_db' is a GLOBAL variable and should be set with SET GLOBAL
+show global variables like 'replicate_rewrite_db';
+Variable_name	Value
+replicate_rewrite_db	test->rewrite,mysqltest1->test,a->b
+show session variables like 'replicate_rewrite_db';
+Variable_name	Value
+replicate_rewrite_db	test->rewrite,mysqltest1->test,a->b
+select * from information_schema.global_variables where variable_name='replicate_rewrite_db';
+VARIABLE_NAME	VARIABLE_VALUE
+REPLICATE_REWRITE_DB	test->rewrite,mysqltest1->test,a->b
+select * from information_schema.session_variables where variable_name='replicate_rewrite_db';
+VARIABLE_NAME	VARIABLE_VALUE
+REPLICATE_REWRITE_DB	test->rewrite,mysqltest1->test,a->b
+# Incorrect type
+SET @@GLOBAL.replicate_rewrite_db=1;
+ERROR 42000: Incorrect argument type to variable 'replicate_rewrite_db'
+SET @@GLOBAL.replicate_rewrite_db="->";
+ERROR HY000: Incorrect arguments to SET
+SET @@GLOBAL.replicate_rewrite_db="   ";
+ERROR HY000: Incorrect arguments to SET
+SET @@GLOBAL.replicate_rewrite_db="a->";
+ERROR HY000: Incorrect arguments to SET
+SET @@GLOBAL.replicate_rewrite_db="->b";
+ERROR HY000: Incorrect arguments to SET
+# Check arguments
+set session replicate_rewrite_db=1;
+ERROR HY000: Variable 'replicate_rewrite_db' is a GLOBAL variable and should be set with SET GLOBAL
+set global replicate_rewrite_db=1;
+ERROR 42000: Incorrect argument type to variable 'replicate_rewrite_db'
+SET @@SESSION.replicate_do_db = "";
+ERROR HY000: Variable 'replicate_do_db' is a GLOBAL variable and should be set with SET GLOBAL
+SET @@GLOBAL.replicate_rewrite_db="";
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+
+SET @@GLOBAL.replicate_rewrite_db=null;
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+
+SET @@GLOBAL.replicate_rewrite_db=DEFAULT;
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+
+SET @@GLOBAL.replicate_rewrite_db="db1->db3";
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+db1->db3
+SET @@GLOBAL.replicate_rewrite_db="db2  ->db4";
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+db2->db4
+SET @@GLOBAL.replicate_rewrite_db="  db5  ->db7  ";
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+db5->db7
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_rewrite_db';
+VARIABLE_NAME	VARIABLE_VALUE
+REPLICATE_REWRITE_DB	db5->db7
+select * from information_schema.session_variables where variable_name='replicate_rewrite_db';
+VARIABLE_NAME	VARIABLE_VALUE
+REPLICATE_REWRITE_DB	db5->db7
+show global variables like 'replicate_rewrite_db';
+Variable_name	Value
+replicate_rewrite_db	db5->db7
+SET @@GLOBAL.replicate_rewrite_db="db1->db2, db3->db4";
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+db1->db2,db3->db4
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_rewrite_db';
+VARIABLE_NAME	VARIABLE_VALUE
+REPLICATE_REWRITE_DB	db1->db2,db3->db4
+# Check restart with appending the value
+# restart: --replicate_rewrite_db='X->Y'
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+test->rewrite,mysqltest1->test,a->b,'X->Y'
+# Check restart with wrong value on CLI
+[ERROR] Bad syntax in replicate-rewrite-db.Expected syntax is FROM->TO.
+# restart
+SELECT @@GLOBAL.replicate_rewrite_db;
+@@GLOBAL.replicate_rewrite_db
+test->rewrite,mysqltest1->test,a->b

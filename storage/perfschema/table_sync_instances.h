@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -59,19 +59,21 @@ struct row_mutex_instances
 class table_mutex_instances : public PFS_engine_table
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share. */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 private:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_mutex_instances();
 
@@ -115,19 +117,21 @@ struct row_rwlock_instances
 class table_rwlock_instances : public PFS_engine_table
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 private:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_rwlock_instances();
 
@@ -165,19 +169,21 @@ struct row_cond_instances
 class table_cond_instances : public PFS_engine_table
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share. */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
+  static ha_rows get_row_count();
 
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 private:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_cond_instances();
 

@@ -11,9 +11,9 @@
 --connection slave
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 
-eval change master '' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root';
+eval change master '' to master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval change master 'master2' to master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root';
+eval change master 'master2' to master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0;
 start all slaves;
 
 set default_master_connection = '';
@@ -27,13 +27,13 @@ set default_master_connection = 'master2';
 set default_master_connection = '';
 --connection master1
 create table t1 (a varchar(10) character set utf8);
-load data infile '../../std_data/loaddata6.dat' into table t1;
+load data infile '../../std_data/loaddata6.dat' into table t1 character set latin1;
 --save_master_pos
 --connection slave
 --sync_with_master 0,''
 --connection master2
 create table t2 (a varchar(10) character set utf8);
-load data infile '../../std_data/loaddata6.dat' into table t2;
+load data infile '../../std_data/loaddata6.dat' into table t2 character set latin1;
 --save_master_pos
 --connection slave
 --sync_with_master 0,'master2'

@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2018, MariaDB
+   Copyright (c) 2018, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -112,7 +112,7 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
               uint key_length, bool with_zerofill)
 {
   uint length;
@@ -141,12 +141,13 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
         continue;
       }
     }
+    auto *from_ptr= key_part->field->ptr_in_record(from_record);
     if (key_part->key_part_flag & HA_BLOB_PART ||
         key_part->key_part_flag & HA_VAR_LENGTH_PART)
     {
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
-      uint bytes= key_part->field->get_key_image(to_key, length,
+      uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
 		      key_info->flags & HA_SPATIAL ? Field::itMBR : Field::itRAW);
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
@@ -157,9 +158,9 @@ void key_copy(uchar *to_key, const uchar *from_record, KEY *key_info,
       length= MY_MIN(key_length, key_part->length);
       Field *field= key_part->field;
       CHARSET_INFO *cs= field->charset();
-      uint bytes= field->get_key_image(to_key, length, Field::itRAW);
+      uint bytes= field->get_key_image(to_key, length, from_ptr, Field::itRAW);
       if (bytes < length)
-        cs->cset->fill(cs, (char*) to_key + bytes, length - bytes, ' ');
+        cs->fill((char*) to_key + bytes, length - bytes, ' ');
     }
   }
 }
@@ -323,12 +324,10 @@ bool key_cmp_if_same(TABLE *table,const uchar *key,uint idx,uint key_length)
       const uchar *pos= table->record[0] + key_part->offset;
       if (length > char_length)
       {
-        char_length= my_charpos(cs, pos, pos + length, char_length);
+        char_length= cs->charpos(pos, pos + length, char_length);
         set_if_smaller(char_length, length);
       }
-      if (cs->coll->strnncollsp(cs,
-                                (const uchar*) key, length,
-                                (const uchar*) pos, char_length))
+      if (cs->strnncollsp(key, length, pos, char_length))
         return 1;
       continue;
     }
@@ -361,7 +360,7 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
   {
     if (field->is_null())
     {
-      to->append(STRING_WITH_LEN("NULL"));
+      to->append(NULL_clex_str);
       DBUG_VOID_RETURN;
     }
     CHARSET_INFO *cs= field->charset();
@@ -386,15 +385,15 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
         Align, returning not more than "char_length" characters.
       */
       size_t charpos, char_length= max_length / cs->mbmaxlen;
-      if ((charpos= my_charpos(cs, tmp.ptr(),
-                               tmp.ptr() + tmp.length(),
-                               char_length)) < tmp.length())
+      if ((charpos= cs->charpos(tmp.ptr(),
+                                tmp.ptr() + tmp.length(),
+                                char_length)) < tmp.length())
         tmp.length(charpos);
     }
     if (max_length < field->pack_length())
       tmp.length(MY_MIN(tmp.length(),max_length));
     ErrConvString err(&tmp);
-    to->append(err.ptr());
+    to->append(err.lex_cstring());
   }
   else
     to->append(STRING_WITH_LEN("???"));
@@ -435,7 +434,7 @@ void key_unpack(String *to, TABLE *table, KEY *key)
     {
       if (table->record[0][key_part->null_offset] & key_part->null_bit)
       {
-	to->append(STRING_WITH_LEN("NULL"));
+	to->append(NULL_clex_str);
 	continue;
       }
     }
@@ -496,6 +495,7 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
   {
     int cmp;
     store_length= key_part->store_length;
+    int sort_order = (key_part->key_part_flag & HA_REVERSE_SORT) ? -1 : 1;
     if (key_part->null_bit)
     {
       /* This key part allows null values; NULL is lower than everything */
@@ -504,19 +504,19 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
       {
 	/* the range is expecting a null value */
 	if (!field_is_null)
-	  return 1;                             // Found key is > range
+	  return sort_order;                         // Found key is > range
         /* null -- exact match, go to next key part */
 	continue;
       }
       else if (field_is_null)
-	return -1;                              // NULL is less than any value
+	return -sort_order;                     // NULL is less than any value
       key++;					// Skip null byte
       store_length--;
     }
     if ((cmp=key_part->field->key_cmp(key, key_part->length)) < 0)
-      return -1;
+      return -sort_order;
     if (cmp > 0)
-      return 1;
+      return sort_order;
   }
   return 0;                                     // Keys are equal
 }
@@ -574,6 +574,9 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
     /* loop over every key part */
     do
     {
+      const int GREATER= key_part->key_part_flag & HA_REVERSE_SORT ? -1 : +1;
+      const int LESS= -GREATER;
+
       field= key_part->field;
 
       if (key_part->null_bit)
@@ -594,19 +597,19 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
             ; /* Fall through, no NULL fields */
           else
           {
-            DBUG_RETURN(+1);
+            DBUG_RETURN(GREATER);
           }
         }
         else if (!sec_is_null)
         {
-          DBUG_RETURN(-1);
+          DBUG_RETURN(LESS);
         }
         else
           goto next_loop; /* Both were NULL */
       }
       /*
         No null values in the fields
-        We use the virtual method cmp_max with a max length parameter.
+        We use the virtual method cmp_prefix with a max length parameter.
         For most field types this translates into a cmp without
         max length. The exceptions are the BLOB and VARCHAR field types
         that take the max length into account.
@@ -614,7 +617,7 @@ int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
       if ((result= field->cmp_prefix(field->ptr+first_diff, field->ptr+sec_diff,
                                      key_part->length /
                                      field->charset()->mbmaxlen)))
-        DBUG_RETURN(result);
+        DBUG_RETURN(result * GREATER);
 next_loop:
       key_part++;
       key_part_num++;
@@ -755,14 +758,14 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 
     if (is_string)
     {
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length= my_charpos(cs, pos + pack_length,
-                                     pos + pack_length + length,
-                                     length / cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
-      cs->coll->hash_sort(cs, pos+pack_length, length, &nr, &nr2);
+      /*
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+
+        In this case, the passed key tuple is already a prefix, no
+        special handling is required.
+      */
+      cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
     else
@@ -865,26 +868,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Compare the strings taking into account length in characters
-        and collation
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+        In this case, we get properly truncated prefixes here.
       */
-      size_t byte_len1= length1, byte_len2= length2;
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length1= my_charpos(cs, pos1 + pack_length,
-                                      pos1 + pack_length + length1,
-                                      length1 / cs->mbmaxlen);
-        size_t char_length2= my_charpos(cs, pos2 + pack_length,
-                                      pos2 + pack_length + length2,
-                                      length2 / cs->mbmaxlen);
-        set_if_smaller(length1, char_length1);
-        set_if_smaller(length2, char_length2);
-      }
-      if (length1 != length2 ||
-          cs->coll->strnncollsp(cs,
-                                pos1 + pack_length, byte_len1,
-                                pos2 + pack_length, byte_len2))
-        return TRUE;
+      if (cs->strnncollsp(pos1 + pack_length, length1,
+                          pos2 + pack_length, length2))
+        return true;
       key1+= pack_length; key2+= pack_length;
     }
     else

@@ -18,6 +18,7 @@
    versions into symbolic names. By Sasha Pachev <sasha@mysql.com>
  */
 
+#define VER "1.4"
 #include <my_global.h>
 #include <m_ctype.h>
 #include <my_sys.h>
@@ -25,11 +26,11 @@
 #include <mysql_version.h>
 #include <errno.h>
 #include <my_getopt.h>
+#include <welcome_copyright_notice.h>
 
 #define INIT_SYM_TABLE  4096
 #define INC_SYM_TABLE  4096
 #define MAX_SYM_SIZE   128
-#define DUMP_VERSION "1.4"
 #define HEX_INVALID  (uchar)255
 
 typedef ulong my_long_addr_t ; /* at some point, we need to fix configure
@@ -64,13 +65,6 @@ static struct my_option my_long_options[] =
 
 static void verify_sort();
 static void clean_up();
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname,DUMP_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
-
 
 static void usage()
 {
@@ -111,10 +105,11 @@ void local_exit(int error)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       const char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'V':
     print_version();
     local_exit(0);
@@ -176,7 +171,7 @@ static void open_files()
   /* if name not given, assume stdin*/
 
   if (!sym_fname)
-    die("Please run nm --numeric-sort on mysqld binary that produced stack \
+    die("Please run nm --numeric-sort on mariadbd binary that produced stack \
 trace dump and specify the path to it with -s or --symbols-file");
   if (!(fp_sym = my_fopen(sym_fname, O_RDONLY, MYF(MY_WME))))
     die("Could not open %s", sym_fname);
@@ -234,8 +229,8 @@ static int init_sym_entry(SYM_ENTRY* se, char* buf)
 static void init_sym_table()
 {
   char buf[512];
-  if (my_init_dynamic_array(&sym_table, sizeof(SYM_ENTRY), INIT_SYM_TABLE,
-			    INC_SYM_TABLE, MYF(0)))
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &sym_table, sizeof(SYM_ENTRY),
+                            INIT_SYM_TABLE, INC_SYM_TABLE, MYF(0)))
     die("Failed in my_init_dynamic_array() -- looks like out of memory problem");
 
   while (fgets(buf, sizeof(buf), fp_sym))

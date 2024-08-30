@@ -5,7 +5,7 @@ set @save_query_cache_type=@@global.query_cache_type;
 set GLOBAL query_cache_type=ON;
 set LOCAL query_cache_type=ON;
 set GLOBAL query_cache_size=1355776;
-flush status;
+flush global status;
 create table t1 (a int, b int);
 create view v1 (c,d) as select sql_no_cache a,b from t1;
 create view v2 (c,d) as select a+rand(),b from t1;
@@ -46,7 +46,7 @@ Variable_name	Value
 Qcache_hits	0
 drop view v1,v2;
 set query_cache_type=demand;
-flush status;
+flush global status;
 create view v1 (c,d) as select sql_cache a,b from t1;
 show status like "Qcache_queries_in_cache";
 Variable_name	Value
@@ -136,7 +136,7 @@ unlock tables;
 set query_cache_wlock_invalidate=default;
 drop view v1;
 drop table t1;
-flush status;
+flush global status;
 create table t1 (a int, b int);
 create algorithm=temptable view v1 as select * from t1;
 select * from v1;

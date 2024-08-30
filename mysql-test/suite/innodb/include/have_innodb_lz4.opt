@@ -1,0 +1,2 @@
+--plugin-load-add=$PROVIDER_LZ4_SO
+

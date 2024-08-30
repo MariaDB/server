@@ -32,13 +32,6 @@
 #include <standards.h>
 #endif
 
-#ifdef __CYGWIN__     /* CYGWIN implements a UNIX API */
-#undef WIN
-#undef _WIN
-#undef _WIN32
-#undef _WIN64
-#undef __WIN__
-#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -53,10 +46,7 @@ extern "C" {
 typedef char my_bool;
 #endif
 
-#if (defined(_WIN32) || defined(_WIN64)) && !defined(__WIN__)
-#define __WIN__
-#endif
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #define STDCALL
 #else
 #define STDCALL __stdcall
@@ -98,6 +88,9 @@ extern char *mysql_unix_port;
 #define IS_LONGDATA(t) ((t) >= MYSQL_TYPE_TINY_BLOB && (t) <= MYSQL_TYPE_STRING)
 
 
+typedef struct st_mysql_const_lex_string MARIADB_CONST_STRING;
+
+
 typedef struct st_mysql_field {
   char *name;                 /* Name of column */
   char *org_name;             /* Original column name, if an alias */
@@ -128,7 +121,7 @@ typedef unsigned int MYSQL_FIELD_OFFSET; /* offset to current field */
 #ifndef MY_GLOBAL_INCLUDED
 #if defined(NO_CLIENT_LONG_LONG)
 typedef unsigned long my_ulonglong;
-#elif defined (__WIN__)
+#elif defined (_WIN32)
 typedef unsigned __int64 my_ulonglong;
 #else
 typedef unsigned long long my_ulonglong;
@@ -148,7 +141,8 @@ typedef unsigned long long my_ulonglong;
 #define ER_WRONG_FK_OPTION_FOR_VIRTUAL_COLUMN ER_WRONG_FK_OPTION_FOR_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ACTION_ON_VIRTUAL_COLUMN ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN
 #define ER_UNSUPPORTED_ENGINE_FOR_VIRTUAL_COLUMNS ER_UNSUPPORTED_ENGINE_FOR_GENERATED_COLUMNS
-#define ER_QUERY_EXCEEDED_ROWS_EXAMINED_LIMIT ER_QUERY_RESULT_INCOMPLETE
+#define ER_KEY_COLUMN_DOES_NOT_EXITS ER_KEY_COLUMN_DOES_NOT_EXIST
+#define ER_DROP_PARTITION_NON_EXISTENT ER_PARTITION_DOES_NOT_EXIST
 
 typedef struct st_mysql_rows {
   struct st_mysql_rows *next;		/* list of rows */
@@ -295,8 +289,9 @@ typedef struct st_mysql
   /* session-wide random string */
   char	        scramble[SCRAMBLE_LENGTH+1];
   my_bool       auto_local_infile;
-  void *unused2, *unused3, *unused4;
+  void          *unused2, *unused3;
   MYSQL_FIELD	*fields;
+  const char    *tls_self_signed_error;
 
   LIST  *stmts;                     /* list of all statements */
   const struct st_mysql_methods *methods;
@@ -330,6 +325,14 @@ typedef struct st_mysql_res {
   void *extension;
 } MYSQL_RES;
 
+
+/*
+  We should not define MYSQL_CLIENT when the mysql.h is included
+  by the server or server plugins.
+  Now it is important only for the SQL service to work so we rely on
+  the MYSQL_SERVICE_SQL to check we're compiling the server/plugin
+  related file.
+*/
 
 #if !defined(MYSQL_SERVICE_SQL) && !defined(MYSQL_CLIENT)
 #define MYSQL_CLIENT
@@ -412,6 +415,14 @@ MYSQL_FIELD *STDCALL mysql_fetch_field_direct(MYSQL_RES *res,
 MYSQL_FIELD * STDCALL mysql_fetch_fields(MYSQL_RES *res);
 MYSQL_ROW_OFFSET STDCALL mysql_row_tell(MYSQL_RES *res);
 MYSQL_FIELD_OFFSET STDCALL mysql_field_tell(MYSQL_RES *res);
+
+
+
+
+int STDCALL mariadb_field_attr(MARIADB_CONST_STRING *attr,
+                               const MYSQL_FIELD *field,
+                               enum mariadb_field_attr_t type);
+
 
 unsigned int STDCALL mysql_field_count(MYSQL *mysql);
 my_ulonglong STDCALL mysql_affected_rows(MYSQL *mysql);

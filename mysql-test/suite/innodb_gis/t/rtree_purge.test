@@ -3,13 +3,12 @@
 --source include/innodb_page_size.inc
 --source include/have_sequence.inc
 --source include/not_valgrind.inc
-
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+# This test often times out with MSAN
+--source include/not_msan.inc
 
 create table t (
   b point not null,d point not null, spatial key (d),spatial key (b)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 
 --disable_query_log
 set @p=point(1,1);
@@ -27,4 +26,3 @@ dec $n;
 
 # Clean up.
 drop table t;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

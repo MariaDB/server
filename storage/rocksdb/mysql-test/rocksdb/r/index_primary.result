@@ -3,8 +3,8 @@ CREATE TABLE t1 (a INT PRIMARY KEY,
 b CHAR(8)
 ) ENGINE=rocksdb;
 SHOW KEYS IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE			NO
 INSERT INTO t1 (a,b) VALUES (1,'a'),(2,'b');
 INSERT INTO t1 (a,b) VALUES (1,'c');
 ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
@@ -18,9 +18,9 @@ b CHAR(8),
 PRIMARY KEY (a,b)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE		
-t1	0	PRIMARY	2	b	A	#	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE			NO
+t1	0	PRIMARY	2	b	A	#	NULL	NULL		LSMTREE			NO
 INSERT INTO t1 (a,b) VALUES (1,'a'),(1,'b'),(2,'a'),(2,'b');
 INSERT INTO t1 (a,b) VALUES (1,'b');
 ERROR 23000: Duplicate entry '1-b' for key 'PRIMARY'
@@ -30,21 +30,21 @@ b CHAR(8),
 KEY (b)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE		
-t1	1	b	1	b	A	#	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	#	NULL	NULL		LSMTREE			NO
+t1	1	b	1	b	A	#	NULL	NULL	YES	LSMTREE			NO
 DROP TABLE t1;
 CREATE TABLE t1 (a INT,
 b CHAR(8) PRIMARY KEY
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE			NO
 ALTER TABLE t1 ADD CONSTRAINT PRIMARY KEY pk (a);
 ERROR 42000: Multiple primary key defined
 SHOW KEYS IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	b	A	#	NULL	NULL		LSMTREE			NO
 DROP TABLE t1;
 set global rocksdb_large_prefix=0;
 CREATE TABLE t1 (

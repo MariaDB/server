@@ -599,7 +599,7 @@ namespace mrn {
           string = const_item->val_str(NULL);
           Field_enum *enum_field = static_cast<Field_enum *>(field_item->field);
           int enum_value = find_type(string->c_ptr(),
-                                     enum_field->typelib,
+                                     enum_field->typelib(),
                                      FIND_TYPE_BASIC);
           GRN_INT64_SET(ctx_, &value_, enum_value);
         } else {

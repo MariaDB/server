@@ -1,0 +1,68 @@
+--echo #
+--echo # MDEV-21921 Make transaction_isolation and transaction_read_only into
+--echo # system variables
+--echo #
+
+SET @saved_global_isolation= @@global.transaction_isolation;
+SET @saved_global_read_only= @@global.transaction_read_only;
+
+--echo # Case 1: Check the influence of --transaction_* on
+--echo # @@session.transaction_* and @@global.transaction_*,
+--echo # @@session.tx_*, @@global.tx_*.
+
+SELECT @@session.transaction_isolation, @@global.transaction_isolation,
+       @@session.tx_isolation, @@global.tx_isolation;
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+SHOW SESSION VARIABLES LIKE '%_isolation';
+
+SELECT @@session.transaction_read_only, @@global.transaction_read_only,
+       @@session.tx_read_only, @@global.tx_read_only;
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+SHOW SESSION VARIABLES LIKE '%_read_only';
+
+--echo # Case 2: Check that the change to tx_* is reflected to transaction_*.
+
+SET tx_isolation= 'REPEATABLE-READ';
+SET @@global.tx_isolation= 'SERIALIZABLE';
+SELECT @@session.tx_isolation, @@global.tx_isolation,
+@@session.transaction_isolation, @@global.transaction_isolation;
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+SHOW SESSION VARIABLES LIKE '%_isolation';
+
+SET STATEMENT tx_isolation= 'SERIALIZABLE' FOR SHOW SESSION VARIABLES LIKE '%_isolation';
+SHOW SESSION VARIABLES LIKE '%_isolation';
+
+SET tx_read_only= OFF;
+SET @@global.tx_read_only= ON;
+SELECT @@session.tx_read_only, @@global.tx_read_only,
+@@session.transaction_read_only, @@global.transaction_read_only;
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+SHOW SESSION VARIABLES LIKE '%_read_only';
+
+SET STATEMENT tx_read_only= ON FOR SHOW SESSION VARIABLES LIKE '%_read_only';
+SHOW SESSION VARIABLES LIKE '%_read_only';
+
+--echo # Case 3: Check that the change to transaction_* is reflected to tx_*.
+
+SET transaction_isolation= 'SERIALIZABLE';
+SET @@global.transaction_isolation= 'REPEATABLE-READ';
+SELECT @@session.tx_isolation, @@global.tx_isolation,
+@@session.transaction_isolation, @@global.transaction_isolation;
+SHOW GLOBAL VARIABLES LIKE '%_isolation';
+SHOW SESSION VARIABLES LIKE '%_isolation';
+
+SET STATEMENT transaction_isolation= 'REPEATABLE-READ' FOR SHOW SESSION VARIABLES LIKE '%_isolation';
+SHOW SESSION VARIABLES LIKE '%_isolation';
+
+SET transaction_read_only= ON;
+SET @@global.transaction_read_only= OFF;
+SELECT @@session.tx_read_only, @@global.tx_read_only,
+@@session.transaction_read_only, @@global.transaction_read_only;
+SHOW GLOBAL VARIABLES LIKE '%_read_only';
+SHOW SESSION VARIABLES LIKE '%_read_only';
+
+SET STATEMENT transaction_read_only= OFF FOR SHOW SESSION VARIABLES LIKE '%_read_only';
+SHOW SESSION VARIABLES LIKE '%_read_only';
+
+SET @@global.transaction_isolation= @saved_global_isolation;
+SET @@global.transaction_read_only= @saved_global_read_only;

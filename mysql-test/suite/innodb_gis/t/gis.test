@@ -5,14 +5,12 @@
 --source include/have_sequence.inc
 
 SET default_storage_engine=InnoDB;
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 
 #
 # Spatial objects
 #
-
---disable_warnings
-DROP TABLE IF EXISTS t1, gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
---enable_warnings
 
 CREATE TABLE gis_point  (fid INTEGER NOT NULL PRIMARY KEY, g POINT);
 CREATE TABLE gis_line  (fid INTEGER NOT NULL PRIMARY KEY, g LINESTRING);
@@ -90,12 +88,12 @@ SELECT fid, ST_Dimension(g) FROM gis_geometry;
 SELECT fid, ST_GeometryType(g) FROM gis_geometry;
 SELECT fid, ST_IsEmpty(g) FROM gis_geometry;
 SELECT fid, ST_AsText(ST_Envelope(g)) FROM gis_geometry;
---replace_column 10 #
+--replace_column 9 #
 explain extended select ST_Dimension(g), ST_GeometryType(g), ST_IsEmpty(g), ST_AsText(ST_Envelope(g)) from gis_geometry;
 
 SELECT fid, ST_X(g) FROM gis_point;
 SELECT fid, ST_Y(g) FROM gis_point;
---replace_column 10 #
+--replace_column 9 #
 explain extended select ST_X(g),ST_Y(g) FROM gis_point;
 
 SELECT fid, ST_AsText(ST_StartPoint(g)) FROM gis_line;
@@ -104,7 +102,7 @@ SELECT fid, ST_Length(g) FROM gis_line;
 SELECT fid, ST_NumPoints(g) FROM gis_line;
 SELECT fid, ST_AsText(ST_PointN(g, 2)) FROM gis_line;
 SELECT fid, ST_IsClosed(g) FROM gis_line;
---replace_column 10 #
+--replace_column 9 #
 explain extended select ST_AsText(ST_StartPoint(g)),ST_AsText(ST_EndPoint(g)),ST_Length(g),ST_NumPoints(g),ST_AsText(ST_PointN(g, 2)),ST_IsClosed(g) FROM gis_line;
 
 SELECT fid, ST_AsText(ST_Centroid(g)) FROM gis_polygon;
@@ -112,7 +110,7 @@ SELECT fid, ST_Area(g) FROM gis_polygon;
 SELECT fid, ST_AsText(ST_ExteriorRing(g)) FROM gis_polygon;
 SELECT fid, ST_NumInteriorRings(g) FROM gis_polygon;
 SELECT fid, ST_AsText(ST_InteriorRingN(g, 1)) FROM gis_polygon;
---replace_column 10 #
+--replace_column 9 #
 explain extended select ST_AsText(ST_Centroid(g)),ST_Area(g),ST_AsText(ST_ExteriorRing(g)),ST_NumInteriorRings(g),ST_AsText(ST_InteriorRingN(g, 1)) FROM gis_polygon;
 
 SELECT fid, ST_IsClosed(g) FROM gis_multi_line;
@@ -124,7 +122,7 @@ SELECT fid, ST_NumGeometries(g) from gis_multi_point;
 SELECT fid, ST_NumGeometries(g) from gis_multi_line;
 SELECT fid, ST_NumGeometries(g) from gis_multi_polygon;
 SELECT fid, ST_NumGeometries(g) from gis_geometrycollection;
---replace_column 10 #
+--replace_column 9 #
 explain extended SELECT fid, ST_NumGeometries(g) from gis_multi_point;
 
 SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_point;
@@ -132,20 +130,23 @@ SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_line;
 SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_polygon;
 SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_geometrycollection;
 SELECT fid, ST_AsText(ST_GeometryN(g, 1)) from gis_geometrycollection;
---replace_column 10 #
+--replace_column 9 #
 explain extended SELECT fid, ST_AsText(ST_GeometryN(g, 2)) from gis_multi_point;
 
+--disable_view_protocol
 SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
---replace_column 10 #
+
+--replace_column 9 #
 explain extended SELECT g1.fid as first, g2.fid as second,
 MBRWithin(g1.g, g2.g) as w, MBRContains(g1.g, g2.g) as c, MBROverlaps(g1.g, g2.g) as o,
 MBREquals(g1.g, g2.g) as e, MBRDisjoint(g1.g, g2.g) as d, ST_Touches(g1.g, g2.g) as t,
 MBRIntersects(g1.g, g2.g) as i, ST_Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 
@@ -168,7 +169,7 @@ ALTER TABLE t1 ADD fid INT NOT NULL;
 SHOW FIELDS FROM t1;
 DROP TABLE t1;
 
-SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
+SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)')))) AS val;
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_GeometryFromText('POINT(1 4)'))));
 explain extended SELECT ST_AsText(ST_GeometryFromWKB(ST_AsWKB(ST_PointFromText('POINT(1 4)'))));
 SELECT ST_SRID(ST_GeomFromText('LineString(1 1,2 2)',101));
@@ -382,9 +383,9 @@ t1 where object_id=85984;
 drop table t1;
 
 create table t1 (fl geometry not null);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 values (1.11);
 --error 1416
 insert into t1 values ("qwerty");
@@ -393,14 +394,16 @@ insert into t1 values (ST_pointfromtext('point(1,1)'));
 
 drop table t1;
 
-select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000))));
-select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440))));
+select (ST_asWKT(ST_geomfromwkb((0x000000000140240000000000004024000000000000)))) AS val;
+select (ST_asWKT(ST_geomfromwkb((0x010100000000000000000024400000000000002440)))) AS val;
 
+--disable_view_protocol
 --enable_metadata
 create table t1 (g GEOMETRY);
 select * from t1;
 select ST_asbinary(g) from t1;
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 create table t1 (a TEXT, b GEOMETRY NOT NULL, SPATIAL KEY(b));
@@ -1436,10 +1439,12 @@ SELECT ST_Union('', ''), md5(1);
 --echo # MDEV-25758 InnoDB spatial indexes miss large geometry
 --echo #	fields after MDEV-25459
 --echo #
-CREATE TABLE t1(l LINESTRING NOT NULL, SPATIAL INDEX(l))ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
-SELECT GROUP_CONCAT(CONCAT(seq, ' ', seq) SEPARATOR ',') INTO @g FROM seq_0_to_190;
+CREATE TABLE t1(l LINESTRING NOT NULL, SPATIAL INDEX(l))ENGINE=InnoDB;
+SELECT GROUP_CONCAT(CONCAT(seq, ' ', seq) SEPARATOR ',') INTO @g FROM seq_0_to_504;
 INSERT INTO t1 SET l=ST_GeomFromText(CONCAT('LINESTRING(',@g,',0 0)'));
 SELECT COUNT(*) FROM t1 WHERE MBRIntersects(GeomFromText('Polygon((0 0,0 10,10 10,10 0,0 0))'), l);
 DROP TABLE t1;
 
 DROP DATABASE gis_ogs;
+
+SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

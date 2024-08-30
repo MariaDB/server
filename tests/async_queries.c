@@ -314,8 +314,8 @@ add_query(const char *q)
   char *q2;
   size_t len;
 
-  e= my_malloc(sizeof(*e), MYF(0));
-  q2= my_strdup(q, MYF(0));
+  e= my_malloc(PSI_NOT_INSTRUMENTED, sizeof(*e), MYF(0));
+  q2= my_strdup(PSI_NOT_INSTRUMENTED, q, MYF(0));
   if (!e || !q2)
     fatal(NULL, "Out of memory");
 
@@ -335,10 +335,10 @@ add_query(const char *q)
 
 
 static my_bool
-handle_option(int optid, const struct my_option *opt __attribute__((unused)),
-              char *arg)
+handle_option(const struct my_option *opt, const char *arg,
+              const char *filename __attribute__((unused)))
 {
-  switch (optid)
+  switch (opt->id)
   {
   case '?':
     printf("Usage: async_queries [OPTIONS] query ...\n");
@@ -358,6 +358,7 @@ handle_option(int optid, const struct my_option *opt __attribute__((unused)),
   return 0;
 }
 
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 int
 main(int argc, char *argv[])
@@ -394,7 +395,7 @@ main(int argc, char *argv[])
     add_query(*argv++);
   }
 
-  sds= my_malloc(opt_connections * sizeof(*sds), MYF(0));
+  sds= my_malloc(PSI_NOT_INSTRUMENTED, opt_connections * sizeof(*sds), MYF(0));
   if (!sds)
     fatal(NULL, "Out of memory");
 
@@ -433,3 +434,4 @@ main(int argc, char *argv[])
 
   return 0;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME

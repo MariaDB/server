@@ -1,0 +1,14 @@
+main.mysql_upgrade : Takes long time on Appveyor
+main.mysqlslap : Takes long time
+mysql.upgrade_view : Takes long time
+main.check : Takes long time on Appveyor
+main.mrr_icp_extra : Takes long time on Appveyor
+main.derived_opt : Takes long time on Appveyor
+main.trigger : Takes long time on Appveyor
+main.index_merge_myisam : Takes long time on Appveyor
+main.mysqldump : Takes long time on Appveyor
+main.derived : Takes long time on Appveyor
+main.multi_update : Takes long time on Appveyor
+main.index_merge_innodb  : Takes long time on Appveyor
+main.count_distinct2  : Takes long time on Appveyor
+main.mysqltest : Takes long time on Appveyor

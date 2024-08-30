@@ -1,0 +1,41 @@
+-- source include/not_embedded.inc
+-- source ../include/ps_truncate_all_tables.inc
+-- source include/have_innodb.inc
+# Tests for sys schema
+# Verify the sys.innodb_lock_waits view
+
+# Ensure structure changes don't slip in
+DESC sys.innodb_lock_waits;
+
+# Make sure view select does not error, but ignore results
+--disable_result_log
+SELECT * FROM sys.innodb_lock_waits;
+--enable_result_log
+
+
+# Ensure structure changes don't slip in
+DESC sys.x$innodb_lock_waits;
+
+# Make sure view select does not error, but ignore results
+--disable_result_log
+SELECT * FROM sys.x$innodb_lock_waits;
+--enable_result_log
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+--echo #
+
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+--disable_result_log
+SELECT * FROM sys.x$innodb_lock_waits;
+--enable_result_log
+SET SESSION sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

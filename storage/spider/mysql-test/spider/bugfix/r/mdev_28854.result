@@ -17,6 +17,8 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 id INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 INSERT DELAYED INTO tbl_a VALUES (1);
 ERROR HY000: DELAYED option not supported for table 'tbl_a'

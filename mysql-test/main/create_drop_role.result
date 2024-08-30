@@ -51,7 +51,6 @@ u1@localhost
 SHOW DATABASES;
 Database
 information_schema
-test
 SELECT CURRENT_ROLE;
 CURRENT_ROLE
 NULL
@@ -65,6 +64,7 @@ information_schema
 mtr
 mysql
 performance_schema
+sys
 test
 SET ROLE NONE;
 connect  user_b, localhost, root,,;

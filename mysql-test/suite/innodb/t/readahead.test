@@ -6,6 +6,9 @@
 --echo # Bug#25330449 ASSERT SIZE==SPACE->SIZE DURING BUF_READ_AHEAD_RANDOM
 
 let $MYSQLD_DATADIR=`SELECT @@datadir`;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=INNODB ROW_FORMAT=COMPRESSED;
 
 --source include/shutdown_mysqld.inc

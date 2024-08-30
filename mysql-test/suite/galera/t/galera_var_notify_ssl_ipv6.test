@@ -3,6 +3,7 @@
 # notifications into a table.
 #
 
+--let galera_connection_address=::1
 --source include/galera_cluster.inc
 --source include/have_ssl_communication.inc
 --source include/check_ipv6.inc

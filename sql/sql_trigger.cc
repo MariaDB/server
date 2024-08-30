@@ -26,22 +26,40 @@
 #include "parse_file.h"
 #include "sp.h"
 #include "sql_base.h"
-#include "sql_show.h"                // append_definer, append_identifier
-#include "sql_table.h"                        // build_table_filename,
-                                              // check_n_cut_mysql50_prefix
-#include "sql_db.h"                        // get_default_db_collation
-#include "sql_acl.h"                       // *_ACL
-#include "sql_handler.h"                        // mysql_ha_rm_tables
+#include "sql_show.h"                     // append_definer, append_identifier
+#include "sql_table.h"                    // build_table_filename,
+                                          // check_n_cut_mysql50_prefix
+#include "sql_db.h"                       // get_default_db_collation
+#include "sql_handler.h"                  // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
-#include "debug_sync.h"
-#ifdef WITH_WSREP
+#include "ddl_log.h"                      // ddl_log_state
+#include "debug_sync.h"                   // DEBUG_SYNC
+#include "debug.h"                        // debug_crash_here
+#include "mysql/psi/mysql_sp.h"
 #include "wsrep_mysqld.h"
-#endif
 #include <my_time.h>
 #include <mysql_time.h>
 
 /*************************************************************************/
+
+static bool add_table_for_trigger_internal(THD *thd,
+                                           const sp_name *trg_name,
+                                           bool if_exists,
+                                           TABLE_LIST **table,
+                                           char *trn_path_buff);
+
+/*
+  Functions for TRIGGER_RENAME_PARAM
+*/
+
+void TRIGGER_RENAME_PARAM::reset()
+{
+  delete table.triggers;
+  table.triggers= 0;
+  free_root(&table.mem_root, MYF(0));
+}
+
 
 /**
   Trigger_creation_ctx -- creation context of triggers.
@@ -64,7 +82,7 @@ public:
     :Stored_program_creation_ctx(client_cs, connection_cl, db_cl)
   { }
 
-  virtual Stored_program_creation_ctx *clone(MEM_ROOT *mem_root)
+  Stored_program_creation_ctx *clone(MEM_ROOT *mem_root) override
   {
     return new (mem_root) Trigger_creation_ctx(m_client_cs,
                                                m_connection_cl,
@@ -72,7 +90,7 @@ public:
   }
 
 protected:
-  virtual Object_creation_ctx *create_backup_ctx(THD *thd) const
+  Object_creation_ctx *create_backup_ctx(THD *thd) const override
   {
     return new Trigger_creation_ctx(thd);
   }
@@ -99,10 +117,11 @@ Trigger_creation_ctx::create(THD *thd,
   CHARSET_INFO *db_cl;
 
   bool invalid_creation_ctx= FALSE;
+  myf utf8_flag= thd->get_utf8_flag();
 
   if (resolve_charset(client_cs_name->str,
                       thd->variables.character_set_client,
-                      &client_cs))
+                      &client_cs, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid character_set_client value (%s).",
@@ -115,7 +134,7 @@ Trigger_creation_ctx::create(THD *thd,
 
   if (resolve_collation(connection_cl_name->str,
                         thd->variables.collation_connection,
-                        &connection_cl))
+                        &connection_cl,MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid collation_connection value (%s).",
@@ -126,7 +145,7 @@ Trigger_creation_ctx::create(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (resolve_collation(db_cl_name->str, NULL, &db_cl))
+  if (resolve_collation(db_cl_name->str, NULL, &db_cl, MYF(utf8_flag)))
   {
     sql_print_warning("Trigger for table '%s'.'%s': "
                       "invalid database_collation value (%s).",
@@ -263,8 +282,8 @@ public:
   Handle_old_incorrect_sql_modes_hook(const char *file_path)
     :path(file_path)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 };
 
 
@@ -275,8 +294,8 @@ public:
                                           LEX_CSTRING *trigger_table_arg)
     :path(file_path), trigger_table_value(trigger_table_arg)
   {};
-  virtual bool process_unknown_string(const char *&unknown_key, uchar* base,
-                                      MEM_ROOT *mem_root, const char *end);
+  bool process_unknown_string(const char *&unknown_key, uchar* base,
+                                      MEM_ROOT *mem_root, const char *end) override;
 private:
   const char *path;
   LEX_CSTRING *trigger_table_value;
@@ -303,12 +322,12 @@ public:
 
   Deprecated_trigger_syntax_handler() : m_trigger_name(NULL) {}
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* message,
-                                Sql_condition ** cond_hdl)
+                                Sql_condition ** cond_hdl) override
   {
     if (sql_errno != EE_OUTOFMEMORY &&
         sql_errno != ER_OUT_OF_RESOURCES)
@@ -413,20 +432,24 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     This is a good candidate for a minor refactoring.
   */
   TABLE *table;
-  bool result= TRUE;
+  bool result= true, refresh_metadata= false;
+  bool add_if_exists_to_binlog= false, action_executed= false;
   String stmt_query;
   bool lock_upgrade_done= FALSE;
+  bool backup_of_table_list_done= 0;;
   MDL_ticket *mdl_ticket= NULL;
+  MDL_request mdl_request_for_trn;
   Query_tables_list backup;
-   char path[FN_REFLEN + 1];
-  char engine_name_buf[NAME_CHAR_LEN + 1];
-  LEX_CSTRING engine_name= { engine_name_buf, 0 };
-  bool is_sequence= 0;
-  
+  DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
+  char trn_path_buff[FN_REFLEN];
+  char path[FN_REFLEN + 1];
+
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
   /* Charset of the buffer for statement must be system one. */
   stmt_query.set_charset(system_charset_info);
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
+  bzero(&ddl_log_state_tmp_file, sizeof(ddl_log_state_tmp_file));
 
   /*
     QQ: This function could be merged in mysql_alter_table() function
@@ -447,7 +470,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   /*
     We don't allow creating triggers on tables in the 'mysql' schema
   */
-  if (create && lex_string_eq(&tables->db, STRING_WITH_LEN("mysql")))
+  if (create && tables->db.streq(MYSQL_SCHEMA_NAME))
   {
     my_error(ER_NO_TRIGGERS_ON_SYSTEM_SCHEMA, MYF(0));
     DBUG_RETURN(TRUE);
@@ -465,11 +488,20 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   */
   if (!trust_function_creators                               &&
       (WSREP_EMULATE_BINLOG(thd) || mysql_bin_log.is_open()) &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_LOG_BIN_TRUSTED_SP_CREATOR))
   {
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
+
+  /* Protect against concurrent create/drop */
+  MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TRIGGER,
+                   create ? tables->db.str : thd->lex->spname->m_db.str,
+                   thd->lex->spname->m_name.str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request_for_trn,
+                                    thd->variables.lock_wait_timeout))
+    goto end;
 
   if (!create)
   {
@@ -479,6 +511,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       Protect the query table list from the temporary and potentially
       destructive changes necessary to open the trigger's table.
     */
+    backup_of_table_list_done= 1;
     thd->lex->reset_n_backup_query_tables_list(&backup);
     /*
       Restore Query_tables_list::sql_command, which was
@@ -488,14 +521,16 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     */
     thd->lex->sql_command= backup.sql_command;
 
-    if (opt_readonly && !(thd->security_ctx->master_access & SUPER_ACL) &&
+    if (opt_readonly &&
+        !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
         !thd->slave_thread)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--read-only");
       goto end;
     }
 
-    if (add_table_for_trigger(thd, thd->lex->spname, if_exists, & tables))
+    if (add_table_for_trigger_internal(thd, thd->lex->spname, if_exists, &tables,
+                                       trn_path_buff))
       goto end;
 
     if (!tables)
@@ -511,7 +546,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       */
       result= FALSE;
       /* Still, we need to log the query ... */
-      stmt_query.append(thd->query(), thd->query_length());
+      stmt_query.set(thd->query(), thd->query_length(), system_charset_info);
+      action_executed= 1;
       goto end;
     }
   }
@@ -532,18 +568,17 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
   }
 
-#ifdef WITH_WSREP
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, tables);
-#endif
 
   /* We should have only one table in table list. */
   DBUG_ASSERT(tables->next_global == 0);
 
   build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
-  tables->required_type= dd_frm_type(NULL, path, &engine_name, &is_sequence);
+  tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
 
   /* We do not allow creation of triggers on temporary tables or sequence. */
-  if (is_sequence || (create && thd->find_tmp_table_share(tables)))
+  if (tables->required_type == TABLE_TYPE_SEQUENCE ||
+      (create && thd->find_tmp_table_share(tables)))
   {
     my_error(ER_TRG_ON_VIEW_OR_TEMP_TABLE, MYF(0), tables->alias.str);
     goto end;
@@ -573,15 +608,32 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     tables->table= open_n_lock_single_table(thd, tables,
                                             TL_READ_NO_INSERT, 0);
     if (! tables->table)
+    {
+      if (!create && thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+      {
+        /* TRN file exists but table does not. Drop the orphan trigger */
+        thd->clear_error();                     // Remove error from open
+        goto drop_orphan_trn;
+      }
       goto end;
+    }
     tables->table->use_all_columns();
   }
   table= tables->table;
 
+#ifdef WITH_WSREP
+  if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table->s->db_type()))
+    goto end;
+#endif
+
   /* Later on we will need it to downgrade the lock */
   mdl_ticket= table->mdl_ticket;
 
-  if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+  /*
+    RENAME ensures that table is flushed properly and locked tables will
+    be removed from the active transaction
+  */
+  if (wait_while_table_is_used(thd, table, HA_EXTRA_PREPARE_FOR_RENAME))
     goto end;
 
   lock_upgrade_done= TRUE;
@@ -589,11 +641,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   if (!table->triggers)
   {
     if (!create)
-    {
-      my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
-      goto end;
-    }
-
+      goto drop_orphan_trn;
     if (!(table->triggers= new (&table->mem_root) Table_triggers_list(table)))
       goto end;
   }
@@ -609,32 +657,79 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                   };);
 #endif /* WITH_WSREP && ENABLED_DEBUG_SYNC */
 
-  result= (create ?
-           table->triggers->create_trigger(thd, tables, &stmt_query):
-           table->triggers->drop_trigger(thd, tables, &stmt_query));
+  if (create)
+    result= table->triggers->create_trigger(thd, tables, &stmt_query,
+                                            &ddl_log_state,
+                                            &ddl_log_state_tmp_file);
+  else
+  {
+    result= table->triggers->drop_trigger(thd, tables,
+                                          &thd->lex->spname->m_name,
+                                          &stmt_query,
+                                          &ddl_log_state);
+    if (result)
+    {
+      thd->clear_error();                     // Remove error from drop trigger
+      goto drop_orphan_trn;
+    }
+  }
+  action_executed= 1;
 
-  if (result)
-    goto end;
-
-  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
-  /*
-    Reopen the table if we were under LOCK TABLES.
-    Ignore the return value for now. It's better to
-    keep master/slave in consistent state.
-  */
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    thd->clear_error();
-
-  /*
-    Invalidate SP-cache. That's needed because triggers may change list of
-    pre-locking tables.
-  */
-  sp_cache_invalidate();
+  refresh_metadata= TRUE;
 
 end:
-  if (!result)
-    result= write_bin_log(thd, TRUE, stmt_query.ptr(), stmt_query.length());
+  if (!result && action_executed)
+  {
+    ulonglong save_option_bits= thd->variables.option_bits;
+    backup_log_info ddl_log;
 
+    debug_crash_here("ddl_log_drop_before_binlog");
+    if (add_if_exists_to_binlog)
+      thd->variables.option_bits|= OPTION_IF_EXISTS;
+    thd->binlog_xid= thd->query_id;
+    ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+    result= write_bin_log(thd, TRUE, stmt_query.ptr(),
+                          stmt_query.length());
+    thd->binlog_xid= 0;
+    thd->variables.option_bits= save_option_bits;
+    debug_crash_here("ddl_log_drop_after_binlog");
+
+    bzero(&ddl_log, sizeof(ddl_log));
+    if (create)
+      ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
+    else
+      ddl_log.query= { C_STRING_WITH_LEN("DROP") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("TRIGGER") };
+    ddl_log.org_database=     thd->lex->spname->m_db;
+    ddl_log.org_table=        thd->lex->spname->m_name;
+    backup_log_ddl(&ddl_log);
+  }
+  ddl_log_complete(&ddl_log_state);
+  debug_crash_here("ddl_log_drop_before_delete_tmp");
+  /* delete any created log files */
+  result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
+
+  if (mdl_request_for_trn.ticket)
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+
+  if (refresh_metadata)
+  {
+    close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+
+    /*
+      Reopen the table if we were under LOCK TABLES.
+      Ignore the return value for now. It's better to
+      keep master/slave in consistent state.
+    */
+    if (thd->locked_tables_list.reopen_tables(thd, false))
+      thd->clear_error();
+
+    /*
+      Invalidate SP-cache. That's needed because triggers may change list of
+      pre-locking tables.
+    */
+    sp_cache_invalidate();
+  }
   /*
     If we are under LOCK TABLES we should restore original state of
     meta-data locks. Otherwise all locks will be released along
@@ -644,17 +739,35 @@ end:
     mdl_ticket->downgrade_lock(MDL_SHARED_NO_READ_WRITE);
 
   /* Restore the query table list. Used only for drop trigger. */
-  if (!create)
+  if (backup_of_table_list_done)
     thd->lex->restore_backup_query_tables_list(&backup);
 
   if (!result)
+  {
     my_ok(thd);
+    /* Drop statistics for this stored program from performance schema. */
+    MYSQL_DROP_SP(SP_TYPE_TRIGGER,
+                  thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
+                  thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
+  }
 
   DBUG_RETURN(result);
+
 #ifdef WITH_WSREP
 wsrep_error_label:
-  DBUG_RETURN(true);
+  DBUG_ASSERT(result == 1);
+  goto end;
 #endif
+
+drop_orphan_trn:
+  my_error(ER_REMOVED_ORPHAN_TRIGGER, MYF(ME_WARNING),
+           thd->lex->spname->m_name.str, tables->table_name.str);
+  mysql_file_delete(key_file_trg, trn_path_buff, MYF(0));
+  result= thd->is_error();
+  add_if_exists_to_binlog= 1;
+  action_executed= 1;                           // Ensure query is binlogged
+  stmt_query.set(thd->query(), thd->query_length(), system_charset_info);
+  goto end;
 }
 
 
@@ -754,6 +867,41 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
 
 
 /**
+  Visit every Item_trigger_field object associated with a trigger
+  and run the code supplied in the last argument, passing
+  the Item_trigger_fgield object being visited.
+
+  @param trg_table_fields  Item_trigger_field objects owned by a trigger
+  @param fn                a function to invoke for every Item_trigger_field
+                           object
+
+  @return false on success, true on failure.
+*/
+
+template <typename FN>
+static
+bool iterate_trigger_fields_and_run_func(
+  SQL_I_List<SQL_I_List<Item_trigger_field> > &trg_table_fields,
+  FN fn
+  )
+{
+  for (SQL_I_List<Item_trigger_field>
+         *trg_fld_lst= trg_table_fields.first;
+       trg_fld_lst;
+       trg_fld_lst= trg_fld_lst->first->next_trig_field_list)
+  {
+    for (Item_trigger_field *trg_field= trg_fld_lst->first;
+         trg_field;
+         trg_field= trg_field->next_trg_field)
+    {
+      if (fn(trg_field))
+        return true;
+    }
+  }
+  return false;
+}
+
+/**
   Create trigger for table.
 
   @param thd           current thread context (including trigger definition in
@@ -778,25 +926,29 @@ static void build_trig_stmt_query(THD *thd, TABLE_LIST *tables,
 */
 
 bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
-                                         String *stmt_query)
+                                         String *stmt_query,
+                                         DDL_LOG_STATE *ddl_log_state,
+                                         DDL_LOG_STATE *ddl_log_state_tmp_file)
 {
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
   char file_buff[FN_REFLEN], trigname_buff[FN_REFLEN];
-  LEX_CSTRING file, trigname_file;
+  char backup_file_buff[FN_REFLEN];
   char trg_definer_holder[USER_HOST_BUFF_SIZE];
-  Item_trigger_field *trg_field;
+  LEX_CSTRING backup_name= { backup_file_buff, 0 };
+  LEX_CSTRING file, trigname_file;
   struct st_trigname trigname;
   String trigger_definition;
   Trigger *trigger= 0;
-  bool trigger_dropped= 0;
+  int error;
+  bool trigger_exists;
   DBUG_ENTER("create_trigger");
 
   if (check_for_broken_triggers())
     DBUG_RETURN(true);
 
   /* Trigger must be in the same schema as target table. */
-  if (lex_string_cmp(table_alias_charset, &table->s->db, &lex->spname->m_db))
+  if (!table->s->db.streq(lex->spname->m_db))
   {
     my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
     DBUG_RETURN(true);
@@ -821,18 +973,20 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   */
   old_field= new_field= table->field;
 
-  for (trg_field= lex->trg_table_fields.first;
-       trg_field; trg_field= trg_field->next_trg_field)
-  {
-    /*
-      NOTE: now we do not check privileges at CREATE TRIGGER time. This will
-      be changed in the future.
-    */
-    trg_field->setup_field(thd, table, NULL);
+  if (iterate_trigger_fields_and_run_func(
+        lex->sphead->m_trg_table_fields,
+        [thd, table] (Item_trigger_field* trg_field)
+        {
+          /*
+            NOTE: now we do not check privileges at CREATE TRIGGER time.
+            This will be changed in the future.
+          */
+          trg_field->setup_field(thd, table, nullptr);
 
-    if (trg_field->fix_fields_if_needed(thd, (Item **)0))
-      DBUG_RETURN(true);
-  }
+          return trg_field->fix_fields_if_needed(thd, (Item **)0);
+        }
+     ))
+    DBUG_RETURN(true);
 
   /* Ensure anchor trigger exists */
   if (lex->trg_chistics.ordering_clause != TRG_ORDER_NONE)
@@ -863,17 +1017,40 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   trigname_file.str= trigname_buff;
 
   /* Use the filesystem to enforce trigger namespace constraints. */
-  if (!access(trigname_buff, F_OK))
+  trigger_exists= !access(trigname_file.str, F_OK);
+
+  ddl_log_create_trigger(ddl_log_state, &tables->db, &tables->table_name,
+                         &lex->spname->m_name,
+                         trigger_exists || table->triggers->count ?
+                         DDL_CREATE_TRIGGER_PHASE_DELETE_COPY :
+                         DDL_CREATE_TRIGGER_PHASE_NO_OLD_TRIGGER);
+
+  /* Make a backup of the .TRG file that we can restore in case of crash */
+  if (table->triggers->count &&
+      (sql_backup_definition_file(&file, &backup_name) ||
+       ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
+                               ddl_log_state)))
+    DBUG_RETURN(true);
+
+  if (trigger_exists)
   {
     if (lex->create_info.or_replace())
     {
-      String drop_trg_query;
+      LEX_CSTRING *sp_name= &thd->lex->spname->m_name; // alias
+
+      /* Make a backup of the .TRN file that we can restore in case of crash */
+      if (sql_backup_definition_file(&trigname_file, &backup_name) ||
+          ddl_log_delete_tmp_file(ddl_log_state_tmp_file, &backup_name,
+                                  ddl_log_state))
+        DBUG_RETURN(true);
+      ddl_log_update_phase(ddl_log_state, DDL_CREATE_TRIGGER_PHASE_OLD_COPIED);
+
       /*
         The following can fail if the trigger is for another table or
         there exists a .TRN file but there was no trigger for it in
         the .TRG file
       */
-      if (unlikely(drop_trigger(thd, tables, &drop_trg_query)))
+      if (unlikely(drop_trigger(thd, tables, sp_name, 0, 0)))
         DBUG_RETURN(true);
     }
     else if (lex->create_info.if_not_exists())
@@ -903,6 +1080,11 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
       DBUG_RETURN(true);
     }
   }
+  else
+  {
+    if (table->triggers->count)
+      ddl_log_update_phase(ddl_log_state, DDL_CREATE_TRIGGER_PHASE_OLD_COPIED);
+  }
 
   trigname.trigger_table= tables->table_name;
 
@@ -911,7 +1093,7 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
     going to access lex->sphead later in build_trig_stmt_query()
   */
   if (!(trigger= new (&table->mem_root) Trigger(this, 0)))
-    goto err_without_cleanup;
+    goto err;
 
   /* Time with in microseconds */
   trigger->hr_create_time= make_hr_time(thd->query_start(),
@@ -920,7 +1102,11 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
   /* Create trigger_name.TRN file to ensure trigger name is unique */
   if (sql_create_definition_file(NULL, &trigname_file, &trigname_file_type,
                                  (uchar*)&trigname, trigname_file_parameters))
-    goto err_without_cleanup;
+  {
+    delete trigger;
+    trigger= 0;
+    goto err;
+  }
 
   /* Populate the trigger object */
 
@@ -937,45 +1123,45 @@ bool Table_triggers_list::create_trigger(THD *thd, TABLE_LIST *tables,
       - connection collation contains pair {character set, collation};
       - database collation contains pair {character set, collation};
   */
-  lex_string_set(&trigger->client_cs_name, thd->charset()->csname);
-  lex_string_set(&trigger->connection_cl_name,
-                 thd->variables.collation_connection->name);
-  lex_string_set(&trigger->db_cl_name,
-                 get_default_db_collation(thd, tables->db.str)->name);
+  trigger->client_cs_name= thd->charset()->cs_name;
+  trigger->connection_cl_name= thd->variables.collation_connection->coll_name;
+  trigger->db_cl_name= get_default_db_collation(thd, tables->db.str)->coll_name;
+  trigger->name= Lex_ident_trigger(lex->spname->m_name);
 
   /* Add trigger in it's correct place */
   add_trigger(lex->trg_chistics.event,
               lex->trg_chistics.action_time,
               lex->trg_chistics.ordering_clause,
-              &lex->trg_chistics.anchor_trigger_name,
+              Lex_ident_trigger(lex->trg_chistics.anchor_trigger_name),
               trigger);
 
   /* Create trigger definition file .TRG */
   if (unlikely(create_lists_needed_for_files(thd->mem_root)))
-    goto err_with_cleanup;
+    goto err;
 
-  if (!sql_create_definition_file(NULL, &file, &triggers_file_type,
-                                  (uchar*)this, triggers_file_parameters))
+  debug_crash_here("ddl_log_create_before_create_trigger");
+  error= sql_create_definition_file(NULL, &file, &triggers_file_type,
+                                    (uchar*)this, triggers_file_parameters);
+  debug_crash_here("ddl_log_create_after_create_trigger");
+
+  if (!error)
     DBUG_RETURN(false);
 
-err_with_cleanup:
-  /* Delete .TRN file */
-  mysql_file_delete(key_file_trn, trigname_buff, MYF(MY_WME));
-
-err_without_cleanup:
-  delete trigger;                               // Safety, not critical
-
-  if (trigger_dropped)
+err:
+  DBUG_PRINT("error",("create trigger failed"));
+  if (trigger)
   {
-    String drop_trg_query;
-    drop_trg_query.append(STRING_WITH_LEN("DROP TRIGGER /* generated by failed CREATE TRIGGER */ "));
-    drop_trg_query.append(&lex->spname->m_name);
-    /*
-      We dropped an existing trigger and was not able to recreate it because
-      of an internal error. Ensure it's also dropped on the slave.
-    */
-    write_bin_log(thd, FALSE, drop_trg_query.ptr(), drop_trg_query.length());
+    my_debug_put_break_here();
+    /* Delete trigger from trigger list if it exists */
+    find_trigger(&trigger->name, 1);
+    /* Free trigger memory */
+    delete trigger;
   }
+
+  /* Recover the old .TRN and .TRG files & delete backup files */
+  ddl_log_revert(thd, ddl_log_state);
+  /* All backup files are now deleted */
+  ddl_log_complete(ddl_log_state_tmp_file);
   DBUG_RETURN(true);
 }
 
@@ -1050,10 +1236,10 @@ bool Trigger::add_to_file_list(void* param_arg)
 */
 
 static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
-                            const LEX_CSTRING *table_name)
+                            const LEX_CSTRING *table_name, myf MyFlags)
 {
   build_table_filename(path, FN_REFLEN-1, db->str, table_name->str, TRG_EXT, 0);
-  return mysql_file_delete(key_file_trg, path, MYF(MY_WME));
+  return mysql_file_delete(key_file_trg, path, MyFlags);
 }
 
 
@@ -1071,11 +1257,12 @@ static bool rm_trigger_file(char *path, const LEX_CSTRING *db,
     True    error
 */
 
-static bool rm_trigname_file(char *path, const LEX_CSTRING *db,
-                             const LEX_CSTRING *trigger_name)
+bool rm_trigname_file(char *path, const LEX_CSTRING *db,
+                      const LEX_CSTRING *trigger_name, myf MyFlags)
 {
-  build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str, TRN_EXT, 0);
-  return mysql_file_delete(key_file_trn, path, MYF(MY_WME));
+  build_table_filename(path, FN_REFLEN - 1, db->str, trigger_name->str,
+                       TRN_EXT, 0);
+  return mysql_file_delete(key_file_trn, path, MyFlags);
 }
 
 
@@ -1097,15 +1284,17 @@ bool Table_triggers_list::save_trigger_file(THD *thd, const LEX_CSTRING *db,
 {
   char file_buff[FN_REFLEN];
   LEX_CSTRING file;
+  DBUG_ENTER("Table_triggers_list::save_trigger_file");
 
   if (create_lists_needed_for_files(thd->mem_root))
-    return true;
+    DBUG_RETURN(true);
 
   file.length= build_table_filename(file_buff, FN_REFLEN - 1, db->str, table_name->str,
                                     TRG_EXT, 0);
   file.str= file_buff;
-  return sql_create_definition_file(NULL, &file, &triggers_file_type,
-                                    (uchar*) this, triggers_file_parameters);
+  DBUG_RETURN(sql_create_definition_file(NULL, &file, &triggers_file_type,
+                                         (uchar*) this,
+                                         triggers_file_parameters));
 }
 
 
@@ -1129,8 +1318,7 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
            (trigger= *parent);
            parent= &trigger->next)
       {
-        if (lex_string_cmp(table_alias_charset,
-                           &trigger->name, name) == 0)
+        if (trigger->name.streq(*name))
         {
           if (remove_from_list)
           {
@@ -1169,44 +1357,68 @@ Trigger *Table_triggers_list::find_trigger(const LEX_CSTRING *name,
 */
 
 bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
-                                       String *stmt_query)
+                                       LEX_CSTRING *sp_name,
+                                       String *stmt_query,
+                                       DDL_LOG_STATE *ddl_log_state)
 {
-  const LEX_CSTRING *sp_name= &thd->lex->spname->m_name; // alias
   char path[FN_REFLEN];
   Trigger *trigger;
+  DBUG_ENTER("Table_triggers_list::drop_trigger");
 
-  stmt_query->set(thd->query(), thd->query_length(), stmt_query->charset());
+  if (stmt_query)
+    stmt_query->set(thd->query(), thd->query_length(), stmt_query->charset());
 
   /* Find and delete trigger from list */
   if (!(trigger= find_trigger(sp_name, true)))
   {
     my_message(ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST),
                MYF(0));
-    return 1;
+    DBUG_RETURN(1);
   }
+  delete trigger;
+
+  if (ddl_log_state)
+  {
+    LEX_CSTRING query= {0,0};
+    if (stmt_query)
+    {
+      /* This code is executed in case of DROP TRIGGER */
+      lex_string_set3(&query, thd->query(), thd->query_length());
+    }
+    if (ddl_log_drop_trigger(ddl_log_state,
+                             &tables->db, &tables->table_name,
+                             sp_name, &query))
+      goto err;
+  }
+  debug_crash_here("ddl_log_drop_before_drop_trigger");
 
   if (!count)                                   // If no more triggers
   {
     /*
-      TODO: Probably instead of removing .TRG file we should move
-      to archive directory but this should be done as part of
-      parse_file.cc functionality (because we will need it
-      elsewhere).
+      It is safe to remove the trigger file.  If something goes wrong during
+      drop or create ddl_log recovery will ensure that all related
+      trigger files are deleted or the original ones are restored.
     */
-    if (rm_trigger_file(path, &tables->db, &tables->table_name))
-      return 1;
+    if (rm_trigger_file(path, &tables->db, &tables->table_name, MYF(MY_WME)))
+      goto err;
   }
   else
   {
     if (save_trigger_file(thd, &tables->db, &tables->table_name))
-      return 1;
+      goto err;
   }
 
-  if (rm_trigname_file(path, &tables->db, sp_name))
-    return 1;
+  debug_crash_here("ddl_log_drop_before_drop_trn");
 
-  delete trigger;
-  return 0;
+  if (rm_trigname_file(path, &tables->db, sp_name, MYF(MY_WME)))
+    goto err;
+
+  debug_crash_here("ddl_log_drop_after_drop_trigger");
+
+  DBUG_RETURN(0);
+
+err:
+  DBUG_RETURN(1);
 }
 
 
@@ -1343,13 +1555,14 @@ bool Table_triggers_list::prepare_record_accessors(TABLE *table)
     This could be avoided if there is no triggers for UPDATE and DELETE.
 
   @retval
-    False   success
+    False   no triggers or triggers where correctly loaded
   @retval
-    True    error
+    True    error (wrong trigger file)
 */
 
 bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
-                                       const LEX_CSTRING *table_name, TABLE *table,
+                                       const LEX_CSTRING *table_name,
+                                       TABLE *table,
                                        bool names_only)
 {
   char path_buff[FN_REFLEN];
@@ -1473,7 +1686,12 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
         bool parse_error= parse_sql(thd, & parser_state, creation_ctx);
         thd->pop_internal_handler();
-        DBUG_ASSERT(!parse_error || lex.sphead == 0);
+
+        if (parse_error)
+        {
+          sp_head::destroy(lex.sphead);
+          lex.sphead= nullptr;
+        }
 
         /*
           Not strictly necessary to invoke this method here, since we know
@@ -1504,25 +1722,23 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
         if (trigger->hr_create_time.val < 429496729400ULL)
           trigger->hr_create_time.val*= 10000;
-        trigger->name= sp ? sp->m_name : empty_clex_str;
+        trigger->name= sp ? Lex_ident_trigger(sp->m_name) :
+                            Lex_ident_trigger(empty_clex_str);
         trigger->on_table_name.str= (char*) lex.raw_trg_on_table_name_begin;
         trigger->on_table_name.length= (lex.raw_trg_on_table_name_end -
                                         lex.raw_trg_on_table_name_begin);
 
         /* Copy pointers to character sets to make trigger easier to use */
-        lex_string_set(&trigger->client_cs_name,
-                       creation_ctx->get_client_cs()->csname);
-        lex_string_set(&trigger->connection_cl_name,
-                       creation_ctx->get_connection_cl()->name);
-        lex_string_set(&trigger->db_cl_name,
-                       creation_ctx->get_db_cl()->name);
+        trigger->client_cs_name= creation_ctx->get_client_cs()->cs_name;
+        trigger->connection_cl_name= creation_ctx->get_connection_cl()->coll_name;
+        trigger->db_cl_name= creation_ctx->get_db_cl()->coll_name;
 
         /* event can only be TRG_EVENT_MAX in case of fatal parse errors */
         if (lex.trg_chistics.event != TRG_EVENT_MAX)
           trigger_list->add_trigger(lex.trg_chistics.event,
                                     lex.trg_chistics.action_time,
                                     TRG_ORDER_NONE,
-                                    &lex.trg_chistics.anchor_trigger_name,
+                        Lex_ident_trigger(lex.trg_chistics.anchor_trigger_name),
                                     trigger);
 
         if (unlikely(parse_error))
@@ -1541,7 +1757,8 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
 
           if (likely((name= error_handler.get_trigger_name())))
           {
-            trigger->name= safe_lexcstrdup_root(&table->mem_root, *name);
+            trigger->name= Lex_ident_trigger(safe_lexcstrdup_root(
+                                               &table->mem_root, *name));
             if (unlikely(!trigger->name.str))
               goto err_with_lex_cleanup;
           }
@@ -1587,6 +1804,10 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           trigger->definer= *trg_definer;
         }
 
+        sp->m_sp_share= MYSQL_GET_SP_SHARE(SP_TYPE_TRIGGER,
+                                           sp->m_db.str, static_cast<uint>(sp->m_db.length),
+                                           sp->m_name.str, static_cast<uint>(sp->m_name.length));
+
 #ifndef DBUG_OFF
         /*
           Let us check that we correctly update trigger definitions when we
@@ -1600,12 +1821,13 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
         */
 
         char fname[SAFE_NAME_LEN + 1];
-        DBUG_ASSERT((!my_strcasecmp(table_alias_charset, lex.query_tables->db.str, db->str) ||
+        DBUG_ASSERT((lex.query_tables->db.streq(*db) ||
                      (check_n_cut_mysql50_prefix(db->str, fname, sizeof(fname)) &&
-                      !my_strcasecmp(table_alias_charset, lex.query_tables->db.str, fname))));
-        DBUG_ASSERT((!my_strcasecmp(table_alias_charset, lex.query_tables->table_name.str, table_name->str) ||
+                      lex.query_tables->db.streq(Lex_cstring_strlen(fname)))));
+        DBUG_ASSERT((lex.query_tables->table_name.streq(*table_name) ||
                      (check_n_cut_mysql50_prefix(table_name->str, fname, sizeof(fname)) &&
-                      !my_strcasecmp(table_alias_charset, lex.query_tables->table_name.str, fname))));
+                      lex.query_tables->table_name.
+                        streq(Lex_cstring_strlen(fname)))));
 #endif
         if (names_only)
         {
@@ -1613,12 +1835,6 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           continue;
         }
 
-        /*
-          Gather all Item_trigger_field objects representing access to fields
-          in old/new versions of row in trigger into lists containing all such
-          objects for the trigger_list with same action and timing.
-        */
-        trigger->trigger_fields= lex.trg_table_fields.first;
         /*
           Also let us bind these objects to Field objects in table being
           opened.
@@ -1628,14 +1844,17 @@ bool Table_triggers_list::check_n_load(THD *thd, const LEX_CSTRING *db,
           SELECT)...
           Anyway some things can be checked only during trigger execution.
         */
-        for (Item_trigger_field *trg_field= lex.trg_table_fields.first;
-             trg_field;
-             trg_field= trg_field->next_trg_field)
-        {
-          trg_field->setup_field(thd, table,
-                                 &trigger->subject_table_grants);
-        }
 
+        (void)iterate_trigger_fields_and_run_func(
+          sp->m_trg_table_fields,
+          [thd, table, trigger] (Item_trigger_field* trg_field)
+          {
+            trg_field->setup_field(thd, table, &trigger->subject_table_grants);
+            return false;
+          }
+        );
+
+        sp->m_trg= trigger;
         lex_end(&lex);
       }
       thd->reset_db(&save_db);
@@ -1661,7 +1880,7 @@ err_with_lex_cleanup:
   }
 
 error:
-    if (unlikely(!thd->is_error()))
+  if (unlikely(!thd->is_error()))
   {
     /*
       We don't care about this error message much because .TRG files will
@@ -1684,7 +1903,8 @@ error:
 void Table_triggers_list::add_trigger(trg_event_type event,
                                       trg_action_time_type action_time,
                                       trigger_order_type ordering_clause,
-                                      LEX_CSTRING *anchor_trigger_name,
+                                      const Lex_ident_trigger &
+                                        anchor_trigger_name,
                                       Trigger *trigger)
 {
   Trigger **parent= &triggers[event][action_time];
@@ -1693,8 +1913,7 @@ void Table_triggers_list::add_trigger(trg_event_type event,
   for ( ; *parent ; parent= &(*parent)->next, position++)
   {
     if (ordering_clause != TRG_ORDER_NONE &&
-        !lex_string_cmp(table_alias_charset, anchor_trigger_name,
-                        &(*parent)->name))
+        anchor_trigger_name.streq((*parent)->name))
     {
       if (ordering_clause == TRG_ORDER_FOLLOWS)
       {
@@ -1781,17 +2000,16 @@ void Trigger::get_trigger_info(LEX_CSTRING *trigger_stmt,
     @retval TRUE  Otherwise.
 */
 
-bool add_table_for_trigger(THD *thd,
-                           const sp_name *trg_name,
-                           bool if_exists,
-                           TABLE_LIST **table)
+static bool add_table_for_trigger_internal(THD *thd,
+                                           const sp_name *trg_name,
+                                           bool if_exists,
+                                           TABLE_LIST **table,
+                                           char *trn_path_buff)
 {
   LEX *lex= thd->lex;
-  char trn_path_buff[FN_REFLEN];
   LEX_CSTRING trn_path= { trn_path_buff, 0 };
   LEX_CSTRING tbl_name= null_clex_str;
-
-  DBUG_ENTER("add_table_for_trigger");
+  DBUG_ENTER("add_table_for_trigger_internal");
 
   build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
 
@@ -1824,6 +2042,23 @@ bool add_table_for_trigger(THD *thd,
 }
 
 
+/*
+  Same as above, but with an allocated buffer.
+  This is called by mysql_excute_command() in is here to keep stack
+  space down in the caller.
+*/
+
+bool add_table_for_trigger(THD *thd,
+                           const sp_name *trg_name,
+                           bool if_exists,
+                           TABLE_LIST **table)
+{
+  char trn_path_buff[FN_REFLEN];
+  return add_table_for_trigger_internal(thd, trg_name, if_exists,
+                                        table, trn_path_buff);
+}
+
+
 /**
   Drop all triggers for table.
 
@@ -1838,20 +2073,23 @@ bool add_table_for_trigger(THD *thd,
 */
 
 bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
-                                            const LEX_CSTRING *name)
+                                            const LEX_CSTRING *name,
+                                            myf MyFlags)
 {
   TABLE table;
   char path[FN_REFLEN];
   bool result= 0;
-  DBUG_ENTER("Triggers::drop_all_triggers");
+  DBUG_ENTER("Table_triggers_list::drop_all_triggers");
 
   table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::drop_all_triggers", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table.mem_root, 8192, 0, MYF(MY_WME));
 
   if (Table_triggers_list::check_n_load(thd, db, name, &table, 1))
   {
     result= 1;
+    /* We couldn't parse trigger file, best to just remove it */
+    rm_trigger_file(path, db, name, MyFlags);
     goto end;
   }
   if (table.triggers)
@@ -1871,7 +2109,7 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             Such triggers have zero-length name and are skipped here.
           */
           if (trigger->name.length &&
-              rm_trigname_file(path, db, &trigger->name))
+              rm_trigname_file(path, db, &trigger->name, MyFlags))
           {
             /*
               Instead of immediately bailing out with error if we were unable
@@ -1879,10 +2117,13 @@ bool Table_triggers_list::drop_all_triggers(THD *thd, const LEX_CSTRING *db,
             */
             result= 1;
           }
+          /* Drop statistics for this stored program from performance schema. */
+          MYSQL_DROP_SP(SP_TYPE_TRIGGER, db->str, static_cast<uint>(db->length),
+                        trigger->name.str, static_cast<uint>(trigger->name.length));
         }
       }
     }
-    if (rm_trigger_file(path, db, name))
+    if (rm_trigger_file(path, db, name, MyFlags))
       result= 1;
     delete table.triggers;
   }
@@ -1943,9 +2184,10 @@ change_table_name_in_triggers(THD *thd,
   if (save_trigger_file(thd, new_db_name, new_table_name))
     return TRUE;
 
-  if (rm_trigger_file(path_buff, old_db_name, old_table_name))
+  if (rm_trigger_file(path_buff, old_db_name, old_table_name, MYF(MY_WME)))
   {
-    (void) rm_trigger_file(path_buff, new_db_name, new_table_name);
+    (void) rm_trigger_file(path_buff, new_db_name, new_table_name,
+                           MYF(MY_WME));
     return TRUE;
   }
   return FALSE;
@@ -2054,9 +2296,11 @@ bool Trigger::change_on_table_name(void* param_arg)
   /* Remove stale .TRN file in case of database upgrade */
   if (param->old_db_name)
   {
-    if (rm_trigname_file(trigname_buff, param->old_db_name, &name))
+    if (rm_trigname_file(trigname_buff, param->old_db_name, &name,
+                         MYF(MY_WME)))
     {
-      (void) rm_trigname_file(trigname_buff, param->new_db_name, &name);
+      (void) rm_trigname_file(trigname_buff, param->new_db_name, &name,
+                              MYF(MY_WME));
       return 1;
     }
   }
@@ -2064,62 +2308,42 @@ bool Trigger::change_on_table_name(void* param_arg)
 }
 
 
-/**
-  Update .TRG and .TRN files after renaming triggers' subject table.
+/*
+  Check if we can rename triggers in change_table_name()
+  The idea is to ensure that it is close to impossible that
+  change_table_name() should fail.
 
-  @param[in,out] thd Thread context
-  @param[in] db Old database of subject table
-  @param[in] old_alias Old alias of subject table
-  @param[in] old_table Old name of subject table
-  @param[in] new_db New database for subject table
-  @param[in] new_table New name of subject table
-
-  @note
-    This method tries to leave trigger related files in consistent state,
-    i.e. it either will complete successfully, or will fail leaving files
-    in their initial state.
-    Also this method assumes that subject table is not renamed to itself.
-    This method needs to be called under an exclusive table metadata lock.
-
-  @retval FALSE Success
-  @retval TRUE  Error
+  @return 0 ok
+  @return 1 Error: rename of triggers would fail
 */
 
-bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
-                                            const LEX_CSTRING *old_alias,
-                                            const LEX_CSTRING *old_table,
-                                            const LEX_CSTRING *new_db,
-                                            const LEX_CSTRING *new_table)
+bool
+Table_triggers_list::prepare_for_rename(THD *thd,
+                                        TRIGGER_RENAME_PARAM *param,
+                                        const Lex_ident_db &db,
+                                        const Lex_ident_table &old_alias,
+                                        const Lex_ident_table &old_table,
+                                        const Lex_ident_db &new_db,
+                                        const Lex_ident_table &new_table)
 {
-  TABLE table;
+  TABLE *table= &param->table;
   bool result= 0;
-  bool upgrading50to51= FALSE;
-  Trigger *err_trigger;
-  DBUG_ENTER("Triggers::change_table_name");
+  DBUG_ENTER("Table_triggers_lists::prepare_change_table_name");
 
-  table.reset();
-  init_sql_alloc(&table.mem_root, "Triggers::change_table_name", 8192, 0,
-                 MYF(0));
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table->mem_root, 8192, 0, MYF(0));
 
-  /*
-    This method interfaces the mysql server code protected by
-    an exclusive metadata lock.
-  */
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db->str,
-                                             old_table->str,
-                                             MDL_EXCLUSIVE));
+  DBUG_ASSERT(!db.streq(new_db) ||
+              !old_alias.streq(new_table));
 
-  DBUG_ASSERT(my_strcasecmp(table_alias_charset, db->str, new_db->str) ||
-              my_strcasecmp(table_alias_charset, old_alias->str, new_table->str));
-
-  if (Table_triggers_list::check_n_load(thd, db, old_table, &table, TRUE))
+  if (Table_triggers_list::check_n_load(thd, &db, &old_table, table, TRUE))
   {
     result= 1;
     goto end;
   }
-  if (table.triggers)
+  if (table->triggers)
   {
-    if (table.triggers->check_for_broken_triggers())
+    if (table->triggers->check_for_broken_triggers())
     {
       result= 1;
       goto end;
@@ -2134,13 +2358,13 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
       we will be given table name with "#mysql50#" prefix
       To remove this prefix we use check_n_cut_mysql50_prefix().
     */
-    if (my_strcasecmp(table_alias_charset, db->str, new_db->str))
+    if (!db.streq(new_db))
     {
       char dbname[SAFE_NAME_LEN + 1];
-      if (check_n_cut_mysql50_prefix(db->str, dbname, sizeof(dbname)) &&
-          !my_strcasecmp(table_alias_charset, dbname, new_db->str))
+      if (check_n_cut_mysql50_prefix(db.str, dbname, sizeof(dbname)) &&
+          new_db.streq(Lex_cstring_strlen(dbname)))
       {
-        upgrading50to51= TRUE;
+        param->upgrading50to51= TRUE;
       }
       else
       {
@@ -2149,14 +2373,70 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
         goto end;
       }
     }
-    if (unlikely(table.triggers->change_table_name_in_triggers(thd, db, new_db,
+  }
+
+end:
+  param->got_error= result;
+  DBUG_RETURN(result);
+}
+
+
+/**
+  Update .TRG and .TRN files after renaming triggers' subject table.
+
+  @param[in,out] thd Thread context
+  @param[in] db Old database of subject table
+  @param[in] old_alias Old alias of subject table
+  @param[in] old_table Old name of subject table. The difference between
+             old_table and old_alias is that in case of lower_case_table_names
+             old_table == lowercase(old_alias)
+  @param[in] new_db New database for subject table
+  @param[in] new_table New name of subject table
+
+  @note
+    This method tries to leave trigger related files in consistent state,
+    i.e. it either will complete successfully, or will fail leaving files
+    in their initial state.
+    Also this method assumes that subject table is not renamed to itself.
+    This method needs to be called under an exclusive table metadata lock.
+
+  @retval FALSE Success
+  @retval TRUE  Error
+*/
+
+bool Table_triggers_list::change_table_name(THD *thd,
+                                            TRIGGER_RENAME_PARAM *param,
+                                            const LEX_CSTRING *db,
+                                            const LEX_CSTRING *old_alias,
+                                            const LEX_CSTRING *old_table,
+                                            const LEX_CSTRING *new_db,
+                                            const LEX_CSTRING *new_table)
+{
+  TABLE *table= &param->table;
+  bool result= 0;
+  bool upgrading50to51= FALSE;
+  Trigger *err_trigger;
+  DBUG_ENTER("Table_triggers_list::change_table_name");
+
+  DBUG_ASSERT(!param->got_error);
+  /*
+    This method interfaces the mysql server code protected by
+    an exclusive metadata lock.
+  */
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db->str,
+                                             old_table->str,
+                                             MDL_EXCLUSIVE));
+
+  if (table->triggers)
+  {
+    if (unlikely(table->triggers->change_table_name_in_triggers(thd, db, new_db,
                                                                old_alias,
                                                                new_table)))
     {
       result= 1;
       goto end;
     }
-    if ((err_trigger= table.triggers->
+    if ((err_trigger= table->triggers->
          change_table_name_in_trignames( upgrading50to51 ? db : NULL,
                                          new_db, new_table, 0)))
     {
@@ -2166,10 +2446,10 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
         We assume that we will be able to undo our changes without errors
         (we can't do much if there will be an error anyway).
       */
-      (void) table.triggers->change_table_name_in_trignames(
+      (void) table->triggers->change_table_name_in_trignames(
                                upgrading50to51 ? new_db : NULL, db,
                                old_alias, err_trigger);
-      (void) table.triggers->change_table_name_in_triggers(
+      (void) table->triggers->change_table_name_in_triggers(
                                thd, db, new_db,
                                new_table, old_alias);
       result= 1;
@@ -2178,8 +2458,6 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
   }
 
 end:
-  delete table.triggers;
-  free_root(&table.mem_root, MYF(0));
   DBUG_RETURN(result);
 }
 
@@ -2279,7 +2557,7 @@ add_tables_and_routines_for_triggers(THD *thd,
                                      TABLE_LIST *table_list)
 {
   DBUG_ASSERT(static_cast<int>(table_list->lock_type) >=
-              static_cast<int>(TL_WRITE_ALLOW_WRITE));
+              static_cast<int>(TL_FIRST_WRITE));
 
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
   {
@@ -2335,7 +2613,6 @@ add_tables_and_routines_for_triggers(THD *thd,
 void Table_triggers_list::mark_fields_used(trg_event_type event)
 {
   int action_time;
-  Item_trigger_field *trg_field;
   DBUG_ENTER("Table_triggers_list::mark_fields_used");
 
   for (action_time= 0; action_time < (int)TRG_ACTION_MAX; action_time++)
@@ -2344,20 +2621,28 @@ void Table_triggers_list::mark_fields_used(trg_event_type event)
          trigger ;
          trigger= trigger->next)
     {
-      for (trg_field= trigger->trigger_fields;
-           trg_field;
-           trg_field= trg_field->next_trg_field)
-      {
-        /* We cannot mark fields which does not present in table. */
-        if (trg_field->field_idx != (uint)-1)
+      /*
+        Skip a trigger that was parsed with an error.
+      */
+      if (trigger->body == nullptr)
+        continue;
+
+      (void)iterate_trigger_fields_and_run_func(
+        trigger->body->m_trg_table_fields,
+        [this] (Item_trigger_field* trg_field)
         {
-          DBUG_PRINT("info", ("marking field: %d", trg_field->field_idx));
-          if (trg_field->get_settable_routine_parameter())
-            bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
-          trigger_table->mark_column_with_deps(
-                                  trigger_table->field[trg_field->field_idx]);
+          /* We cannot mark fields which does not present in table. */
+          if (trg_field->field_idx != NO_CACHED_FIELD_INDEX)
+          {
+            DBUG_PRINT("info", ("marking field: %u", (uint) trg_field->field_idx));
+            if (trg_field->get_settable_routine_parameter())
+              bitmap_set_bit(trigger_table->write_set, trg_field->field_idx);
+            trigger_table->mark_column_with_deps(
+              trigger_table->field[trg_field->field_idx]);
+          }
+          return false;
         }
-      }
+      );
     }
   }
   trigger_table->file->column_bitmaps_signal();

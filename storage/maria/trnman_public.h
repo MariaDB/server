@@ -58,6 +58,7 @@ uint trnman_has_locked_tables(TRN *trn);
 void trnman_reset_locked_tables(TRN *trn, uint locked_tables);
 TRN *trnman_recreate_trn_from_recovery(uint16 shortid, TrID longid);
 TRN *trnman_get_any_trn(void);
+void trnman_init_tmp_trn_for_logging_trid(TRN *trn);
 TrID trnman_get_min_trid(void);
 TrID trnman_get_max_trid(void);
 TrID trnman_get_min_safe_trid();

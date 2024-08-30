@@ -1,0 +1,6 @@
+call mtr.add_suppression("\\[Warning\\] InnoDB: innodb_open_files=.* is not greater than the number of system tablespace files, temporary tablespace files, innodb_undo_tablespaces=.*");
+call mtr.add_suppression("\\[Warning\\] InnoDB: innodb_open_files=.* is exceeded \\(.* files stay open\\)");
+FOUND 1 /\[Warning\] InnoDB: innodb_open_files=.* is not greater than the number of system tablespace files, temporary tablespace files, innodb_undo_tablespaces=.*/ in mysqld.1.err
+CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
+DROP TABLE t1;
+# restart: --innodb_open_files=0

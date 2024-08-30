@@ -143,10 +143,12 @@ eval CREATE TABLE tbl_d (
     c DATETIME DEFAULT '1999-10-10 10:10:10'
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT2_2_1;
 --enable_query_log
+--disable_ps_protocol
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03');
 insert into tbl_c values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04');
 insert into tbl_d values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
+--enable_ps_protocol
 
 --echo
 --echo select test

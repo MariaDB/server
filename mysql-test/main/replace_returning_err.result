@@ -1,0 +1,69 @@
+CREATE TABLE t1(id1 INT PRIMARY KEY, val1 VARCHAR(1));
+CREATE TABLE t2(id2 INT PRIMARY KEY, val2 VARCHAR(1));
+INSERT INTO t1 VALUES(1, 'a'), (2, 'b'), (3, 'c');
+#
+# SIMLPE REPLACE STATEMENT
+#
+REPLACE INTO t2(id2, val2) VALUES(1, 'a') RETURNING id1;
+ERROR 42S22: Unknown column 'id1' in 'field list'
+REPLACE INTO t2(id2, val2) values(2, 'b') RETURNING SUM(id2);
+ERROR HY000: Invalid use of group function
+REPLACE INTO t2(id2, val2) VALUES(3, 'c') RETURNING(SELECT id1 FROM t1);
+ERROR 21000: Subquery returns more than 1 row
+REPLACE INTO t2(id2, val2) VALUES(4, 'd') RETURNING(SELECT* FROM t1);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2(id2, val2) VALUES(4, 'd') RETURNING(SELECT* FROM t2);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2(id2, val2) VALUES(5, 'f') RETURNING(SELECT id2 FROM t2);
+ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+#
+# Multiple rows in single replace statement
+#
+REPLACE INTO t2 VALUES(1, 'a'), (2, 'b') RETURNING id1;
+ERROR 42S22: Unknown column 'id1' in 'field list'
+REPLACE INTO t2 VALUES(3, 'c'), (4, 'd') RETURNING MAX(id2);
+ERROR HY000: Invalid use of group function
+REPLACE INTO t2 VALUES(5, 'c'), (6, 'f') RETURNING(SELECT id1 FROM t1);
+ERROR 21000: Subquery returns more than 1 row
+REPLACE INTO t2 VALUES(7, 'g'), (8, 'h') RETURNING(SELECT* FROM t1);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2 VALUES(9, 'g'), (10, 'h') RETURNING(SELECT* FROM t2);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2 VALUES(13, 'f'), (14, 'g') RETURNING(SELECT id2 FROM t2);
+ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+#
+# REPLACE ... SET
+#
+REPLACE INTO t2 SET id2 = 1, val2 = 'a' RETURNING id1;
+ERROR 42S22: Unknown column 'id1' in 'field list'
+REPLACE INTO t2 SET id2 = 2, val2 = 'b' RETURNING COUNT(id2);
+ERROR HY000: Invalid use of group function
+REPLACE INTO t2 SET id2 = 3, val2 = 'c' RETURNING(SELECT id1 FROM t1);
+ERROR 21000: Subquery returns more than 1 row
+REPLACE INTO t2 SET id2 = 4, val2 = 'd' RETURNING(SELECT * FROM t1);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2 SET id2 = 4, val2 = 'd' RETURNING(SELECT * FROM t2);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2 SET id2 = 5, val2 = 'f' RETURNING(SELECT id2 FROM t2);
+ERROR HY000: Table 't2' is specified twice, both as a target for 'INSERT' and as a separate source for data
+#
+# REPLACE...SELECT
+#
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 1 RETURNING id1;
+ERROR 42S22: Unknown column 'id1' in 'field list'
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING MAX(id2);
+ERROR HY000: Invalid use of group function
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING(SELECT id1
+FROM t1);
+ERROR 21000: Subquery returns more than 1 row
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING(SELECT *
+FROM t1);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING(SELECT *
+FROM t2);
+ERROR 21000: Operand should contain 1 column(s)
+REPLACE INTO t2(id2, val2) SELECT* FROM t1 WHERE id1 = 2 RETURNING(SELECT id2
+FROM t2);
+ERROR 21000: Subquery returns more than 1 row
+DROP TABLE t1;
+DROP TABLE t2;

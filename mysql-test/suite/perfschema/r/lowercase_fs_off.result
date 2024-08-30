@@ -1,0 +1,22 @@
+#
+# MDEV-33020 The database part is not case sensitive in SP names in PERFORMANCE_SCHEMA
+#
+CREATE OR REPLACE DATABASE DB1;
+CREATE OR REPLACE DATABASE db1;
+CREATE PROCEDURE DB1.sp() SELECT 'This is DB1.sp';
+CREATE PROCEDURE db1.sp() SELECT 'This is db1.sp';
+CALL DB1.sp();
+This is DB1.sp
+This is DB1.sp
+CREATE PROCEDURE DB1.sp2() SELECT 'This is DB1.sp2';
+CALL db1.sp();
+This is db1.sp
+This is db1.sp
+SELECT object_type, object_schema, object_name, count_star, count_statements, sum_rows_sent
+FROM performance_schema.events_statements_summary_by_program
+WHERE object_type='procedure' AND LOWER(object_schema)='db1';
+object_type	object_schema	object_name	count_star	count_statements	sum_rows_sent
+PROCEDURE	DB1	sp	1	1	1
+PROCEDURE	db1	sp	1	1	1
+DROP DATABASE db1;
+DROP DATABASE DB1;

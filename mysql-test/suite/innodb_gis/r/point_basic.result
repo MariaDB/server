@@ -25,7 +25,7 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(100.32374832 101.98527111)'));
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	4	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using temporary; Using filesort
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(100.32374832 101.23741821)	POINT(100.32374832 101.98527111)
@@ -61,12 +61,20 @@ POINT(0 1)	POINT(10 11)
 POINT(1 1)	POINT(10 12)
 POINT(1 0)	POINT(10 13)
 POINT(0 0)	POINT(10 14)
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
 ALTER TABLE t1 ADD COLUMN p1 POINT, ADD COLUMN p2 POINT, ADD KEY(p);
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1' OR name = 'p2';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1','p2');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
@@ -86,7 +94,11 @@ ST_AsText(p)	ST_AsText(p1)
 ALTER TABLE t1 DROP COLUMN p2;
 # NULLABLE POINT will use NULL
 ALTER TABLE t1 ADD COLUMN p2 POINT, ADD KEY(p2);
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1' OR name = 'p2';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1','p2');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
@@ -98,7 +110,11 @@ Expect 4
 UPDATE t1 SET p2 = ST_PointFromText('POINT(10 20)');
 UPDATE t1 SET p1 = ST_PointFromText('POINT(10 20)');
 ALTER TABLE t1 DROP COLUMN p2;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1','p2');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
@@ -123,7 +139,11 @@ POINT(10 20)
 # Add spatial keys on the table
 ALTER TABLE t1 ADD SPATIAL(p), ADD SPATIAL(p1);
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
@@ -148,7 +168,11 @@ POINT(0 0)	POINT(10 20)
 # Drop spatial keys on the table
 ALTER TABLE t1 DROP KEY p, DROP KEY p1;
 ERROR 42000: Can't DROP INDEX `p1`; check that it exists
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1');
 name	mtype	prtype	len
 p	14	1535	12
 g	14	1535	12
@@ -172,11 +196,19 @@ ST_AsText(p)	ST_AsText(p1)
 POINT(0 0)	POINT(10 20)
 TRUNCATE t1;
 ALTER TABLE t1 DROP COLUMN p, DROP COLUMN p1;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1');
 name	mtype	prtype	len
 g	14	1535	12
 ALTER TABLE t1 ADD COLUMN p POINT, ADD COLUMN p1 POINT;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('p','g','p1');
 name	mtype	prtype	len
 g	14	1535	12
 p	14	1279	12
@@ -187,7 +219,7 @@ t1	CREATE TABLE `t1` (
   `g` geometry NOT NULL,
   `p` point DEFAULT NULL,
   `p1` point DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 VALUES(ST_PointFromText('POINT(0.5 0.5)'), ST_PointFromText('POINT(0 1)'), ST_PointFromText('POINT(10 19)'));
 INSERT INTO t1 VALUES(ST_PointFromText('POINT(0.6 0.6)'), ST_PointFromText('POINT(1 1)'), ST_PointFromText('POINT(10 20)'));
 INSERT INTO t1 VALUES(ST_PointFromText('POINT(0.7 0.7)'), ST_PointFromText('POINT(1 0)'), ST_PointFromText('POINT(10 21)'));
@@ -205,7 +237,11 @@ SELECT ST_AsText(p), ST_AsText(p1) FROM t1 WHERE MBRWithin(p, ST_GeomFromText('P
 ST_AsText(p)	ST_AsText(p1)
 POINT(0 0)	POINT(10 22)
 ALTER TABLE t1 DROP COLUMN p1, ADD COLUMN p1 POINT, CHANGE COLUMN p pp POINT AFTER p1;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'pp' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('pp','g','p1');
 name	mtype	prtype	len
 g	14	1535	12
 p1	14	1279	12
@@ -219,7 +255,11 @@ POINT(1 0)	POINT(5 5)
 POINT(0 0)	POINT(5 5)
 ALTER TABLE t1 ADD SPATIAL(p1), ADD SPATIAL(pp), ALGORITHM = COPY;
 ERROR 42000: All parts of a SPATIAL index must be NOT NULL
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'pp' OR name = 'g' OR name = 'p1';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/t1' AND c.name IN ('pp','g','p1');
 name	mtype	prtype	len
 g	14	1535	12
 p1	14	1279	12
@@ -237,7 +277,7 @@ DROP TABLE t1;
 #
 # Test when the POINT is on B-TREE
 #
-CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB;
+CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
 INSERT INTO gis_point VALUES
 (101, ST_PointFromText('POINT(10 10)')),
 (102, ST_PointFromText('POINT(20 10)')),
@@ -262,7 +302,7 @@ INSERT INTO gis_point VALUES
 'The ORDER BY will use filesort'
 EXPLAIN SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	10	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 ST_AsText(p)
 POINT(10 10)
@@ -323,7 +363,11 @@ SELECT table_name, column_name, data_type, column_type FROM INFORMATION_SCHEMA.C
 table_name	column_name	data_type	column_type
 gis_point	p	point	point
 gis_point	g	point	point
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name LIKE 'test/g%' AND c.name IN ('p','g');
 name	mtype	prtype	len
 p	14	1279	12
 g	14	1279	12
@@ -372,7 +416,11 @@ POINT(200 200)
 CHECK TABLE gis_point;
 Table	Op	Msg_type	Msg_text
 test.gis_point	check	status	OK
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/gis_point' AND c.name IN ('p','g');
 name	mtype	prtype	len
 p	14	1279	12
 g	14	1279	12
@@ -389,7 +437,11 @@ ml MULTILINESTRING NOT NULL,
 mpoly MULTIPOLYGON NOT NULL,
 gc GEOMETRYCOLLECTION NOT NULL
 ) ENGINE=InnoDB;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' OR name = 'geom' OR name = 'l' OR name = 'poly' OR name = 'mp' OR name = 'ml' OR name = 'mpoly' OR name = 'gc';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/g';
 name	mtype	prtype	len
 geom	14	1535	12
 l	14	1535	12
@@ -407,14 +459,18 @@ p POINT NOT NULL,
 g GEOMETRY NOT NULL
 ) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(ST_PointFromText('POINT(10 10)'),ST_GeomFromText('POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))'));
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' AND name='t1';
-name	mtype	prtype	len
-p	14	1535	12
-CREATE TABLE t2 AS SELECT * FROM t1;
-DROP TABLE t1;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p' OR name = 'g' AND name='t2';
-name	mtype	prtype	len
-DROP table t2;
+CREATE TABLE t2 ENGINE=InnoDB AS SELECT * FROM t1;
+SELECT t.name, c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name LIKE 'test/t%' AND c.name IN ('p','g');
+name	name	mtype	prtype	len
+test/t1	p	14	1535	12
+test/t1	g	14	1535	12
+test/t2	p	14	1535	12
+test/t2	g	14	1535	12
+DROP TABLE t1,t2;
 #
 # Test when POINT is used in spatial index
 #
@@ -444,7 +500,11 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(26.25 57)'), ST_PointFromText('POINT(1 2)')),
 (ST_PointFromText('POINT(32.1234 64.2468)'), ST_PointFromText('POINT(-1 -1)'));
 CREATE TABLE gis_point1 SELECT * FROM gis_point;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p1' OR name = 'p2';
+SELECT c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/gis_point' AND c.name IN ('p1','p2');
 name	mtype	prtype	len
 p1	14	1535	12
 p2	14	1535	12
@@ -1266,7 +1326,7 @@ test.gis_point	check	status	OK
 The ORDER BY for spatial index will use filesort
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	13	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(2 4)	POINT(-2 -6)
@@ -1326,12 +1386,13 @@ INSERT INTO gis_point VALUES(0, ST_PointFromText('POINT(1 1)'));
 INSERT INTO gis_point VALUES(1, ST_PointFromText('POINT(2 2)'));
 INSERT INTO gis_point VALUES(2, NULL);
 ALTER TABLE gis_point ADD COLUMN j INT, ALGORITHM = COPY;
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p';
-name	mtype	prtype	len
-p	14	1279	12
-SELECT name, mtype, prtype, len FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS WHERE name = 'p';
-name	mtype	prtype	len
-p	14	1279	12
+SELECT t.name, c.name, c.mtype, c.prtype, c.len
+FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS c
+JOIN INFORMATION_SCHEMA.INNODB_SYS_TABLES t
+ON c.table_id = t.table_id
+WHERE t.name='test/gis_point' AND c.name='p';
+name	name	mtype	prtype	len
+test/gis_point	p	14	1279	12
 SELECT i, ST_AsText(p) FROM gis_point;
 i	ST_AsText(p)
 0	POINT(1 1)
@@ -1367,7 +1428,7 @@ geom	CREATE TABLE `geom` (
   `i` int(11) DEFAULT NULL,
   `g` point NOT NULL,
   SPATIAL KEY `g` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT ST_AsText(g) FROM geom;
 ST_AsText(g)
 POINT(0 0)
@@ -1380,7 +1441,7 @@ geom	CREATE TABLE `geom` (
   `i` int(11) DEFAULT NULL,
   `g` geometry NOT NULL,
   SPATIAL KEY `g` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 TRUNCATE TABLE geom;
 From GEOMETRY to POINT, the table is empty
 ALTER TABLE geom MODIFY g POINT NOT NULL;
@@ -1390,7 +1451,7 @@ geom	CREATE TABLE `geom` (
   `i` int(11) DEFAULT NULL,
   `g` point NOT NULL,
   SPATIAL KEY `g` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT ST_AsText(g) FROM geom;
 ST_AsText(g)
 CHECK TABLE gis_point;
@@ -1427,7 +1488,7 @@ a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
 2	POINT(20 20)	LINESTRING(2 3,7 8,9 10,15 16)	POLYGON((10 30,30 40,40 50,40 30,30 20,10 30))
 EXPLAIN UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	PRIMARY	PRIMARY	27	NULL	1	#
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	27	NULL	#	Using where
 UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
@@ -1456,7 +1517,7 @@ t1	CREATE TABLE `t1` (
   SPATIAL KEY `idx2` (`p`),
   SPATIAL KEY `idx3` (`l`),
   SPATIAL KEY `idx4` (`g`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 a	ST_AsText(p)	ST_AsText(l)	ST_AsText(g)
 1	POINT(10 10)	LINESTRING(1 1,5 5,10 10)	POLYGON((30 30,40 40,50 50,30 50,30 40,30 30))
@@ -1465,7 +1526,7 @@ ALTER TABLE t1 DROP PRIMARY KEY;
 ALTER TABLE t1 ADD PRIMARY KEY(p);
 EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	1	#
+1	SIMPLE	t1	const	PRIMARY,idx2	PRIMARY	27	const	#	
 SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 a	ST_AsText(p)
 2	POINT(30 30)
@@ -1490,18 +1551,18 @@ parent	CREATE TABLE `parent` (
   `p` point NOT NULL,
   PRIMARY KEY (`p`(25)),
   SPATIAL KEY `idx1` (`p`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW CREATE TABLE child;
 Table	Create Table
 child	CREATE TABLE `child` (
   `p` point NOT NULL,
   SPATIAL KEY `idx2` (`p`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 ERROR HY000: Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 ALTER TABLE parent DROP INDEX idx1;
@@ -1509,7 +1570,7 @@ ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is no index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 ALTER TABLE child DROP INDEX idx2;
@@ -1517,7 +1578,7 @@ ALTER TABLE child ADD FOREIGN KEY(p) REFERENCES parent(p);
 Got one of the listed errors
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`child` with foreign key constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns near 'FOREIGN KEY(p) REFERENCES parent(p)'.
+Warning	150	Alter  table `test`.`child` with foreign key (p) constraint failed. There is only prefix index in the referenced table where the referenced columns appear as the first columns.
 Error	1005	Can't create table `test`.`child` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `child`
 DROP TABLE child, parent;

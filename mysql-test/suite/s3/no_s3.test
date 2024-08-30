@@ -1,0 +1,25 @@
+--source include/have_sequence.inc
+
+let $datadir=`select @@datadir`;
+
+if (`select @@global.s3_secret_key <> "" or @@global.s3_access_key <> ""`)
+{
+  skip S3 engine options given (probably from command line);
+}
+
+#
+# Test what happens when we don't have s3 enabled
+#
+create table t1 (a int, b int) engine=aria select seq,seq+10 from seq_1_to_2;
+--error ER_CANT_CREATE_TABLE
+alter table t1 engine=s3;
+drop table t1;
+
+--copy_file std_data/s3_unique_table.frm $datadir/test/s3_unique_table.frm
+--error ER_UNSUPPORTED_EXTENSION
+select * from s3_unique_table;
+--error ER_UNSUPPORTED_EXTENSION
+truncate table s3_unique_table;
+--error ER_ERROR_ON_RENAME
+rename table s3_unique_table to t1;
+drop table s3_unique_table;

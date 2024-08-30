@@ -19,13 +19,13 @@
 SELECT @@global.gtid_slave_pos;
 
 --echo
---echo # Without any masters the file xtrabackup_slave_info is not created
+--echo # Without any masters the file mariadb_backup_slave_info is not created
 
 --disable_result_log
 exec $XTRABACKUP $XTRABACKUP_ARGS >$XTRABACKUP_OUT;
 --enable_result_log
 --error 1
---file_exists $targetdir/xtrabackup_slave_info
+--file_exists $targetdir/mariadb_backup_slave_info
 --source include/show_xtrabackup_slave_info_out.inc
 --remove_file $XTRABACKUP_OUT
 rmdir $targetdir;

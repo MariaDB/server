@@ -1,3 +1,5 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("Innodb: Cannot add field.*row size is");
 SET SESSION innodb_strict_mode=ON;
 CREATE TABLE t1(a int PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
@@ -49,7 +51,7 @@ c71 char(200), c72 char(200), c73 char(200), c74 char(200), c75 char(200),
 c76 char(200), c77 char(200), c78 char(200), c79 char(200), c80 char(200),
 c81 char(63)
 ) ROW_FORMAT=compressed;
-ERROR HY000: Can't create table `test`.`t1` (errno: 140 "Wrong create options")
+Got one of the listed errors
 CREATE TABLE t1 (a varchar(255) character set utf8,
 b varchar(255) character set utf8,
 c varchar(255) character set utf8,
@@ -303,6 +305,7 @@ Level	Code	Message
 UPDATE t3 SET c = REPEAT('b',32800);
 SHOW WARNINGS;
 Level	Code	Message
+InnoDB		0 transactions not purged
 DROP TABLE t3;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;
@@ -760,3 +763,4 @@ t2	CREATE TABLE `t2` (
 update t2 set col150=@a;
 update t2 set col145=@b;
 drop table t2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

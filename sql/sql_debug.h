@@ -31,75 +31,75 @@ public:
 
   bool append_key_type(ha_base_keytype type)
   {
-    static const char *names[20]=
+    static LEX_CSTRING names[20]=
     {
-      "END",
-      "TEXT",
-      "BINARY",
-      "SHORT_INT",
-      "LONG_INT",
-      "FLOAT",
-      "DOUBLE",
-      "NUM",
-      "USHORT_INT",
-      "ULONG_INT",
-      "LONGLONG",
-      "ULONGLONG",
-      "INT24",
-      "UINT24",
-      "INT8",
-      "VARTEXT1",
-      "VARBINARY1",
-      "VARTEXT2",
-      "VARBINARY2",
-      "BIT"
+      {STRING_WITH_LEN("END")},
+      {STRING_WITH_LEN("TEXT")},
+      {STRING_WITH_LEN("BINARY")},
+      {STRING_WITH_LEN("SHORT_INT")},
+      {STRING_WITH_LEN("LONG_INT")},
+      {STRING_WITH_LEN("FLOAT")},
+      {STRING_WITH_LEN("DOUBLE")},
+      {STRING_WITH_LEN("NUM")},
+      {STRING_WITH_LEN("USHORT_INT")},
+      {STRING_WITH_LEN("ULONG_INT")},
+      {STRING_WITH_LEN("LONGLONG")},
+      {STRING_WITH_LEN("ULONGLONG")},
+      {STRING_WITH_LEN("INT24")},
+      {STRING_WITH_LEN("UINT24")},
+      {STRING_WITH_LEN("INT8")},
+      {STRING_WITH_LEN("VARTEXT1")},
+      {STRING_WITH_LEN("VARBINARY1")},
+      {STRING_WITH_LEN("VARTEXT2")},
+      {STRING_WITH_LEN("VARBINARY2")},
+      {STRING_WITH_LEN("BIT")}
     };
     if ((uint) type >= array_elements(names))
-      return append("???");
+      return append(STRING_WITH_LEN("???"));
     return append(names[(uint) type]);
   }
 
   bool append_KEY_flag_names(ulong flags)
   {
-    static const char *names[17]=
+    static LEX_CSTRING names[17]=
     {
-      "HA_NOSAME",               // 1
-      "HA_PACK_KEY",             // 2 - used in both HA_KEYSEG and KEY/MI_KEYDEF
-      "HA_SPACE_PACK_USED",      // 4
-      "HA_VAR_LENGTH_KEY",       // 8
-      "HA_AUTO_KEY",             // 16
-      "HA_BINARY_PACK_KEY",      // 32
-      "HA_NULL_PART_KEY",        // 64
-      "HA_FULLTEXT",             // 128
-      "HA_UNIQUE_CHECK",         // 256
-      "HA_SORT_ALLOWS_SAME",     // 512
-      "HA_SPATIAL",              // 1024
-      "HA_NULL_ARE_EQUAL",       // 2048
-      "HA_USES_COMMENT",         // 4096
-      "HA_GENERATED_KEY",        // 8192
-      "HA_USES_PARSER",          // 16384
-      "HA_USES_BLOCK_SIZE",      // 32768
-      "HA_KEY_HAS_PART_KEY_SEG"  // 65536
+      {STRING_WITH_LEN("HA_NOSAME")},             // 1
+      {STRING_WITH_LEN("HA_PACK_KEY")},           // 2; also in HA_KEYSEG
+      {STRING_WITH_LEN("HA_SPACE_PACK_USED")},    // 4
+      {STRING_WITH_LEN("HA_VAR_LENGTH_KEY")},     // 8
+      {STRING_WITH_LEN("HA_AUTO_KEY")},           // 16
+      {STRING_WITH_LEN("HA_BINARY_PACK_KEY")},    // 32
+      {STRING_WITH_LEN("HA_NULL_PART_KEY")},      // 64
+      {STRING_WITH_LEN("HA_FULLTEXT")},           // 128
+      {STRING_WITH_LEN("HA_UNIQUE_CHECK")},       // 256
+      {STRING_WITH_LEN("HA_SORT_ALLOWS_SAME")},   // 512
+      {STRING_WITH_LEN("HA_SPATIAL")},            // 1024
+      {STRING_WITH_LEN("HA_NULL_ARE_EQUAL")},     // 2048
+      {STRING_WITH_LEN("HA_USES_COMMENT")},       // 4096
+      {STRING_WITH_LEN("HA_GENERATED_KEY")},      // 8192
+      {STRING_WITH_LEN("HA_USES_PARSER")},        // 16384
+      {STRING_WITH_LEN("HA_USES_BLOCK_SIZE")},    // 32768
+      {STRING_WITH_LEN("HA_KEY_HAS_PART_KEY_SEG")}// 65536
     };
     return append_flag32_names((uint) flags, names, array_elements(names));
   }
 
   bool append_HA_KEYSEG_flag_names(uint32 flags)
   {
-    static const char *names[]=
+    static LEX_CSTRING names[]=
     {
-      "HA_SPACE_PACK",      // 1
-      "HA_PACK_KEY",        // 2 - used in both HA_KEYSEG and KEY/MI_KEYDEF
-      "HA_PART_KEY_SEG",    // 4
-      "HA_VAR_LENGTH_PART", // 8
-      "HA_NULL_PART",       // 16
-      "HA_BLOB_PART",       // 32
-      "HA_SWAP_KEY",        // 64
-      "HA_REVERSE_SORT",    // 128
-      "HA_NO_SORT",         // 256
-      "??? 512 ???",        // 512
-      "HA_BIT_PART",        // 1024
-      "HA_CAN_MEMCMP"       // 2048
+      {STRING_WITH_LEN("HA_SPACE_PACK")},      // 1
+      {STRING_WITH_LEN("HA_PACK_KEY")},        // 2; also in KEY/MI/KEY_DEF
+      {STRING_WITH_LEN("HA_PART_KEY_SEG")},    // 4
+      {STRING_WITH_LEN("HA_VAR_LENGTH_PART")}, // 8
+      {STRING_WITH_LEN("HA_NULL_PART")},       // 16
+      {STRING_WITH_LEN("HA_BLOB_PART")},       // 32
+      {STRING_WITH_LEN("HA_SWAP_KEY")},        // 64
+      {STRING_WITH_LEN("HA_REVERSE_SORT")},    // 128
+      {STRING_WITH_LEN("HA_NO_SORT")},         // 256
+      {STRING_WITH_LEN("??? 512 ???")},        // 512
+      {STRING_WITH_LEN("HA_BIT_PART")},        // 1024
+      {STRING_WITH_LEN("HA_CAN_MEMCMP")}       // 2048
     };
     return append_flag32_names(flags, names, array_elements(names));
   }
@@ -158,7 +158,7 @@ public:
     for (uint i= 0; i < key_count; i++)
     {
       Debug_key tmp;
-      if (!tmp.append(where) && !tmp.append_KEY(keys[i]))
+      if (!tmp.append(where, strlen(where)) && !tmp.append_KEY(keys[i]))
         tmp.print(thd);
     }
   }

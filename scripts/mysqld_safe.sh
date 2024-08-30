@@ -40,6 +40,12 @@ syslog_tag_mysqld_safe=mysqld_safe
 
 trap '' 1 2 3 15			# we shouldn't let anyone kill us
 
+case "$0" in
+  *mysqld_safe)
+    echo "$0: Deprecated program name. It will be removed in a future release, use 'mariadbd-safe' instead" 1>&2
+    ;;
+esac
+
 # MySQL-specific environment variable. First off, it's not really a umask,
 # it's the desired mode. Second, it follows umask(2), not umask(3) in that
 # octal needs to be explicit. Our shell might be a proper sh without printf,
@@ -507,25 +513,25 @@ then
   # BASEDIR is already overridden on command line.  Do not re-set.
 
   # Use BASEDIR to discover le.
-  if test -x "$MY_BASEDIR_VERSION/libexec/mysqld"
+  if test -x "$MY_BASEDIR_VERSION/libexec/mariadbd"
   then
     ledir="$MY_BASEDIR_VERSION/libexec"
-  elif test -x "$MY_BASEDIR_VERSION/sbin/mysqld"
+  elif test -x "$MY_BASEDIR_VERSION/sbin/mariadbd"
   then
     ledir="$MY_BASEDIR_VERSION/sbin"
   else
     ledir="$MY_BASEDIR_VERSION/bin"
   fi
-elif test -x "$MY_PWD/bin/mysqld"
+elif test -x "$MY_PWD/bin/mariadbd"
 then
   MY_BASEDIR_VERSION="$MY_PWD"		# Where bin, share and data are
   ledir="$MY_PWD/bin"			# Where mysqld is
 # Check for the directories we would expect from a source install
-elif test -x "$MY_PWD/libexec/mysqld"
+elif test -x "$MY_PWD/libexec/mariadbd"
 then
   MY_BASEDIR_VERSION="$MY_PWD"		# Where libexec, share and var are
   ledir="$MY_PWD/libexec"		# Where mysqld is
-elif test -x "$MY_PWD/sbin/mysqld"
+elif test -x "$MY_PWD/sbin/mariadbd"
 then
   MY_BASEDIR_VERSION="$MY_PWD"		# Where sbin, share and var are
   ledir="$MY_PWD/sbin"			# Where mysqld is
@@ -535,7 +541,8 @@ else
   ledir='@libexecdir@'
 fi
 
-helper=`find_in_bin mysqld_safe_helper`
+helper=`find_in_bin mariadbd-safe-helper`
+
 print_defaults=`find_in_bin my_print_defaults`
 # Check if helper exists
 command -v $helper --help >/dev/null 2>&1
@@ -558,7 +565,7 @@ else
 fi
 
 if test -z "$MYSQL_HOME"
-then 
+then
   if test -r "$DATADIR/my.cnf"
   then
     log_error "WARNING: Found $DATADIR/my.cnf
@@ -588,7 +595,7 @@ fi
 # If arguments come from [mysqld_safe] section of my.cnf
 # we complain about unrecognized options
 unrecognized_handling=complain
-parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd-safe`
+parse_arguments `$print_defaults $defaults --loose-verbose mysqld_safe safe_mysqld mariadb_safe mariadbd_safe mariadbd-safe`
 
 # We only need to pass arguments through to the server if we don't
 # handle them here.  So, we collect unrecognized options (passed on
@@ -647,7 +654,7 @@ then
 
     # mysqld does not add ".err" to "--log-error=foo."; it considers a
     # trailing "." as an extension
-    
+
     if expr "$err_log" : '.*\.[^/]*$' > /dev/null
     then
         :
@@ -736,10 +743,10 @@ then
   chmod 755 $mysql_unix_port_dir
 fi
 
-# If the user doesn't specify a binary, we assume name "mysqld"
+# If the user doesn't specify a binary, we assume name "mariadbd"
 if test -z "$MYSQLD"
 then
-  MYSQLD=mysqld
+  MYSQLD=mariadbd
 fi
 
 if test ! -x "$ledir/$MYSQLD"
@@ -1044,8 +1051,8 @@ do
     log_notice "Number of processes running now: $numofproces"
     I=1
     while test "$I" -le "$numofproces"
-    do 
-      PROC=`ps xaww | grep "$ledir/$MYSQLD\>" | grep -v "grep" | grep "pid-file=$pid_file" | sed -n '$p'` 
+    do
+      PROC=`ps xaww | grep "$ledir/$MYSQLD\>" | grep -v "grep" | grep "pid-file=$pid_file" | sed -n '$p'`
 
       for T in $PROC
       do

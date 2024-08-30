@@ -32,6 +32,8 @@ Refactored 2013-7-26 by Kevin Lewis
 #include "mem0mem.h"
 #include "os0file.h"
 #include "row0mysql.h"
+#include "buf0dblwr.h"
+#include "log.h"
 
 /** The server header file is included to access opt_initialize global variable.
 If server passes the option for create/open DB to SE, we should remove such
@@ -46,7 +48,7 @@ SysTablespace srv_tmp_space;
 
 /** If the last data file is auto-extended, we add this many pages to it
 at a time. We have to make this public because it is a config variable. */
-ulong sys_tablespace_auto_extend_increment;
+uint sys_tablespace_auto_extend_increment;
 
 /** Convert a numeric string that optionally ends in G or M or K,
     to a number containing megabytes.
@@ -99,6 +101,7 @@ SysTablespace::parse_params(
 
 	ut_ad(m_last_file_size_max == 0);
 	ut_ad(!m_auto_extend_last_file);
+	ut_ad(!m_auto_shrink);
 
 	char*	new_str = mem_strdup(filepath_spec);
 	char*	str = new_str;
@@ -143,6 +146,11 @@ SysTablespace::parse_params(
 				str += (sizeof ":max:") - 1;
 
 				str = parse_units(str, &size);
+			}
+
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
 			}
 
 			if (*str != '\0') {
@@ -265,6 +273,12 @@ SysTablespace::parse_params(
 				str = parse_units(str, &m_last_file_size_max);
 			}
 
+		        if (0 == strncmp(str, ":autoshrink",
+	                         (sizeof ":autoshrink") - 1)) {
+			   str += (sizeof ":autoshrink") - 1;
+			   m_auto_shrink = true;
+			}
+
 			if (*str != '\0') {
 				ut_free(new_str);
 				ib::error() << "syntax error in file path or"
@@ -274,9 +288,10 @@ SysTablespace::parse_params(
 			}
 		}
 
-		m_files.push_back(Datafile(filepath, flags(), size, order));
-		Datafile* datafile = &m_files.back();
-		datafile->make_filepath(path(), filepath, NO_EXT);
+		m_files.push_back(Datafile(flags(), uint32_t(size), order));
+		m_files.back().make_filepath(path(),
+					     {filepath, strlen(filepath)},
+					     NO_EXT);
 
 		if (::strlen(str) >= 6
 		    && *str == 'n'
@@ -331,6 +346,7 @@ SysTablespace::shutdown()
 	m_created_new_raw = 0;
 	m_is_tablespace_full = false;
 	m_sanity_checks_done = false;
+	m_auto_shrink = false;
 }
 
 /** Verify the size of the physical file.
@@ -350,7 +366,7 @@ SysTablespace::check_size(
 	also the data file could contain an incomplete extent.
 	So we need to round the size downward to a  megabyte.*/
 
-	const ulint	rounded_size_pages = static_cast<ulint>(
+	const uint32_t	rounded_size_pages = static_cast<uint32_t>(
 		size >> srv_page_size_shift);
 
 	/* If last file */
@@ -359,13 +375,12 @@ SysTablespace::check_size(
 		if (file.m_size > rounded_size_pages
 		    || (m_last_file_size_max > 0
 			&& m_last_file_size_max < rounded_size_pages)) {
-			ib::error() << "The Auto-extending " << name()
-				<< " data file '" << file.filepath() << "' is"
-				" of a different size " << rounded_size_pages
-				<< " pages than specified"
-				" in the .cnf file: initial " << file.m_size
-				<< " pages, max " << m_last_file_size_max
-				<< " (relevant if non-zero) pages!";
+			ib::error() << "The Auto-extending data file '"
+				    << file.filepath()
+				    << "' is of a different size "
+				    << rounded_size_pages
+				    << " pages than specified"
+				" by innodb_data_file_path";
 			return(DB_ERROR);
 		}
 
@@ -373,11 +388,11 @@ SysTablespace::check_size(
 	}
 
 	if (rounded_size_pages != file.m_size) {
-		ib::error() << "The " << name() << " data file '"
+		ib::error() << "The data file '"
 			<< file.filepath() << "' is of a different size "
 			<< rounded_size_pages << " pages"
-			" than the " << file.m_size << " pages specified in"
-			" the .cnf file!";
+			" than the " << file.m_size << " pages specified by"
+			" innodb_data_file_path";
 		return(DB_ERROR);
 	}
 
@@ -391,12 +406,12 @@ dberr_t
 SysTablespace::set_size(
 	Datafile&	file)
 {
-	ut_a(!srv_read_only_mode || m_ignore_read_only);
+	ut_ad(!srv_read_only_mode || m_ignore_read_only);
+	const ib::bytes_iec b{uint64_t{file.m_size} << srv_page_size_shift};
 
 	/* We created the data file and now write it full of zeros */
-	ib::info() << "Setting file '" << file.filepath() << "' size to "
-		<< (file.m_size >> (20U - srv_page_size_shift)) << " MB."
-		" Physically writing the file full; Please wait ...";
+	ib::info() << "Setting file '" << file.filepath() << "' size to " << b
+		<< ". Physically writing the file full; Please wait ...";
 
 	bool	success = os_file_set_size(
 		file.m_filepath, file.m_handle,
@@ -404,8 +419,8 @@ SysTablespace::set_size(
 
 	if (success) {
 		ib::info() << "File '" << file.filepath() << "' size is now "
-			<< (file.m_size >> (20U - srv_page_size_shift))
-			<< " MB.";
+			<< b
+			<< ".";
 	} else {
 		ib::error() << "Could not set the file size of '"
 			<< file.filepath() << "'. Probably out of disk space";
@@ -426,7 +441,7 @@ SysTablespace::create_file(
 	dberr_t	err = DB_SUCCESS;
 
 	ut_a(!file.m_exists);
-	ut_a(!srv_read_only_mode || m_ignore_read_only);
+	ut_ad(!srv_read_only_mode || m_ignore_read_only);
 
 	switch (file.m_type) {
 	case SRV_NEW_RAW:
@@ -547,15 +562,10 @@ SysTablespace::open_file(
 }
 
 /** Check the tablespace header for this tablespace.
-@param[out]	flushed_lsn	the value of FIL_PAGE_FILE_FLUSH_LSN
 @return DB_SUCCESS or error code */
-dberr_t
-SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
+inline dberr_t SysTablespace::read_lsn_and_check_flags()
 {
 	dberr_t	err;
-
-	/* Only relevant for the system tablespace. */
-	ut_ad(space_id() == TRX_SYS_SPACE);
 
 	files_t::iterator it = m_files.begin();
 
@@ -572,7 +582,7 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 	}
 
 	err = it->read_first_page(
-		m_ignore_read_only ?  false : srv_read_only_mode);
+		m_ignore_read_only && srv_read_only_mode);
 
 	if (err != DB_SUCCESS) {
 		return(err);
@@ -580,44 +590,68 @@ SysTablespace::read_lsn_and_check_flags(lsn_t* flushed_lsn)
 
 	ut_a(it->order() == 0);
 
-	if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
-		buf_dblwr_init_or_load_pages(it->handle(), it->filepath());
+	if (srv_operation  <= SRV_OPERATION_EXPORT_RESTORED) {
+		buf_dblwr.init_or_load_pages(it->handle(), it->filepath());
 	}
 
 	/* Check the contents of the first page of the
 	first datafile. */
-	for (int retry = 0; retry < 2; ++retry) {
+	err = it->validate_first_page();
 
-		err = it->validate_first_page(flushed_lsn);
-
-		if (err != DB_SUCCESS
-		    && (retry == 1
-			|| it->restore_from_doublewrite())) {
-
+	if (err != DB_SUCCESS) {
+		if (recv_sys.dblwr.restore_first_page(
+				it->m_space_id, it->m_filepath,
+				it->handle())) {
 			it->close();
-
 			return(err);
 		}
+		err = it->read_first_page(
+			m_ignore_read_only && srv_read_only_mode);
 	}
 
 	/* Make sure the tablespace space ID matches the
 	space ID on the first page of the first datafile. */
-	if (space_id() != it->m_space_id) {
-
-		ib::error()
-			<< "The " << name() << " data file '" << it->name()
-			<< "' has the wrong space ID. It should be "
-			<< space_id() << ", but " << it->m_space_id
-			<< " was found";
-
+	if (err != DB_SUCCESS || space_id() != it->m_space_id) {
+		sql_print_error("InnoDB: The data file '%s'"
+				" has the wrong space ID."
+				" It should be " UINT32PF ", but " UINT32PF
+				" was found", it->filepath(),
+				space_id(), it->m_space_id);
 		it->close();
+		return err;
+	}
 
-		return(err);
+	if (srv_force_recovery != 6
+	    && srv_operation == SRV_OPERATION_NORMAL
+	    && !log_sys.next_checkpoint_lsn
+	    && log_sys.format == log_t::FORMAT_3_23) {
+
+		log_sys.latch.wr_lock(SRW_LOCK_CALL);
+		/* Prepare for possible upgrade from 0-sized ib_logfile0. */
+		log_sys.next_checkpoint_lsn = mach_read_from_8(
+			it->m_first_page + 26/*FIL_PAGE_FILE_FLUSH_LSN*/);
+		if (log_sys.next_checkpoint_lsn < 8204) {
+			/* Before MDEV-14425, InnoDB had a minimum LSN
+			of 8192+12=8204. Likewise, mariadb-backup
+			--prepare would create an empty ib_logfile0
+			after applying the log. We will allow an
+			upgrade from such an empty log. */
+			sql_print_error("InnoDB: ib_logfile0 is "
+					"empty, and LSN is unknown.");
+			err = DB_CORRUPTION;
+		} else {
+			log_sys.last_checkpoint_lsn =
+				recv_sys.lsn = recv_sys.file_checkpoint =
+				log_sys.next_checkpoint_lsn;
+			log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
+			log_sys.next_checkpoint_no = 0;
+		}
+
+		log_sys.latch.wr_unlock();
 	}
 
 	it->close();
-
-	return(DB_SUCCESS);
+	return err;
 }
 
 /** Check if a file can be opened in the correct mode.
@@ -649,20 +683,16 @@ SysTablespace::check_file_status(
 		break;
 
 	case DB_SUCCESS:
-
 		/* Note: stat.rw_perm is only valid for "regular" files */
 
 		if (stat.type == OS_FILE_TYPE_FILE) {
-
 			if (!stat.rw_perm) {
-				const char	*p = (!srv_read_only_mode
-						      || m_ignore_read_only)
-						     ? "writable"
-						     : "readable";
-
-				ib::error() << "The " << name() << " data file"
-					<< " '" << file.name() << "' must be "
-					<< p;
+				ib::error() << "The data file"
+					    << " '" << file.filepath()
+					    << ((!srv_read_only_mode
+						 || m_ignore_read_only)
+						? "' must be writable"
+						: "' must be readable");
 
 				err = DB_ERROR;
 				reason = FILE_STATUS_READ_WRITE_ERROR;
@@ -670,9 +700,8 @@ SysTablespace::check_file_status(
 
 		} else {
 			/* Not a regular file, bail out. */
-			ib::error() << "The " << name() << " data file '"
-				<< file.name() << "' is not a regular"
-				" InnoDB data file.";
+			ib::error() << "The data file '" << file.filepath()
+				    << "' is not a regular file.";
 
 			err = DB_ERROR;
 			reason = FILE_STATUS_NOT_REGULAR_FILE_ERROR;
@@ -718,14 +747,14 @@ SysTablespace::file_not_found(
 		*create_new_db = TRUE;
 
 		if (space_id() == TRX_SYS_SPACE) {
-			ib::info() << "The first " << name() << " data file '"
-				<< file.name() << "' did not exist."
+			ib::info() << "The first data file '"
+				<< file.filepath() << "' did not exist."
 				" A new tablespace will be created!";
 		}
 
 	} else {
-		ib::info() << "Need to create a new " << name()
-			<< " data file '" << file.name() << "'.";
+		ib::info() << "Need to create a new data file '"
+			   << file.filepath() << "'.";
 	}
 
 	/* Set the file create mode. */
@@ -784,8 +813,8 @@ SysTablespace::check_file_spec(
 	*create_new_db = FALSE;
 
 	if (m_files.size() >= 1000) {
-		ib::error() << "There must be < 1000 data files in "
-			<< name() << " but " << m_files.size() << " have been"
+		ib::error() << "There must be < 1000 data files "
+			" but " << m_files.size() << " have been"
 			" defined.";
 
 		return(DB_ERROR);
@@ -824,22 +853,23 @@ SysTablespace::check_file_spec(
 
 		} else if (err != DB_SUCCESS) {
 			if (reason_if_failed == FILE_STATUS_READ_WRITE_ERROR) {
-				const char*	p = (!srv_read_only_mode
-						     || m_ignore_read_only)
-						    ? "writable" : "readable";
-				ib::error() << "The " << name() << " data file"
-					<< " '" << it->name() << "' must be "
-					<< p;
+				ib::error() << "The data file '"
+					    << it->filepath()
+					    << ((!srv_read_only_mode
+						 || m_ignore_read_only)
+						? "' must be writable"
+						: "' must be readable");
 			}
 
 			ut_a(err != DB_FAIL);
 			break;
 
 		} else if (*create_new_db) {
-			ib::error() << "The " << name() << " data file '"
-				<< begin->m_name << "' was not found but"
-				" one of the other data files '" << it->m_name
-				<< "' exists.";
+			ib::error() << "The data file '"
+				    << begin->filepath()
+				    << "' was not found but"
+				" one of the other data files '"
+				    << it->filepath() << "' exists.";
 
 			err = DB_ERROR;
 			break;
@@ -856,14 +886,12 @@ SysTablespace::check_file_spec(
 @param[in]  is_temp		whether this is a temporary tablespace
 @param[in]  create_new_db	whether we are creating a new database
 @param[out] sum_new_sizes	sum of sizes of the new files added
-@param[out] flush_lsn		FIL_PAGE_FILE_FLUSH_LSN of first file
 @return DB_SUCCESS or error code */
 dberr_t
 SysTablespace::open_or_create(
 	bool	is_temp,
 	bool	create_new_db,
-	ulint*	sum_new_sizes,
-	lsn_t*	flush_lsn)
+	ulint*	sum_new_sizes)
 {
 	dberr_t		err	= DB_SUCCESS;
 	fil_space_t*	space	= NULL;
@@ -912,10 +940,9 @@ SysTablespace::open_or_create(
 
 	}
 
-	if (!create_new_db && flush_lsn) {
-		/* Validate the header page in the first datafile
-		and read LSNs fom the others. */
-		err = read_lsn_and_check_flags(flush_lsn);
+	if (!create_new_db && space_id() == TRX_SYS_SPACE) {
+		/* Validate the header page in the first datafile. */
+		err = read_lsn_and_check_flags();
 		if (err != DB_SUCCESS) {
 			return(err);
 		}
@@ -924,6 +951,7 @@ SysTablespace::open_or_create(
 	/* Close the curent handles, add space and file info to the
 	fil_system cache and the Data Dictionary, and re-open them
 	in file_system cache so that they stay open until shutdown. */
+	mysql_mutex_lock(&fil_system.mutex);
 	ulint	node_counter = 0;
 	for (files_t::iterator it = begin; it != end; ++it) {
 		it->close();
@@ -931,45 +959,40 @@ SysTablespace::open_or_create(
 
 		if (it != begin) {
 		} else if (is_temp) {
-			ut_ad(!fil_system.temp_space);
 			ut_ad(space_id() == SRV_TMP_SPACE_ID);
-			space = fil_space_create(
-				name(), SRV_TMP_SPACE_ID, flags(),
+			space = fil_space_t::create(
+				SRV_TMP_SPACE_ID, flags(),
 				FIL_TYPE_TEMPORARY, NULL);
-
-			mutex_enter(&fil_system.mutex);
-			fil_system.temp_space = space;
-			mutex_exit(&fil_system.mutex);
+			ut_ad(space == fil_system.temp_space);
 			if (!space) {
-				return DB_ERROR;
+				err = DB_ERROR;
+				break;
 			}
+			ut_ad(!space->is_compressed());
+			ut_ad(space->full_crc32());
 		} else {
-			ut_ad(!fil_system.sys_space);
 			ut_ad(space_id() == TRX_SYS_SPACE);
-			space = fil_space_create(
-				name(), TRX_SYS_SPACE, it->flags(),
+			space = fil_space_t::create(
+				TRX_SYS_SPACE, it->flags(),
 				FIL_TYPE_TABLESPACE, NULL);
-
-			mutex_enter(&fil_system.mutex);
-			fil_system.sys_space = space;
-			mutex_exit(&fil_system.mutex);
+			ut_ad(space == fil_system.sys_space);
 			if (!space) {
-				return DB_ERROR;
+				err = DB_ERROR;
+				break;
 			}
 		}
 
-		ut_a(fil_validate());
-
-		ulint	max_size = (++node_counter == m_files.size()
+		uint32_t max_size = (++node_counter == m_files.size()
 				    ? (m_last_file_size_max == 0
-				       ? ULINT_MAX
-				       : m_last_file_size_max)
+				       ? UINT32_MAX
+				       : uint32_t(m_last_file_size_max))
 				    : it->m_size);
 
 		space->add(it->m_filepath, OS_FILE_CLOSED, it->m_size,
 			   it->m_type != SRV_NOT_RAW, true, max_size);
 	}
 
+	mysql_mutex_unlock(&fil_system.mutex);
 	return(err);
 }
 
@@ -982,6 +1005,7 @@ SysTablespace::normalize_size()
 	for (files_t::iterator it = m_files.begin(); it != end; ++it) {
 
 		it->m_size <<= (20U - srv_page_size_shift);
+		it->m_user_param_size = it->m_size;
 	}
 
 	m_last_file_size_max <<= (20U - srv_page_size_shift);
@@ -990,30 +1014,20 @@ SysTablespace::normalize_size()
 
 /**
 @return next increment size */
-ulint
-SysTablespace::get_increment() const
+uint32_t SysTablespace::get_increment() const
 {
-	ulint	increment;
+  if (m_last_file_size_max == 0)
+    return get_autoextend_increment();
 
-	if (m_last_file_size_max == 0) {
-		increment = get_autoextend_increment();
-	} else {
+  if (!is_valid_size())
+  {
+     ib::error() << "The last data file has a size of " << last_file_size()
+                 << " but the max size allowed is "
+                 << m_last_file_size_max;
+  }
 
-		if (!is_valid_size()) {
-			ib::error() << "The last data file in " << name()
-				<< " has a size of " << last_file_size()
-				<< " but the max size allowed is "
-				<< m_last_file_size_max;
-		}
-
-		increment = m_last_file_size_max - last_file_size();
-	}
-
-	if (increment > get_autoextend_increment()) {
-		increment = get_autoextend_increment();
-	}
-
-	return(increment);
+  return std::min(uint32_t(m_last_file_size_max) - last_file_size(),
+                  get_autoextend_increment());
 }
 
 

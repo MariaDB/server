@@ -35,7 +35,7 @@
 # $slave_error_param
 #   If set, this script will check if the column of the output from
 #   SHOW SLAVE STATUS named $slave_error_param is nonzero.  If it is,
-#   this script will faile immediately.  Typically, this should be set
+#   this script will fail immediately.  Typically, this should be set
 #   to Last_IO_Errno or Last_SQL_Errno.
 #
 # $rpl_debug
@@ -49,11 +49,8 @@
 let $_slave_timeout= $slave_timeout;
 if (!$_slave_timeout)
 {
-  let $_slave_timeout= 300;
-  if ($VALGRIND_TEST)
-  {
-    let $_slave_timeout= 1500;
-  }
+  source include/slow_environ.inc;
+  let $_slave_timeout= 300$_timeout_adjustment;
 }
 
 let $_slave_param_comparison= $slave_param_comparison;

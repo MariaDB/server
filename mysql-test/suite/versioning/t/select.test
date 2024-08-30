@@ -1,7 +1,17 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
 
+--let $replace_regex_tsltz6= /TIMESTAMP..WITH LOCAL TIME ZONE..'....-..-.. ..:..:..[.]......'/TIMESTAMP\/*WITH LOCAL TIME ZONE*\/'YYYY-MM-DD hh:ss:mm:.uuuuuu'/
+
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
+
+--enable_prepare_warnings
 # test_01
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -55,8 +65,8 @@ select x as ALL_x, y from t1 for system_time all;
 --disable_query_log
 if ($MTR_COMBINATION_TRX_ID)
 {
-  select x as ASOF2_x, y from t1 for system_time as of @x0;
-  select x as FROMTO2_x, y from t1 for system_time from @x0 to @x1;
+  select x as ASOF2_x, y from t1 for system_time as of transaction @x0;
+  select x as FROMTO2_x, y from t1 for system_time from transaction @x0 to transaction @x1;
   select x as BETWAND2_x, y from t1 for system_time between transaction @x0 and transaction @x1;
 }
 if ($MTR_COMBINATION_TIMESTAMP)
@@ -90,11 +100,14 @@ delete from t1;
 delete from t2;
 
 #384
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as IJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 inner join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as LJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 left join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 #383
+--replace_regex $replace_regex_tsltz6
 explain extended select * from (select t1.x as RJ2_x1, t1.y as y1, t2.x as x2, t2.y as y2 from t1 right join t2 on t1.x = t2.x)
 for system_time as of timestamp @t0 as t;
 
@@ -173,13 +186,15 @@ create or replace table t1(x int) with system versioning;
 select * from (t1 as r left join t1 as u using (x)), t1;
 
 # @end should be max
+set @@time_zone="+00:00";
 create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 create trigger read_end after update on t1
   for each row set @end = old.row_end;
 update t1 set a=2;
---replace_result 18446744073709551615 MAX_RESULT "2038-01-19 03:14:07.999999" MAX_RESULT
+--replace_result 18446744073709551615 MAX_RESULT $sys_time_max_replace MAX_RESULT
 select @end;
+set @@time_zone=default;
 
 create or replace table t1 (a int) with system versioning;
 create or replace table t2 (b int) with system versioning;
@@ -210,6 +225,7 @@ create or replace table t1 (a int) with system versioning;
 insert into t1 values (1);
 insert into t1 values (2);
 insert into t1 values (3);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
 select * from t1 left outer join (t1 as t2 left join t1 as t3 using (a)) on t1.a>1;
@@ -269,9 +285,8 @@ select x from t1 for system_time as of timestamp @ts;
 --echo ## TRANSACTION specifier
 select x from t1 for system_time as of transaction @trx_start;
 
---echo ## no specifier (auto-detection)
+--echo ## no specifier (defaults to timestamp)
 select x from t1 for system_time as of @ts;
-select x from t1 for system_time as of @trx_start;
 
 --echo ### Issue #365, bug 4 (related to #226, optimized fields)
 create or replace table t1 (i int, b int) with system versioning;
@@ -365,6 +380,7 @@ select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 insert t2 values (1),(2);
 insert t3 values (1),(2);
 insert t4 values (1),(2);
+--replace_result $sys_time_max SYS_TIME_MAX
 explain extended
 select f1 from t1 join t2 left join t3 left join t4 on f3 = f4 on f3 = f2;
 
@@ -385,6 +401,12 @@ insert into t1 values (1);
 delete from t1;
 select row_start from t1 for system_time all into @t1;
 select row_end from t1 for system_time all into @t2;
+--disable_query_log
+if($MTR_COMBINATION_TRX_ID) {
+  set @t1= trt_begin_ts(@t1);
+  set @t2= trt_commit_ts(@t2);
+}
+--enable_query_log
 select * from t1 for system_time between @t1 and @t2;
 select * from t1 for system_time between @t2 and @t1;
 select * from t1 for system_time from @t1 to @t2;
@@ -470,6 +492,9 @@ drop table tmp1;
 drop tables x, x_p;
 
 call verify_trt_dummy(34);
+--disable_prepare_warnings
+
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
 
 --echo #
 --echo # MDEV-32082 Server crash in find_field_in_table

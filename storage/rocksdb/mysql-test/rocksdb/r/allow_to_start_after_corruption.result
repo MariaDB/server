@@ -14,7 +14,7 @@ pk	col1
 1	1
 set session debug_dbug= "+d,rocksdb_return_status_corrupted";
 select * from t1 where pk=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 FOUND 1 /data corruption detected/ in allow_to_start_after_corruption_debug.err
 #
 #  The same for scan queries
@@ -26,7 +26,7 @@ pk	col1
 3	3
 set session debug_dbug= "+d,rocksdb_return_status_corrupted";
 select * from t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 FOUND 1 /data corruption detected/ in allow_to_start_after_corruption_debug.err
 #
 #  Test restart failure. The server is shutdown at this point.

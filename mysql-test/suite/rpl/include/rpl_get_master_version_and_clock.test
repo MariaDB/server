@@ -24,7 +24,7 @@
 #    
 #    let $debug_sync_action= 'now signal signal_name';
 #
-# The $dbug_sync_point becomes the value of @@global.debug generating
+# The $dbug_sync_point becomes the value of @@global.debug_dbug generating
 # a newly started IO-slave thread's session value.
 # Notice incremental operations to add and remove dbug_execute_if_name
 # from the global variable allows propagation more dbug arguments
@@ -68,7 +68,7 @@ source include/wait_for_slave_io_error.inc;
 
 # deactivate the sync point of get_master_version_and_clock()
 # now to avoid restarting IO-thread to re-enter it.
-# There will be a new IO thread forked out with its @@session.debug
+# There will be a new IO thread forked out with its @@session.debug_dbug
 # unset.
 set @@global.debug_dbug= @old_dbug;
 

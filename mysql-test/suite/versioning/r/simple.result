@@ -81,7 +81,7 @@ period for system_time(d,e)
 ) with system versioning;
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
-a	timestamp(6)	NO		current_timestamp(6)	on update current_timestamp(6)
+a	timestamp(6)	YES		NULL	
 b	timestamp(6)	YES		NULL	VIRTUAL GENERATED
 c	timestamp(6)	YES		NULL	STORED GENERATED
 d	timestamp(6)	NO		NULL	STORED GENERATED
@@ -92,8 +92,8 @@ table_schema	test
 table_name	t1
 column_name	a
 ordinal_position	1
-column_default	current_timestamp(6)
-is_nullable	NO
+column_default	NULL
+is_nullable	YES
 data_type	timestamp
 character_maximum_length	NULL
 character_octet_length	NULL
@@ -104,7 +104,7 @@ character_set_name	NULL
 collation_name	NULL
 column_type	timestamp(6)
 column_key	
-extra	on update current_timestamp(6)
+extra	
 column_comment	
 is_generated	NEVER
 generation_expression	NULL

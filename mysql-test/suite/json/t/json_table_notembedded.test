@@ -1,0 +1,30 @@
+source include/not_embedded.inc;
+
+#
+# MDEV-22302 JSON_TABLE: Column privilege is insufficient for query with json_table
+#
+
+create database db;
+use db;
+create table t (a text);
+insert into t values ('{"foo":"bar"}');
+create user u@localhost;
+grant select (a) on db.t to u@localhost;
+ 
+--connect (con1,localhost,u,,db)
+select a from t;
+select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
+
+#
+# MDEV-25141 JSON_TABLE: SELECT into outfile bypasses file privilege check
+#
+--error ER_ACCESS_DENIED_ERROR
+select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
+
+connection default;
+disconnect con1;
+
+drop user u@localhost;
+drop database db;
+
+use test;

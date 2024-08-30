@@ -1,0 +1,31 @@
+--source include/big_test.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/not_valgrind.inc
+--source include/have_debug.inc
+
+set global innodb_file_per_table=0;
+set global innodb_limit_optimistic_insert_debug=2;
+set unique_checks=0, foreign_key_checks=0;
+
+create table t1(f1 int not null)engine=innodb;
+begin;
+insert into t1 select * from seq_1_to_8192;
+insert into t1 select * from seq_1_to_8192;
+insert into t1 select * from seq_1_to_65536;
+commit;
+
+create table t2(f1 int not null)engine=innodb;
+insert into t2 select * from seq_1_to_65536;
+
+create table t3(f1 int not null)engine=innodb;
+insert into t3 select * from seq_1_to_65536;
+
+CREATE TABLE t4(f1 int not null)engine=innodb;
+insert into t4 select * from seq_1_to_65536;
+
+drop table t2;
+drop table t4;
+--source include/wait_all_purged.inc
+--source include/restart_mysqld.inc
+drop table t3, t1;

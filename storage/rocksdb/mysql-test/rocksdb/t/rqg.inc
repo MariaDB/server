@@ -25,8 +25,8 @@ foreach $grammar_file (split(/ /, $ENV{'GRAMMAR_FILES'})) {
 
   # Errors from the gentest.pl file will be captured in the results file
   my $cmd = "perl $ENV{'RQG_BASE'}/gentest.pl " .
-      "--dsn=dbi:mysql:host=:port=:user=root:database=$ENV{'TESTDB'}" .
-      ":mysql_socket=$ENV{'MYSQL_SOCKET'} " .
+      "--dsn=DBI:MariaDB:host=:port=:user=root:database=$ENV{'TESTDB'}" .
+      ":mariadb_socket=$ENV{'MYSQL_SOCKET'} " .
       "--gendata=$ENV{'RQG_BASE'}/conf/$ENV{'TESTDIR'}/$ENV{'DATA_FILE'} " .
       "--grammar=$ENV{'RQG_BASE'}/conf/$ENV{'TESTDIR'}/$grammar_file " .
       "--threads=5 --queries=10000 --duration=60 --sqltrace 2>&1 >> " .

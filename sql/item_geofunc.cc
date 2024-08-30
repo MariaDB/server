@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2020, MariaDB
+   Copyright (c) 2011, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -38,21 +38,23 @@
 #ifdef HAVE_SPATIAL
 #include <m_ctype.h>
 #include "opt_range.h"
+#include "item_geofunc.h"
+#include "item_create.h"
 
 
-bool Item_geometry_func::fix_length_and_dec()
+bool Item_geometry_func::fix_length_and_dec(THD *thd)
 {
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_geometry_from_text::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String arg_val;
   String *wkt= args[0]->val_str_ascii(&arg_val);
@@ -79,7 +81,7 @@ String *Item_func_geometry_from_text::val_str(String *str)
 
 String *Item_func_geometry_from_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *wkb;
   Geometry_buffer buffer;
@@ -98,12 +100,12 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
   {
     null_value= TRUE;                           /* purecov: inspected */
     return 0;                                   /* purecov: inspected */
   }
-  str->length(0);
   str->q_append(srid);
   if ((null_value= 
         (args[0]->null_value ||
@@ -113,13 +115,9 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 }
 
 
-void report_json_error_ex(String *js, json_engine_t *je,
-                          const char *fname, int n_param,
-                          Sql_condition::enum_warning_level lv);
-
 String *Item_func_geometry_from_json::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String *js= args[0]->val_str_ascii(&tmp_js);
   uint32 srid= 0;
@@ -146,9 +144,9 @@ String *Item_func_geometry_from_json::val_str(String *str)
     srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   str->q_append(srid);
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
@@ -176,7 +174,8 @@ String *Item_func_geometry_from_json::val_str(String *str)
       my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeomFromGeoJSON");
       break;
     default:
-      report_json_error_ex(js, &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);
+      report_json_error_ex(js->ptr(), &je, func_name(), 0,
+                           Sql_condition::WARN_LEVEL_WARN);
       return NULL;
     }
 
@@ -194,7 +193,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
 
 String *Item_func_as_wkt::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -215,18 +214,18 @@ String *Item_func_as_wkt::val_str_ascii(String *str)
 }
 
 
-bool Item_func_as_wkt::fix_length_and_dec()
+bool Item_func_as_wkt::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_as_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -242,18 +241,18 @@ String *Item_func_as_wkb::val_str(String *str)
 }
 
 
-bool Item_func_as_geojson::fix_length_and_dec()
+bool Item_func_as_geojson::fix_length_and_dec(THD *thd)
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_as_geojson::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   uint max_dec= FLOATING_POINT_DECIMALS;
@@ -294,7 +293,7 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
       goto error;
   }
 
-  if ((geom->as_json(str, max_dec, &dummy) || str->append("}", 1)))
+  if ((geom->as_json(str, max_dec, &dummy) || str->append('}')))
       goto error;
 
   return str;
@@ -307,7 +306,7 @@ error:
 
 String *Item_func_geometry_type::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(str);
   Geometry_buffer buffer;
   Geometry *geom= NULL;
@@ -324,15 +323,9 @@ String *Item_func_geometry_type::val_str_ascii(String *str)
 }
 
 
-Field::geometry_type Item_func_envelope::get_geometry_type() const
-{
-  return Field::GEOM_POLYGON;
-}
-
-
 String *Item_func_envelope::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -444,7 +437,7 @@ int Item_func_boundary::Transporter::start_collection(int n_objects)
 String *Item_func_boundary::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_boundary::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
 
@@ -463,9 +456,9 @@ String *Item_func_boundary::val_str(String *str_value)
     goto mem_error;
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -480,15 +473,9 @@ mem_error:
 }
 
 
-Field::geometry_type Item_func_centroid::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
-}
-
-
 String *Item_func_centroid::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -500,9 +487,9 @@ String *Item_func_centroid::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   srid= uint4korr(swkb->ptr());
   str->q_append(srid);
 
@@ -549,7 +536,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   Gcalc_heap::Info *cur_pi;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -629,9 +616,9 @@ String *Item_func_convexhull::val_str(String *str_value)
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -658,7 +645,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   ch_node *left_first, *left_cur, *right_first, *right_cur;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -775,9 +762,9 @@ skip_point:;
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -799,7 +786,7 @@ mem_error:
 
 String *Item_func_spatial_decomp::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -813,9 +800,9 @@ String *Item_func_spatial_decomp::val_str(String *str)
 
   srid= uint4korr(swkb->ptr());
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func) {
     case SP_STARTPOINT:
@@ -846,7 +833,7 @@ err:
 
 String *Item_func_spatial_decomp_n::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   long n= (long) args[1]->val_int();
@@ -860,10 +847,10 @@ String *Item_func_spatial_decomp_n::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
   srid= uint4korr(swkb->ptr());
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func_n)
   {
@@ -903,15 +890,9 @@ err:
 */
 
 
-Field::geometry_type Item_func_point::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
-}
-
-
 String *Item_func_point::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double x= args[0]->val_real();
   double y= args[1]->val_real();
   uint32 srid= 0;
@@ -944,7 +925,7 @@ String *Item_func_point::val_str(String *str)
 
 String *Item_func_spatial_collection::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_value;
   uint i;
   uint32 srid= 0;
@@ -1082,9 +1063,17 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
   if (param->using_real_indexes &&
       !field->optimize_range(param->real_keynr[key_part->key],
                              key_part->part))
-   DBUG_RETURN(0);
+    DBUG_RETURN(0);
 
-  if (value->save_in_field_no_warnings(field, 1))
+  Field_geom *field_geom= dynamic_cast<Field_geom*>(field);
+  DBUG_ASSERT(field_geom);
+  const Type_handler_geometry *sav_geom_type= field_geom->type_handler_geom();
+  // We have to be able to store all sorts of spatial features here
+  field_geom->set_type_handler(&type_handler_geometry);
+  bool rc= value->save_in_field_no_warnings(field, 1);
+  field_geom->set_type_handler(sav_geom_type);
+
+  if (rc)
     DBUG_RETURN(&sel_arg_impossible);            // Bad GEOMETRY value
 
   DBUG_ASSERT(!field->real_maybe_null()); // SPATIAL keys do not support NULL
@@ -1094,6 +1083,7 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
     DBUG_RETURN(0);                              // out of memory
   field->get_key_image(str, key_part->length, key_part->image_type);
   SEL_ARG *tree;
+
   if (!(tree= new (param->mem_root) SEL_ARG(field, str, str)))
     DBUG_RETURN(0);                              // out of memory
 
@@ -1138,35 +1128,35 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
 }
 
 
-const char *Item_func_spatial_mbr_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "mbrcontains";
+      return { STRING_WITH_LEN("mbrcontains") };
     case SP_WITHIN_FUNC:
-      return "mbrwithin";
+      return { STRING_WITH_LEN("mbrwithin") } ;
     case SP_EQUALS_FUNC:
-      return "mbrequals";
+      return { STRING_WITH_LEN("mbrequals") };
     case SP_DISJOINT_FUNC:
-      return "mbrdisjoint";
+      return { STRING_WITH_LEN("mbrdisjoint") };
     case SP_INTERSECTS_FUNC:
-      return "mbrintersects";
+      return { STRING_WITH_LEN("mbrintersects") };
     case SP_TOUCHES_FUNC:
-      return "mbrtouches";
+      return { STRING_WITH_LEN("mbrtouches") };
     case SP_CROSSES_FUNC:
-      return "mbrcrosses";
+      return { STRING_WITH_LEN("mbrcrosses") };
     case SP_OVERLAPS_FUNC:
-      return "mbroverlaps";
+      return { STRING_WITH_LEN("mbroverlaps") };
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "mbrsp_unknown"; 
+      return { STRING_WITH_LEN("mbrsp_unknown") };
   }
 }
 
 
 longlong Item_func_spatial_mbr_rel::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -1209,28 +1199,28 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-const char *Item_func_spatial_precise_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "st_contains";
+      return { STRING_WITH_LEN("st_contains") };
     case SP_WITHIN_FUNC:
-      return "st_within";
+      return { STRING_WITH_LEN("st_within") };
     case SP_EQUALS_FUNC:
-      return "st_equals";
+      return { STRING_WITH_LEN("st_equals") };
     case SP_DISJOINT_FUNC:
-      return "st_disjoint";
+      return { STRING_WITH_LEN("st_disjoint") };
     case SP_INTERSECTS_FUNC:
-      return "st_intersects";
+      return { STRING_WITH_LEN("st_intersects") };
     case SP_TOUCHES_FUNC:
-      return "st_touches";
+      return { STRING_WITH_LEN("st_touches") };
     case SP_CROSSES_FUNC:
-      return "st_crosses";
+      return { STRING_WITH_LEN("st_crosses") };
     case SP_OVERLAPS_FUNC:
-      return "st_overlaps";
+      return { STRING_WITH_LEN("st_overlaps") } ;
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 
@@ -1375,7 +1365,7 @@ public:
 longlong Item_func_spatial_relate::val_int()
 {
   DBUG_ENTER("Item_func_spatial_relate::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
 
@@ -1412,7 +1402,7 @@ exit:
 longlong Item_func_spatial_precise_rel::val_int()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
   uint shape_a, shape_b;
@@ -1547,7 +1537,7 @@ Item_func_spatial_operation::~Item_func_spatial_operation() = default;
 String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
@@ -1584,9 +1574,9 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto exit;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
@@ -1600,20 +1590,20 @@ exit:
 }
 
 
-const char *Item_func_spatial_operation::func_name() const
+LEX_CSTRING Item_func_spatial_operation::func_name_cstring() const
 { 
   switch (spatial_op) {
     case Gcalc_function::op_intersection:
-      return "st_intersection";
+      return { STRING_WITH_LEN("st_intersection") };
     case Gcalc_function::op_difference:
-      return "st_difference";
+      return { STRING_WITH_LEN("st_difference") };
     case Gcalc_function::op_union:
-      return "st_union";
+      return { STRING_WITH_LEN("st_union") };
     case Gcalc_function::op_symdifference:
-      return "st_symdifference";
+      return { STRING_WITH_LEN("st_symdifference") };
     default:
       DBUG_ASSERT(0);  // Should never happen
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 
@@ -1999,7 +1989,7 @@ int Item_func_buffer::Transporter::complete_ring()
 String *Item_func_buffer::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_buffer::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *obj= args[0]->val_str(str_value);
   double dist= args[1]->val_real();
   Geometry_buffer buffer;
@@ -2054,9 +2044,9 @@ String *Item_func_buffer::val_str(String *str_value)
 
 return_empty_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -2074,7 +2064,7 @@ mem_error:
 
 longlong Item_func_isempty::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2096,7 +2086,7 @@ longlong Item_func_issimple::val_int()
   const char *c_end;
 
   DBUG_ENTER("Item_func_issimple::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   
   null_value= 0;
   if ((args[0]->null_value ||
@@ -2159,7 +2149,7 @@ mem_error:
 
 longlong Item_func_isclosed::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2183,7 +2173,7 @@ longlong Item_func_isclosed::val_int()
 longlong Item_func_isring::val_int()
 {
   /* It's actually a combination of two functions - IsClosed and IsSimple */
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2214,7 +2204,7 @@ longlong Item_func_isring::val_int()
 
 longlong Item_func_dimension::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 dim= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2231,7 +2221,7 @@ longlong Item_func_dimension::val_int()
 
 longlong Item_func_numinteriorring::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2247,7 +2237,7 @@ longlong Item_func_numinteriorring::val_int()
 
 longlong Item_func_numgeometries::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2263,7 +2253,7 @@ longlong Item_func_numgeometries::val_int()
 
 longlong Item_func_numpoints::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2280,7 +2270,7 @@ longlong Item_func_numpoints::val_int()
 
 double Item_func_x::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0.0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2296,7 +2286,7 @@ double Item_func_x::val_real()
 
 double Item_func_y::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2312,7 +2302,7 @@ double Item_func_y::val_real()
 
 double Item_func_area::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2328,7 +2318,7 @@ double Item_func_area::val_real()
 
 double Item_func_glength::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2345,7 +2335,7 @@ double Item_func_glength::val_real()
 
 longlong Item_func_srid::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
   
@@ -2372,7 +2362,7 @@ double Item_func_distance::val_real()
   Gcalc_operation_transporter trn(&func, &collector);
 
   DBUG_ENTER("Item_func_distance::val_real");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -2669,9 +2659,6 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
-
-  DBUG_ENTER("Item_func_pointonsurface::val_str");
-  DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(&tmp_value);
   Geometry_buffer buffer;
   Geometry *g;
@@ -2681,6 +2668,8 @@ String *Item_func_pointonsurface::val_str(String *str)
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
+  DBUG_ENTER("Item_func_pointonsurface::val_str");
+  DBUG_ASSERT(fixed());
 
   null_value= 1;
   if ((args[0]->null_value ||
@@ -2747,10 +2736,10 @@ String *Item_func_pointonsurface::val_str(String *str)
     goto exit;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto mem_error;
 
-  str->length(0);
   srid= uint4korr(res->ptr());
   str->q_append(srid);
 
@@ -2774,12 +2763,6 @@ mem_error:
 }
 
 
-Field::geometry_type Item_func_pointonsurface::get_geometry_type() const
-{
-  return Field::GEOM_POINT;
-}
-
-
 #ifndef DBUG_OFF
 longlong Item_func_gis_debug::val_int()
 {
@@ -2787,5 +2770,1313 @@ longlong Item_func_gis_debug::val_int()
   return 0;
 }
 #endif
+
+
+/**********************************************************************/
+
+
+class Create_func_area : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_area(thd, arg1);
+  }
+
+  static Create_func_area s_singleton;
+
+protected:
+  Create_func_area() = default;
+  ~Create_func_area() override = default;
+};
+
+
+class Create_func_as_wkb : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_as_wkb(thd, arg1);
+  }
+
+  static Create_func_as_wkb s_singleton;
+
+protected:
+  Create_func_as_wkb() = default;
+  ~Create_func_as_wkb() override = default;
+};
+
+
+class Create_func_as_wkt : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_as_wkt(thd, arg1);
+  }
+
+  static Create_func_as_wkt s_singleton;
+
+protected:
+  Create_func_as_wkt() = default;
+  ~Create_func_as_wkt() override = default;
+};
+
+
+
+class Create_func_centroid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_centroid(thd, arg1);
+  }
+
+  static Create_func_centroid s_singleton;
+
+protected:
+  Create_func_centroid() = default;
+  ~Create_func_centroid() override = default;
+};
+
+
+class Create_func_convexhull : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_convexhull(thd, arg1);
+  }
+
+  static Create_func_convexhull s_singleton;
+
+protected:
+  Create_func_convexhull() = default;
+  ~Create_func_convexhull() override = default;
+};
+
+
+class Create_func_pointonsurface : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_pointonsurface(thd, arg1);
+  }
+
+  static Create_func_pointonsurface s_singleton;
+
+protected:
+  Create_func_pointonsurface() = default;
+  ~Create_func_pointonsurface() override = default;
+};
+
+
+class Create_func_mbr_contains : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+      Item_func::SP_CONTAINS_FUNC);
+  }
+
+  static Create_func_mbr_contains s_singleton;
+
+protected:
+  Create_func_mbr_contains() = default;
+  ~Create_func_mbr_contains() override = default;
+};
+
+
+class Create_func_contains : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                 Item_func::SP_CONTAINS_FUNC);
+  }
+  static Create_func_contains s_singleton;
+
+protected:
+  Create_func_contains() = default;
+  ~Create_func_contains() override = default;
+};
+
+
+class Create_func_crosses : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                   Item_func::SP_CROSSES_FUNC);
+  }
+  static Create_func_crosses s_singleton;
+
+protected:
+  Create_func_crosses() = default;
+  ~Create_func_crosses() override = default;
+};
+
+
+class Create_func_dimension : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_dimension(thd, arg1);
+  }
+
+  static Create_func_dimension s_singleton;
+
+protected:
+  Create_func_dimension() = default;
+  ~Create_func_dimension() override = default;
+};
+
+
+class Create_func_mbr_disjoint : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+                                                  Item_func::SP_DISJOINT_FUNC);
+  }
+
+  static Create_func_mbr_disjoint s_singleton;
+
+protected:
+  Create_func_mbr_disjoint() = default;
+  ~Create_func_mbr_disjoint() override = default;
+};
+
+
+class Create_func_disjoint : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                  Item_func::SP_DISJOINT_FUNC);
+  }
+  static Create_func_disjoint s_singleton;
+
+protected:
+  Create_func_disjoint() = default;
+  ~Create_func_disjoint() override = default;
+};
+
+
+class Create_func_distance : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_distance(thd, arg1, arg2);
+  }
+
+  static Create_func_distance s_singleton;
+
+protected:
+  Create_func_distance() = default;
+  ~Create_func_distance() override = default;
+};
+
+
+class Create_func_distance_sphere: public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+  static Create_func_distance_sphere s_singleton;
+
+protected:
+  Create_func_distance_sphere() = default;
+  ~Create_func_distance_sphere() override = default;
+};
+
+
+Item*
+Create_func_distance_sphere::create_native(THD *thd, const LEX_CSTRING *name,
+                                           List<Item> *item_list)
+{
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  if (arg_count < 2)
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  return new (thd->mem_root) Item_func_sphere_distance(thd, *item_list);
+}
+
+
+class Create_func_endpoint : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+                                                        Item_func::SP_ENDPOINT);
+  }
+
+  static Create_func_endpoint s_singleton;
+
+protected:
+  Create_func_endpoint() = default;
+  ~Create_func_endpoint() override = default;
+};
+
+
+class Create_func_envelope : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_envelope(thd, arg1);
+  }
+
+  static Create_func_envelope s_singleton;
+
+protected:
+  Create_func_envelope() = default;
+  ~Create_func_envelope() override = default;
+};
+
+class Create_func_boundary : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_boundary(thd, arg1);
+  }
+
+  static Create_func_boundary s_singleton;
+
+protected:
+  Create_func_boundary() = default;
+  ~Create_func_boundary() override = default;
+};
+
+
+class Create_func_mbr_equals : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+                                                     Item_func::SP_EQUALS_FUNC);
+  }
+
+  static Create_func_mbr_equals s_singleton;
+
+protected:
+  Create_func_mbr_equals() = default;
+  ~Create_func_mbr_equals() override = default;
+};
+
+
+class Create_func_equals : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+      return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                    Item_func::SP_EQUALS_FUNC);
+  }
+
+  static Create_func_equals s_singleton;
+
+protected:
+  Create_func_equals() = default;
+  ~Create_func_equals() override = default;
+};
+
+
+class Create_func_exteriorring : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+                                                      Item_func::SP_EXTERIORRING);
+  }
+
+  static Create_func_exteriorring s_singleton;
+
+protected:
+  Create_func_exteriorring() = default;
+  ~Create_func_exteriorring() override = default;
+};
+
+
+
+class Create_func_geometry_from_text : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_geometry_from_text s_singleton;
+
+protected:
+  Create_func_geometry_from_text() = default;
+  ~Create_func_geometry_from_text() override = default;
+};
+
+
+Item*
+Create_func_geometry_from_text::create_native(THD *thd,
+                                              const LEX_CSTRING *name,
+                                              List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    break;
+  }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_text(thd, param_1, param_2);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
+class Create_func_geometry_from_wkb : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_geometry_from_wkb s_singleton;
+
+protected:
+  Create_func_geometry_from_wkb() = default;
+  ~Create_func_geometry_from_wkb() override = default;
+};
+
+
+Item*
+Create_func_geometry_from_wkb::create_native(THD *thd, const LEX_CSTRING *name,
+                                             List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *param_1= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    break;
+  }
+  case 2:
+  {
+    Item *param_1= item_list->pop();
+    Item *param_2= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_wkb(thd, param_1, param_2);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
+class Create_func_geometry_from_json : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_geometry_from_json s_singleton;
+
+protected:
+  Create_func_geometry_from_json() = default;
+  ~Create_func_geometry_from_json() override = default;
+};
+
+
+Item*
+Create_func_geometry_from_json::create_native(THD *thd,
+                                              const LEX_CSTRING *name,
+                                              List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *json= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    break;
+  }
+  case 2:
+  {
+    Item *json= item_list->pop();
+    Item *options= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options);
+    break;
+  }
+  case 3:
+  {
+    Item *json= item_list->pop();
+    Item *options= item_list->pop();
+    Item *srid= item_list->pop();
+    func= new (thd->mem_root) Item_func_geometry_from_json(thd, json, options,
+                                                           srid);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
+class Create_func_as_geojson : public Create_native_func
+{
+public:
+  Item *create_native(THD *thd, const LEX_CSTRING *name, List<Item> *item_list)
+    override;
+
+  static Create_func_as_geojson s_singleton;
+
+protected:
+  Create_func_as_geojson() = default;
+  ~Create_func_as_geojson() override = default;
+};
+
+
+Item*
+Create_func_as_geojson::create_native(THD *thd, const LEX_CSTRING *name,
+                                      List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  switch (arg_count) {
+  case 1:
+  {
+    Item *geom= item_list->pop();
+    func= new (thd->mem_root) Item_func_as_geojson(thd, geom);
+    thd->lex->uncacheable(UNCACHEABLE_RAND);
+    break;
+  }
+  case 2:
+  {
+    Item *geom= item_list->pop();
+    Item *max_dec= item_list->pop();
+    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec);
+    break;
+  }
+  case 3:
+  {
+    Item *geom= item_list->pop();
+    Item *max_dec= item_list->pop();
+    Item *options= item_list->pop();
+    func= new (thd->mem_root) Item_func_as_geojson(thd, geom, max_dec, options);
+    break;
+  }
+  default:
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    break;
+  }
+  }
+
+  return func;
+}
+
+
+class Create_func_geometry_type : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_geometry_type(thd, arg1);
+  }
+
+  static Create_func_geometry_type s_singleton;
+
+protected:
+  Create_func_geometry_type() = default;
+  ~Create_func_geometry_type() override = default;
+};
+
+
+class Create_func_geometryn : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+                                                      Item_func::SP_GEOMETRYN);
+  }
+
+  static Create_func_geometryn s_singleton;
+
+protected:
+  Create_func_geometryn() = default;
+  ~Create_func_geometryn() override = default;
+};
+
+
+#if !defined(DBUG_OFF)
+class Create_func_gis_debug : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_gis_debug(thd, arg1);
+  }
+
+  static Create_func_gis_debug s_singleton;
+
+protected:
+  Create_func_gis_debug() = default;
+  ~Create_func_gis_debug() override = default;
+};
+#endif
+
+
+class Create_func_glength : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_glength(thd, arg1);
+  }
+
+  static Create_func_glength s_singleton;
+
+protected:
+  Create_func_glength() = default;
+  ~Create_func_glength() override = default;
+};
+
+
+class Create_func_interiorringn : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+                                                  Item_func::SP_INTERIORRINGN);
+  }
+
+  static Create_func_interiorringn s_singleton;
+
+protected:
+  Create_func_interiorringn() = default;
+  ~Create_func_interiorringn() override = default;
+};
+
+
+class Create_func_relate : public Create_func_arg3
+{
+public:
+  Item *create_3_arg(THD *thd, Item *arg1, Item *arg2, Item *arg3) override
+  {
+    return new (thd->mem_root) Item_func_spatial_relate(thd, arg1, arg2, arg3);
+  }
+
+  static Create_func_relate s_singleton;
+
+protected:
+  Create_func_relate() = default;
+  ~Create_func_relate() override = default;
+};
+
+
+class Create_func_mbr_intersects : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+        Item_func::SP_INTERSECTS_FUNC);
+  }
+
+  static Create_func_mbr_intersects s_singleton;
+
+protected:
+  Create_func_mbr_intersects() = default;
+  ~Create_func_mbr_intersects() override = default;
+};
+
+
+class Create_func_intersects : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                               Item_func::SP_INTERSECTS_FUNC);
+  }
+
+  static Create_func_intersects s_singleton;
+
+protected:
+  Create_func_intersects() = default;
+  ~Create_func_intersects() override = default;
+};
+
+
+class Create_func_intersection : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+                                 Gcalc_function::op_intersection);
+  }
+
+  static Create_func_intersection s_singleton;
+
+protected:
+  Create_func_intersection() = default;
+  ~Create_func_intersection() override = default;
+};
+
+
+class Create_func_difference : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+                                 Gcalc_function::op_difference);
+  }
+
+  static Create_func_difference s_singleton;
+
+protected:
+  Create_func_difference() = default;
+  ~Create_func_difference() override = default;
+};
+
+
+class Create_func_union : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+                                 Gcalc_function::op_union);
+  }
+
+  static Create_func_union s_singleton;
+
+protected:
+  Create_func_union() = default;
+  ~Create_func_union() override = default;
+};
+
+
+class Create_func_symdifference : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_operation(thd, arg1, arg2,
+                                 Gcalc_function::op_symdifference);
+  }
+
+  static Create_func_symdifference s_singleton;
+
+protected:
+  Create_func_symdifference() = default;
+  ~Create_func_symdifference() override = default;
+};
+
+
+class Create_func_buffer : public Create_func_arg2
+{
+public:
+  Item* create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_buffer(thd, arg1, arg2);
+  }
+
+  static Create_func_buffer s_singleton;
+
+protected:
+  Create_func_buffer() = default;
+  ~Create_func_buffer() override = default;
+};
+
+
+class Create_func_isclosed : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isclosed(thd, arg1);
+  }
+
+  static Create_func_isclosed s_singleton;
+
+protected:
+  Create_func_isclosed() = default;
+  ~Create_func_isclosed() override = default;
+};
+
+
+class Create_func_isring : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isring(thd, arg1);
+  }
+
+  static Create_func_isring s_singleton;
+
+protected:
+  Create_func_isring() = default;
+  ~Create_func_isring() override = default;
+};
+
+
+class Create_func_isempty : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_isempty(thd, arg1);
+  }
+
+  static Create_func_isempty s_singleton;
+
+protected:
+  Create_func_isempty() = default;
+  ~Create_func_isempty() override = default;
+};
+
+
+class Create_func_issimple : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_issimple(thd, arg1);
+  }
+
+  static Create_func_issimple s_singleton;
+
+protected:
+  Create_func_issimple() = default;
+  ~Create_func_issimple() override = default;
+};
+
+
+
+class Create_func_numgeometries : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_numgeometries(thd, arg1);
+  }
+
+  static Create_func_numgeometries s_singleton;
+
+protected:
+  Create_func_numgeometries() = default;
+  ~Create_func_numgeometries() override = default;
+};
+
+
+class Create_func_numinteriorring : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_numinteriorring(thd, arg1);
+  }
+
+  static Create_func_numinteriorring s_singleton;
+
+protected:
+  Create_func_numinteriorring() = default;
+  ~Create_func_numinteriorring() override = default;
+};
+
+
+class Create_func_numpoints : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_numpoints(thd, arg1);
+  }
+
+  static Create_func_numpoints s_singleton;
+
+protected:
+  Create_func_numpoints() = default;
+  ~Create_func_numpoints() override = default;
+};
+
+
+class Create_func_mbr_overlaps : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+        Item_func::SP_OVERLAPS_FUNC);
+  }
+
+  static Create_func_mbr_overlaps s_singleton;
+
+protected:
+  Create_func_mbr_overlaps() = default;
+  ~Create_func_mbr_overlaps() override = default;
+};
+
+
+class Create_func_overlaps : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                  Item_func::SP_OVERLAPS_FUNC);
+  }
+
+  static Create_func_overlaps s_singleton;
+
+protected:
+  Create_func_overlaps() = default;
+  ~Create_func_overlaps() override = default;
+};
+
+
+
+
+
+class Create_func_pointn : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp_n(thd, arg1, arg2,
+                                                          Item_func::SP_POINTN);
+  }
+  static Create_func_pointn s_singleton;
+
+protected:
+  Create_func_pointn() = default;
+  ~Create_func_pointn() override = default;
+};
+
+
+
+
+class Create_func_srid : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_srid(thd, arg1);
+  }
+
+  static Create_func_srid s_singleton;
+
+protected:
+  Create_func_srid() = default;
+  ~Create_func_srid() override = default;
+};
+
+
+class Create_func_startpoint : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_spatial_decomp(thd, arg1,
+                                                     Item_func::SP_STARTPOINT);
+  }
+
+  static Create_func_startpoint s_singleton;
+
+protected:
+  Create_func_startpoint() = default;
+  ~Create_func_startpoint() override = default;
+};
+
+
+
+class Create_func_touches : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                   Item_func::SP_TOUCHES_FUNC);
+  }
+
+  static Create_func_touches s_singleton;
+
+protected:
+  Create_func_touches() = default;
+  ~Create_func_touches() override = default;
+};
+
+
+class Create_func_mbr_within : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_mbr_rel(thd, arg1, arg2,
+      Item_func::SP_WITHIN_FUNC);
+  }
+
+  static Create_func_mbr_within s_singleton;
+
+protected:
+  Create_func_mbr_within() = default;
+  ~Create_func_mbr_within() override = default;
+};
+
+
+class Create_func_within : public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  {
+    return new (thd->mem_root) Item_func_spatial_precise_rel(thd, arg1, arg2,
+                                                   Item_func::SP_WITHIN_FUNC);
+  }
+
+  static Create_func_within s_singleton;
+
+protected:
+  Create_func_within() = default;
+  ~Create_func_within() override = default;
+};
+
+
+class Create_func_x : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_x(thd, arg1);
+  }
+
+  static Create_func_x s_singleton;
+
+protected:
+  Create_func_x() = default;
+  ~Create_func_x() override = default;
+};
+
+
+class Create_func_y : public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  {
+    return new (thd->mem_root) Item_func_y(thd, arg1);
+  }
+
+  static Create_func_y s_singleton;
+
+protected:
+  Create_func_y() = default;
+  ~Create_func_y() override = default;
+};
+
+
+/*****************************************************************/
+
+
+
+
+
+
+
+/*************************************************************************/
+
+#if !defined(DBUG_OFF)
+Create_func_gis_debug Create_func_gis_debug::s_singleton;
+#endif
+
+Create_func_area Create_func_area::s_singleton;
+Create_func_as_geojson Create_func_as_geojson::s_singleton;
+Create_func_as_wkb Create_func_as_wkb::s_singleton;
+Create_func_as_wkt Create_func_as_wkt::s_singleton;
+Create_func_boundary Create_func_boundary::s_singleton;
+Create_func_buffer Create_func_buffer::s_singleton;
+Create_func_centroid Create_func_centroid::s_singleton;
+Create_func_contains Create_func_contains::s_singleton;
+Create_func_convexhull Create_func_convexhull::s_singleton;
+Create_func_crosses Create_func_crosses::s_singleton;
+Create_func_difference Create_func_difference::s_singleton;
+Create_func_dimension Create_func_dimension::s_singleton;
+Create_func_disjoint Create_func_disjoint::s_singleton;
+Create_func_distance Create_func_distance::s_singleton;
+Create_func_distance_sphere Create_func_distance_sphere::s_singleton;
+Create_func_endpoint Create_func_endpoint::s_singleton;
+Create_func_envelope Create_func_envelope::s_singleton;
+Create_func_equals Create_func_equals::s_singleton;
+Create_func_exteriorring Create_func_exteriorring::s_singleton;
+Create_func_geometry_from_json Create_func_geometry_from_json::s_singleton;
+Create_func_geometry_from_text Create_func_geometry_from_text::s_singleton;
+Create_func_geometry_from_wkb Create_func_geometry_from_wkb::s_singleton;
+Create_func_geometryn Create_func_geometryn::s_singleton;
+Create_func_geometry_type Create_func_geometry_type::s_singleton;
+Create_func_glength Create_func_glength::s_singleton;
+Create_func_interiorringn Create_func_interiorringn::s_singleton;
+Create_func_intersection Create_func_intersection::s_singleton;
+Create_func_intersects Create_func_intersects::s_singleton;
+Create_func_isclosed Create_func_isclosed::s_singleton;
+Create_func_isempty Create_func_isempty::s_singleton;
+Create_func_isring Create_func_isring::s_singleton;
+Create_func_issimple Create_func_issimple::s_singleton;
+Create_func_mbr_contains Create_func_mbr_contains::s_singleton;
+Create_func_mbr_disjoint Create_func_mbr_disjoint::s_singleton;
+Create_func_mbr_equals Create_func_mbr_equals::s_singleton;
+Create_func_mbr_intersects Create_func_mbr_intersects::s_singleton;
+Create_func_mbr_overlaps Create_func_mbr_overlaps::s_singleton;
+Create_func_mbr_within Create_func_mbr_within::s_singleton;
+Create_func_numgeometries Create_func_numgeometries::s_singleton;
+Create_func_numinteriorring Create_func_numinteriorring::s_singleton;
+Create_func_numpoints Create_func_numpoints::s_singleton;
+Create_func_overlaps Create_func_overlaps::s_singleton;
+Create_func_pointn Create_func_pointn::s_singleton;
+Create_func_pointonsurface Create_func_pointonsurface::s_singleton;
+Create_func_relate Create_func_relate::s_singleton;
+Create_func_srid Create_func_srid::s_singleton;
+Create_func_startpoint Create_func_startpoint::s_singleton;
+Create_func_symdifference Create_func_symdifference::s_singleton;
+Create_func_touches Create_func_touches::s_singleton;
+Create_func_union Create_func_union::s_singleton;
+Create_func_within Create_func_within::s_singleton;
+Create_func_x Create_func_x::s_singleton;
+Create_func_y Create_func_y::s_singleton;
+
+/*************************************************************************/
+
+
+#define GEOM_BUILDER(F) & F::s_singleton
+
+
+static Native_func_registry func_array_geom[] =
+{
+#ifndef DBUG_OFF
+    { { STRING_WITH_LEN("ST_GIS_DEBUG") }, GEOM_BUILDER(Create_func_gis_debug)},
+#endif
+  { { STRING_WITH_LEN("AREA") }, GEOM_BUILDER(Create_func_area)},
+  { { STRING_WITH_LEN("ASBINARY") }, GEOM_BUILDER(Create_func_as_wkb)},
+  { { STRING_WITH_LEN("ASTEXT") }, GEOM_BUILDER(Create_func_as_wkt)},
+  { { STRING_WITH_LEN("ASWKB") }, GEOM_BUILDER(Create_func_as_wkb)},
+  { { STRING_WITH_LEN("ASWKT") }, GEOM_BUILDER(Create_func_as_wkt)},
+  { { STRING_WITH_LEN("BOUNDARY") }, GEOM_BUILDER(Create_func_boundary)},
+  { { STRING_WITH_LEN("BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
+  { { STRING_WITH_LEN("CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
+  { { STRING_WITH_LEN("CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
+  { { STRING_WITH_LEN("CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
+  { { STRING_WITH_LEN("DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
+  { { STRING_WITH_LEN("DISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
+  { { STRING_WITH_LEN("ENDPOINT") }, GEOM_BUILDER(Create_func_endpoint)},
+  { { STRING_WITH_LEN("ENVELOPE") }, GEOM_BUILDER(Create_func_envelope)},
+  { { STRING_WITH_LEN("EQUALS") }, GEOM_BUILDER(Create_func_equals)},
+  { { STRING_WITH_LEN("EXTERIORRING") }, GEOM_BUILDER(Create_func_exteriorring)},
+  { { STRING_WITH_LEN("GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("GEOMCOLLFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("GEOMETRYCOLLECTIONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("GEOMETRYCOLLECTIONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("GEOMETRYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("GEOMETRYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("GEOMETRYN") }, GEOM_BUILDER(Create_func_geometryn)},
+  { { STRING_WITH_LEN("GEOMETRYTYPE") }, GEOM_BUILDER(Create_func_geometry_type)},
+  { { STRING_WITH_LEN("GEOMFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("GEOMFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("GLENGTH") }, GEOM_BUILDER(Create_func_glength)},
+  { { STRING_WITH_LEN("INTERIORRINGN") }, GEOM_BUILDER(Create_func_interiorringn)},
+  { { STRING_WITH_LEN("INTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
+  { { STRING_WITH_LEN("ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
+  { { STRING_WITH_LEN("ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ISRING") }, GEOM_BUILDER(Create_func_isring)},
+  { { STRING_WITH_LEN("ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MBRCONTAINS") }, GEOM_BUILDER(Create_func_mbr_contains)},
+  { { STRING_WITH_LEN("MBRDISJOINT") }, GEOM_BUILDER(Create_func_mbr_disjoint)},
+  { { STRING_WITH_LEN("MBREQUAL") }, GEOM_BUILDER(Create_func_mbr_equals)},
+  { { STRING_WITH_LEN("MBREQUALS") }, GEOM_BUILDER(Create_func_mbr_equals)},
+  { { STRING_WITH_LEN("MBRINTERSECTS") }, GEOM_BUILDER(Create_func_mbr_intersects)},
+  { { STRING_WITH_LEN("MBROVERLAPS") }, GEOM_BUILDER(Create_func_mbr_overlaps)},
+  { { STRING_WITH_LEN("MBRTOUCHES") }, GEOM_BUILDER(Create_func_touches)},
+  { { STRING_WITH_LEN("MBRWITHIN") }, GEOM_BUILDER(Create_func_mbr_within)},
+  { { STRING_WITH_LEN("MLINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MLINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MPOLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MPOLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MULTILINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MULTILINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MULTIPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MULTIPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
+  { { STRING_WITH_LEN("NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
+  { { STRING_WITH_LEN("NUMPOINTS") }, GEOM_BUILDER(Create_func_numpoints)},
+  { { STRING_WITH_LEN("OVERLAPS") }, GEOM_BUILDER(Create_func_mbr_overlaps)},
+  { { STRING_WITH_LEN("POINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("POINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("POINTN") }, GEOM_BUILDER(Create_func_pointn)},
+  { { STRING_WITH_LEN("POINTONSURFACE") }, GEOM_BUILDER(Create_func_pointonsurface)},
+  { { STRING_WITH_LEN("POLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("POLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("SRID") }, GEOM_BUILDER(Create_func_srid)},
+  { { STRING_WITH_LEN("ST_AREA") }, GEOM_BUILDER(Create_func_area)},
+  { { STRING_WITH_LEN("STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
+  { { STRING_WITH_LEN("ST_ASBINARY") }, GEOM_BUILDER(Create_func_as_wkb)},
+  { { STRING_WITH_LEN("ST_ASGEOJSON") }, GEOM_BUILDER(Create_func_as_geojson)},
+  { { STRING_WITH_LEN("ST_ASTEXT") }, GEOM_BUILDER(Create_func_as_wkt)},
+  { { STRING_WITH_LEN("ST_ASWKB") }, GEOM_BUILDER(Create_func_as_wkb)},
+  { { STRING_WITH_LEN("ST_ASWKT") }, GEOM_BUILDER(Create_func_as_wkt)},
+  { { STRING_WITH_LEN("ST_BOUNDARY") }, GEOM_BUILDER(Create_func_boundary)},
+  { { STRING_WITH_LEN("ST_BUFFER") }, GEOM_BUILDER(Create_func_buffer)},
+  { { STRING_WITH_LEN("ST_CENTROID") }, GEOM_BUILDER(Create_func_centroid)},
+  { { STRING_WITH_LEN("ST_CONTAINS") }, GEOM_BUILDER(Create_func_contains)},
+  { { STRING_WITH_LEN("ST_CONVEXHULL") }, GEOM_BUILDER(Create_func_convexhull)},
+  { { STRING_WITH_LEN("ST_CROSSES") }, GEOM_BUILDER(Create_func_crosses)},
+  { { STRING_WITH_LEN("ST_DIFFERENCE") }, GEOM_BUILDER(Create_func_difference)},
+  { { STRING_WITH_LEN("ST_DIMENSION") }, GEOM_BUILDER(Create_func_dimension)},
+  { { STRING_WITH_LEN("ST_DISJOINT") }, GEOM_BUILDER(Create_func_disjoint)},
+  { { STRING_WITH_LEN("ST_DISTANCE") }, GEOM_BUILDER(Create_func_distance)},
+  { { STRING_WITH_LEN("ST_ENDPOINT") }, GEOM_BUILDER(Create_func_endpoint)},
+  { { STRING_WITH_LEN("ST_ENVELOPE") }, GEOM_BUILDER(Create_func_envelope)},
+  { { STRING_WITH_LEN("ST_EQUALS") }, GEOM_BUILDER(Create_func_equals)},
+  { { STRING_WITH_LEN("ST_EQUALS") }, GEOM_BUILDER(Create_func_equals)},
+  { { STRING_WITH_LEN("ST_EXTERIORRING") }, GEOM_BUILDER(Create_func_exteriorring)},
+  { { STRING_WITH_LEN("ST_GEOMCOLLFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_GEOMCOLLFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_GEOMETRYCOLLECTIONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_GEOMETRYCOLLECTIONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_GEOMETRYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_GEOMETRYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_GEOMETRYN") }, GEOM_BUILDER(Create_func_geometryn)},
+  { { STRING_WITH_LEN("ST_GEOMETRYTYPE") }, GEOM_BUILDER(Create_func_geometry_type)},
+  { { STRING_WITH_LEN("ST_GEOMFROMGEOJSON") }, GEOM_BUILDER(Create_func_geometry_from_json)},
+  { { STRING_WITH_LEN("ST_GEOMFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_GEOMFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_INTERIORRINGN") }, GEOM_BUILDER(Create_func_interiorringn)},
+  { { STRING_WITH_LEN("ST_INTERSECTION") }, GEOM_BUILDER(Create_func_intersection)},
+  { { STRING_WITH_LEN("ST_INTERSECTS") }, GEOM_BUILDER(Create_func_intersects)},
+  { { STRING_WITH_LEN("ST_ISCLOSED") }, GEOM_BUILDER(Create_func_isclosed)},
+  { { STRING_WITH_LEN("ST_ISEMPTY") }, GEOM_BUILDER(Create_func_isempty)},
+  { { STRING_WITH_LEN("ST_ISRING") }, GEOM_BUILDER(Create_func_isring)},
+  { { STRING_WITH_LEN("ST_ISSIMPLE") }, GEOM_BUILDER(Create_func_issimple)},
+  { { STRING_WITH_LEN("ST_LENGTH") }, GEOM_BUILDER(Create_func_glength)},
+  { { STRING_WITH_LEN("ST_LINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_LINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_LINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_LINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MLINEFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MLINEFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MPOLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MPOLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MULTILINESTRINGFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MULTILINESTRINGFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MULTIPOINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MULTIPOINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_MULTIPOLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_MULTIPOLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_NUMGEOMETRIES") }, GEOM_BUILDER(Create_func_numgeometries)},
+  { { STRING_WITH_LEN("ST_NUMINTERIORRINGS") }, GEOM_BUILDER(Create_func_numinteriorring)},
+  { { STRING_WITH_LEN("ST_NUMPOINTS") }, GEOM_BUILDER(Create_func_numpoints)},
+  { { STRING_WITH_LEN("ST_OVERLAPS") }, GEOM_BUILDER(Create_func_overlaps)},
+  { { STRING_WITH_LEN("ST_POINTFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_POINTFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_POINTN") }, GEOM_BUILDER(Create_func_pointn)},
+  { { STRING_WITH_LEN("ST_POINTONSURFACE") }, GEOM_BUILDER(Create_func_pointonsurface)},
+  { { STRING_WITH_LEN("ST_POLYFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_POLYFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_POLYGONFROMTEXT") }, GEOM_BUILDER(Create_func_geometry_from_text)},
+  { { STRING_WITH_LEN("ST_POLYGONFROMWKB") }, GEOM_BUILDER(Create_func_geometry_from_wkb)},
+  { { STRING_WITH_LEN("ST_RELATE") }, GEOM_BUILDER(Create_func_relate)},
+  { { STRING_WITH_LEN("ST_SRID") }, GEOM_BUILDER(Create_func_srid)},
+  { { STRING_WITH_LEN("ST_STARTPOINT") }, GEOM_BUILDER(Create_func_startpoint)},
+  { { STRING_WITH_LEN("ST_SYMDIFFERENCE") }, GEOM_BUILDER(Create_func_symdifference)},
+  { { STRING_WITH_LEN("ST_TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
+  { { STRING_WITH_LEN("ST_UNION") }, GEOM_BUILDER(Create_func_union)},
+  { { STRING_WITH_LEN("ST_WITHIN") }, GEOM_BUILDER(Create_func_within)},
+  { { STRING_WITH_LEN("ST_X") }, GEOM_BUILDER(Create_func_x)},
+  { { STRING_WITH_LEN("ST_Y") }, GEOM_BUILDER(Create_func_y)},
+  { { STRING_WITH_LEN("ST_DISTANCE_SPHERE") }, GEOM_BUILDER(Create_func_distance_sphere)},
+  { { STRING_WITH_LEN("TOUCHES") }, GEOM_BUILDER(Create_func_touches)},
+  { { STRING_WITH_LEN("WITHIN") }, GEOM_BUILDER(Create_func_within)},
+  { { STRING_WITH_LEN("X") }, GEOM_BUILDER(Create_func_x)},
+  { { STRING_WITH_LEN("Y") }, GEOM_BUILDER(Create_func_y)},
+};
+
+
+Native_func_registry_array
+  native_func_registry_array_geom(func_array_geom,
+                                  array_elements(func_array_geom));
 
 #endif /*HAVE_SPATIAL*/

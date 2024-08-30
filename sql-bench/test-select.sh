@@ -340,11 +340,34 @@ if ($limits->{'group_functions'})
   $rows=0;
   for ($i=0 ; $i < $opt_medium_loop_count ; $i++)
   {
+    $rows+=fetch_all_rows($dbh,"select grp_no_key,count(*) from bench1 group by grp_no_key order by grp_no_key");
+  }
+  $end_time=new Benchmark;
+
+  print "Time for count_group_order_group ($i:$rows): " .
+    timestr(timediff($end_time, $loop_time),"all") . "\n";
+
+  if ($limits->{'order_by_null'})
+  {
+      $loop_time=new Benchmark;
+      $rows=0;
+      for ($i=0 ; $i < $opt_medium_loop_count ; $i++)
+      {
+          $rows+=fetch_all_rows($dbh,"select grp_no_key,count(*) from bench1 group by grp_no_key order by null");
+      }
+      $end_time=new Benchmark;
+      print "Time for count_group_order_null ($i:$rows): " .
+          timestr(timediff($end_time, $loop_time),"all") . "\n";
+  }
+  $loop_time=new Benchmark;
+  $rows=0;
+  for ($i=0 ; $i < $opt_medium_loop_count ; $i++)
+  {
     $rows+=fetch_all_rows($dbh,"select grp_no_key,count(*) as cnt from bench1 group by grp_no_key order by cnt");
   }
   $end_time=new Benchmark;
   print "Time for count_group_with_order ($i:$rows): " .
-    timestr(timediff($end_time, $loop_time),"all") . "\n";
+    timestr(timediff($end_time, $loop_time),"all") . "\n\n";
 }
 
 if ($limits->{'group_distinct_functions'})

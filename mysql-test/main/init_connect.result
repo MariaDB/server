@@ -3,21 +3,21 @@ connection con0;
 select hex(@a);
 hex(@a)
 NULL
-connect  con1,localhost,user_1,,;
+connect  con1,localhost,user_1,,"*NO-ONE*";
 connection con1;
 select hex(@a);
 hex(@a)
 610063
 connection con0;
 set global init_connect="set @a=2;set @b=3";
-connect  con2,localhost,user_1,,;
+connect  con2,localhost,user_1,,"*NO-ONE*";
 connection con2;
 select @a, @b;
 @a	@b
 2	3
 connection con0;
 set GLOBAL init_connect=DEFAULT;
-connect  con3,localhost,user_1,,;
+connect  con3,localhost,user_1,,"*NO-ONE*";
 connection con3;
 select @a;
 @a
@@ -25,7 +25,9 @@ NULL
 connection con0;
 set global init_connect="drop table if exists t1; create table t1(a char(10));\
 insert into t1 values ('\0');insert into t1 values('abc')";
-connect  con4,localhost,user_1,,;
+create user 'user_1'@'localhost';
+GRANT DROP,CREATE,SELECT,INSERT ON test.* TO 'user_1'@'localhost';
+connect  con4,localhost,user_1,,test;
 connection con4;
 select hex(a) from t1;
 hex(a)
@@ -33,7 +35,7 @@ hex(a)
 616263
 connection con0;
 set GLOBAL init_connect="adsfsdfsdfs";
-connect  con5,localhost,user_1,,;
+connect  con5,localhost,user_1,,test;
 connection con5;
 select @a;
 ERROR 08S01: Aborted connection to db: 'test' user: 'user_1' host: 'localhost' (init_connect command failed)
@@ -46,6 +48,7 @@ disconnect con2;
 disconnect con3;
 disconnect con4;
 disconnect con5;
+drop user 'user_1'@'localhost';
 End of 4.1 tests
 create table t1 (x int);
 insert into t1 values (3), (5), (7);
@@ -53,7 +56,7 @@ create table t2 (y int);
 create user mysqltest1@localhost;
 grant all privileges on test.* to mysqltest1@localhost;
 set global init_connect="create procedure p1() select * from t1";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 call p1();
 x
@@ -69,7 +72,7 @@ begin\
   select * from t1;\
   set @x = x;
 end";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 call p1(42);
 count(*)
@@ -84,7 +87,7 @@ select @x;
 connection con0;
 disconnect con1;
 set global init_connect="call p1(4711)";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select @x;
 @x
@@ -92,7 +95,7 @@ select @x;
 connection con0;
 disconnect con1;
 set global init_connect="drop procedure if exists p1";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 call p1();
 ERROR 42000: PROCEDURE test.p1 does not exist
@@ -119,7 +122,7 @@ end;
 end loop;
 end|
 set global init_connect="call p1(@sum)";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select @sum;
 @sum
@@ -136,7 +139,7 @@ execute stmt1 using @v;
 deallocate prepare stmt1;
 end|
 set global init_connect="call p1('t1', 11)";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select * from t1;
 x
@@ -154,7 +157,7 @@ select count(*) into n from t1;
 return n;
 end|
 set global init_connect="set @x = f1()";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select @x;
 @x
@@ -162,7 +165,7 @@ select @x;
 connection con0;
 disconnect con1;
 set global init_connect="create view v1 as select f1()";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select * from v1;
 f1()
@@ -170,7 +173,7 @@ f1()
 connection con0;
 disconnect con1;
 set global init_connect="drop view v1";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select * from v1;
 ERROR 42S02: Table 'test.v1' doesn't exist
@@ -182,7 +185,7 @@ after insert on t2
 for each row
 insert into t1 values (new.y);
 set global init_connect="insert into t2 values (13), (17), (19)";
-connect  con1,localhost,mysqltest1,,;
+connect  con1,localhost,mysqltest1,,test;
 connection con1;
 select * from t1;
 x

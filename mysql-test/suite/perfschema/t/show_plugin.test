@@ -1,0 +1,321 @@
+################# suite/perfschema/t/show_plugin.test ##########################
+#                                                                              #
+# MySQL plugins can define their own status variables and system variables.    #
+# This test exercises SHOW STATUS, SHOW VARIABLES and the status and system    #
+# variable tables while the EXAMPLE plugin is loaded and unloaded.             #
+#                                                                              #
+# The EXAMPLE plugin defines the following system and status variables:        #
+# Global system variables:                                                     # 
+#   example_double_thdvar                                                      #
+#   example_double_var                                                         #
+#   example_enum_var                                                           #
+#   example_ulong_var                                                          #
+#                                                                              #
+# Session variables:                                                           #
+#   example_double_thdvar - Local and/or global                                #
+#                                                                              #
+# Global status:                                                               #
+#   example_func_example  - Status function                                    #
+#                                                                              #
+################################################################################
+
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+--source include/not_windows_embedded.inc
+--source include/have_example_plugin.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--enable_connect_log
+
+--echo #
+--echo # ================================================================================
+--echo # SETUP
+--echo # ================================================================================
+--echo # Save the initial number of concurrent sessions
+--source include/count_sessions.inc
+--echo #
+--echo # Verify EXAMPLE plugin is not loaded
+SELECT COUNT(*) = 0 AS "Expect 1" FROM information_schema.plugins WHERE plugin_name = "EXAMPLE";
+--echo #
+--echo # Create one session to force local and global system variables
+--connect(con0, localhost, root,,)
+--connection default
+--echo #
+--echo # ================================================================================
+--echo # TEST 1- NO PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+
+--echo # ================================================================================
+--echo # TEST 2 - PLUGIN LOAD, UNLOAD, RELOAD
+--echo # ================================================================================
+--echo # ================================================================================
+--echo # 2.1 - INSTALL PLUGIN
+--echo # ================================================================================
+INSTALL PLUGIN example SONAME 'ha_example';
+
+--echo #
+--echo # ================================================================================
+--echo # 2.1a - FORCE SYNC OF LOCAL AND GLOBAL SYSTEM VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+
+--disconnect con0
+
+--echo #
+--echo # ================================================================================
+--echo # 2.2 - SET PLUGIN VARS
+--echo # ================================================================================
+--echo # GLOBAL
+SET GLOBAL example_ulong_var = 100;
+SET GLOBAL example_enum_var = e1;
+SET GLOBAL example_double_var = 100.9990;
+SET GLOBAL example_double_thdvar = 101.9991;
+--echo # SESSION
+SET SESSION example_double_thdvar = 102.9992;
+
+--echo #
+--echo # ================================================================================
+--echo # 2.3 - VERIFY UPDATED PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+
+--echo #
+--echo # ================================================================================
+--echo # 2.4 - UNINSTALL PLUGIN
+--echo # ================================================================================
+UNINSTALL PLUGIN example;
+
+--echo #
+--echo # ================================================================================
+--echo # 2.5 - VERIFY NO PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+
+--echo #
+--echo # ================================================================================
+--echo # 2.6 - REINSTALL PLUGIN
+--echo # ================================================================================
+--echo # Reinstall EXAMPLE plugin
+INSTALL PLUGIN example SONAME 'ha_example';
+
+--echo #
+--echo # ================================================================================
+--echo # 2.7 - SET PLUGIN VARS AGAIN
+--echo # ================================================================================
+--echo # GLOBAL
+SET GLOBAL example_ulong_var = 200;
+SET GLOBAL example_enum_var = e2;
+SET GLOBAL example_double_var = 200.8880;
+SET GLOBAL example_double_thdvar = 201.8881;
+--echo # SESSION
+SET SESSION example_double_thdvar = 202.8882;
+
+--echo #
+--echo # ================================================================================
+--echo # 2.8 - VERIFY PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+
+--echo #
+--echo # ================================================================================
+--echo # 2.9 - UNINSTALL PLUGIN
+--echo # ================================================================================
+UNINSTALL PLUGIN example;
+
+--echo #
+--echo # ================================================================================
+--echo # 2.10 - VERIFY NO PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+
+--echo #
+--echo # ================================================================================
+--echo # TEST 3 - SESSION PLUGIN VARS ON MULTIPLE CONNECTIONS
+--echo # ================================================================================
+--echo #
+--echo # ================================================================================
+--echo # 3.1 - INSTALL PLUGIN
+--echo # ================================================================================
+INSTALL PLUGIN example SONAME 'ha_example';
+
+--echo #
+--echo # ================================================================================
+--echo # 3.2 - SET GLOBAL AND DEFAULT CONNECTION VARS
+--echo # ================================================================================
+--connection default
+SET GLOBAL example_ulong_var = 300;
+SET GLOBAL example_enum_var = e1;
+SET GLOBAL example_double_var = 301.0000;
+SET GLOBAL example_double_thdvar = 302.0000;
+SET SESSION example_double_thdvar = 300.0000;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.3 - CONNECT 3 CLIENTS, SET LOCAL PLUGIN VARS
+--echo # ================================================================================
+--connect(con1, localhost, root,,)
+SET SESSION example_double_thdvar = 300.1111;
+--echo #
+--connect(con2, localhost, root,,)
+SET SESSION example_double_thdvar = 300.2222;
+--echo #
+--connect(con3, localhost, root,,)
+SET SESSION example_double_thdvar = 300.3333;
+--echo #
+--connection default
+
+--echo #
+--echo # ================================================================================
+--echo # 3.4 - VERIFY GLOBAL AND SESSION PLUGIN VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+--echo # Variables by thread
+SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
+WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.5 - DISCONNECT CLIENTS
+--echo # ================================================================================
+--connection con1
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection con2
+--disconnect con2
+--source include/wait_until_disconnected.inc
+
+--connection con3
+--disconnect con3
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--echo #
+--echo # ================================================================================
+--echo # 3.6 - VERIFY SESSION VARS ARE REMOVED
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+--echo # Variables by thread
+SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
+WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.7 - RECONNECT 3 CLIENTS, SET SESSION VARS FOR EACH
+--echo # ================================================================================
+--connect(con1, localhost, root,,)
+SET SESSION example_double_thdvar = 311.1111;
+--echo #
+--connect(con2, localhost, root,,)
+SET SESSION example_double_thdvar = 322.2222;
+--echo #
+--connect(con3, localhost, root,,)
+SET SESSION example_double_thdvar = 333.3333;
+--echo #
+--connection default
+
+--echo #
+--echo # ================================================================================
+--echo # 3.8 - VERIFY GLOBAL AND SESSION VARS
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+--echo # Variables by thread
+SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
+WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.9 - UNINSTALL PLUGIN, LEAVE CLIENTS CONNECTED
+--echo # ================================================================================
+UNINSTALL PLUGIN example;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.10 - VERIFY SESSION VARS ARE REMOVED
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+--echo # VARIABLES BY THREAD
+SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
+WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+
+--echo #
+--echo # ================================================================================
+--echo # 3.11 - DISCONNECT CLIENTS
+--echo # ================================================================================
+--connection con1
+--disconnect con1
+--source include/wait_until_disconnected.inc
+
+--connection con2
+--disconnect con2
+--source include/wait_until_disconnected.inc
+
+--connection con3
+--disconnect con3
+--source include/wait_until_disconnected.inc
+
+--connection default
+
+--echo #
+--echo # ================================================================================
+--echo # 3.12 - VERIFY CLIENTS ARE REMOVED
+--echo # ================================================================================
+--source ../include/show_plugin_verifier.inc
+--echo #
+--echo # VARIABLES BY THREAD
+SELECT variable_name, variable_value FROM performance_schema.variables_by_thread
+WHERE variable_name LIKE "example_%" ORDER BY variable_value;
+
+--echo #
+--echo # ================================================================================
+--echo # TEST 4 - BUG#18008907: DEADLOCK WITH CHANGE_USER, SHOW VARIABLES, INSTALL PLUGIN
+--echo # ================================================================================
+--echo #
+--echo #
+--echo # ================================================================================
+--echo # TEST 5 - BUG#22225549 MYSQL_CHANGE_USER/MYSQL_RESET_CONNECTION + SET INNODB...
+--echo          Update to plugin-defined session variable triggers resync with global
+--echo          variables and deadlocks on THD::LOCK_thd_sysvar.
+--echo # ================================================================================
+#
+# The deadlock occurs when plugin-defined session variables are resynced with the global
+# variables. To force a resync, change the user and update a session variable from a
+# plugin, in this case InnoDB.
+#
+select @@session.innodb_strict_mode;
+let $innodb_strict_mode_save = `select @@session.innodb_strict_mode`;
+select user(), current_user();
+--echo # change_user root
+--change_user root
+--echo #
+--echo # Trigger a resync of session variables with global variables.
+--echo #
+set @@session.innodb_strict_mode=off;
+
+--echo #
+--echo # Restore
+--echo #
+eval set @@session.innodb_strict_mode=$innodb_strict_mode_save;
+select @@session.innodb_strict_mode;
+
+--echo #
+--echo # ================================================================================
+--echo # CLEAN UP
+--echo # ================================================================================
+--connection default
+--echo #
+
+--echo #
+--disable_connect_log
+
+--echo #
+--echo # Wait till we reached the initial number of concurrent sessions
+--source include/wait_until_count_sessions.inc

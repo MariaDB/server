@@ -289,10 +289,11 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /*
       HASH entries are of type SQL_HANDLER
     */
-    if (my_hash_init(&thd->handler_tables_hash, &my_charset_latin1,
-                     HANDLER_TABLES_HASH_SIZE, 0, 0,
-                     (my_hash_get_key) mysql_ha_hash_get_key,
-                     (my_hash_free_key) mysql_ha_hash_free, 0))
+    if (my_hash_init(key_memory_THD_handler_tables_hash,
+                     &thd->handler_tables_hash, &my_charset_latin1,
+                     HANDLER_TABLES_HASH_SIZE, 0, 0, (my_hash_get_key)
+                     mysql_ha_hash_get_key, (my_hash_free_key)
+                     mysql_ha_hash_free, 0))
     {
       DBUG_PRINT("exit",("ERROR"));
       DBUG_RETURN(TRUE);
@@ -332,8 +333,8 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     right from the start as open_tables() can't handle properly
     back-off for such locks.
   */
-  tables->mdl_request.init(MDL_key::TABLE, tables->db.str, tables->table_name.str,
-                           MDL_SHARED_READ, MDL_TRANSACTION);
+  MDL_REQUEST_INIT(&tables->mdl_request, MDL_key::TABLE, tables->db.str,
+                   tables->table_name.str, MDL_SHARED_READ, MDL_TRANSACTION);
   mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
   /* for now HANDLER can be used only for real TABLES */
@@ -384,14 +385,14 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     /* copy data to sql_handler */
     if (!(sql_handler= new SQL_HANDLER(thd)))
       goto err;
-    init_alloc_root(&sql_handler->mem_root, "sql_handler", 1024, 0,
+    init_alloc_root(PSI_INSTRUMENT_ME, &sql_handler->mem_root, 1024, 0,
                     MYF(MY_THREAD_SPECIFIC));
 
     sql_handler->db.length= tables->db.length;
     sql_handler->table_name.length= tables->table_name.length;
     sql_handler->handler_name.length= tables->alias.length;
 
-    if (!(my_multi_malloc(MY_WME,
+    if (!(my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                           &sql_handler->base_data,
                           (uint) sql_handler->db.length + 1,
                           &sql_handler->table_name.str,
@@ -479,7 +480,7 @@ err:
     If called with reopen flag, no need to rollback either,
     it will be done at statement end.
   */
-  DBUG_ASSERT(thd->transaction.stmt.is_empty());
+  DBUG_ASSERT(thd->transaction->stmt.is_empty());
   close_thread_tables(thd);
   thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
   thd->set_open_tables(backup_open_tables);
@@ -615,16 +616,28 @@ static SQL_HANDLER *mysql_ha_find_handler(THD *thd, const LEX_CSTRING *name)
 static bool
 mysql_ha_fix_cond_and_key(SQL_HANDLER *handler, 
                           enum enum_ha_read_modes mode, const char *keyname,
-                          List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                          List<Item> *key_expr,
+                          enum ha_rkey_function ha_rkey_mode,
                           Item *cond, bool in_prepare)
 {
   THD *thd= handler->thd;
   TABLE *table= handler->table;
   if (cond)
   {
+    bool ret;
+    Item::vcol_func_processor_result res;
+
     /* This can only be true for temp tables */
     if (table->query_id != thd->query_id)
       cond->cleanup();                          // File was reopened
+
+    ret= cond->walk(&Item::check_handler_func_processor, 0, &res);
+    if (ret || res.errors)
+    {
+      my_error(ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED, MYF(0), res.name,
+               "WHERE", "HANDLER");
+      return 1;                                 // ROWNUM() used
+    }
     if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
@@ -633,14 +646,13 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
   {
     /* Check if same as last keyname. If not, do a full lookup */
     if (handler->keyno < 0 ||
-        my_strcasecmp(&my_charset_latin1,
-                      keyname,
-                      table->s->key_info[handler->keyno].name.str))
+        !Lex_ident_column(Lex_cstring_strlen(keyname)).
+          streq(table->s->key_info[handler->keyno].name))
     {
       if ((handler->keyno= find_type(keyname, &table->s->keynames,
                                      FIND_TYPE_NO_PREFIX) - 1) < 0)
       {
-        my_error(ER_KEY_DOES_NOT_EXITS, MYF(0), keyname,
+        my_error(ER_KEY_DOES_NOT_EXISTS, MYF(0), keyname,
                  handler->handler_name.str);
         return 1;
       }
@@ -661,7 +673,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       if ((c_key->flags & HA_SPATIAL) ||
            c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
           (ha_rkey_mode != HA_READ_KEY_EXACT &&
-           (table->file->index_flags(handler->keyno, 0, TRUE) &
+           (table->key_info[handler->keyno].index_flags &
             (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
@@ -677,8 +689,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       }
 
       if (key_expr->elements < keyinfo->user_defined_key_parts &&
-               (table->file->index_flags(handler->keyno, 0, TRUE) &
-                HA_ONLY_WHOLE_INDEX))
+          (table->key_info[handler->keyno].index_flags & HA_ONLY_WHOLE_INDEX))
       {
         my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
                  table->file->index_type(handler->keyno), keyinfo->name.str);
@@ -785,7 +796,7 @@ retry:
   if (!(handler= mysql_ha_find_handler(thd, &tables->alias)))
     goto err0;
 
-  if (thd->transaction.xid_state.check_has_uncommitted_xa())
+  if (thd->transaction->xid_state.check_has_uncommitted_xa())
     goto err0;
 
   table= handler->table;
@@ -976,6 +987,7 @@ retry:
       }
       goto ok;
     }
+    thd->inc_examined_row_count();
     if (cond && !cond->val_int())
     {
       if (thd->is_error())
@@ -990,6 +1002,7 @@ retry:
         goto err;
 
       protocol->write();
+      thd->inc_sent_row_count(1);
     }
     num_rows++;
   }
@@ -1022,7 +1035,8 @@ err0:
 SQL_HANDLER *mysql_ha_read_prepare(THD *thd, TABLE_LIST *tables,
                                    enum enum_ha_read_modes mode,
                                    const char *keyname,
-                                   List<Item> *key_expr, enum ha_rkey_function ha_rkey_mode,
+                                   List<Item> *key_expr,
+                                   enum ha_rkey_function ha_rkey_mode,
                                    Item *cond)
 {
   SQL_HANDLER *handler;
@@ -1066,10 +1080,8 @@ static SQL_HANDLER *mysql_ha_find_match(THD *thd, TABLE_LIST *tables)
       if (tables->is_anonymous_derived_table())
         continue;
       if ((! tables->db.str[0] ||
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->db.str,
-                          tables->get_db_name())) &&
-          ! my_strcasecmp(&my_charset_latin1, hash_tables->table_name.str,
-                          tables->get_table_name()))
+          tables->get_db_name().streq(hash_tables->db)) &&
+          tables->get_table_name().streq(hash_tables->table_name))
       {
         /* Link into hash_tables list */
         hash_tables->next= head;

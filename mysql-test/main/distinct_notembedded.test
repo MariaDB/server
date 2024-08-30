@@ -1,0 +1,113 @@
+# Embedded doesn't have optimizer trace:
+--source include/not_embedded.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-30660 COUNT DISTINCT seems unnecessarily slow when run on a PK
+--echo #
+
+#Enable after fix MDEV-32034
+--disable_view_protocol
+set @save_optimizer_trace = @@optimizer_trace;
+SET optimizer_trace='enabled=on';
+let $trace=
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '\$**.prepare_sum_aggregators')) AS JS
+  FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+CREATE TABLE t1 (a INT NOT NULL PRIMARY KEY, b INT NOT NULL);
+INSERT INTO t1 VALUES (1,1), (2,1), (3,1);
+
+--echo # Optimization is applied (aggregator=simple):
+SELECT COUNT(DISTINCT a) FROM t1;
+eval $trace;
+
+SELECT AVG(DISTINCT a), SUM(DISTINCT b) FROM t1;
+eval $trace;
+
+--echo # Only `a` is unique but it's enough to eliminate DISTINCT:
+SELECT COUNT(DISTINCT b, a) FROM t1;
+eval $trace;
+
+SELECT COUNT(DISTINCT a, a + b) FROM t1;
+eval $trace;
+
+SELECT SUM(DISTINCT a), AVG(DISTINCT a), COUNT(DISTINCT a) FROM t1 WHERE a > 1;
+eval $trace;
+
+--echo # Optimization is not applied 'cause function argument is not a field
+--echo # (aggregator=distinct):
+SELECT SUM(DISTINCT a + b) FROM t1;
+eval $trace;
+
+SELECT COUNT(DISTINCT b) FROM t1;
+eval $trace;
+
+SELECT AVG(DISTINCT b / a) FROM t1;
+eval $trace;
+
+EXPLAIN SELECT COUNT(DISTINCT (SELECT a)) FROM t1;
+eval $trace;
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (1), (2);
+
+--echo # Optimization is not applied 'cause there is more than one table
+SELECT COUNT(DISTINCT t1.a) FROM t1, t2;
+eval $trace;
+
+SELECT AVG(DISTINCT t1.a) FROM t1, t2;
+eval $trace;
+
+--echo # Const tables, optimization is applied
+SELECT COUNT(DISTINCT a) FROM t1, (SELECT 1) AS t2;
+eval $trace;
+
+SELECT AVG(DISTINCT t1.a) FROM (SELECT 1 AS a) AS t2, t1, (SELECT 2 AS a) AS t3;
+eval $trace;
+
+SELECT COUNT(DISTINCT a) FROM t1, (SELECT 1 UNION SELECT 2) AS t2;
+eval $trace;
+
+--echo # Unique index on two columns
+CREATE TABLE t3 (a INT NOT NULL, b INT NOT NULL);
+INSERT INTO t3 VALUES (1,1), (1,2), (1,3), (2,1), (2,2), (3,1), (3,2);
+CREATE UNIQUE INDEX t3_a_b ON t3 (a, b);
+--echo # Optimization is applied:
+SELECT COUNT(DISTINCT a, b) FROM t3;
+eval $trace;
+
+SELECT COUNT(DISTINCT b, a) FROM t3;
+eval $trace;
+
+SELECT COUNT(DISTINCT b, a) FROM t3 WHERE a < 3;
+eval $trace;
+
+--echo # Optimization is applied to one of the functions:
+SELECT COUNT(DISTINCT b), SUM(DISTINCT a), SUM(DISTINCT a + b) FROM t3 GROUP BY a;
+eval $trace;
+
+--echo # Can't apply optimization 'cause GROUP BY argument is not a field:
+SELECT COUNT(DISTINCT b) FROM t3 GROUP BY a+b;
+eval $trace;
+
+--echo # Test merged view
+CREATE VIEW v1 AS SELECT * FROM t1;
+--echo # Optimization is applied
+SELECT COUNT(DISTINCT a, b) FROM v1;
+eval $trace;
+
+--echo # GROUP_CONCAT implements non-standard distinct aggregator
+SELECT GROUP_CONCAT(b) FROM t1;
+eval $trace;
+
+SELECT GROUP_CONCAT(DISTINCT b) FROM t1;
+eval $trace;
+
+DROP TABLE t1, t2, t3;
+DROP VIEW v1;
+SET optimizer_trace = @save_optimizer_trace;
+--enable_view_protocol
+
+--echo #
+--echo # end of 10.5 tests
+--echo #

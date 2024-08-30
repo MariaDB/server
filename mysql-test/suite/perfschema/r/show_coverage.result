@@ -1,0 +1,142 @@
+
+# TEST 1
+# Handling of SHOW STATUS/VARIABLES ... WHERE
+#
+SHOW STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+# TEST 2
+# CREATE..SELECT -- Expect correct ER_WARN_DEPRECATED_SYNTAX
+#
+USE test;
+CREATE TABLE t0 SELECT * FROM information_schema.global_status WHERE variable_name = 'COM_SELECT';
+DROP TABLE t0;
+
+# TEST 3
+# Select status and system variable tables using ORDER BY to exercise the
+# rnd_pos() method
+#
+use performance_schema;
+select * from global_variables order by variable_name;
+select * from variables_by_thread order by variable_name;
+select * from session_variables order by variable_name;
+select * from global_status order by variable_name;
+select * from session_status order by variable_name;
+select * from status_by_thread order by variable_name;
+select * from status_by_user order by variable_name;
+select * from status_by_host order by variable_name;
+select * from status_by_account order by variable_name;
+
+# TEST 4
+# Handling of SHOW STATUS/VARIABLES ... WHERE
+#
+SHOW STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+Variable_name	Value
+
+# TEST 5
+# Confirm FLUSH STATUS resets counters for all threads.
+#
+
+# Create a new connection
+connect con1, localhost, root,,;
+
+# Record thread id
+
+# Increase bytes_received for new connection
+USE test;
+SHOW TABLES;
+Tables_in_test
+connection default;
+USE performance_schema;
+
+# Record bytes_received for other connection
+SELECT variable_value FROM status_by_thread
+WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
+
+# Reset status counters
+FLUSH STATUS;
+
+# Record bytes_received after reset
+SELECT variable_value FROM status_by_thread
+WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+Warning	1329	No data - zero rows fetched, selected, or processed
+
+# Expect bytes_before > bytes_after
+SELECT @bytes_before > @bytes_after AS 'Expect 1';
+Expect 1
+NULL
+
+# Expect bytes_after is zero
+SELECT @bytes_after AS 'Expect 0';
+Expect 0
+NULL
+disconnect con1;
+
+# TEST 6
+#
+# Bug#28291258 FLUSH STATUS ADDS TWICE TO GLOBAL VALUES
+#
+
+# Default connection
+
+# First connection
+connect  con1, localhost, root,,;
+include/assert.inc [Global value requested from the first session must not change]
+
+# Generate a slow query
+
+SET long_query_time = 2;
+SELECT SLEEP(4);
+SLEEP(4)
+0
+SET long_query_time = @@global.long_query_time;
+
+include/assert.inc [Global value requested from the first session after SLEEP() must increase by 1]
+include/assert.inc [First session value must increase by 1]
+connection default;
+disconnect con1;
+
+# Default connection
+connection default;
+include/assert.inc [Global value requested from the default session after DISCONNECT must remain the same]
+include/assert.inc [Default session value must remain zero]
+
+FLUSH STATUS;
+
+include/assert.inc [Global value requested from the default session after FLUSH must remain the same]
+include/assert.inc [Default session value after FLUSH must remain zero]

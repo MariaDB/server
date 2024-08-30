@@ -1,5 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Write to binary log failed: Multi-row statements required more than .max_binlog_stmt_cache_size");
 call mtr.add_suppression("Write to binary log failed: Multi-statement transaction required more than .max_binlog_cache_size");
@@ -9,9 +14,9 @@ SET GLOBAL max_binlog_stmt_cache_size = 4096;
 SET GLOBAL binlog_stmt_cache_size = 4096;
 disconnect master;
 connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
-CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=Innodb;
-CREATE TABLE t2(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=MyIsam;
-CREATE TABLE t3(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=Innodb;
+CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=Innodb CHARSET=latin1;
+CREATE TABLE t2(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=MyIsam CHARSET=latin1;
+CREATE TABLE t3(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=Innodb CHARSET=latin1;
 ########################################################################################
 #                                   1 - SINGLE STATEMENT
 ########################################################################################
@@ -94,7 +99,7 @@ connection master;
 TRUNCATE TABLE t1;
 TRUNCATE TABLE t2;
 TRUNCATE TABLE t3;
-CREATE PROCEDURE p1(pd VARCHAR(30000))
+CREATE PROCEDURE p1(pd VARCHAR(30000) CHARACTER SET latin1)
 BEGIN
 INSERT INTO t1 (a, data) VALUES (1, pd);
 INSERT INTO t1 (a, data) VALUES (2, pd);

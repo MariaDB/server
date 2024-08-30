@@ -1,0 +1,69 @@
+--source include/default_charset.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+
+--echo #
+--echo #  MDEV-30662 SQL/PL package body does not appear in I_S.ROUTINES.ROUTINE_DEFINITION
+--echo #
+
+# Testing a package without the executable section
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg1 AS
+  FUNCTION f1() RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f1() RETURN INT AS
+  BEGIN
+    RETURN 1;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+SELECT routine_name, routine_type, routine_definition
+FROM information_schema.routines
+WHERE routine_type LIKE 'PACKAGE%'
+ORDER BY routine_type;
+--horizontal_results
+
+DROP PACKAGE pkg1;
+
+# Testing a package with the executable section
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE pkg1 AS
+  FUNCTION f1() RETURN INT;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  FUNCTION f1() RETURN INT AS
+  BEGIN
+    RETURN 1;
+  END;
+BEGIN
+  SET @a=10;
+  SET @a=f1();
+END;
+$$
+DELIMITER ;$$
+
+--vertical_results
+SELECT routine_name, routine_type, routine_definition
+FROM information_schema.routines
+WHERE routine_type LIKE 'PACKAGE%'
+ORDER BY routine_type;
+--horizontal_results
+
+DROP PACKAGE pkg1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

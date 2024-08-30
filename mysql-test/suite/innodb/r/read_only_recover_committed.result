@@ -19,7 +19,8 @@ SET DEBUG_SYNC='now WAIT_FOR committed';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t VALUES(-10000);
-ROLLBACK;
+DELETE FROM t WHERE a=-10000;
+COMMIT;
 # restart: --innodb-force-recovery=3
 disconnect con1;
 disconnect con2;

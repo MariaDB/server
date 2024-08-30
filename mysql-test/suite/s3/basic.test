@@ -1,0 +1,88 @@
+--source include/have_s3.inc
+--source include/have_sequence.inc
+
+#
+# Create unique database for running the tests
+#
+--source create_database.inc
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo #
+--echo # Test simple create of s3 table
+--echo #
+
+create or replace table t1 (a int, b int, c varchar(1000), key (a), key(c)) engine=aria;
+insert into t1 select seq, seq+10, repeat(char(65+ mod(seq, 20)),mod(seq,1000)) from seq_1_to_10000;
+alter table t1 engine=s3;
+show create table t1;
+
+--replace_column 2 # 11 # 15 # 16 # 17 # 23 #
+--replace_result $database database
+--eval select * from information_schema.tables where table_schema="$database" and table_name="t1";
+--replace_column 8 # 12 # 13 # 14 # 19 #
+show table status like "t1";
+select a,b from t1 limit 10;
+select count(*) from t1;
+select a,b from t1 where a between 10 and 20;
+--replace_column 9 #
+explain select * from t1 where a between 10 and 20;
+--error ER_OPEN_AS_READONLY
+insert into t1 values (1,1);
+--error ER_OPEN_AS_READONLY
+update t1 set b=100 where a=1;
+--error ER_OPEN_AS_READONLY
+delete from t1 where a>10;
+
+
+--echo #
+--echo # Analyze, repair, optimize and check table
+--echo #
+
+set @@use_stat_tables='never';
+truncate mysql.table_stats;
+--replace_result $database database
+check table t1 fast;
+--replace_result $database database
+check table t1 quick;
+--replace_result $database database
+check table t1 extended;
+--replace_result $database database
+analyze table t1;
+--replace_result $database database
+analyze table t1 persistent for all;
+--replace_result $database database
+repair table t1;
+--replace_result $database database
+optimize table t1;
+--replace_result $database database
+select * from mysql.table_stats;
+
+--echo #
+--echo # Converting table back to Aria
+--echo #
+
+alter table t1 engine=aria;
+show create table t1;
+select a,b from t1 limit 10;
+select count(*) from t1;
+delete from t1 where a=1;
+drop table t1;
+
+--echo #
+--echo # status
+--echo #
+
+--replace_column 2 X
+show variables like "s3%";
+show variables like "s3_slave%";
+show variables like "s3_replicate%";
+
+--replace_column 2 X
+show status like "s3%";
+
+#
+# clean up
+#
+--source drop_database.inc

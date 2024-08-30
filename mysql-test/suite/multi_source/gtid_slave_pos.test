@@ -11,9 +11,9 @@
 
 --connection slave1
 --replace_result $SERVER_MYPORT_1 MYPORT_1
-eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'slave1' TO master_port=$SERVER_MYPORT_1, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 --replace_result $SERVER_MYPORT_2 MYPORT_2
-eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_use_gtid=slave_pos;
+eval CHANGE MASTER 'slave2' TO master_port=$SERVER_MYPORT_2, master_host='127.0.0.1', master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 set default_master_connection = 'slave1';
 START SLAVE;
 --source include/wait_for_slave_to_start.inc

@@ -1,0 +1,14 @@
+SET @save_size=@@innodb_buffer_pool_size;
+#
+# MDEV-27891: Delayed SIGSEGV in InnoDB buffer pool resize
+# after or during DROP TABLE
+#
+select @@innodb_buffer_pool_chunk_size;
+@@innodb_buffer_pool_chunk_size
+1048576
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL innodb_buffer_pool_size=256*1024*1024;
+DROP TABLE t1;
+SET GLOBAL innodb_buffer_pool_size=@@innodb_buffer_pool_size + @@innodb_buffer_pool_chunk_size;
+# End of 10.6 tests
+SET GLOBAL innodb_buffer_pool_size=@save_size;

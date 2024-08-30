@@ -1,0 +1,30 @@
+connection node_2;
+connection node_1;
+connection node_1;
+create table t1(a int);
+set @@wsrep_gtid_seq_no=22;
+insert into t1 values(1);
+insert into t1 values(2);
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-23
+select wsrep_last_seen_gtid();
+wsrep_last_seen_gtid()
+1-1-23
+select wsrep_last_written_gtid();
+wsrep_last_written_gtid()
+1-1-23
+connection node_2;
+select @@gtid_binlog_state;
+@@gtid_binlog_state
+1-1-23
+select wsrep_last_seen_gtid();
+wsrep_last_seen_gtid()
+1-1-23
+select wsrep_last_written_gtid();
+wsrep_last_written_gtid()
+1-1-0
+connection node_1;
+drop table t1;
+connection node_2;
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

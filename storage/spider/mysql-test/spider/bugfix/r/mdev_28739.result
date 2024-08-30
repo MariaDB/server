@@ -19,6 +19,8 @@ set spider_same_server_link = on;
 CREATE TABLE tbl_a (
 id INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * FROM tbl_a;
 id
 # restart

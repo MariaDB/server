@@ -1,5 +1,6 @@
 /*
    Copyright (c) 2005, 2013, Oracle and/or its affiliates.
+   Copyright (c) 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -20,6 +21,7 @@
 #include "sql_parse.h"
 #include "sql_acl.h"
 #include "rpl_rli.h"
+#include "rpl_mi.h"
 #include "slave.h"
 #include "log_event.h"
 
@@ -69,7 +71,8 @@ static int check_event_type(int type, Relay_log_info *rli)
 
     /* It is always allowed to execute FD events. */
     return 0;
-    
+
+  case QUERY_EVENT:
   case TABLE_MAP_EVENT:
   case WRITE_ROWS_EVENT_V1:
   case UPDATE_ROWS_EVENT_V1:
@@ -134,7 +137,7 @@ int binlog_defragment(THD *thd)
     entry[k]=
       (user_var_entry*) my_hash_search(&thd->user_vars, (uchar*) name[k].str,
                                        name[k].length);
-    if (!entry[k] || entry[k]->type != STRING_RESULT)
+    if (!entry[k] || entry[k]->type_handler()->result_type() != STRING_RESULT)
     {
       my_error(ER_WRONG_TYPE_FOR_VAR, MYF(0), name[k].str);
       return -1;
@@ -143,7 +146,7 @@ int binlog_defragment(THD *thd)
   }
 
   thd->lex->comment.str=                            // to be freed by the caller
-    (char *) my_malloc(thd->lex->comment.length, MYF(MY_WME));
+    (char *) my_malloc(PSI_INSTRUMENT_ME, thd->lex->comment.length, MYF(MY_WME));
   if (!thd->lex->comment.str)
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
@@ -159,13 +162,65 @@ int binlog_defragment(THD *thd)
     gathered_length += entry[k]->length;
   }
   for (uint k=0; k < 2; k++)
-    update_hash(entry[k], true, NULL, 0, STRING_RESULT, &my_charset_bin, 0);
+    update_hash(entry[k], true, NULL, 0,
+                &type_handler_long_blob, &my_charset_bin);
 
   DBUG_ASSERT(gathered_length == thd->lex->comment.length);
 
   return 0;
 }
 
+/**
+  Wraps Log_event::apply_event to save and restore
+  session context in case of Query_log_event.
+
+  @param ev   replication event
+  @param rgi  execution context for the event
+
+  @return
+    0         on success,
+    non-zero  otherwise.
+*/
+#if !defined(MYSQL_CLIENT) && defined(HAVE_REPLICATION)
+int save_restore_context_apply_event(Log_event *ev, rpl_group_info *rgi)
+{
+  if (ev->get_type_code() != QUERY_EVENT)
+    return ev->apply_event(rgi);
+
+  THD *thd= rgi->thd;
+  Relay_log_info *rli= thd->rli_fake;
+  DBUG_ASSERT(!rli->mi);
+  LEX_CSTRING connection_name= { STRING_WITH_LEN("BINLOG_BASE64_EVENT") };
+
+  if (!(rli->mi= new Master_info(&connection_name, false)))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return -1;
+  }
+
+  sql_digest_state *m_digest= thd->m_digest;
+  PSI_statement_locker *m_statement_psi= thd->m_statement_psi;;
+  LEX_CSTRING save_db= thd->db;
+  my_thread_id m_thread_id= thd->variables.pseudo_thread_id;
+
+  thd->system_thread_info.rpl_sql_info= NULL;
+  thd->reset_db(&null_clex_str);
+
+  thd->m_digest= NULL;
+  thd->m_statement_psi= NULL;
+
+  int err= ev->apply_event(rgi);
+
+  thd->m_digest= m_digest;
+  thd->m_statement_psi= m_statement_psi;
+  thd->variables.pseudo_thread_id= m_thread_id;
+  thd->reset_db(&save_db);
+  delete rli->mi;
+  rli->mi= NULL;
+
+  return err;
+}
+#endif
 
 /**
   Execute a BINLOG statement.
@@ -189,7 +244,7 @@ void mysql_client_binlog_statement(THD* thd)
                             thd->lex->comment.length : 2048),
                      thd->lex->comment.str));
 
-  if (check_global_access(thd, SUPER_ACL))
+  if (check_global_access(thd, PRIV_STMT_BINLOG))
     DBUG_VOID_RETURN;
 
   /*
@@ -206,20 +261,18 @@ void mysql_client_binlog_statement(THD* thd)
   int err;
   Relay_log_info *rli;
   rpl_group_info *rgi;
-  char *buf= NULL;
+  uchar *buf= NULL;
   size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
-  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE)))
+  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
     rli->sql_driver_thd= thd;
   if (!(rgi= thd->rgi_fake))
     rgi= thd->rgi_fake= new rpl_group_info(rli);
   rgi->thd= thd;
-
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
-
   /*
     Out of memory check
   */
@@ -242,7 +295,8 @@ void mysql_client_binlog_statement(THD* thd)
   }
 
   decoded_len= my_base64_needed_decoded_length((int)coded_len);
-  if (!(buf= (char *) my_malloc(decoded_len, MYF(MY_WME))))
+  if (!(buf= (uchar *) my_malloc(key_memory_binlog_statement_buffer,
+                                decoded_len, MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
     goto end;
@@ -297,7 +351,7 @@ void mysql_client_binlog_statement(THD* thd)
       Now we start to read events of the buffer, until there are no
       more.
     */
-    for (char *bufptr= buf ; bytes_decoded > 0 ; )
+    for (uchar *bufptr= buf ; bytes_decoded > 0 ; )
     {
       /*
         Checking that the first event in the buffer is not truncated.
@@ -352,8 +406,28 @@ void mysql_client_binlog_statement(THD* thd)
         (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?
          OPTION_SKIP_REPLICATION : 0);
 
-      err= ev->apply_event(rgi);
+      {
+        /*
+          For conventional statements thd->lex points to thd->main_lex, that is
+          thd->lex == &thd->main_lex. On the other hand, for prepared statement
+          thd->lex points to the LEX object explicitly allocated for execution
+          of the prepared statement and in this case thd->lex != &thd->main_lex.
+          On handling the BINLOG statement, invocation of ev->apply_event(rgi)
+          initiates the following sequence of calls
+            Rows_log_event::do_apply_event -> THD::reset_for_next_command
+          Since the method THD::reset_for_next_command() contains assert
+            DBUG_ASSERT(lex == &main_lex)
+          this sequence of calls results in crash when a binlog event is
+          applied in PS mode. So, reset the current lex temporary to point to
+          thd->main_lex before running ev->apply_event() and restore its
+          original value on return.
+        */
+        LEX *backup_lex;
 
+        thd->backup_and_reset_current_lex(&backup_lex);
+        err= save_restore_context_apply_event(ev, rgi);
+        thd->restore_current_lex(backup_lex);
+      }
       thd->variables.option_bits=
         (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
         save_skip_replication;
@@ -367,7 +441,7 @@ void mysql_client_binlog_statement(THD* thd)
         i.e. when this thread terminates.
       */
       if (ev->get_type_code() != FORMAT_DESCRIPTION_EVENT)
-        delete ev; 
+        delete ev;
       ev= 0;
       if (err)
       {
@@ -375,7 +449,8 @@ void mysql_client_binlog_statement(THD* thd)
           TODO: Maybe a better error message since the BINLOG statement
           now contains several events.
         */
-        my_error(ER_UNKNOWN_ERROR, MYF(0));
+        if (!thd->is_error())
+          my_error(ER_UNKNOWN_ERROR, MYF(0));
         goto end;
       }
     }
@@ -391,5 +466,7 @@ end:
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
+  delete rgi;
+  rgi= thd->rgi_fake= NULL;
   DBUG_VOID_RETURN;
 }

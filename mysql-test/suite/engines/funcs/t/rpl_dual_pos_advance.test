@@ -16,7 +16,7 @@ reset master;
 
 connection master;
 --replace_result $SLAVE_MYPORT SLAVE_PORT
-eval change master to master_host="127.0.0.1",master_port=$SLAVE_MYPORT,master_user="root";
+eval change master to master_host="127.0.0.1",master_port=$SLAVE_MYPORT,master_user="root",master_ssl_verify_server_cert=0;
 
 --source include/start_slave.inc
 
@@ -100,6 +100,7 @@ reset slave;
 drop table t1,t4,t5,t6; # add t2 and t3 later
 
 --sync_slave_with_master
+--source include/wait_for_slave_to_start.inc
 
 # End of 4.1 tests
 --source include/rpl_end.inc

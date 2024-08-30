@@ -17,7 +17,7 @@
 #include <string.h>
 #include <assert.h>
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <sys/un.h>
 #include <netdb.h>
 #else
@@ -91,7 +91,7 @@ void sphUnalignedWrite ( void * pPtr, const T & tVal )
 #define SafeDeleteArray(_arg)	{ if ( _arg ) delete [] ( _arg );	(_arg) = NULL; }
 
 #define Min(a,b) ((a)<(b)?(a):(b))
-#ifndef __WIN__
+#ifndef _WIN32
 typedef unsigned int DWORD;
 #endif
 inline DWORD sphF2DW ( float f ) { union { float f; uint32 d; } u; u.f = f; return u.d; }
@@ -361,7 +361,7 @@ bool CSphUrl::Parse ( const char * sUrl, int iLen )
 int CSphUrl::Connect()
 {
 	struct sockaddr_in sin;
-#ifndef __WIN__
+#ifndef _WIN32
 	struct sockaddr_un saun;
 #endif
 
@@ -428,7 +428,7 @@ int CSphUrl::Connect()
 		}
 	} else
 	{
-#ifndef __WIN__
+#ifndef _WIN32
 		iDomain = AF_UNIX;
 		iSockaddrSize = sizeof(saun);
 		pSockaddr = (struct sockaddr *) &saun;

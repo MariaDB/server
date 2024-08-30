@@ -49,7 +49,9 @@ drop table t1;
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", query_cache_sync "3"';
 create table t2 (c int);
+--disable_ps_protocol
 /* 5 */ insert into t1 values (42);
+--enable_ps_protocol
 select sql_cache * from t1;
 select sql_no_cache * from t1;
 
@@ -60,7 +62,9 @@ drop table t1, t2;
 create table t2 (c int);
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
 /* 6 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -69,7 +73,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
 /* 7 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -78,7 +84,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+--disable_ps_protocol
 /* 8 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -87,7 +95,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+--disable_ps_protocol
 /* 9 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -98,7 +108,9 @@ drop table t1, t2;
 create table t2 (c int, unique key (c));
 create table t1 (c int, primary key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "c"';
+--disable_ps_protocol
 /* 9.1 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -108,7 +120,9 @@ drop table t1, t2;
 create table t2 (c int, unique key (c));
 create table t1 (c int, key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "f"';
+--disable_ps_protocol
 /* 10 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -118,7 +132,9 @@ drop table t1, t2;
 create table t2 (c int, primary key (c));
 create table t1 (c int, key (c)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+--disable_ps_protocol
 /* 11 */ insert ignore into t1 values (42), (42);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -128,7 +144,9 @@ drop table t1, t2;
 create table t2 (c int, d int, unique key (c), unique key (d));
 create table t1 (c int, d int, key (c), key (d)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", pk_name "blah"';
+--disable_ps_protocol
 /* 12 */ insert ignore into t1 values (42, 43), (43, 43);
+--enable_ps_protocol
 select * from t1;
 
 drop table t1, t2;
@@ -138,7 +156,9 @@ create table t2 (c int, d int, primary key (c), key (d));
 show create table t2;
 create table t1 (c int, d int, primary key (c), key (d)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f d"';
+--disable_ps_protocol
 show create table t1;
+--enable_ps_protocol
 /* 13 */ insert into t1 values (42, 23), (37, 93);
 select max(d) from t1;
 
@@ -149,7 +169,9 @@ create table t2 (c int, d int, e int, primary key (c), key (d), unique key (e));
 show create table t2;
 create table t1 (c int, d int, e int, primary key (c), key (d), unique key (e)) ENGINE=Spider
 COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2", idx000 "f PRIMARY", idx001 "u d", idx002 "ig e"';
+--disable_ps_protocol
 show create table t1;
+--enable_ps_protocol
 /* 14 */ insert into t1 values (42, 23, 89), (37, 93, 47);
 select max(d) from t1;
 

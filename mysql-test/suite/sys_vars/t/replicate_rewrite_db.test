@@ -1,0 +1,81 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-15530: Variable replicate_rewrite_db
+--echo #             cannot be found in "show global variables"
+--echo #
+
+SET @save_replicate_rewrite_db = @@GLOBAL.replicate_rewrite_db;
+SELECT @save_replicate_rewrite_db;
+
+--echo # Test session/Scope (it is global variable)
+
+select @@global.replicate_rewrite_db;
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SELECT @@SESSION.replicate_rewrite_db;
+--error ER_GLOBAL_VARIABLE
+SET @@SESSION.replicate_rewrite_db = "";
+show global variables like 'replicate_rewrite_db';
+show session variables like 'replicate_rewrite_db';
+select * from information_schema.global_variables where variable_name='replicate_rewrite_db';
+select * from information_schema.session_variables where variable_name='replicate_rewrite_db';
+
+--echo # Incorrect type
+
+--error ER_WRONG_TYPE_FOR_VAR
+SET @@GLOBAL.replicate_rewrite_db=1;
+--error ER_WRONG_ARGUMENTS
+SET @@GLOBAL.replicate_rewrite_db="->";
+--error ER_WRONG_ARGUMENTS
+SET @@GLOBAL.replicate_rewrite_db="   ";
+--error ER_WRONG_ARGUMENTS
+SET @@GLOBAL.replicate_rewrite_db="a->";
+--error ER_WRONG_ARGUMENTS
+SET @@GLOBAL.replicate_rewrite_db="->b";
+
+--echo # Check arguments
+
+--error ER_GLOBAL_VARIABLE
+set session replicate_rewrite_db=1;
+--error ER_WRONG_TYPE_FOR_VAR
+set global replicate_rewrite_db=1;
+--error ER_GLOBAL_VARIABLE
+SET @@SESSION.replicate_do_db = "";
+# This should work
+SET @@GLOBAL.replicate_rewrite_db="";
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db=null;
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db=DEFAULT;
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db="db1->db3";
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db="db2  ->db4";
+SELECT @@GLOBAL.replicate_rewrite_db;
+SET @@GLOBAL.replicate_rewrite_db="  db5  ->db7  ";
+SELECT @@GLOBAL.replicate_rewrite_db;
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_rewrite_db';
+select * from information_schema.session_variables where variable_name='replicate_rewrite_db';
+show global variables like 'replicate_rewrite_db';
+
+SET @@GLOBAL.replicate_rewrite_db="db1->db2, db3->db4";
+SELECT @@GLOBAL.replicate_rewrite_db;
+SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME='replicate_rewrite_db';
+
+--echo # Check restart with appending the value
+--let $restart_parameters = --replicate_rewrite_db='X->Y'
+--source include/restart_mysqld.inc
+SELECT @@GLOBAL.replicate_rewrite_db;
+
+--echo # Check restart with wrong value on CLI
+--source include/shutdown_mysqld.inc
+# Expect the server to fail to come up with these options
+--let $args="--replicate_rewrite_db=x-" --log-warnings=1 --silent-startup --help --verbose 
+--error 1
+--exec $MYSQLD_CMD $args > $MYSQL_TMP_DIR/mysqld--replicate.txt 2> $MYSQL_TMP_DIR/mysqld--replicate.err
+--replace_regex /mysqld/mariadbd/ /\d\d\d\d-\d*-\d* *\d*:\d*:\d* \d* //
+--cat_file $MYSQL_TMP_DIR/mysqld--replicate.err
+# Restart the server with the default options
+--let $restart_parameters =
+--source include/start_mysqld.inc
+SELECT @@GLOBAL.replicate_rewrite_db;

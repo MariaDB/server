@@ -1,8 +1,9 @@
+
 package My::Suite::AuthGSSAPI;
 
 @ISA = qw(My::Suite);
 
-return "No AUTH_GSSAPI plugin" unless $ENV{AUTH_GSSAPI_SO};
+return "No AUTH_GSSAPI plugin" unless ($ENV{AUTH_GSSAPI_SO} or $::mysqld_variables{gssapi} eq "ON");
 
 return "Not run for embedded server" if $::opt_embedded_server;
 
@@ -14,6 +15,9 @@ if ($^O eq "MSWin32")
   $fullname =~ s/\\/\\\\/; # SQL escaping for backslash
   $ENV{'GSSAPI_FULLNAME'}  = $fullname;
   $ENV{'GSSAPI_SHORTNAME'} = $ENV{'USERNAME'};
+  chomp(my $sid = `powershell -Command "([System.Security.Principal.WindowsIdentity]::GetCurrent()).User.Value"`);
+  $ENV{'SID'} = $sid;
+
 }
 else
 {

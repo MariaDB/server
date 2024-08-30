@@ -238,30 +238,26 @@ dist	buffer	buf_area
 -1	POLYGON	16.00
 SELECT ST_CONTAINS(
 GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
-GeomFromText('POINT(5 10)'));
-ST_CONTAINS(
-GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
-GeomFromText('POINT(5 10)'))
+GeomFromText('POINT(5 10)')) as geom;
+geom
 0
 SELECT AsText(ST_UNION(
 GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
-GeomFromText('POINT(5 10)')));
-AsText(ST_UNION(
-GeomFromText('MULTIPOLYGON(((0 0, 0 5, 5 5, 5 0, 0 0)),((6 6, 6 11, 11 11, 11 6, 6 6)))'),
-GeomFromText('POINT(5 10)')))
+GeomFromText('POINT(5 10)'))) as geom;
+geom
 GEOMETRYCOLLECTION(POLYGON((0 0,0 5,5 5,5 0,0 0)),POLYGON((6 6,6 11,11 11,11 6,6 6)),POINT(5 10))
 DROP PROCEDURE p1;
 #
 # Bug #13833019 ASSERTION `T1->RESULT_RANGE' FAILED IN GCALC_OPERATION_REDUCER::END_COUPLE
 #
-SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0 0)),((2 2,2 2,8 8,2 3,2 2)))'), 3));
-GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0 0)),((2 2,2 2,8 8,2 3,2 2)))'), 3))
+SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((0 0,9 4,3 3,0 0)),((2 2,2 2,8 8,2 3,2 2)))'), 3)) as geom;
+geom
 POLYGON
 #
 # Bug #13832749 	HANDLE_FATAL_SIGNAL IN GCALC_FUNCTION::COUNT_INTERNAL
 #
-SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1));
-GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1))
+SELECT GeometryType(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2), (4 4,4 6,6 6,6 4,4 4)), ((9 9,8 1,1 5,9 9)))'),1)) as geom;
+geom
 POLYGON
 #
 # Bug#13358363 - ASSERTION: N > 0 && N < SINUSES_CALCULATED*2+1 | GET_N_SINCOS/ADD_EDGE_BUFFER
@@ -272,27 +268,21 @@ Warning	1292	Truncated incorrect DOUBLE value: ''
 SELECT ST_WITHIN(
 LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
 ST_BUFFER(MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2),(4 4,4 6,6 6,6 4,4 4)),((0 5,3 5,3 2,1 2,1 1,3 1,3 0,0 0,0 3,2 3,2 4,0 4,0 5))) '),
-ST_NUMINTERIORRINGS(POLYGONFROMTEXT('POLYGON((3 5,2 4,2 5,3 5)) '))));
-ST_WITHIN(
-LINESTRINGFROMTEXT(' LINESTRING(3 8,9 2,3 8,3 3,7 6,4 7,4 7,8 1) '),
-ST_BUFFER(MULTIPOLYGONFROMTEXT(' MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5)),((2 2,2 8,8 8,8 2,2 2),(4 4,4 6,6 6,6 4,4 4)),((0 5,3 5,3 2,1 2,1 1,3 1,3 0,0 0,0 3,2 3,2 4,0 4,0 5))) ')
+ST_NUMINTERIORRINGS(POLYGONFROMTEXT('POLYGON((3 5,2 4,2 5,3 5)) ')))) as st;
+st
 0
 SELECT ST_DIMENSION(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((3 5,2 5,2 4,3 4,3 5)) '),
-ST_NUMINTERIORRINGS(POLYGONFROMTEXT(' POLYGON((0 0,9 3,4 2,0 0))'))));
-ST_DIMENSION(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((3 5,2 5,2 4,3 4,3 5)) '),
-ST_NUMINTERIORRINGS(POLYGONFROMTEXT(' POLYGON((0 0,9 3,4 2,0 0))'))))
+ST_NUMINTERIORRINGS(POLYGONFROMTEXT(' POLYGON((0 0,9 3,4 2,0 0))')))) as st;
+st
 2
 SELECT ST_NUMINTERIORRINGS(
 ST_ENVELOPE(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5))) '),
-SRID(MULTILINESTRINGFROMTEXT('MULTILINESTRING((2 2,4 2,1 2,2 4,2 2)) ')))));
-ST_NUMINTERIORRINGS(
-ST_ENVELOPE(ST_BUFFER(MULTIPOLYGONFROMTEXT('MULTIPOLYGON(((3 5,2 5,2 4,3 4,3 5))) '),
-SRID(MULTILINESTRINGFROMTEXT('MULTILINESTRING((2 2,4 2,1 2,2 4,2 2)) ')))))
+SRID(MULTILINESTRINGFROMTEXT('MULTILINESTRING((2 2,4 2,1 2,2 4,2 2)) '))))) as st;
+st
 0
 SELECT ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
-SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))));
-ASTEXT(ST_BUFFER(POLYGONFROMTEXT(' POLYGON((9 9,5 2,4 5,9 9))'),
-SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) '))))
+SRID(GEOMETRYFROMTEXT(' MULTIPOINT(8 4,5 0,7 8,6 9,3 4,7 3,5 5) ')))) as st;
+st
 POLYGON((9 9,5 2,4 5,9 9))
 #
 # Start of 10.2 tests
@@ -356,22 +346,16 @@ SET SESSION debug_dbug="-d,Item_func_in";
 # MDEV-12238 Add Type_handler::Item_func_{plus|minus|mul|div|mod}_fix_length_and_dec()
 #
 SET debug_dbug='+d,num_op';
-CREATE TABLE t1 AS SELECT
-POINT(0,0)+POINT(0,0),
-POINT(0,0)-POINT(0,0),
-POINT(0,0)*POINT(0,0),
-POINT(0,0)/POINT(0,0),
-POINT(0,0) MOD POINT(0,0) LIMIT 0;
-SHOW CREATE TABLE t1;
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `POINT(0,0)+POINT(0,0)` geometry DEFAULT NULL,
-  `POINT(0,0)-POINT(0,0)` geometry DEFAULT NULL,
-  `POINT(0,0)*POINT(0,0)` geometry DEFAULT NULL,
-  `POINT(0,0)/POINT(0,0)` geometry DEFAULT NULL,
-  `POINT(0,0) MOD POINT(0,0)` geometry DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-DROP TABLE t1;
+SELECT POINT(0,0)+POINT(0,0);
+ERROR HY000: Illegal parameter data types point and point for operation '+'
+SELECT POINT(0,0)-POINT(0,0);
+ERROR HY000: Illegal parameter data types point and point for operation '-'
+SELECT POINT(0,0)*POINT(0,0);
+ERROR HY000: Illegal parameter data types point and point for operation '*'
+SELECT POINT(0,0)/POINT(0,0);
+ERROR HY000: Illegal parameter data types point and point for operation '/'
+SELECT POINT(0,0) MOD POINT(0,0);
+ERROR HY000: Illegal parameter data types point and point for operation 'MOD'
 CREATE TABLE t1 AS SELECT
 POINT(0,0)+'0',
 POINT(0,0)-'0',
@@ -381,12 +365,12 @@ POINT(0,0) MOD '0' LIMIT 0;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `POINT(0,0)+'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)-'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)*'0'` tinytext DEFAULT NULL,
-  `POINT(0,0)/'0'` tinytext DEFAULT NULL,
-  `POINT(0,0) MOD '0'` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `POINT(0,0)+'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)-'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)*'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0)/'0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `POINT(0,0) MOD '0'` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT
 '0'+POINT(0,0),
@@ -394,16 +378,16 @@ CREATE TABLE t1 AS SELECT
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `'0'+POINT(0,0)` tinytext DEFAULT NULL,
-  `'0'*POINT(0,0)` tinytext DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `'0'+POINT(0,0)` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `'0'*POINT(0,0)` tinytext CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 AS SELECT '0'-POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and geometry for operation '-'
+ERROR HY000: Illegal parameter data types varchar and point for operation '-'
 CREATE TABLE t1 AS SELECT '0'/POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and geometry for operation '/'
+ERROR HY000: Illegal parameter data types varchar and point for operation '/'
 CREATE TABLE t1 AS SELECT '0' MOD POINT(0,0) LIMIT 0;
-ERROR HY000: Illegal parameter data types varchar and geometry for operation 'MOD'
+ERROR HY000: Illegal parameter data types varchar and point for operation 'MOD'
 SET debug_dbug='-d,num_op';
 #
 # End of 10.3 tests
@@ -424,9 +408,9 @@ Warnings:
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
 Note	1105	DBUG: [1] arg=2 handler=0 (row)
 Note	1105	DBUG: ROW(3 args) level=0
-Note	1105	DBUG:  [0,0] handler=geometry
-Note	1105	DBUG:  [0,1] handler=geometry
-Note	1105	DBUG:  [0,2] handler=geometry
+Note	1105	DBUG:  [0,0] handler=point
+Note	1105	DBUG:  [0,1] handler=point
+Note	1105	DBUG:  [0,2] handler=point
 Note	1105	DBUG:  => handler=geometry
 Note	1105	DBUG:  [1,0] handler=int
 Note	1105	DBUG:  [1,1] handler=int
@@ -449,9 +433,9 @@ Note	1105	DBUG:  [1,1] handler=row
 Note	1105	DBUG:  [1,2] handler=row
 Note	1105	DBUG:  => handler=row
 Note	1105	DBUG:  ROW(3 args) level=1
-Note	1105	DBUG:   [0,0] handler=geometry
-Note	1105	DBUG:   [0,1] handler=geometry
-Note	1105	DBUG:   [0,2] handler=geometry
+Note	1105	DBUG:   [0,0] handler=point
+Note	1105	DBUG:   [0,1] handler=point
+Note	1105	DBUG:   [0,2] handler=point
 Note	1105	DBUG:   => handler=geometry
 Note	1105	DBUG:   [1,0] handler=int
 Note	1105	DBUG:   [1,1] handler=int
@@ -459,18 +443,18 @@ Note	1105	DBUG:   [1,2] handler=int
 Note	1105	DBUG:   => handler=bigint
 Note	1105	DBUG: types_compatible=yes bisect=no
 SELECT (1,0) IN ((POINT(1,1),0),(0,0));
-ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+ERROR HY000: Illegal parameter data types int and point for operation 'in'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
 Note	1105	DBUG: [1] arg=2 handler=0 (row)
 Note	1105	DBUG: ROW(3 args) level=0
 Note	1105	DBUG:  [0,0] handler=int
-Note	1105	DBUG:  [0,1] handler=geometry
+Note	1105	DBUG:  [0,1] handler=point
 Note	1105	DBUG:  [0,2] handler=int
-Error	4078	Illegal parameter data types int and geometry for operation 'in'
+Error	4078	Illegal parameter data types int and point for operation 'in'
 SELECT (1,(0,0)) IN ((1,(POINT(1,1),0)),(0,(0,0)));
-ERROR HY000: Illegal parameter data types int and geometry for operation 'in'
+ERROR HY000: Illegal parameter data types int and point for operation 'in'
 SHOW WARNINGS;
 Level	Code	Message
 Note	1105	DBUG: [0] arg=1 handler=0 (row)
@@ -486,12 +470,35 @@ Note	1105	DBUG:  [1,2] handler=row
 Note	1105	DBUG:  => handler=row
 Note	1105	DBUG:  ROW(3 args) level=1
 Note	1105	DBUG:   [0,0] handler=int
-Note	1105	DBUG:   [0,1] handler=geometry
+Note	1105	DBUG:   [0,1] handler=point
 Note	1105	DBUG:   [0,2] handler=int
-Error	4078	Illegal parameter data types int and geometry for operation 'in'
+Error	4078	Illegal parameter data types int and point for operation 'in'
 SET SESSION debug_dbug="-d,Predicant_to_list_comparator";
 SET SESSION debug_dbug="-d,Item_func_in";
 SET SESSION debug_dbug="-d,cmp_item";
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-19994 Add class Function_collection
+#
+SET SESSION debug_dbug="+d,make_item_func_call_native_simulate_not_found";
+SELECT CONTAINS(POINT(1,1),POINT(1,1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
+SELECT WITHIN(POINT(1,1),POINT(1,1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
+SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
+#
+# MDEV-20009 Add CAST(expr AS pluggable_type)
+#
+SET SESSION debug_dbug="+d,emulate_geometry_create_typecast_item";
+SELECT AsText(CAST('POINT(0 0)' AS GEOMETRY));
+AsText(CAST('POINT(0 0)' AS GEOMETRY))
+POINT(0 0)
+SET SESSION debug_dbug="-d,emulate_geometry_create_typecast_item";
+#
+# End of 10.5 tests
 #

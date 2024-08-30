@@ -16,7 +16,7 @@
 */
 
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <poll.h>
 #else
 #include <WinSock2.h>
@@ -33,7 +33,7 @@ static const char *my_groups[]= { "client", NULL };
 static int
 wait_for_mysql(MYSQL *mysql, int status)
 {
-#ifdef __WIN__
+#ifdef _WIN32
   fd_set rs, ws, es;
   int res;
   struct timeval tv, *timeout;

@@ -47,7 +47,7 @@ Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 SHOW EVENTS;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
-events_test	one_event	ev_test@localhost	SYSTEM	RECURRING	NULL	10	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	latin1_swedish_ci
+events_test	one_event	ev_test@localhost	SYSTEM	RECURRING	NULL	10	#	#	NULL	ENABLED	1	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS ORDER BY EVENT_SCHEMA, EVENT_NAME;
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	STATUS	ON_COMPLETION	EVENT_COMMENT
 def	events_test	one_event	ev_test@localhost	SQL	SELECT 123	RECURRING	NULL	10	SECOND	ENABLED	NOT PRESERVE	
@@ -111,7 +111,7 @@ f1	f2
 SELECT EVENT_CATALOG, EVENT_SCHEMA, EVENT_NAME, DEFINER, EVENT_BODY, EVENT_DEFINITION, EVENT_TYPE, EXECUTE_AT, INTERVAL_VALUE, INTERVAL_FIELD, STATUS,ON_COMPLETION, EVENT_COMMENT FROM INFORMATION_SCHEMA.EVENTS WHERE EVENT_NAME='one_event';
 EVENT_CATALOG	EVENT_SCHEMA	EVENT_NAME	DEFINER	EVENT_BODY	EVENT_DEFINITION	EVENT_TYPE	EXECUTE_AT	INTERVAL_VALUE	INTERVAL_FIELD	STATUS	ON_COMPLETION	EVENT_COMMENT
 def	test	one_event	root@localhost	SQL	SELECT 123	RECURRING	NULL	10	SECOND	SLAVESIDE_DISABLED	NOT PRESERVE	
-call mtr.add_suppression("WSREP: Failed to scan the last segment to the end. Last events may be missing. Last recovered event:.*");
+call mtr.add_suppression("WSREP: Failed to scan the last segment to the end\\. Last events may be missing\\. Last recovered event: ");
 connection node_1;
 SELECT * FROM t1;
 f1	f2

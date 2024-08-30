@@ -4,9 +4,9 @@ reset master;
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	flush status
+master-bin.000001	#	Query	#	#	flush /*!110500 global */ status
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
-master-bin.000001	#	Query	#	#	flush status
+master-bin.000001	#	Query	#	#	flush /*!110500 global */ status
 drop user adm@localhost;

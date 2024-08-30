@@ -11,9 +11,17 @@ SELECT COUNT(@@GLOBAL.innodb_purge_threads);
 SELECT COUNT(@@innodb_purge_threads);
 --echo 1 Expected
 
---error ER_INCORRECT_GLOBAL_LOCAL_VAR
+SET @save_threads = @@GLOBAL.innodb_purge_threads;
+
+SET @@GLOBAL.innodb_purge_threads=-1;
+SELECT @@GLOBAL.innodb_purge_threads;
+SET @@GLOBAL.innodb_purge_threads=0;
+SELECT @@GLOBAL.innodb_purge_threads;
+SET @@GLOBAL.innodb_purge_threads=33;
+SELECT @@GLOBAL.innodb_purge_threads;
+
 SET @@GLOBAL.innodb_purge_threads=1;
---echo Expected error 'Read-only variable'
+SET @@GLOBAL.innodb_purge_threads=32;
 
 --Error ER_BAD_FIELD_ERROR
 SELECT innodb_purge_threads = @@SESSION.innodb_purge_threads;
@@ -51,3 +59,5 @@ FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES
 WHERE VARIABLE_NAME = 'innodb_purge_threads';
 --enable_warnings
 
+
+SET GLOBAL innodb_purge_threads = @save_threads;

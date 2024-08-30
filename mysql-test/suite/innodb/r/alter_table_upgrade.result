@@ -13,7 +13,7 @@ Table	Create Table
 pet4	CREATE TABLE `pet4` (
   `build_time` double(18,7) DEFAULT NULL,
   KEY `idx1` (`build_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 CHECK TABLE pet4 FOR UPGRADE;
 Table	Op	Msg_type	Msg_text
 test.pet4	check	status	OK
@@ -28,7 +28,7 @@ Table	Create Table
 pet4	CREATE TABLE `pet4` (
   `build_time` double(18,7) DEFAULT NULL,
   KEY `idx1` (`build_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 ALTER TABLE pet4 ADD i1 INTEGER, ALGORITHM=NOCOPY;
 DROP TABLE pet4;
 #

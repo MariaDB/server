@@ -174,7 +174,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       if ((error= flush_io_cache(&info->rec_cache)))
       {
         /* Fatal error found */
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
       }
     }
     break;
@@ -235,26 +235,21 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
     info->lock_wait= MY_SHORT_WAIT;
     break;
   case HA_EXTRA_NO_KEYS:
+    if (share->s3_path)                    /* Not supported with S3 */
+      break;
+
     /* we're going to modify pieces of the state, stall Checkpoint */
-    mysql_mutex_lock(&share->intern_lock);
     if (info->lock_type == F_UNLCK)
     {
-      mysql_mutex_unlock(&share->intern_lock);
       error= 1;					/* Not possibly if not lock */
       break;
     }
+    mysql_mutex_lock(&share->intern_lock);
     if (maria_is_any_key_active(share->state.key_map))
     {
-      MARIA_KEYDEF *key= share->keyinfo;
-      uint i;
-      for (i =0 ; i < share->base.keys ; i++,key++)
-      {
-        if (!(key->flag & HA_NOSAME) && info->s->base.auto_key != i+1)
-        {
-          maria_clear_key_active(share->state.key_map, i);
-          info->update|= HA_STATE_CHANGED;
-        }
-      }
+      if (share->state.key_map != *(ulonglong*)extra_arg)
+        info->update|= HA_STATE_CHANGED;
+      share->state.key_map= *(ulonglong*)extra_arg;
 
       if (!share->changed)
       {
@@ -375,16 +370,16 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       if (end_io_cache(&info->rec_cache))
         error= 1;
     }
-    if (share->kfile.file >= 0)
+    if (share->kfile.file >= 0 && share->s3_path == 0)
     {
       if (do_flush)
       {
         /* Save the state so that others can find it from disk. */
-        if ((share->changed &&
-             _ma_state_info_write(share,
+        if (share->changed &&
+            (_ma_state_info_write(share,
                                   MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET |
-                                  MA_STATE_INFO_WRITE_FULL_INFO)) ||
-            mysql_file_sync(share->kfile.file, MYF(0)))
+                                  MA_STATE_INFO_WRITE_FULL_INFO) ||
+             mysql_file_sync(share->kfile.file, MYF(0))))
           error= my_errno;
       }
       else
@@ -396,7 +391,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       }
     }
     if (share->data_file_type == BLOCK_RECORD &&
-        share->bitmap.file.file >= 0)
+        share->bitmap.file.file >= 0 && share->s3_path == 0)
     {
       DBUG_ASSERT(share->bitmap.non_flushable == 0 &&
                   share->bitmap.changed == 0);
@@ -438,7 +433,7 @@ int maria_extra(MARIA_HA *info, enum ha_extra_function function,
       {
 	/* Fatal error found */
 	share->changed= 1;
-        _ma_set_fatal_error(share, HA_ERR_CRASHED);
+        _ma_set_fatal_error(info, HA_ERR_CRASHED);
       }
     }
     mysql_mutex_unlock(&share->intern_lock);
@@ -507,8 +502,17 @@ void ma_set_index_cond_func(MARIA_HA *info, index_cond_func_t func,
 {
   info->index_cond_func= func;
   info->index_cond_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
 }
 
+void ma_set_rowid_filter_func(MARIA_HA *info,
+                              rowid_filter_func_t check_func,
+                              void *func_arg)
+{
+  info->rowid_filter_func= check_func;
+  info->rowid_filter_func_arg= func_arg;
+  info->has_cond_pushdown= (info->index_cond_func || info->rowid_filter_func);
+}
 
 /*
   Start/Stop Inserting Duplicates Into a Table, WL#1648.
@@ -581,6 +585,7 @@ int maria_reset(MARIA_HA *info)
   info->page_changed= 1;
   info->update= ((info->update & HA_STATE_CHANGED) | HA_STATE_NEXT_FOUND |
                  HA_STATE_PREV_FOUND);
+  info->error_count= 0;
   DBUG_RETURN(error);
 }
 
@@ -595,6 +600,20 @@ uint _ma_file_callback_to_id(void *callback_data)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
   return share ? share->id : 0;
+}
+
+/*
+  Disable MY_WAIT_IF_FULL flag for temporary tables
+
+  Temporary tables does not have MY_WAIT_IF_FULL in share->write_flags
+*/
+
+uint _ma_write_flags_callback(void *callback_data, myf flags)
+{
+  MARIA_SHARE *share= (MARIA_SHARE*) callback_data;
+  if (share)
+    flags&= ~(~share->write_flag & MY_WAIT_IF_FULL);
+  return flags;
 }
 
 
@@ -662,7 +681,7 @@ int _ma_flush_table_files(MARIA_HA *info, uint flush_data_or_index,
   if (!error)
     DBUG_RETURN(0);
 
-  _ma_set_fatal_error(info->s, HA_ERR_CRASHED);
+  _ma_set_fatal_error(info, HA_ERR_CRASHED);
   DBUG_RETURN(1);
 }
 

@@ -771,6 +771,7 @@ uint _ma_apply_redo_index_new_page(MARIA_HA *info, LSN lsn,
           my_errno != HA_ERR_DECRYPTION_FAILED)
       {
         result= 1;
+        _ma_set_fatal_error(info, my_errno);
         goto err;
       }
       buff= pagecache_block_link_to_buffer(page_link.link);
@@ -861,6 +862,7 @@ uint _ma_apply_redo_index_free_page(MARIA_HA *info,
                              &page_link.link)))
   {
     result= (uint) my_errno;
+    _ma_set_fatal_error(info, my_errno);
     goto err;
   }
   if (lsn_korr(buff) >= lsn)
@@ -949,7 +951,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
 #ifdef DBUG_ASSERT_EXISTS
   uint new_page_length= 0;
 #endif
-  int result;
+  int result, mark_crashed;
   MARIA_PAGE page;
   DBUG_ENTER("_ma_apply_redo_index");
   DBUG_PRINT("enter", ("page: %lu", (ulong) page_pos));
@@ -962,14 +964,15 @@ uint _ma_apply_redo_index(MARIA_HA *info,
                              PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
                              &page_link.link)))
   {
-    result= 1;
+    result= 1; mark_crashed= 0;
+    _ma_set_fatal_error(info, my_errno);
     goto err;
   }
   if (lsn_korr(buff) >= lsn)
   {
     /* Already applied */
     check_skipped_lsn(info, lsn_korr(buff), 0, page_pos);
-    result= 0;
+    result= mark_crashed= 0;
     goto err;
   }
 
@@ -1165,7 +1168,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
       header+= TRANSID_SIZE;
       if (_ma_compact_keypage(&page, transid))
       {
-        result= 1;
+        result= mark_crashed= 1;
         goto err;
       }
       page_length= page.size;
@@ -1174,7 +1177,7 @@ uint _ma_apply_redo_index(MARIA_HA *info,
     case KEY_OP_NONE:
     default:
       DBUG_ASSERT(0);
-      result= 1;
+      result= mark_crashed= 1;
       goto err;
     }
   } while (header < header_end);
@@ -1203,7 +1206,7 @@ err:
                            PAGECACHE_LOCK_WRITE_UNLOCK,
                            PAGECACHE_UNPIN, LSN_IMPOSSIBLE,
                            LSN_IMPOSSIBLE, 0, FALSE);
-  if (result)
+  if (mark_crashed)
     _ma_mark_file_crashed(share);
   DBUG_RETURN(result);
 }

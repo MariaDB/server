@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -54,19 +54,14 @@ dict_mem_fill_index_struct(
 		index->fields = NULL;
 	}
 
-	/* Assign a ulint to a 4-bit-mapped field.
-	Only the low-order 4 bits are assigned. */
-	index->type = unsigned(type);
+	index->type = type & ((1U << DICT_IT_BITS) - 1);
 	index->page = FIL_NULL;
 	index->merge_threshold = DICT_INDEX_MERGE_THRESHOLD_DEFAULT;
-	index->n_fields = (unsigned int) n_fields;
-	index->n_core_fields = (unsigned int) n_fields;
+	index->n_fields = static_cast<unsigned>(n_fields)
+		& index->MAX_N_FIELDS;
+	index->n_core_fields = static_cast<unsigned>(n_fields)
+		& index->MAX_N_FIELDS;
 	/* The '1 +' above prevents allocation
 	of an empty mem block */
-#ifdef BTR_CUR_HASH_ADAPT
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	index->disable_ahi = false;
-#endif
-#endif /* BTR_CUR_HASH_ADAPT */
 	ut_d(index->magic_n = DICT_INDEX_MAGIC_N);
 }

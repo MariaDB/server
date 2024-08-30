@@ -1,0 +1,13 @@
+--source include/not_embedded.inc
+
+RESET MASTER;
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+
+--error ER_RELAY_LOG_INIT
+change master 'abc1' to relay_log_file='';
+--error ER_RELAY_LOG_INIT
+change master 'abc1' to relay_log_file='';
+--disconnect slave
+--connection default
+

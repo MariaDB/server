@@ -1,0 +1,18 @@
+--source include/have_debug.inc
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+--let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log
+
+--let sleep_after_waiting_for_lsn=250
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir --log-copy-interval=500 --dbug=+d,mariabackup_inject_code > $backup_log 2>&1;
+--enable_result_log
+
+--let SEARCH_PATTERN=sleep_after_waiting_for_lsn\n(\[\d+\] \d+-\d+-\d+ \d+:\d+:\d+ >> log scanned up to \(\d+\)\n){2}
+--let SEARCH_FILE=$backup_log
+--source include/search_pattern_in_file.inc
+--remove_file $backup_log
+
+rmdir $targetdir;
+

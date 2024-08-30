@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2001, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2012, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,7 +18,7 @@
 
 /* By Jani Tolonen, 2001-04-20, MySQL Development Team */
 
-#define CHECK_VERSION "2.7.4-MariaDB"
+#define VER "2.8"
 
 #include "client_priv.h"
 #include <m_ctype.h>
@@ -63,8 +63,9 @@ const char *operation_name[]=
   "???", "check", "repair", "analyze", "optimize", "fix names"
 };
 
-typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_VIEWS_FROM_MYSQL } enum_do_views;
-const char *do_views_opts[]= {"NO", "YES", "UPGRADE_FROM_MYSQL", NullS};
+typedef enum { DO_VIEWS_NO, DO_VIEWS_YES, DO_UPGRADE, DO_VIEWS_FROM_MYSQL } enum_do_views;
+const char *do_views_opts[]= {"NO", "YES", "UPGRADE", "UPGRADE_FROM_MYSQL",
+  NullS};
 TYPELIB do_views_typelib= { array_elements(do_views_opts) - 1, "",
     do_views_opts, NULL };
 static ulong opt_do_views= DO_VIEWS_NO;
@@ -81,11 +82,11 @@ static struct my_option my_long_options[] =
    "Instead of issuing one query for each table, use one query per database, naming all tables in the database in a comma-separated list.",
    &opt_all_in_1, &opt_all_in_1, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"auto-repair", OPT_AUTO_REPAIR,
+  {"auto-repair", 0,
    "If a checked table is corrupted, automatically fix it. Repairing will be done after all tables have been checked, if corrupted ones were found.",
    &opt_auto_repair, &opt_auto_repair, 0, GET_BOOL, NO_ARG, 0,
    0, 0, 0, 0, 0},
-  {"character-sets-dir", OPT_CHARSETS_DIR,
+  {"character-sets-dir", 0,
    "Directory for character set files.", (char**) &charsets_dir,
    (char**) &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"check", 'c', "Check table for errors.", 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0,
@@ -96,7 +97,7 @@ static struct my_option my_long_options[] =
   {"check-upgrade", 'g',
    "Check tables for version-dependent changes. May be used with --auto-repair to correct tables requiring version-dependent updates.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"compress", OPT_COMPRESS, "Use compression in server/client protocol.",
+  {"compress", 0, "Use compression in server/client protocol.",
    &opt_compress, &opt_compress, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
   {"databases", 'B',
@@ -110,16 +111,16 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
+  {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default-character-set", OPT_DEFAULT_CHARSET,
+  {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -139,7 +140,7 @@ static struct my_option my_long_options[] =
    "If you are using this option with CHECK TABLE, it will ensure that the table is 100 percent consistent, but will take a long time. If you are using this option with REPAIR TABLE, it will force using old slow repair with keycache method, instead of much faster repair by sorting.",
    &opt_extended, &opt_extended, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"flush", OPT_FLUSH_TABLES, "Flush each table after check. This is useful if you don't want to have the checked tables take up space in the caches after the check",
+  {"flush", 0, "Flush each table after check. This is useful if you don't want to have the checked tables take up space in the caches after the check",
    &opt_flush_tables, &opt_flush_tables, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0,
    0, 0 },
   {"help", '?', "Display this help message and exit.", 0, 0, 0, GET_NO_ARG,
@@ -149,7 +150,7 @@ static struct my_option my_long_options[] =
   {"medium-check", 'm',
    "Faster than extended-check, but only finds 99.99 percent of all errors. Should be good enough for most cases.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"write-binlog", OPT_WRITE_BINLOG,
+  {"write-binlog", 0,
    "Log ANALYZE, OPTIMIZE and REPAIR TABLE commands. Use --skip-write-binlog "
    "when commands should not be sent to replication slaves.",
    &opt_write_binlog, &opt_write_binlog, 0, GET_BOOL, NO_ARG,
@@ -163,11 +164,11 @@ static struct my_option my_long_options[] =
    "When using ANALYZE TABLE use the PERSISTENT FOR ALL option.",
    &opt_persistent_all, &opt_persistent_all, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection or 0 for default to, in "
@@ -198,7 +199,7 @@ static struct my_option my_long_options[] =
 #include <sslopt-longopts.h>
   {"tables", OPT_TABLES, "Overrides option --databases (-B).", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"use-frm", OPT_FRM,
+  {"use-frm", 0,
    "When used with REPAIR, get table structure from .frm file, so the table can be repaired even if .MYI header is corrupted.",
    &opt_frm, &opt_frm, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0,
    0},
@@ -213,8 +214,9 @@ static struct my_option my_long_options[] =
   {"process-views", 0,
    "Perform the requested operation (check or repair) on views. "
    "One of: NO, YES (correct the checksum, if necessary, add the "
-   "mariadb-version field), UPGRADE_FROM_MYSQL (same as YES and toggle "
-   "the algorithm MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
+   "mariadb-version field), UPGRADE (run from mariadb-upgrade), "
+   "UPGRADE_FROM_MYSQL (same as YES and toggle the algorithm "
+   "MERGE<->TEMPTABLE.", &opt_do_views, &opt_do_views,
    &do_views_typelib, GET_ENUM, OPT_ARG, 0, 0, 0, 0, 0, 0},
   {"process-tables", 0, "Perform the requested operation on tables.",
    &opt_do_tables, &opt_do_tables, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
@@ -226,7 +228,6 @@ static const char *load_default_groups[]=
   0 };
 
 
-static void print_version(void);
 static void usage(void);
 static int get_options(int *argc, char ***argv);
 static int process_all_databases();
@@ -246,11 +247,10 @@ static char *fix_table_name(char *dest, char *src);
 int what_to_do = 0;
 
 
-static void print_version(void)
+static inline int cmp_database(const char *a, const char *b)
 {
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n", my_progname, CHECK_VERSION,
-   MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
-} /* print_version */
+  return my_strcasecmp_latin1(a, b);
+}
 
 
 static void usage(void)
@@ -284,13 +284,14 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt,
+	       const char *argument,
+               const char *filename)
 {
   int orig_what_to_do= what_to_do;
   DBUG_ENTER("get_one_option");
 
-  switch(optid) {
+  switch(opt->id) {
   case 'a':
     what_to_do = DO_ANALYZE;
     break;
@@ -324,10 +325,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       argument= (char*) "";			/* Don't require password */
     if (argument)
     {
-      char *start = argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
-      opt_password = my_strdup(argument, MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      opt_password = my_strdup(PSI_NOT_INSTRUMENTED, argument, MYF(MY_FAE));
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1] = 0;                             /* Cut length of argument */
       tty_password= 0;
@@ -343,7 +349,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     opt_upgrade= 1;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
 #endif
     break;
@@ -367,6 +373,27 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
+    }
+    break;
+  case 'P':
+    if (filename[0] == '\0')
+    {
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
+    }
+    break;
+  case 'S':
+    if (filename[0] == '\0')
+    {
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   }
@@ -438,11 +465,13 @@ static int get_options(int *argc, char ***argv)
   if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
 
-  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
+  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY,
+                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME)))
   {
     printf("Unsupported character set: %s\n", default_charset);
     DBUG_RETURN(1);
   }
+  my_set_console_cp(default_charset);
   if (*argc > 0 && opt_alldbs)
   {
     printf("You should give only options, no arguments at all, with option\n");
@@ -567,7 +596,7 @@ static int process_selected_tables(char *db, char **table_names, int tables)
       tot_length+= fixed_name_length(*(table_names + i)) + 2;
 
     if (!(table_names_comma_sep = (char *)
-	  my_malloc((sizeof(char) * tot_length) + 4, MYF(MY_WME))))
+	  my_malloc(PSI_NOT_INSTRUMENTED, tot_length + 4, MYF(MY_WME))))
       DBUG_RETURN(1);
 
     for (end = table_names_comma_sep + 1; tables > 0;
@@ -678,12 +707,12 @@ static int process_all_tables_in_db(char *database)
     }
     mysql_data_seek(res, 0);
 
-    if (!(tables=(char *) my_malloc(sizeof(char)*tot_length+4, MYF(MY_WME))))
+    if (!(tables=(char *) my_malloc(PSI_NOT_INSTRUMENTED, tot_length+4, MYF(MY_WME))))
     {
       mysql_free_result(res);
       DBUG_RETURN(1);
     }
-    if (!(views=(char *) my_malloc(sizeof(char)*tot_views_length+4, MYF(MY_WME))))
+    if (!(views=(char *) my_malloc(PSI_NOT_INSTRUMENTED, tot_views_length+4, MYF(MY_WME))))
     {
       my_free(tables);
       mysql_free_result(res);
@@ -772,7 +801,7 @@ static int fix_table_storage_name(const char *name)
               name, name + 9);
 
   rc= run_query(qbuf, 1);
-  if (verbose)
+  if (!opt_silent)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
 }
@@ -788,7 +817,7 @@ static int fix_database_storage_name(const char *name)
   my_snprintf(qbuf, sizeof(qbuf), "ALTER DATABASE %`s UPGRADE DATA DIRECTORY "
               "NAME", name);
   rc= run_query(qbuf, 1);
-  if (verbose)
+  if (!opt_silent)
     printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   DBUG_RETURN(rc);
 }
@@ -799,8 +828,7 @@ static int rebuild_table(char *name)
   int rc= 0;
   DBUG_ENTER("rebuild_table");
 
-  query= (char*)my_malloc(sizeof(char) * (12 + strlen(name) + 6 + 1),
-                          MYF(MY_WME));
+  query= (char*)my_malloc(PSI_NOT_INSTRUMENTED, 12+strlen(name)+6+1, MYF(MY_WME));
   if (!query)
     DBUG_RETURN(1);
   ptr= strxmov(query, "ALTER TABLE ", name, " FORCE", NullS);
@@ -812,8 +840,8 @@ static int rebuild_table(char *name)
     fprintf(stderr, "Error: %s\n", mysql_error(sock));
     rc= 1;
   }
-  if (verbose)
-    printf("%-50s %s\n", name, rc ? "FAILED" : "FIXED");
+  if (!opt_silent)
+    printf("%-50s %s\n", name, rc ? "FAILED" : "OK");
   my_free(query);
   DBUG_RETURN(rc);
 }
@@ -847,10 +875,10 @@ static int use_db(char *database)
   DBUG_ENTER("use_db");
 
   if (mysql_get_server_version(sock) >= FIRST_INFORMATION_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, INFORMATION_SCHEMA_DB_NAME))
+      !cmp_database(database, INFORMATION_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_get_server_version(sock) >= FIRST_PERFORMANCE_SCHEMA_VERSION &&
-      !my_strcasecmp(&my_charset_latin1, database, PERFORMANCE_SCHEMA_DB_NAME))
+      !cmp_database(database, PERFORMANCE_SCHEMA_DB_NAME))
     DBUG_RETURN(1);
   if (mysql_select_db(sock, database))
   {
@@ -866,6 +894,7 @@ static int disable_binlog()
   mysql_query(sock, "SET WSREP_ON=0"); /* ignore the error, if any */
   return run_query("SET SQL_LOG_BIN=0", 0);
 }
+
 
 static int handle_request_for_tables(char *tables, size_t length,
                                      my_bool view, my_bool dont_quote)
@@ -902,7 +931,10 @@ static int handle_request_for_tables(char *tables, size_t length,
     op= opt_write_binlog ?  "REPAIR" : "REPAIR NO_WRITE_TO_BINLOG";
     if (view)
     {
-      if (opt_do_views == DO_VIEWS_FROM_MYSQL) end = strmov(end, " FROM MYSQL");
+      if (opt_do_views == DO_VIEWS_FROM_MYSQL)
+        end = strmov(end, " FROM MYSQL");
+      else if (opt_do_views == DO_UPGRADE)
+        end = strmov(end, " FOR UPGRADE");
     }
     else
     {
@@ -938,7 +970,7 @@ static int handle_request_for_tables(char *tables, size_t length,
     DBUG_RETURN(fix_table_storage_name(tables));
   }
 
-  if (!(query =(char *) my_malloc(query_size, MYF(MY_WME))))
+  if (!(query =(char *) my_malloc(PSI_NOT_INSTRUMENTED, query_size, MYF(MY_WME))))
     DBUG_RETURN(1);
   if (dont_quote)
   {
@@ -995,12 +1027,14 @@ static void insert_table_name(DYNAMIC_ARRAY *arr, char *in, size_t dblen)
   insert_dynamic(arr, (uchar*) buf);
 }
 
-static void print_result()
+/* Ok as mysqlcheck is not multi threaded */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
+static void __attribute__((noinline)) print_result()
 {
   MYSQL_RES *res;
   MYSQL_ROW row;
   char prev[(NAME_LEN+9)*3+2];
-  char prev_alter[MAX_ALTER_STR_SIZE];
   size_t length_of_db= strlen(sock->db);
   my_bool found_error=0, table_rebuild=0;
   DYNAMIC_ARRAY *array4repair= &tables4repair;
@@ -1009,7 +1043,6 @@ static void print_result()
   res = mysql_use_result(sock);
 
   prev[0] = '\0';
-  prev_alter[0]= 0;
   while ((row = mysql_fetch_row(res)))
   {
     int changed = strcmp(prev, row[0]);
@@ -1026,19 +1059,13 @@ static void print_result()
 	  strcmp(row[3],"OK"))
       {
         if (table_rebuild)
-        {
-          if (prev_alter[0])
-            insert_dynamic(&alter_table_cmds, (uchar*) prev_alter);
-          else
-            insert_table_name(&tables4rebuild, prev, length_of_db);
-        }
+          insert_table_name(&tables4rebuild, prev, length_of_db);
         else
           insert_table_name(array4repair, prev, length_of_db);
       }
       array4repair= &tables4repair;
       found_error=0;
       table_rebuild=0;
-      prev_alter[0]= 0;
       if (opt_silent)
 	continue;
     }
@@ -1048,20 +1075,28 @@ static void print_result()
     {
       /*
         If the error message includes REPAIR TABLE, we assume it means
-        we have to run upgrade on it. In this case we write a nicer message
+        we have to run REPAIR on it. In this case we write a nicer message
         than "Please do "REPAIR TABLE""...
+        If the message inclused ALTER TABLE then there is something wrong
+        with the table definition and we have to run ALTER TABLE to fix it.
+        Write also a nice error message for this csae.
       */
       if (!strcmp(row[2],"error") && strstr(row[3],"REPAIR "))
       {
-        printf("%-50s %s", row[0], "Needs upgrade");
+        printf("%-50s %s", row[0], "Needs upgrade with REPAIR");
         array4repair= strstr(row[3], "VIEW") ? &views4repair : &tables4repair;
+      }
+      else if (!strcmp(row[2],"error") && strstr(row[3],"ALTER TABLE"))
+      {
+        printf("%-50s %s", row[0], "Needs upgrade with ALTER TABLE FORCE");
+        array4repair= &tables4rebuild;
       }
       else
         printf("%s\n%-9s: %s", row[0], row[2], row[3]);
-      if (opt_auto_repair && strcmp(row[2],"note"))
+      if (strcmp(row[2],"note"))
       {
         found_error=1;
-        if (opt_auto_repair && strstr(row[3], "ALTER TABLE") != NULL)
+        if (strstr(row[3], "ALTER TABLE"))
           table_rebuild=1;
       }
     }
@@ -1074,18 +1109,14 @@ static void print_result()
   if (found_error && opt_auto_repair && what_to_do != DO_REPAIR)
   {
     if (table_rebuild)
-    {
-      if (prev_alter[0])
-        insert_dynamic(&alter_table_cmds, prev_alter);
-      else
-        insert_table_name(&tables4rebuild, prev, length_of_db);
-    }
+      insert_table_name(&tables4rebuild, prev, length_of_db);
     else
       insert_table_name(array4repair, prev, length_of_db);
   }
   mysql_free_result(res);
   DBUG_VOID_RETURN;
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 
 static int dbConnect(char *host, char *user, char *passwd)
@@ -1099,18 +1130,7 @@ static int dbConnect(char *host, char *user, char *passwd)
   mysql_init(&mysql_connection);
   if (opt_compress)
     mysql_options(&mysql_connection, MYSQL_OPT_COMPRESS, NullS);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql_connection, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql_connection, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql_connection, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(&mysql_connection, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+  SET_SSL_OPTS(&mysql_connection);
   if (opt_protocol)
     mysql_options(&mysql_connection,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
 
@@ -1177,6 +1197,10 @@ int main(int argc, char **argv)
 
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
+
+  /* We need to know if protocol-related options originate from CLI args */
+  my_defaults_mark_files = TRUE;
+
   /*
   ** Check out the args
   */
@@ -1184,6 +1208,7 @@ int main(int argc, char **argv)
   defaults_argv= argv;
   if (get_options(&argc, &argv))
     goto end1;
+
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
   ret= EX_MYSQLERR;
@@ -1198,14 +1223,14 @@ int main(int argc, char **argv)
   }
 
   if (opt_auto_repair &&
-      (my_init_dynamic_array(&tables4repair, sizeof(char)*(NAME_LEN*2+2),16,
-                             64, MYF(0)) ||
-       my_init_dynamic_array(&views4repair, sizeof(char)*(NAME_LEN*2+2),16,
-                             64, MYF(0)) ||
-       my_init_dynamic_array(&tables4rebuild, sizeof(char)*(NAME_LEN*2+2),16,
-                             64, MYF(0)) ||
-       my_init_dynamic_array(&alter_table_cmds, MAX_ALTER_STR_SIZE, 0, 1,
-                             MYF(0))))
+      (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4repair,
+                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &views4repair,
+                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &tables4rebuild,
+                             NAME_LEN*2+2, 16, 64, MYF(0)) ||
+       my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &alter_table_cmds,
+                             MAX_ALTER_STR_SIZE, 0, 1, MYF(0))))
     goto end;
 
   if (opt_alldbs)

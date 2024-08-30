@@ -29,6 +29,7 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#define VER "1.1"
 #include "mariadb.h"
 #if !defined(TZINFO2SQL) && !defined(TESTTIME)
 #include "sql_priv.h"
@@ -43,6 +44,7 @@
 #include <my_getopt.h>
 #endif
 
+#include <welcome_copyright_notice.h>
 #include "tztime.h"
 #include "tzfile.h"
 #include <m_string.h>
@@ -50,30 +52,19 @@
 #include <mysql/psi/mysql_file.h>
 #include "lock.h"                               // MYSQL_LOCK_IGNORE_FLUSH,
                                                 // MYSQL_LOCK_IGNORE_TIMEOUT
-
 /*
-  Now we don't use abbreviations in server but we will do this in future.
-*/
-#if defined(TZINFO2SQL) || defined(TESTTIME)
-#define ABBR_ARE_USED
-#else
-#if !defined(DBUG_OFF)
-/* Let use abbreviations for debug purposes */
-#undef ABBR_ARE_USED
-#define ABBR_ARE_USED
-#endif /* !defined(DBUG_OFF) */
-#endif /* defined(TZINFO2SQL) || defined(TESTTIME) */
+  Internal server time. Needed to interface with my_time_t, which can
+  be either long, ulong or long long depending on hardware or os.
+ */
 
-#define PROGRAM_VERSION "1.1"
+typedef longlong my_int_time_t;
 
 /* Structure describing local time type (e.g. Moscow summer time (MSD)) */
 typedef struct ttinfo
 {
   long tt_gmtoff; // Offset from UTC in seconds
   uint tt_isdst;   // Is daylight saving time or not. Used to set tm_isdst
-#ifdef ABBR_ARE_USED
   uint tt_abbrind; // Index of start of abbreviation for this time type.
-#endif
   /*
     We don't use tt_ttisstd and tt_ttisgmt members of original elsie-code
     struct since we don't support POSIX-style TZ descriptions in variables.
@@ -83,7 +74,7 @@ typedef struct ttinfo
 /* Structure describing leap-second corrections. */
 typedef struct lsinfo
 {
-  my_time_t ls_trans; // Transition time
+  my_int_time_t ls_trans; // Transition time
   long      ls_corr;  // Correction to apply
 } LS_INFO;
 
@@ -117,13 +108,11 @@ typedef struct st_time_zone_info
   uint charcnt;  // Number of characters used for abbreviations
   uint revcnt;   // Number of transition descr. for TIME->my_time_t conversion
   /* The following are dynamical arrays are allocated in MEM_ROOT */
-  my_time_t *ats;       // Times of transitions between time types
+  my_int_time_t *ats;       // Times of transitions between time types
   uchar	*types; // Local time types for transitions
   TRAN_TYPE_INFO *ttis; // Local time types descriptions
-#ifdef ABBR_ARE_USED
   /* Storage for local time types abbreviations. They are stored as ASCIIZ */
   char *chars;
-#endif
   /*
     Leap seconds corrections descriptions, this array is shared by
     all time zones who use leap seconds.
@@ -134,7 +123,7 @@ typedef struct st_time_zone_info
     ranges on which shifted my_time_t -> my_time_t mapping is linear or undefined.
     Used for tm -> my_time_t conversion.
   */
-  my_time_t *revts;
+  my_int_time_t *revts;
   REVT_INFO *revtis;
   /*
     Time type which is used for times smaller than first transition or if
@@ -177,11 +166,9 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
     union
     {
       struct tzhead tzhead;
-      uchar buf[sizeof(struct tzhead) + sizeof(my_time_t) * TZ_MAX_TIMES +
+      uchar buf[sizeof(struct tzhead) + sizeof(my_int_time_t) * TZ_MAX_TIMES +
                 TZ_MAX_TIMES + sizeof(TRAN_TYPE_INFO) * TZ_MAX_TYPES +
-#ifdef ABBR_ARE_USED
                MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1))) +
-#endif
                sizeof(LS_INFO) * TZ_MAX_LEAPS];
     } u;
     uint ttisstdcnt;
@@ -222,26 +209,22 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 
     if (!(tzinfo_buf= (char *)alloc_root(storage,
                                          ALIGN_SIZE(sp->timecnt *
-                                                    sizeof(my_time_t)) +
+                                                    sizeof(*sp->ats)) +
                                          ALIGN_SIZE(sp->timecnt) +
                                          ALIGN_SIZE(sp->typecnt *
                                                     sizeof(TRAN_TYPE_INFO)) +
-#ifdef ABBR_ARE_USED
                                          ALIGN_SIZE(sp->charcnt+1) +
-#endif
                                          sp->leapcnt * sizeof(LS_INFO))))
       return 1;
 
-    sp->ats= (my_time_t *)tzinfo_buf;
-    tzinfo_buf+= ALIGN_SIZE(sp->timecnt * sizeof(my_time_t));
+    sp->ats= (my_int_time_t*) tzinfo_buf;
+    tzinfo_buf+= ALIGN_SIZE(sp->timecnt * sizeof(sp->ats[0]));
     sp->types= (uchar *)tzinfo_buf;
     tzinfo_buf+= ALIGN_SIZE(sp->timecnt);
     sp->ttis= (TRAN_TYPE_INFO *)tzinfo_buf;
     tzinfo_buf+= ALIGN_SIZE(sp->typecnt * sizeof(TRAN_TYPE_INFO));
-#ifdef ABBR_ARE_USED
     sp->chars= tzinfo_buf;
     tzinfo_buf+= ALIGN_SIZE(sp->charcnt+1);
-#endif
     sp->lsis= (LS_INFO *)tzinfo_buf;
 
     for (i= 0; i < sp->timecnt; i++, p+= 4)
@@ -326,9 +309,9 @@ tz_load(const char *name, TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 static my_bool
 prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
 {
-  my_time_t cur_t= MY_TIME_T_MIN;
-  my_time_t cur_l, end_t, UNINIT_VAR(end_l);
-  my_time_t cur_max_seen_l= MY_TIME_T_MIN;
+  my_int_time_t cur_t= MY_TIME_T_MIN;
+  my_int_time_t cur_l, end_t, UNINIT_VAR(end_l);
+  my_int_time_t cur_max_seen_l= MY_TIME_T_MIN;
   long cur_offset, cur_corr, cur_off_and_corr;
   uint next_trans_idx, next_leap_idx;
   uint i;
@@ -337,7 +320,7 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
     we don't know table sizes ahead. (Well we can estimate their
     upper bound but this will take extra space.)
   */
-  my_time_t revts[TZ_MAX_REV_RANGES];
+  my_int_time_t revts[TZ_MAX_REV_RANGES];
   REVT_INFO revtis[TZ_MAX_REV_RANGES];
 
   /*
@@ -496,14 +479,15 @@ prepare_tz_info(TIME_ZONE_INFO *sp, MEM_ROOT *storage)
   revts[sp->revcnt]= end_l;
 
   /* Allocate arrays of proper size in sp and copy result there */
-  if (!(sp->revts= (my_time_t *)alloc_root(storage,
-                                  sizeof(my_time_t) * (sp->revcnt + 1))) ||
+  if (!(sp->revts= (my_int_time_t*) alloc_root(storage,
+                                               sizeof(*sp->revts) *
+                                               (sp->revcnt + 1))) ||
       !(sp->revtis= (REVT_INFO *)alloc_root(storage,
-                                  sizeof(REVT_INFO) * sp->revcnt)))
+                                            sizeof(REVT_INFO) * sp->revcnt)))
     return 1;
 
-  memcpy(sp->revts, revts, sizeof(my_time_t) * (sp->revcnt + 1));
-  memcpy(sp->revtis, revtis, sizeof(REVT_INFO) * sp->revcnt);
+  memcpy(sp->revts, revts, sizeof(sp->revts[0]) * (sp->revcnt + 1));
+  memcpy(sp->revtis, revtis, sizeof(sp->revtis[0]) * sp->revcnt);
 
   return 0;
 }
@@ -633,7 +617,7 @@ sec_to_TIME(MYSQL_TIME * tmp, my_time_t t, long offset)
     Index of range to which t belongs
 */
 static uint
-find_time_range(my_time_t t, const my_time_t *range_boundaries,
+find_time_range(my_int_time_t t, const my_int_time_t *range_boundaries,
                 uint higher_bound)
 {
   uint i, lower_bound= 0;
@@ -788,18 +772,16 @@ gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t sec_in_utc, const TIME_ZONE_INFO *sp)
   RETURN VALUE
     Seconds since epoch time representation.
 */
-static my_time_t
+static longlong
 sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
 {
-  /* Guard against my_time_t overflow(on system with 32 bit my_time_t) */
-  DBUG_ASSERT(!(year == TIMESTAMP_MAX_YEAR && mon == 1 && mday > 17));
 #ifndef WE_WANT_TO_HANDLE_UNORMALIZED_DATES
   /*
     It turns out that only whenever month is normalized or unnormalized
     plays role.
   */
   DBUG_ASSERT(mon > 0 && mon < 13);
-  long days= year * DAYS_PER_NYEAR - EPOCH_YEAR * DAYS_PER_NYEAR +
+  longlong days= year * DAYS_PER_NYEAR - EPOCH_YEAR * DAYS_PER_NYEAR +
              LEAPS_THRU_END_OF(year - 1) -
              LEAPS_THRU_END_OF(EPOCH_YEAR - 1);
   days+= mon_starts[isleap(year)][mon - 1];
@@ -814,8 +796,8 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
 #endif
   days+= mday - 1;
 
-  return ((days * HOURS_PER_DAY + hour) * MINS_PER_HOUR + min) *
-         SECS_PER_MIN + sec;
+  return ((longlong((days * HOURS_PER_DAY + hour) * MINS_PER_HOUR + min)) *
+          SECS_PER_MIN + sec);
 }
 
 /*
@@ -893,10 +875,14 @@ sec_since_epoch(int year, int mon, int mday, int hour, int min ,int sec)
     0 in case of error.
 */
 
+#if TIMESTAMP_MAX_DAY <= 2
+#error TIMESTAMP_MAX_DAY has to be > 2 for TIME_to_gmt_sec to work
+#endif
+
 static my_time_t
 TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
 {
-  my_time_t local_t;
+  my_int_time_t local_t;
   uint saved_seconds;
   uint i;
   int shift= 0;
@@ -918,7 +904,7 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
 
   /*
     NOTE: to convert full my_time_t range we do a shift of the
-    boundary dates here to avoid overflow of my_time_t.
+    boundary dates here to avoid overflow of my_time_t range.
     We use alike approach in my_system_gmt_sec().
 
     However in that function we also have to take into account
@@ -926,18 +912,18 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
     uses localtime_r(), which doesn't work with negative values correctly
     on platforms with unsigned time_t (QNX). Here we don't use localtime()
     => we negative values of local_t are ok.
-  */
+a  */
 
-  if ((t->year == TIMESTAMP_MAX_YEAR) && (t->month == 1) && t->day > 4)
+  if (t->year == TIMESTAMP_MAX_YEAR && t->month == TIMESTAMP_MAX_MONTH &&
+      t->day > 2)
   {
     /*
       We will pass (t->day - shift) to sec_since_epoch(), and
       want this value to be a positive number, so we shift
-      only dates > 4.01.2038 (to avoid owerflow).
+      only dates > max_day (to avoid owerflow).
     */
     shift= 2;
   }
-
 
   local_t= sec_since_epoch(t->year, t->month, (t->day - shift),
                            t->hour, t->minute,
@@ -966,8 +952,8 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
   */
   if (shift)
   {
-    if (local_t > (my_time_t) (TIMESTAMP_MAX_VALUE - shift * SECS_PER_DAY +
-                               sp->revtis[i].rt_offset - saved_seconds))
+    if (local_t > (longlong) (TIMESTAMP_MAX_VALUE - shift * SECS_PER_DAY +
+                              sp->revtis[i].rt_offset - saved_seconds))
     {
       *error_code= ER_WARN_DATA_OUT_OF_RANGE;
       DBUG_RETURN(0);                           /* my_time_t overflow */
@@ -989,14 +975,13 @@ TIME_to_gmt_sec(const MYSQL_TIME *t, const TIME_ZONE_INFO *sp, uint *error_code)
   else
     local_t= local_t - sp->revtis[i].rt_offset + saved_seconds;
 
-  /* check for TIMESTAMP_MAX_VALUE was already done above */
-  if (local_t < TIMESTAMP_MIN_VALUE)
+  if (local_t < TIMESTAMP_MIN_VALUE || local_t > TIMESTAMP_MAX_VALUE)
   {
     local_t= 0;
     *error_code= ER_WARN_DATA_OUT_OF_RANGE;
   }
 
-  DBUG_RETURN(local_t);
+  DBUG_RETURN((my_time_t) local_t);
 }
 
 
@@ -1028,9 +1013,12 @@ class Time_zone_system : public Time_zone
 {
 public:
   Time_zone_system() = default;                       /* Remove gcc warning */
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 };
 
 
@@ -1089,12 +1077,21 @@ void
 Time_zone_system::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
 {
   struct tm tmp_tm;
-  time_t tmp_t= (time_t)t;
+  time_t tmp_t= (time_t) t;
 
   localtime_r(&tmp_t, &tmp_tm);
   localtime_to_TIME(tmp, &tmp_tm);
   tmp->time_type= MYSQL_TIMESTAMP_DATETIME;
   adjust_leap_second(tmp);
+}
+
+
+void
+Time_zone_system::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  uint error;
+  time_t time_sec= TIME_to_gmt_sec(local_TIME, &error);
+  my_tzinfo(time_sec, curr_tz);
 }
 
 
@@ -1124,10 +1121,12 @@ class Time_zone_utc : public Time_zone
 {
 public:
   Time_zone_utc() = default;                          /* Remove gcc warning */
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
-                                    uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 };
 
 
@@ -1175,6 +1174,13 @@ Time_zone_utc::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+void
+Time_zone_utc::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  strmake_buf(curr_tz->abbreviation, "UTC");
+  curr_tz->seconds_offset= 0;
+}
+
 
 /*
   Get name of time zone
@@ -1207,9 +1213,12 @@ class Time_zone_db : public Time_zone
 {
 public:
   Time_zone_db(TIME_ZONE_INFO *tz_info_arg, const String * tz_name_arg);
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const;
-  virtual void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
 private:
   TIME_ZONE_INFO *tz_info;
   const String *tz_name;
@@ -1280,6 +1289,22 @@ Time_zone_db::gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const
   adjust_leap_second(tmp);
 }
 
+void
+Time_zone_db::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  uint error;
+  my_time_t sec_in_utc;
+  const TRAN_TYPE_INFO *ttisp;
+
+  /* Get seconds since epoch. */
+  sec_in_utc= TIME_to_gmt_sec(local_TIME, &error);
+  /* Get local timezone information. */
+  ttisp= find_transition_type(sec_in_utc, tz_info);
+
+  curr_tz->seconds_offset= ttisp->tt_gmtoff;
+  strmake_buf(curr_tz->abbreviation, &(tz_info->chars[ttisp->tt_abbrind]));
+}
+
 
 /*
   Get name of time zone
@@ -1305,10 +1330,12 @@ class Time_zone_offset : public Time_zone
 {
 public:
   Time_zone_offset(long tz_offset_arg);
-  virtual my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
-                                    uint *error_code) const;
-  virtual void   gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const;
-  virtual const String * get_name() const;
+  my_time_t TIME_to_gmt_sec(const MYSQL_TIME *t,
+                            uint *error_code) const override;
+  void gmt_sec_to_TIME(MYSQL_TIME *tmp, my_time_t t) const override;
+  const String * get_name() const override;
+  void get_timezone_information(struct my_tz* curr_tz,
+                                const MYSQL_TIME *local_TIME) const override;
   /*
     This have to be public because we want to be able to access it from
     my_offset_tzs_get_key() function
@@ -1361,7 +1388,7 @@ Time_zone_offset::Time_zone_offset(long tz_offset_arg):
 my_time_t
 Time_zone_offset::TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const
 {
-  my_time_t local_t;
+  my_int_time_t local_t;
   int shift= 0;
 
   /*
@@ -1394,7 +1421,7 @@ Time_zone_offset::TIME_to_gmt_sec(const MYSQL_TIME *t, uint *error_code) const
   }
 
   if (local_t >= TIMESTAMP_MIN_VALUE && local_t <= TIMESTAMP_MAX_VALUE)
-    return local_t;
+    return (my_time_t) local_t;
 
   /* range error*/
   *error_code= ER_WARN_DATA_OUT_OF_RANGE;
@@ -1432,6 +1459,14 @@ const String *
 Time_zone_offset::get_name() const
 {
   return &name;
+}
+
+void
+Time_zone_offset::get_timezone_information(struct my_tz* curr_tz, const MYSQL_TIME *local_TIME) const
+{
+  curr_tz->seconds_offset= offset;
+  const char *name= get_name()->ptr();
+  strmake_buf(curr_tz->abbreviation, name);
 }
 
 
@@ -1543,12 +1578,19 @@ tz_init_table_list(TABLE_LIST *tz_tabs)
   }
 }
 
+static PSI_memory_key key_memory_tz_storage;
+
 #ifdef HAVE_PSI_INTERFACE
 static PSI_mutex_key key_tz_LOCK;
 
 static PSI_mutex_info all_tz_mutexes[]=
 {
   { & key_tz_LOCK, "tz_LOCK", PSI_FLAG_GLOBAL}
+};
+
+static PSI_memory_info all_tz_memory[]=
+{
+  { &key_memory_tz_storage, "tz_storage", PSI_FLAG_GLOBAL}
 };
 
 static void init_tz_psi_keys(void)
@@ -1561,6 +1603,9 @@ static void init_tz_psi_keys(void)
 
   count= array_elements(all_tz_mutexes);
   PSI_server->register_mutex(category, all_tz_mutexes, count);
+
+  count= array_elements(all_tz_memory);
+  mysql_memory_register(category, all_tz_memory, count);
 }
 #endif /* HAVE_PSI_INTERFACE */
 
@@ -1596,7 +1641,7 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
   THD *thd;
   TABLE_LIST tz_tables[1+MY_TZ_TABLES_COUNT];
   TABLE *table;
-  const LEX_CSTRING tmp_table_name= { STRING_WITH_LEN("time_zone_leap_second") };
+  const Lex_ident_table tmp_table_name= "time_zone_leap_second"_Lex_ident_table;
   Tz_names_entry *tmp_tzname;
   my_bool return_val= 1;
   int res;
@@ -1613,22 +1658,24 @@ my_tz_init(THD *org_thd, const char *default_tzname, my_bool bootstrap)
     DBUG_RETURN(1);
   thd->thread_stack= (char*) &thd;
   thd->store_globals();
+  thd->set_query_inner((char*) STRING_WITH_LEN("intern:my_tz_init"),
+                       default_charset_info);
 
   /* Init all memory structures that require explicit destruction */
-  if (my_hash_init(&tz_names, &my_charset_latin1, 20,
-                   0, 0, (my_hash_get_key) my_tz_names_get_key, 0, 0))
+  if (my_hash_init(key_memory_tz_storage, &tz_names, &my_charset_latin1, 20, 0,
+                   0, (my_hash_get_key) my_tz_names_get_key, 0, 0))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     goto end;
   }
-  if (my_hash_init(&offset_tzs, &my_charset_latin1, 26, 0, 0,
-                   (my_hash_get_key)my_offset_tzs_get_key, 0, 0))
+  if (my_hash_init(key_memory_tz_storage, &offset_tzs, &my_charset_latin1, 26,
+                   0, 0, (my_hash_get_key)my_offset_tzs_get_key, 0, 0))
   {
     sql_print_error("Fatal error: OOM while initializing time zones");
     my_hash_free(&tz_names);
     goto end;
   }
-  init_sql_alloc(&tz_storage, "timezone_storage", 32 * 1024, 0, MYF(0));
+  init_sql_alloc(key_memory_tz_storage, &tz_storage, 32 * 1024, 0, MYF(0));
   mysql_mutex_init(key_tz_LOCK, &tz_LOCK, MY_MUTEX_INIT_FAST);
   tz_inited= 1;
 
@@ -1759,7 +1806,8 @@ end_with_setting_default_tz:
   /* If we have default time zone try to load it */
   if (default_tzname)
   {
-    String tmp_tzname2(default_tzname, &my_charset_latin1);
+    String tmp_tzname2(default_tzname, strlen(default_tzname),
+                       &my_charset_latin1);
     /*
       Time zone tables may be open here, and my_tz_find() may open
       most of them once more, but this is OK for system tables open
@@ -1787,7 +1835,7 @@ end:
   delete thd;
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
-  
+
   default_tz= default_tz_name ? global_system_variables.time_zone
                               : my_tz_SYSTEM;
 
@@ -1845,7 +1893,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
   Time_zone *return_val= 0;
   int res;
   uint tzid, ttid;
-  my_time_t ttime;
+  my_int_time_t ttime;
   char buff[MAX_FIELD_WIDTH];
   uchar keybuff[32];
   Field *field;
@@ -1856,18 +1904,17 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     Temporary arrays that are used for loading of data for filling
     TIME_ZONE_INFO structure
   */
-  my_time_t ats[TZ_MAX_TIMES];
+  my_int_time_t ats[TZ_MAX_TIMES];
   uchar types[TZ_MAX_TIMES];
   TRAN_TYPE_INFO ttis[TZ_MAX_TYPES];
-#ifdef ABBR_ARE_USED
   char chars[MY_MAX(TZ_MAX_CHARS + 1, (2 * (MY_TZNAME_MAX + 1)))];
-#endif
-  /* 
+  /*
     Used as a temporary tz_info until we decide that we actually want to
     allocate and keep the tz info and tz name in tz_storage.
   */
   TIME_ZONE_INFO tmp_tz_info;
   memset(&tmp_tz_info, 0, sizeof(TIME_ZONE_INFO));
+  memset(ttis, 0, sizeof(ttis));
 
   DBUG_ENTER("tz_load_from_open_tables");
 
@@ -1890,7 +1937,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
       Most probably user has mistyped time zone name, so no need to bark here
       unless we need it for debugging.
     */
-     sql_print_error("Can't find description of time zone '%.*s'", 
+     sql_print_error("Can't find description of time zone '%.*b'",
                      tz_name->length(), tz_name->ptr());
 #endif
     goto end;
@@ -1966,7 +2013,6 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     ttis[ttid].tt_gmtoff= (long)table->field[2]->val_int();
     ttis[ttid].tt_isdst= (table->field[3]->val_int() > 0);
 
-#ifdef ABBR_ARE_USED
     // FIXME should we do something with duplicates here ?
     table->field[4]->val_str(&abbr, &abbr);
     if (tmp_tz_info.charcnt + abbr.length() + 1 > sizeof(chars))
@@ -1986,14 +2032,13 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
       ("time_zone_transition_type table: tz_id=%u tt_id=%u tt_gmtoff=%ld "
        "abbr='%s' tt_isdst=%u", tzid, ttid, ttis[ttid].tt_gmtoff,
        chars + ttis[ttid].tt_abbrind, ttis[ttid].tt_isdst));
-#else
-    DBUG_PRINT("info",
-      ("time_zone_transition_type table: tz_id=%u tt_id=%u tt_gmtoff=%ld "
-       "tt_isdst=%u", tzid, ttid, ttis[ttid].tt_gmtoff, ttis[ttid].tt_isdst));
-#endif
 
     /* ttid is increasing because we are reading using index */
-    DBUG_ASSERT(ttid >= tmp_tz_info.typecnt);
+    if (ttid < tmp_tz_info.typecnt)
+    {
+      sql_print_error("mysql.time_zone_transition_type table is incorrectly defined or corrupted");
+      goto end;
+    }
 
     tmp_tz_info.typecnt= ttid + 1;
 
@@ -2015,7 +2060,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     mysql.time_zone_transition table. Here we additionally need records
     in ascending order by index scan also satisfies us.
   */
-  table= tz_tables->table; 
+  table= tz_tables->table;
   table->field[0]->store((longlong) tzid, TRUE);
   if (table->file->ha_index_init(0, 1))
     goto end;
@@ -2024,7 +2069,7 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
                                       (key_part_map)1, HA_READ_KEY_EXACT);
   while (!res)
   {
-    ttime= (my_time_t)table->field[1]->val_int();
+    ttime= (my_int_time_t) table->field[1]->val_int();
     ttid= (uint)table->field[2]->val_int();
 
     if (tmp_tz_info.timecnt + 1 > TZ_MAX_TIMES)
@@ -2099,12 +2144,10 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     Now we will allocate memory and init TIME_ZONE_INFO structure.
   */
   if (!(alloc_buff= (char*) alloc_root(&tz_storage,
-                                       ALIGN_SIZE(sizeof(my_time_t) *
+                                       ALIGN_SIZE(sizeof(my_int_time_t) *
                                                   tz_info->timecnt) +
                                        ALIGN_SIZE(tz_info->timecnt) +
-#ifdef ABBR_ARE_USED
                                        ALIGN_SIZE(tz_info->charcnt) +
-#endif
                                        sizeof(TRAN_TYPE_INFO) *
                                        tz_info->typecnt)))
   {
@@ -2112,17 +2155,15 @@ tz_load_from_open_tables(const String *tz_name, TABLE_LIST *tz_tables)
     goto end;
   }
 
-  tz_info->ats= (my_time_t *) alloc_buff;
-  memcpy(tz_info->ats, ats, tz_info->timecnt * sizeof(my_time_t));
-  alloc_buff+= ALIGN_SIZE(sizeof(my_time_t) * tz_info->timecnt);
+  tz_info->ats= (my_int_time_t *) alloc_buff;
+  memcpy(tz_info->ats, ats, tz_info->timecnt * sizeof(tz_info->ats[0]));
+  alloc_buff+= ALIGN_SIZE(sizeof(tz_info->ats[0]) * tz_info->timecnt);
   tz_info->types= (uchar *)alloc_buff;
   memcpy(tz_info->types, types, tz_info->timecnt);
   alloc_buff+= ALIGN_SIZE(tz_info->timecnt);
-#ifdef ABBR_ARE_USED
   tz_info->chars= alloc_buff;
   memcpy(tz_info->chars, chars, tz_info->charcnt);
   alloc_buff+= ALIGN_SIZE(tz_info->charcnt);
-#endif
   tz_info->ttis= (TRAN_TYPE_INFO *)alloc_buff;
   memcpy(tz_info->ttis, ttis, tz_info->typecnt * sizeof(TRAN_TYPE_INFO));
 
@@ -2320,16 +2361,21 @@ my_tz_find(THD *thd, const String *name)
     else if (time_zone_tables_exist)
     {
       TABLE_LIST tz_tables[MY_TZ_TABLES_COUNT];
-      Open_tables_backup open_tables_state_backup;
 
+      /*
+        Allocate start_new_trans with malloc as it's > 4000 bytes and this
+        function can be called deep inside a stored procedure
+      */
+      start_new_trans *new_trans= new start_new_trans(thd);
       tz_init_table_list(tz_tables);
       init_mdl_requests(tz_tables);
-      if (!open_system_tables_for_read(thd, tz_tables,
-                                       &open_tables_state_backup))
+      if (!open_system_tables_for_read(thd, tz_tables))
       {
         result_tz= tz_load_from_open_tables(name, tz_tables);
-        close_system_tables(thd, &open_tables_state_backup);
+        thd->commit_whole_transaction_and_close_tables();
       }
+      new_trans->restore_old_transaction();
+      delete new_trans;
     }
   }
 
@@ -2345,7 +2391,7 @@ my_tz_find(THD *thd, const String *name)
 /**
   Convert leap seconds into non-leap
 
-  This function will convert the leap seconds added by the OS to 
+  This function will convert the leap seconds added by the OS to
   non-leap seconds, e.g. 23:59:59, 23:59:60 -> 23:59:59, 00:00:01 ...
   This check is not checking for years on purpose : although it's not a
   complete check this way it doesn't require looking (and having installed)
@@ -2358,6 +2404,59 @@ void Time_zone::adjust_leap_second(MYSQL_TIME *t)
 {
   if (t->second == 60 || t->second == 61)
     t->second= 59;
+}
+
+
+/*
+  @brief
+    Check if timestamp<->datetime conversion is guaranteed to be reversible
+    around the given time value.
+*/
+
+bool Time_zone::is_monotone_continuous_around(my_time_t sec) const
+{
+  const my_time_t width= 24 * 60 * 60;
+  /*
+    Let's check that the TIMESTAMP range [sec - width, sec + width]
+    converts back to a DATETIME range [dtmin, dtmax], and the difference
+    (dtmax-dtmin), calculated using DATETIME arithmetics,
+    is also equal to exactly 2*width.
+
+    This should almost guarantee that the TIMESTAMP range around sec
+    is monotone and continuous and thus has no DST changes or leap seconds.
+
+    It's still possible that there are two or more timezone offset changes
+    in the given range. But there are no such time zones according to
+    our knowledge.
+    Note, DST changes and leap seconds do not interfere on a short time_t range:
+    - Leap seconds happen in winter and summer
+    - DST changes happen in spring and fall
+
+    The largest time zone change that ever happened in a single place
+    was 24 hours:
+    - from SST (UTC-11) - the American Samoa Time Zone
+    - to WST (UTC+13) - the Independent State of Samoa Time Zone
+    The Independent State of Samoa used SST until it moved across
+    the International Date Line at the end of 29 December 2011, to WST.
+    It is now 24 hours ahead of American Samoa
+    (and 25 hours in Southern hemisphere summer).
+    Let's use 24 hours as width (48 hours range total).
+  */
+
+  if (sec < width || sec > TIMESTAMP_MAX_VALUE - width)
+    return false;
+
+  MYSQL_TIME dtmin, dtmax;
+  gmt_sec_to_TIME(&dtmin, sec - width);
+  gmt_sec_to_TIME(&dtmax, sec + width);
+
+  ulonglong seconds;
+  ulong useconds;
+  if (calc_time_diff(&dtmax, &dtmin, 1, &seconds, &useconds))
+    return false; // dtmax is smaller than dtmin, should not happen.
+  if (seconds != (ulonglong) width * 2)
+    return false; // Anomalies found (DST changes or leap seconds)
+  return true;
 }
 
 #endif /* !defined(TESTTIME) && !defined(TZINFO2SQL) */
@@ -2396,13 +2495,13 @@ print_tz_as_sql(const char* tz_name, const TIME_ZONE_INFO *sp)
     printf("INSERT INTO time_zone_transition \
 (Time_zone_id, Transition_time, Transition_type_id) VALUES\n");
     for (i= 0; i < sp->timecnt; i++)
-      printf("%s(@time_zone_id, %ld, %u)\n", (i == 0 ? " " : ","), sp->ats[i],
-             (uint)sp->types[i]);
+      printf("%s(@time_zone_id, %lld, %u)\n", (i == 0 ? " " : ","),
+             (longlong) sp->ats[i], (uint)sp->types[i]);
     printf(";\n");
   }
 
   printf("INSERT INTO time_zone_transition_type \
-(Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES\n");
+(Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES\n");
 
   for (i= 0; i < sp->typecnt; i++)
     printf("%s(@time_zone_id, %u, %ld, %d, '%s')\n", (i == 0 ? " " : ","), i,
@@ -2411,6 +2510,11 @@ print_tz_as_sql(const char* tz_name, const TIME_ZONE_INFO *sp)
   printf(";\n");
 }
 
+
+#define SAVE_ENGINE(e) \
+  "'select ENGINE into @" e "_engine" \
+  " from information_schema.TABLES" \
+  " where TABLE_SCHEMA=DATABASE() and TABLE_NAME=''" e "'''"
 
 /*
   Print info about leap seconds in time zone as SQL statements
@@ -2430,12 +2534,11 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
     For all timezones.
   */
   if (!opt_skip_write_binlog)
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone_leap_second ENGINE=InnoDB;\n"
-        "END IF|\n"
-        "\\d ;\n");
+      printf(
+        "execute immediate if(@wsrep_cannot_replicate_tz, "
+          SAVE_ENGINE("time_zone_leap_second") ", 'do 0');\n"
+        "execute immediate if(@wsrep_cannot_replicate_tz, "
+	  "'ALTER TABLE time_zone_leap_second ENGINE=InnoDB', 'do 0');\n");
 
   printf("TRUNCATE TABLE time_zone_leap_second;\n");
 
@@ -2444,18 +2547,16 @@ print_tz_leaps_as_sql(const TIME_ZONE_INFO *sp)
     printf("INSERT INTO time_zone_leap_second \
 (Transition_time, Correction) VALUES\n");
     for (i= 0; i < sp->leapcnt; i++)
-      printf("%s(%ld, %ld)\n", (i == 0 ? " " : ","),
-             sp->lsis[i].ls_trans, sp->lsis[i].ls_corr);
+      printf("%s(%lld, %ld)\n", (i == 0 ? " " : ","),
+             (longlong) sp->lsis[i].ls_trans, sp->lsis[i].ls_corr);
     printf(";\n");
   }
 
   if (!opt_skip_write_binlog)
-      printf("\\d |\n"
-        "IF (select count(*) from information_schema.global_variables where\n"
-        "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-        "ALTER TABLE time_zone_leap_second ENGINE=Aria;\n"
-        "END IF|\n"
-        "\\d ;\n");
+      printf(
+        "execute immediate if(@wsrep_cannot_replicate_tz, "
+          "concat('ALTER TABLE time_zone_leap_second ENGINE=', "
+	    "@time_zone_leap_second_engine), 'do 0');\n");
 
   printf("ALTER TABLE time_zone_leap_second ORDER BY Transition_time;\n");
 }
@@ -2499,7 +2600,7 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 {
   MY_DIR *cur_dir;
   char *name_end_tmp;
-  uint i;
+  size_t i;
 
   /* Sort directory data, to pass mtr tests on different platforms. */
   if (!(cur_dir= my_dir(fullname, MYF(MY_WANT_STAT|MY_WANT_SORT))))
@@ -2540,7 +2641,7 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 
           /*
             This is a normal case and not critical. only print warning if
-            verbose mode is choosen.
+            verbose mode is chosen.
           */
           if (verbose > 0)
           {
@@ -2559,8 +2660,8 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
       }
       else if (MY_S_ISREG(cur_dir->dir_entry[i].mystat->st_mode))
       {
-        init_alloc_root(&tz_storage, "timezone_storage", 32768, 0,
-                        MYF(MY_THREAD_SPECIFIC));
+        init_alloc_root(PSI_INSTRUMENT_ME, &tz_storage,
+                        32768, 0, MYF(MY_THREAD_SPECIFIC));
         if (!tz_load(fullname, &tz_info, &tz_storage))
           print_tz_as_sql(root_name_end + 1, &tz_info);
         else
@@ -2624,7 +2725,7 @@ static struct my_option my_long_options[] =
    &opt_verbose, &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to the binary log, or to other nodes in a Galera cluster (if wsrep_on=ON).",
+  {"skip-write-binlog", 'S', "Do not replicate changes to time zone tables to the binary log, or to other nodes in a Galera cluster.",
    &opt_skip_write_binlog,&opt_skip_write_binlog, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   { 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
@@ -2640,15 +2741,9 @@ static void free_allocated_data()
 
 
 C_MODE_START
-static my_bool get_one_option(int optid, const struct my_option *,
-                              char *argument);
+static my_bool get_one_option(const struct my_option *, const char *,
+                              const char *);
 C_MODE_END
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, PROGRAM_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
 
 static const char *default_timezone_dir= "/usr/share/zoneinfo/";
 
@@ -2673,9 +2768,9 @@ static void print_usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt, char *argument)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case '#':
 #ifndef DBUG_OFF
     DBUG_PUSH(argument ? argument : "d:t:S:i:O,/tmp/mysq_tzinfo_to_sql.trace");
@@ -2701,17 +2796,34 @@ static const char *lock_tables=
   "  time_zone_leap_second WRITE,\n"
   "  time_zone_name WRITE,\n"
   "  time_zone_transition WRITE,\n"
-  "  time_zone_transition_type WRITE;\n";
+  "  time_zone_transition_type WRITE";
 static const char *trunc_tables_const=
+  "SET @old_alter_alg=@@SESSION.alter_algorithm;\n"
+  "SET session alter_algorithm='COPY';\n"
   "TRUNCATE TABLE time_zone;\n"
   "TRUNCATE TABLE time_zone_name;\n"
   "TRUNCATE TABLE time_zone_transition;\n"
   "TRUNCATE TABLE time_zone_transition_type;\n";
 
+/*
+   These queries need to return FALSE/0 when the 'wsrep*' variables do not
+   exist at all.
+   Moving the WHERE clause into the sum(...) seems like the obvious solution
+   here, but it does not work in bootstrap mode (see MDEV-28782 and
+   0e4cf497ca11a7298e2bd896cb594bd52085a1d4).
+   Thus we use coalesce(..., 0) instead,
+*/
+static const char *wsrep_is_on=
+  "select coalesce(sum(SESSION_VALUE='ON'), 0)"
+  " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_on'";
+static const char *wsrep_cannot_replicate_tz=
+  "select coalesce(sum(GLOBAL_VALUE NOT LIKE @replicate_opt), 0)"
+  " from information_schema.SYSTEM_VARIABLES WHERE VARIABLE_NAME='wsrep_mode'";
+
 int
 main(int argc, char **argv)
 {
-  const char *trunc_tables;
+  const char *trunc_tables= "";
   MY_INIT(argv[0]);
 
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
@@ -2727,38 +2839,47 @@ main(int argc, char **argv)
     return 1;
   }
 
-  if (!(argc == 1 && !opt_leap))
-    trunc_tables= "SELECT 'skip truncate tables';\n"; // No-op - needed for ELSE clause
-  else
+  if (argc == 1 && !opt_leap)
     trunc_tables= trunc_tables_const;
 
+  printf("set @wsrep_is_on=(%s);\n", wsrep_is_on);
+  printf("SET STATEMENT SQL_MODE='' FOR "
+         "SELECT concat('%%', GROUP_CONCAT(OPTION ORDER BY OPTION DESC), '%%') INTO @replicate_opt "
+         " FROM"
+         "   (SELECT DISTINCT concat('REPLICATE_', UPPER(ENGINE)) AS OPTION"
+         "    FROM information_schema.TABLES"
+         "    WHERE TABLE_SCHEMA=DATABASE()"
+         "      AND TABLE_NAME IN ('time_zone',"
+         "                         'time_zone_name',"
+         "                         'time_zone_transition',"
+         "                         'time_zone_transition_type',"
+         "                         'time_zone_leap_second')"
+         "      AND ENGINE in ('MyISAM',"
+         "                     'Aria')) AS o;\n");
+  printf("set @wsrep_cannot_replicate_tz=@wsrep_is_on AND (%s);\n", wsrep_cannot_replicate_tz);
   if (opt_skip_write_binlog)
-    /* If skip_write_binlog is set and wsrep is compiled in we disable
-       sql_log_bin and wsrep_on to avoid Galera replicating below
-       TRUNCATE TABLE clauses. This will allow user to set different
-       time zones to nodes in Galera cluster. */
-    printf("set @prep1=if((select count(*) from information_schema.global_variables where variable_name='wsrep_on' and variable_value='ON'), 'SET SESSION WSREP_ON=OFF', 'do 0');\n"
+    /* We turn off session wsrep if we cannot replicate using galera.
+       Disable sql_log_bin as the name implies. */
+    printf("execute immediate if(@wsrep_is_on, 'SET @save_wsrep_on=@@WSREP_ON, WSREP_ON=OFF', 'do 0');\n"
+           "SET @save_sql_log_bin=@@SQL_LOG_BIN;\n"
            "SET SESSION SQL_LOG_BIN=0;\n"
-           "execute immediate @prep1;\n"
-           "%s%s", trunc_tables, lock_tables);
+           "SET @wsrep_cannot_replicate_tz=0;\n"
+           "%s%s;\n", trunc_tables, lock_tables);
   else
     // Alter time zone tables to InnoDB if wsrep_on is enabled
     // to allow changes to them to replicate with Galera
-    printf("\\d |\n"
-      "IF (select count(*) from information_schema.global_variables where\n"
-      "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-      "ALTER TABLE time_zone ENGINE=InnoDB;\n"
-      "ALTER TABLE time_zone_name ENGINE=InnoDB;\n"
-      "ALTER TABLE time_zone_transition ENGINE=InnoDB;\n"
-      "ALTER TABLE time_zone_transition_type ENGINE=InnoDB;\n"
+    printf(
+      "execute immediate if(@wsrep_cannot_replicate_tz, " SAVE_ENGINE("time_zone") ", 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone ENGINE=InnoDB', 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, " SAVE_ENGINE("time_zone_name") ", 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_name ENGINE=InnoDB', 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, " SAVE_ENGINE("time_zone_transition") ", 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition ENGINE=InnoDB', 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, " SAVE_ENGINE("time_zone_transition_type") ", 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'ALTER TABLE time_zone_transition_type ENGINE=InnoDB', 'do 0');\n"
       "%s"
-      "START TRANSACTION;\n"
-      "ELSE\n%s"
-      "END IF|\n"
-      "\\d ;\n",
-      trunc_tables, trunc_tables);
-    // Ideally we'd like to put lock_tables in the ELSE branch however
-    // "ERROR 1314 (0A000) at line 2: LOCK is not allowed in stored procedures"
+      "/*M!100602 execute immediate if(@wsrep_cannot_replicate_tz, 'start transaction', '%s')*/;\n"
+      , trunc_tables, lock_tables);
 
   if (argc == 1 && !opt_leap)
   {
@@ -2778,10 +2899,13 @@ main(int argc, char **argv)
 
     printf("UNLOCK TABLES;\n"
            "COMMIT;\n");
-    printf("ALTER TABLE time_zone_transition "
-           "ORDER BY Time_zone_id, Transition_time;\n");
-    printf("ALTER TABLE time_zone_transition_type "
-           "ORDER BY Time_zone_id, Transition_type_id;\n");
+    printf(
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'do 0',"
+        "'ALTER TABLE time_zone_transition "
+          "ORDER BY Time_zone_id, Transition_time');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, 'do 0',"
+        "'ALTER TABLE time_zone_transition_type "
+          "ORDER BY Time_zone_id, Transition_type_id');\n");
   }
   else
   {
@@ -2789,7 +2913,7 @@ main(int argc, char **argv)
       First argument is timezonefile.
       The second is timezonename if opt_leap is not given
     */
-    init_alloc_root(&tz_storage, "timezone_storage", 32768, 0, MYF(0));
+    init_alloc_root(PSI_INSTRUMENT_ME, &tz_storage, 32768, 0, MYF(0));
 
     if (tz_load(argv[0], &tz_info, &tz_storage))
     {
@@ -2806,18 +2930,26 @@ main(int argc, char **argv)
     free_root(&tz_storage, MYF(0));
   }
 
-  if(!opt_skip_write_binlog)
-    // Fall back to Aria
-    printf("\\d |\n"
-      "IF (select count(*) from information_schema.global_variables where\n"
-      "variable_name='wsrep_on' and variable_value='ON') = 1 THEN\n"
-      "ALTER TABLE time_zone ENGINE=Aria;\n"
-      "ALTER TABLE time_zone_name ENGINE=Aria;\n"
-      "ALTER TABLE time_zone_transition ENGINE=Aria, ORDER BY Time_zone_id, Transition_time;\n"
-      "ALTER TABLE time_zone_transition_type ENGINE=Aria, ORDER BY Time_zone_id, Transition_type_id;\n"
-      "END IF|\n"
-      "\\d ;\n");
+  if(opt_skip_write_binlog)
+    printf("SET SESSION SQL_LOG_BIN=@save_sql_log_bin;\n"
+           "execute immediate if(@wsrep_is_on, 'SET SESSION WSREP_ON=@save_wsrep_on', 'do 0');\n");
+  else
+    // Change back to what it was before
+    printf(
+      "execute immediate if(@wsrep_cannot_replicate_tz, "
+        "concat('ALTER TABLE time_zone ENGINE=', @time_zone_engine), 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, "
+        "concat('ALTER TABLE time_zone_name ENGINE=', @time_zone_name_engine), 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, "
+        "concat('ALTER TABLE time_zone_transition ENGINE=', "
+	  "@time_zone_transition_engine, ', ORDER BY Time_zone_id, Transition_time'), 'do 0');\n"
+      "execute immediate if(@wsrep_cannot_replicate_tz, "
+        "concat('ALTER TABLE time_zone_transition_type ENGINE=', "
+	  "@time_zone_transition_type_engine, ', ORDER BY Time_zone_id, Transition_type_id'), 'do 0');\n");
 
+  if (argc == 1 && !opt_leap)
+    printf("SET session alter_algorithm=@old_alter_alg;\n");
+  
   free_allocated_data();
   my_end(0);
   return 0;

@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2017, MariaDB Corporation.
+   Copyright (c) 2017, 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -460,6 +460,20 @@ static void init_federated_psi_keys(void)
 #endif /* HAVE_PSI_INTERFACE */
 
 /*
+  Federated doesn't need costs.disk_read_ratio as everything is one a
+  remote server and nothing is cached locally
+*/
+
+static void federated_update_optimizer_costs(OPTIMIZER_COSTS *costs)
+{
+  /*
+    Setting disk_read_ratios to 1.0, ensures we are using the costs
+    from rnd_pos_time() and scan_time()
+  */
+  costs->disk_read_ratio= 1.0;
+}
+
+/*
   Initialize the federated handler.
 
   SYNOPSIS
@@ -480,11 +494,12 @@ int federated_db_init(void *p)
 #endif /* HAVE_PSI_INTERFACE */
 
   handlerton *federated_hton= (handlerton *)p;
-  federated_hton->state= SHOW_OPTION_YES;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
   federated_hton->create= federated_create_handler;
+  federated_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  federated_hton->update_optimizer_costs= federated_update_optimizer_costs;
   federated_hton->flags= HTON_ALTER_NOT_SUPPORTED | HTON_NO_PARTITION;
 
   /*
@@ -497,8 +512,8 @@ int federated_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federated,
                        &federated_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(&federated_open_tables, &my_charset_bin, 32, 0, 0,
-                    (my_hash_get_key) federated_get_key, 0, 0))
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federated_open_tables, &my_charset_bin,
+                    32, 0, 0, (my_hash_get_key) federated_get_key, 0, 0))
   {
     DBUG_RETURN(FALSE);
   }
@@ -561,7 +576,7 @@ static bool append_ident(String *string, const char *name, size_t length,
     for (name_end= name+length; name < name_end; name+= clen)
     {
       uchar c= *(uchar *) name;
-      clen= my_charlen_fix(system_charset_info, name, name_end);
+      clen= system_charset_info->charlen_fix(name, name_end);
       if (clen == 1 && c == (uchar) quote_char &&
           (result= string->append(&quote_char, 1, system_charset_info)))
         goto err;
@@ -909,7 +924,6 @@ ha_federated::ha_federated(handlerton *hton,
   bzero(&bulk_insert, sizeof(bulk_insert));
 }
 
-
 /*
   Convert MySQL result set row to handler internal format
 
@@ -960,7 +974,7 @@ uint ha_federated::convert_row_to_internal_format(uchar *record,
       if (bitmap_is_set(table->read_set, (*field)->field_index))
       {
         (*field)->set_notnull();
-        (*field)->store(*row, *lengths, &my_charset_bin);
+        (*field)->store_text(*row, *lengths, &my_charset_bin);
       }
     }
     (*field)->move_field_offset(-old_ptr);
@@ -994,25 +1008,23 @@ static bool emit_key_part_element(String *to, KEY_PART_INFO *part,
 
     *buf++= '0';
     *buf++= 'x';
-    buf= octet2hex(buf, (char*) ptr, len);
+    buf= octet2hex(buf, ptr, len);
     if (to->append((char*) buff, (uint)(buf - buff)))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_BLOB_PART)
   {
-    String blob;
     uint blob_length= uint2korr(ptr);
-    blob.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                   blob_length, &my_charset_bin);
+    String blob((char*) ptr+HA_KEY_BLOB_LENGTH,
+                blob_length, &my_charset_bin);
     if (to->append_for_single_quote(&blob))
       DBUG_RETURN(1);
   }
   else if (part->key_part_flag & HA_VAR_LENGTH_PART)
   {
-    String varchar;
     uint var_length= uint2korr(ptr);
-    varchar.set_quick((char*) ptr+HA_KEY_BLOB_LENGTH,
-                      var_length, &my_charset_bin);
+    String varchar((char*) ptr+HA_KEY_BLOB_LENGTH,
+                   var_length, &my_charset_bin);
     if (to->append_for_single_quote(&varchar))
       DBUG_RETURN(1);
   }
@@ -1392,7 +1404,7 @@ bool ha_federated::create_where_from_key(String *to,
       case HA_READ_AFTER_KEY:
         if (eq_range_arg)
         {
-          if (tmp.append("1=1"))                // Dummy
+          if (tmp.append(STRING_WITH_LEN("1=1")))                // Dummy
             goto err;
           break;
         }
@@ -1516,7 +1528,7 @@ static FEDERATED_SHARE *get_share(const char *table_name, TABLE *table)
   */
   query.length(0);
 
-  init_alloc_root(&mem_root, "federated_share", 256, 0, MYF(0));
+  init_alloc_root(PSI_INSTRUMENT_ME, &mem_root, 256, 0, MYF(0));
 
   mysql_mutex_lock(&federated_mutex);
 
@@ -1603,8 +1615,10 @@ static int free_share(FEDERATED_SHARE *share)
 }
 
 
-ha_rows ha_federated::records_in_range(uint inx, key_range *start_key,
-                                       key_range *end_key)
+ha_rows ha_federated::records_in_range(uint inx,
+                                       const key_range *start_key,
+                                       const key_range *end_key,
+                                       page_range *pages)
 {
   /*
 
@@ -1642,7 +1656,7 @@ int ha_federated::open(const char *name, int mode, uint test_if_locked)
   ref_length= sizeof(MYSQL_RES *) + sizeof(MYSQL_ROW_OFFSET);
   DBUG_PRINT("info", ("ref_length: %u", ref_length));
 
-  my_init_dynamic_array(&results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
+  my_init_dynamic_array(PSI_INSTRUMENT_ME, &results, sizeof(MYSQL_RES *), 4, 4, MYF(0));
   reset();
 
   DBUG_RETURN(0);
@@ -1656,7 +1670,7 @@ public:
 public:
   bool handle_condition(THD *thd, uint sql_errno, const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
-                        const char* msg, Sql_condition ** cond_hdl)
+                        const char* msg, Sql_condition ** cond_hdl) override
   {
     return sql_errno >= ER_ABORTING_CONNECTION &&
            sql_errno <= ER_NET_WRITE_INTERRUPTED;
@@ -2426,7 +2440,7 @@ int ha_federated::index_read_idx_with_result_set(uchar *buf, uint index,
   index_string.length(0);
   sql_query.length(0);
 
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
 
   range.key= key;
   range.length= key_len;
@@ -2510,7 +2524,7 @@ int ha_federated::read_range_first(const key_range *start_key,
   DBUG_ASSERT(!(start_key == NULL && end_key == NULL));
 
   sql_query.length(0);
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
   create_where_from_key(&sql_query,
                         &table->key_info[active_index],
                         start_key, end_key, 0, eq_range_arg);
@@ -2879,11 +2893,11 @@ int ha_federated::info(uint flag)
                                                       &error);
 
     /*
-      size of IO operations (This is based on a good guess, no high science
-      involved)
+      Size of IO operations. This is used to calculate time to scan a table.
+      See handler.cc::keyread_time
     */
     if (flag & HA_STATUS_CONST)
-      stats.block_size= 4096;
+      stats.block_size= 1500;                   // Typical size of an TCP packet
 
   }
 
@@ -3126,6 +3140,7 @@ int ha_federated::real_connect()
 {
   char buffer[FEDERATED_QUERY_BUFFER_SIZE];
   String sql_query(buffer, sizeof(buffer), &my_charset_bin);
+  my_bool my_false= 0;
   DBUG_ENTER("ha_federated::real_connect");
 
   DBUG_ASSERT(mysql == NULL);
@@ -3142,16 +3157,12 @@ int ha_federated::real_connect()
     of table
   */
   /* this sets the csname like 'set names utf8' */
-  mysql_options(mysql,MYSQL_SET_CHARSET_NAME,
-                this->table->s->table_charset->csname);
+  mysql_options(mysql,MYSQL_SET_CHARSET_NAME, table->s->table_charset->cs_name.str);
+  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   sql_query.length(0);
-  if (!mysql_real_connect(mysql,
-                          share->hostname,
-                          share->username,
-                          share->password,
-                          share->database,
-                          share->port,
+  if (!mysql_real_connect(mysql, share->hostname, share->username,
+                          share->password, share->database, share->port,
                           share->socket, 0))
   {
     stash_remote_error();
@@ -3166,19 +3177,21 @@ int ha_federated::real_connect()
     We have established a connection, lets try a simple dummy query just 
     to check that the table and expected columns are present.
   */
-  sql_query.append(share->select_query);
+  sql_query.append(share->select_query, strlen(share->select_query));
   sql_query.append(STRING_WITH_LEN(" WHERE 1=0"));
   if (mysql_real_query(mysql, sql_query.ptr(), sql_query.length()))
   {
     sql_query.length(0);
-    sql_query.append("error: ");
+    sql_query.append(STRING_WITH_LEN("error: "));
     sql_query.qs_append(mysql_errno(mysql));
-    sql_query.append("  '");
-    sql_query.append(mysql_error(mysql));
-    sql_query.append("'");
+    sql_query.append(STRING_WITH_LEN("  '"));
+    const char *errmsg= mysql_error(mysql);
+    sql_query.append(errmsg, strlen(errmsg));
+    sql_query.append('\'');
     mysql_close(mysql);
     mysql= NULL;
-    my_error(ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST, MYF(0), sql_query.ptr());
+    my_error(ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST, MYF(0),
+             sql_query.c_ptr_safe());
     remote_error_number= -1;
     DBUG_RETURN(-1);
   }
@@ -3240,7 +3253,7 @@ bool ha_federated::get_error_message(int error, String* buf)
     buf->append(STRING_WITH_LEN("Error on remote system: "));
     buf->qs_append(remote_error_number);
     buf->append(STRING_WITH_LEN(": "));
-    buf->append(remote_error_buf);
+    buf->append(remote_error_buf, strlen(remote_error_buf));
 
     remote_error_number= 0;
     remote_error_buf[0]= '\0';
@@ -3386,30 +3399,13 @@ int ha_federated::execute_simple_query(const char *query, int len)
 struct st_mysql_storage_engine federated_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };
 
-mysql_declare_plugin(federated)
-{
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &federated_storage_engine,
-  "FEDERATED",
-  "Patrick Galbraith and Brian Aker, MySQL AB",
-  "Federated MySQL storage engine",
-  PLUGIN_LICENSE_GPL,
-  federated_db_init, /* Plugin Init */
-  federated_done, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  NULL,                       /* status variables                */
-  NULL,                       /* system variables                */
-  NULL,                       /* config options                  */
-  0,                          /* flags                           */
-}
-mysql_declare_plugin_end;
 maria_declare_plugin(federated)
 {
   MYSQL_STORAGE_ENGINE_PLUGIN,
   &federated_storage_engine,
   "FEDERATED",
   "Patrick Galbraith and Brian Aker, MySQL AB",
-  "Allows to access tables on other MariaDB servers",
+  "Allows accessing tables on other MariaDB servers",
   PLUGIN_LICENSE_GPL,
   federated_db_init, /* Plugin Init */
   federated_done, /* Plugin Deinit */

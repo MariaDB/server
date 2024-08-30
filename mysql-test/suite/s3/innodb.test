@@ -1,0 +1,35 @@
+--source include/have_s3.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+#
+# Testing converting InnoDB tables to S3
+#
+
+#
+# Create unique database for running the tests
+#
+--source create_database.inc
+--disable_warnings
+drop table if exists t1,t2,t3;
+--enable_warnings
+
+--echo #
+--echo # Test ALTER TABLE to and from s3
+--echo #
+
+create table t1 (a int, b int) engine=innodb;
+insert into t1 select seq,seq+10 from seq_1_to_1000;
+alter table t1 engine=s3;
+show create table t1;
+alter table t1 comment="hello";
+show create table t1;
+alter table t1 engine=innodb;
+show create table t1;
+select count(*), sum(a), sum(b) from t1;
+drop table t1;
+
+#
+# clean up
+#
+--source drop_database.inc

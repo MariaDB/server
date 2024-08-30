@@ -20,7 +20,6 @@
 #include "mysys_priv.h"
 #include <signal.h>
 #include <m_string.h>
-#include <thr_alarm.h>
 #include <my_pthread.h>
 
 #if (defined(__BSD__) || defined(_BSDI_VERSION))
@@ -28,8 +27,6 @@
 #else
 #define SCHED_POLICY SCHED_OTHER
 #endif
-
-uint thd_lib_detected= 0;
 
 /*
   Some functions for RTS threads, AIX, Siemens Unix and UnixWare 7
@@ -92,7 +89,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res)
 ** Author: Gary Wisniewski <garyw@spidereye.com.au>, much modified by Monty
 ****************************************************************************/
 
-#if !defined(HAVE_SIGWAIT) && !defined(sigwait) && !defined(__WIN__) && !defined(HAVE_rts_threads)
+#if !defined(HAVE_SIGWAIT) && !defined(sigwait) && !defined(_WIN32) && !defined(HAVE_rts_threads)
 
 #if !defined(DONT_USE_SIGSUSPEND)
 
@@ -236,11 +233,7 @@ void *sigwait_thread(void *set_arg)
       sigaction(i, &sact, (struct sigaction*) 0);
     }
   }
-  /* Ensure that init_thr_alarm() is called */
-  DBUG_ASSERT(thr_client_alarm);
-  sigaddset(set, thr_client_alarm);
   pthread_sigmask(SIG_UNBLOCK,(sigset_t*) set,(sigset_t*) 0);
-  alarm_thread=pthread_self();			/* For thr_alarm */
 
   for (;;)
   {						/* Wait for signals */
@@ -403,4 +396,67 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex)
 int pthread_dummy(int ret)
 {
   return ret;
+}
+
+
+/*
+  pthread_attr_setstacksize() without so much platform-dependency
+
+  Return: The actual stack size if possible.
+*/
+
+size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize)
+{
+  size_t guard_size __attribute__((unused))= 0;
+
+#if defined(__ia64__) || defined(__ia64)
+  /*
+    On IA64, half of the requested stack size is used for "normal stack"
+    and half for "register stack".  The space measured by check_stack_overrun
+    is the "normal stack", so double the request to make sure we have the
+    caller-expected amount of normal stack.
+
+    NOTE: there is no guarantee that the register stack can't grow faster
+    than normal stack, so it's very unclear that we won't dump core due to
+    stack overrun despite check_stack_overrun's efforts.  Experimentation
+    shows that in the execution_constants test, the register stack grows
+    less than half as fast as normal stack, but perhaps other scenarios are
+    less forgiving.  If it turns out that more space is needed for the
+    register stack, that could be forced (rather inefficiently) by using a
+    multiplier higher than 2 here.
+  */
+  stacksize *= 2;
+#endif
+
+  /*
+    On many machines, the "guard space" is subtracted from the requested
+    stack size, and that space is quite large on some platforms.  So add
+    it to our request, if we can find out what it is.
+  */
+#ifdef HAVE_PTHREAD_ATTR_GETGUARDSIZE
+  if (pthread_attr_getguardsize(attr, &guard_size))
+    guard_size = 0;		/* if can't find it out, treat as 0 */
+#endif /* HAVE_PTHREAD_ATTR_GETGUARDSIZE */
+
+  pthread_attr_setstacksize(attr, stacksize + guard_size);
+
+  /* Retrieve actual stack size if possible */
+#ifdef HAVE_PTHREAD_ATTR_GETSTACKSIZE
+  {
+    size_t real_stack_size= 0;
+    /* We must ignore real_stack_size = 0 as Solaris 2.9 can return 0 here */
+    if (pthread_attr_getstacksize(attr, &real_stack_size) == 0 &&
+	real_stack_size > guard_size)
+    {
+      real_stack_size -= guard_size;
+      if (real_stack_size < stacksize)
+	stacksize= real_stack_size;
+    }
+  }
+#endif /* HAVE_PTHREAD_ATTR_GETSTACKSIZE */
+
+#if defined(__ia64__) || defined(__ia64)
+  stacksize /= 2;
+#endif
+  return stacksize;
 }

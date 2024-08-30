@@ -10,7 +10,7 @@ CREATE TABLE t1(
   f0 int auto_increment PRIMARY KEY,
   f1 int,
   f2 varchar(200)
-);
+) CHARSET=latin1;
 
 INSERT INTO t1(f1, f2) VALUES 
 (0,"0"),(1,"1"),(2,"2"),(3,"3"),(4,"4"),(5,"5"),
@@ -50,6 +50,7 @@ INSERT INTO tmp SELECT f1,f2 FROM t1;
 INSERT INTO t1(f1,f2) SELECT * FROM tmp; 
 INSERT INTO tmp SELECT f1,f2 FROM t1;
 INSERT INTO t1(f1,f2) SELECT * FROM tmp; 
+select count(*) from t1;
 
 # Test when only sortkeys fits to memory
 set sort_buffer_size= 32768; 
@@ -58,9 +59,25 @@ FLUSH STATUS;
 SHOW SESSION STATUS LIKE 'Sort%';
 
 --disable_ps2_protocol
+explain SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 SELECT * FROM t1 ORDER BY f2 LIMIT 100;
 --enable_ps2_protocol
 
-SHOW SESSION STATUS LIKE 'Sort%';
+create table t2
+select * from information_schema.SESSION_STATUS
+where
+  variable_name like 'handler_read_rnd%' or
+  variable_name like 'Sort%';
 
-DROP TABLE t1, tmp;
+# Check that Sort_priority_queue_sorts is used
+select * from t2 where variable_name like 'Sort%';
+
+# Check that we did scan the whole table and did LIMIT lookups
+select * from t2 where variable_name='HANDLER_READ_RND';
+
+select
+  if(variable_value in (87701, 87802), 'OK', 'FAIL') as RES
+from t2 where variable_name='HANDLER_READ_RND_NEXT';
+
+
+DROP TABLE t1, tmp, t2;

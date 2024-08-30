@@ -17564,7 +17564,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_bin;
@@ -20105,7 +20105,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_czech_ci;
@@ -22646,7 +22646,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_danish_ci;
@@ -25187,7 +25187,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_estonian_ci;
@@ -27728,7 +27728,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_general_ci;
@@ -30269,7 +30269,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_hungarian_ci;
@@ -32810,7 +32810,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_icelandic_ci;
@@ -35351,7 +35351,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_latvian_ci;
@@ -37892,7 +37892,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_lithuanian_ci;
@@ -40433,7 +40433,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_persian_ci;
@@ -42974,7 +42974,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_polish_ci;
@@ -45515,7 +45515,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_roman_ci;
@@ -48056,7 +48056,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_romanian_ci;
@@ -50597,7 +50597,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovak_ci;
@@ -53138,7 +53138,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_slovenian_ci;
@@ -55679,7 +55679,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish2_ci;
@@ -58220,7 +58220,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_spanish_ci;
@@ -60761,7 +60761,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_swedish_ci;
@@ -63302,7 +63302,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_turkish_ci;
@@ -65843,7 +65843,7 @@ SET NAMES utf8;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8) ENGINE=InnoDB CHARACTER SET utf8;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_uca1400_ai_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 ALTER TABLE test.t1 CHANGE a a CHAR(4) CHARACTER SET ucs2 COLLATE ucs2_unicode_ci;
@@ -68383,7 +68383,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_bin) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_bin;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_bin	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_bin	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -70922,7 +70922,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_czech_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_czech_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_czech_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_czech_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -73461,7 +73461,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_danish_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_danish_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_danish_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_danish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -76000,7 +76000,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_estonian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_estonian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_estonian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_estonian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -78539,7 +78539,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_general_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_general_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_general_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_general_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -81078,7 +81078,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_hungarian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_hungarian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_hungarian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_hungarian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -83617,7 +83617,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_icelandic_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_icelandic_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_icelandic_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_icelandic_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -86156,7 +86156,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_latvian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_latvian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_latvian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_latvian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -88695,7 +88695,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_lithuanian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_lithuanian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_lithuanian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_lithuanian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -91234,7 +91234,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_persian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_persian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_persian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_persian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -93773,7 +93773,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_polish_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_polish_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_polish_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_polish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -96312,7 +96312,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_roman_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_roman_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_roman_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_roman_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -98851,7 +98851,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_romanian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_romanian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_romanian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_romanian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -101390,7 +101390,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_slovak_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_slovak_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovak_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_slovak_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -103929,7 +103929,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_slovenian_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_slovenian_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_slovenian_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_slovenian_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -106468,7 +106468,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_spanish2_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_spanish2_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish2_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_spanish2_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -109007,7 +109007,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_spanish_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_spanish_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_spanish_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_spanish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -111546,7 +111546,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_swedish_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_swedish_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_swedish_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_swedish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -114085,7 +114085,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_turkish_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_turkish_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_turkish_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_turkish_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;
@@ -116624,7 +116624,7 @@ USE test;
 CREATE TABLE test.t1 (a CHAR(4) CHARACTER SET utf8 COLLATE utf8_unicode_ci) ENGINE=InnoDB CHARACTER SET utf8 COLLATE utf8_unicode_ci;
 SHOW TABLE STATUS LIKE 't1';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
-t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8_unicode_ci	#	#	#	0	N
+t1	InnoDB	#	#	#	#	#	#	#	#	#	#	#	#	utf8mb3_unicode_ci	#	#	#	0	N
 LOAD DATA INFILE 
 'MYSQL_TEST_DIR/suite/funcs_2/data/charset_utf8.txt' INTO TABLE test.t1;
 DELETE FROM test.t1 WHERE CHAR_LENGTH(a) <> 1;

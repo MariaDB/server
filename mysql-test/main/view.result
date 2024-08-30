@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET optimizer_switch='outer_join_with_cache=off';
 create view v1 (c,d) as select a,b from t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
@@ -198,7 +199,7 @@ c	d
 drop view v100;
 ERROR 42S02: Unknown VIEW: 'test.v100'
 drop view t1;
-ERROR HY000: 'test.t1' is not of type 'VIEW'
+ERROR 42S02: Unknown VIEW: 'test.t1'
 drop table v1;
 ERROR 42S02: 'test.v1' is a view
 drop view v1,v2;
@@ -610,7 +611,7 @@ insert into t1 values(5,'Hello, world of views');
 create view v1 as select * from t1;
 create view v2 as select * from v1;
 update v2 set col2='Hello, view world';
-select is_updatable from information_schema.views;
+select is_updatable from information_schema.views where table_schema <> 'sys';
 is_updatable
 YES
 YES
@@ -1228,9 +1229,16 @@ drop table t1;
 create table t1 (s1 int);
 create view v1 as select * from t1 where s1 < 5 with check option;
 insert ignore into v1 values (6);
-ERROR 44000: CHECK OPTION failed `test`.`v1`
+Warnings:
+Warning	1369	CHECK OPTION failed `test`.`v1`
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1369	CHECK OPTION failed `test`.`v1`
 insert ignore into v1 values (6),(3);
 Warnings:
+Warning	1369	CHECK OPTION failed `test`.`v1`
+SHOW WARNINGS;
+Level	Code	Message
 Warning	1369	CHECK OPTION failed `test`.`v1`
 select * from t1;
 s1
@@ -1952,14 +1960,6 @@ f1
 2005-02-02
 drop view v1;
 drop table t1;
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-SELECT * FROM v1;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1)
-dkjhgd
-drop view v1;
 create table t1 (f59 int, f60 int, f61 int);
 insert into t1 values (19,41,32);
 create view v1 as select f59, f60 from t1 where f59 in
@@ -2202,7 +2202,11 @@ create table t1 (s1 int);
 create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
+#
+# Bug#12993 View column rename broken in subselect
+#
 flush status;
+flush global status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
@@ -2453,8 +2457,6 @@ SELECT Meaning FROM v1 INTO retn;
 RETURN retn;
 END
 //
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE VIEW v2 AS SELECT f1();
 select * from v2;
 f1()
@@ -2626,8 +2628,6 @@ declare mx int;
 select max(a) from t1 into mx;
 return mx;
 end//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 create view v1 as select f1() as a;
 create view v2 as select * from v1;
 drop table t1;
@@ -2858,7 +2858,11 @@ Tables_in_test
 t1
 CREATE VIEW v1 AS SELECT id FROM t1;
 DROP VIEW t1,v1;
-ERROR HY000: 'test.t1' is not of type 'VIEW'
+ERROR 42S02: Unknown VIEW: 'test.t1'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t1'
 SHOW TABLES;
 Tables_in_test
 t1
@@ -2913,10 +2917,10 @@ DROP VIEW IF EXISTS v2;
 CREATE TABLE t1(a INT, b INT);
 CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
 VIEW v1 AS SELECT a FROM t1;
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
-CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 128)
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
 VIEW v2 AS SELECT b FROM t1;
-ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY' is too long for host name (should be no longer than 60)
+ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYa...' is too long for host name (should be no longer than 255)
 DROP TABLE t1;
 DROP FUNCTION IF EXISTS f1;
 DROP FUNCTION IF EXISTS f2;
@@ -3166,14 +3170,10 @@ DROP VIEW v1;
 DROP TABLE t1;
 DROP VIEW IF EXISTS v1;
 SELECT * FROM (SELECT 1) AS t into @w;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE VIEW v1 AS SELECT * FROM (SELECT 1) AS t into @w;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'into @w' at line 1
 # Previously the following would fail.
 SELECT * FROM (SELECT 1) AS t into @w;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 drop view if exists view_24532_a;
 drop view if exists view_24532_b;
 drop table if exists table_24532;
@@ -3684,7 +3684,7 @@ c1	c2
 2	2
 CREATE VIEW v1 AS SELECT c1, c2 FROM t1;
 SHOW INDEX FROM v1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 SELECT * FROM v1 USE INDEX (PRIMARY) WHERE c1=2;
 ERROR 42000: Key 'PRIMARY' doesn't exist in table 'v1'
 SELECT * FROM v1 FORCE INDEX (PRIMARY) WHERE c1=2;
@@ -3970,8 +3970,6 @@ BEGIN
 SELECT a FROM v2 INTO @a;
 RETURN @a;
 END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 # Trigger pre-locking when opening v2.
 CREATE VIEW v1 AS SELECT f1() FROM t1;
 SHOW CREATE VIEW v1;
@@ -4217,10 +4215,10 @@ INSERT INTO t2 VALUES
 EXPLAIN EXTENDED
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	
+1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	12	75.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`a` and `test`.`t1`.`a` > 8
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t2`.`pk` and `test`.`t2`.`pk` > 8
 FLUSH STATUS;
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 a	c
@@ -4229,22 +4227,34 @@ a	c
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	30
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+explain extended SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	12.50	Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`a` and `test`.`t1`.`a` > 8
 CREATE VIEW v AS SELECT * FROM t2;
 EXPLAIN EXTENDED
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
-1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	
+1	SIMPLE	t2	ALL	PRIMARY	NULL	NULL	NULL	12	75.00	Using where
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`a` and `test`.`t1`.`a` > 8
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t1`.`a` = `test`.`t2`.`pk` and `test`.`t2`.`pk` > 8
 FLUSH STATUS;
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 a	c
@@ -4253,14 +4263,20 @@ a	c
 SHOW STATUS LIKE 'Handler_read_%';
 Variable_name	Value
 Handler_read_first	0
-Handler_read_key	1
+Handler_read_key	0
 Handler_read_last	0
 Handler_read_next	0
 Handler_read_prev	0
 Handler_read_retry	0
 Handler_read_rnd	0
 Handler_read_rnd_deleted	0
-Handler_read_rnd_next	17
+Handler_read_rnd_next	30
+set statement optimizer_where_cost=100 FOR explain extended SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	100.00	
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`pk` = `test`.`t1`.`a` and `test`.`t1`.`a` > 8
 DROP VIEW v;
 DROP TABLE t1, t2;
 #
@@ -4426,12 +4442,14 @@ SELECT * FROM v1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a > 'JJ' OR a <> 0 AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 # t1 and v1 should return the same result set
 SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
@@ -4452,12 +4470,14 @@ SELECT * FROM v1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 EXPLAIN EXTENDED
 SELECT * FROM t1 WHERE a > 'JJ' OR a AND a = 'VV';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	13	NULL	4	100.00	Using where; Using index
 Warnings:
+Note	1105	Cannot use key `a` part[0] for lookup: `test`.`t1`.`a` of type `varchar` < "0" of type `int`
 Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 'JJ' or `test`.`t1`.`a` = 'VV' and `test`.`t1`.`a` <> 0
 DROP VIEW v1;
 DROP TABLE t1;
@@ -4634,7 +4654,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'test.t1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
 SELECT * FROM t1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= t1.a);
@@ -4650,7 +4670,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DEPENDENT SUBQUERY	t4	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
 Note	1276	Field or reference 'v1.a' of SELECT #2 was resolved in SELECT #1
-Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or 1) having trigcond(NULL is null))))
+Note	1003	/* select#1 */ select `test`.`t1`.`a` AS `a`,10 AS `a` from `test`.`t1` where !<expr_cache><10,`test`.`t1`.`a`>(<in_optimizer>(10,<exists>(/* select#2 */ select NULL from `test`.`t4` where `test`.`t4`.`a` >= `test`.`t1`.`a` and trigcond(<cache>(10) = NULL or <cache>(NULL is null)) having trigcond(NULL is null))))
 SELECT * FROM v1, t2
 WHERE t2.a NOT IN (SELECT t3.b FROM t3 RIGHT JOIN t4 ON (t4.a = t3.a)
 WHERE t4.a >= v1.a);
@@ -5485,8 +5505,8 @@ from t1 left join v1 on v1.c=t1.b
 where t1.a < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
-1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
-1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	2	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	1	100.00	Using where
+1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`c` = `test`.`t1`.`b` and `test`.`t3`.`e` = `test`.`t2`.`d` and `test`.`t3`.`f` is not null and `test`.`t1`.`b` is not null and `test`.`t2`.`d` is not null) where `test`.`t1`.`a` < 5
 explain extended
@@ -5496,8 +5516,8 @@ on t2.c=t1.b and  t3.f is not null
 where t1.a < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
-1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
-1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	2	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	1	100.00	Using where
+1	SIMPLE	t3	ref	f,e	e	5	test.t2.d	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`c` = `test`.`t1`.`b` and `test`.`t3`.`e` = `test`.`t2`.`d` and `test`.`t3`.`f` is not null and `test`.`t1`.`b` is not null and `test`.`t2`.`d` is not null) where `test`.`t1`.`a` < 5
 explain extended
@@ -5507,7 +5527,7 @@ where t1.a < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
 1	SIMPLE	t3	eq_ref	f,e	f	4	test.t1.a	1	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`c` = `test`.`t1`.`b` and `test`.`t3`.`f` = `test`.`t1`.`a` and `test`.`t2`.`d` = `test`.`t3`.`e` and `test`.`t1`.`a` is not null and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null) where `test`.`t1`.`a` < 5
 explain extended
@@ -5518,7 +5538,7 @@ where t1.a < 5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	range	a	a	5	NULL	3	100.00	Using index condition
 1	SIMPLE	t3	eq_ref	f,e	f	4	test.t1.a	1	100.00	Using where
-1	SIMPLE	t2	ref	c	c	5	test.t1.b	2	100.00	Using where
+1	SIMPLE	t2	ref	c	c	5	test.t1.b	1	100.00	Using where
 Warnings:
 Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t2`.`c` AS `c`,`test`.`t2`.`d` AS `d`,`test`.`t3`.`e` AS `e`,`test`.`t3`.`f` AS `f` from `test`.`t1` left join (`test`.`t2` join `test`.`t3`) on(`test`.`t2`.`c` = `test`.`t1`.`b` and `test`.`t3`.`f` = `test`.`t1`.`a` and `test`.`t2`.`d` = `test`.`t3`.`e` and `test`.`t1`.`a` is not null and `test`.`t1`.`a` is not null and `test`.`t1`.`b` is not null) where `test`.`t1`.`a` < 5
 drop view v1;
@@ -5748,8 +5768,7 @@ drop view v60;
 #
 # MDEV-15572: view.test, server crash with --big-tables=1
 #
-set @save_big_tables=@@big_tables;
-set big_tables=ON;
+set tmp_memory_table_size=0;
 CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
 CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
 CREATE VIEW v1 AS
@@ -5759,7 +5778,7 @@ SELECT f1, f2, f3, f4 FROM t1;
 ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
 drop view v1;
 drop table t1, t2;
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------
@@ -6975,3 +6994,105 @@ DROP VIEW v1;
 DROP VIEW v2;
 DROP TABLE t;
 # End of 10.4 tests
+#
+# MDEV-13115: SELECT .. SKIP LOCKED - ensure SHOW CREATE VIEW is correct
+#
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 LOCK IN SHARE MODE;
+CREATE VIEW v2 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 FOR UPDATE;
+CREATE VIEW v3 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+CREATE VIEW v4 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 FOR UPDATE SKIP LOCKED;
+SHOW CREATE VIEW v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`id` AS `id`,ifnull(`t1`.`foo`,'') AS `foo` from `t1` lock in share mode	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`id` AS `id`,ifnull(`t1`.`foo`,'') AS `foo` from `t1` for update	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`id` AS `id`,ifnull(`t1`.`foo`,'') AS `foo` from `t1` lock in share mode skip locked	latin1	latin1_swedish_ci
+SHOW CREATE VIEW v4;
+View	Create View	character_set_client	collation_connection
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`id` AS `id`,ifnull(`t1`.`foo`,'') AS `foo` from `t1` for update skip locked	latin1	latin1_swedish_ci
+Drop View v1;
+Drop View v2;
+Drop View v3;
+Drop View v4;
+Drop table t1;
+#
+# MDEV-26456: SIGSEGV in flush_tables_with_read_lock on FLUSH TABLE
+#
+CREATE FUNCTION f() RETURNS INT RETURN (SELECT 1 FROM t);
+CREATE VIEW v AS SELECT f();
+SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+FLUSH TABLE v WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES v FOR EXPORT;
+UNLOCK TABLES;
+SELECT * FROM v;
+ERROR HY000: View 'test.v' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP VIEW v;
+DROP FUNCTION f;
+#
+# MDEV-32164 Server crashes in JOIN::cleanup after erroneous query with
+# view
+#
+CREATE TABLE t1 (a INT, b INT, KEY (a,b)) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT a FROM t1 WHERE a != '' GROUP BY a;
+INSERT INTO t1 VALUES (1,NULL),(2,0),(3,NULL);
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+CREATE TEMPORARY TABLE tmp SELECT v1.a FROM v1 JOIN t2 ON (v1.a = t2.c);
+ERROR 22007: Truncated incorrect DECIMAL value: ''
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# End of 10.6 tests
+#
+#
+# MDEV-29587: Allowing insert into a view with columns that
+# are not part the table
+#
+# view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+# we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+# view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+INSERT INTO view1(x1,x) VALUES (1,1);
+ERROR HY000: The target table view1 of the INSERT is not insertable-into
+DROP VIEW view1;
+DROP TABLE table1;
+#
+# End of 10.11 test
+#
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

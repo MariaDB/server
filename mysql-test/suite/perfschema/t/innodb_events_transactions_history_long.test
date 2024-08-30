@@ -1,0 +1,19 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-24600 performance_schema.events_transactions_history_long.trx_id
+--echo #            reports garbage
+--echo #
+
+TRUNCATE performance_schema.events_transactions_history_long;
+
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+COMMIT;
+BEGIN;
+SELECT table_name FROM mysql.innodb_table_stats LIMIT 0 LOCK IN SHARE MODE;
+COMMIT;
+
+SELECT state,trx_id,gtid
+FROM performance_schema.events_transactions_history_long;

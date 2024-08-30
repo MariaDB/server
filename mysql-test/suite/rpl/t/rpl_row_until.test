@@ -38,7 +38,7 @@ sync_slave_with_master;
 
 --source include/stop_slave.inc
 # Reset slave.
-RESET SLAVE;
+--source include/reset_slave.inc
 --replace_result $MASTER_MYPORT MASTER_MYPORT
 eval CHANGE MASTER TO MASTER_USER='root', MASTER_CONNECT_RETRY=1, MASTER_HOST='127.0.0.1', MASTER_PORT=$MASTER_MYPORT;
 
@@ -107,7 +107,7 @@ START SLAVE UNTIL MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=740;
 --source include/wait_for_slave_io_to_start.inc
 --source include/wait_for_slave_sql_to_stop.inc
 --source include/stop_slave_io.inc
-RESET SLAVE;
+--source include/reset_slave.inc
 --source include/start_slave.inc
 
 ##############################################################################

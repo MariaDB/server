@@ -3,7 +3,7 @@ pk int not null primary key,
 col1 varchar(10)
 ) engine=rocksdb;
 insert into t1 values (1,1),(2,2),(3,3);
-set session debug= "+d,myrocks_busy_loop_on_row_read";
+set session debug_dbug= "+d,myrocks_busy_loop_on_row_read";
 select * from t1 where pk=1;
 # testing unclean shutdown on stuck instance
 # Run shutdown sql command with forcing kill (exit code 127)
@@ -27,7 +27,7 @@ ERROR HY000: Only read_only instance can be killed.
 SHUTDOWN 127;
 Got one of the listed errors
 # restart the server
-set session debug= "+d,myrocks_busy_loop_on_row_read";
+set session debug_dbug= "+d,myrocks_busy_loop_on_row_read";
 select * from t1 where pk=1;
 SET GLOBAL read_only=1;
 # verifying SHUTDOWN read_only works with read_only instance

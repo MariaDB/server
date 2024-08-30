@@ -1,0 +1,128 @@
+CALL mtr.add_suppression("InnoDB: File .*test/t1\\.ibd was not found");
+#Test1: table with missing .ibd can be dropped directly
+create table t1(a int)engine=innodb;
+drop table t1;
+db.opt
+# Test droping table without frm without super privilege
+create table t1(a int) engine=innodb;
+create user test identified by '123456';
+grant all privileges on test.t1 to 'test'@'%'identified by '123456';
+connect  con_test, localhost, test,'123456', ;
+connection con_test;
+drop table t1;
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
+connection default;
+disconnect con_test;
+drop user test;
+db.opt
+#Test5: drop table with triger, and with missing frm
+create table t1(a int)engine=innodb;
+create trigger t1_trg before insert on t1 for each row begin end;
+drop table t1;
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
+db.opt
+#Test6: table with foreign key references can not be dropped
+CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
+CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;
+drop table parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table child;
+drop table parent;
+db.opt
+#Test7: drop table twice
+create table t1(a int)engine=innodb;
+drop table t1;
+db.opt
+drop table if exists t1;
+Warnings:
+Note	1051	Unknown table 'test.t1'
+db.opt
+#Test9: check compatibility with restrict/cascade
+CREATE TABLE parent (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=INNODB;
+CREATE TABLE child (id INT, parent_id INT, INDEX par_ind (parent_id), FOREIGN KEY (parent_id) REFERENCES parent(id) ON DELETE CASCADE) ENGINE=INNODB;
+drop table parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table parent restrict;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table parent cascade;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table parent restrict;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table parent cascade;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table child;
+drop table parent;
+#Test10: drop non-innodb engine table returns ok
+create table t1(a int) engine=myisam;
+drop table t1;
+create table t1(a int) engine=myisam;
+drop table t1;
+Warnings:
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+create table t1(a int) engine=myisam;
+drop table t1;
+Warnings:
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+db.opt
+create table t1(a int) engine=aria;
+db.opt
+t1.MAI
+drop table t1;
+ERROR 42S02: Unknown table 'test.t1'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t1'
+db.opt
+create table t2(a int) engine=aria;
+flush tables;
+db.opt
+t2.MAD
+drop table t2;
+ERROR 42S02: Unknown table 'test.t2'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t2'
+db.opt
+create table t2(a int) engine=aria;
+flush tables;
+db.opt
+t2.frm
+drop table t2;
+Warnings:
+Warning	1017	Can't find file: './test/t2.MAI' (errno: 2 "No such file or directory")
+create table t2(a int not null) engine=CSV;
+flush tables;
+drop table t2;
+db.opt
+create table t2(a int not null) engine=CSV;
+flush tables;
+drop table t2;
+db.opt
+create table t2(a int not null) engine=archive;
+flush tables;
+select * from t2;
+a
+flush tables;
+select * from t2;
+ERROR 42S02: Table 'test.t2' doesn't exist
+db.opt
+drop table t2;
+ERROR 42S02: Unknown table 'test.t2'
+create table t2(a int not null) engine=archive;
+flush tables;
+drop table t2;
+ERROR 42S02: Unknown table 'test.t2'
+db.opt
+#
+# MDEV-23549 CREATE fails after DROP without FRM
+#
+create table t1 (a int);
+select * from t1;
+a
+drop table t1;
+create table t1 (a int);
+drop table t1;

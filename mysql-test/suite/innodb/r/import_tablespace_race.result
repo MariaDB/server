@@ -1,6 +1,7 @@
 #
 # MDEV-29144 ER_TABLE_SCHEMA_MISMATCH or crash on DISCARD/IMPORT
 #
+call mtr.add_suppression("InnoDB: Unknown index id");
 CREATE TABLE t (pk int PRIMARY KEY, c varchar(1024))
 ENGINE=InnoDB CHARSET latin1;
 INSERT INTO t SELECT seq, 'x' FROM seq_1_to_100;

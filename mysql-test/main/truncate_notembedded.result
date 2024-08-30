@@ -5,7 +5,7 @@
 CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 LOCK TABLE t1 READ;
 connect  con1,localhost,root,,test;
-SET SESSION max_session_mem_used= 45500;
+SET SESSION max_session_mem_used= 8192;
 LOCK TABLE t1 WRITE;
 connection default;
 SELECT * FROM t1;
@@ -13,6 +13,7 @@ a
 UNLOCK TABLES;
 connection con1;
 TRUNCATE TABLE t1;
+ERROR HY000: The MariaDB server is running with the --max-session-mem-used=8192 option so it cannot execute this statement
 disconnect con1;
 connection default;
 DROP TABLE t1;

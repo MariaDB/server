@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2006, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2017, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -18,18 +18,17 @@
 
 #include "client_priv.h"
 #include <sslopt-vars.h>
-#include <../scripts/mysql_fix_privilege_tables_sql.c>
+#include <../scripts/mariadb_fix_privilege_tables_sql.c>
 
+#define VER "2.1"
 #include <welcome_copyright_notice.h> /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
-
-#define VER "2.0"
 
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
 
 #ifndef WEXITSTATUS
-# ifdef __WIN__
+# ifdef _WIN32
 #  define WEXITSTATUS(stat_val) (stat_val)
 # else
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)
@@ -38,7 +37,7 @@
 
 static int phase = 0;
 static int info_file= -1;
-static const int phases_total = 7;
+static const int phases_total = 8;
 static char mysql_path[FN_REFLEN];
 static char mysqlcheck_path[FN_REFLEN];
 
@@ -53,6 +52,7 @@ static my_bool upgrade_from_mysql;
 
 static DYNAMIC_STRING ds_args;
 static DYNAMIC_STRING conn_args;
+static DYNAMIC_STRING ds_plugin_data_types;
 
 static char *opt_password= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -64,14 +64,14 @@ static my_bool tty_password= 0;
 static char opt_tmpdir[FN_REFLEN] = "";
 
 #ifndef DBUG_OFF
-static char *default_dbug_option= (char*) "d:t:O,/tmp/mysql_upgrade.trace";
+static char *default_dbug_option= (char*) "d:t:O,/tmp/mariadb-upgrade.trace";
 #endif
 
 static char **defaults_argv;
 
 static my_bool not_used; /* Can't use GET_BOOL without a value pointer */
 
-char upgrade_from_version[sizeof("10.20.456-MariaDB")+30];
+char upgrade_from_version[1024];
 
 static my_bool opt_write_binlog;
 
@@ -86,10 +86,10 @@ static struct my_option my_long_options[]=
   {"basedir", 'b',
    "Not used by mysql_upgrade. Only for backward compatibility.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"character-sets-dir", OPT_CHARSETS_DIR,
+  {"character-sets-dir", 0,
    "Not used by mysql_upgrade. Only for backward compatibility.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0 },
-  {"compress", OPT_COMPRESS,
+  {"compress", 0,
    "Not used by mysql_upgrade. Only for backward compatibility.",
    &not_used, &not_used, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"datadir", 'd',
@@ -102,12 +102,12 @@ static struct my_option my_long_options[]=
   {"debug", '#', "Output debug log.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-info", 'T', "Print some debug info at exit.", &debug_info_flag,
    &debug_info_flag, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default-character-set", OPT_DEFAULT_CHARSET,
+  {"default-character-set", 0,
    "Not used by mysql_upgrade. Only for backward compatibility.",
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"default_auth", OPT_DEFAULT_AUTH,
@@ -127,7 +127,7 @@ static struct my_option my_long_options[]=
    "Password to use when connecting to server. If password is not given,"
    " it's solicited on the tty.", &opt_password,&opt_password,
    0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0,
    GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -196,6 +196,7 @@ static void free_used_memory(void)
 
   dynstr_free(&ds_args);
   dynstr_free(&conn_args);
+  dynstr_free(&ds_plugin_data_types);
   if (cnf_file_path)
     my_delete(cnf_file_path, MYF(MY_WME));
   if (info_file >= 0)
@@ -292,16 +293,15 @@ static void add_one_option_cnf_file(DYNAMIC_STRING *ds,
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt,
-               char *argument)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename __attribute__((unused)))
 {
   my_bool add_option= TRUE;
 
-  switch (optid) {
+  switch (opt->id) {
 
   case '?':
-    printf("%s  Ver %s Distrib %s, for %s (%s)\n",
-           my_progname, VER, MYSQL_SERVER_VERSION, SYSTEM_TYPE, MACHINE_TYPE);
+    print_version();
     puts(ORACLE_WELCOME_COPYRIGHT_NOTICE("2000"));
     puts("MariaDB utility for upgrading databases to new MariaDB versions.");
     print_defaults("my", load_default_groups);
@@ -323,10 +323,17 @@ get_one_option(int optid, const struct my_option *opt,
     add_option= FALSE;
     if (argument)
     {
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       /* Add password to ds_args before overwriting the arg with x's */
       add_one_option_cnf_file(&ds_args, opt->name, argument);
       while (*argument)
-        *argument++= 'x';                       /* Destroy argument */
+        *(char*)argument++= 'x';                /* Destroy argument */
+      if (*start)
+        start[1]= 0;
       tty_password= 0;
     }
     else
@@ -341,7 +348,7 @@ get_one_option(int optid, const struct my_option *opt,
   case 'b': /* --basedir   */
   case 'd': /* --datadir   */
     fprintf(stderr, "%s: the '--%s' option is always ignored\n",
-            my_progname, optid == 'b' ? "basedir" : "datadir");
+            my_progname, opt->id == 'b' ? "basedir" : "datadir");
     /* FALLTHROUGH */
 
   case 'k':                                     /* --version-check */
@@ -425,11 +432,20 @@ static int run_command(char* cmd,
   if (opt_verbose >= 4)
     puts(cmd);
 
-  if (!(res_file= my_popen(cmd, IF_WIN("rt","r"))))
+  if (!(res_file= my_popen(cmd, "r")))
     die("popen(\"%s\", \"r\") failed", cmd);
 
   while (fgets(buf, sizeof(buf), res_file))
   {
+#ifdef _WIN32
+    /* Strip '\r' off newlines. */
+    size_t len = strlen(buf);
+    if (len > 1 && buf[len - 2] == '\r' && buf[len - 1] == '\n')
+    {
+      buf[len - 2] = '\n';
+      buf[len - 1] = 0;
+    }
+#endif
     DBUG_PRINT("info", ("buf: %s", buf));
     if(ds_res)
     {
@@ -475,7 +491,7 @@ static int run_tool(char *tool_path, DYNAMIC_STRING *ds_res, ...)
 
   va_end(args);
 
-#ifdef __WIN__
+#ifdef _WIN32
   dynstr_append(&ds_cmdline, "\"");
 #endif
 
@@ -610,7 +626,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
     {
       my_close(fd, MYF(MY_WME));
       my_delete(query_file_path, MYF(0));
-      die("Failed to write to '%s'", query_file_path);
+      die("Failed to write query to '%s'", query_file_path);
     }
   }
 
@@ -619,7 +635,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
   {
     my_close(fd, MYF(MY_WME));
     my_delete(query_file_path, MYF(0));
-    die("Failed to write to '%s'", query_file_path);
+    die("Failed to write query to '%s'", query_file_path);
   }
 
   ret= run_tool(mysql_path,
@@ -629,6 +645,7 @@ static int run_query(const char *query, DYNAMIC_STRING *ds_res,
                 "--batch", /* Turns off pager etc. */
                 force ? "--force": "--skip-force",
                 opt_verbose >= 5 ? "--verbose" : "",
+                "--print-query-on-error",
                 ds_res || opt_silent ? "--silent": "",
                 "<",
                 query_file_path,
@@ -691,7 +708,7 @@ static int get_upgrade_info_file_name(char* name)
 
   dynstr_free(&ds_datadir);
 
-  fn_format(name, "mysql_upgrade_info", name, "", MYF(0));
+  fn_format(name, "mariadb_upgrade_info", name, "", MYF(0));
   DBUG_PRINT("exit", ("name: %s", name));
   DBUG_RETURN(0);
 }
@@ -700,7 +717,7 @@ static char upgrade_info_file[FN_REFLEN]= {0};
 
 
 /*
-  Open or create mysql_upgrade_info file in servers data dir.
+  Open or create mariadb_upgrade_info file in servers data dir.
 
   Take a lock to ensure there cannot be any other mysql_upgrades
   running concurrently
@@ -715,10 +732,19 @@ const char *create_error_message=
 static void open_mysql_upgrade_file()
 {
   char errbuff[80];
+  char old_upgrade_info_file[FN_REFLEN]= {0};
+  size_t path_len;
+
   if (get_upgrade_info_file_name(upgrade_info_file))
   {
     die("Upgrade failed");
   }
+
+  // Delete old mysql_upgrade_info file
+  dirname_part(old_upgrade_info_file, upgrade_info_file, &path_len);
+  fn_format(old_upgrade_info_file, "mysql_upgrade_info", old_upgrade_info_file, "", MYF(0));
+  my_delete(old_upgrade_info_file, MYF(MY_IGNORE_ENOENT));
+
   if ((info_file= my_create(upgrade_info_file, 0,
                             O_RDWR | O_NOFOLLOW,
                             MYF(0))) < 0)
@@ -775,7 +801,7 @@ static int faulty_server_versions(const char *version)
 }
 
 /*
-  Read the content of mysql_upgrade_info file and
+  Read the content of mariadb_upgrade_info file and
   compare the version number form file against
   version number which mysql_upgrade was compiled for
 
@@ -852,15 +878,15 @@ static int upgrade_already_done(int silent)
   if (!silent)
   {
     verbose("This installation of MariaDB is already upgraded to %s.\n"
-            "There is no need to run mysql_upgrade again for %s.",
+            "There is no need to run mariadb-upgrade again for %s.",
             upgrade_from_version, version);
     if (!opt_check_upgrade)
-      verbose("You can use --force if you still want to run mysql_upgrade");
+      verbose("You can use --force if you still want to run mariadb-upgrade");
   }
   return 0;
 }
 
-static void finish_mysql_upgrade_info_file(void)
+static void finish_mariadb_upgrade_info_file(void)
 {
   if (info_file < 0)
     return;
@@ -923,7 +949,7 @@ static int run_mysqlcheck_upgrade(my_bool mysql_db_only)
     return 0;
   }
   verbose("Phase %d/%d: Checking and upgrading %s", ++phase, phases_total, what);
-  print_conn_args("mysqlcheck");
+  print_conn_args("mariadb-check");
   retch= run_tool(mysqlcheck_path,
                   NULL, /* Send output from mysqlcheck directly to screen */
                   defaults_file,
@@ -964,7 +990,7 @@ static my_bool is_mysql()
 
 static int run_mysqlcheck_views(void)
 {
-  const char *upgrade_views="--process-views=YES";
+  const char *upgrade_views="--process-views=UPGRADE";
   if (upgrade_from_mysql)
   {
     /*
@@ -1067,18 +1093,6 @@ static char* get_line(char* line)
   return line;
 }
 
-
-/* Print the current line to stderr */
-static void print_line(char* line)
-{
-  while (*line && *line != '\n')
-  {
-    fputc(*line, stderr);
-    line++;
-  }
-  fputc('\n', stderr);
-}
-
 static my_bool from_before_10_1()
 {
   my_bool ret= TRUE;
@@ -1101,6 +1115,81 @@ static my_bool from_before_10_1()
 
   dynstr_free(&ds_events_struct);
   return ret;
+}
+
+
+static int uninstall_plugins(void)
+{
+  verbose("Phase %d/%d: uninstalling plugins", ++phase, phases_total);
+  if (ds_plugin_data_types.length)
+  {
+    char *plugins= ds_plugin_data_types.str;
+    char *next= get_line(plugins);
+    char buff[512];
+    while(*plugins)
+    {
+      if (next[-1] == '\n')
+        next[-1]= 0;
+      verbose("uninstalling plugin for %s data type", plugins);
+      strxnmov(buff, sizeof(buff)-1, "UNINSTALL SONAME ", plugins,"", NULL);
+      run_query(buff, NULL, TRUE);
+      plugins= next;
+      next= get_line(next);
+    }
+  }
+  return 0;
+}
+
+
+/**
+  @brief     Install plugins for missing data types
+  @details   Check for entries with "Unknown data type" in I_S.TABLES,
+             try to load plugins for these tables if available (MDEV-24093)
+
+  @return    Operation status
+    @retval  TRUE  - error
+    @retval  FALSE - success
+*/
+static int install_used_plugin_data_types(void)
+{
+  DYNAMIC_STRING ds_result;
+  const char *query = "SELECT table_comment FROM information_schema.tables"
+                      " WHERE table_comment LIKE 'Unknown data type: %'";
+  if (opt_systables_only)
+    return 0;
+  if (init_dynamic_string(&ds_result, "", 512, 512))
+    die("Out of memory");
+  run_query(query, &ds_result, TRUE);
+
+  if (ds_result.length)
+  {
+    char *line= ds_result.str;
+    char *next= get_line(line);
+    while(*line)
+    {
+      if (next[-1] == '\n')
+        next[-1]= 0;
+      if (strstr(line, "'MYSQL_JSON'"))
+      {
+        verbose("installing plugin for MYSQL_JSON data type");
+        if(!run_query("INSTALL SONAME 'type_mysql_json'", NULL, TRUE))
+        {
+          dynstr_append(&ds_plugin_data_types, "'type_mysql_json'");
+          dynstr_append(&ds_plugin_data_types, "\n");
+          break;
+        }
+        else
+        {
+          fprintf(stderr, "... can't %s\n", "INSTALL SONAME 'type_mysql_json'");
+          return 1;
+        }
+      }
+      line= next;
+      next= get_line(next);
+    }
+  }
+  dynstr_free(&ds_result);
+  return 0;
 }
 
 
@@ -1153,6 +1242,7 @@ static int install_used_engines(void)
   dynstr_free(&ds_result);
   return 0;
 }
+
 
 static int check_slave_repositories(void)
 {
@@ -1221,16 +1311,21 @@ static int check_slave_repositories(void)
 
 static int run_sql_fix_privilege_tables(void)
 {
-  int found_real_errors= 0;
+  int found_real_errors= 0, query_started= 0;
   const char **query_ptr;
+  const char *end;
   DYNAMIC_STRING ds_script;
   DYNAMIC_STRING ds_result;
+  DYNAMIC_STRING ds_query;
   DBUG_ENTER("run_sql_fix_privilege_tables");
 
-  if (init_dynamic_string(&ds_script, "", 65536, 1024))
+  if (init_dynamic_string(&ds_script, "", 96*1024, 8196))
     die("Out of memory");
 
-  if (init_dynamic_string(&ds_result, "", 512, 512))
+  if (init_dynamic_string(&ds_result, "", 1024, 1024))
+    die("Out of memory");
+
+  if (init_dynamic_string(&ds_query, "", 1024, 1024))
     die("Out of memory");
 
   verbose("Phase %d/%d: Running 'mysql_fix_privilege_tables'",
@@ -1241,7 +1336,7 @@ static int run_sql_fix_privilege_tables(void)
     a forked mysql client, because the script uses session variables
     and prepared statements.
   */
-  for ( query_ptr= &mysql_fix_privilege_tables[0];
+  for ( query_ptr= &mariadb_fix_privilege_tables[0];
         *query_ptr != NULL;
         query_ptr++
       )
@@ -1259,25 +1354,56 @@ static int run_sql_fix_privilege_tables(void)
       "Unknown column" and "Duplicate key name" since they just
       indicate the system tables are already up to date
     */
-    char *line= ds_result.str;
+    const char *line= ds_result.str;
     do
     {
+      size_t length;
+      end= strchr(line, '\n');
+      if (!end)
+        end= strend(line);
+      else
+        end++;                                  /* Include end \n */
+      length= (size_t) (end - line);
+
       if (!is_expected_error(line))
       {
         /* Something unexpected failed, dump error line to screen */
         found_real_errors++;
-        print_line(line);
+        if (ds_query.length)
+          fwrite(ds_query.str, sizeof(char), ds_query.length, stderr);
+        fwrite(line, sizeof(char), length, stderr);
+        query_started= 0;
       }
       else if (strncmp(line, "WARNING", 7) == 0)
       {
-        print_line(line);
+        fwrite(line, sizeof(char), length, stderr);
+        query_started= 0;
       }
-    } while ((line= get_line(line)) && *line);
+      else if (!strncmp(line, "--------------\n", 16))
+      {
+        /* mariadb separates query from the error with a line of '-' */
+        if (!query_started++)
+          ds_query.length= 0;                   /* Truncate */
+        else
+          query_started= 0;                     /* End of query */
+      }
+      else if (query_started)
+      {
+        dynstr_append_mem(&ds_query, line, length);
+      }
+    } while (*(line= end));
   }
-
+  dynstr_free(&ds_query);
   dynstr_free(&ds_result);
   dynstr_free(&ds_script);
   DBUG_RETURN(found_real_errors);
+}
+
+
+static int flush_privileges(void)
+{
+  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
+  return run_query("FLUSH PRIVILEGES", NULL, TRUE);
 }
 
 
@@ -1310,10 +1436,11 @@ static int check_version_match(void)
 
   if (calc_server_version((char *) version_str) != MYSQL_VERSION_ID)
   {
-    fprintf(stderr, "Error: Server version (%s) does not match with the "
-            "version of\nthe server (%s) with which this program was built/"
-            "distributed. You can\nuse --skip-version-check to skip this "
-            "check.\n", version_str, MYSQL_SERVER_VERSION);
+    fprintf(stderr, "Error: Server version (%s)\n"
+            "does not match the version of the server (%s)\n"
+            "with which this program was built/distributed. You can\n"
+            "use --skip-version-check to skip this check.\n",
+            version_str, MYSQL_SERVER_VERSION);
     return 1;
   }
   return 0;
@@ -1330,7 +1457,7 @@ int main(int argc, char **argv)
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv= argv; /* Must be freed by 'free_defaults' */
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (GetModuleFileName(NULL, self_name, FN_REFLEN) == 0)
 #endif
   {
@@ -1338,7 +1465,8 @@ int main(int argc, char **argv)
   }
 
   if (init_dynamic_string(&ds_args, "", 512, 256) ||
-      init_dynamic_string(&conn_args, "", 512, 256))
+      init_dynamic_string(&conn_args, "", 512, 256) ||
+      init_dynamic_string(&ds_plugin_data_types, "", 512, 256))
     die("Out of memory");
 
   if (handle_options(&argc, &argv, my_long_options, get_one_option))
@@ -1369,7 +1497,7 @@ int main(int argc, char **argv)
   }
 
   /* Find mysql */
-  find_tool(mysql_path, IF_WIN("mysql.exe", "mysql"), self_name);
+  find_tool(mysql_path, IF_WIN("mariadb.exe", "mariadb"), self_name);
 
   open_mysql_upgrade_file();
 
@@ -1382,13 +1510,13 @@ int main(int argc, char **argv)
   }
 
   /* Find mysqlcheck */
-  find_tool(mysqlcheck_path, IF_WIN("mysqlcheck.exe", "mysqlcheck"), self_name);
+  find_tool(mysqlcheck_path, IF_WIN("mariadb-check.exe", "mariadb-check"), self_name);
 
   if (opt_systables_only && !opt_silent)
     printf("The --upgrade-system-tables option was used, user tables won't be touched.\n");
 
   /*
-    Read the mysql_upgrade_info file to check if mysql_upgrade
+    Read the mariadb_upgrade_info file to check if mysql_upgrade
     already has been run for this installation of MariaDB
   */
   if (!opt_force && !upgrade_already_done(0))
@@ -1404,21 +1532,19 @@ int main(int argc, char **argv)
   */
   if (run_mysqlcheck_upgrade(TRUE) ||
       install_used_engines() ||
-      run_mysqlcheck_views() ||
+      install_used_plugin_data_types() ||
       run_sql_fix_privilege_tables() ||
+      run_mysqlcheck_views() ||
       run_mysqlcheck_fixnames() ||
       run_mysqlcheck_upgrade(FALSE) ||
-      check_slave_repositories())
+      check_slave_repositories() ||
+      uninstall_plugins() ||
+      flush_privileges())
     die("Upgrade failed" );
-
-  verbose("Phase %d/%d: Running 'FLUSH PRIVILEGES'", ++phase, phases_total);
-  if (run_query("FLUSH PRIVILEGES", NULL, TRUE))
-    die("Upgrade failed" );
-
   verbose("OK");
 
   /* Finish writing indicating upgrade has been performed */
-  finish_mysql_upgrade_info_file();
+  finish_mariadb_upgrade_info_file();
 
   DBUG_ASSERT(phase == phases_total);
 

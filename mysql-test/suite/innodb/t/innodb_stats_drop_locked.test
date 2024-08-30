@@ -5,48 +5,43 @@
 
 -- source include/have_innodb.inc
 
--- disable_warnings
--- disable_query_log
-
-DROP TABLE IF EXISTS innodb_stats_drop_locked;
+CREATE DATABASE unlocked;
+CREATE TABLE unlocked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=0;
+CREATE DATABASE locked;
+CREATE TABLE locked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=1;
 
 CREATE TABLE innodb_stats_drop_locked (c INT, KEY c_key (c))
 ENGINE=INNODB STATS_PERSISTENT=1;
-
 ANALYZE TABLE innodb_stats_drop_locked;
 
--- enable_warnings
--- enable_query_log
-
-SET autocommit=0;
-
+BEGIN;
 SELECT table_name FROM mysql.innodb_table_stats
 WHERE table_name='innodb_stats_drop_locked'
 FOR UPDATE;
-
 SELECT table_name FROM mysql.innodb_index_stats
 WHERE table_name='innodb_stats_drop_locked'
 FOR UPDATE;
 
 -- connect (con1,localhost,root,,)
+SET innodb_lock_wait_timeout=1;
 
--- connection con1
-
+--error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
 
 # the index should be gone
 SHOW CREATE TABLE innodb_stats_drop_locked;
 
+--error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE innodb_stats_drop_locked;
 
-# the table should be gone
-SHOW TABLES;
-
--- connection default
-
+DROP DATABASE unlocked;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP DATABASE locked;
 -- disconnect con1
-
+-- connection default
 COMMIT;
+
+DROP DATABASE locked;
 
 # the stats should be there
 
@@ -56,8 +51,15 @@ WHERE table_name='innodb_stats_drop_locked';
 SELECT table_name FROM mysql.innodb_index_stats
 WHERE table_name='innodb_stats_drop_locked';
 
-DELETE FROM mysql.innodb_index_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';
-DELETE FROM mysql.innodb_table_stats WHERE database_name='test' AND table_name='innodb_stats_drop_locked';
---disable_query_log
-call mtr.add_suppression("Unable to delete statistics for table test.innodb_stats_drop_locked: Lock wait timeout. They can be deleted later using DELETE FROM mysql.innodb_index_stats WHERE database_name");
---enable_query_log
+ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
+
+SELECT table_name FROM mysql.innodb_index_stats
+WHERE table_name='innodb_stats_drop_locked';
+
+DROP TABLE innodb_stats_drop_locked;
+
+SELECT table_name FROM mysql.innodb_table_stats
+WHERE table_name='innodb_stats_drop_locked';
+
+SELECT table_name FROM mysql.innodb_index_stats
+WHERE table_name='innodb_stats_drop_locked';

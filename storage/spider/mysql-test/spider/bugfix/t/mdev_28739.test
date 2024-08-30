@@ -8,6 +8,8 @@
 --enable_result_log
 --enable_query_log
 
+--enable_prepare_warnings
+
 --connection child2_1
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;

@@ -119,7 +119,7 @@ int mi_rkey(MI_INFO *info, uchar *buf, int inx, const uchar *key,
       while ((info->lastpos >= info->state->data_file_length &&
               (search_flag != HA_READ_KEY_EXACT ||
               last_used_keyseg != keyinfo->seg + keyinfo->keysegs)) ||
-              (res= mi_check_index_tuple(info, inx, buf)) == CHECK_NEG)
+             (res= mi_check_index_tuple(info, inx, buf)) == CHECK_NEG)
       {
         uint not_used[2];
         /*

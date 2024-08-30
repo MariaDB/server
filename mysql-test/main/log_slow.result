@@ -13,6 +13,11 @@ Variable_name	Value
 log_slow_admin_statements	ON
 log_slow_disabled_statements	sp
 log_slow_filter	admin,filesort,filesort_on_disk,filesort_priority_queue,full_join,full_scan,query_cache,query_cache_miss,tmp_table,tmp_table_on_disk
+log_slow_max_warnings	10
+log_slow_min_examined_row_limit	0
+log_slow_query	ON
+log_slow_query_file	$PATH/mysqld-slow.log
+log_slow_query_time	10.000000
 log_slow_rate_limit	1
 log_slow_slave_statements	ON
 log_slow_verbosity	
@@ -181,6 +186,30 @@ SET @@global.slow_query_log= @old_slow_query_log;
 SET SESSION slow_query_log=default;
 drop table tab_MDEV_30820, tab2;
 drop function get_zero;
-#
 # End of 10.4 tests
 #
+# MDEV-34539 Invalid "use" and "Schema" in slow query log file with multi-line schema
+#
+set global log_output='file';
+set @@log_slow_filter= 'not_using_index';
+set slow_query_log=1;
+set timestamp=1234567890;
+create database `a
+b`;
+use `a
+b`;
+select count(*) from mysql.global_priv where length(priv)>2;
+count(*)
+5
+drop database `a
+b`;
+use test;
+set global log_output= @old_log_output;
+set slow_query_log=default;
+set log_slow_filter=default;
+set timestamp=default;
+use `a
+b`;
+SET timestamp=1234567890;
+select count(*) from mysql.global_priv where length(priv)>2
+# End of 10.5 tests

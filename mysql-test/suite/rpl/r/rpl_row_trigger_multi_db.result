@@ -1,0 +1,60 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+set global slave_run_triggers_for_rbr=1;
+connection master;
+CREATE TABLE t1 (a int);
+connection slave;
+connection slave;
+CREATE DATABASE db2;
+CREATE FUNCTION db2.get_value(a INT) RETURNS int(2)  RETURN 0;
+#
+# Test Insert_rows_log_event
+connection slave;
+CREATE TRIGGER tr_ins BEFORE INSERT ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+connection master;
+INSERT INTO t1 VALUES (1);
+connection slave;
+connection slave;
+DROP TRIGGER tr_ins;
+#
+# Test Update_rows_log_event
+connection master;
+INSERT INTO t1 VALUES (5);
+connection slave;
+connection slave;
+CREATE TRIGGER tr_upd BEFORE UPDATE ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+connection master;
+UPDATE t1 SET a=a+1 WHERE a=5;
+connection slave;
+connection slave;
+DROP TRIGGER tr_upd;
+#
+# Test Delete_rows_log_event
+connection master;
+INSERT INTO t1 VALUES (7);
+connection slave;
+connection slave;
+CREATE TRIGGER tr_del BEFORE DELETE ON t1 FOR EACH ROW BEGIN
+DECLARE a INT;
+SET a = db2.get_value(1);
+END//
+connection master;
+DELETE FROM t1 WHERE a=7;
+connection slave;
+connection slave;
+DROP TRIGGER tr_del;
+#
+# Cleanup
+connection slave;
+SET GLOBAL slave_run_triggers_for_rbr=NO;
+DROP DATABASE db2;
+connection master;
+DROP TABLE t1;
+include/rpl_end.inc

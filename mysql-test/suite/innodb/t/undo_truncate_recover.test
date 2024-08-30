@@ -3,17 +3,20 @@
 #
 
 --source include/big_test.inc
+--source include/not_valgrind.inc
 # With larger innodb_page_size, the undo log tablespaces do not grow enough.
 --source include/innodb_page_size_small.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
---source include/have_undo_tablespaces.inc
 # Tests with embedded server do not support restarting
 --source include/not_embedded.inc
 
-SET GLOBAL innodb_undo_logs = 4;
+# Re-create the undo log tablespaces after slow shutdown
+SET GLOBAL innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=2;
+--source include/restart_mysqld.inc
+
 SET GLOBAL innodb_undo_log_truncate = 1;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 

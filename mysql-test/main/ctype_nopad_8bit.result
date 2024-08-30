@@ -2,7 +2,7 @@
 # MDEV-9711 NO PAD Collatons
 #
 SET character_set_connection=dec8;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -97,20 +97,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -140,7 +140,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -235,20 +235,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'dec8_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'dec8_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'dec8_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -278,8 +278,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -374,20 +374,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -417,7 +417,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -512,20 +512,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'dec8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'dec8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'dec8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'dec8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'dec8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -555,9 +555,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp850;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -652,20 +652,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -695,7 +695,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -790,20 +790,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp850_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp850_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp850_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp850_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -833,8 +833,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -929,20 +929,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -972,7 +972,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -1067,20 +1067,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp850_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp850_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp850_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp850_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp850_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1110,9 +1110,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=hp8;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -1207,20 +1207,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1250,7 +1250,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -1345,20 +1345,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hp8_english_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hp8_english_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hp8_english_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hp8_english_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1388,8 +1388,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -1484,20 +1484,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1527,7 +1527,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -1622,20 +1622,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hp8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hp8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hp8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hp8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hp8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1665,9 +1665,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=koi8r;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -1762,20 +1762,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1805,7 +1805,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -1900,20 +1900,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8r_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8r_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -1943,8 +1943,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2039,20 +2039,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2082,7 +2082,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2177,20 +2177,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8r_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8r_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8r_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8r_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2220,9 +2220,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=latin2;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2317,20 +2317,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2360,7 +2360,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2455,20 +2455,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin2_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin2_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2498,8 +2498,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2594,20 +2594,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2637,7 +2637,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -2732,20 +2732,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin2_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin2_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin2_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2775,9 +2775,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=swe7;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -2872,20 +2872,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -2915,7 +2915,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -3010,20 +3010,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'swe7_swedish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'swe7_swedish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'swe7_swedish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3053,8 +3053,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -3149,20 +3149,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3192,7 +3192,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -3287,20 +3287,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'swe7_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'swe7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'swe7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'swe7_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'swe7_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3330,9 +3330,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=ascii;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -3427,20 +3427,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3470,7 +3470,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -3565,20 +3565,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ascii_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ascii_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ascii_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ascii_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3608,8 +3608,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -3704,20 +3704,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3747,7 +3747,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -3842,20 +3842,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'ascii_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'ascii_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'ascii_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'ascii_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'ascii_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -3885,9 +3885,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=hebrew;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -3982,20 +3982,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4025,7 +4025,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -4120,20 +4120,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hebrew_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hebrew_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4163,8 +4163,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -4259,20 +4259,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4302,7 +4302,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -4397,20 +4397,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'hebrew_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'hebrew_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'hebrew_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'hebrew_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4440,9 +4440,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=koi8u;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -4537,20 +4537,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4580,7 +4580,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -4675,20 +4675,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8u_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8u_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4718,8 +4718,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -4814,20 +4814,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4857,7 +4857,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -4952,20 +4952,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'koi8u_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'koi8u_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'koi8u_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'koi8u_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -4995,9 +4995,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=greek;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -5092,20 +5092,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5135,7 +5135,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -5230,20 +5230,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'greek_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'greek_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'greek_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'greek_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5273,8 +5273,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -5369,20 +5369,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5412,7 +5412,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -5507,20 +5507,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'greek_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'greek_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'greek_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'greek_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'greek_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5550,9 +5550,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp1250;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -5647,20 +5647,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5690,7 +5690,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -5785,20 +5785,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1250_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1250_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5828,8 +5828,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -5924,20 +5924,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -5967,7 +5967,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -6062,20 +6062,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1250_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1250_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1250_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1250_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6105,9 +6105,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp1257;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -6202,20 +6202,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6245,7 +6245,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -6340,20 +6340,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1257_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1257_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6383,8 +6383,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -6479,20 +6479,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6522,7 +6522,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -6617,20 +6617,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1257_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1257_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1257_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1257_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6660,9 +6660,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=latin5;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -6757,20 +6757,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6800,7 +6800,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -6895,20 +6895,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin5_turkish_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin5_turkish_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin5_turkish_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -6938,8 +6938,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -7034,20 +7034,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7077,7 +7077,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -7172,20 +7172,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin5_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin5_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin5_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin5_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin5_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7215,9 +7215,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=armscii8;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -7312,20 +7312,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7355,7 +7355,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -7450,20 +7450,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'armscii8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'armscii8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7493,8 +7493,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -7589,20 +7589,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7632,7 +7632,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -7727,20 +7727,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'armscii8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'armscii8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'armscii8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'armscii8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7770,9 +7770,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp866;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -7867,20 +7867,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -7910,7 +7910,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8005,20 +8005,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp866_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp866_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp866_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp866_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8048,8 +8048,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8144,20 +8144,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8187,7 +8187,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8282,20 +8282,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp866_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp866_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp866_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp866_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp866_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8325,9 +8325,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=keybcs2;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8422,20 +8422,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8465,7 +8465,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8560,20 +8560,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'keybcs2_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'keybcs2_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8603,8 +8603,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8699,20 +8699,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8742,7 +8742,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -8837,20 +8837,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'keybcs2_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'keybcs2_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'keybcs2_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'keybcs2_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -8880,9 +8880,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=macce;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -8977,20 +8977,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9020,7 +9020,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -9115,20 +9115,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macce_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macce_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macce_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macce_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9158,8 +9158,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -9254,20 +9254,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9297,7 +9297,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -9392,20 +9392,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macce_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macce_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macce_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macce_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macce_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9435,9 +9435,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=macroman;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -9532,20 +9532,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9575,7 +9575,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -9670,20 +9670,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macroman_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macroman_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macroman_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macroman_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9713,8 +9713,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -9809,20 +9809,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9852,7 +9852,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -9947,20 +9947,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'macroman_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'macroman_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'macroman_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'macroman_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'macroman_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -9990,9 +9990,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp852;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -10087,20 +10087,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10130,7 +10130,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -10225,20 +10225,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp852_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp852_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp852_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp852_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10268,8 +10268,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -10364,20 +10364,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10407,7 +10407,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -10502,20 +10502,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp852_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp852_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp852_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp852_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp852_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10545,9 +10545,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=latin7;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -10642,20 +10642,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10685,7 +10685,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -10780,20 +10780,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin7_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin7_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin7_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin7_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10823,8 +10823,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -10919,20 +10919,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -10962,7 +10962,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -11057,20 +11057,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'latin7_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'latin7_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'latin7_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'latin7_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'latin7_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11100,9 +11100,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp1251;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -11197,20 +11197,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11240,7 +11240,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -11335,20 +11335,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1251_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1251_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11378,8 +11378,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -11474,20 +11474,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11517,7 +11517,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -11612,20 +11612,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1251_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1251_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1251_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1251_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11655,9 +11655,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=cp1256;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -11752,20 +11752,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11795,7 +11795,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -11890,20 +11890,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1256_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1256_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -11933,8 +11933,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -12029,20 +12029,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12072,7 +12072,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -12167,20 +12167,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'cp1256_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'cp1256_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'cp1256_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'cp1256_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12210,9 +12210,9 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 SET character_set_connection=geostd8;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -12307,20 +12307,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12350,7 +12350,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -12445,20 +12445,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'geostd8_general_nopad_ci' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'geostd8_general_nopad_ci' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_general_nopad_ci', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12488,8 +12488,8 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
-SET STORAGE_ENGINE=MyISAM;
+SET DEFAULT_STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=MyISAM;
 #
 # Start of ctype_pad.inc
 #
@@ -12584,20 +12584,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12627,7 +12627,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=HEAP;
+SET DEFAULT_STORAGE_ENGINE=HEAP;
 #
 # Start of ctype_pad.inc
 #
@@ -12722,20 +12722,20 @@ DROP TABLE t1;
 #
 # IF, CASE, LEAST
 #
-SELECT IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad');
-IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad')
+SELECT IF('abc' COLLATE 'geostd8_nopad_bin' = 'abc ', 'pad', 'nopad') as exp;
+exp
 nopad
-SELECT CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE 'abc' COLLATE 'geostd8_nopad_bin' WHEN 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END;
-CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END
+SELECT CASE WHEN 'abc' COLLATE 'geostd8_nopad_bin' = 'abc ' THEN 'pad' ELSE 'nopad' END as exp;
+exp
 nopad
-SELECT HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '));
-HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '))
+SELECT HEX(LEAST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  ')) as exp;
+exp
 61626320
-SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '));
-HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  '))
+SELECT HEX(GREATEST('abc ' COLLATE 'geostd8_nopad_bin', 'abc  ')) as exp;
+exp
 6162632020
 #
 # Collation mix
@@ -12765,7 +12765,7 @@ DROP TABLE t1;
 #
 # End of ctype_pad.inc
 #
-SET STORAGE_ENGINE=Default;
+SET DEFAULT_STORAGE_ENGINE=Default;
 #
 # End of 10.2 tests
 #

@@ -27,6 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include <my_dir.h>
 #include "read_filt.h"
+#include "mtr0types.h"
 #include "srv0start.h"
 #include "srv0srv.h"
 #include "xtrabackup.h"
@@ -45,8 +46,7 @@ struct xb_fil_cur_t {
 	xb_read_filt_t*	read_filter;	/*!< read filter */
 	xb_read_filt_ctxt_t	read_filter_ctxt;
 					/*!< read filter context */
-	byte*		orig_buf;	/*!< read buffer */
-	byte*		buf;		/*!< aligned pointer for orig_buf */
+	byte*		buf;		/*!< read buffer */
 	size_t		buf_size;	/*!< buffer size in bytes */
 	size_t		buf_read;	/*!< number of read bytes in buffer
 					after the last cursor read */
@@ -54,11 +54,12 @@ struct xb_fil_cur_t {
 					last cursor read */
 	ib_int64_t	buf_offset;	/*!< file offset of the first page in
 					buffer */
-	ulint		buf_page_no;	/*!< number of the first page in
+	unsigned		buf_page_no;	/*!< number of the first page in
 					buffer */
 	uint		thread_n;	/*!< thread number for diagnostics */
-	ulint		space_id;	/*!< ID of tablespace */
-	ulint		space_size;	/*!< space size in pages */
+	uint32_t	space_id;	/*!< ID of tablespace */
+	uint32_t	space_size;	/*!< space size in pages */
+	uint32_t	n_process_batch;/*!< Number of batch processed */
 
 	/** @return whether this is not a file-per-table tablespace */
 	bool is_system() const

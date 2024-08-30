@@ -16,11 +16,12 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 path=`dirname $0`
-. "$path/SETUP.sh"
 
 # Need to disable ccache, or we loose the gcov-needed compiler output files.
 CCACHE_DISABLE=1
 export CCACHE_DISABLE
+
+. "$path/SETUP.sh"
 
 export LDFLAGS="$gcov_link_flags"
 

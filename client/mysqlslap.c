@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2022, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -67,7 +67,7 @@ TODO:
 
 */
 
-#define SLAP_VERSION "1.0"
+#define VER "1.0"
 
 #define HUGE_STRING_LENGTH 8196
 #define RAND_STRING_SIZE 126
@@ -86,16 +86,15 @@ TODO:
 #include <my_dir.h>
 #include <signal.h>
 #include <sslopt-vars.h>
-#ifndef __WIN__
+#ifndef _WIN32
 #include <sys/wait.h>
 #endif
 #include <ctype.h>
 #include <welcome_copyright_notice.h>   /* ORACLE_WELCOME_COPYRIGHT_NOTICE */
 
-#ifdef __WIN__
+#ifdef _WIN32
 #define srandom  srand
-#define random   rand
-#define snprintf _snprintf
+#define random() (long)rand()
 #endif
 
 
@@ -167,7 +166,7 @@ static char *create_string;
 uint *concurrency;
 static char mysql_charsets_dir[FN_REFLEN+1];
 
-const char *default_dbug_option="d:t:o,/tmp/mysqlslap.trace";
+const char *default_dbug_option="d:t:o,/tmp/mariadb-slap.trace";
 const char *opt_csv_str;
 File csv_file;
 
@@ -280,7 +279,7 @@ static long int timedif(struct timeval a, struct timeval b)
     return s + us;
 }
 
-#ifdef __WIN__
+#ifdef _WIN32
 static int gettimeofday(struct timeval *tp, void *tzp)
 {
   unsigned int ticks;
@@ -296,18 +295,7 @@ void set_mysql_connect_options(MYSQL *mysql)
 {
   if (opt_compress)
     mysql_options(mysql,MYSQL_OPT_COMPRESS,NullS);
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-                  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(mysql, MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+  SET_SSL_OPTS(mysql);
   if (opt_protocol)
     mysql_options(mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset);
@@ -322,6 +310,9 @@ int main(int argc, char **argv)
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
 
+  /* We need to know if protocol-related options originate from CLI args */
+  my_defaults_mark_files = TRUE;
+
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   defaults_argv=argv;
   if (get_options(&argc,&argv))
@@ -330,6 +321,7 @@ int main(int argc, char **argv)
     my_end(0);
     exit(1);
   }
+
   sf_leaking_memory=0; /* from now on we cleanup properly */
 
   /* Seed the random number generator if we will be using it. */
@@ -436,8 +428,8 @@ void concurrency_loop(MYSQL *mysql, uint current, option_string *eptr)
   unsigned long long client_limit;
   int sysret;
 
-  head_sptr= (stats *)my_malloc(sizeof(stats) * iterations, 
-                                MYF(MY_ZEROFILL|MY_FAE|MY_WME));
+  head_sptr= (stats *)my_malloc(PSI_NOT_INSTRUMENTED,
+                   sizeof(stats) * iterations, MYF(MY_ZEROFILL|MY_FAE|MY_WME));
 
   bzero(&conclusion, sizeof(conclusions));
 
@@ -532,50 +524,45 @@ static struct my_option my_long_options[] =
     "Generate SQL where not supplied by file or command line.",
     &auto_generate_sql, &auto_generate_sql,
     0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-add-autoincrement", OPT_SLAP_AUTO_GENERATE_ADD_AUTO,
+  {"auto-generate-sql-add-autoincrement", 0,
     "Add an AUTO_INCREMENT column to auto-generated tables.",
-    &auto_generate_sql_autoincrement,
-    &auto_generate_sql_autoincrement,
+    &auto_generate_sql_autoincrement, &auto_generate_sql_autoincrement,
     0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-execute-number", OPT_SLAP_AUTO_GENERATE_EXECUTE_QUERIES,
+  {"auto-generate-sql-execute-number", 0,
     "Set this number to generate a set number of queries to run.",
     &auto_actual_queries, &auto_actual_queries,
     0, GET_ULL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-guid-primary", OPT_SLAP_AUTO_GENERATE_GUID_PRIMARY,
+  {"auto-generate-sql-guid-primary", 0,
     "Add GUID based primary keys to auto-generated tables.",
-    &auto_generate_sql_guid_primary,
-    &auto_generate_sql_guid_primary,
+    &auto_generate_sql_guid_primary, &auto_generate_sql_guid_primary,
     0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-load-type", OPT_SLAP_AUTO_GENERATE_SQL_LOAD_TYPE,
+  {"auto-generate-sql-load-type", 0,
     "Specify test load type: mixed, update, write, key, or read; default is mixed.",
    (char**) &auto_generate_sql_type, (char**) &auto_generate_sql_type,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-secondary-indexes", 
-    OPT_SLAP_AUTO_GENERATE_SECONDARY_INDEXES, 
+  {"auto-generate-sql-secondary-indexes", 0,
     "Number of secondary indexes to add to auto-generated tables.",
     &auto_generate_sql_secondary_indexes,
     &auto_generate_sql_secondary_indexes, 0,
     GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-unique-query-number", 
-    OPT_SLAP_AUTO_GENERATE_UNIQUE_QUERY_NUM,
+  {"auto-generate-sql-unique-query-number", 0,
     "Number of unique queries to generate for automatic tests.",
     &auto_generate_sql_unique_query_number,
     &auto_generate_sql_unique_query_number,
     0, GET_ULL, REQUIRED_ARG, 10, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-unique-write-number", 
-    OPT_SLAP_AUTO_GENERATE_UNIQUE_WRITE_NUM,
+  {"auto-generate-sql-unique-write-number", 0,
     "Number of unique queries to generate for auto-generate-sql-write-number.",
     &auto_generate_sql_unique_write_number,
     &auto_generate_sql_unique_write_number,
     0, GET_ULL, REQUIRED_ARG, 10, 0, 0, 0, 0, 0},
-  {"auto-generate-sql-write-number", OPT_SLAP_AUTO_GENERATE_WRITE_NUM,
+  {"auto-generate-sql-write-number", 0,
     "Number of row inserts to perform for each thread (default is 100).",
     &auto_generate_sql_number, &auto_generate_sql_number,
     0, GET_ULL, REQUIRED_ARG, 100, 0, 0, 0, 0, 0},
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", (char **)&charsets_dir,
    (char **)&charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"commit", OPT_SLAP_COMMIT, "Commit records every X number of statements.",
+  {"commit", 0, "Commit records every X number of statements.",
     &commit_rate, &commit_rate, 0, GET_UINT, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
   {"compress", 'C', "Use compression in server/client protocol.",
@@ -584,10 +571,10 @@ static struct my_option my_long_options[] =
   {"concurrency", 'c', "Number of clients to simulate for query to run.",
    (char**) &concurrency_str, (char**) &concurrency_str, 0, GET_STR,
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"create", OPT_SLAP_CREATE_STRING, "File or string to use create tables.",
+  {"create", 0, "File or string to use create tables.",
     &create_string, &create_string, 0, GET_STR, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
-  {"create-schema", OPT_CREATE_SLAP_SCHEMA, "Schema to run tests in.",
+  {"create-schema", 0, "Schema to run tests in.",
    (char**) &create_schema_string, (char**) &create_schema_string, 0, GET_STR, 
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"csv", OPT_SLAP_CSV,
@@ -601,12 +588,12 @@ static struct my_option my_long_options[] =
    (char**) &default_dbug_option, (char**) &default_dbug_option, 0, GET_STR,
     OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"debug-info", 'T', "Print some debug info at exit.", &debug_info_flag,
    &debug_info_flag, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -614,7 +601,7 @@ static struct my_option my_long_options[] =
     "Delimiter to use in SQL statements supplied in file or command line.",
    (char**) &delimiter, (char**) &delimiter, 0, GET_STR, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
-  {"detach", OPT_SLAP_DETACH,
+  {"detach", 0,
     "Detach (close and reopen) connections after X number of requests.",
     &detach_rate, &detach_rate, 0, GET_UINT, REQUIRED_ARG, 
     0, 0, 0, 0, 0, 0},
@@ -626,14 +613,14 @@ static struct my_option my_long_options[] =
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"host", 'h', "Connect to host.", &host, &host, 0, GET_STR,
     REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"init-command", OPT_INIT_COMMAND,
+  {"init-command", 0,
    "SQL Command to execute when connecting to MariaDB server. Will "
    "automatically be re-executed when reconnecting.",
    &opt_init_command, &opt_init_command, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"iterations", 'i', "Number of times to run the tests.", &iterations,
     &iterations, 0, GET_UINT, REQUIRED_ARG, 1, 0, 0, 0, 0, 0},
-  {"no-drop", OPT_SLAP_NO_DROP, "Do not drop the schema after the test.",
+  {"no-drop", 0, "Do not drop the schema after the test.",
    &opt_no_drop, &opt_no_drop, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"number-char-cols", 'x', 
     "Number of VARCHAR columns to create in table if specifying --auto-generate-sql.",
@@ -643,11 +630,11 @@ static struct my_option my_long_options[] =
     "Number of INT columns to create in table if specifying --auto-generate-sql.",
    (char**) &num_int_cols_opt, (char**) &num_int_cols_opt, 0, GET_STR, REQUIRED_ARG, 
     0, 0, 0, 0, 0, 0},
-  {"number-of-queries", OPT_MYSQL_NUMBER_OF_QUERY, 
+  {"number-of-queries", 0,
     "Limit each client to this number of queries (this is not exact).",
     &num_of_query, &num_of_query, 0,
     GET_ULL, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"only-print", OPT_MYSQL_ONLY_PRINT,
+  {"only-print", 0,
     "Do not connect to the databases, but instead print out what would have "
      "been done.",
     &opt_only_print, &opt_only_print, 0, GET_BOOL,  NO_ARG,
@@ -655,29 +642,29 @@ static struct my_option my_long_options[] =
   {"password", 'p',
     "Password to use when connecting to server. If password is not given it's "
       "asked from the tty.", 0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
     NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
    &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"port", 'P', "Port number to use for connection.", &opt_mysql_port,
     &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, MYSQL_PORT, 0, 0, 0, 0,
     0},
-  {"post-query", OPT_SLAP_POST_QUERY,
+  {"post-query", 0,
     "Query to run or file containing query to execute after tests have completed.",
     &user_supplied_post_statements, &user_supplied_post_statements,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"post-system", OPT_SLAP_POST_SYSTEM,
+  {"post-system", 0,
     "system() string to execute after tests have completed.",
     &post_system, &post_system,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"pre-query", OPT_SLAP_PRE_QUERY, 
+  {"pre-query", 0,
     "Query to run or file containing query to execute before running tests.",
     &user_supplied_pre_statements, &user_supplied_pre_statements,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"pre-system", OPT_SLAP_PRE_SYSTEM, 
+  {"pre-system", 0,
     "system() string to execute before running tests.",
     &pre_system, &pre_system,
     0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -708,13 +695,6 @@ static struct my_option my_long_options[] =
 };
 
 
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s (%s)\n",my_progname, SLAP_VERSION,
-         MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
-
-
 static void usage(void)
 {
   print_version();
@@ -729,11 +709,11 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-               char *argument)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename)
 {
   DBUG_ENTER("get_one_option");
-  switch(optid) {
+  switch(opt->id) {
   case 'v':
     verbose++;
     break;
@@ -742,10 +722,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       argument= (char*) "";			/* Don't require password */
     if (argument)
     {
-      char *start= argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
-      opt_password= my_strdup(argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      opt_password= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
         start[1]= 0;				/* Cut length of argument */
       tty_password= 0;
@@ -754,7 +739,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       tty_password= 1;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol= MYSQL_PROTOCOL_PIPE;
 #endif
     break;
@@ -764,6 +749,27 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
+    }
+    break;
+  case 'P':
+    if (filename[0] == '\0')
+    {
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
+    }
+    break;
+  case 'S':
+    if (filename[0] == '\0')
+    {
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   case '#':
@@ -921,9 +927,9 @@ build_table_string(void)
     }
 
   dynstr_append(&table_string, ")");
-  ptr= (statement *)my_malloc(sizeof(statement), 
+  ptr= (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
-  ptr->string = (char *)my_malloc(table_string.length+1,
+  ptr->string = (char *)my_malloc(PSI_NOT_INSTRUMENTED, table_string.length+1,
                                   MYF(MY_ZEROFILL|MY_FAE|MY_WME));
   ptr->length= table_string.length+1;
   ptr->type= CREATE_TABLE_TYPE;
@@ -989,10 +995,10 @@ build_update_string(void)
     dynstr_append(&update_string, " WHERE id = ");
 
 
-  ptr= (statement *)my_malloc(sizeof(statement), 
+  ptr= (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
 
-  ptr->string= (char *)my_malloc(update_string.length + 1,
+  ptr->string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, update_string.length + 1,
                                   MYF(MY_ZEROFILL|MY_FAE|MY_WME));
   ptr->length= update_string.length+1;
   if (auto_generate_sql_autoincrement || auto_generate_sql_guid_primary)
@@ -1085,9 +1091,9 @@ build_insert_string(void)
 
   dynstr_append_mem(&insert_string, ")", 1);
 
-  ptr= (statement *)my_malloc(sizeof(statement),
+  ptr= (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
-  ptr->string= (char *)my_malloc(insert_string.length + 1,
+  ptr->string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, insert_string.length + 1,
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
   ptr->length= insert_string.length+1;
   ptr->type= INSERT_TYPE;
@@ -1149,9 +1155,9 @@ build_select_string(my_bool key)
       (auto_generate_sql_autoincrement || auto_generate_sql_guid_primary))
     dynstr_append(&query_string, " WHERE id = ");
 
-  ptr= (statement *)my_malloc(sizeof(statement),
+  ptr= (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
-  ptr->string= (char *)my_malloc(query_string.length + 1,
+  ptr->string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, query_string.length + 1,
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
   ptr->length= query_string.length+1;
   if ((key) && 
@@ -1405,7 +1411,7 @@ get_options(int *argc,char ***argv)
         fprintf(stderr,"%s: Could not open create file\n", my_progname);
         exit(1);
       }
-      tmp_string= (char *)my_malloc((size_t)sbuf.st_size + 1,
+      tmp_string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, (size_t)sbuf.st_size + 1,
                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
       my_read(data_file, (uchar*) tmp_string, (size_t)sbuf.st_size, MYF(0));
       tmp_string[sbuf.st_size]= '\0';
@@ -1432,7 +1438,7 @@ get_options(int *argc,char ***argv)
         fprintf(stderr,"%s: Could not open query supplied file\n", my_progname);
         exit(1);
       }
-      tmp_string= (char *)my_malloc((size_t)sbuf.st_size + 1,
+      tmp_string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, (size_t)sbuf.st_size + 1,
                                     MYF(MY_ZEROFILL|MY_FAE|MY_WME));
       my_read(data_file, (uchar*) tmp_string, (size_t)sbuf.st_size, MYF(0));
       tmp_string[sbuf.st_size]= '\0';
@@ -1463,7 +1469,7 @@ get_options(int *argc,char ***argv)
       fprintf(stderr,"%s: Could not open query supplied file\n", my_progname);
       exit(1);
     }
-    tmp_string= (char *)my_malloc((size_t)sbuf.st_size + 1,
+    tmp_string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, (size_t)sbuf.st_size + 1,
                                   MYF(MY_ZEROFILL|MY_FAE|MY_WME));
     my_read(data_file, (uchar*) tmp_string, (size_t)sbuf.st_size, MYF(0));
     tmp_string[sbuf.st_size]= '\0';
@@ -1494,7 +1500,7 @@ get_options(int *argc,char ***argv)
       fprintf(stderr,"%s: Could not open query supplied file\n", my_progname);
       exit(1);
     }
-    tmp_string= (char *)my_malloc((size_t)sbuf.st_size + 1,
+    tmp_string= (char *)my_malloc(PSI_NOT_INSTRUMENTED, (size_t)sbuf.st_size + 1,
                                   MYF(MY_ZEROFILL|MY_FAE|MY_WME));
     my_read(data_file, (uchar*) tmp_string, (size_t)sbuf.st_size, MYF(0));
     tmp_string[sbuf.st_size]= '\0';
@@ -1560,11 +1566,11 @@ generate_primary_key_list(MYSQL *mysql, option_string *engine_stmt)
                          strstr(engine_stmt->string, "blackhole")))
   {
     primary_keys_number_of= 1;
-    primary_keys= (char **)my_malloc((uint)(sizeof(char *) * 
-                                            primary_keys_number_of), 
-                                    MYF(MY_ZEROFILL|MY_FAE|MY_WME));
+    primary_keys= (char **)my_malloc(PSI_NOT_INSTRUMENTED,
+                             (size_t)(sizeof(char *) * primary_keys_number_of),
+                             MYF(MY_ZEROFILL|MY_FAE|MY_WME));
     /* Yes, we strdup a const string to simplify the interface */
-    primary_keys[0]= my_strdup("796c4422-1d94-102a-9d6d-00e0812d", MYF(0)); 
+    primary_keys[0]= my_strdup(PSI_NOT_INSTRUMENTED, "796c4422-1d94-102a-9d6d-00e0812d", MYF(0));
   }
   else
   {
@@ -1589,13 +1595,13 @@ generate_primary_key_list(MYSQL *mysql, option_string *engine_stmt)
       /*
         We create the structure and loop and create the items.
       */
-      primary_keys= (char **)my_malloc((uint)(sizeof(char *) * 
-                                              primary_keys_number_of), 
-                                       MYF(MY_ZEROFILL|MY_FAE|MY_WME));
+      primary_keys= (char **)my_malloc(PSI_NOT_INSTRUMENTED,
+                             (size_t)(sizeof(char *) * primary_keys_number_of),
+                             MYF(MY_ZEROFILL|MY_FAE|MY_WME));
       row= mysql_fetch_row(result);
       for (counter= 0; counter < primary_keys_number_of; 
            counter++, row= mysql_fetch_row(result))
-        primary_keys[counter]= my_strdup(row[0], MYF(0));
+        primary_keys[counter]= my_strdup(PSI_NOT_INSTRUMENTED, row[0], MYF(0));
     }
 
     mysql_free_result(result);
@@ -1619,6 +1625,9 @@ drop_primary_key_list(void)
 
   return 0;
 }
+
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
 
 static int
 create_schema(MYSQL *mysql, const char *db, statement *stmt, 
@@ -1715,6 +1724,7 @@ limit_not_met:
 
   DBUG_RETURN(0);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 static int
 drop_schema(MYSQL *mysql, const char *db)
@@ -2008,10 +2018,10 @@ parse_option(const char *origin, option_string **stmt, char delm)
   size_t length= strlen(origin);
   uint count= 0; /* We know that there is always one */
 
-  for (tmp= *sptr= (option_string *)my_malloc(sizeof(option_string),
+  for (tmp= *sptr= (option_string *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(option_string),
                                               MYF(MY_ZEROFILL|MY_FAE|MY_WME));
        (retstr= strchr(ptr, delm)); 
-       tmp->next=  (option_string *)my_malloc(sizeof(option_string),
+       tmp->next=  (option_string *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(option_string),
                                               MYF(MY_ZEROFILL|MY_FAE|MY_WME)),
        tmp= tmp->next)
   {
@@ -2042,18 +2052,18 @@ parse_option(const char *origin, option_string **stmt, char delm)
       char *option_ptr;
 
       tmp->length= (size_t)(buffer_ptr - buffer);
-      tmp->string= my_strndup(ptr, (uint)tmp->length, MYF(MY_FAE));
+      tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, (uint)tmp->length, MYF(MY_FAE));
 
       option_ptr= ptr + 1 + tmp->length;
 
       /* Move past the : and the first string */
       tmp->option_length= (size_t)(retstr - option_ptr);
-      tmp->option= my_strndup(option_ptr, (uint)tmp->option_length,
+      tmp->option= my_strndup(PSI_NOT_INSTRUMENTED, option_ptr, (uint)tmp->option_length,
                               MYF(MY_FAE));
     }
     else
     {
-      tmp->string= my_strndup(ptr, (size_t)(retstr - ptr), MYF(MY_FAE));
+      tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, (size_t)(retstr - ptr), MYF(MY_FAE));
       tmp->length= (size_t)(retstr - ptr);
     }
 
@@ -2081,19 +2091,19 @@ parse_option(const char *origin, option_string **stmt, char delm)
       char *option_ptr;
 
       tmp->length= (size_t)(origin_ptr - ptr);
-      tmp->string= my_strndup(ptr, tmp->length, MYF(MY_FAE));
+      tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, tmp->length, MYF(MY_FAE));
 
       option_ptr= (char *)ptr + 1 + tmp->length;
 
       /* Move past the : and the first string */
       tmp->option_length= strlen(option_ptr);
-      tmp->option= my_strndup(option_ptr, tmp->option_length,
+      tmp->option= my_strndup(PSI_NOT_INSTRUMENTED, option_ptr, tmp->option_length,
                               MYF(MY_FAE));
     }
     else
     {
       tmp->length= strlen(ptr);
-      tmp->string= my_strndup(ptr, tmp->length, MYF(MY_FAE));
+      tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, tmp->length, MYF(MY_FAE));
     }
 
     count++;
@@ -2113,15 +2123,15 @@ parse_delimiter(const char *script, statement **stmt, char delm)
   size_t length= strlen(script);
   uint count= 0; /* We know that there is always one */
 
-  for (tmp= *sptr= (statement *)my_malloc(sizeof(statement),
+  for (tmp= *sptr= (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                                           MYF(MY_ZEROFILL|MY_FAE|MY_WME));
        (retstr= strchr(ptr, delm)); 
-       tmp->next=  (statement *)my_malloc(sizeof(statement),
+       tmp->next=  (statement *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(statement),
                                           MYF(MY_ZEROFILL|MY_FAE|MY_WME)),
        tmp= tmp->next)
   {
     count++;
-    tmp->string= my_strndup(ptr, (uint)(retstr - ptr), MYF(MY_FAE));
+    tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, (uint)(retstr - ptr), MYF(MY_FAE));
     tmp->length= (size_t)(retstr - ptr);
     ptr+= retstr - ptr + 1;
     if (isspace(*ptr))
@@ -2130,7 +2140,7 @@ parse_delimiter(const char *script, statement **stmt, char delm)
 
   if (ptr != script+length)
   {
-    tmp->string= my_strndup(ptr, (uint)((script + length) - ptr), 
+    tmp->string= my_strndup(PSI_NOT_INSTRUMENTED, ptr, (uint)((script + length) - ptr),
                             MYF(MY_FAE));
     tmp->length= (size_t)((script + length) - ptr);
     count++;
@@ -2152,7 +2162,7 @@ parse_comma(const char *string, uint **range)
     if (*ptr == ',') count++;
   
   /* One extra spot for the NULL */
-  nptr= *range= (uint *)my_malloc(sizeof(uint) * (count + 1), 
+  nptr= *range= (uint *)my_malloc(PSI_NOT_INSTRUMENTED, sizeof(uint) * (count + 1),
                                   MYF(MY_ZEROFILL|MY_FAE|MY_WME));
 
   ptr= (char *)string;

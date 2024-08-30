@@ -1,0 +1,29 @@
+CREATE TABLE t1 (a TEST_INT8, b TEST_DOUBLE);
+Field   1:  `a`
+Org_field:  `a`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       LONGLONG
+Collation:  binary (63)
+Length:     20
+Max_length: 0
+Decimals:   0
+Flags:      NUM 
+
+Field   2:  `b`
+Org_field:  `b`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       DOUBLE
+Collation:  binary (63)
+Length:     22
+Max_length: 0
+Decimals:   31
+Flags:      NUM 
+
+
+DROP TABLE t1;

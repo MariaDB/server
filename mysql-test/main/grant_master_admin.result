@@ -1,0 +1,36 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-21743 Split up SUPER privilege to smaller privileges 
+#
+#
+# Test that master admin statements are not allowed without REPLICATION MASTER ADMIN
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION MASTER ADMIN ON *.* FROM user1@localhost;
+connect  con1,localhost,user1,,;
+connection con1;
+SHOW SLAVE HOSTS;
+ERROR 42000: Access denied; you need (at least one of) the REPLICATION MASTER ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that master admin statements are allowed with REPLICATION MASTER ADMIN
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT REPLICATION MASTER ADMIN ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT REPLICATION MASTER ADMIN ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+SHOW SLAVE HOSTS;
+Server_id	Host	Port	Master_id
+connection default;
+DROP USER user1@localhost;
+#
+# End of 10.5 tests
+#

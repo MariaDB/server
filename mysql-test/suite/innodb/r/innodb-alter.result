@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 SET NAMES utf8mb4;
 CREATE TABLE t1 (
 c1 INT PRIMARY KEY, c2 INT DEFAULT 1, ct TEXT,
@@ -438,28 +439,28 @@ tt	CREATE TABLE `tt` (
   PRIMARY KEY (`pk`),
   FULLTEXT KEY `ct` (`ct`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
-ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tt ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 CREATE TABLE tu (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
-ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tu ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 DROP TABLE tu;
 CREATE TABLE tv (
 pk INT PRIMARY KEY, FTS_DOC_ID BIGINT UNSIGNED NOT NULL, t TEXT,
 UNIQUE INDEX FTS_DOC_ID_INDEX(FTS_DOC_ID),
 FULLTEXT INDEX(t)
 ) ENGINE=InnoDB;
-ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
-ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
+ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL FIRST, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
+ALTER TABLE tv ADD COLUMN c CHAR(1) NOT NULL, ALGORITHM=INSTANT;
+ERROR 0A000: ALGORITHM=INSTANT is not supported for this operation. Try ALGORITHM=INPLACE
 DROP TABLE tv;
 ALTER TABLE t1o CHANGE c1 dB_row_Id INT, ALGORITHM=COPY;
 ERROR 42000: Incorrect column name 'dB_row_Id'
@@ -738,7 +739,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `C2` int(11) DEFAULT NULL,
   KEY `c2` (`C2`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`c2`) REFERENCES `t1` (`c1`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`C2`) REFERENCES `t1` (`C1`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 ALTER TABLE t1 CHANGE COLUMN C1 c5 INT;
 ALTER TABLE t2 CHANGE COLUMN C2 c6 INT;
@@ -785,7 +786,7 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
 WHERE T.NAME='test/t1';
 NAME
-a
+A
 b
 DROP TABLE t1;
 # different FOREIGN KEY cases
@@ -842,27 +843,27 @@ t2	CREATE TABLE `t2` (
   KEY `bb` (`BB`),
   KEY `CC` (`CC`),
   KEY `DD` (`DD`),
-  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`),
-  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`bb`) REFERENCES `t1` (`b`),
-  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`cc`) REFERENCES `t1` (`c`),
-  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`dd`) REFERENCES `t1` (`d`)
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`BB`) REFERENCES `t1` (`B`),
+  CONSTRAINT `t2_ibfk_3` FOREIGN KEY (`CC`) REFERENCES `t1` (`C`),
+  CONSTRAINT `t2_ibfk_4` FOREIGN KEY (`DD`) REFERENCES `t1` (`D`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DELETE FROM t1 WHERE a=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE A=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE b=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE B=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE c=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE C=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE d=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DELETE FROM t1 WHERE D=1;
-ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`aa`) REFERENCES `t1` (`a`))
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`))
 DROP TABLE t2, t1;
 # virtual columns case too
 CREATE TABLE t1 (a INT, b INT GENERATED ALWAYS AS (a) VIRTUAL) ENGINE = InnoDB;
@@ -877,7 +878,7 @@ SELECT C.NAME FROM INFORMATION_SCHEMA.INNODB_SYS_COLUMNS C INNER JOIN
 INFORMATION_SCHEMA.INNODB_SYS_TABLES T ON C.TABLE_ID=T.TABLE_ID
 WHERE T.NAME='test/t1';
 NAME
-a
+A
 b
 DROP TABLE t1;
 # and an MDEV-18041 regression related to indexes prefixes
@@ -973,7 +974,7 @@ CREATE TABLE `t1` (
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `index2` (`name`,`age`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 ALTER TABLE dest_db.t1 DISCARD TABLESPACE;
 ALTER TABLE dest_db.t1 IMPORT TABLESPACE;
 CHECK TABLE dest_db.t1;
@@ -987,7 +988,7 @@ t1	CREATE TABLE `t1` (
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `index2` (`name`,`age`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM dest_db.t1;
 id	age	name
 DROP TABLE dest_db.t1;
@@ -1000,7 +1001,7 @@ CREATE TABLE `t1` (
   `age` int(11) DEFAULT NULL,
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
 ALTER TABLE dest_db.t1 DISCARD TABLESPACE;
 ALTER TABLE dest_db.t1 IMPORT TABLESPACE;
 CHECK TABLE dest_db.t1;
@@ -1013,7 +1014,7 @@ t1	CREATE TABLE `t1` (
   `age` int(11) DEFAULT NULL,
   `name` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM dest_db.t1;
 id	age	name
 DROP TABLE dest_db.t1;
@@ -1068,7 +1069,7 @@ ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 1
 Warnings:
-Note	1265	Data truncated for column 'b' at row 1
+Note	1265	Data truncated for column 'b' at row 0
 SELECT * FROM t1;
 a	b
 10	10:20:30
@@ -1146,3 +1147,4 @@ SELECT * FROM test.t1;
 c1	c2	c3
 Test Data -1	Test Data -2	Test Data -3
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

@@ -37,7 +37,7 @@ insert into t1 values (3);
 --source include/start_slave.inc
 
 # Wildcard for `state` as it depends on whether WSREP is compiled in or not.
---let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%)' and  command LIKE 'Slave_worker';
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Update_rows_log_event::find_row(%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc
 --let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE 'Waiting for prior transaction to commit%' and  command LIKE 'Slave_worker';
 --source include/wait_condition.inc

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,23 +47,13 @@ public:
 	/** Data file iterator */
 	typedef files_t::const_iterator const_iterator;
 
-	Tablespace()
-		:
-		m_files(),
-		m_name(),
-		m_space_id(ULINT_UNDEFINED),
-		m_path(),
-		m_flags(),
-		m_ignore_read_only(false)
-	{
-		/* No op */
-	}
+	Tablespace() {}
 
 	virtual ~Tablespace()
 	{
 		shutdown();
 		ut_ad(m_files.empty());
-		ut_ad(m_space_id == ULINT_UNDEFINED);
+		ut_ad(m_space_id == UINT32_MAX);
 	}
 
 	// Disable copying
@@ -79,9 +69,6 @@ public:
 	/** Data file iterator */
 	iterator end() { return m_files.end(); }
 
-	void set_name(const char* name) { m_name = name; }
-	const char* name() const { return m_name; }
-
 	/** Set tablespace path and filename members.
 	@param[in]	path	where tablespace file(s) resides
 	@param[in]	len	length of the file path */
@@ -90,8 +77,6 @@ public:
 		ut_ad(m_path == NULL);
 		m_path = mem_strdupl(path, len);
 		ut_ad(m_path != NULL);
-
-		os_normalize_path(m_path);
 	}
 
 	/** Set tablespace path and filename members.
@@ -110,22 +95,19 @@ public:
 
 	/** Set the space id of the tablespace
 	@param[in]	space_id	 tablespace ID to set */
-	void set_space_id(ulint space_id)
+	void set_space_id(uint32_t space_id)
 	{
-		ut_ad(m_space_id == ULINT_UNDEFINED);
+		ut_ad(m_space_id == UINT32_MAX);
 		m_space_id = space_id;
 	}
 
 	/** Get the space id of the tablespace
 	@return m_space_id space id of the tablespace */
-	ulint space_id()	const
-	{
-		return(m_space_id);
-	}
+	uint32_t space_id() const { return m_space_id; }
 
 	/** Set the tablespace flags
 	@param[in]	fsp_flags	tablespace flags */
-	void set_flags(ulint fsp_flags)
+	void set_flags(uint32_t fsp_flags)
 	{
 		ut_ad(fil_space_t::is_valid_flags(fsp_flags, false));
 		m_flags = fsp_flags;
@@ -133,24 +115,15 @@ public:
 
 	/** Get the tablespace flags
 	@return m_flags tablespace flags */
-	ulint flags()	const
-	{
-		return(m_flags);
-	}
+	uint32_t flags() const { return m_flags; }
 
 	/** Get the tablespace encryption mode
 	@return m_mode tablespace encryption mode */
-	fil_encryption_t encryption_mode() const
-	{
-		return (m_mode);
-	}
+	fil_encryption_t encryption_mode() const { return m_mode; }
 
 	/** Get the tablespace encryption key_id
 	@return m_key_id tablespace encryption key_id */
-	uint32_t key_id() const
-	{
-		return (m_key_id);
-	}
+	uint32_t key_id() const { return m_key_id; }
 
 	/** Set Ignore Read Only Status for tablespace.
 	@param[in]	read_only_status	read only status indicator */
@@ -163,9 +136,9 @@ public:
 	void shutdown();
 
 	/** @return the sum of the file sizes of each Datafile */
-	ulint get_sum_of_sizes() const
+	uint32_t get_sum_of_sizes() const
 	{
-		ulint	sum = 0;
+		uint32_t sum = 0;
 
 		for (const_iterator it = begin(); it != end(); ++it) {
 			sum += it->m_size;
@@ -216,19 +189,13 @@ private:
 	@param[in]	file	data file object */
 	void file_found(Datafile& file);
 
-	/* DATA MEMBERS */
-
-	/** Name of the tablespace. */
-	const char*	m_name;
-
 	/** Tablespace ID */
-	ulint		m_space_id;
-
-	/** Path where tablespace files will reside, not including a filename.*/
-	char*		m_path;
-
+	uint32_t	m_space_id = UINT32_MAX;
 	/** Tablespace flags */
-	ulint		m_flags;
+	uint32_t	m_flags = UINT32_MAX;
+
+	/** Path where tablespace files will reside, excluding a filename */
+	char*		m_path;
 
 	/** Encryption mode and key_id */
 	fil_encryption_t m_mode;
@@ -236,7 +203,7 @@ private:
 
 protected:
 	/** Ignore server read only configuration for this tablespace. */
-	bool		m_ignore_read_only;
+	bool		m_ignore_read_only = false;
 };
 
 #endif /* fsp0space_h */

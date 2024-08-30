@@ -72,7 +72,7 @@ while($counter > 0)
 	update user set j = j + 1 WHERE id > 0;
 
 	--connection node_1_i
-	set debug_sync='lock_wait_suspend_thread_enter SIGNAL ins_waiting WAIT_FOR cont_ins';
+	set debug_sync='lock_wait_start SIGNAL ins_waiting WAIT_FOR cont_ins';
 	send insert into user_session(id,fk1,fk2) values (2, 2, 2);
 
 	--connection node_1
@@ -126,7 +126,7 @@ while($counter > 0)
 	#update user set j = j + 1 WHERE id > 0;
 
 	--connection node_1_i
-	set debug_sync='lock_wait_suspend_thread_enter SIGNAL ins_waiting WAIT_FOR cont_ins';
+	set debug_sync='lock_wait_start SIGNAL ins_waiting WAIT_FOR cont_ins';
 	send execute ins1;
 
 	--connection node_1

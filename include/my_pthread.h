@@ -30,7 +30,7 @@ extern "C" {
 #define EXTERNC
 #endif /* __cplusplus */ 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 typedef CRITICAL_SECTION pthread_mutex_t;
 typedef DWORD		 pthread_t;
 typedef struct thread_attr {
@@ -104,20 +104,11 @@ int pthread_cancel(pthread_t thread);
 #define ETIMEDOUT 145		    /* Win32 doesn't have this */
 #endif
 
-#define getpid() GetCurrentThreadId()
 #define HAVE_LOCALTIME_R		1
 #define _REENTRANT			1
 #define HAVE_PTHREAD_ATTR_SETSTACKSIZE	1
 
 #undef SAFE_MUTEX				/* This will cause conflicts */
-#define pthread_key(T,V)  DWORD V
-#define pthread_key_create(A,B) ((*A=TlsAlloc())==0xFFFFFFFF)
-#define pthread_key_delete(A) TlsFree(A)
-#define my_pthread_setspecific_ptr(T,V) (!TlsSetValue((T),(V)))
-#define pthread_setspecific(A,B) (!TlsSetValue((A),(B)))
-#define pthread_getspecific(A) (TlsGetValue(A))
-#define my_pthread_getspecific(T,A) ((T) TlsGetValue(A))
-#define my_pthread_getspecific_ptr(T,V) ((T) TlsGetValue(V))
 
 #define pthread_equal(A,B) ((A) == (B))
 #define pthread_mutex_init(A,B)  (InitializeCriticalSection(A),0)
@@ -148,9 +139,6 @@ int pthread_cancel(pthread_t thread);
 #ifndef _REENTRANT
 #define _REENTRANT
 #endif
-#ifdef HAVE_THR_SETCONCURRENCY
-#include <thread.h>			/* Probably solaris */
-#endif
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif
@@ -158,9 +146,6 @@ int pthread_cancel(pthread_t thread);
 #include <synch.h>
 #endif
 
-#define pthread_key(T,V) pthread_key_t V
-#define my_pthread_getspecific_ptr(T,V) my_pthread_getspecific(T,(V))
-#define my_pthread_setspecific_ptr(T,V) pthread_setspecific(T,(void*) (V))
 #define pthread_detach_this_thread()
 #define pthread_handler_t EXTERNC void *
 typedef void *(* pthread_handler)(void *);
@@ -182,7 +167,6 @@ extern int my_pthread_create_detached;
 #define PTHREAD_CREATE_DETACHED &my_pthread_create_detached
 #define PTHREAD_SCOPE_SYSTEM  PTHREAD_SCOPE_GLOBAL
 #define PTHREAD_SCOPE_PROCESS PTHREAD_SCOPE_LOCAL
-#define USE_ALARM_THREAD
 #endif /* defined(PTHREAD_SCOPE_GLOBAL) && !defined(PTHREAD_SCOPE_SYSTEM) */
 
 #if defined(_BSDI_VERSION) && _BSDI_VERSION < 199910
@@ -237,8 +221,6 @@ int sigwait(sigset_t *setp, int *sigp);		/* Use our implementation */
 #undef	HAVE_GETHOSTBYADDR_R			/* No definition */
 #endif
 
-#define my_pthread_getspecific(A,B) ((A) pthread_getspecific(B))
-
 #ifndef HAVE_LOCALTIME_R
 struct tm *localtime_r(const time_t *clock, struct tm *res);
 #endif
@@ -253,17 +235,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define pthread_condattr_destroy pthread_condattr_delete
 #endif
 
-/* FSU THREADS */
-#if !defined(HAVE_PTHREAD_KEY_DELETE) && !defined(pthread_key_delete)
-#define pthread_key_delete(A) pthread_dummy(0)
-#endif
-
 #if defined(HAVE_PTHREAD_ATTR_CREATE) && !defined(HAVE_SIGWAIT)
-/* This is set on AIX_3_2 and Siemens unix (and DEC OSF/1 3.2 too) */
-#define pthread_key_create(A,B) \
-		pthread_keycreate(A,(B) ?\
-				  (pthread_destructor_t) (B) :\
-				  (pthread_destructor_t) pthread_dummy)
 #define pthread_attr_init(A) pthread_attr_create(A)
 #define pthread_attr_destroy(A) pthread_attr_delete(A)
 #define pthread_attr_setdetachstate(A,B) pthread_dummy(0)
@@ -278,7 +250,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define HAVE_PTHREAD_KILL 1
 #endif
 
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
 #if defined(HPUX10) && !defined(DONT_REMAP_PTHREAD_FUNCTIONS)
 #undef pthread_cond_timedwait
@@ -310,6 +282,8 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif //defined(HAVE_PTHREAD_YIELD_NP)
 #endif //!defined(HAVE_PTHREAD_YIELD_ZERO_ARG)
 #endif //HAVE_SCHED_YIELD
+
+size_t my_setstacksize(pthread_attr_t *attr, size_t stacksize);
 
 /*
   The defines set_timespec and set_timespec_nsec should be used
@@ -350,31 +324,17 @@ int my_pthread_mutex_trylock(pthread_mutex_t *mutex);
 #endif /* !cmp_timespec */
 
 #ifndef set_timespec_time_nsec
-#define set_timespec_time_nsec(ABSTIME,NSEC) do {    \
-  ulonglong _now_= (NSEC);                             \
-  (ABSTIME).MY_tv_sec=  (_now_ / 1000000000ULL);       \
-  (ABSTIME).MY_tv_nsec= (_now_ % 1000000000ULL);       \
+#define set_timespec_time_nsec(ABSTIME,NSEC) do {		\
+  ulonglong _now_= (NSEC);					\
+  (ABSTIME).MY_tv_sec=  (time_t) (_now_ / 1000000000ULL);	\
+  (ABSTIME).MY_tv_nsec= (ulong) (_now_ % 1000000000UL);		\
 } while(0)
 #endif /* !set_timespec_time_nsec */
 
 #ifdef MYSQL_CLIENT
 #define _current_thd() NULL
-#elif defined(_WIN32)
-#ifdef __cplusplus
-extern "C"
-#endif
-MYSQL_THD _current_thd_noinline();
-#define _current_thd() _current_thd_noinline()
 #else
-/*
-  THR_THD is a key which will be used to set/get THD* for a thread,
-  using my_pthread_setspecific_ptr()/my_thread_getspecific_ptr().
-*/
-extern pthread_key(MYSQL_THD, THR_THD);
-static inline MYSQL_THD _current_thd(void)
-{
-  return my_pthread_getspecific_ptr(MYSQL_THD,THR_THD);
-}
+MYSQL_THD _current_thd();
 #endif
 
 /* safe_mutex adds checking to mutex for easier debugging */
@@ -440,17 +400,16 @@ void safe_mutex_free_deadlock_data(safe_mutex_t *mp);
 #define MYF_NO_DEADLOCK_DETECTION 2
 
 #ifdef SAFE_MUTEX
-#define safe_mutex_assert_owner(mp) \
-          DBUG_ASSERT((mp)->count > 0 && \
-                      pthread_equal(pthread_self(), (mp)->thread))
-#define safe_mutex_assert_not_owner(mp) \
-          DBUG_ASSERT(! (mp)->count || \
-                      ! pthread_equal(pthread_self(), (mp)->thread))
+#define safe_mutex_is_owner(mp) ((mp)->count > 0 && \
+                                 pthread_equal(pthread_self(), (mp)->thread))
+#define safe_mutex_assert_owner(mp) DBUG_ASSERT(safe_mutex_is_owner(mp))
+#define safe_mutex_assert_not_owner(mp) DBUG_ASSERT(!safe_mutex_is_owner(mp))
 #define safe_mutex_setflags(mp, F)      do { (mp)->create_flags|= (F); } while (0)
 #define my_cond_timedwait(A,B,C) safe_cond_timedwait((A),(B),(C),__FILE__,__LINE__)
 #define my_cond_wait(A,B) safe_cond_wait((A), (B), __FILE__, __LINE__)
 #else
 
+#define safe_mutex_is_owner(mp) (1)
 #define safe_mutex_assert_owner(mp) do {} while (0)
 #define safe_mutex_assert_not_owner(mp) do {} while (0)
 #define safe_mutex_setflags(mp, F) do {} while (0)
@@ -580,36 +539,13 @@ extern int rw_pr_destroy(rw_pr_lock_t *);
 /**
   Implementation of Windows rwlock.
 
-  We use native (slim) rwlocks on Win7 and later, and fallback to  portable
-  implementation on earlier Windows.
-
-  slim rwlock are also available on Vista/WS2008, but we do not use it
-  ("trylock" APIs are missing on Vista)
+  We use native (slim) rwlocks on Windows, which requires Win7
+  or later.
 */
-typedef union
+typedef struct _my_rwlock_t
 {
-  /* Native rwlock (is_srwlock == TRUE) */
-  struct 
-  {
-    SRWLOCK srwlock;             /* native reader writer lock */
-    BOOL have_exclusive_srwlock; /* used for unlock */
-  };
-
-  /*
-    Portable implementation (is_srwlock == FALSE)
-    Fields are identical with Unix my_rw_lock_t fields.
-  */
-  struct 
-  {
-    pthread_mutex_t lock;       /* lock for structure		*/
-    pthread_cond_t  readers;    /* waiting readers		*/
-    pthread_cond_t  writers;    /* waiting writers		*/
-    int state;                  /* -1:writer,0:free,>0:readers	*/
-    int waiters;                /* number of waiting writers	*/
-#ifdef SAFE_MUTEX
-    pthread_t  write_thread;
-#endif
-  };
+  SRWLOCK srwlock;             /* native reader writer lock */
+  BOOL have_exclusive_srwlock; /* used for unlock */
 } my_rw_lock_t;
 
 
@@ -655,9 +591,6 @@ extern int my_rw_trywrlock(my_rw_lock_t *);
 
 #define GETHOSTBYADDR_BUFF_SIZE 2048
 
-#ifndef HAVE_THR_SETCONCURRENCY
-#define thr_setconcurrency(A) pthread_dummy(0)
-#endif
 #if !defined(HAVE_PTHREAD_ATTR_SETSTACKSIZE) && ! defined(pthread_attr_setstacksize)
 #define pthread_attr_setstacksize(A,B) pthread_dummy(0)
 #endif
@@ -686,6 +619,7 @@ typedef uint64 my_thread_id;
 
 extern void my_threadattr_global_init(void);
 extern my_bool my_thread_global_init(void);
+extern void my_thread_set_name(const char *);
 extern void my_thread_global_reinit(void);
 extern void my_thread_global_end(void);
 extern my_bool my_thread_init(void);
@@ -710,10 +644,10 @@ extern void my_mutex_end(void);
   by GCC 12.3.0, GCC 13.2.0, or clang 16.0.6
   would fail ./mtr main.1st when the stack size is 5 MiB.
   The minimum is more than 6 MiB for CMAKE_BUILD_TYPE=RelWithDebInfo and
-  more than 8 MiB for CMAKE_BUILD_TYPE=Debug.
+  more than 10 MiB for CMAKE_BUILD_TYPE=Debug.
   Let us add some safety margin.
 */
-#  define DEFAULT_THREAD_STACK	(10L<<20)
+#  define DEFAULT_THREAD_STACK	(11L<<20)
 # else
 #  define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
 # endif
@@ -726,22 +660,34 @@ extern void my_mutex_end(void);
 
 #define INSTRUMENT_ME 0
 
+/*
+  Thread specific variables
+
+  Aria key cache is using the following variables for keeping track of
+  state:
+  suspend, next, prev, keycache_link, keycache_file, suspend, lock_type
+
+  MariaDB uses the following to
+  mutex, current_mutex, current_cond, abort
+*/
+
 struct st_my_thread_var
 {
   int thr_errno;
   mysql_cond_t suspend;
   mysql_mutex_t mutex;
+  struct st_my_thread_var *next,**prev;
   mysql_mutex_t * volatile current_mutex;
   mysql_cond_t * volatile current_cond;
+  void *keycache_link;
+  void *keycache_file;
+  void *stack_ends_here;
+  safe_mutex_t *mutex_in_use;
   pthread_t pthread_self;
   my_thread_id id, dbug_id;
   int volatile abort;
+  uint lock_type; /* used by conditional release the queue */
   my_bool init;
-  struct st_my_thread_var *next,**prev;
-  void *keycache_link;
-  uint  lock_type; /* used by conditional release the queue */
-  void  *stack_ends_here;
-  safe_mutex_t *mutex_in_use;
 #ifndef DBUG_OFF
   void *dbug;
   char name[THREAD_NAME_SIZE+1];
@@ -755,19 +701,8 @@ extern uint my_thread_end_wait_time;
 extern my_bool safe_mutex_deadlock_detector;
 #define my_thread_var (_my_thread_var())
 #define my_errno my_thread_var->thr_errno
-int set_mysys_var(struct st_my_thread_var *mysys_var);
-/*
-  Keep track of shutdown,signal, and main threads so that my_end() will not
-  report errors with them
-*/
+void set_mysys_var(struct st_my_thread_var *mysys_var);
 
-/* Which kind of thread library is in use */
-
-#define THD_LIB_OTHER 1
-#define THD_LIB_NPTL  2
-#define THD_LIB_LT    4
-
-extern uint thd_lib_detected;
 
 /*
   thread_safe_xxx functions are for critical statistic or counters.

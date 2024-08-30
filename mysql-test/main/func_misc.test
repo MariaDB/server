@@ -1,7 +1,7 @@
 #
 # Testing of misc functions
 #
-
+--source include/have_metadata_lock_info.inc
 --source include/default_optimizer_switch.inc
 --disable_warnings
 DROP TABLE IF EXISTS t1, t2;
@@ -18,6 +18,11 @@ select hex(inet_aton('127.1'));
 select hex(inet_aton('127.1.1'));
 
 select length(uuid()), charset(uuid()), length(unhex(replace(uuid(),_utf8'-',_utf8'')));
+
+select length(sys_guid()) = length(uuid()) -2;
+select sys_guid() != sys_guid();
+explain extended select uuid() = "", sys_guid() = "";
+
 
 # As we can assume we are the only user for the mysqld server, the difference
 # between two calls should be -1
@@ -103,6 +108,7 @@ select export_set(3, _latin1'foo', _utf8'bar', ',', 4);
 create table t1 as select uuid(), length(uuid());
 --enable_warnings
 show create table t1;
+select length(`uuid()`) from t1;
 drop table t1;
 
 #
@@ -1298,4 +1304,81 @@ DROP TABLE t1;
 
 --echo #
 --echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # MDEV-10569 Add RELEASE_ALL_LOCKS SQL-function
+--echo #
+--disable_view_protocol
+--disable_ps2_protocol
+
+--echo # Test function without any locks
+SELECT RELEASE_ALL_LOCKS();
+
+--echo # Test function with one lock only
+SELECT GET_LOCK('l1',10);
+SELECT RELEASE_ALL_LOCKS();
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
+FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+
+--echo # Test function with multiple locks
+SELECT GET_LOCK('l01',10),
+       GET_LOCK('l02',10),
+       GET_LOCK('l03',10),
+       GET_LOCK('l04',10),
+       GET_LOCK('l05',10),
+       GET_LOCK('l06',10),
+       GET_LOCK('l07',10),
+       GET_LOCK('l08',10),
+       GET_LOCK('l09',10),
+       GET_LOCK('l10',10),
+       GET_LOCK('l11',10),
+       GET_LOCK('l12',10),
+       GET_LOCK('l13',10),
+       GET_LOCK('l14',10),
+       GET_LOCK('l15',10);
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
+FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+SELECT RELEASE_ALL_LOCKS();
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
+FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+
+--echo # Test function with recursive locks
+SELECT GET_LOCK('l1',10),
+       GET_LOCK('l2',10),
+       GET_LOCK('l2',10),
+       GET_LOCK('l3',10),
+       GET_LOCK('l3',10),
+       GET_LOCK('l3',10),
+       GET_LOCK('l4',10),
+       GET_LOCK('l4',10),
+       GET_LOCK('l4',10),
+       GET_LOCK('l4',10),
+       GET_LOCK('l5',10),
+       GET_LOCK('l5',10),
+       GET_LOCK('l5',10),
+       GET_LOCK('l5',10),
+       GET_LOCK('l5',10);
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
+FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+SELECT RELEASE_ALL_LOCKS();
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA
+FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHEMA;
+
+--enable_ps2_protocol
+--enable_view_protocol
+
+--echo #
+--echo # MDEV-32583 UUID() should be treated as stochastic for the purposes of
+--echo #   forcing query materialization
+--echo #
+
+--source include/have_sequence.inc
+create table t1 as WITH cte AS (SELECT UUID() as r  FROM seq_1_to_10)
+SELECT r as r1, r FROM cte;
+select count(*) from t1 where r1!=r;
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

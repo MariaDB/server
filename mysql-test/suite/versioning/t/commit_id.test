@@ -17,6 +17,9 @@ insert into t1 values ();
 --real_sleep 0.01
 set @ts0= now(6);
 insert into t1 values ();
+
+--enable_prepare_warnings
+
 select sys_trx_start from t1 where id = last_insert_id() into @tx0;
 select transaction_id = @tx0 from mysql.transaction_registry
 order by transaction_id desc limit 1;
@@ -87,6 +90,7 @@ insert into t1 values ();
 select sys_trx_start from t1 where id = last_insert_id() into @tx6;
 select isolation_level = 'REPEATABLE-READ' from mysql.transaction_registry where transaction_id = @tx6;
 
+--disable_prepare_warnings
 
 drop table t1;
 call verify_trt;

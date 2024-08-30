@@ -1,0 +1,9 @@
+SELECT @@lower_case_table_names;
+@@lower_case_table_names
+1
+#
+# MDEV-33050 Build-in schemas like oracle_schema are accent insensitive
+#
+SET NAMES utf8;
+CREATE TABLE t1 (a öracle_schema.date);
+ERROR HY000: Unknown data type: 'öracle_schema.date'

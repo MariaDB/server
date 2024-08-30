@@ -1,0 +1,525 @@
+--echo #
+--echo # MDEV-27106 Spider: specify connection to data node by engine-defined attributes
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+--connection child2_2
+CREATE DATABASE auto_test_remote2;
+USE auto_test_remote2;
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+--echo # Every option all at once
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  c1 INT,
+  c2 INT,
+  PRIMARY KEY(a), UNIQUE KEY(c1), KEY(c2)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE=1
+BGS_MODE=1
+BULK_SIZE=41
+BULK_UPDATE_SIZE=42
+CONNECT_TIMEOUT="43  44"
+REMOTE_DATABASE=foo63
+DEFAULT_FILE=foo44
+DEFAULT_GROUP=foo45
+DELETE_ALL_ROWS_TYPE=0
+DRIVER=foo47
+DSN=foo48
+FILEDSN=foo49
+FORCE_BULK_DELETE=1
+FORCE_BULK_UPDATE=NO
+REMOTE_HOST=foo52
+IDX="f c1 ig PRIMARY u c2"
+MULTI_SPLIT_READ=54
+NET_READ_TIMEOUT=" 55 56"
+NET_WRITE_TIMEOUT=" 56 "
+REMOTE_PASSWORD=foo57
+REMOTE_PORT="234 837 "
+PRIORITY=59
+QUERY_CACHE=2
+QUERY_CACHE_SYNC=3
+READ_ONLY=1
+REMOTE_SERVER=s_2_1
+SKIP_PARALLEL_SEARCH=2
+REMOTE_SOCKET=foo67
+SSL_CAPATH=foo68
+SSL_CA=foo69
+SSL_CERT=foo70
+SSL_CIPHER=foo71
+SSL_KEY=foo72
+SSL_VSC=1
+REMOTE_TABLE=foo65
+TABLE_COUNT_MODE=3
+REMOTE_USERNAME=foo75
+USE_PUSHDOWN_UDF=YES
+WRAPPER=mysql;
+drop table tbl_a;
+
+--echo # different option types
+--echo ## bool
+# test that it has expected effects
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=1;
+show create table tbl_a;
+
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+DROP TABLE tbl_a;
+
+# invalid bool
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+READ_ONLY=1k;
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+READ_ONLY=k1;
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+READ_ONLY=2;
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+READ_ONLY=NOPE;
+
+--echo ## bounded_nat
+# test that it has expected effects
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER=s_2_1 REMOTE_TABLE=tbl_a QUERY_CACHE=2;
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+--connection child2_1
+SET @old_general_log = @@global.general_log;
+SET @old_log_output = @@global.log_output;
+SET global general_log = 1;
+SET global log_output = "TABLE";
+--connection master_1
+SELECT * FROM tbl_a;
+--connection child2_1
+select argument from mysql.general_log where argument like "select sql_no_cache%" limit 1;
+SET global general_log = @old_general_log;
+SET global log_output = @old_log_output;
+truncate table mysql.general_log;
+--connection master_1
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+# invalid nat
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE=1k;
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE=k1;
+
+# out of bound nat
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE=4;
+
+--error ER_PARSE_ERROR
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE=-1;
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+AUTO_INCREMENT_MODE="-1";
+
+--echo ## bounded_nat_list
+# test that it has expected effect
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_PORT="123 456";
+select db_name, table_name, port from mysql.spider_tables;
+drop table tbl_a;
+
+# invalid nat list
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_PORT="123 999a";
+
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_PORT="123 a999";
+
+# out of bound nat list
+--error 12528
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_PORT="123 99999";
+
+--echo ## nat_longlong
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+PRIORITY=1234567890123456789;
+select db_name, table_name, priority from mysql.spider_tables;
+drop table tbl_a;
+
+--echo ## hint
+# test that it has expected effects
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER=s_2_1 REMOTE_TABLE=tbl_a IDX="f PRIMARY";
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+--connection child2_1
+SET @old_general_log = @@global.general_log;
+SET @old_log_output = @@global.log_output;
+SET global general_log = 1;
+SET global log_output = "TABLE";
+--connection master_1
+SELECT max(a) FROM tbl_a;
+--connection child2_1
+select argument from mysql.general_log
+  where argument like "select `a` %force index (primary)%" limit 1;
+# select argument from mysql.general_log;
+SET global general_log = @old_general_log;
+SET global log_output = @old_log_output;
+truncate table mysql.general_log;
+--connection master_1
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+# invalid key hint - not a col
+--error 12528
+eval CREATE TABLE tbl_a (a1 INT, a2 INT, UNIQUE KEY (a2)) $MASTER_1_ENGINE $MASTER_1_CHARSET
+IDX="f a1 u c";
+
+# invalid key hint - not a key
+--error 12528
+eval CREATE TABLE tbl_a (a1 INT, a2 INT, UNIQUE KEY (a2)) $MASTER_1_ENGINE $MASTER_1_CHARSET
+IDX="f a2 u a1";
+
+# invalid key hint - wrong format
+--error 12528
+eval CREATE TABLE tbl_a (a INT, b INT, UNIQUE KEY (b)) $MASTER_1_ENGINE $MASTER_1_CHARSET
+IDX="f b f";
+
+# key hint - spaces are fine
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  c1 INT,
+  c2 INT,
+  PRIMARY KEY(a), UNIQUE KEY(c1), KEY(c2)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+IDX="              f   c2 ig c1  u   PRIMARY   ";
+drop table tbl_a;
+
+--echo # Misc cases
+# comments can be used as comments if options are specified
+set session spider_suppress_comment_ignored_warning=1;
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_TABLE=t COMMENT="My favourite spider table";
+drop table tbl_a;
+set session spider_suppress_comment_ignored_warning=0;
+
+# CONNECTION string is ignored if options are specified
+eval CREATE TABLE tbl_a (a INT) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_TABLE=t CONNECTION="srv s_2_1";
+drop table tbl_a;
+
+# same option specified twice - last appearance wins
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=0 READ_ONLY=1;
+show create table tbl_a;
+
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+DROP TABLE tbl_a;
+
+# update option with alter table
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=1;
+show create table tbl_a;
+
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+
+ALTER TABLE tbl_a READ_ONLY=0;
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+show create table tbl_a;
+SELECT * FROM tbl_a;
+
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # Single data node
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a";
+
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # Multiple data nodes with high availability setting
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1 s_2_2" REMOTE_TABLE="tbl_a";
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+--connection child2_1
+SELECT * FROM tbl_a;
+
+--connection child2_2
+SELECT * FROM tbl_a;
+
+--connection master_1
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # Multiple data nodes with partition options
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3) REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a",
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" REMOTE_TABLE="tbl_a"
+);
+
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+# invalid option value
+--connection master_1
+--error 12528
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=maybe;
+
+--echo # Multiple data nodes with table options + partition options
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a"
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3),
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+SELECT * FROM tbl_a;
+
+--connection child2_1
+SELECT * FROM tbl_a;
+
+--connection master_1
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # COMMENT + engine-defined option, COMMENT ignored, invalid (missing table name)
+# In this case, the first partition has its comment parsed, because
+# it does not set any options. And the second partition only has the
+# option parsed.
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+COMMENT='tbl "tbl_a"'
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_1"',
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+
+--error 12702
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+
+# FIXME(MDEV-32097): the following delete statement, if uncommented,
+# causes an assertion failure
+# DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+# Let us set spider_ignore_comments to true, so that it won't
+# accidentally parse comments when table options are present
+set session spider_ignore_comments=1;
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+COMMENT='tbl "tbl_a"'
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_1"',
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+
+--error 1429
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+
+DROP TABLE tbl_a;
+set session spider_ignore_comments=0;
+
+--echo # COMMENT + engine-defined option, COMMENT ignored, ok
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a"
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_2"',
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2"
+);
+
+# --ps-protocol eats a warning here
+--disable_ps_protocol
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb"), (3, "ccc"), (4, "ddd");
+--enable_ps_protocol
+
+--connection child2_1
+SELECT * FROM tbl_a;
+
+--connection child2_2
+SELECT * FROM tbl_a;
+
+--connection master_1
+DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # COMMENT + engine-defined option, COMMENT ignored, ok
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" REMOTE_TABLE="tbl_a" READ_ONLY=YES
+PARTITION BY RANGE (a) (
+    PARTITION p1 VALUES LESS THAN (3) COMMENT='srv "s_2_2" read_only_mode "0"',
+    PARTITION p2 VALUES LESS THAN MAXVALUE REMOTE_SERVER="s_2_2" READ_ONLY=NO
+);
+
+--error 12518
+INSERT INTO tbl_a VALUES (1, "aaa"), (2, "bbb");
+INSERT INTO tbl_a VALUES (3, "ccc"), (4, "ddd");
+
+--connection child2_1
+SELECT * FROM tbl_a;
+
+--connection child2_2
+SELECT * FROM tbl_a;
+DELETE FROM tbl_a;
+
+--connection master_1
+# FIXME: the following delete statement, if uncommented, causes an
+# assertion failure
+#DELETE FROM tbl_a;
+DROP TABLE tbl_a;
+
+--connection master_1
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(255),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+REMOTE_SERVER="s_2_1" COMMENT='tbl "tbl_b"' REMOTE_TABLE="tbl_a";
+
+select table_name, server, tgt_table_name from mysql.spider_tables;
+drop table tbl_a;
+
+eval CREATE TABLE tbl_a (
+  a INT
+) $MASTER_1_ENGINE $MASTER_1_CHARSET
+PARTITION BY HASH (a) PARTITIONS 2;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+SELECT * FROM tbl_a;
+DROP TABLE tbl_a;
+
+--echo # MDEV-27860 SIGSEGV in spider_parse_connect_info on CREATE TABLE
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+CREATE TABLE tbl_a (c INT) ENGINE=SPIDER COMMENT="TABLE 'unknown_table'"
+PARTITION BY LIST COLUMNS (c) (
+  PARTITION p DEFAULT COMMENT="srv 'unknown_server'" ENGINE=SPIDER
+);
+
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--connection child2_2
+DROP DATABASE auto_test_remote2;
+
+--connection master_1
+DROP DATABASE auto_test_local;
+
+--disable_query_log
+--disable_result_log
+--source ../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # end of test engine_defined_attributes
+--echo #

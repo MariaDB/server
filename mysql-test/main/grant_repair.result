@@ -3,7 +3,7 @@ call mtr.add_suppression("mysql.user");
 flush tables;
 flush privileges;
 Warnings:
-Error	145	Table './mysql/user' is marked as crashed and should be repaired
+Error	145	Got error '145 "Table was marked as crashed and should be repaired"' for './mysql/user'
 Warning	1034	12544 clients are using or haven't closed the table properly
 Note	1034	Table is fixed
 # switching back from mysql.user to mysql.global_priv

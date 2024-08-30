@@ -1,0 +1,17 @@
+--echo #
+--echo # MDEV-32254 Server crashes when adding records to table after setting redirect_url with empty variable
+--echo #
+--source include/have_innodb.inc
+# redirect_url is undefined in embedded.
+--source include/not_embedded.inc
+set @old_redirect_url=@@global.redirect_url;
+--error ER_WRONG_VALUE_FOR_VAR
+set global redirect_url=@empty_value;
+CREATE TABLE t (c1 INT) ENGINE=INNODB;
+INSERT INTO t VALUES (1),(1);
+drop table t;
+set global redirect_url=@old_redirect_url;
+
+--echo #
+--echo # end of test mdev_32254
+--echo #

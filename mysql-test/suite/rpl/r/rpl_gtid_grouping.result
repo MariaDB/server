@@ -50,5 +50,4 @@ CHANGE MASTER TO MASTER_USE_GTID=no;
 include/start_slave.inc
 connection master;
 DROP TABLE t;
-SET GLOBAL LOG_WARNINGS=default;
 include/rpl_end.inc

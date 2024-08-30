@@ -1,0 +1,149 @@
+#
+# Tests for range access and descending indexes
+#
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+
+# The test uses optimizer trace:
+--source include/not_embedded.inc
+
+create table t1 (
+  a int,
+  key (a desc)
+);
+insert into t1 select seq from seq_1_to_1000;
+
+set optimizer_trace=1;
+explain select * from t1 force index(a) where a in (2, 4, 6);
+
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+set optimizer_trace=default;
+--enable_view_protocol
+
+--echo # These should go in reverse order:
+select * from t1 force index(a) where a in (2, 4, 6);
+drop table t1;
+
+--echo #
+--echo # Multi-part key tests
+--echo #
+create table t1 (
+  a int not null,
+  b int not null,
+  key ab(a, b desc)
+);
+
+insert into t1 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+
+set optimizer_trace=1;
+explain select * from t1 force index(ab) where a>=8 and b>=50;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+explain select * from t1 force index(ab) where a>=8 and b<=50;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+select * from t1 force index(ab) where a>=8 and b<=50;
+select * from t1 ignore index(ab) where a>=8 and b<=50 order by a, b desc;
+
+explain
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+select * from t1 where a between 2 and 4 and b between 50 and 80;
+
+drop table t1;
+
+create table t2 (
+  a int not null,
+  b int not null,
+  key ab(a desc, b desc)
+);
+insert into t2 select A.seq, B.seq*10 from seq_1_to_10 A, seq_1_to_10 B;
+
+explain
+select * from t2 where a between 2 and 4;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+explain
+select * from t2 where a between 2 and 4 and b between 50 and 80;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.range_access_plan.ranges')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+
+drop table t2;
+
+--echo #
+--echo # Check that "Using index for group-by" is disabled (it's not supported, yet)
+--echo #
+CREATE TABLE t1 (p int NOT NULL, a int NOT NULL, PRIMARY KEY (p,a desc));
+insert into t1 select 2,seq from seq_0_to_1000;
+EXPLAIN select MIN(a) from t1 where p = 2 group by p;
+#Enable after fix MDEV-32034
+--disable_view_protocol
+select json_detailed(json_extract(trace, '$**.potential_group_range_indexes')) as jd
+from information_schema.optimizer_trace;
+--enable_view_protocol
+drop table t1;
+
+set optimizer_trace=default;
+
+--echo #
+--echo # MDEV-27426: Wrong result upon query using index_merge with DESC key
+--echo #
+
+CREATE TABLE t1 (pk INT, a INT, b int, KEY(a), PRIMARY KEY(pk DESC))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,4,5),(2,9,6),(3,NULL,7),(4,NULL,8);
+
+SELECT * FROM t1 WHERE pk > 10 OR a > 0;
+DROP TABLE t1;
+
+
+--echo #
+--echo #  MDEV-27529: Wrong result upon query using index_merge with DESC key (#2)
+--echo #
+
+create table t1 (
+  pk int, 
+  a int, 
+  b int,
+  primary key(pk desc),
+  key(a),
+  key(b)
+) engine=innodb;
+
+insert into t1 values (0, 111111, 255);
+
+insert into t1 select seq+50000, NULL, seq+1000 from seq_1_to_260;
+
+insert into t1 values (10000, NULL, 255);
+insert into t1 select seq+20000, seq+20000, seq+20000 from seq_1_to_1500;
+
+analyze table t1;
+
+--echo # Must use ROR-intersect:
+explain select * from t1 where b = 255 AND a IS NULL;
+select * from t1 where b = 255 AND a IS NULL;
+
+drop table t1;

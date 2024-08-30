@@ -1,0 +1,7 @@
+install soname 'ha_spider';
+DROP TABLE non_existing_table;
+ERROR 42S02: Unknown table 'test.non_existing_table'
+create or replace table non_existing_table (c int) engine=Spider;
+drop table non_existing_table;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown

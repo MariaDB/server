@@ -19,6 +19,6 @@ START SLAVE;
 --source include/stop_slave_sql.inc
 
 CHANGE MASTER TO MASTER_USER= 'root', MASTER_PASSWORD= '';
-START SLAVE;
+--source include/start_slave.inc
 
 --source include/rpl_end.inc 

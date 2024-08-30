@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2011 Oracle and/or its affiliates.
-   Copyright 2008-2011 Monty Program Ab
+   Copyright 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -23,7 +23,6 @@
 #include <m_string.h>
 #include <signal.h>
 
-pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open,
               THR_LOCK_lock, THR_LOCK_myisam, THR_LOCK_heap,
               THR_LOCK_net, THR_LOCK_charset, THR_LOCK_threads,
@@ -39,13 +38,8 @@ mysql_mutex_t LOCK_localtime_r;
 static void install_sigabrt_handler();
 #endif
 
-
-static uint get_thread_lib(void);
-
 /** True if @c my_thread_global_init() has been called. */
 static my_bool my_thread_global_init_done= 0;
-/* True if THR_KEY_mysys is created */
-my_bool my_thr_key_mysys_exists= 0;
 
 
 /*
@@ -95,7 +89,6 @@ static void my_thread_init_internal_mutex(void)
   mysql_mutex_init(key_THR_LOCK_malloc, &THR_LOCK_malloc, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_THR_COND_threads, &THR_COND_threads, NULL);
 }
-
 
 void my_thread_destroy_internal_mutex(void)
 {
@@ -156,12 +149,10 @@ void my_thread_global_reinit(void)
 
   RETURN
     0  ok
-    1  error (Couldn't create THR_KEY_mysys)
 */
 
 my_bool my_thread_global_init(void)
 {
-  int pth_ret;
 
   /* Normally this should never be called twice */
   DBUG_ASSERT(my_thread_global_init_done == 0);
@@ -169,28 +160,12 @@ my_bool my_thread_global_init(void)
     return 0;
   my_thread_global_init_done= 1;
 
-  /*
-    THR_KEY_mysys is deleted in my_end() as DBUG libraries are using it even
-    after my_thread_global_end() is called.
-    my_thr_key_mysys_exist is used to protect against application like QT
-    that calls my_thread_global_init() + my_thread_global_end() multiple times
-    without calling my_init() + my_end().
-  */
-  if (!my_thr_key_mysys_exists &&
-      (pth_ret= pthread_key_create(&THR_KEY_mysys, NULL)) != 0)
-  {
-    fprintf(stderr, "Can't initialize threads: error %d\n", pth_ret);
-    return 1;
-  }
-  my_thr_key_mysys_exists= 1;
-
   /* Mutex used by my_thread_init() and after my_thread_destroy_mutex() */
   my_thread_init_internal_mutex();
 
   if (my_thread_init())
     return 1;
 
-  thd_lib_detected= get_thread_lib();
 
   my_thread_init_common_mutex();
 
@@ -225,7 +200,11 @@ void my_thread_global_end(void)
         fprintf(stderr,
                 "Error in my_thread_global_end(): %d threads didn't exit\n",
                 THR_thread_count);
-#endif
+#endif /* HAVE_PTHREAD_KILL */
+#ifdef SAFEMALLOC
+      /* We know we will have memoryleaks, suppress the leak report */
+      sf_leaking_memory= 1;
+#endif /* SAFEMALLOC */
       all_threads_killed= 0;
       break;
     }
@@ -239,9 +218,7 @@ void my_thread_global_end(void)
     that could use them.
   */
   if (all_threads_killed)
-  {
     my_thread_destroy_internal_mutex();
-  }
   my_thread_global_init_done= 0;
 }
 
@@ -387,15 +364,17 @@ void my_thread_end(void)
   }
 }
 
+static MY_THREAD_LOCAL struct st_my_thread_var *my_thread_var_;
 struct st_my_thread_var *_my_thread_var(void)
 {
-  return  my_pthread_getspecific(struct st_my_thread_var*,THR_KEY_mysys);
+  return my_thread_var_;
 }
 
-int set_mysys_var(struct st_my_thread_var *mysys_var)
+void set_mysys_var(struct st_my_thread_var *mysys_var)
 {
-  return my_pthread_setspecific_ptr(THR_KEY_mysys, mysys_var);
+  my_thread_var_= mysys_var;
 }
+
 
 /****************************************************************************
   Get name of current thread.
@@ -455,21 +434,6 @@ safe_mutex_t **my_thread_var_mutex_in_use()
   return tmp ? &tmp->mutex_in_use : 0;
 }
 
-static uint get_thread_lib(void)
-{
-#ifdef _CS_GNU_LIBPTHREAD_VERSION
-  char buff[64];
-    
-  confstr(_CS_GNU_LIBPTHREAD_VERSION, buff, sizeof(buff));
-
-  if (!strncasecmp(buff, "NPTL", 4))
-    return THD_LIB_NPTL;
-  if (!strncasecmp(buff, "linuxthreads", 12))
-    return THD_LIB_LT;
-#endif
-  return THD_LIB_OTHER;
-}
-
 #ifdef _WIN32
 /*
   In Visual Studio 2005 and later, default SIGABRT handler will overwrite
@@ -496,3 +460,139 @@ static void install_sigabrt_handler(void)
 }
 #endif
 
+#ifdef HAVE_PSI_MUTEX_INTERFACE
+ATTRIBUTE_COLD int psi_mutex_lock(mysql_mutex_t *that,
+                                  const char *file, uint line)
+{
+  PSI_mutex_locker_state state;
+  PSI_mutex_locker *locker= PSI_MUTEX_CALL(start_mutex_wait)
+    (&state, that->m_psi, PSI_MUTEX_LOCK, file, line);
+# ifdef SAFE_MUTEX
+  int result= safe_mutex_lock(&that->m_mutex, FALSE, file, line);
+# else
+  int result= pthread_mutex_lock(&that->m_mutex);
+# endif
+  if (locker)
+    PSI_MUTEX_CALL(end_mutex_wait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD int psi_mutex_trylock(mysql_mutex_t *that,
+                                     const char *file, uint line)
+{
+  PSI_mutex_locker_state state;
+  PSI_mutex_locker *locker= PSI_MUTEX_CALL(start_mutex_wait)
+    (&state, that->m_psi, PSI_MUTEX_TRYLOCK, file, line);
+# ifdef SAFE_MUTEX
+  int result= safe_mutex_lock(&that->m_mutex, TRUE, file, line);
+# else
+  int result= pthread_mutex_trylock(&that->m_mutex);
+# endif
+  if (locker)
+    PSI_MUTEX_CALL(end_mutex_wait)(locker, result);
+  return result;
+}
+#endif /* HAVE_PSI_MUTEX_INTERFACE */
+
+#ifdef HAVE_PSI_RWLOCK_INTERFACE
+ATTRIBUTE_COLD
+int psi_rwlock_rdlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_READLOCK, file, line);
+  int result= rw_rdlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_tryrdlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_TRYREADLOCK, file, line);
+  int result= rw_tryrdlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_trywrlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_TRYWRITELOCK, file, line);
+  int result= rw_trywrlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_rwlock_wrlock(mysql_rwlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_WRITELOCK, file, line);
+  int result= rw_wrlock(&that->m_rwlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+
+# ifndef DISABLE_MYSQL_PRLOCK_H
+ATTRIBUTE_COLD
+int psi_prlock_rdlock(mysql_prlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_rdwait)
+    (&state, that->m_psi, PSI_RWLOCK_READLOCK, file, line);
+  int result= rw_pr_rdlock(&that->m_prlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_rdwait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD
+int psi_prlock_wrlock(mysql_prlock_t *that, const char *file, uint line)
+{
+  PSI_rwlock_locker_state state;
+  PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
+    (&state, that->m_psi, PSI_RWLOCK_WRITELOCK, file, line);
+  int result= rw_pr_wrlock(&that->m_prlock);
+  if (locker)
+    PSI_RWLOCK_CALL(end_rwlock_wrwait)(locker, result);
+  return result;
+}
+# endif /* !DISABLE_MYSQL_PRLOCK_H */
+#endif /* HAVE_PSI_RWLOCK_INTERFACE */
+
+#ifdef HAVE_PSI_COND_INTERFACE
+ATTRIBUTE_COLD int psi_cond_wait(mysql_cond_t *that, mysql_mutex_t *mutex,
+                                 const char *file, uint line)
+{
+  PSI_cond_locker_state state;
+  PSI_cond_locker *locker= PSI_COND_CALL(start_cond_wait)
+    (&state, that->m_psi, mutex->m_psi, PSI_COND_WAIT, file, line);
+  int result= my_cond_wait(&that->m_cond, &mutex->m_mutex);
+  if (locker)
+    PSI_COND_CALL(end_cond_wait)(locker, result);
+  return result;
+}
+
+ATTRIBUTE_COLD int psi_cond_timedwait(mysql_cond_t *that, mysql_mutex_t *mutex,
+                                      const struct timespec *abstime,
+                                      const char *file, uint line)
+{
+  PSI_cond_locker_state state;
+  PSI_cond_locker *locker= PSI_COND_CALL(start_cond_wait)
+    (&state, that->m_psi, mutex->m_psi, PSI_COND_TIMEDWAIT, file, line);
+  int result= my_cond_timedwait(&that->m_cond, &mutex->m_mutex, abstime);
+  if (psi_likely(locker))
+    PSI_COND_CALL(end_cond_wait)(locker, result);
+  return result;
+}
+#endif /* HAVE_PSI_COND_INTERFACE */

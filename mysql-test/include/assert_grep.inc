@@ -94,12 +94,17 @@ if ($assert_match != '')
   my $assert_only_after= $ENV{'_AG_ASSERT_ONLY_AFTER'};
   my $out= $ENV{'_AG_OUT'};
 
+  if (!defined($assert_count)) {
+    $assert_count = '';
+  }
+
   my $result= '';
   my $count= 0;
   open(FILE, "$file") or die("Error $? opening $file: $!\n");
   while (<FILE>) {
     my $line = $_;
-    if ($assert_only_after && $line =~ /$assert_only_after/) {
+    if (($line =~ /^CURRENT_TEST: /) ||
+        ($assert_only_after && $line =~ /$assert_only_after/)) {
       $result = "";
       $count = 0;
     }
@@ -130,10 +135,7 @@ EOF
 --let $_ag_outcome= `SELECT LOAD_FILE('$_AG_OUT')`
 if ($_ag_outcome != 'assert_grep.inc ok')
 {
-  if ($rpl_server_count != '')
-  {
-    --source include/show_rpl_debug_info.inc
-  }
+  --source include/show_rpl_debug_info.inc
   --echo include/assert_grep.inc failed!
   --echo assert_text: '$assert_text'
   --echo assert_file: '$assert_file'
@@ -152,6 +154,6 @@ if ($_ag_outcome != 'assert_grep.inc ok')
   --die assert_grep.inc failed.
 }
 
-
+--remove_file $_AG_OUT
 --let $include_filename= include/assert_grep.inc [$assert_text]
 --source include/end_include_file.inc

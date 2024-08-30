@@ -1,0 +1,73 @@
+connection node_4;
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_4;
+connection node_3;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+connection node_1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(10)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 'A');
+connection node_4;
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (2, 'B');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+connection node_1;
+connection node_3;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+connection node_1;
+connection node_3;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+COUNT(*) = 0
+1
+connection node_4;
+SET SESSION wsrep_on=OFF;
+Killing server ...
+Starting mysqld
+connection node_1;
+connection node_1;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+COUNT(*) = 0
+1
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+connection node_2;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+COUNT(*) = 0
+1
+CALL mtr.add_suppression("mariadbd: Can't find record in 't1'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows");
+CALL mtr.add_suppression("WSREP: Event 3 Delete_rows_v1 apply failed: 120, seqno [0-9]*");
+connection node_3;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+COUNT(*) = 0
+1
+connection node_4;
+SELECT COUNT(*) = 1 FROM t1 WHERE f2 = 'A';
+COUNT(*) = 1
+1
+SELECT COUNT(*) = 0 FROM t1 WHERE f2 = 'B';
+COUNT(*) = 0
+1
+CALL mtr.add_suppression("inconsistent with group");
+DROP TABLE t1;

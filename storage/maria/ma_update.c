@@ -35,7 +35,7 @@ int maria_update(register MARIA_HA *info, const uchar *oldrec,
   DBUG_ENTER("maria_update");
 
   DBUG_EXECUTE_IF("maria_pretend_crashed_table_on_usage",
-                  maria_print_error(info->s, HA_ERR_CRASHED);
+                  _ma_print_error(info, HA_ERR_CRASHED, 0);
                   DBUG_RETURN(my_errno= HA_ERR_CRASHED););
   if (!(info->update & HA_STATE_AKTIV))
   {
@@ -217,7 +217,7 @@ err:
 	  if ((flag++ && _ma_ft_del(info,i,new_key_buff,newrec,pos)) ||
 	      _ma_ft_add(info,i,old_key_buff,oldrec,pos))
           {
-            _ma_set_fatal_error(share, my_errno);
+            _ma_set_fatal_error(info, my_errno);
 	    break;
           }
 	}
@@ -232,7 +232,7 @@ err:
 	  if ((flag++ && _ma_ck_delete(info, &new_key)) ||
 	      _ma_ck_write(info, &old_key))
           {
-            _ma_set_fatal_error(share, my_errno);
+            _ma_set_fatal_error(info, my_errno);
 	    break;
           }
 	}
@@ -240,7 +240,7 @@ err:
     } while (i-- != 0);
   }
   else
-    _ma_set_fatal_error(share, save_errno);
+    _ma_set_fatal_error(info, save_errno);
 
   info->update= (HA_STATE_CHANGED | HA_STATE_AKTIV | HA_STATE_ROW_CHANGED |
 		 key_changed);
@@ -248,6 +248,6 @@ err:
  err_end:
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE);
   if (save_errno == HA_ERR_KEY_NOT_FOUND)
-    _ma_set_fatal_error(share, HA_ERR_CRASHED);
+    _ma_set_fatal_error(info, HA_ERR_CRASHED);
   DBUG_RETURN(my_errno=save_errno);
 } /* maria_update */

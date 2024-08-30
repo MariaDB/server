@@ -2,6 +2,8 @@
 DROP TABLE IF EXISTS t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 --disable_ps2_protocol
 --echo #
 --echo # Bug#31663 FIELDS TERMINATED BY special character
@@ -147,21 +149,21 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 --echo # LOAD DATA rises error or has unpredictable result -- to be fixed later
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ENCLOSED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS ENCLOSED BY 'ъ' FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 1083 # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ENCLOSED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ESCAPED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS ESCAPED BY 'ъ' FROM t1
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 1083 # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ESCAPED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS TERMINATED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' FIELDS TERMINATED BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -174,7 +176,7 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' LINES STARTING BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' LINES STARTING BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -185,7 +187,7 @@ TRUNCATE t2;
 SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
---eval SELECT * FROM t1 INTO OUTFILE '$file' LINES TERMINATED BY 'ъ'
+--eval SELECT * INTO OUTFILE '$file' LINES TERMINATED BY 'ъ' FROM t1
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -289,7 +291,11 @@ let $length= 800;
 SELECT LENGTH(a) FROM t2;
 
 DROP TABLE t1, t2;
+
+--disable_prepare_warnings
 --enable_ps2_protocol
 
 ###########################################################################
 --echo # End of 5.1 tests.
+
+--source include/test_db_charset_restore.inc

@@ -1,0 +1,8 @@
+# MDEV-31777 ER_GET_ERRNO upon online alter with concurrent DML on
+# CONNECT table
+CREATE TABLE t (a INT) ENGINE=CONNECT TABLE_TYPE=DOS;
+Warnings:
+Warning	1105	No file name. Table will use t.dos
+ALTER TABLE t FORCE, ALGORITHM=COPY, LOCK=NONE;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CONNECT. Try LOCK=SHARED
+DROP TABLE t;

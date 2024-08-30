@@ -1,0 +1,133 @@
+--source include/galera_cluster.inc
+
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+
+--connection node_1
+SET GLOBAL binlog_format='ROW';
+create table before_t1(a int, count int, b int, key(b)) engine=Aria;
+INSERT INTO before_t1 values (1,1,1);
+
+SET @@global.wsrep_mode=STRICT_REPLICATION;
+select @@global.wsrep_mode;
+
+--connection node_2
+SET @@global.wsrep_mode=STRICT_REPLICATION;
+select @@global.wsrep_mode;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+CREATE TABLE t1(a int) engine=Aria;
+SHOW WARNINGS;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE t1;
+
+--connection node_1
+CREATE TABLE t2(a int not null primary key) engine=InnoDB;
+
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+ALTER TABLE t2 engine=MyISAM;
+SHOW WARNINGS;
+SHOW CREATE TABLE t2;
+
+--connection node_2
+SHOW CREATE TABLE t2;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+TRUNCATE TABLE before_t1;
+SELECT * FROM before_t1;
+
+--connection node_2
+SET SESSION wsrep_sync_wait=15;
+SELECT @@wsrep_sync_wait;
+SELECT * FROM before_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+CREATE VIEW x1 AS SELECT * FROM before_t1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE VIEW x1;
+
+--connection node_2
+--error ER_NO_SUCH_TABLE
+SHOW CREATE VIEW x1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+CREATE DEFINER=`root`@`localhost` TRIGGER increment_before_t1
+  AFTER INSERT ON before_t1 FOR EACH ROW
+   UPDATE before_t1 SET before_t1.count = before_t1.count+1;
+
+--error ER_TRG_DOES_NOT_EXIST
+SHOW CREATE TRIGGER increment_before_t1;
+
+--connection node_2
+
+--error ER_TRG_DOES_NOT_EXIST
+SHOW CREATE TRIGGER increment_before_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+CREATE INDEX xx2 ON before_t1(a);
+SHOW CREATE TABLE before_t1;
+
+--connection node_2
+SHOW CREATE TABLE before_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+DROP INDEX b ON before_t1;
+SHOW CREATE TABLE before_t1;
+
+--connection node_2
+SHOW CREATE TABLE before_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+ALTER TABLE before_t1 ADD COLUMN f int;
+SHOW CREATE TABLE before_t1;
+
+--connection node_2
+SHOW CREATE TABLE before_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+RENAME TABLE before_t1 to after_t1;
+SHOW CREATE TABLE before_t1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE after_t1;
+
+--connection node_2
+SHOW CREATE TABLE before_t1;
+--error ER_NO_SUCH_TABLE
+SHOW CREATE TABLE after_t1;
+
+--connection node_1
+--error ER_GALERA_REPLICATION_NOT_SUPPORTED
+DROP TABLE before_t1;
+
+SHOW CREATE TABLE before_t1;
+
+--connection node_2
+SHOW CREATE TABLE before_t1;
+
+#
+# PROCEDURE, EVENT, FUNCTION
+# Unfortunately accessed tables are opened only
+# in SP execution so no hope at CREATE
+
+#
+# USER, ROLE, SERVER, DATABASE not really storage engine objects
+#
+
+--connection node_1
+set @@global.wsrep_mode=default;
+select @@global.wsrep_mode;
+
+--connectIon node_2
+set @@global.wsrep_mode=default;
+select @@global.wsrep_mode;
+DROP TABLE t2;
+DROP TABLE before_t1;

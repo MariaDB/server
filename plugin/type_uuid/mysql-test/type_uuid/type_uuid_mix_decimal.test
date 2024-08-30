@@ -1,0 +1,19 @@
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-28918 Implicit cast from UUID UNSIGNED works differently on UPDATE vs ALTER
+--echo #
+
+CREATE TABLE t1 (target UUID DEFAULT '00000000-0000-0000-0000-000000000000', source DECIMAL(38,0) DEFAULT 0);
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+CREATE TABLE t1 (target DECIMAL(38,0) DEFAULT 0, source UUID DEFAULT '00000000-0000-0000-0000-000000000000');
+--source include/type_mix_incompatible.inc
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

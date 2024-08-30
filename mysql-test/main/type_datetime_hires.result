@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a datetime(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a datetime(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');
@@ -65,7 +65,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` datetime(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	datetime(4)	YES		NULL	
@@ -110,12 +110,12 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` datetime(4) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` datetime(4) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');
 select a, a+0, a-1, a*1, a/2 from t1;
@@ -135,7 +135,7 @@ t2	CREATE TABLE `t2` (
   `a-1` decimal(19,4) DEFAULT NULL,
   `a*1` decimal(19,4) DEFAULT NULL,
   `a/2` decimal(22,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -143,7 +143,7 @@ t3	CREATE TABLE `t3` (
   `min(a)` datetime(4) DEFAULT NULL,
   `sum(a)` decimal(40,4) DEFAULT NULL,
   `avg(a)` decimal(22,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3;
 create table t1 (f0_datetime datetime(0), f1_datetime datetime(1), f2_datetime datetime(2), f3_datetime datetime(3), f4_datetime datetime(4), f5_datetime datetime(5), f6_datetime datetime(6));
 insert t1 values ( '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432');
@@ -256,7 +256,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` datetime(6) DEFAULT NULL,
   `b` datetime(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 a	b
 2010-02-03 04:05:06.000000	2010-02-03 04:05:06.789100
@@ -372,7 +372,7 @@ t2	CREATE TABLE `t2` (
   `r2` datetime DEFAULT NULL,
   `t1` datetime DEFAULT NULL,
   `t2` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME(6));
@@ -910,7 +910,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `FLOOR(TIMESTAMP'2001-01-01 00:00:00.999999')` datetime DEFAULT NULL,
   `CEILING(TIMESTAMP'2001-01-01 00:00:00.999999')` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 CREATE TABLE t1 (a DATETIME(6));
 INSERT INTO t1 VALUES ('9999-12-31 23:59:59.999999');

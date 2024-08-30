@@ -1,0 +1,11 @@
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+set binlog_format=mixed;
+RESET MASTER;
+connection slave;
+set binlog_format=mixed;
+RESET MASTER;
+connection master;
+
+--source replication.inc

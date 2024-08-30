@@ -1,0 +1,28 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+--echo #
+
+
+SET default_storage_engine=MyISAM;
+--source type_inet6_engines.inc
+
+--echo #
+--echo # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
+--echo #
+
+CREATE TABLE t1 (c varchar(64), key(c)) engine=myisam;
+INSERT INTO t1 VALUES ('0::1'),('::1'),('::2');
+SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+EXPLAIN SELECT * FROM t1 WHERE c>CAST('::1' AS INET6);
+SELECT * FROM t1 WHERE c=CAST('::1' AS INET6);
+EXPLAIN SELECT * FROM t1 WHERE c=CAST('::1' AS INET6);
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

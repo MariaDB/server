@@ -70,6 +70,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 
 #else
 
@@ -580,7 +581,7 @@ static MY_UNI_IDX idx_uni_8859_2[]={
 };
 
 
-static MY_COLLATION_HANDLER my_collation_latin2_czech_ci_handler =
+static MY_COLLATION_HANDLER my_collation_latin2_czech_cs_handler =
 {
   NULL,			/* init */
   my_strnncoll_czech,
@@ -590,19 +591,22 @@ static MY_COLLATION_HANDLER my_collation_latin2_czech_ci_handler =
   my_strnxfrmlen_czech,
   my_like_range_czech,
   my_wildcmp_bin,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
-struct charset_info_st my_charset_latin2_czech_ci =
+struct charset_info_st my_charset_latin2_czech_cs =
 {
     2,0,0,                                      /* number    */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
     MY_CS_STRNXFRM_BAD_NWEIGHTS|MY_CS_NON1TO1,  /* state     */
-    "latin2",                                   /* cs name   */
-    "latin2_czech_cs",                          /* name      */
+    { charset_name_latin2, charset_name_latin2_length}, /* cs_name */
+    { STRING_WITH_LEN("latin2_czech_cs")},      /* col_name      */
     "",                                         /* comment   */
     NULL,                                       /* tailoring */
     ctype_czech,
@@ -612,21 +616,19 @@ struct charset_info_st my_charset_latin2_czech_ci =
     NULL,		/* uca          */
     tab_8859_2_uni,	/* tab_to_uni   */
     idx_uni_8859_2,	/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     4,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
-    0,			/* max_sort_char */
+    0xAE,               /* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    4,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S4,
     &my_charset_8bit_handler,
-    &my_collation_latin2_czech_ci_handler
+    &my_collation_latin2_czech_cs_handler
 };
 
 

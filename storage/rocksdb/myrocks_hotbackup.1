@@ -1,0 +1,82 @@
+.TH MYROCKS_HOTBACKUP "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.SH NAME
+myrocks_hotbackup \- streaming backup for MariaDB MyRocks
+.SH DESCRIPTION
+Usage:
+.PP
+Backup: set \fB\-o\fR pipefail; myrocks_hotbackup \fB\-\-user\fR=\fI\,root\/\fR \fB\-\-password\fR=\fI\,pw\/\fR \fB\-\-port\fR=\fI\,3306\/\fR \fB\-\-checkpoint_dir=\fR<directory where temporary backup hard links are created> | ssh \fB\-o\fR NoneEnabled=yes remote_server 'tar \fB\-xi\fR \fB\-C\fR <directory on remote server where backups will be sent>' . You need to execute backup command on a server where you take backups.
+.PP
+Backup using WDT: myrocks_hotbackup \fB\-\-user\fR=\fI\,root\/\fR \fB\-\-password\fR=\fI\,pw\/\fR \fB\-\-stream\fR=\fI\,wdt\/\fR \fB\-\-checkpoint_dir=\fR<directory where temporary backup hard links are created> \fB\-\-destination=\fR<remote host name> \fB\-\-backup_dir=\fR<remote directory name>. This has to be executed at the src host.
+.PP
+Move\-Back: myrocks_hotbackup \fB\-\-move_back\fR \fB\-\-datadir=\fR<dest mysql datadir> \fB\-\-rocksdb_datadir=\fR<dest rocksdb datadir> \fB\-\-rocksdb_waldir=\fR<dest rocksdb wal dir> \fB\-\-backup_dir=\fR<where backup files are stored> . You need to execute move\-back command on a server where backup files are sent.
+.SH OPTIONS
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+show this help message and exit
+.TP
+\fB\-i\fR CHECKPOINT_INTERVAL, \fB\-\-interval\fR=\fI\,CHECKPOINT_INTERVAL\/\fR
+Number of seconds to renew checkpoint
+.TP
+\fB\-c\fR CHECKPOINT_DIRECTORY, \fB\-\-checkpoint_dir\fR=\fI\,CHECKPOINT_DIRECTORY\/\fR
+Local directory name where checkpoints will be
+created.
+.TP
+\fB\-d\fR DATADIR, \fB\-\-datadir\fR=\fI\,DATADIR\/\fR
+backup mode: src MySQL datadir. move_back mode: dest
+MySQL datadir
+.TP
+\fB\-s\fR OUTPUT_STREAM, \fB\-\-stream\fR=\fI\,OUTPUT_STREAM\/\fR
+Setting streaming backup options. Currently tar, WDT
+and xbstream are supported. Default is tar
+.TP
+\fB\-\-destination\fR=\fI\,DESTINATION\/\fR
+Remote server name. Only used for WDT mode so far.
+.TP
+\fB\-\-avg_mbytes_per_sec\fR=\fI\,AVG_MBYTES_PER_SEC\/\fR
+Average backup rate in MBytes/sec. WDT only.
+.TP
+\fB\-\-extra_wdt_sender_options\fR=\fI\,EXTRA_WDT_SENDER_OPTIONS\/\fR
+Extra options for WDT sender
+.TP
+\fB\-\-extra_wdt_receiver_options\fR=\fI\,EXTRA_WDT_RECEIVER_OPTIONS\/\fR
+Extra options for WDT receiver
+.TP
+\fB\-u\fR MYSQL_USER, \fB\-\-user\fR=\fI\,MYSQL_USER\/\fR
+MySQL user name
+.TP
+\fB\-p\fR MYSQL_PASSWORD, \fB\-\-password\fR=\fI\,MYSQL_PASSWORD\/\fR
+MySQL password name
+.TP
+\fB\-P\fR MYSQL_PORT, \fB\-\-port\fR=\fI\,MYSQL_PORT\/\fR
+MySQL port number
+.TP
+\fB\-S\fR MYSQL_SOCKET, \fB\-\-socket\fR=\fI\,MYSQL_SOCKET\/\fR
+MySQL socket path. Takes precedence over \fB\-\-port\fR.
+.TP
+\fB\-m\fR, \fB\-\-move_back\fR
+Moving MyRocks backup files to proper locations.
+.TP
+\fB\-r\fR ROCKSDB_DATADIR, \fB\-\-rocksdb_datadir\fR=\fI\,ROCKSDB_DATADIR\/\fR
+RocksDB target data directory where backup data files
+will be moved. Must be empty.
+.TP
+\fB\-w\fR ROCKSDB_WALDIR, \fB\-\-rocksdb_waldir\fR=\fI\,ROCKSDB_WALDIR\/\fR
+RocksDB target data directory where backup wal files
+will be moved. Must be empty.
+.TP
+\fB\-b\fR BACKUPDIR, \fB\-\-backup_dir\fR=\fI\,BACKUPDIR\/\fR
+backup mode for WDT: Remote directory to store backup.
+move_back mode: Locations where backup files are
+stored.
+.TP
+\fB\-f\fR, \fB\-\-skip_check_frm_timestamp\fR
+skipping to check if frm files are updated after
+starting backup.
+.TP
+\fB\-D\fR DEBUG_SIGNAL_FILE, \fB\-\-debug_signal_file\fR=\fI\,DEBUG_SIGNAL_FILE\/\fR
+debugging purpose: waiting until the specified file is
+created
+.SH "SEE ALSO"
+For more information, please refer to the MariaDB Knowledge Base, available online at https://mariadb.com/kb/
+.SH AUTHOR
+MariaDB Foundation (http://www.mariadb.org/).

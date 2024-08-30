@@ -1,0 +1,109 @@
+# Vietnamese translations for mariadb package
+# Bản dịch Tiếng Việt dành cho gói mariadb.
+# This file is distributed under the same license as the mariadb package.
+# Trần Ngọc Quân <vnwildman@gmail.com>, 2017.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: mariadb\n"
+"Report-Msgid-Bugs-To: mariadb@packages.debian.org\n"
+"POT-Creation-Date: 2019-07-23 19:16-0300\n"
+"PO-Revision-Date: 2017-03-18 13:32+0700\n"
+"Last-Translator: Trần Ngọc Quân <vnwildman@gmail.com>\n"
+"Language-Team: Vietnamese <debian-l10n-vietnamese@lists.debian.org>\n"
+"Language: vi\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+"X-Generator: Gtranslator 2.91.7\n"
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:2001
+msgid "The old data directory will be saved at new location"
+msgstr "Thư mục dữ liệu cũ sẽ được lưu tại vị trí mới"
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:2001
+msgid ""
+"A file named /var/lib/mysql/debian-*.flag exists on this system. The number "
+"indicates a database binary format version that cannot automatically be "
+"upgraded (or downgraded)."
+msgstr ""
+"Một tập tin có tên /var/lib/mysql/debian-*.flag đã sẵn có trên hệ thống này. "
+"Con số chỉ ra rằng một phiên bản định dạng cơ sở dữ liệu không thể tự động "
+"nâng cấp (hoặc hạ cấp)."
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:2001
+msgid ""
+"Therefore the previous data directory will be renamed to /var/lib/mysql-* "
+"and a new data directory will be initialized at /var/lib/mysql."
+msgstr ""
+"Do đó thư mục dữ liệu trước đây sẽ được đổi tên thành /var/lib/mysql-* và "
+"thư mục dữ liệu mới sẽ được khởi tạo tại /var/lib/mysql."
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:2001
+msgid ""
+"Please manually export/import your data (e.g. with mysqldump) if needed."
+msgstr ""
+"Vui lòng xuất/nhập dữ liệu của bạn bằng tay nếu thấy cần (ví dụ bằng "
+"mysqldump)."
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:3001
+msgid "Important note for NIS/YP users"
+msgstr "Chú ý quan trọng cho người dùng NIS/YP"
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:3001
+msgid ""
+"Using MariaDB under NIS/YP requires a mysql user account to be added on the "
+"local system with:"
+msgstr ""
+"Dùng MariaDB dưới NIS/YP cần một tài khoản người dùng được thêm vào một hệ "
+"thống nội bộ với:"
+
+#. Type: note
+#. Description
+#: ../mariadb-server.templates:3001
+msgid ""
+"You should also check the permissions and ownership of the /var/lib/mysql "
+"directory:"
+msgstr ""
+"Bạn cũng nên kiểm tra phân quyền và chủ sở hữu của thư mục /var/lib/mysql:"
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server.templates:4001
+msgid "Remove all MariaDB databases?"
+msgstr "Xóa bỏ mọi cơ sở dữ liệu MariaDB chứ?"
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server.templates:4001
+msgid ""
+"The /var/lib/mysql directory which contains the MariaDB databases is about "
+"to be removed."
+msgstr ""
+"Thư mục /var/lib/mysql nơi mà chứa các cơ sở dữ liệu MariaDB chuẩn bị bị xóa "
+"bỏ."
+
+#. Type: boolean
+#. Description
+#: ../mariadb-server.templates:4001
+msgid ""
+"If you're removing the MariaDB package in order to later install a more "
+"recent version or if a different mariadb-server package is already using it, "
+"the data should be kept."
+msgstr ""
+"Nếu bạn gỡ bỏ gói cốt để mà sau này cài đặt gói máy phục vụ phiên bản gần "
+"đây hoặc là một gói mariadb-server khác đang được dùng, dữ liệu nên được giữ "
+"lại."

@@ -1,6 +1,3 @@
-INSTALL SONAME 'auth_gssapi';
-Warnings:
-Note	1105	SSPI: using principal name 'localhost', mech 'Negotiate'
 CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi OR mysql_native_password as password("good");
 connect(localhost,nosuchuser,,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect  con1,localhost,nosuchuser,,;
@@ -31,4 +28,3 @@ GSSAPI_SHORTNAME@localhost	GSSAPI_SHORTNAME@%
 disconnect con1;
 connection default;
 DROP USER 'GSSAPI_SHORTNAME';
-UNINSTALL SONAME 'auth_gssapi';

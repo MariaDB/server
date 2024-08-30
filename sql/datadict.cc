@@ -1,4 +1,5 @@
 /* Copyright (c) 2010, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2017, 2022, MariaDB corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +26,7 @@ static int read_string(File file, uchar**to, size_t length)
   DBUG_ENTER("read_string");
 
   /* This can't use MY_THREAD_SPECIFIC as it's used on server start */
-  if (!(*to= (uchar*) my_malloc(length+1,MYF(MY_WME))) ||
+  if (!(*to= (uchar*) my_malloc(PSI_INSTRUMENT_ME, length+1,MYF(MY_WME))) ||
       mysql_file_read(file, *to, length, MYF(MY_NABP)))
   {
      my_free(*to);
@@ -49,8 +50,6 @@ static int read_string(File file, uchar**to, size_t length)
   If engine_name is 0, then the function will only test if the file is a
   view or not
 
-  @param[out] is_sequence  1 if table is a SEQUENCE, 0 otherwise
-
   @retval  TABLE_TYPE_UNKNOWN   error  - file can't be opened
   @retval  TABLE_TYPE_NORMAL    table
   @retval  TABLE_TYPE_SEQUENCE  sequence table
@@ -58,19 +57,18 @@ static int read_string(File file, uchar**to, size_t length)
 */
 
 Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
-                       bool *is_sequence)
+                       LEX_CSTRING *partition_engine_name,
+                       LEX_CUSTRING *table_version)
 {
   File file;
-  uchar header[40];     //"TYPE=VIEW\n" it is 10 characters
+  uchar header[64+ MY_UUID_SIZE + 2];     // Header and uuid
   size_t error;
   Table_type type= TABLE_TYPE_UNKNOWN;
   uchar dbt;
   DBUG_ENTER("dd_frm_type");
 
-  *is_sequence= 0;
-
-  if ((file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0)))
-      < 0)
+  file= mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0));
+  if (file < 0)
     DBUG_RETURN(TABLE_TYPE_UNKNOWN);
 
   /*
@@ -88,8 +86,18 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     engine_name->length= 0;
     ((char*) (engine_name->str))[0]= 0;
   }
-
-  if (unlikely((error= mysql_file_read(file, (uchar*) header, sizeof(header), MYF(MY_NABP)))))
+  if (partition_engine_name)
+  {
+    partition_engine_name->length= 0;
+    partition_engine_name->str= 0;
+  }
+  if (table_version)
+  {
+    table_version->length= 0;
+    table_version->str= 0;                      // Allocated if needed
+  }
+  if (unlikely((error= mysql_file_read(file, (uchar*) header, sizeof(header),
+                                       MYF(MY_NABP)))))
     goto err;
 
   if (unlikely((!strncmp((char*) header, "TYPE=VIEW\n", 10))))
@@ -98,40 +106,63 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     goto err;
   }
 
-  /* engine_name is 0 if we only want to know if table is view or not */
-  if (!engine_name)
-    goto err;
-
   if (!is_binary_frm_header(header))
     goto err;
 
   dbt= header[3];
 
-  if (((header[39] >> 4) & 3) == HA_CHOICE_YES)
+  if ((header[39] & 0x30) == (HA_CHOICE_YES << 4))
   {
     DBUG_PRINT("info", ("Sequence found"));
-    *is_sequence= 1;
+    type= TABLE_TYPE_SEQUENCE;
+  }
+
+  if (table_version)
+  {
+    /* Read the table version (if it is a 'new' frm file) */
+    if (header[64] == EXTRA2_TABLEDEF_VERSION && header[65] == MY_UUID_SIZE)
+      if ((table_version->str= (uchar*) thd->memdup(header + 66, MY_UUID_SIZE)))
+        table_version->length= MY_UUID_SIZE;
   }
 
   /* cannot use ha_resolve_by_legacy_type without a THD */
   if (thd && dbt < DB_TYPE_FIRST_DYNAMIC)
   {
-    handlerton *ht= ha_resolve_by_legacy_type(thd, (enum legacy_db_type)dbt);
+    handlerton *ht= ha_resolve_by_legacy_type(thd, (legacy_db_type) dbt);
     if (ht)
     {
-      *engine_name= hton2plugin[ht->slot]->name;
+      if (engine_name)
+        *engine_name= hton2plugin[ht->slot]->name;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+      if (partition_engine_name && dbt == DB_TYPE_PARTITION_DB)
+      {
+        handlerton *p_ht;
+        legacy_db_type new_dbt= (legacy_db_type) header[61];
+        if (new_dbt >= DB_TYPE_FIRST_DYNAMIC)
+          goto cont;
+        if (!(p_ht= ha_resolve_by_legacy_type(thd, new_dbt)))
+          goto err;
+        *partition_engine_name= *hton_name(p_ht);
+      }
+#endif // WITH_PARTITION_STORAGE_ENGINE
       goto err;
     }
   }
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+cont:
+#endif
   /* read the true engine name */
+  if (engine_name)
   {
-    MY_STAT state;  
+    MY_STAT state;
     uchar *frm_image= 0;
     uint n_length;
 
     if (mysql_file_fstat(file, &state, MYF(MY_WME)))
       goto err;
+
+    MSAN_STAT_WORKAROUND(&state);
 
     if (mysql_file_seek(file, 0, SEEK_SET, MYF(MY_WME)))
       goto err;
@@ -139,7 +170,8 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     if (read_string(file, &frm_image, (size_t)state.st_size))
       goto err;
 
-    if ((n_length= uint4korr(frm_image+55)))
+    /* The test for !engine_name->length is only true for partition engine */
+    if (!engine_name->length && (n_length= uint4korr(frm_image+55)))
     {
       uint record_offset= uint2korr(frm_image+6)+
                       ((uint2korr(frm_image+14) == 0xffff ?
@@ -165,6 +197,43 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
       }
     }
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (partition_engine_name && dbt == DB_TYPE_PARTITION_DB)
+    {
+      uint len;
+      const uchar *extra2;
+      /* Length of the MariaDB extra2 segment in the form file. */
+      len = uint2korr(frm_image+4);
+      extra2= frm_image + 64;
+      if (*extra2 != '/')   // old frm had '/' there
+      {
+        const uchar *e2end= extra2 + len;
+        while (extra2 + 3 <= e2end)
+        {
+          uchar type= *extra2++;
+          size_t length= *extra2++;
+          if (!length)
+          {
+            if (extra2 + 2 >= e2end)
+              break;
+            length= uint2korr(extra2);
+            extra2+= 2;
+            if (length < 256)
+              break;
+          }
+          if (extra2 + length > e2end)
+            break;
+          if (type == EXTRA2_DEFAULT_PART_ENGINE)
+          {
+            partition_engine_name->str= thd->strmake((char*)extra2, length);
+            partition_engine_name->length= length;
+            break;
+          }
+          extra2+= length;
+        }
+      }
+    }
+#endif // WITH_PARTITION_STORAGE_ENGINE
     my_free(frm_image);
   }
 
@@ -199,6 +268,6 @@ bool dd_recreate_table(THD *thd, const char *db, const char *table_name)
   build_table_filename(path_buf, sizeof(path_buf) - 1,
                        db, table_name, "", 0);
   /* Attempt to reconstruct the table. */
-  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0));
+  DBUG_RETURN(ha_create_table(thd, path_buf, db, table_name, &create_info, 0, 0));
 }
 

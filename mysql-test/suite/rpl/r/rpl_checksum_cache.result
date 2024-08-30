@@ -13,7 +13,7 @@ connection slave;
 include/stop_slave.inc
 include/start_slave.inc
 connection master;
-flush status;
+flush global status;
 show status like "binlog_cache_use";
 Variable_name	Value
 Binlog_cache_use	0
@@ -49,7 +49,7 @@ delete from t1;
 commit;
 connection slave;
 connection master;
-flush status;
+flush global status;
 create table t2(a int auto_increment primary key, data VARCHAR(12288)) ENGINE=Innodb;
 show status like "binlog_cache_use";
 Variable_name	Value
@@ -66,7 +66,7 @@ delete from t2;
 commit;
 connection slave;
 connection master;
-flush status;
+flush global status;
 create table t3(a int auto_increment primary key, data VARCHAR(8192)) engine=innodb;
 show status like "binlog_cache_use";
 Variable_name	Value
@@ -83,7 +83,7 @@ delete from t3;
 commit;
 connection slave;
 connection master;
-flush status;
+flush global status;
 create procedure test.p1 (n int) 
 begin
 while n > 0 do
@@ -121,13 +121,54 @@ connection slave;
 include/diff_tables.inc [master:test.t1, slave:test.t1]
 include/diff_tables.inc [master:test.t2, slave:test.t2]
 include/diff_tables.inc [master:test.t3, slave:test.t3]
+*** Test switching checksum algorithm while ongoing transactions have pre-computed checksum in their binlog cache ***
+connection master;
+CREATE TABLE t4 (a INT, b INT, c VARCHAR(1024), PRIMARY KEY (a,b)) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t4 VALUES (1, 1, "small, pre-computed checksums");
+connection server_1;
+BEGIN;
+INSERT INTO t4 VALUES (2, 1, "big, pre-computed checksums");
+set @@global.binlog_checksum = NONE;
+connection master;
+INSERT INTO t4 VALUES (1, 2, "done");
+COMMIT;
+connection server_1;
+INSERT INTO t4 VALUES (2, 22, "done");
+COMMIT;
+connection master;
+BEGIN;
+INSERT INTO t4 VALUES (3, 1, "small, no pre-computed checksums");
+connection server_1;
+BEGIN;
+INSERT INTO t4 VALUES (4, 1, "big, no pre-computed checksums");
+set @@global.binlog_checksum = CRC32;
+connection master;
+INSERT INTO t4 VALUES (3, 2, "done");
+COMMIT;
+connection server_1;
+INSERT INTO t4 VALUES (4, 22, "done");
+COMMIT;
+connection slave;
+*** Test the --binlog-legacy-event-pos option.
+connection master;
+FLUSH BINARY LOGS;
+BEGIN;
+INSERT INTO t4 VALUES (5, 1, "Zero end_log_pos");
+COMMIT;
+set @@global.binlog_legacy_event_pos= 1;
+BEGIN;
+INSERT INTO t4 VALUES (6, 1, "Non-zero end_log_pos");
+COMMIT;
+set @@global.binlog_legacy_event_pos= 0;
+connection slave;
 connection master;
 begin;
 delete from t1;
 delete from t2;
 delete from t3;
 commit;
-drop table t1, t2, t3;
+drop table t1, t2, t3, t4;
 set @@global.binlog_cache_size = @save_binlog_cache_size;
 set @@global.binlog_checksum = @save_binlog_checksum;
 set @@global.master_verify_checksum = @save_master_verify_checksum;

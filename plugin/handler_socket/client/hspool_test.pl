@@ -31,8 +31,8 @@ my $moreflds_prefix = get_conf("moreflds_prefix", "f");
 my $mysql_user = 'root';
 my $mysql_password = '';
 
-my $dsn = "DBI:mysql:database=;host=$host;port=$mysqlport"
-        . ";mysql_server_prepare=$ssps";
+my $dsn = "DBI:MariaDB:database=;host=$host;port=$mysqlport"
+        . ";mariadb_server_prepare=$ssps";
 my $dbh = DBI->connect($dsn, $mysql_user, $mysql_password,
 	{ RaiseError => 1 });
 my $hsargs = { 'host' => $host, 'port' => $hsport_rd };

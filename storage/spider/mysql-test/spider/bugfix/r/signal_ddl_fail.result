@@ -1,0 +1,8 @@
+#
+# MDEV-32559 Move alter table statements in spider init queries to be executed in the signal_ddl_recovery_done callback
+#
+select * from mysql.plugin;
+name	dl
+#
+# end of test signal_ddl_fail
+#

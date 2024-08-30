@@ -31,12 +31,13 @@
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_dir.h>
+#include <ctype.h>
 
 #define MAX_ROWS  3000
 #define ERRORS_PER_RANGE 1000
 #define MAX_SECTIONS 4
 #define HEADER_LENGTH 32                /* Length of header in errmsg.sys */
-#define ERRMSG_VERSION 4                /* Version number of errmsg.sys */
+#define ERRMSG_VERSION 5                /* Version number of errmsg.sys */
 #define DEFAULT_CHARSET_DIR "../sql/share/charsets"
 #define ER_PREFIX "ER_"
 #define ER_PREFIX2 "MARIA_ER_"
@@ -65,6 +66,7 @@ const char *empty_string= "";			/* For empty states */
 */
 
 const char *default_language= "eng";
+my_bool default_language_changed= 0;
 uint er_offset= 1000;
 my_bool info_flag= 0;
 
@@ -83,7 +85,6 @@ struct languages
 {
   char *lang_long_name;				/* full name of the language */
   char *lang_short_name;			/* abbreviation of the lang. */
-  char *charset;				/* Character set name */
   struct languages *next_lang;			/* Pointer to next language */
 };
 
@@ -150,8 +151,6 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
 static int get_options(int *argc, char ***argv);
 static void print_version(void);
 static void usage(void);
-static my_bool get_one_option(int optid, const struct my_option *opt,
-			      char *argument);
 static char *parse_text_line(char *pos);
 static int copy_rows(FILE * to, char *row, int row_nr, long start_pos);
 static char *parse_default_language(char *str);
@@ -329,7 +328,7 @@ static int create_sys_files(struct languages *lang_head,
                             uint error_count)
 {
   FILE *to;
-  uint csnum= 0, i, row_nr;
+  uint i, row_nr;
   ulong length;
   uchar head[HEADER_LENGTH];
   char outfile[FN_REFLEN], *outfile_end;
@@ -345,15 +344,6 @@ static int create_sys_files(struct languages *lang_head,
   */
   for (tmp_lang= lang_head; tmp_lang; tmp_lang= tmp_lang->next_lang)
   {
-
-    /* setting charset name */
-    if (!(csnum= get_charset_number(tmp_lang->charset, MY_CS_PRIMARY)))
-    {
-      fprintf(stderr, "Unknown charset '%s' in '%s'\n", tmp_lang->charset,
-	      TXTFILE);
-      DBUG_RETURN(1);
-    }
-
     outfile_end= strxmov(outfile, DATADIRECTORY, 
                          tmp_lang->lang_long_name, NullS);
     if (!my_stat(outfile, &stat_info,MYF(0)))
@@ -409,7 +399,6 @@ static int create_sys_files(struct languages *lang_head,
     int2store(head + 10, max_error);            /* Max error */
     int2store(head + 12, row_nr);
     int2store(head + 14, section_count);
-    head[30]= csnum;
 
     my_fseek(to, 0l, MY_SEEK_SET, MYF(0));
     if (my_fwrite(to, (uchar*) head, HEADER_LENGTH, MYF(MY_WME | MY_FNABP)) ||
@@ -439,16 +428,16 @@ static void clean_up(struct languages *lang_head, struct errors *error_head)
 {
   struct languages *tmp_lang, *next_language;
   struct errors *tmp_error, *next_error;
-  uint count, i;
+  size_t count, i;
 
-  my_free((void*) default_language);
+  if (default_language_changed)
+    my_free((void*) default_language);
 
   for (tmp_lang= lang_head; tmp_lang; tmp_lang= next_language)
   {
     next_language= tmp_lang->next_lang;
     my_free(tmp_lang->lang_short_name);
     my_free(tmp_lang->lang_long_name);
-    my_free(tmp_lang->charset);
     my_free(tmp_lang);
   }
 
@@ -492,7 +481,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
   section_start= er_offset;
   section_count= 0;
 
-  if (!(file= my_fopen(file_name, O_RDONLY | O_SHARE, MYF(MY_WME))))
+  if (!(file= my_fopen(file_name, O_RDONLY | O_TEXT | O_SHARE, MYF(MY_WME))))
     DBUG_RETURN(0);
 
   while ((str= fgets(buff, sizeof(buff), file)))
@@ -563,6 +552,7 @@ static uint parse_input_file(const char *file_name, struct errors **top_error,
 		"Failed to parse the default language line. Aborting\n");
 	DBUG_RETURN(0);
       }
+      default_language_changed= 1;
       continue;
     }
 
@@ -721,7 +711,7 @@ static struct message *find_message(struct errors *err, const char *lang,
                                     my_bool no_default)
 {
   struct message *tmp, *return_val= 0;
-  uint i, count;
+  size_t i, count;
   DBUG_ENTER("find_message");
 
   count= (err->msg).elements;
@@ -751,18 +741,19 @@ static struct message *find_message(struct errors *err, const char *lang,
                    for the format specifiers
 
   RETURN VALUE
-    Returns the checksum for all the characters of the
+    Returns the checksum for all letters of the
     format specifiers
 
     Ex.
-     "text '%-64.s' text part 2 %d'"
-            ^^^^^^              ^^
+     "text '%-.64s' text part 2 %zu'"
+                 ^               ^^
             characters will be xored to form checksum
 
+    Non-letters are skipped, because they do not change the type
+    of the argument.
+
     NOTE:
-      Does not support format specifiers with positional args
-      like "%2$s" but that is not yet supported by my_vsnprintf
-      either.
+      Does not support format specifiers with positional args like "%2$s"
 */
 
 static ha_checksum checksum_format_specifier(const char* msg)
@@ -779,8 +770,9 @@ static ha_checksum checksum_format_specifier(const char* msg)
       start= p+1; /* Entering format specifier */
       num_format_specifiers++;
     }
-    else if (start)
+    else if (start && isalpha(*p))
     {
+      chksum= my_checksum(chksum, p, 1);
       switch(*p) {
       case 'd':
       case 'u':
@@ -788,11 +780,7 @@ static ha_checksum checksum_format_specifier(const char* msg)
       case 's':
       case 'M':
       case 'T':
-        chksum= my_checksum(chksum, (uchar*) start, (uint) (p + 1 - start));
         start= 0; /* Not in format specifier anymore */
-        break;
-
-      default:
         break;
       }
     }
@@ -890,7 +878,7 @@ static char *get_word(char **str)
   DBUG_ENTER("get_word");
 
   *str= find_end_of_word(start);
-  DBUG_RETURN(my_strndup(start, (uint) (*str - start),
+  DBUG_RETURN(my_strndup(PSI_NOT_INSTRUMENTED, start, (uint) (*str - start),
 				    MYF(MY_WME | MY_FAE)));
 }
 
@@ -924,7 +912,7 @@ static struct message *parse_message_string(struct message *new_message,
   while (*str != ' ' && *str != '\t' && *str)
     str++;
   if (!(new_message->lang_short_name=
-	my_strndup(start, (uint) (str - start),
+	my_strndup(PSI_NOT_INSTRUMENTED, start, (uint) (str - start),
 			      MYF(MY_WME | MY_FAE))))
     DBUG_RETURN(0);				/* Fatal error */
   DBUG_PRINT("info", ("msg_slang: %s", new_message->lang_short_name));
@@ -944,9 +932,9 @@ static struct message *parse_message_string(struct message *new_message,
   start= str + 1;
   str= parse_text_line(start);
 
-  if (!(new_message->text= my_strndup(start, (uint) (str - start),
-						 MYF(MY_WME | MY_FAE))))
-    DBUG_RETURN(0);				/* Fatal error */
+  if (!(new_message->text= my_strndup(PSI_NOT_INSTRUMENTED, start,
+                                      (uint) (str - start), MYF(MY_WME | MY_FAE))))
+    DBUG_RETURN(0);
   DBUG_PRINT("info", ("msg_text: %s", new_message->text));
 
   DBUG_RETURN(new_message);
@@ -959,11 +947,11 @@ static struct errors *generate_empty_message(uint d_code, my_bool skip)
   struct message message;
 
   /* create a new element */
-  if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
-                                               MYF(MY_WME))))
+  if (!(new_error= (struct errors *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                               sizeof(*new_error), MYF(MY_WME))))
     return(0);
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 1,
-                            MYF(0)))
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &new_error->msg,
+                            sizeof(struct message), 0, 1, MYF(0)))
     return(0);				/* OOM: Fatal error */
 
   new_error->er_name= NULL;
@@ -974,8 +962,10 @@ static struct errors *generate_empty_message(uint d_code, my_bool skip)
 
   message.text= 0;              /* If skip set, don't generate a text */
 
-  if (!(message.lang_short_name= my_strdup(default_language, MYF(MY_WME))) ||
-      (!skip && !(message.text= my_strdup("", MYF(MY_WME)))))
+  if (!(message.lang_short_name= my_strdup(PSI_NOT_INSTRUMENTED,
+                                           default_language, MYF(MY_WME))) ||
+      (!skip && !(message.text= my_strdup(PSI_NOT_INSTRUMENTED,
+                                          "", MYF(MY_WME)))))
     return(0);
 
   /* Can't fail as msg is preallocated */
@@ -996,13 +986,14 @@ static struct errors *parse_error_string(char *str, int er_count)
   DBUG_PRINT("enter", ("str: %s", str));
 
   /* create a new element */
-  if (!(new_error= (struct errors *) my_malloc(sizeof(*new_error),
-                                               MYF(MY_WME))))
+  if (!(new_error= (struct errors *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                               sizeof(*new_error), MYF(MY_WME))))
     DBUG_RETURN(0);
 
   new_error->next_error= 0;
-  if (my_init_dynamic_array(&new_error->msg, sizeof(struct message), 0, 0, MYF(0)))
-    DBUG_RETURN(0);				/* OOM: Fatal error */
+  if (my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &new_error->msg,
+                            sizeof(struct message), 0, 0, MYF(0)))
+    DBUG_RETURN(0);
 
   /* getting the error name */
   str= skip_delimiters(str);
@@ -1088,7 +1079,8 @@ static struct languages *parse_charset_string(char *str)
   do
   {
     /*creating new element of the linked list */
-    new_lang= (struct languages *) my_malloc(sizeof(*new_lang), MYF(MY_WME));
+    new_lang= (struct languages *) my_malloc(PSI_NOT_INSTRUMENTED,
+                                             sizeof(*new_lang), MYF(MY_WME));
     new_lang->next_lang= head;
     head= new_lang;
 
@@ -1107,12 +1099,6 @@ static struct languages *parse_charset_string(char *str)
     if (!(new_lang->lang_short_name= get_word(&str)))
       DBUG_RETURN(0);				/* OOM: Fatal error */
     DBUG_PRINT("info", ("short_name: %s", new_lang->lang_short_name));
-
-    /* getting the charset name */
-    str= skip_delimiters(str);
-    if (!(new_lang->charset= get_word(&str)))
-      DBUG_RETURN(0);				/* Fatal error */
-    DBUG_PRINT("info", ("charset: %s", new_lang->charset));
 
     /* skipping space, tab or "," */
     str= skip_delimiters(str);
@@ -1135,11 +1121,12 @@ static void print_version(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__ ((unused)),
-	       char *argument __attribute__ ((unused)))
+get_one_option(const struct my_option *opt,
+	       const char *argument __attribute__ ((unused)),
+	       const char *filename __attribute__ ((unused)))
 {
   DBUG_ENTER("get_one_option");
-  switch (optid) {
+  switch (opt->id) {
   case 'V':
     print_version();
     my_end(0);

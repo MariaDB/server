@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba & 2017 MariaDB corp
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2017-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -11,7 +12,7 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 /*
   Define functionality offered by MySQL or MariaDB
@@ -19,25 +20,10 @@
 
 #ifndef SPD_ENVIRON_INCLUDED
 
-#define SPIDER_HANDLER_START_BULK_INSERT_HAS_FLAGS
-
-#define SPIDER_SUPPORT_CREATE_OR_REPLACE_TABLE
 #define SPIDER_NET_HAS_THD
-
 #define HANDLER_HAS_TOP_TABLE_FIELDS
-#define HANDLER_HAS_DIRECT_UPDATE_ROWS
-#define HANDLER_HAS_DIRECT_AGGREGATE
 #define PARTITION_HAS_GET_PART_SPEC
 #define HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
-#define HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
 #define HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
-
 #define SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
-
-#define SPIDER_MDEV_16246
-
-#define SPIDER_USE_CONST_ITEM_FOR_STRING_INT_REAL_DECIMAL_DATE_ITEM
-#define SPIDER_SQL_CACHE_IS_IN_LEX
-#define SPIDER_LIKE_FUNC_HAS_GET_NEGATED
-#define HA_HAS_CHECKSUM_EXTENDED
 #endif /* SPD_ENVIRON_INCLUDED */

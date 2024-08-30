@@ -11,20 +11,20 @@ INSERT INTO t1 VALUES (1), (10), (100), (1000);
 ALTER TABLE t1 TRUNCATE PARTITION p1;
 ERROR HY000: Unknown partition 'p1' in table 't1'
 ALTER TABLE t1 DROP PARTITION p1;
-ERROR HY000: Error in list of partitions to DROP
+ERROR HY000: Wrong partition name or partition list
 # No error returned, output in table format instead:
 ALTER TABLE t1 ANALYZE PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	analyze	error	Error in list of partitions to test.t1
+test.t1	analyze	error	Wrong partition name or partition list
 ALTER TABLE t1 CHECK PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	check	error	Error in list of partitions to test.t1
+test.t1	check	error	Wrong partition name or partition list
 ALTER TABLE t1 OPTIMIZE PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	optimize	error	Error in list of partitions to test.t1
+test.t1	optimize	error	Wrong partition name or partition list
 ALTER TABLE t1 REPAIR PARTITION p1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	Error in list of partitions to test.t1
+test.t1	repair	error	Wrong partition name or partition list
 ALTER TABLE t1 ANALYZE PARTITION p0;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	OK

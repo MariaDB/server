@@ -28,7 +28,7 @@
 #include "sql_priv.h"
 #include "unireg.h"                             // SPECIAL_NO_HOST_CACHE
 #include "hostname.h"
-#ifndef __WIN__
+#ifndef _WIN32
 #include <netdb.h>        // getservbyname, servent
 #endif
 #include "hash_filo.h"
@@ -40,12 +40,12 @@
 #ifdef	__cplusplus
 extern "C" {					// Because of SCO 3.2V4.2
 #endif
-#if !defined( __WIN__)
+#if !defined( _WIN32)
 #ifdef HAVE_SYS_UN_H
 #include <sys/un.h>
 #endif
 #include <sys/utsname.h>
-#endif // __WIN__
+#endif // _WIN32
 #ifdef	__cplusplus
 }
 #endif
@@ -149,10 +149,9 @@ bool hostname_cache_init()
   Host_entry tmp;
   uint key_offset= (uint) ((char*) (&tmp.ip_key) - (char*) &tmp);
 
-  if (!(hostname_cache= new Hash_filo<Host_entry>(host_cache_size,
-                                      key_offset, HOST_ENTRY_KEY_SIZE,
-                                      NULL, (my_hash_free_key) free,
-                                      &my_charset_bin)))
+  if (!(hostname_cache= new Hash_filo<Host_entry>(key_memory_host_cache_hostname,
+                             host_cache_size, key_offset, HOST_ENTRY_KEY_SIZE,
+                             NULL, (my_hash_free_key) my_free, &my_charset_bin)))
     return 1;
 
   hostname_cache->clear();
@@ -191,7 +190,7 @@ Host_entry *hostname_cache_first()
 
 static inline Host_entry *hostname_cache_search(const char *ip_key)
 {
-  return hostname_cache->search((uchar *) ip_key, 0);
+  return hostname_cache->search((uchar *) ip_key, HOST_ENTRY_KEY_SIZE);
 }
 
 static void add_hostname_impl(const char *ip_key, const char *hostname,
@@ -205,7 +204,8 @@ static void add_hostname_impl(const char *ip_key, const char *hostname,
 
   if (likely(entry == NULL))
   {
-    entry= (Host_entry *) malloc(sizeof (Host_entry));
+    entry= (Host_entry *) my_malloc(key_memory_host_cache_hostname,
+                                    sizeof (Host_entry), 0);
     if (entry == NULL)
       return;
 
@@ -475,7 +475,8 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
       if (entry->m_host_validated)
       {
         if (entry->m_hostname_length)
-          *hostname= my_strdup(entry->m_hostname, MYF(0));
+          *hostname= my_strdup(key_memory_host_cache_hostname,
+                               entry->m_hostname, MYF(0));
 
         DBUG_PRINT("info",("IP (%s) has been found in the cache. "
                            "Hostname: '%s'",
@@ -513,42 +514,55 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
   DBUG_EXECUTE_IF("getnameinfo_error_noname",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_NONAME;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_error_again",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_AGAIN;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv4",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv4.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv4.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv6",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv6.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv6.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv4",
                   {
-                    strcpy(hostname_buffer, "12.12.12.12");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12.12.12.12");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv6",
                   {
-                    strcpy(hostname_buffer, "12:DEAD:BEEF:0");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12:DEAD:BEEF:0");
+                    err_code= 0;
+                  }
+                  );
+
+  DBUG_EXECUTE_IF("getnameinfo_fake_long_host",
+                  {
+                    strcpy(hostname_buffer, "host5678901_345678902_345678903_345678904_345678905_345678906_345678907_345678908_345678909_345678910_345678911_345678912_345678913_345678914_345678915_345678916_345678917_345678918_345678919_345678920_345678921_345678922_345678923_345678924_345678925_345");
                     err_code= 0;
                   }
                   );
@@ -925,7 +939,8 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
     {
       /* Copy host name string to be stored in the cache. */
 
-      *hostname= my_strdup(hostname_buffer, MYF(0));
+      *hostname= my_strdup(key_memory_host_cache_hostname,
+                           hostname_buffer, MYF(0));
 
       if (!*hostname)
       {

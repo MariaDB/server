@@ -15,9 +15,9 @@
 --source include/have_debug_sync.inc
 
 call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
-call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table .*");
-call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB  .*");
-call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table .*");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table");
+call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in");
+call mtr.add_suppression("InnoDB could not find key no 1 with name f2 from dict cache for table");
 
 
 --echo #
@@ -35,12 +35,10 @@ let datadir= `select @@datadir`;
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
 
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 --error 2013
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
-
-remove_files_wildcard $datadir/test #sql-*.frm;
 
 --source include/start_mysqld.inc
 
@@ -67,7 +65,11 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 disconnect con1;
+# This may occasionally display records for a corrupted index(f2).
+# The original bug was about a crash during the execution of SHOW KEYS.
+--disable_result_log
 SHOW KEYS FROM t1;
+--enable_result_log
 DROP TABLE t1;
 remove_files_wildcard $datadir/test #sql-*.frm;
 

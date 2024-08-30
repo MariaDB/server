@@ -1,0 +1,119 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of query > 4K. For this we do not have to run many tests as we
+# only want to test the query storage, which is identical for all cases.
+#
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
+--enable_query_log
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $engine_count=1;
+let $engines='myisam';
+
+let $crash_count=1;
+let $crash_points='ddl_log_alter_after_log';
+
+let $statement_count=2;
+let $statements='ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"',
+                'ALTER TABLE t1 COMMENT "new"';
+
+# If there is a need of testing one specific state (crash point and query),
+# one can remove the comments below and modify them.
+#let $crash_count=1;
+#let $crash_points='ddl_log_alter_before_rename_triggers';
+#let $statement_count= 1;
+#let $statements='ALTER TABLE t1 change column b c int, COMMENT "new"';
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=ALTER;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+
+  --echo
+  --echo engine: $engine
+  --echo
+
+  let $r=0;
+  while ($r < $statement_count)
+  {
+    inc $r;
+    let $statement=`select ELT($r, $statements)`;
+    --echo
+    --echo query: $statement
+    let $statement=`select concat(replace('$statement', "new", repeat("x",2000)), "/* long code comment: ", repeat("y",6000), "*/")`;
+    --echo
+    let $c=0;
+    while ($c < $crash_count)
+    {
+      inc $c;
+      let $crash=`select ELT($c, $crash_points)`;
+
+      --eval create table t1 (a int, b int) engine=$engine
+      insert into t1 (a) values (1),(2);
+      flush tables;
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+      --echo crash point: $crash
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+      let $errno=0;
+      --error 0,2013
+      --eval $statement;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      if ($error != 0)
+      {
+        --list_files $MYSQLD_DATADIR/test t*
+        --list_files $MYSQLD_DATADIR/test *sql*
+        show create table t1;
+        select sum(a) from t1;
+        --let $binlog_file=$start_binlog_file
+        --let $binlog_output_name=master-bin.000001
+        --source include/show_binlog_events.inc
+        if ($error)
+        {
+          --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+          --let $binlog_output_name=master-bin.000002
+          if ($binlog_file != $start_binlog_file)
+          {
+            --source include/show_binlog_events.inc
+          }
+        }
+      }
+      --disable_warnings
+      drop table if exists t1,t2;
+      --enable_warnings
+    }
+  }
+}
+
+--enable_query_log

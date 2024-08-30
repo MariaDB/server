@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, Oracle and/or its affiliates.
-   Copyright (c) 1991, 2020, MariaDB Corporation.
+   Copyright (c) 1991, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -281,6 +281,5 @@ typedef enum check_result {
 
 typedef check_result_t (*index_cond_func_t)(void *param);
 typedef check_result_t (*rowid_filter_func_t)(void *param);
-typedef int (*rowid_filter_is_active_func_t)(void *param);
 
 #endif /* _my_compare_h */

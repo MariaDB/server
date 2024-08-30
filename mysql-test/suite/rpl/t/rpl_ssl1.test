@@ -16,7 +16,7 @@ sync_slave_with_master;
 #trying to use this user without ssl
 stop slave;
 --source include/wait_for_slave_to_stop.inc
-change master to master_user='replssl',master_password='';
+change master to master_user='replssl',master_password='',master_ssl=0;
 start slave;
 
 #showing that replication don't work
@@ -34,7 +34,11 @@ select * from t1;
 --source include/stop_slave_sql.inc
 
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
-eval change master to master_ssl=1 , master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem', master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem', master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
+eval change master to
+  master_ssl=1,
+  master_ssl_ca ='$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert='$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key='$MYSQL_TEST_DIR/std_data/client-key.pem';
 start slave;
 --source include/wait_for_slave_to_start.inc
 
@@ -85,28 +89,53 @@ create table t1 (t int);
 insert into t1 values (1);
 
 sync_slave_with_master;
-
-echo on slave;
-#checking that replication is ok
 select * from t1;
 
 #checking show slave status
 source include/show_slave_status.inc;
 --source include/check_slave_is_running.inc
 
-# ==== Clean up ====
+# MDEV-31855 validate with master_password
+connection master;
+create user replssl@127.0.0.1 identified by "sslrepl";
+grant replication slave on *.* to replssl@127.0.0.1 require ssl;
 
+connection slave;
+stop slave;
+--source include/wait_for_slave_to_stop.inc
+eval change master to
+ master_host="127.0.0.1",
+ master_user='replssl',
+ master_password="sslrepl",
+ master_ssl=1,
+ master_ssl_verify_server_cert=1,
+ master_ssl_ca ='',
+ master_ssl_cert='',
+ master_ssl_key='';
+start slave;
+--source include/wait_for_slave_to_start.inc
+
+show tables;
 connection master;
 drop table t1;
 sync_slave_with_master;
+show tables;
+
+# ==== Clean up ====
 --source include/stop_slave.inc
 CHANGE MASTER TO
  master_host="127.0.0.1",
+ master_user='root',
+ master_password='',
  master_ssl_ca ='',
  master_ssl_cert='',
  master_ssl_key='',
  master_ssl_verify_server_cert=0,
- master_ssl=0;
+ master_ssl=1;
+connection master;
+drop user replssl@127.0.0.1;
+connection slave;
+drop user replssl@127.0.0.1;
 
 --let $rpl_only_running_threads= 1
 --source include/rpl_end.inc

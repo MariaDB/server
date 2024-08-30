@@ -43,6 +43,9 @@ PRIMARY KEY (`id`)
 PARTITION BY LIST COLUMNS(`id`) (
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE `tbl_b` (
 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 `last_name` varchar(255) DEFAULT NULL,
@@ -51,6 +54,9 @@ PRIMARY KEY (`id`)
 PARTITION BY LIST COLUMNS(`id`) (
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 CREATE TABLE `tbl_c` (
 `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
 `surname` varchar(255) DEFAULT NULL,
@@ -59,6 +65,9 @@ PRIMARY KEY (`id`)
 PARTITION BY LIST COLUMNS(`id`) (
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT * from tbl_b JOIN tbl_c ON tbl_b.id = tbl_c.id LEFT OUTER JOIN tbl_a ON tbl_a.id = tbl_b.id;
 id	last_name	id	surname	id	first_name
 1	DEMONGEOT	1	CON	1	RICHARD

@@ -12,6 +12,9 @@
 --source include/have_innodb.inc
 let $engine_type=InnoDB;
 
+SET @save_stats_auto_recalc=@@GLOBAL.innodb_stats_auto_recalc;
+SET GLOBAL innodb_stats_auto_recalc=OFF;
+
 #
 # The test case would also work with statement based or mixed mode logging.
 # But this would require different result files. To handle this with the
@@ -22,3 +25,4 @@ let $engine_type=InnoDB;
 
 --source include/mysqlbinlog_row_engine.inc
 
+SET GLOBAL innodb_stats_auto_recalc=@save_stats_auto_recalc;

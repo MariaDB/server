@@ -29,9 +29,9 @@
 ##### Storage engine to be tested
 # Set the session storage engine
 --source include/have_innodb.inc
-eval SET @@session.default_storage_engine = 'InnoDB';
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
+SET default_storage_engine = 'InnoDB';
 
 ##### Workarounds for known open engine specific bugs
 #     none
@@ -60,7 +60,9 @@ REPLACE INTO t1 SELECT * FROM t1;
 DROP TABLE t1;
 
 --source suite/innodb/include/wait_all_purged.inc
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+
 #------------------------------------------------------------------------------#
 # Cleanup
 --source suite/gcol/inc/gcol_cleanup.inc
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

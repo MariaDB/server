@@ -3,5 +3,3 @@
 # interactions with following tests such as
 # galera_3nodes.galera_var_dirty_reads2
 !include ../galera_3nodes.cnf
-
-!include ../galera_3nodes.cnf

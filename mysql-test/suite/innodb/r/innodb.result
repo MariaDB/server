@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create temporary table t (a char(1) character set filename) engine=innodb;
 drop temporary table t;
 set optimizer_switch = 'mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
@@ -45,7 +46,7 @@ level tinyint(4) DEFAULT '0' NOT NULL,
 PRIMARY KEY (id),
 KEY parent_id (parent_id),
 KEY level (level)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 INSERT INTO t1 VALUES (1,0,0),(3,1,1),(4,1,1),(8,2,2),(9,2,2),(17,3,2),(22,4,2),(24,4,2),(28,5,2),(29,5,2),(30,5,2),(31,6,2),(32,6,2),(33,6,2),(203,7,2),(202,7,2),(20,3,2),(157,0,0),(193,5,2),(40,7,2),(2,1,1),(15,2,2),(6,1,1),(34,6,2),(35,6,2),(16,3,2),(7,1,1),(36,7,2),(18,3,2),(26,5,2),(27,5,2),(183,4,2),(38,7,2),(25,5,2),(37,7,2),(21,4,2),(19,3,2),(5,1,1),(179,5,2);
 update t1 set parent_id=parent_id+100;
 select * from t1 where parent_id=102;
@@ -175,10 +176,10 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t1	optimize	status	OK
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	id	A	#	NULL	NULL		BTREE		
-t1	1	parent_id	1	parent_id	A	#	NULL	NULL		BTREE		
-t1	1	level	1	level	A	#	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	id	A	#	NULL	NULL		BTREE			NO
+t1	1	parent_id	1	parent_id	A	#	NULL	NULL		BTREE			NO
+t1	1	level	1	level	A	#	NULL	NULL		BTREE			NO
 drop table t1;
 CREATE TABLE t1 (
 gesuchnr int(11) DEFAULT '0' NOT NULL,
@@ -220,8 +221,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	1	skr	1	a	A	#	NULL	NULL	YES	BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	1	skr	1	a	A	#	NULL	NULL	YES	BTREE			NO
 drop table t1;
 create table t1 (a int,b varchar(20),key(a)) engine=innodb;
 insert into t1 values (1,""), (2,"testing");
@@ -410,13 +411,13 @@ key(a),primary key(a,b), unique(c),key(a),unique(b));
 Warnings:
 Note	1831	Duplicate index `a_2`. This is deprecated and will be disallowed in a future release
 show index from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	#	NULL	NULL		BTREE		
-t1	0	PRIMARY	2	b	A	#	NULL	NULL		BTREE		
-t1	0	c	1	c	A	#	NULL	NULL		BTREE		
-t1	0	b	1	b	A	#	NULL	NULL		BTREE		
-t1	1	a	1	a	A	#	NULL	NULL		BTREE		
-t1	1	a_2	1	a	A	#	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	#	NULL	NULL		BTREE			NO
+t1	0	PRIMARY	2	b	A	#	NULL	NULL		BTREE			NO
+t1	0	c	1	c	A	#	NULL	NULL		BTREE			NO
+t1	0	b	1	b	A	#	NULL	NULL		BTREE			NO
+t1	1	a	1	a	A	#	NULL	NULL		BTREE			NO
+t1	1	a_2	1	a	A	#	NULL	NULL		BTREE			NO
 drop table t1;
 create table t1 (col1 int not null, col2 char(4) not null, primary key(col1));
 alter table t1 engine=innodb;
@@ -753,8 +754,8 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t1	optimize	status	OK
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	a	A	#	NULL	NULL		BTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	a	A	#	NULL	NULL		BTREE			NO
 drop table t1;
 create table t1 (i int, j int ) ENGINE=innodb;
 insert into t1 values (1,2);
@@ -931,7 +932,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 explain select a from t1 order by a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	#	
 explain select b from t1 order by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	b	4	NULL	#	Using index
@@ -1017,8 +1018,8 @@ SET sql_mode = default;
 create table t1 (id int unsigned not null auto_increment, code tinyint unsigned not null, name char(20) not null, primary key (id), key (code), unique (name)) engine=innodb;
 BEGIN;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
-SELECT @@tx_isolation,@@global.tx_isolation;
-@@tx_isolation	@@global.tx_isolation
+SELECT @@transaction_isolation, @@global.transaction_isolation;
+@@transaction_isolation	@@global.transaction_isolation
 SERIALIZABLE	REPEATABLE-READ
 insert into t1 (code, name) values (1, 'Tim'), (1, 'Monty'), (2, 'David');
 select id, code, name from t1 order by id;
@@ -1367,14 +1368,28 @@ PRIMARY KEY  (`id`),
 KEY `id_version` (`id_version`)
 ) ENGINE=InnoDB;
 INSERT INTO t2 VALUES("3524", "1"),("3525", "1"),("1794", "4"),("102", "5"),("1822", "6"),("3382", "9");
+ANALYZE table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'description'
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+explain SELECT t2.id, t1.`label` FROM t2 INNER JOIN
+(SELECT t1.id_object as id_object FROM t1 WHERE t1.`label` LIKE '%test%') AS lbl 
+ON (t2.id = lbl.id_object) INNER JOIN t1 ON (t2.id = t1.id_object);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	id_object	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.id_object	1	
+1	SIMPLE	t1	ref	id_object	id_object	5	test.t1.id_object	1	
 SELECT t2.id, t1.`label` FROM t2 INNER JOIN
 (SELECT t1.id_object as id_object FROM t1 WHERE t1.`label` LIKE '%test%') AS lbl 
 ON (t2.id = lbl.id_object) INNER JOIN t1 ON (t2.id = t1.id_object);
 id	label
-3382	Test
 102	Le Pekin (Test)
 1794	Test de resto
 1822	Test 3
+3382	Test
 3524	Societe Test
 3525	Fournisseur Test
 drop table t1,t2;
@@ -1676,7 +1691,7 @@ count(*)
 0
 explain select count(*) from t1 where x > -16;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	2	Using where
 select count(*) from t1 where x > -16;
 count(*)
 2
@@ -1694,15 +1709,6 @@ OK
 SELECT variable_value FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_page_size';
 variable_value
 16384
-SELECT variable_value - @innodb_rows_deleted_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_deleted';
-variable_value - @innodb_rows_deleted_orig
-71
-SELECT variable_value - @innodb_rows_inserted_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_inserted';
-variable_value - @innodb_rows_inserted_orig
-964
-SELECT variable_value - @innodb_rows_updated_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_rows_updated';
-variable_value - @innodb_rows_updated_orig
-865
 SELECT variable_value - @innodb_row_lock_waits_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_waits';
 variable_value - @innodb_row_lock_waits_orig
 0
@@ -1718,7 +1724,7 @@ variable_value - @innodb_row_lock_time_max_orig
 SELECT variable_value - @innodb_row_lock_time_avg_orig FROM information_schema.global_status WHERE LOWER(variable_name) = 'innodb_row_lock_time_avg';
 variable_value - @innodb_row_lock_time_avg_orig
 0
-set storage_engine=INNODB;
+set default_storage_engine=INNODB;
 drop table if exists t1,t2,t3;
 --- Testing varchar ---
 --- Testing varchar ---
@@ -2264,7 +2270,7 @@ create table t1 (v char(10) character set utf8);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` char(10) CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `v` char(10) CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 create table t1 (v varchar(10), c char(10)) row_format=fixed;
@@ -2317,7 +2323,7 @@ Note	1246	Converting column 'v' from VARCHAR to TEXT
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `v` mediumtext CHARACTER SET utf8 COLLATE utf8_general_ci DEFAULT NULL
+  `v` mediumtext CHARACTER SET utf8mb3 COLLATE utf8mb3_uca1400_ai_ci DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 SET sql_mode = default;
@@ -2531,9 +2537,19 @@ disconnect b;
 set foreign_key_checks=0;
 create table t2 (a int primary key, b int, foreign key (b) references t1(a)) engine = innodb;
 create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
-ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 set foreign_key_checks=1;
+insert into t2 values (1,1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+set foreign_key_checks=0;
+drop table t1;
+set foreign_key_checks=1;
+insert into t2 values (1,1);
+ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t2`, CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`a`))
+create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
 drop table t2;
+create table t1(a char(10) primary key, b varchar(20)) engine = innodb;
+drop table t1;
 set foreign_key_checks=0;
 create table t1(a varchar(10) primary key) engine = innodb DEFAULT CHARSET=latin1;
 create table t2 (a varchar(10), foreign key (a) references t1(a)) engine = innodb DEFAULT CHARSET=utf8;
@@ -3128,19 +3144,18 @@ CONNECT  c1,localhost,root,,;
 CONNECT  c2,localhost,root,,;
 connection c1;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 DROP TABLE IF EXISTS t1, t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 CREATE TABLE t1 ( a int ) ENGINE=InnoDB;
 CREATE TABLE t2 LIKE t1;
 SELECT * FROM t2;
 a
 connection c2;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (1);
 COMMIT;
@@ -3154,13 +3169,13 @@ CONNECT  c1,localhost,root,,;
 CONNECT  c2,localhost,root,,;
 connection c1;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 SELECT * FROM t2;
 a
 connection c2;
 SET binlog_format='MIXED';
-SET TX_ISOLATION='read-committed';
+SET TRANSACTION_ISOLATION='read-committed';
 SET AUTOCOMMIT=0;
 INSERT INTO t1 VALUES (2);
 COMMIT;
@@ -3338,3 +3353,4 @@ Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 ALTER TABLE t1 FORCE;
 DROP TABLE t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

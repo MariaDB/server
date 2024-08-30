@@ -6,7 +6,7 @@ connect  con1,localhost,root,,,,;
 connection con1;
 SELECT @@global.character_set_results;
 @@global.character_set_results
-utf8
+utf8mb3
 SELECT @@session.character_set_results;
 @@session.character_set_results
 latin1

@@ -3,8 +3,9 @@
 --source include/have_utf16.inc
 --source include/have_utf32.inc
 
-#remove this include after fix MDEV-27871
---source include/no_view_protocol.inc
+--disable_query_log
+call mtr.add_suppression("Charset id.*trying to replace");
+--enable_query_log
 
 --disable_warnings
 drop table if exists t1;
@@ -18,7 +19,7 @@ set names utf8;
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 show variables like 'character_sets_dir%';
 
-show collation like 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 CREATE TABLE t1 (
  name VARCHAR(64),
  phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
@@ -32,9 +33,10 @@ SELECT * FROM t1 ORDER BY phone;
 SELECT * FROM t1 WHERE phone='+7(912)800-80-01';
 SELECT * FROM t1 WHERE phone='79128008001';
 SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
+SELECT * FROM t1 WHERE phone='tel.79128008001';
 DROP TABLE t1;
 
-show collation like 'utf8_test_ci';
+show collation like 'utf8mb3_test_ci';
 create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -65,25 +67,25 @@ select * from t1 where c1='b';
 drop table t1;
 
 # make sure utf8_test_ci is Unicode-5.0.0
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a));
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_ci), hex(upper(@a)) as exp;
 
 # check that it works with supplementary characters
-SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci));
+SELECT hex(weight_string(convert(_utf32 0x61 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x62 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10062 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x100400 using utf8mb4) collate utf8mb4_test_ci)) as exp;
 
 # check contractions with non-ascii characters
-SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci));
-SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci));
+SELECT hex(weight_string(_utf8mb4 0x64 collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0064017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0044017e using utf8mb4) collate utf8mb4_test_ci)) as exp;
+SELECT hex(weight_string(convert(_ucs2 0x0044017d using utf8mb4) collate utf8mb4_test_ci)) as exp;
 
 
 #
@@ -184,10 +186,12 @@ show collation like '%test%';
 show collation like 'ucs2_vn_ci';
 create table t1 (c1 char(1) character set ucs2 collate ucs2_vn_ci);
 insert into t1 values (0x0061);
+--disable_view_protocol
 --enable_metadata
 set @@character_set_results=NULL;
 select * from t1;
 --disable_metadata
+--enable_view_protocol
 drop table t1;
 
 #
@@ -203,16 +207,16 @@ DROP TABLE t1;
 # Bug#47756 Setting 2byte collation ID with 'set names' crashes the server
 #
 SET NAMES utf8 COLLATE utf8_phone_ci;
-SHOW COLLATION LIKE 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 SET NAMES utf8;
 
 # make sure utf8mb4_test_400_ci is Unicode-4.0.0 based
-SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
-SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci));
-SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
-SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a));
-SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a));
+SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci)) as exp;
+SELECT hex(weight_string(convert(_utf32 0x10002 using utf8mb4) collate utf8mb4_test_400_ci)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10400 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x10428 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C00 using utf8mb4) collate utf8mb4_test_400_ci), hex(lower(@a)) as exp;
+SELECT hex(@a:=convert(_utf32 0x2C30 using utf8mb4) collate utf8mb4_test_400_ci), hex(upper(@a)) as exp;
 
 --echo #
 --echo # WL#5624 Collation customization improvements
@@ -276,9 +280,14 @@ DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_5624_2;
 SHOW WARNINGS;
 
+# "--view-protocol" generates a dublicate error message in ctype_ldml_log.err
+# In one of the following cases, the number of similar error messages is counted,
+# so doubling the error causes the case to fail
+--disable_view_protocol
 --error ER_UNKNOWN_COLLATION
 SELECT _utf8'test' COLLATE utf8_5624_2;
 SHOW WARNINGS;
+--enable_view_protocol
 
 --echo #
 --echo # WL#5624, reset before primary ignorable
@@ -349,7 +358,7 @@ INSERT INTO t1 VALUES
 SELECT HEX(WEIGHT_STRING(a)), HEX(CONVERT(a USING ucs2)), HEX(a)
 FROM t1 ORDER BY a, BINARY(a);
 SELECT HEX(WEIGHT_STRING(a)) as wa,
-GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a)
+GROUP_CONCAT(HEX(CONVERT(a USING ucs2)) ORDER BY LENGTH(a), BINARY a) as ha
 FROM t1 GROUP BY a ORDER BY a;
 DROP TABLE t1;
 
@@ -400,7 +409,6 @@ perl;
   print "Occurances : $count_error\n";
   close(FILE);
 EOF
-
 
 --echo #
 --echo # MDEV-8686 A user defined collation utf8_confusables doesn't work
@@ -504,6 +512,7 @@ SELECT HEX(a), REPLACE(a,' ','<SP>') FROM t1 ORDER BY a DESC;
 DROP TABLE t1;
 
 
+--disable_service_connection
 SET NAMES utf8 COLLATE utf8_czech_test_w2;
 CREATE TABLE t1 AS SELECT SPACE(10) AS c1 LIMIT 0;
 --source include/ctype_unicode_latin.inc
@@ -605,6 +614,7 @@ SELECT 'chž'< 'i';
 
 --error ER_UNKNOWN_COLLATION
 SELECT 'a' COLLATE utf8_czech_test_bad_w2;
+--enable_service_connection
 
 --echo #
 --echo # End of 10.2 tests
@@ -625,4 +635,87 @@ SET NAMES utf8mb4 COLLATE utf8mb4_test_520_nopad_ci;
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-7947 my_charset_same: strcmp() takes 0.37% in OLTP RO
+--echo #
+
+SHOW COLLATION LIKE 'latin1_test_replace';
+--error ER_UNKNOWN_COLLATION
+SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-27042 UCA: Resetting contractions to ignorable does not work well
+--echo #
+
+CREATE TABLE t1 (
+  phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
+);
+INSERT INTO t1 VALUES ('123');
+INSERT INTO t1 VALUES ('tel.123');
+INSERT INTO t1 VALUES ('tél.123');
+INSERT INTO t1 VALUES ('tèl.123');
+INSERT INTO t1 VALUES ('ťel.123');
+INSERT INTO t1 VALUES ('ťèl.123');
+INSERT INTO t1 VALUES ('tex.123');
+SELECT * FROM t1 WHERE phone='123' ORDER BY BINARY phone;
+SELECT * FROM t1 WHERE phone<>'123' ORDER BY BINARY phone;
+SELECT phone, HEX(WEIGHT_STRING(phone)) FROM t1 ORDER BY phone, BINARY phone;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-27009 Add UCA-14.0.0 collations
+--echo #
+
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci, comment VARCHAR(128));
+INSERT INTO t1 VALUES ('a', '0061 LATIN SMALL LETTER A');
+INSERT INTO t1 VALUES ('c', '0063 LATIN SMALL LETTER C');
+INSERT INTO t1 VALUES ('à', '00E0 LATIN SMALL LETTER A WITH GRAVE');
+INSERT INTO t1 VALUES ('ć', '0107 LATIN SMALL LETTER C WITH ACUTE');
+INSERT INTO t1 VALUES (_ucs2 0x0439, '0439 CYRILLIC SMALL LETTER SHORT I - precomposed');
+INSERT INTO t1 VALUES (_ucs2 0x04380306, '0438 0306 CYRILLIC SMALL LETTER SHORT I - contraction');
+INSERT INTO t1 VALUES (_ucs2 0x0CCB, '0CCB KANNADA VOWEL SIGN OO - precomposed');
+INSERT INTO t1 VALUES (_ucs2 0x0CC60CC20CD5, '0CC6 0CC2 0CD5 KANNADA VOWEL SIGN OO - contraction');
+--vertical_results
+SELECT
+  '---' AS `---`,
+  comment,
+  HEX(a),
+  HEX(WEIGHT_STRING(a)),
+  HEX(WEIGHT_STRING(a LEVEL 1)),
+  HEX(WEIGHT_STRING(a LEVEL 2)),
+  WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_ci) AS is_400,
+  WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_unicode_520_ci) AS is_520,
+  WEIGHT_STRING(a LEVEL 1)=WEIGHT_STRING(a COLLATE utf8mb4_uca1400_ai_ci) AS is_1400
+FROM t1
+ORDER BY a, HEX(a);
+--horizontal_results
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-30661 UPPER() returns an empty string for U+0251 in uca1400 collations for utf8
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci;
+--source include/ctype_casefolding.inc
+
+--echo #
+--echo # MDEV-30577 Case folding for uca1400 collations is not up to date
+--echo #
+
+SET NAMES utf8mb4 COLLATE utf8mb4_uca1400_test01_as_ci;
+--source include/ctype_casefolding_supplementary.inc
+
+--echo #
+--echo # End of 10.10 tests
 --echo #

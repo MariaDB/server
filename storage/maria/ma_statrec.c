@@ -45,6 +45,13 @@ my_bool _ma_write_static_record(MARIA_HA *info, const uchar *record)
       my_errno=HA_ERR_RECORD_FILE_FULL;
       return(2);
     }
+    if (info->s->tracked &&
+        _ma_update_tmp_file_size(&info->s->track_data,
+                                 MY_ALIGN(info->s->state.state.data_file_length+
+                                          info->s->base.pack_reclength,
+                                          MARIA_TRACK_INCREMENT_SIZE)))
+      return(2);
+
     if (info->opt_flag & WRITE_CACHE_USED)
     {				/* Cash in use */
       if (my_b_write(&info->rec_cache, record,
@@ -294,6 +301,6 @@ int _ma_read_rnd_static_record(MARIA_HA *info, uchar *buf,
   }
   /* my_errno should be set if rec_cache.error == -1 */
   if (info->rec_cache.error != -1 || my_errno == 0)
-    _ma_set_fatal_error(share, HA_ERR_WRONG_IN_RECORD);
+    _ma_set_fatal_error(info, HA_ERR_WRONG_IN_RECORD);
   DBUG_RETURN(my_errno);			/* Something wrong (EOF?) */
 }

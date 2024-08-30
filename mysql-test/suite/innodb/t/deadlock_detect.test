@@ -3,11 +3,9 @@
 #
 
 --source include/have_innodb.inc
---source include/not_embedded.inc
 --source include/count_sessions.inc
 
-SET GLOBAL innodb_deadlock_detect=OFF;
-SET GLOBAL innodb_lock_wait_timeout=2;
+let $have_deadlock=`select @@GLOBAL.innodb_deadlock_detect`;
 
 connection default;
 
@@ -16,30 +14,50 @@ CREATE TABLE t1(
 	PRIMARY KEY(id)
 ) ENGINE=InnoDB;
 
+CREATE TABLE dl(
+    id INT UNSIGNED PRIMARY KEY AUTO_INCREMENT, 
+    cnt INT UNSIGNED
+) ENGINE=InnoDB;
+
 INSERT INTO t1 VALUES(1), (2), (3);
+# Preserve the initial value of the deadlock counter
+INSERT INTO dl(cnt) SELECT variable_value FROM information_schema.global_status WHERE variable_name LIKE 'Innodb_deadlocks';
 
 # We are not interested query results, only errors
 --disable_result_log
 BEGIN;
 
-SELECT * FROM t1 WHERE id = 1 FOR UPDATE;
+SELECT * FROM t1 WHERE id = 1 LOCK IN SHARE MODE;
 
 connect (con1,localhost,root,,);
-
 BEGIN;
+SELECT * FROM t1 WHERE id = 2 LOCK IN SHARE MODE;
 
-SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+connect (con2,localhost,root,,);
+BEGIN;
+SELECT * FROM t1 WHERE id = 2 LOCK IN SHARE MODE;
 
 send SELECT * FROM t1 WHERE id = 1 FOR UPDATE;
 
 connection default;
 send SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
 
-connection con1;
+connection con2;
+if (!$have_deadlock) {
 --error ER_LOCK_WAIT_TIMEOUT
 reap;
-
+disconnect con1;
+}
+if ($have_deadlock) {
+connection con1;
+COMMIT;
+disconnect con1;
+connection con2;
+--error 0,ER_LOCK_DEADLOCK,ER_LOCK_WAIT_TIMEOUT
+reap;
+}
 ROLLBACK;
+disconnect con2;
 
 #
 # Note here that con1 is the older transaction as it
@@ -50,18 +68,29 @@ ROLLBACK;
 # and does the update.
 #
 connection default;
+--let $valid_deadlock_cnt= 1
+if (!$have_deadlock) {
 --error 0,ER_LOCK_WAIT_TIMEOUT
 reap;
+}
+if ($have_deadlock) {
+--error 0,ER_LOCK_DEADLOCK
+reap;
+--disable_query_log
+INSERT INTO dl(cnt) SELECT variable_value FROM information_schema.global_status WHERE variable_name LIKE 'Innodb_deadlocks';
+set @init_deadlock_cnt = (SELECT min(k.cnt) FROM dl k);
+--let $valid_deadlock_cnt= `SELECT (max(t.cnt-@init_deadlock_cnt) = 1) FROM dl t`
+--enable_query_log
+}
+# Indicates that the deadlock counter works well.
+# Use the default =1 where is no deadlock detection,
+# to enable unconditional check.
+--echo 'Deadlock counter is valid';
+--echo $valid_deadlock_cnt
 
 ROLLBACK;
 
 --enable_result_log
-
 DROP TABLE t1;
-
-disconnect con1;
-
+DROP TABLE dl;
 --source include/wait_until_count_sessions.inc
-
-SET GLOBAL innodb_lock_wait_timeout=default;
-SET GLOBAL innodb_deadlock_detect=default;

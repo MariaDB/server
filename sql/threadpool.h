@@ -1,8 +1,4 @@
-#ifndef THREADPOOL_H_INCLUDED
-#define THREADPOOL_H_INCLUDED
-
-#ifdef HAVE_POOL_OF_THREADS
-/* Copyright (C) 2012 Monty Program Ab
+/* Copyright (C) 2012, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +13,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
+#pragma once
+#ifdef HAVE_POOL_OF_THREADS
 #define MAX_THREAD_GROUPS 100000
 
 /* Threadpool parameters */
@@ -24,18 +22,23 @@ extern uint threadpool_min_threads;  /* Minimum threads in pool */
 extern uint threadpool_idle_timeout; /* Shutdown idle worker threads  after this timeout */
 extern uint threadpool_size; /* Number of parallel executing threads */
 extern uint threadpool_max_size;
-extern uint threadpool_stall_limit;  /* time interval in 10 ms units for stall checks*/
+extern uint threadpool_stall_limit;  /* time interval in milliseconds for stall checks*/
 extern uint threadpool_max_threads;  /* Maximum threads in pool */
 extern uint threadpool_oversubscribe;  /* Maximum active threads in group */
 extern uint threadpool_prio_kickup_timer;  /* Time before low prio item gets prio boost */
+extern my_bool threadpool_exact_stats; /* Better queueing time stats for information_schema, at small performance cost */
+extern my_bool threadpool_dedicated_listener; /* Listener thread does not pick up work items. */
 #ifdef _WIN32
 extern uint threadpool_mode; /* Thread pool implementation , windows or generic */
 #define TP_MODE_WINDOWS 0
 #define TP_MODE_GENERIC 1
 #endif
 
+#define DEFAULT_THREADPOOL_STALL_LIMIT 500U
 
 struct TP_connection;
+struct st_vio;
+
 extern void tp_callback(TP_connection *c);
 extern void tp_timeout_handler(TP_connection *c);
 
@@ -61,8 +64,6 @@ extern void tp_set_threadpool_stall_limit(uint val);
 extern int tp_get_idle_thread_count();
 extern int tp_get_thread_count();
 
-/* Activate threadpool scheduler */
-extern void tp_scheduler(void);
 
 enum  TP_PRIORITY {
   TP_PRIORITY_HIGH,
@@ -85,6 +86,8 @@ enum TP_STATE
   Platform specific parts are specified in subclasses called connection_t,
   inside threadpool_win.cc and threadpool_unix.cc
 */
+
+class CONNECT;
 
 struct TP_connection
 {
@@ -111,7 +114,7 @@ struct TP_connection
 
   virtual void wait_begin(int type)= 0;
   virtual void wait_end() = 0;
-
+  IF_WIN(virtual,) void init_vio(st_vio *){};
 };
 
 
@@ -129,18 +132,21 @@ struct TP_pool
   virtual int set_stall_limit(uint){ return 0; }
   virtual int get_thread_count() { return tp_stats.num_worker_threads; }
   virtual int get_idle_thread_count(){ return 0; }
+  virtual void resume(TP_connection* c)=0;
 };
 
 #ifdef _WIN32
+
 struct TP_pool_win:TP_pool
 {
-  TP_pool_win(); 
-  virtual int init();
-  virtual ~TP_pool_win();
-  virtual TP_connection *new_connection(CONNECT *c);
-  virtual void add(TP_connection *);
-  virtual int set_max_threads(uint);
-  virtual int set_min_threads(uint);
+  TP_pool_win();
+  int init() override;
+  ~TP_pool_win() override;
+  TP_connection *new_connection(CONNECT *c) override;
+  void add(TP_connection *) override;
+  int set_max_threads(uint) override;
+  int set_min_threads(uint) override;
+  void resume(TP_connection *c) override;
 };
 #endif
 
@@ -148,13 +154,13 @@ struct TP_pool_generic :TP_pool
 {
   TP_pool_generic();
   ~TP_pool_generic();
-  virtual int init();
-  virtual TP_connection *new_connection(CONNECT *c);
-  virtual void add(TP_connection *);
-  virtual int set_pool_size(uint);
-  virtual int set_stall_limit(uint);
-  virtual int get_idle_thread_count();
+  int init() override;
+  TP_connection *new_connection(CONNECT *c) override;
+  void add(TP_connection *) override;
+  int set_pool_size(uint) override;
+  int set_stall_limit(uint) override;
+  int get_idle_thread_count() override;
+  void resume(TP_connection* c) override;
 };
 
 #endif /* HAVE_POOL_OF_THREADS */
-#endif /* THREADPOOL_H_INCLUDED */

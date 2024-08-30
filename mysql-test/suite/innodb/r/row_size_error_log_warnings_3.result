@@ -82,3 +82,11 @@ f29(10), f30(10), f31(10), f32(10),
 f33(10)))
 ENGINE=InnoDB;
 ERROR 42000: Too many key parts specified; max 32 parts allowed
+#
+# MDEV-31161 Assertion failures upon adding a too long key
+#             to table with COMPRESSED row format
+#
+CREATE TABLE t1(pk INT PRIMARY KEY, f1 INT, f2 TEXT)ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
+INSERT INTO t1 (pk) VALUES (1);
+ALTER TABLE t1 ADD KEY (f1), ADD KEY (f2(1000));
+DROP TABLE t1;

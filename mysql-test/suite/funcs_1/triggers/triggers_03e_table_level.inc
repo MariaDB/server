@@ -30,9 +30,13 @@ let $message= #########      Testcase for table level:   ########;
         set password for test_noprivs@localhost = password('PWD');
         revoke ALL PRIVILEGES, GRANT OPTION FROM test_noprivs@localhost;
 
-	connect (yes_privs,localhost,test_yesprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (yes_privs,localhost,test_yesprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection yes_privs;
 
-	connect (no_privs,localhost,test_noprivs,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (no_privs,localhost,test_noprivs,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection no_privs;
 
 ################ Section 3.5.3 ############
 # Check for the table level of Triggers   #

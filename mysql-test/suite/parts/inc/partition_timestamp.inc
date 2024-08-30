@@ -6,9 +6,11 @@ partition pa3 max_rows=30 min_rows=4,
 partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 insert into t1 values ('1975-01-01 21:21:21'), ('2020-12-31 12:10:30'), ('1980-10-14 03:03'), ('2000-06-15 23:59');
+--sorted_result
 select * from t1;
 select * from t1 where a=19801014030300;
 delete from t1 where a=19801014030300;
+--sorted_result
 select * from t1;
 drop table t1;
 
@@ -16,9 +18,11 @@ eval create table t2 (a timestamp not null DEFAULT CURRENT_TIMESTAMP ON UPDATE C
 partition by key (a) partitions 12;
 show create table t2;
 insert into t2 values ('1975-01-01 0:1:1'), ('2020-12-31 10:11:12'), ('1980-10-14 13:14:15'), ('2000-06-15 14:15:16');
+--sorted_result
 select * from t2;
 select * from t2 where a='1980-10-14 13:14:15';
 delete from t2 where a='1980-10-14 13:14:15';
+--sorted_result
 select * from t2;
 delete from t2;
 let $count=59;
@@ -33,6 +37,7 @@ dec $count;
 commit;
 --enable_query_log
 select count(*) from t2;
+--sorted_result
 select * from t2;
 drop table t2;
 

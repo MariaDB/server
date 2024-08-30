@@ -1,0 +1,14 @@
+!include ../galera_2nodes_as_slave.cnf
+
+[mysqld]
+log-bin=mysqld-bin
+log-slave-updates
+binlog-format=ROW
+
+[mysqld.1]
+replicate-do-db=test1
+replicate-wild-do-table=test1.%
+
+[mysqld.2]
+replicate-do-db=test1
+replicate-wild-do-table=test1.%

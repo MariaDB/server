@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+SET GLOBAL INNODB_FILE_PER_TABLE= 0;
+SET UNIQUE_CHECKS=0, FOREIGN_KEY_CHECKS=0;
+CREATE TABLE t1(f1 INT NOT NULL, f2 INT NOT NULL,
+                f3 INT NOT NULL, INDEX(f1),
+                INDEX(f2), INDEX(f3))ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+INSERT INTO t1 SELECT seq, seq, seq FROM seq_1_to_16384;
+COMMIT;
+DROP TABLE t1;
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;
+
+SET GLOBAL innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+SELECT NAME, FILE_SIZE FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE SPACE = 0;

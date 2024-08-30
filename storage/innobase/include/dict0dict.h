@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2022, MariaDB Corporation.
+Copyright (c) 2013, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -31,23 +31,30 @@ Created 1/8/1996 Heikki Tuuri
 #include "data0data.h"
 #include "dict0mem.h"
 #include "fsp0fsp.h"
+#include "srw_lock.h"
+#include <my_sys.h>
 #include <deque>
 
-extern bool innodb_table_stats_not_found;
-extern bool innodb_index_stats_not_found;
+class MDL_context;
+class MDL_ticket;
 
 /** the first table or index ID for other than hard-coded system tables */
 constexpr uint8_t DICT_HDR_FIRST_ID= 10;
 
-/********************************************************************//**
-Get the database name length in a table name.
+
+/** Get the database name length in a table name.
+@param name   filename-safe encoded table name "dbname/tablename"
 @return database name length */
-ulint
-dict_get_db_name_len(
-/*=================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+inline size_t dict_get_db_name_len(const char *name)
+{
+  /* table_name_t::dblen() would assert that '/' is contained */
+  if (const char* s= strchr(name, '/'))
+    return size_t(s - name);
+
+  return 0;
+}
+
+
 /*********************************************************************//**
 Open a table from its database and table name, this is currently used by
 foreign constraint parser to get the referenced table.
@@ -62,7 +69,8 @@ dict_get_referenced_table(
 	const char*	table_name,	/*!< in: table name */
 	ulint		table_name_len,	/*!< in: table name length */
 	dict_table_t**	table,		/*!< out: table object or NULL */
-	mem_heap_t*	heap);		/*!< in: heap memory */
+	mem_heap_t*	heap,		/*!< in: heap memory */
+	CHARSET_INFO*	from_cs);	/*!< in: table name charset */
 /*********************************************************************//**
 Frees a foreign key struct. */
 void
@@ -79,6 +87,21 @@ dict_table_get_highest_foreign_id(
 /*==============================*/
 	dict_table_t*	table);		/*!< in: table in the dictionary
 					memory cache */
+/** Check whether the dict_table_t is a partition.
+A partitioned table on the SQL level is composed of InnoDB tables,
+where each InnoDB table is a [sub]partition including its secondary indexes
+which belongs to the partition.
+@param[in]	table	Table to check.
+@return true if the dict_table_t is a partition else false. */
+UNIV_INLINE
+bool
+dict_table_is_partition(const dict_table_t* table)
+{
+	/* Check both P and p on all platforms in case it was moved to/from
+	WIN. */
+	return (strstr(table->name.m_name, "#p#")
+		|| strstr(table->name.m_name, "#P#"));
+}
 /********************************************************************//**
 Return the end of table name where we have removed dbname and '/'.
 @return table name */
@@ -102,49 +125,70 @@ enum dict_table_op_t {
 	DICT_TABLE_OP_OPEN_ONLY_IF_CACHED
 };
 
-/**********************************************************************//**
-Returns a table object based on table id.
+/** Acquire MDL shared for the table name.
+@tparam trylock whether to use non-blocking operation
+@param[in,out]  table           table object
+@param[in,out]  thd             background thread
+@param[out]     mdl             mdl ticket
+@param[in]      table_op        operation to perform when opening
+@return table object after locking MDL shared
+@retval NULL if the table is not readable, or if trylock && MDL blocked */
+template<bool trylock>
+dict_table_t*
+dict_acquire_mdl_shared(dict_table_t *table,
+                        THD *thd,
+                        MDL_ticket **mdl,
+                        dict_table_op_t table_op= DICT_TABLE_OP_NORMAL);
+
+/** Acquire MDL shared for the table name.
+@tparam trylock whether to use non-blocking operation
+@param[in,out]  table           table object
+@param[in,out]  mdl_context     MDL context
+@param[out]     mdl             MDL ticket
+@param[in]      table_op        operation to perform when opening
+@return table object after locking MDL shared
+@retval nullptr if the table is not readable, or if trylock && MDL blocked */
+template<bool trylock>
+__attribute__((nonnull, warn_unused_result))
+dict_table_t*
+dict_acquire_mdl_shared(dict_table_t *table,
+                        MDL_context *mdl_context, MDL_ticket **mdl,
+                        dict_table_op_t table_op);
+
+/** Look up a table by numeric identifier.
+@param[in]      table_id        table identifier
+@param[in]      dict_locked     data dictionary locked
+@param[in]      table_op        operation to perform when opening
+@param[in,out]  thd             background thread, or NULL to not acquire MDL
+@param[out]     mdl             mdl ticket, or NULL
 @return table, NULL if does not exist */
 dict_table_t*
-dict_table_open_on_id(
-/*==================*/
-	table_id_t	table_id,	/*!< in: table id */
-	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
-	dict_table_op_t	table_op)	/*!< in: operation to perform */
-	MY_ATTRIBUTE((warn_unused_result));
+dict_table_open_on_id(table_id_t table_id, bool dict_locked,
+                      dict_table_op_t table_op, THD *thd= nullptr,
+                      MDL_ticket **mdl= nullptr)
+  MY_ATTRIBUTE((warn_unused_result));
 
-/**********************************************************************//**
-Returns a table object based on table id.
-@return	table, NULL if does not exist */
-dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
-	__attribute__((warn_unused_result));
-/********************************************************************//**
-Decrements the count of open handles to a table. */
+/** Decrement the count of open handles */
+void dict_table_close(dict_table_t *table);
+
+/** Decrements the count of open handles of a table.
+@param[in,out]	table		table
+@param[in]	dict_locked	whether dict_sys.latch is being held
+@param[in]	thd		thread to release MDL
+@param[in]	mdl		metadata lock or NULL if the thread is a
+				foreground one. */
 void
 dict_table_close(
-/*=============*/
-	dict_table_t*	table,		/*!< in/out: table */
-	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
-	ibool		try_drop)	/*!< in: TRUE=try to drop any orphan
-					indexes after an aborted online
-					index creation */
-	MY_ATTRIBUTE((nonnull));
-/*********************************************************************//**
-Closes the only open handle to a table and drops a table while assuring
-that dict_sys.mutex is held the whole time.  This assures that the table
-is not evicted after the close when the count of open handles goes to zero.
-Because dict_sys.mutex is held, we do not need to call prevent_eviction(). */
-void
-dict_table_close_and_drop(
-/*======================*/
-	trx_t*		trx,		/*!< in: data dictionary transaction */
-	dict_table_t*	table);		/*!< in/out: table */
+	dict_table_t*	table,
+	bool		dict_locked,
+	THD*		thd = NULL,
+	MDL_ticket*	mdl = NULL);
 
 /*********************************************************************//**
 Gets the minimum number of bytes per character.
 @return minimum multi-byte char size, in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_mbminlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -153,7 +197,7 @@ dict_col_get_mbminlen(
 Gets the maximum number of bytes per character.
 @return maximum multi-byte char size, in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_mbmaxlen(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -209,7 +253,7 @@ dict_col_type_assert_equal(
 Returns the minimum size of the column.
 @return minimum size */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_min_size(
 /*==================*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -227,7 +271,7 @@ dict_col_get_max_size(
 Returns the size of a fixed size column, 0 if not a fixed size column.
 @return fixed size, or 0 */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_fixed_size(
 /*====================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -238,7 +282,7 @@ Returns the ROW_FORMAT=REDUNDANT stored SQL NULL size of a column.
 For fixed length types it is the fixed length of the type, otherwise 0.
 @return SQL null storage size in ROW_FORMAT=REDUNDANT */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_sql_null_size(
 /*=======================*/
 	const dict_col_t*	col,	/*!< in: column */
@@ -248,7 +292,7 @@ dict_col_get_sql_null_size(
 Gets the column number.
 @return col->ind, table column position (starting from 0) */
 UNIV_INLINE
-ulint
+unsigned
 dict_col_get_no(
 /*============*/
 	const dict_col_t*	col)	/*!< in: column */
@@ -281,7 +325,7 @@ TRUE.
 ibool
 dict_col_name_is_reserved(
 /*======================*/
-	const char*	name)	/*!< in: column name */
+	const LEX_CSTRING &name)	/*!< in: column name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Unconditionally set the AUTO_INCREMENT counter.
 @param[in,out]	table	table or partition
@@ -340,12 +384,8 @@ dberr_t
 dict_table_rename_in_cache(
 /*=======================*/
 	dict_table_t*	table,		/*!< in/out: table */
-	const char*	new_name,	/*!< in: new name */
-	bool		rename_also_foreigns,
-					/*!< in: in ALTER TABLE we want
-					to preserve the original table name
-					in constraints which reference it */
-	bool		replace_new_file = false)
+	span<const char> new_name,	/*!< in: new name */
+	bool		replace_new_file)
 					/*!< in: whether to replace the
 					file with the new name
 					(as part of rolling back TRUNCATE) */
@@ -396,14 +436,6 @@ dict_foreign_add_to_cache(
 	dict_err_ignore_t	ignore_err)
 				/*!< in: error to be ignored */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*********************************************************************//**
-Checks if a table is referenced by foreign keys.
-@return TRUE if table is referenced by a foreign key */
-ibool
-dict_table_is_referenced_by_foreign_key(
-/*====================================*/
-	const dict_table_t*	table)	/*!< in: InnoDB table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /**********************************************************************//**
 Replace the index passed in with another equivalent index in the
 foreign key lists of the table.
@@ -417,34 +449,6 @@ dict_foreign_replace_index(
 					to use table->col_names */
 	const dict_index_t*	index)	/*!< in: index to be replaced */
 	MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
-/** Scans a table create SQL string and adds to the data dictionary
-the foreign key constraints declared in the string. This function
-should be called after the indexes for a table have been created.
-Each foreign key constraint must be accompanied with indexes in
-bot participating tables. The indexes are allowed to contain more
-fields than mentioned in the constraint.
-
-@param[in]	trx		transaction
-@param[in]	sql_string	table create statement where
-				foreign keys are declared like:
-				FOREIGN KEY (a, b) REFERENCES table2(c, d),
-				table2 can be written also with the database
-				name before it: test.table2; the default
-				database id the database of parameter name
-@param[in]	sql_length	length of sql_string
-@param[in]	name		table full name in normalized form
-@param[in]	reject_fks	if TRUE, fail with error code
-				DB_CANNOT_ADD_CONSTRAINT if any
-				foreign keys are found.
-@return error code or DB_SUCCESS */
-dberr_t
-dict_create_foreign_constraints(
-	trx_t*			trx,
-	const char*		sql_string,
-	size_t			sql_length,
-	const char*		name,
-	ibool			reject_fks)
-	MY_ATTRIBUTE((warn_unused_result));
 /**********************************************************************//**
 Parses the CONSTRAINT id's to be dropped in an ALTER TABLE statement.
 @return DB_SUCCESS or DB_CANNOT_DROP_CONSTRAINT if syntax error or the
@@ -467,16 +471,14 @@ NOTE! This is a high-level function to be used mainly from outside the
 'dict' directory. Inside this directory dict_table_get_low
 is usually the appropriate function.
 @param[in] table_name Table name
-@param[in] dict_locked TRUE=data dictionary locked
-@param[in] try_drop TRUE=try to drop any orphan indexes after
-				an aborted online index creation
+@param[in] dict_locked whether dict_sys.latch is being held exclusively
 @param[in] ignore_err error to be ignored when loading the table
-@return table, NULL if does not exist */
+@return table
+@retval nullptr if does not exist */
 dict_table_t*
 dict_table_open_on_name(
 	const char*		table_name,
-	ibool			dict_locked,
-	ibool			try_drop,
+	bool			dict_locked,
 	dict_err_ignore_t	ignore_err)
 	MY_ATTRIBUTE((warn_unused_result));
 
@@ -535,7 +537,7 @@ dict_foreign_find_index(
 @param[in]	table		table object
 @param[in]	col_nr		virtual column number(nth virtual column)
 @return column name. */
-const char*
+Lex_ident_column
 dict_table_get_v_col_name(
 	const dict_table_t*	table,
 	ulint			col_nr);
@@ -549,7 +551,7 @@ otherwise table->n_def */
 ulint
 dict_table_has_column(
 	const dict_table_t*	table,
-	const char*		col_name,
+	const LEX_CSTRING	&col_name,
 	ulint			col_nr = 0);
 
 /**********************************************************************//**
@@ -643,25 +645,10 @@ dict_table_get_next_index(
 # define dict_table_get_next_index(index) UT_LIST_GET_NEXT(indexes, index)
 #endif /* UNIV_DEBUG */
 
-/* Skip corrupted index */
-#define dict_table_skip_corrupt_index(index)			\
-	while (index && index->is_corrupted()) {		\
-		index = dict_table_get_next_index(index);	\
-	}
-
-/* Get the next non-corrupt index */
-#define dict_table_next_uncorrupted_index(index)		\
-do {								\
-	index = dict_table_get_next_index(index);		\
-	dict_table_skip_corrupt_index(index);			\
-} while (0)
-
 #define dict_index_is_clust(index) (index)->is_clust()
 #define dict_index_is_auto_gen_clust(index) (index)->is_gen_clust()
 #define dict_index_is_unique(index) (index)->is_unique()
 #define dict_index_is_spatial(index) (index)->is_spatial()
-#define dict_index_is_ibuf(index) (index)->is_ibuf()
-#define dict_index_is_sec_or_ibuf(index) !(index)->is_primary()
 #define dict_index_has_virtual(index) (index)->has_virtual()
 
 /** Get all the FTS indexes on a table.
@@ -676,10 +663,10 @@ dict_table_get_all_fts_indexes(
 /********************************************************************//**
 Gets the number of user-defined non-virtual columns in a table in the
 dictionary cache.
-@return number of user-defined (e.g., not ROW_ID) non-virtual
+@return number of user-defined (e.g., not DB_ROW_ID) non-virtual
 columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_user_cols(
 /*=======================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -689,7 +676,7 @@ Gets the number of all non-virtual columns (also system) in a table
 in the dictionary cache.
 @return number of columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_cols(
 /*==================*/
 	const dict_table_t*	table)	/*!< in: table */
@@ -699,7 +686,7 @@ dict_table_get_n_cols(
 @param[in]	table	the table to check
 @return number of virtual columns of a table */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_n_v_cols(
 	const dict_table_t*	table);
 
@@ -711,35 +698,32 @@ bool
 dict_table_has_indexed_v_cols(
 	const dict_table_t*	table);
 
-/********************************************************************//**
-Gets the approximately estimated number of rows in the table.
+TPOOL_SUPPRESS_TSAN
+/** Get the estimated number of rows in the table.
 @return estimated number of rows */
-UNIV_INLINE
-ib_uint64_t
-dict_table_get_n_rows(
-/*==================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((warn_unused_result));
-/********************************************************************//**
-Increment the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_inc(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
-/********************************************************************//**
-Decrement the number of rows in the table by one.
-Notice that this operation is not protected by any latch, the number is
-approximate. */
-UNIV_INLINE
-void
-dict_table_n_rows_dec(
-/*==================*/
-	dict_table_t*	table)	/*!< in/out: table */
-	MY_ATTRIBUTE((nonnull));
+inline uint64_t dict_table_get_n_rows(const dict_table_t *table)
+{
+  ut_ad(table->stat_initialized);
+  return table->stat_n_rows;
+}
+
+/** Increment the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_inc(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows + 1)
+    table->stat_n_rows= n_rows;
+}
+
+/** Decrement the number of rows in the table by one.
+Note that this operation is not protected by any latch,
+the number is approximate. */
+TPOOL_SUPPRESS_TSAN inline void dict_table_n_rows_dec(dict_table_t *table)
+{
+  if (auto n_rows= table->stat_n_rows)
+    table->stat_n_rows= n_rows - 1;
+}
 
 /** Get nth virtual column
 @param[in]	table	target table
@@ -778,7 +762,7 @@ dict_col_t*
 dict_table_get_sys_col(
 /*===================*/
 	const dict_table_t*	table,	/*!< in: table */
-	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
+	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #else /* UNIV_DEBUG */
 #define dict_table_get_nth_col(table, pos)	(&(table)->cols[pos])
@@ -793,7 +777,7 @@ dict_table_get_sys_col(
 @param[in]	col_nr	column number in table
 @return	column name */
 inline
-const char*
+Lex_ident_column
 dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
 {
 	return(dict_table_get_nth_col(table, col_nr)->name(*table));
@@ -803,18 +787,18 @@ dict_table_get_col_name(const dict_table_t* table, ulint col_nr)
 Gets the given system column number of a table.
 @return column number */
 UNIV_INLINE
-ulint
+unsigned
 dict_table_get_sys_col_no(
 /*======================*/
 	const dict_table_t*	table,	/*!< in: table */
-	ulint			sys)	/*!< in: DATA_ROW_ID, ... */
+	unsigned		sys)	/*!< in: DATA_ROW_ID, ... */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /********************************************************************//**
 Returns the minimum data size of an index record.
 @return minimum data size in bytes */
 UNIV_INLINE
-ulint
+unsigned
 dict_index_get_min_size(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: index */
@@ -873,11 +857,8 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
-	MY_ATTRIBUTE((const));
-
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
+  MY_ATTRIBUTE((const));
 
 /** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags
@@ -933,17 +914,6 @@ dict_table_copy_types(
 	dtuple_t*		tuple,	/*!< in/out: data tuple */
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
-Make room in the table cache by evicting an unused table. The unused table
-should not be part of FK relationship and currently not used in any user
-transaction. There is no guarantee that it will remove a table.
-@return number of tables evicted. */
-ulint
-dict_make_room_in_cache(
-/*====================*/
-	ulint		max_tables,	/*!< in: max tables allowed in cache */
-	ulint		pct_check);	/*!< in: max percent to check */
-
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
 @param[in,out]	index	index; NOTE! The index memory
@@ -962,7 +932,7 @@ Gets the number of fields in the internal representation of an index,
 including fields added by the dictionary system.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_fields(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal
@@ -977,7 +947,7 @@ we do not take multiversioning into account: in the B-tree use the value
 returned by dict_index_get_n_unique_in_tree.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique(
 /*====================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -989,7 +959,7 @@ which uniquely determine the position of an index entry in the index, if
 we also take multiversioning into account.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique_in_tree(
 /*============================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -1007,7 +977,7 @@ include page no field.
 @param[in]	index	index
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_unique_in_tree_nonleaf(
 	const dict_index_t*	index)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
@@ -1018,7 +988,7 @@ unique, but this function returns the number of fields the user defined
 in the index as ordering fields.
 @return number of fields */
 UNIV_INLINE
-ulint
+uint16_t
 dict_index_get_n_ordering_defined_by_user(
 /*======================================*/
 	const dict_index_t*	index)	/*!< in: an internal representation
@@ -1106,23 +1076,23 @@ dict_index_get_nth_field_pos(
 /********************************************************************//**
 Looks for column n position in the clustered index.
 @return position in internal representation of the clustered index */
-ulint
+unsigned
 dict_table_get_nth_col_pos(
 /*=======================*/
 	const dict_table_t*	table,	/*!< in: table */
 	ulint			n,	/*!< in: column number */
 	ulint*			prefix_col_pos) /*!< out: col num if prefix */
 	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-/*******************************************************************//**
-Adds a column to index. */
-void
-dict_index_add_col(
-/*===============*/
-	dict_index_t*		index,		/*!< in/out: index */
-	const dict_table_t*	table,		/*!< in: table */
-	dict_col_t*		col,		/*!< in: column */
-	ulint			prefix_len)	/*!< in: column prefix length */
-	MY_ATTRIBUTE((nonnull));
+/** Add a column to an index.
+@param index          index
+@param table          table
+@param col            column
+@param prefix_len     column prefix length
+@param descending     whether to use descending order */
+void dict_index_add_col(dict_index_t *index, const dict_table_t *table,
+                        dict_col_t *col, ulint prefix_len,
+                        bool descending= false)
+  MY_ATTRIBUTE((nonnull));
 
 /*******************************************************************//**
 Copies types of fields contained in index to tuple. */
@@ -1146,14 +1116,13 @@ dict_field_get_col(
 
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
-Assumes that dict_sys.mutex is already being held.
 @return index, NULL if not found */
 dict_index_t*
 dict_index_get_if_in_cache_low(
 /*===========================*/
 	index_id_t	index_id)	/*!< in: index id */
 	MY_ATTRIBUTE((warn_unused_result));
-#if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
+#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Returns an index object if it is found in the dictionary cache.
 @return index, NULL if not found */
@@ -1162,8 +1131,6 @@ dict_index_get_if_in_cache(
 /*=======================*/
 	index_id_t	index_id)	/*!< in: index id */
 	MY_ATTRIBUTE((warn_unused_result));
-#endif /* UNIV_DEBUG || UNIV_BUF_DEBUG */
-#ifdef UNIV_DEBUG
 /**********************************************************************//**
 Checks that a tuple has n_fields_cmp value in a sensible range, so that
 no comparison can occur with the page number field in a node pointer.
@@ -1230,19 +1197,10 @@ dict_index_build_data_tuple(
 Gets the page number of the root of the index tree.
 @return page number */
 UNIV_INLINE
-ulint
+uint32_t
 dict_index_get_page(
 /*================*/
 	const dict_index_t*	tree)	/*!< in: index */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Gets the read-write lock of the index tree.
-@return read-write lock */
-UNIV_INLINE
-rw_lock_t*
-dict_index_get_lock(
-/*================*/
-	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /********************************************************************//**
 Returns free space reserved for future updates of records. This is
@@ -1294,9 +1252,6 @@ dict_index_calc_min_rec_len(
 /*========================*/
 	const dict_index_t*	index)	/*!< in: index */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-#define dict_mutex_enter_for_mysql() mutex_enter(&dict_sys.mutex)
-#define dict_mutex_exit_for_mysql() mutex_exit(&dict_sys.mutex)
 
 /********************************************************************//**
 Checks if the database name in two table names is the same.
@@ -1361,104 +1316,111 @@ constraint */
 /* Buffers for storing detailed information about the latest foreign key
 and unique key errors */
 extern FILE*		dict_foreign_err_file;
-extern ib_mutex_t	dict_foreign_err_mutex; /* mutex protecting the
-						foreign key error messages */
+extern mysql_mutex_t dict_foreign_err_mutex;
 
 /** InnoDB data dictionary cache */
 class dict_sys_t
 {
+  /** The my_hrtime_coarse().val of the oldest lock_wait() start, or 0 */
+  std::atomic<ulonglong> latch_ex_wait_start;
+
+  /** the rw-latch protecting the data dictionary cache */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) IF_DBUG(srw_lock_debug,srw_lock) latch;
 public:
-	DictSysMutex	mutex;		/*!< mutex protecting the data
-					dictionary; protects also the
-					disk-based dictionary system tables;
-					this mutex serializes CREATE TABLE
-					and DROP TABLE, as well as reading
-					the dictionary data for a table from
-					system tables */
-	/** @brief the data dictionary rw-latch protecting dict_sys
+  /** Indexes of SYS_TABLE[] */
+  enum
+  {
+    SYS_TABLES= 0,
+    SYS_INDEXES,
+    SYS_COLUMNS,
+    SYS_FIELDS,
+    SYS_FOREIGN,
+    SYS_FOREIGN_COLS,
+    SYS_VIRTUAL
+  };
+  /** System table names */
+  static const span<const char> SYS_TABLE[];
 
-	Table create, drop, etc. reserve this in X-mode; implicit or
-	backround operations purge, rollback, foreign key checks reserve this
-	in S-mode; not all internal InnoDB operations are covered by MDL.
+  /** all tables (persistent and temporary), hashed by name */
+  hash_table_t table_hash;
+  /** hash table of persistent table IDs */
+  hash_table_t table_id_hash;
 
-	This latch also prevents lock waits when accessing the InnoDB
-	data dictionary tables. @see trx_t::dict_operation_lock_mode */
-	rw_lock_t	latch;
-	row_id_t	row_id;		/*!< the next row id to assign;
-					NOTE that at a checkpoint this
-					must be written to the dict system
-					header and flushed to a file; in
-					recovery this must be derived from
-					the log records */
-	hash_table_t*	table_hash;	/*!< hash table of the tables, based
-					on name */
-	/** hash table of persistent table IDs */
-	hash_table_t*	table_id_hash;
-	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
-	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
-	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
-	dict_table_t*	sys_fields;	/*!< SYS_FIELDS table */
-	dict_table_t*	sys_virtual;	/*!< SYS_VIRTUAL table */
+  /** the SYS_TABLES table */
+  dict_table_t *sys_tables;
+  /** the SYS_COLUMNS table */
+  dict_table_t *sys_columns;
+  /** the SYS_INDEXES table */
+  dict_table_t *sys_indexes;
+  /** the SYS_FIELDS table */
+  dict_table_t *sys_fields;
+  /** the SYS_FOREIGN table */
+  dict_table_t *sys_foreign;
+  /** the SYS_FOREIGN_COLS table */
+  dict_table_t *sys_foreign_cols;
+  /** the SYS_VIRTUAL table */
+  dict_table_t *sys_virtual;
 
-	/*=============================*/
-	UT_LIST_BASE_NODE_T(dict_table_t)
-			table_LRU;	/*!< List of tables that can be evicted
-					from the cache */
-	UT_LIST_BASE_NODE_T(dict_table_t)
-			table_non_LRU;	/*!< List of tables that can't be
-					evicted from the cache */
+  /** @return whether all non-hard-coded system tables exist */
+  bool sys_tables_exist() const
+  { return UNIV_LIKELY(sys_foreign && sys_foreign_cols && sys_virtual); }
+
+  /** list of persistent tables that can be evicted */
+  UT_LIST_BASE_NODE_T(dict_table_t) table_LRU;
+  /** list of persistent tables that cannot be evicted */
+  UT_LIST_BASE_NODE_T(dict_table_t) table_non_LRU;
+
 private:
-	bool m_initialised;
-	/** the sequence of temporary table IDs */
-	std::atomic<table_id_t> temp_table_id;
-	/** hash table of temporary table IDs */
-	hash_table_t*	temp_id_hash;
+  bool m_initialised= false;
+  /** the sequence of temporary table IDs */
+  std::atomic<table_id_t> temp_table_id{DICT_HDR_FIRST_ID};
+  /** hash table of temporary table IDs */
+  hash_table_t temp_id_hash;
 public:
-	/** @return a new temporary table ID */
-	table_id_t get_temporary_table_id() {
-		return temp_table_id.fetch_add(1, std::memory_order_relaxed);
-	}
+  /** Diagnostic message for exceeding the lock_wait() timeout */
+  static const char fatal_msg[];
 
-	/** Look up a temporary table.
-	@param id	temporary table ID
-	@return	temporary table
-	@retval	NULL	if the table does not exist
-	(should only happen during the rollback of CREATE...SELECT) */
-	dict_table_t* get_temporary_table(table_id_t id)
-	{
-		ut_ad(mutex_own(&mutex));
-		dict_table_t* table;
-		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, temp_id_hash, fold, dict_table_t*, table,
-			    ut_ad(table->cached), table->id == id);
-		if (UNIV_LIKELY(table != NULL)) {
-			DBUG_ASSERT(table->is_temporary());
-			DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
-			table->acquire();
-		}
-		return table;
-	}
+  /** @return a new temporary table ID */
+  table_id_t acquire_temporary_table_id()
+  {
+    return temp_table_id.fetch_add(1, std::memory_order_relaxed);
+  }
 
-	/** Look up a persistent table.
-	@param id	table ID
-	@return	table
-	@retval	NULL	if not cached */
-	dict_table_t* get_table(table_id_t id)
-	{
-		ut_ad(mutex_own(&mutex));
-		dict_table_t* table;
-		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, table_id_hash, fold, dict_table_t*, table,
-			    ut_ad(table->cached), table->id == id);
-		DBUG_ASSERT(!table || !table->is_temporary());
-		return table;
-	}
+  /** Look up a temporary table.
+  @param id        temporary table ID
+  @return          temporary table
+  @retval nullptr  if the table does not exist
+  (should only happen during the rollback of CREATE...SELECT) */
+  dict_table_t *acquire_temporary_table(table_id_t id)
+  {
+    ut_ad(frozen());
+    dict_table_t *table;
+    ulint fold = ut_fold_ull(id);
+    HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
+                ut_ad(table->cached), table->id == id);
+    if (UNIV_LIKELY(table != nullptr))
+    {
+      DBUG_ASSERT(table->is_temporary());
+      DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
+      table->acquire();
+    }
+    return table;
+  }
 
-  /**
-    Constructor.  Further initialisation happens in create().
-  */
-
-  dict_sys_t() : m_initialised(false), temp_table_id(DICT_HDR_FIRST_ID) {}
+  /** Look up a persistent table.
+  @param id     table ID
+  @return table
+  @retval nullptr if not cached */
+  dict_table_t *find_table(table_id_t id)
+  {
+    ut_ad(frozen());
+    dict_table_t *table;
+    ulint fold= ut_fold_ull(id);
+    HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
+                ut_ad(table->cached), table->id == id);
+    DBUG_ASSERT(!table || !table->is_temporary());
+    return table;
+  }
 
   bool is_initialised() const { return m_initialised; }
 
@@ -1481,14 +1443,13 @@ public:
 
 #ifdef UNIV_DEBUG
   /** Find a table */
-  template <bool in_lru> bool find(dict_table_t* table)
+  template <bool in_lru> bool find(const dict_table_t *table)
   {
     ut_ad(table);
     ut_ad(table->can_be_evicted == in_lru);
-    ut_ad(mutex_own(&mutex));
-    for (const dict_table_t* t = UT_LIST_GET_FIRST(in_lru
-					     ? table_LRU : table_non_LRU);
-	 t; t = UT_LIST_GET_NEXT(table_LRU, t))
+    ut_ad(frozen());
+    for (const dict_table_t* t= in_lru ? table_LRU.start : table_non_LRU.start;
+         t; t = UT_LIST_GET_NEXT(table_LRU, t))
     {
       if (t == table) return true;
       ut_ad(t->can_be_evicted == in_lru);
@@ -1496,122 +1457,121 @@ public:
     return false;
   }
   /** Find a table */
-  bool find(dict_table_t* table)
+  bool find(const dict_table_t *table)
   {
     return table->can_be_evicted ? find<true>(table) : find<false>(table);
   }
 #endif
 
   /** Move a table to the non-LRU list from the LRU list. */
-  void prevent_eviction(dict_table_t* table)
+  void prevent_eviction(dict_table_t *table)
   {
+    ut_d(locked());
     ut_ad(find(table));
-    if (table->can_be_evicted)
-    {
-      table->can_be_evicted = FALSE;
-      UT_LIST_REMOVE(table_LRU, table);
-      UT_LIST_ADD_LAST(table_non_LRU, table);
-    }
+    if (!table->can_be_evicted)
+      return;
+    table->can_be_evicted= false;
+    UT_LIST_REMOVE(table_LRU, table);
+    UT_LIST_ADD_LAST(table_non_LRU, table);
   }
-  /** Acquire a reference to a cached table. */
-  inline void acquire(dict_table_t* table);
 
 #ifdef UNIV_DEBUG
-  /** Assert that the data dictionary is locked */
-  void assert_locked()
-  {
-    ut_ad(mutex_own(&mutex));
-    ut_ad(rw_lock_own(&latch, RW_LOCK_X));
-  }
+  /** @return whether the current thread is holding the latch */
+  bool frozen() const { return latch.have_any(); }
+  /** @return whether the current thread is holding a shared latch */
+  bool frozen_not_locked() const { return latch.have_rd(); }
+  /** @return whether the current thread holds the exclusive latch */
+  bool locked() const { return latch.have_wr(); }
 #endif
-  /** Lock the data dictionary cache. */
-  void lock(const char* file, unsigned line)
+private:
+  /** Acquire the exclusive latch */
+  ATTRIBUTE_NOINLINE
+  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line));
+public:
+  /** @return the my_hrtime_coarse().val of the oldest lock_wait() start,
+  assuming that requests are served on a FIFO basis */
+  ulonglong oldest_wait() const
+  { return latch_ex_wait_start.load(std::memory_order_relaxed); }
+
+  /** Exclusively lock the dictionary cache. */
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
   {
-    rw_lock_x_lock_func(&latch, 0, file, line);
-    mutex_enter_loc(&mutex, file, line);
+    if (!latch.wr_lock_try())
+      lock_wait(SRW_LOCK_ARGS(file, line));
   }
 
+#ifdef UNIV_PFS_RWLOCK
   /** Unlock the data dictionary cache. */
-  void unlock()
+  ATTRIBUTE_NOINLINE void unlock();
+  /** Acquire a shared lock on the dictionary cache. */
+  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line);
+  /** Release a shared lock on the dictionary cache. */
+  ATTRIBUTE_NOINLINE void unfreeze();
+#else
+  /** Unlock the data dictionary cache. */
+  void unlock() { latch.wr_unlock(); }
+  /** Acquire a shared lock on the dictionary cache. */
+  void freeze() { latch.rd_lock(); }
+  /** Release a shared lock on the dictionary cache. */
+  void unfreeze() { latch.rd_unlock(); }
+#endif
+
+  /** Estimate the used memory occupied by the data dictionary
+  table and index objects.
+  @return number of bytes occupied */
+  TPOOL_SUPPRESS_TSAN ulint rough_size() const
   {
-    mutex_exit(&mutex);
-    rw_lock_x_unlock(&latch);
+    /* No latch; this is a very crude approximation anyway */
+    ulint size = UT_LIST_GET_LEN(table_LRU) + UT_LIST_GET_LEN(table_non_LRU);
+    size *= sizeof(dict_table_t)
+      + sizeof(dict_index_t) * 2
+      + (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
+      + sizeof(dict_field_t) * 5 /* total number of key fields */
+      + 200; /* arbitrary, covering names and overhead */
+    size += (table_hash.n_cells + table_id_hash.n_cells +
+             temp_id_hash.n_cells) * sizeof(hash_cell_t);
+    return size;
   }
+
+  /** Evict unused, unlocked tables from table_LRU.
+  @param half whether to consider half the tables only (instead of all)
+  @return number of tables evicted */
+  ulint evict_table_LRU(bool half);
+
+  /** Look up a table in the dictionary cache.
+  @param name   table name
+  @return table handle
+  @retval nullptr if not found */
+  dict_table_t *find_table(const span<const char> &name) const
+  {
+    ut_ad(frozen());
+    for (dict_table_t *table= static_cast<dict_table_t*>
+         (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
+                         (my_crc32c(0, name.data(), name.size()))));
+         table; table= table->name_hash)
+      if (strlen(table->name.m_name) == name.size() &&
+          !memcmp(table->name.m_name, name.data(), name.size()))
+        return table;
+    return nullptr;
+  }
+
+  /** Look up or load a table definition
+  @param name   table name
+  @param ignore errors to ignore when loading the table definition
+  @return table handle
+  @retval nullptr if not found */
+  dict_table_t *load_table(const span<const char> &name,
+                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE);
+
+  /** Attempt to load the system tables on startup
+  @return whether any discrepancy with the expected definition was found */
+  bool load_sys_tables();
+  /** Create or check system tables on startup */
+  dberr_t create_or_check_sys_tables();
 };
 
 /** the data dictionary cache */
 extern dict_sys_t	dict_sys;
-
-#define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
-#define dict_sys_lock() dict_sys.lock(__FILE__, __LINE__)
-#define dict_sys_unlock() dict_sys.unlock()
-
-/** dummy index for ROW_FORMAT=REDUNDANT supremum and infimum records */
-extern dict_index_t*	dict_ind_redundant;
-
-/** Initialize dict_ind_redundant. */
-void
-dict_ind_init();
-
-/** Free dict_ind_redundant. */
-void
-dict_ind_free();
-
-/* Auxiliary structs for checking a table definition @{ */
-
-/* This struct is used to specify the name and type that a column must
-have when checking a table's schema. */
-struct dict_col_meta_t {
-	const char*	name;		/* column name */
-	ulint		mtype;		/* required column main type */
-	ulint		prtype_mask;	/* required column precise type mask;
-					if this is non-zero then all the
-					bits it has set must also be set
-					in the column's prtype */
-	ulint		len;		/* required column length */
-};
-
-/* This struct is used for checking whether a given table exists and
-whether it has a predefined schema (number of columns and column names
-and types) */
-struct dict_table_schema_t {
-	const char*		table_name;	/* the name of the table whose
-						structure we are checking */
-	ulint			n_cols;		/* the number of columns the
-						table must have */
-	dict_col_meta_t*	columns;	/* metadata for the columns;
-						this array has n_cols
-						elements */
-	ulint			n_foreign;	/* number of foreign keys this
-						table has, pointing to other
-						tables (where this table is
-						FK child) */
-	ulint			n_referenced;	/* number of foreign keys other
-						tables have, pointing to this
-						table (where this table is
-						parent) */
-};
-/* @} */
-
-/*********************************************************************//**
-Checks whether a table exists and whether it has the given structure.
-The table must have the same number of columns with the same names and
-types. The order of the columns does not matter.
-The caller must own the dictionary mutex.
-dict_table_schema_check() @{
-@return DB_SUCCESS if the table exists and contains the necessary columns */
-dberr_t
-dict_table_schema_check(
-/*====================*/
-	dict_table_schema_t*	req_schema,	/*!< in/out: required table
-						schema */
-	char*			errstr,		/*!< out: human readable error
-						message if != DB_SUCCESS and
-						!= DB_TABLE_NOT_FOUND is
-						returned */
-	size_t			errstr_sz)	/*!< in: errstr size */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/* @} */
 
 /*********************************************************************//**
 Converts a database and table name from filesystem encoding
@@ -1629,43 +1589,12 @@ dict_fs2utf8(
 	size_t		table_utf8_size)/*!< in: table_utf8 size */
 	MY_ATTRIBUTE((nonnull));
 
-/**********************************************************************//**
-Check whether the table is corrupted.
-@return nonzero for corrupted table, zero for valid tables */
-UNIV_INLINE
-ulint
-dict_table_is_corrupted(
-/*====================*/
-	const dict_table_t*	table)	/*!< in: table */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/**********************************************************************//**
-Flags an index and table corrupted both in the data dictionary cache
-and in the system table SYS_INDEXES. */
-void
-dict_set_corrupted(
-/*===============*/
-	dict_index_t*	index,	/*!< in/out: index */
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	ctx)	/*!< in: context */
-	ATTRIBUTE_COLD __attribute__((nonnull));
-
-/** Flags an index corrupted in the data dictionary cache only. This
-is used mostly to mark a corrupted index when index's own dictionary
-is corrupted, and we force to load such index for repair purpose
-@param[in,out]	index	index that is corrupted */
-void
-dict_set_corrupted_index_cache_only(
-	dict_index_t*	index);
-
-/**********************************************************************//**
-Flags a table with specified space_id corrupted in the table dictionary
-cache.
-@return TRUE if successful */
-bool dict_set_corrupted_by_space(const fil_space_t* space);
-
-/** Flag a table encrypted in the data dictionary cache. */
-void dict_set_encrypted_by_space(const fil_space_t* space);
+/** Flag an index corrupted both in the data dictionary cache
+and in the system table SYS_INDEXES.
+@param index       index to be flagged as corrupted
+@param ctx         context (for error log reporting) */
+void dict_set_corrupted(dict_index_t *index, const char *ctx)
+  ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Sets merge_threshold in the SYS_INDEXES
 @param[in,out]	index		index
@@ -1757,13 +1686,6 @@ dict_table_decode_n_col(
 	ulint	encoded,
 	ulint*	n_col,
 	ulint*	n_v_col);
-
-/** Calculate the used memory occupied by the data dictionary
-table and index objects.
-@return number of bytes occupied. */
-UNIV_INTERN
-ulint
-dict_sys_get_size();
 
 /** Free the virtual column template
 @param[in,out]	vc_templ	virtual column template */

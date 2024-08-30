@@ -252,7 +252,8 @@ class Rdb_key_def {
  public:
   /* Convert a key from KeyTupleFormat to mem-comparable form */
   uint pack_index_tuple(TABLE *const tbl, uchar *const pack_buffer,
-                        uchar *const packed_tuple, const uchar *const key_tuple,
+                        uchar *const packed_tuple, uchar *const record_buffer,
+                        const uchar *const key_tuple,
                         const key_part_map &keypart_map) const;
 
   uchar *pack_field(Field *const field, Rdb_field_packing *pack_info,
@@ -504,6 +505,8 @@ class Rdb_key_def {
     MAX_INDEX_ID = 7,
     DDL_CREATE_INDEX_ONGOING = 8,
     AUTO_INC = 9,
+    // MariaDB: 10 through 12 are already taken in upstream
+    TABLE_VERSION = 20, // MariaDB: table version record
     END_DICT_INDEX_ID = 255
   };
 
@@ -590,7 +593,7 @@ class Rdb_key_def {
     SECONDARY_FORMAT_VERSION_UPDATE3 = 65535,
   };
 
-  void setup(const TABLE *const table, const Rdb_tbl_def *const tbl_def);
+  uint setup(const TABLE *const table, const Rdb_tbl_def *const tbl_def);
 
   static uint extract_ttl_duration(const TABLE *const table_arg,
                                    const Rdb_tbl_def *const tbl_def_arg,
@@ -1581,7 +1584,7 @@ class Rdb_system_merge_op : public rocksdb::AssociativeMergeOperator {
     return true;
   }
 
-  virtual const char *Name() const override { return "Rdb_system_merge_op"; }
+  const char *Name() const override { return "Rdb_system_merge_op"; }
 
  private:
   /*

@@ -1,0 +1,66 @@
+#
+# Start of 10.10 tests
+#
+#
+# MDEV-23287 The INET4 data type
+# MDEV-20800 Server crashes in Field_inet6::store_warning upon updating table statistics
+#
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('1.0.0.1'),('2.0.0.2');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1';
+db_name	test
+table_name	t1
+column_name	a
+min_value	1.0.0.1
+max_value	2.0.0.2
+nulls_ratio	0.0000
+avg_frequency	1.0000
+hist_size	2
+hist_type	JSON_HB
+decode_histogram(hist_type,histogram)	{
+  "target_histogram_size": 254,
+  "collected_at": "REPLACED",
+  "collected_by": "REPLACED",
+  "histogram_hb": [
+    {
+      "start": "1.0.0.1",
+      "size": 0.5,
+      "ndv": 1
+    },
+    {
+      "start": "2.0.0.2",
+      "end": "2.0.0.2",
+      "size": 0.5,
+      "ndv": 1
+    }
+  ]
+}
+INSERT INTO t1 VALUES ('3.0.0.3');
+DROP TABLE t1;
+#
+# MDEV-23287 The INET4 data type
+# MDEV-22509: Server crashes in Field_inet6::store_inet6_null_with_warn / Field::maybe_null
+#
+CREATE TABLE t1 (a INT, b INET4 NOT NULL);
+INSERT INTO t1 VALUES (1,'0.0.0.0'),(2,'0.0.0.0');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT t1.a from t1;
+a
+1
+2
+DROP TABLE t1;
+#
+# End of 10.10 tests
+#

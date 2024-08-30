@@ -125,8 +125,11 @@ PTDB TDBMUL::Duplicate(PGLOBAL g)
 /*  have a LRECL that is the sum of the lengths of all components.     */
 /*  This is why we use a big filename array to take care of that.      */
 /***********************************************************************/
+
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 bool TDBMUL::InitFileNames(PGLOBAL g)
-  {
+{
 #define PFNZ  4096
 #define FNSZ  (_MAX_DRIVE+_MAX_DIR+_MAX_FNAME+_MAX_EXT)
 	PTDBDIR dirp;
@@ -199,23 +202,16 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
       p = filename + strlen(filename) - 1;
 
-#if !defined(_WIN32)
-      // Data files can be imported from Windows (having CRLF)
+
+      // Data files can have CRLF
       if (*p == '\n' || *p == '\r') {
-        // is this enough for Unix ???
         p--;          // Eliminate ending CR or LF character
 
         if (p >= filename)
-          // is this enough for Unix ???
           if (*p == '\n' || *p == '\r')
             p--;    // Eliminate ending CR or LF character
 
-        } // endif p
-
-#else
-      if (*p == '\n')
-        p--;        // Eliminate ending new-line character
-#endif
+      } // endif p
       // Trim rightmost blanks
       for (; p >= filename && *p == ' '; p--) ;
 
@@ -241,6 +237,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
   NumFiles = n;
   return false;
   } // end of InitFileNames
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /***********************************************************************/
 /*  The table column list is the sub-table column list.                */
@@ -671,8 +668,8 @@ TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
 /***********************************************************************/
 char* TDBDIR::Path(PGLOBAL g)
   {
-  PCATLG cat __attribute__((unused))= PlgGetCatalog(g);
-  PTABDEF defp = (PTABDEF)To_Def;
+    (void) PlgGetCatalog(g);                    // XXX Should be removed?
+    PTABDEF defp = (PTABDEF)To_Def;
 
 #if defined(_WIN32)
   if (!*Drive) {
@@ -711,7 +708,6 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
     int n = -1;
 #if defined(_WIN32)
     int rc;
-
     // Start searching files in the target directory.
 		hSearch = FindFirstFile(Path(g), &FileData);
 
@@ -1047,8 +1043,8 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
   // Start searching files in the target directory.
 #if defined(_WIN32)
-	HANDLE h;
 	int rc;
+	HANDLE h;
 
 #if defined(PATHMATCHSPEC)
 	if (!*Drive)
@@ -1176,7 +1172,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
       // Look in the name sub-directory
       strcat(strcat(Direc, Entry->d_name), "/");
 
-      if ((k = FindInDir(g)) < 0)
+      if ((k= FindInDir(g)) < 0)
         return k;
       else
         n += k;

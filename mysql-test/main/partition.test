@@ -14,6 +14,8 @@
 drop table if exists t1, t2;
 --enable_warnings
 
+--source include/test_db_charset_latin1.inc
+
 --echo #
 --echo # Bug#11765667: bug#58655: ASSERTION FAILED,
 --echo #                          SERVER CRASHES WITH MYSQLD GOT SIGNAL 6
@@ -290,7 +292,7 @@ drop table t1;
 #
 # Bug#36001: Partitions: spelling and using some error messages
 #
---error ER_FOREIGN_KEY_ON_PARTITIONED
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 CREATE TABLE t1 (a INT, FOREIGN KEY (a) REFERENCES t0 (a))
 ENGINE=MyISAM
 PARTITION BY HASH (a);
@@ -350,10 +352,12 @@ ENGINE=Memory;
 ALTER TABLE t1 ENGINE=NonExistentEngine;
 # OK to only specify one partitions engine, since it is already assigned at
 # table level (after create, it is specified on all levels and all parts).
+--enable_prepare_warnings
 ALTER TABLE t1
 PARTITION BY HASH (a)
 (PARTITION p0 ENGINE=Memory,
  PARTITION p1 ENGINE=NonExistentEngine);
+--disable_prepare_warnings
 ALTER TABLE t1 ENGINE=NonExistentEngine;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
@@ -1058,7 +1062,7 @@ drop table t1;
 #
 # Bug #17754 Change to explicit removal of partitioning scheme
 # Also added a number of tests to ensure that proper engine is
-# choosen in all kinds of scenarios.
+# chosen in all kinds of scenarios.
 #
 
 create table t1 (a int)
@@ -1426,7 +1430,7 @@ drop table t2;
 #
 # Bug #17497: Partitions: crash if add partition on temporary table
 #
---error ER_PARTITION_NO_TEMPORARY
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 create temporary table t1 (a int) partition by hash(a);
 
 #
@@ -2297,6 +2301,9 @@ SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 EXPLAIN
 SELECT b, c FROM t1 WHERE b = 1 GROUP BY b, c;
 
+EXPLAIN
+SELECT b, c FROM t1 WHERE b = 1 or b=2 GROUP BY b, c;
+
 DROP TABLE t1;
 
 --echo #
@@ -3061,3 +3068,56 @@ set optimizer_switch=@tmp_os;
 
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-32388 MSAN / Valgrind errors in
+--echo # Item_func_like::get_mm_leaf upon query from partitioned table
+--echo #
+
+CREATE TABLE t1 (a INT) PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 WHERE a LIKE '1';
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-31494 Server crashes in ha_partition::index_blocks /
+--echo # get_key_scans_params
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT, c INT, KEY(c)) PARTITION BY LIST (b) (PARTITION p0 VALUES IN (1,2), PARTITION p1 VALUES IN (3,4));
+
+INSERT INTO t2 VALUES (1,1),(2,2);
+explain SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+SELECT * FROM t1 STRAIGHT_JOIN t2 WHERE t2.b = 5 AND t2.c = 10;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-31445 Server crashes in ha_partition::index_blocks /
+--echo # cost_for_index_read
+--echo #
+
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+CREATE TABLE t3 (c INT, d INT, KEY(d)) PARTITION BY KEY (c) PARTITIONS 2;
+CREATE TABLE t4 (e INT);
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t3 VALUES (1,1),(2,2);
+INSERT INTO t4 VALUES (1),(2);
+
+explain SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+SELECT * FROM t1 LEFT JOIN (t2 JOIN t3 ON (0 IN (SELECT e FROM t4) AND t3.d = t2.b)) ON (t3.c < t2.b);
+
+drop table t1,t2,t3,t4;
+
+--echo # End of 11.0 tests
+
+--source include/test_db_charset_restore.inc

@@ -31,6 +31,8 @@ SHOW CREATE TABLE t1;
 --connection con1
 COMMIT;
 --connection default
+SET lock_wait_timeout=@save_timeout;
+SET innodb_lock_wait_timeout=@save_innodb_timeout;
 ALTER TABLE t2 PARTITION BY HASH(pk);
 # Cleanup
 --disconnect con1
@@ -44,7 +46,7 @@ PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (3),
 PARTITION pb VALUES LESS THAN (5));
 
---error ER_FOREIGN_KEY_ON_PARTITIONED
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
 CREATE TABLE t2(a INT, FOREIGN KEY(a) REFERENCES t1(a))ENGINE=INNODB
 PARTITION BY RANGE(a)
 (PARTITION pa VALUES LESS THAN (2),
@@ -53,3 +55,14 @@ PARTITION pb VALUES LESS THAN (4));
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-24754 Server crash in
+--echo # ha_partition_inplace_ctx::~ha_partition_inplace_ctx
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
+ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
+ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests

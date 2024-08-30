@@ -14,3 +14,9 @@ connection node_3;
 # restart: with restart_parameters
 connection node_2;
 FLUSH SSL;
+connection node_3;
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");
+connection node_2;
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");
+connection node_1;
+call mtr.add_suppression("WSREP: Handshake failed: unexpected eof while reading");

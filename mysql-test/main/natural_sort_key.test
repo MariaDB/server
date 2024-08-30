@@ -1,0 +1,102 @@
+--source include/have_sequence.inc
+
+SET NAMES utf8mb4;
+SELECT NATURAL_SORT_KEY(NULL);
+
+#Test that max packet overflow produces NULL plus warning
+SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
+SELECT NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1));
+
+#Test with virtual
+CREATE TABLE t1(
+  c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
+  k VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) VIRTUAL INVISIBLE);
+
+INSERT INTO t1 values
+ ('A1'),('a1'),('A100'),('a100'),('A2'),('ä2'),('a2'),('A99'),
+ ('äb'),('B1'),('B100'),('B9'),('C'),('100');
+
+-- echo #Natural sort order.
+# We sort by 2 colums, for stable sort,as we do not currenly have a case and accent insensitive Unicode collation.
+SELECT c FROM t1 ORDER BY k,c;
+-- echo #Unnatural but  unicode aware) sort order
+SELECT c FROM t1 ORDER BY CONVERT(c USING utf8mb4) COLLATE utf8mb4_unicode_ci,c;
+# CREATE TABLE AS SELECT, to see that length of the column is correct.
+CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+#Virtual STORED is temporarily disabled
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1(c VARCHAR(1), k VARCHAR(2) AS (NATURAL_SORT_KEY(c)) STORED);
+
+#Show encoding of numbers.
+SELECT RPAD(val,28,' ') value , RPAD(NATURAL_SORT_KEY(val),36,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+FROM
+(
+SELECT '0' val
+UNION  SELECT seq FROM seq_1_to_9
+UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_27
+) AS numbers ORDER BY sortkey;
+
+# leading zeros ignored
+SELECT natural_sort_key('1') = natural_sort_key('0001');
+SELECT natural_sort_key('1.1') = natural_sort_key('1.00001');
+
+# Some examples from https://github.com/sourcefrog/natsort/
+# words
+SELECT RPAD(val,20,' ') value, NATURAL_SORT_KEY(val) FROM
+(SELECT '' val WHERE 0 UNION VALUES
+('fred'),
+('pic2'),
+('pic100a'),
+('pic120'),
+('pic121'),
+('jane'),
+('tom'),
+('pic02a'),
+('pic3'),
+('pic4'),
+('1-20'),
+('pic100'),
+('pic02000'),
+('10-20'),
+('1-02'),
+('1-2'),
+('pic01'),
+('pic02'),
+('pic 6'),
+('pic   7'),
+('pic 5'),
+('pic05'),
+('pic 5 '),
+('pic 5 something'),
+('pic 4 else'),
+('2000-1-10'),
+('1999-12-25'),
+('1999-3-3'),
+('2000-3-23'),
+('2000-1-2'),
+('100.200.300.400'),
+('100.50.60.70'),
+('100.8.9.0'),
+('a1b1'),
+('a01b2'),
+('a1b2'),
+('a01b3')
+)AS data ORDER BY 2,1;
+
+# MDEV-27686 (null value indicator not always reset)
+create table t (a varchar(8), b varchar(8) as (natural_sort_key(a)));
+insert into t (a) values ('a2'),(NULL),('a11');
+select * from t order by b;
+select a, b from t order by b;
+drop table t;
+
+# MDEV-26796 Natural sort does not work for utf32/utf16/ucs2
+select natural_sort_key(_utf16 0x0031),natural_sort_key(_ucs2 0x0031), natural_sort_key(_utf32 0x00000031);
+
+# MDEV-26806 Server crash in Charset::charset / Item_func_natural_sort_key::val_str
+select get_lock('a', 0);
+select natural_sort_key(release_lock('a'));
+

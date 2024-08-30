@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Codership Oy <info@codership.com>
+/* Copyright 2018-2023 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,13 +15,13 @@
 
 #include "wsrep_client_service.h"
 #include "wsrep_high_priority_service.h"
-#include "wsrep_applier.h" /* wsrep_apply_events() */
 #include "wsrep_binlog.h"  /* wsrep_dump_rbr_buf() */
 #include "wsrep_schema.h"  /* remove_fragments() */
 #include "wsrep_thd.h"
 #include "wsrep_xid.h"
 #include "wsrep_trans_observer.h"
 #include "wsrep_server_state.h"
+#include "wsrep_mysqld.h"
 
 #include "sql_base.h"    /* close_temporary_table() */
 #include "sql_class.h"   /* THD */
@@ -70,8 +70,6 @@ bool Wsrep_client_service::interrupted(
   wsrep::unique_lock<wsrep::mutex>& lock WSREP_UNUSED) const
 {
   DBUG_ASSERT(m_thd == current_thd);
-  /* Underlying mutex in lock object points to THD::LOCK_thd_data, which
-  protects m_thd->wsrep_trx() and protects us from thd delete. */
   mysql_mutex_assert_owner(static_cast<mysql_mutex_t*>(lock.mutex()->native()));
   bool ret= (m_thd->killed != NOT_KILLED);
   if (ret)
@@ -245,7 +243,8 @@ size_t Wsrep_client_service::bytes_generated() const
   if (cache)
   {
     size_t pending_rows_event_length= 0;
-    if (Rows_log_event* ev= m_thd->binlog_get_pending_rows_event(true))
+    auto *cache_mngr= m_thd->binlog_get_cache_mngr();
+    if (auto* ev= binlog_get_pending_rows_event(cache_mngr, true))
     {
       pending_rows_event_length= ev->get_data_size();
     }
@@ -357,19 +356,34 @@ void Wsrep_client_service::debug_crash(const char* crash_point)
 int Wsrep_client_service::bf_rollback()
 {
   DBUG_ASSERT(m_thd == current_thd);
-  DBUG_ENTER("Wsrep_client_service::rollback");
+  DBUG_ENTER("Wsrep_client_service::bf_rollback");
 
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
-  if (m_thd->locked_tables_mode && m_thd->lock)
+
+  WSREP_DEBUG("::bf_rollback() thread: %lu, client_state %s "
+              "client_mode %s trans_state %s killed %d",
+              thd_get_thread_id(m_thd),
+              wsrep_thd_client_state_str(m_thd),
+              wsrep_thd_client_mode_str(m_thd),
+              wsrep_thd_transaction_state_str(m_thd),
+              m_thd->killed);
+
+  /* If client is quiting all below will be done in THD::cleanup()
+     TODO: why we need this any other case?  */
+  if (m_thd->wsrep_cs().state() != wsrep::client_state::s_quitting)
   {
-    m_thd->locked_tables_list.unlock_locked_tables(m_thd);
-    m_thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
+    if (m_thd->locked_tables_mode && m_thd->lock)
+    {
+      if (m_thd->locked_tables_list.unlock_locked_tables(m_thd))
+        ret= 1;
+      m_thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
+    }
+    if (m_thd->global_read_lock.is_acquired())
+    {
+      m_thd->global_read_lock.unlock_global_read_lock(m_thd);
+    }
+    m_thd->release_transactional_locks();
   }
-  if (m_thd->global_read_lock.is_acquired())
-  {
-    m_thd->global_read_lock.unlock_global_read_lock(m_thd);
-  }
-  m_thd->release_transactional_locks();
 
   DBUG_RETURN(ret);
 }

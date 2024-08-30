@@ -175,13 +175,13 @@ default(a) = now()
 1
 drop view v1, v2;
 drop table t1;
-create table t1 (v1 timestamp) select 'x';
+create table t1 (v1 timestamp not null default now() on update now()) select 'x';
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `v1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `x` varchar(1) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `x` varchar(1) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select default(v1) from (select v1 from t1) dt;
 default(v1)
 2001-01-01 10:20:30

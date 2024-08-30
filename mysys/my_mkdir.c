@@ -18,7 +18,7 @@
 #include "mysys_err.h"
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifdef __WIN__
+#ifdef _WIN32
 #include <direct.h>
 #endif
 
@@ -26,15 +26,20 @@ int my_mkdir(const char *dir, int Flags, myf MyFlags)
 {
   DBUG_ENTER("my_dir");
   DBUG_PRINT("enter",("dir: %s",dir));
-
-#if  defined(__WIN__)
-  if (mkdir((char*) dir))
+#ifdef _WIN32
+  LPSECURITY_ATTRIBUTES attr =
+    my_dir_security_attributes.lpSecurityDescriptor?
+    &my_dir_security_attributes : NULL;
+  BOOL ok = CreateDirectory(dir, attr);
+  if (!ok)
+  {
+    my_osmaperr(GetLastError());
 #else
   if (mkdir((char*) dir, Flags & my_umask_dir))
-#endif
   {
+#endif
     my_errno=errno;
-    DBUG_PRINT("error",("error %d when creating direcory %s",my_errno,dir));
+    DBUG_PRINT("error",("error %d when creating directory %s",my_errno,dir));
     if (MyFlags & (MY_FFNF | MY_FAE | MY_WME))
       my_error(EE_CANT_MKDIR,  MYF(ME_BELL), dir, my_errno);
     DBUG_RETURN(-1);

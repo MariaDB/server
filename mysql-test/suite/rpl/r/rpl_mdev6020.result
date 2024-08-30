@@ -1,5 +1,8 @@
 include/master-slave.inc
 [connection master]
+connection master;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+connection slave;
 connection slave;
 include/stop_slave.inc
 connection master;
@@ -13,7 +16,7 @@ SET @old_engine= @@GLOBAL.default_storage_engine;
 SET GLOBAL default_storage_engine=InnoDB;
 SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=12;
-CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4;
+CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
 include/start_slave.inc
 connection master;
 SET SQL_LOG_BIN=0;
@@ -50,6 +53,8 @@ DROP TABLE table1_key_pk_parts_2_int_autoinc;
 DROP TABLE table2_int_autoinc;
 DROP TABLE table2_key_pk_parts_2_int_autoinc;
 SET sql_log_bin=1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 include/start_slave.inc
 connection master;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 include/rpl_end.inc

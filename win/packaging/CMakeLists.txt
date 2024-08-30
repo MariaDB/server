@@ -13,95 +13,99 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
 
-IF(NOT WIN32)
-  RETURN()
+SET(CAN_BUILD_MSI 1)
+MACRO(CANT_BUILD_MSI reason)
+  IF(BUILD_RELEASE)
+    MESSAGE(FATAL_ERROR "Can't build MSI package - ${reason}")
+  ENDIF()
+  SET(CAN_BUILD_MSI 0)
+ENDMACRO()
+
+IF (NOT CMAKE_C_COMPILER_ARCHITECTURE_ID)
+  CANT_BUILD_MSI("Can't determine compiler architecture")
 ENDIF()
 
-IF(MSVC_VERSION LESS 1600)
- RETURN()
-ENDIF()
 
-SET(MANUFACTURER "MariaDB Corporation Ab")
+STRING(TOLOWER "${CMAKE_C_COMPILER_ARCHITECTURE_ID}" WIX_ARCH)
+
 SET(WIX_BIN_PATHS)
-FOREACH(WIX_VER 3.9 3.10 3.11)
+FOREACH(WIX_VER 3.14 3.13 3.12 3.11)
   LIST(APPEND WIX_BIN_PATHS "$ENV{ProgramFiles}/WiX Toolset v${WIX_VER}/bin")
   LIST(APPEND WIX_BIN_PATHS "$ENV{ProgramFiles} (x86)/WiX Toolset v${WIX_VER}/bin")
 ENDFOREACH()
-
 FIND_PATH(WIX_DIR heat.exe ${WIX_BIN_PATHS})
-SET(CPACK_WIX_PACKAGE_BASE_NAME "MariaDB")
-IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
- SET(CPACK_WIX_UPGRADE_CODE "49EB7A6A-1CEF-4A1E-9E89-B9A4993963E3")
- SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION}")
-ELSE()
- SET(CPACK_WIX_UPGRADE_CODE "2331E7BD-EE58-431B-9E18-B2B918BCEB1B")
- SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION} (x64)")
-ENDIF()
-
-IF(WIX_DIR)
-IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  SET(WIX_ARCH_SUFFIX "x64")
-ELSE()
-  SET(WIX_ARCH_SUFFIX "x86")
-ENDIF()
-# Need some Wix SDK libraries to link with customaction
-IF(MSVC_VERSION EQUAL 1600 OR MSVC_VERSION EQUAL 1700 )
-  SET(WIX_MSVC_SUFFIX "VS2010")
-ELSEIF(MSVC_VERSION EQUAL 1800)
-  SET(WIX_MSVC_SUFFIX "VS2013")
-ELSE()
-  SET(WIX_MSVC_SUFFIX "VS2015")
+IF(NOT WIX_DIR)
+  CANT_BUILD_MSI("WiX version 3.11 or later not found")
 ENDIF()
 
 
-FIND_LIBRARY(WIX_WCAUTIL_LIBRARY 
-  NAMES wcautil${WIX_ARCH_SUFFIX}  wcautil${WIX_MSVC_SUFFIX}${WIX_ARCH_SUFFIX}
+GET_FILENAME_COMPONENT(WIX_SDK_DIR  ../SDK/ ABSOLUTE BASE_DIR ${WIX_DIR} CACHE)
+FIND_LIBRARY(WIX_WCAUTIL_LIBRARY
   wcautil
-  PATHS 
-  ${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/lib/${WIX_ARCH_SUFFIX}
+  PATHS
+  ${WIX_SDK_DIR}/VS2017/lib/${WIX_ARCH}
+  ${WIX_SDK_DIR}/VS2015/lib/${WIX_ARCH}
   )
+
+IF(NOT WIX_WCAUTIL_LIBRARY)
+  CANT_BUILD_MSI("wcautil.lib not found for ${WIX_ARCH}")
+ENDIF()
 
 FIND_LIBRARY(WIX_DUTIL_LIBRARY 
-  NAMES dutil${WIX_ARCH_SUFFIX} 
   dutil
   PATHS 
-  ${WIX_DIR}/../SDK/${WIX_MSVC_SUFFIX}/lib/${WIX_ARCH_SUFFIX}
+  ${WIX_SDK_DIR}/VS2017/lib/${WIX_ARCH}
+  ${WIX_SDK_DIR}/VS2015/lib/${WIX_ARCH}
   )
-ENDIF()
 
 IF(NOT WIX_DUTIL_LIBRARY)
-  MESSAGE(STATUS "Cannot find wix 3, installer project will not be generated")
-  IF(BUILD_RELEASE)
-      MESSAGE(FATAL_ERROR
-        "Can't find Wix. It is necessary for producing official package")
-  ENDIF()
-  RETURN()
+  CANT_BUILD_MSI("dutil.lib not found for ${WIX_ARCH}")
 ENDIF()
 
-ADD_SUBDIRECTORY(ca)
+FIND_PATH(WIX_INCLUDE_DIR
+  wcautil.h PATHS
+  ${WIX_SDK_DIR}/VS2017/inc
+  ${WIX_SDK_DIR}/VS2015/inc
+  ${WIX_SDK_DIR}/inc)
 
-# extra.wxs.in needs DATADIR_MYSQL_FILES and DATADIR_PERFORMANCE_SCHEMA_FILES, i.e
-# Wix-compatible file lists for ${builddir}\sql\data\{mysql,performance_schema}
-
-FOREACH(dir mysql performance_schema)
- FILE(GLOB files ${CMAKE_BINARY_DIR}/sql/data/${dir}/*)
- SET(filelist)
- FOREACH(f ${files})
-   IF(NOT f MATCHES ".rule")
-   FILE(TO_NATIVE_PATH "${f}" file_native_path)
-   GET_FILENAME_COMPONENT(file_name "${f}" NAME)
-   SET(filelist 
-"${filelist}
-<File Id='${file_name}' Source='${file_native_path}'/>")
-   ENDIF()
- ENDFOREACH()
- STRING(TOUPPER ${dir} DIR_UPPER)
- SET(DATADIR_${DIR_UPPER}_FILES "${filelist}")
-ENDFOREACH()
-
+IF(NOT WIX_INCLUDE_DIR)
+  CANT_BUILD_MSI("wcautil.h  not found for ${WIX_ARCH}")
+ENDIF()
 
 FIND_PROGRAM(CANDLE_EXECUTABLE candle ${WIX_DIR})
+IF(NOT CANDLE_EXECUTABLE)
+  CANT_BUILD_MSI("candle.exe not found")
+ENDIF()
+
 FIND_PROGRAM(LIGHT_EXECUTABLE light ${WIX_DIR})
+IF(NOT LIGHT_EXECUTABLE)
+  CANT_BUILD_MSI("light.exe not found")
+ENDIF()
+
+SET(CPACK_WIX_PACKAGE_BASE_NAME "MariaDB")
+
+SET(CPACK_WIX_UPGRADE_CODE_arm64 "5AA9B79C-643C-4151-811D-B6845AA5DB28")
+SET(CPACK_WIX_UPGRADE_CODE_x86 "49EB7A6A-1CEF-4A1E-9E89-B9A4993963E3")
+SET(CPACK_WIX_UPGRADE_CODE_x64 "2331E7BD-EE58-431B-9E18-B2B918BCEB1B")
+
+SET(CPACK_WIX_UPGRADE_CODE ${CPACK_WIX_UPGRADE_CODE_${WIX_ARCH}})
+IF(NOT CPACK_WIX_UPGRADE_CODE)
+  MESSAGE_ONCE("unknown upgrade code for arch ${WIX_ARCH}")
+  CANT_BUILD_MSI("unknown upgrade code for arch ${WIX_ARCH}")
+ENDIF()
+
+IF(WIX_ARCH STREQUAL "x86")
+ SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION}")
+ELSE()
+ SET(CPACK_WIX_PACKAGE_NAME "MariaDB ${MAJOR_VERSION}.${MINOR_VERSION} (${WIX_ARCH})")
+ENDIF()
+
+IF(CAN_BUILD_MSI)
+
+ADD_SUBDIRECTORY(ca)
+SET(MANUFACTURER "MariaDB Corporation Ab")
+
+
 
 # WiX wants the license text as rtf; if there is no rtf license, 
 # we create a fake one from the plain text COPYING file.
@@ -123,7 +127,7 @@ ELSE()
 ENDIF()
 SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
 
-IF(NOT TARGET mysql_upgrade_wizard)
+IF(NOT TARGET mariadb-upgrade-wizard)
   SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
 ENDIF()
 IF(WITH_INNOBASE_STORAGE_ENGINE)
@@ -161,41 +165,10 @@ IF(THIRD_PARTY_FEATURE_CONDITION)
   SET(THIRD_PARTY_FEATURE_CONDITION "${THIRD_PARTY_FEATURE_CONDITION}</Condition>")
 ENDIF()
 
-IF(NOT CPACK_WIX_UI)
-  SET(CPACK_WIX_UI "MyWixUI_Mondo")
-ENDIF()
-
-IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
-  SET(WixWin64 " Win64='yes'")
-ELSE()
-  SET(WixWin64)
-ENDIF()
-
-
 IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
 ENDIF()
 
-IF(MSVC_CRT_TYPE MATCHES "/MD" AND (NOT VCRedist_MSM))
-  # Find out CRT merge module path, we're going to use it in installer
-
-  # merge module file name depends on MSVC version.
-  MATH(EXPR VC_CRT_VER  "(${MSVC_VERSION} - 1900)/10 + 140")
-  SET(VCREDIST_MSM_FILENAME Microsoft_VC${VC_CRT_VER}_CRT_${WIX_ARCH_SUFFIX}.msm)
-
-  FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/*/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-  LIST(LENGTH MSM_LIST LEN)
-  IF(LEN GREATER 0)
-    LIST(GET MSM_LIST 0 VCRedist_MSM_Location)
-  ENDIF()
-  IF (NOT VCRedist_MSM_Location)
-    MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
-  ELSE()
-    FILE(TO_NATIVE_PATH  ${VCRedist_MSM_Location} VCRedist_MSM_Location)
-    SET(VCRedist_MSM "${VCRedist_MSM_Location}" CACHE INTERNAL "Location of redistributable merge module")
-    # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
-  ENDIF()
-ENDIF()
 
 ADD_CUSTOM_TARGET(
   MSI
@@ -228,11 +201,13 @@ ADD_CUSTOM_TARGET(
     -DWITH_THIRD_PARTY="${WITH_THIRD_PARTY}"
     -DWIXCA_LOCATION="$<TARGET_FILE:wixca>"
     -DMSVC_CRT_TYPE="${MSVC_CRT_TYPE}"
-    -DVCRedist_MSM="${VCRedist_MSM}"
+    -DDYNAMIC_UCRT_LINK="${DYNAMIC_UCRT_LINK}"
+    -DPlatform="${WIX_ARCH}"
     -P  ${CMAKE_CURRENT_SOURCE_DIR}/create_msi.cmake
 )
 ADD_DEPENDENCIES(MSI wixca)
 
+ENDIF(CAN_BUILD_MSI)
 
 IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CPACK_CONFIG_PARAM -C $(Configuration))

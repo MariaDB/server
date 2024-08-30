@@ -1,0 +1,71 @@
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+--source include/count_sessions.inc
+
+# Purge can cause deadlock in the test, requesting page's RW_X_LATCH for trx
+# ids reseting, after trx 2 acqured RW_S_LATCH and suspended in debug sync point
+# lock_trx_handle_wait_enter, waiting for upd_cont signal, which must be
+# emitted after the last SELECT in this test. The last SELECT will hang waiting
+# for purge RW_X_LATCH releasing, and trx 2 will be rolled back by timeout.
+
+# There is deadlock_report_before_lock_releasing sync point in
+# Deadlock::report(), which is waiting for sel_cont signal under
+# lock_sys_t lock. The signal must be issued after "UPDATE t SET b = 100"
+# rollback, and that rollback is executing undo record, which is blocked on
+# dict_sys latch request. dict_sys is locked by the thread of statistics
+# update(dict_stats_save()), and during that update lock_sys lock is requested,
+# and can't be acquired as Deadlock::report() holds it. We have to disable
+# statistics update to make the test stable.
+
+CREATE TABLE t (a int PRIMARY KEY, b int) engine = InnoDB STATS_PERSISTENT=0;
+CREATE TABLE t2 (a int PRIMARY KEY) engine = InnoDB STATS_PERSISTENT=0;
+
+INSERT INTO t VALUES (10, 10), (20, 20), (30, 30);
+INSERT INTO t2 VALUES (10), (20), (30);
+
+BEGIN; # trx 1
+# The following update is necessary to increase the transaction weight, which is
+# calculated as the number of locks + the number of undo records during deadlock
+# report. Victim's transaction should have minimum weight. We need trx 2 to be
+# choosen as victim, that's why we need to increase the current transaction
+# weight.
+UPDATE t2 SET a = a + 100;
+SELECT * FROM t WHERE a = 20 FOR UPDATE;
+
+--connect(con_2,localhost,root,,)
+# RC is necessary to do semi-consistent read
+SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
+# It will be hit on trying to lock (20,20).
+SET DEBUG_SYNC = 'lock_trx_handle_wait_enter SIGNAL upd_locked WAIT_FOR upd_cont';
+SET DEBUG_SYNC = 'trx_t_release_locks_enter SIGNAL sel_cont WAIT_FOR upd_cont_2';
+BEGIN; # trx 2
+# We must not modify primary key fields to cause rr_sequential() read record
+# function choosing in mysql_update(), i.e. both query_plan.using_filesort and
+# query_plan.using_io_buffer must be false during init_read_record() call.
+# The following UPDATE will be chosen as deadlock victim and rolled back.
+--send UPDATE t SET b = 100
+
+--connection default
+SET DEBUG_SYNC="now WAIT_FOR upd_locked";
+SET DEBUG_SYNC="deadlock_report_before_lock_releasing SIGNAL upd_cont WAIT_FOR sel_cont";
+SET DEBUG_SYNC="lock_wait_before_suspend SIGNAL sel_before_suspend";
+# If the bug is not fixed, the following SELECT will crash, as the above UPDATE
+# will reset trx->lock.wait_thr during rollback
+--send SELECT * FROM t WHERE a = 10 FOR UPDATE;
+
+--connect(con_3,localhost,root,,)
+SET DEBUG_SYNC="now WAIT_FOR sel_before_suspend";
+SET DEBUG_SYNC="now SIGNAL upd_cont_2";
+--disconnect con_3
+
+--connection con_2
+--error ER_LOCK_DEADLOCK
+--reap
+--disconnect con_2
+
+--connection default
+--reap
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t;
+DROP TABLE t2;
+--source include/wait_until_count_sessions.inc

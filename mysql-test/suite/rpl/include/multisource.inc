@@ -17,6 +17,7 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/have_perfschema.inc
 --source include/binlog_start_pos.inc
 --let $rpl_server_count= 0
 
@@ -37,7 +38,8 @@ change master 'abc2' to master_host='';
 eval change master 'master1' to 
 master_port=$SERVER_MYPORT_1, 
 master_host='127.0.0.1', 
-master_user='root';
+master_user='root',
+master_ssl_verify_server_cert=0;
 
 start slave 'master1';
 set default_master_connection = 'master1';
@@ -158,7 +160,9 @@ set default_master_connection = '';
 eval change master to
 master_port=$SERVER_MYPORT_2,
 master_host='127.0.0.1',
-master_user='root';
+master_user='root',
+master_ssl_verify_server_cert=0,
+master_use_gtid=no;
 
 start slave;
 --source include/wait_for_slave_to_start.inc
@@ -262,6 +266,12 @@ let $condition= = 'Waiting for master to send event';
 --source include/show_slave_status.inc
 --let $all_slaves_status=
 --echo #
+
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 2 #
+query_vertical SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
 
 --sorted_result
 select * from db1.t1;

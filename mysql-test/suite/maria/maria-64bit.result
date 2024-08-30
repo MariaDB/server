@@ -1,4 +1,6 @@
 set session storage_engine=aria;
+Warnings:
+Warning	1287	'@@storage_engine' is deprecated and will be removed in a future release. Please use '@@default_storage_engine' instead
 #
 # BUG#47444 - --myisam_repair_threads > 1 can result in all index
 #             cardinalities=1
@@ -33,9 +35,6 @@ INSERT INTO t1 select seq,'0' from seq_1_to_65536;
 SET aria_sort_buffer_size=16384;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	aria_sort_buffer_size is too small. X
-test.t1	repair	error	Create index by sort failed
-test.t1	repair	info	Retrying repair with keycache
 test.t1	repair	status	OK
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
@@ -43,9 +42,6 @@ test.t1	check	status	OK
 SET aria_repair_threads=2;
 REPAIR TABLE t1;
 Table	Op	Msg_type	Msg_text
-test.t1	repair	error	aria_sort_buffer_size is too small. X
-test.t1	repair	error	Create index by sort failed
-test.t1	repair	info	Retrying repair with keycache
 test.t1	repair	status	OK
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text

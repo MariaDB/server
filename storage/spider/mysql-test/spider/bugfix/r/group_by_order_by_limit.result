@@ -36,6 +36,11 @@ skey int NOT NULL,
 PRIMARY KEY (pkey),
 KEY idx1 (skey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey,skey) VALUES (0,0),(1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9);
 INSERT INTO tbl_a (pkey,skey) VALUES (10,10),(11,11),(12,12),(13,13),(14,14),(15,15),(16,16),(17,17),(18,18),(19,19);
 INSERT INTO tbl_a (pkey,skey) VALUES (20,5),(21,6),(22,7),(23,8),(24,9),(25,10),(26,11),(27,12),(28,13),(29,14);
@@ -46,6 +51,11 @@ TRUNCATE TABLE mysql.general_log;
 connection child2_2;
 TRUNCATE TABLE mysql.general_log;
 connection master_1;
+set @old_spider_direct_aggregate=@@session.spider_direct_aggregate;
+set spider_direct_aggregate=1;
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	0
 SELECT skey, count(*) cnt FROM tbl_a GROUP BY skey ORDER BY cnt DESC, skey DESC LIMIT 5;
 skey	cnt
 14	2
@@ -53,11 +63,15 @@ skey	cnt
 12	2
 11	2
 10	2
+SHOW STATUS LIKE 'Spider_direct_aggregate';
+Variable_name	Value
+Spider_direct_aggregate	60
+set spider_direct_aggregate=@old_spider_direct_aggregate;
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(0),`skey` from `auto_test_remote`.`tbl_a` group by `skey` order by `skey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 1	1
@@ -76,10 +90,10 @@ pkey	skey
 27	12
 29	14
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(0),`skey` from `auto_test_remote2`.`tbl_a` group by `skey` order by `skey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 0	0

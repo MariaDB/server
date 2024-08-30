@@ -304,9 +304,7 @@ create user 'mysqltest_1'@'localhost' identified by 'password';
 grant select, show view on db1.`a` to 'mysqltest_1'@'localhost';
 grant select, show view on db1.`B` to 'mysqltest_1'@'localhost';
 
-connect (conn1, localhost, mysqltest_1, password, test);
-connection conn1;
-use db1;
+connect (conn1, localhost, mysqltest_1, password, db1);
 show tables;
 
 connection default;
@@ -330,3 +328,82 @@ ALTER DATABASE Db1 DEFAULT CHARACTER SET utf8;
 SHOW CREATE DATABASE Db1;
 SHOW CREATE DATABASE db1;
 DROP DATABASE Db1;
+USE test;
+
+--echo #
+--echo # End of 10.4 tests
+--echo #
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-33110 HANDLER commands are case insensitive with lower-case-table-names=0
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE PACKAGE test.pkg AS
+END TEST.PKG;
+$$
+DELIMITER ;$$
+DROP PACKAGE test.pkg;
+SET sql_mode=DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-32973 SHOW TABLES LIKE shows temporary tables with non-matching names
+--echo #
+# temp tables don't preserve the letter case despite lower-case-table-names=2
+create temporary table t2 (a int);
+create temporary table T1 (a int);
+show tables;
+show tables like 't1';
+show tables like 'T1';
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='t1';
+select table_name from information_schema.tables where table_schema='test'
+  and table_name='T1';
+show tables like '_1';
+show tables like 't%';
+drop temporary table t2, T1;
+
+--echo #
+--echo # End of 11.2 tests
+--echo #
+
+
+--echo #
+--echo # Start of 11.3 tests
+--echo #
+
+--echo #
+--echo # MDEV-32026 lowercase_table2.test failures in 11.3
+--echo #
+
+CREATE DATABASE Db1;
+SHOW CREATE DATABASE Db1;
+USE Db1;
+SELECT DATABASE();
+DROP DATABASE Db1;
+
+CREATE DATABASE Db1;
+CREATE FUNCTION Db1.f1() RETURNS INT RETURN 10;
+CREATE FUNCTION db1.f2() RETURNS INT RETURN 10;
+SELECT db, name FROM mysql.proc WHERE name LIKE '^f[12]';
+SELECT Db1.f1();
+SELECT db1.f2();
+DROP DATABASE Db1;
+
+--echo #
+--echo # End of 11.3 tests
+--echo #

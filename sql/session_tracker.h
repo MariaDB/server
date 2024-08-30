@@ -19,12 +19,14 @@
 
 #include "m_string.h"
 #include "thr_lock.h"
+#include "sql_hset.h"
 
 #ifndef EMBEDDED_LIBRARY
 /* forward declarations */
 class THD;
 class set_var;
 class String;
+class user_var_entry;
 
 
 enum enum_session_tracker
@@ -33,6 +35,9 @@ enum enum_session_tracker
   CURRENT_SCHEMA_TRACKER,                        /* Current schema */
   SESSION_STATE_CHANGE_TRACKER,
   TRANSACTION_INFO_TRACKER,                      /* Transaction state */
+#ifdef USER_VAR_TRACKING
+  USER_VARIABLES_TRACKER,
+#endif // USER_VAR_TRACKING
   SESSION_TRACKER_END                            /* must be the last */
 };
 
@@ -65,6 +70,8 @@ protected:
     variable
   */
   bool m_enabled;
+
+  void set_changed(THD *thd);
 
 private:
   /** Has the session state type changed ? */
@@ -102,7 +109,7 @@ public:
   virtual bool store(THD *thd, String *buf)= 0;
 
   /** Mark the entity as changed. */
-  virtual void mark_as_changed(THD *thd, LEX_CSTRING *name);
+  void mark_as_changed(THD *thd) { if (is_enabled()) set_changed(thd); }
 };
 
 
@@ -137,10 +144,9 @@ class Session_sysvars_tracker: public State_tracker
     bool track_all;
     void init()
     {
-      my_hash_init(&m_registered_sysvars, &my_charset_bin, 0, 0, 0,
-                   (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?
-                                  HASH_THREAD_SPECIFIC : 0));
+      my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
+                   0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
+                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
     }
     void free_hash()
     {
@@ -148,24 +154,19 @@ class Session_sysvars_tracker: public State_tracker
       my_hash_free(&m_registered_sysvars);
     }
 
-    sysvar_node_st *search(const sys_var *svar)
-    {
-      return reinterpret_cast<sysvar_node_st*>(
-               my_hash_search(&m_registered_sysvars,
-                             reinterpret_cast<const uchar*>(&svar),
-                             sizeof(sys_var*)));
-    }
+    sysvar_node_st *search(const sys_var *svar);
+  public:
+    vars_list(): track_all(false) { init(); }
+    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
+    void deinit() { free_hash(); }
 
+    ulong size() { return m_registered_sysvars.records; }
     sysvar_node_st *at(ulong i)
     {
       DBUG_ASSERT(i < m_registered_sysvars.records);
       return reinterpret_cast<sysvar_node_st*>(
                my_hash_element(&m_registered_sysvars, i));
     }
-  public:
-    vars_list(): track_all(false) { init(); }
-    ~vars_list() { if (my_hash_inited(&m_registered_sysvars)) free_hash(); }
-    void deinit() { free_hash(); }
 
     sysvar_node_st *insert_or_search(const sys_var *svar)
     {
@@ -200,14 +201,16 @@ class Session_sysvars_tracker: public State_tracker
   */
   vars_list orig_list;
   bool m_parsed;
+  void maybe_parse_all(THD *thd);
 
 public:
   void init(THD *thd);
   void deinit(THD *thd);
-  bool enable(THD *thd);
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
-  void mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name);
+  bool enable(THD *thd) override;
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
+  void mark_as_changed(THD *thd, const sys_var *var);
+  void mark_all_as_changed(THD *thd);
   void deinit() { orig_list.deinit(); }
   /* callback */
   static uchar *sysvars_get_key(const char *entry, size_t *length,
@@ -231,8 +234,8 @@ bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 class Current_schema_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -253,8 +256,8 @@ public:
 class Session_state_change_tracker: public State_tracker
 {
 public:
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 };
 
 
@@ -284,9 +287,9 @@ enum enum_tx_state {
   Transaction access mode
 */
 enum enum_tx_read_flags {
-  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.tx_read_only
-  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or tx_read_only=1
-  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or tx_read_only=0
+  TX_READ_INHERIT =   0,  ///< not explicitly set, inherit session.transaction_read_only
+  TX_READ_ONLY    =   1,  ///< START TRANSACTION READ ONLY,  or transaction_read_only=1
+  TX_READ_WRITE   =   2,  ///< START TRANSACTION READ WRITE, or transaction_read_only=0
 };
 
 
@@ -294,7 +297,7 @@ enum enum_tx_read_flags {
   Transaction isolation level
 */
 enum enum_tx_isol_level {
-  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.tx_isolation
+  TX_ISOL_INHERIT     = 0, ///< not explicitly set, inherit session.transaction_isolation
   TX_ISOL_UNCOMMITTED = 1,
   TX_ISOL_COMMITTED   = 2,
   TX_ISOL_REPEATABLE  = 3,
@@ -323,7 +326,7 @@ class Transaction_state_tracker : public State_tracker
   enum_tx_state calc_trx_state(THD *thd, thr_lock_type l, bool has_trx);
 public:
 
-  bool enable(THD *thd)
+  bool enable(THD *thd) override
   {
     m_enabled= false;
     tx_changed= TX_CHG_NONE;
@@ -334,8 +337,8 @@ public:
     return State_tracker::enable(thd);
   }
 
-  bool update(THD *thd, set_var *var);
-  bool store(THD *thd, String *buf);
+  bool update(THD *thd, set_var *var) override;
+  bool store(THD *thd, String *buf) override;
 
   /** Change transaction characteristics */
   void set_read_flags(THD *thd, enum enum_tx_read_flags flags);
@@ -376,15 +379,43 @@ private:
     tx_changed &= uint(~TX_CHG_STATE);
     tx_changed |= (tx_curr_state != tx_reported_state) ? TX_CHG_STATE : 0;
     if (tx_changed != TX_CHG_NONE)
-      mark_as_changed(thd, NULL);
+      set_changed(thd);
   }
 };
 
 #define TRANSACT_TRACKER(X) \
  do { if (thd->variables.session_track_transaction_info > TX_TRACK_NONE) \
         thd->session_tracker.transaction_info.X; } while(0)
-#define SESSION_TRACKER_CHANGED(A,B,C) \
-  thd->session_tracker.mark_as_changed(A,B,C)
+
+
+/**
+  User_variables_tracker
+
+  This is a tracker class that enables & manages the tracking of user variables.
+*/
+
+#ifdef USER_VAR_TRACKING
+class User_variables_tracker: public State_tracker
+{
+  Hash_set<const user_var_entry> m_changed_user_variables;
+public:
+  User_variables_tracker():
+    m_changed_user_variables(PSI_INSTRUMENT_ME, &my_charset_bin, 0, 0,
+                             sizeof(const user_var_entry*), 0, 0, HASH_UNIQUE |
+                             mysqld_server_initialized ? HASH_THREAD_SPECIFIC : 0) {}
+  bool update(THD *thd, set_var *var);
+  bool store(THD *thd, String *buf);
+  void mark_as_changed(THD *thd, const user_var_entry *var)
+  {
+    if (is_enabled())
+    {
+      m_changed_user_variables.insert(var);
+      set_changed(thd);
+    }
+  }
+  void deinit() { m_changed_user_variables.~Hash_set(); }
+};
+#endif // USER_VAR_TRACKING
 
 
 /**
@@ -415,6 +446,9 @@ public:
   Session_state_change_tracker state_change;
   Transaction_state_tracker transaction_info;
   Session_sysvars_tracker sysvars;
+#ifdef USER_VAR_TRACKING
+  User_variables_tracker user_variables;
+#endif // USER_VAR_TRACKING
 
   Session_tracker()
   {
@@ -422,6 +456,9 @@ public:
     m_trackers[CURRENT_SCHEMA_TRACKER]= &current_schema;
     m_trackers[SESSION_STATE_CHANGE_TRACKER]= &state_change;
     m_trackers[TRANSACTION_INFO_TRACKER]= &transaction_info;
+#ifdef USER_VAR_TRACKING
+    m_trackers[USER_VARIABLES_TRACKER]= &user_variables;
+#endif // USER_VAR_TRACKING
   }
 
   void enable(THD *thd)
@@ -429,14 +466,6 @@ public:
     for (int i= 0; i < SESSION_TRACKER_END; i++)
       m_trackers[i]->enable(thd);
   }
-
-  inline void mark_as_changed(THD *thd, enum enum_session_tracker tracker,
-                              LEX_CSTRING *data)
-  {
-    if (m_trackers[tracker]->is_enabled())
-      m_trackers[tracker]->mark_as_changed(thd, data);
-  }
-
 
   void store(THD *thd, String *main_buf);
 };
@@ -446,7 +475,20 @@ int session_tracker_init();
 #else
 
 #define TRANSACT_TRACKER(X) do{}while(0)
-#define SESSION_TRACKER_CHANGED(A,B,C) do{}while(0)
+
+class Session_tracker
+{
+  class Dummy_tracker
+  {
+  public:
+    void mark_as_changed(THD *thd) {}
+    void mark_as_changed(THD *thd, const sys_var *var) {}
+  };
+public:
+  Dummy_tracker current_schema;
+  Dummy_tracker state_change;
+  Dummy_tracker sysvars;
+};
 
 #endif //EMBEDDED_LIBRARY
 

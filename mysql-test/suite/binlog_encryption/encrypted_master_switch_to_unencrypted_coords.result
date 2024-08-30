@@ -5,6 +5,11 @@ include/rpl_init.inc [topology=1->2]
 connection server_2;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection server_1;
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
 #####################################################
 # Part 1: unencrypted master
 #####################################################
@@ -64,7 +69,9 @@ SHOW TABLES;
 Tables_in_test
 table1_no_encryption
 include/stop_slave_sql.inc
-reset slave;
+include/reset_slave.inc
+Warnings:
+Note	4190	RESET SLAVE is implicitly changing the value of 'Using_Gtid' from 'No' to 'Slave_Pos'
 ##########
 # Cleanup
 ##########

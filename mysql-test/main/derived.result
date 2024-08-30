@@ -1,4 +1,5 @@
 drop table if exists t1,t2,t3;
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @save_derived_optimizer_switch=@@optimizer_switch;
 set optimizer_switch='derived_merge=off,derived_with_keys=off';
 select * from (select 2 from DUAL) b;
@@ -205,6 +206,7 @@ SELECT a.x FROM (SELECT 1 AS x) AS a HAVING a.x = 1;
 x
 1
 create user mysqltest_1;
+grant all on test.* to mysqltest_1;
 create table t1 select 1 as a;
 connect  con1,localhost,mysqltest_1,,*NO-ONE*,$MASTER_MYPORT,$MASTER_MYSOCK;
 connection con1;
@@ -324,11 +326,11 @@ create table t2 (a int, b int, primary key (a));
 insert into t2 values (1,7),(2,7);
 explain select a from t2 where a>1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
 explain select a from (select a from t2 where a>1) tt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t2	index	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index
+2	DERIVED	t2	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
 drop table t2;
 CREATE TABLE `t1` ( `itemid` int(11) NOT NULL default '0', `grpid` varchar(15) NOT NULL default '', `vendor` int(11) NOT NULL default '0', `date_` date NOT NULL default '0000-00-00', `price` decimal(12,2) NOT NULL default '0.00', PRIMARY KEY  (`itemid`,`grpid`,`vendor`,`date_`), KEY `itemid` (`itemid`,`vendor`), KEY `itemid_2` (`itemid`,`date_`));
 insert into t1 values (128, 'rozn', 2, curdate(), 10),
@@ -369,6 +371,15 @@ a
 2
 3
 3
+set @save2_derived_optimizer_switch_bug=@@optimizer_switch;
+set @@optimizer_switch=default;
+select * from (select * from t1 union distinct select * from t2 union all select * from t3) X;
+a
+1
+2
+3
+3
+set @@optimizer_switch=@save2_derived_optimizer_switch_bug;
 drop table t1, t2, t3;
 create table t1 (a int);
 create table t2 (a int);
@@ -638,7 +649,7 @@ SELECT f3 FROM t2 HAVING f3 >= 8
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	<derived2>	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	<subquery4>	eq_ref	distinct_key	distinct_key	4	const	1	100.00	
-1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	50.00	Using where; FirstMatch(<subquery4>); Using join buffer (flat, BNL join)
 4	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 2	DERIVED	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 Warnings:
@@ -1064,16 +1075,19 @@ INSERT INTO t2 VALUES (NULL),(NULL);
 CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
 INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+INSERT INTO t1 select seq from seq_1_to_1000;
+INSERT INTO t2 select seq+1000 from seq_1_to_1000;
+INSERT INTO t3 select 'qqq',seq+2000 from seq_1_to_1000;
 set @save_join_cache_level= @@join_cache_level;
 SET join_cache_level= 8;
 explain
 SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	
-1	PRIMARY	<derived3>	hash_ALL	NULL	#hash#$hj	3075	func	2	Using where; Using join buffer (flat, BNLH join)
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	1002	
+1	PRIMARY	<derived3>	hash_ALL	NULL	#hash#$hj	3075	func	1002	Using where; Using join buffer (flat, BNLH join)
 1	PRIMARY	t2	eq_ref	PRIMARY	PRIMARY	4	v3.d	1	Using index
-3	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	2	
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	2	
+3	DERIVED	t3	ALL	NULL	NULL	NULL	NULL	1002	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	1002	
 SELECT * FROM v1, t2, v3 WHERE a = c AND b = d;
 a	b	c	d
 DROP VIEW v1, v3;
@@ -1279,14 +1293,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 analyze select * from t1 , ((select distinct t2.a, t2.b from t2 order by c))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	1.00	100.00	100.00	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using temporary; Using filesort
 # multiple selects in derived table
 # NO UNION ALL
 analyze select * from t1 , ( (select t2.a from t2 order by c) union  (select t2.a from t2 order by c))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.00	100.00	100.00	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t1.a	1	1.00	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	6.00	NULL	NULL	
@@ -1302,7 +1316,7 @@ a	a
 analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except(select t3.a from t3 order by b))q  where t1.a=q.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
-1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	0.50	100.00	100.00	
+1	PRIMARY	<derived2>	eq_ref	distinct_key	distinct_key	5	test.t1.a	1	0.50	100.00	100.00	
 2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
 4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
@@ -1311,6 +1325,23 @@ select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a fr
 a	a
 3	3
 4	4
+6	6
+analyze select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	1	1.17	100.00	100.00	
+2	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+3	UNION	t2	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+4	EXCEPT	t3	ALL	NULL	NULL	NULL	NULL	6	6.00	100.00	100.00	
+NULL	UNIT RESULT	<unit2,3,4>	ALL	NULL	NULL	NULL	NULL	NULL	7.00	NULL	NULL	
+select * from t1 , ( (select t2.a from t2 order by c) union all (select  t2.a from t2 order by c) except ALL (select t3.a from t3 order by b))q  where t1.a=q.a;
+a	a
+3	3
+3	3
+4	4
+4	4
+5	5
+6	6
 6	6
 drop table t1,t2,t3;
 #
@@ -1352,3 +1383,484 @@ drop table t1,t2,t3;
 #
 # End of 10.3 tests
 #
+#
+# Test of "Derived tables and union can now create distinct keys"
+#
+create table t1 (a int);
+insert into t1 values (100),(100),(100),(100),(100),(100),(100),(100),(100),(100);
+create table duplicates_tbl (a int);
+insert into duplicates_tbl select seq/100 from seq_1_to_10000;
+explain
+select
+t1.a IN ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	MATERIALIZED	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
+3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
+select
+t1.a IN ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+A
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+explain
+select
+t1.a = all ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
+2	DEPENDENT SUBQUERY	<derived3>	ALL	NULL	NULL	NULL	NULL	10000	Using where
+3	DERIVED	duplicates_tbl	ALL	NULL	NULL	NULL	NULL	10000	
+select
+t1.a = all ( SELECT COUNT(*)
+from (select a
+from duplicates_tbl
+limit 10000
+) T
+where T.a=5
+) as 'A'
+from t1;
+A
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+drop table t1, duplicates_tbl;
+#
+# MDEV-30310
+# Assertion failure in best_access_path upon IN exceeding
+# IN_PREDICATE_CONVERSION_THRESHOLD, derived_with_keys=off
+#
+CREATE TABLE t1 (l_orderkey int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (o_orderkey int);
+INSERT INTO t2 VALUES (3),(4);
+SET IN_PREDICATE_CONVERSION_THRESHOLD= 2;
+SET OPTIMIZER_SWITCH='derived_with_keys=on';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+l_orderkey	o_orderkey
+SET OPTIMIZER_SWITCH='derived_with_keys=off';
+SELECT * FROM t1 JOIN t2 ON (l_orderkey = o_orderkey) WHERE l_orderkey IN (1, 2, 3);
+l_orderkey	o_orderkey
+SET @@IN_PREDICATE_CONVERSION_THRESHOLD=@@global.IN_PREDICATE_CONVERSION_THRESHOLD;
+SET @@OPTIMIZER_SWITCH=@@global.OPTIMIZER_SWITCH;
+DROP TABLE t1, t2;
+#
+# MDEV-30540 Wrong result with IN list length reaching
+# IN_PREDICATE_CONVERSION_THRESHOLD
+#
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 SELECT seq FROM seq_1_to_30;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SET IN_PREDICATE_CONVERSION_THRESHOLD=4;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+a
+1
+2
+SET IN_PREDICATE_CONVERSION_THRESHOLD=100;
+SELECT a FROM t1 WHERE a IN ( 1, 1, 2, 194 );
+a
+1
+2
+drop table t1;
+#
+# MDEV-31022: SIGSEGV in maria_create from create_internal_tmp_table
+# keydef incorrectly allocated on the stack in create_internal_tmp_table()
+#
+CREATE TABLE t1 (c CHAR(1) NULL) ENGINE=MyISAM;
+INSERT INTO t1 (c) VALUES (1);
+SET statement
+optimizer_where_cost=1,
+big_tables=1,
+in_predicate_conversion_threshold=2
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+c
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+SET statement
+optimizer_where_cost=1,
+big_tables=1,
+in_predicate_conversion_threshold=2,
+sql_mode=''
+FOR
+SELECT * FROM t1 WHERE c IN ('','');
+c
+Warnings:
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+DROP TABLE t1;
+#
+# End of 11.0 tests
+#
+#
+# MDEV-28883: single/multi-table UPDATE/DELETE whose WHERE condition
+#             contains subquery from mergeable derived table
+#             that uses the updated/deleted table
+#
+create table t1 (pk int, a int);
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	10
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1 set a = 10
+where a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	10
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+explain update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+prepare stmt from "update t1 set a = 10
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2";
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	10
+1	10
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+explain delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	3	Using where
+delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+prepare stmt from "delete from t1
+where a = ( select * from (select a from t1) dt where dt.a > 5)
+returning pk, a";
+execute stmt;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+pk	a
+4	9
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where; Using filesort
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2;
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1
+where a <> ( select * from (select a from t1) dt where dt.a > 7)
+order by a limit 2";
+execute stmt;
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+execute stmt;
+select * from t1;
+pk	a
+2	7
+4	9
+deallocate prepare stmt;
+create table t2 (pk int, a int);
+insert into t2 values (1,3), (2, 7), (3,1), (4,9);
+create table t3 (a int);
+insert into t3 VALUES (0),(1);
+explain update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
+update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+2	7
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "update t1,t3 set t1.a = 1
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+4	9
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+4	9
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+insert into t3 values (9), (10), (7);
+explain delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t1) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+explain delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	5	Using where
+2	SUBQUERY	t2	ALL	NULL	NULL	NULL	NULL	4	Using where
+delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7);
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 values (1,3), (2, 7), (3,1), (4,9);
+prepare stmt from "delete from t1 using t1,t3
+where t1.a=t3.a and
+t1.a = ( select * from (select a from t2) dt where dt.a > 7)";
+execute stmt;
+select * from t1;
+pk	a
+1	3
+2	7
+3	1
+delete from t1;
+insert into t1 value (4,9), (3,1), (1,3);
+execute stmt;
+select * from t1;
+pk	a
+3	1
+1	3
+deallocate prepare stmt;
+drop table t1,t2,t3;
+# End of MariaDB 11.1 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

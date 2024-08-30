@@ -581,36 +581,17 @@ NULL
 select from_unixtime(2147483647);
 from_unixtime(2147483647)
 2038-01-19 06:14:07
-select from_unixtime(2147483648);
-from_unixtime(2147483648)
-NULL
-Warnings:
-Warning	1292	Truncated incorrect unixtime value: '2147483648'
 select from_unixtime(0);
 from_unixtime(0)
 1970-01-01 03:00:00
 select unix_timestamp(from_unixtime(2147483647));
 unix_timestamp(from_unixtime(2147483647))
 2147483647
-select unix_timestamp(from_unixtime(2147483648));
-unix_timestamp(from_unixtime(2147483648))
-NULL
-Warnings:
-Warning	1292	Truncated incorrect unixtime value: '2147483648'
-select unix_timestamp('2039-01-20 01:00:00');
-unix_timestamp('2039-01-20 01:00:00')
-NULL
 select unix_timestamp('1968-01-20 01:00:00');
 unix_timestamp('1968-01-20 01:00:00')
 NULL
-select unix_timestamp('2038-02-10 01:00:00');
-unix_timestamp('2038-02-10 01:00:00')
-NULL
 select unix_timestamp('1969-11-20 01:00:00');
 unix_timestamp('1969-11-20 01:00:00')
-NULL
-select unix_timestamp('2038-01-20 01:00:00');
-unix_timestamp('2038-01-20 01:00:00')
 NULL
 select unix_timestamp('1969-12-30 01:00:00');
 unix_timestamp('1969-12-30 01:00:00')
@@ -621,9 +602,6 @@ unix_timestamp('2038-01-17 12:00:00')
 select unix_timestamp('1970-01-01 03:00:01');
 unix_timestamp('1970-01-01 03:00:01')
 1
-select unix_timestamp('2038-01-19 07:14:07');
-unix_timestamp('2038-01-19 07:14:07')
-NULL
 SELECT CHARSET(DAYNAME(19700101));
 CHARSET(DAYNAME(19700101))
 latin1
@@ -638,7 +616,7 @@ LOWER(MONTHNAME(19700101))
 january
 SELECT COERCIBILITY(MONTHNAME('1970-01-01')),COERCIBILITY(DAYNAME('1970-01-01'));
 COERCIBILITY(MONTHNAME('1970-01-01'))	COERCIBILITY(DAYNAME('1970-01-01'))
-4	4
+5	5
 CREATE TABLE t1 (datetime datetime, timestamp timestamp, date date, time time);
 INSERT INTO t1 values ("2001-01-02 03:04:05", "2002-01-02 03:04:05", "2003-01-02", "06:07:08");
 SELECT * from t1;
@@ -958,7 +936,7 @@ t1	CREATE TABLE `t1` (
   `curtime() - curtime()` int(9) NOT NULL,
   `sec_to_time(1) + 0` int(9) DEFAULT NULL,
   `from_unixtime(1) + 0` bigint(16) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SELECT SEC_TO_TIME(3300000);
 SEC_TO_TIME(3300000)
@@ -1705,8 +1683,8 @@ NULL
 SELECT MONTHNAME(0), MONTHNAME(0) IS NULL, MONTHNAME(0) + 1;
 MONTHNAME(0)	MONTHNAME(0) IS NULL	MONTHNAME(0) + 1
 NULL	1	NULL
-SET storage_engine=NULL;
-ERROR 42000: Variable 'storage_engine' can't be set to the value of 'NULL'
+SET default_storage_engine=NULL;
+ERROR 42000: Variable 'default_storage_engine' can't be set to the value of 'NULL'
 #
 # BUG#13354387 - CRASH IN IN MY_DECIMAL::OPERATOR FOR VIEW AND FUNCTION UNIX_TIMESTAMP 
 # Part1 (5.5)
@@ -1990,7 +1968,7 @@ select microsecond('12:00:00.123456'), microsecond('2009-12-31 23:59:59.000010')
 microsecond('12:00:00.123456')	microsecond('2009-12-31 23:59:59.000010')
 123456	10
 select now(258);
-ERROR 42000: Too big precision 258 specified for 'current_timestamp'. Maximum is 6
+ERROR 42000: Too big precision specified for 'current_timestamp'. Maximum is 6
 SELECT 1 FROM DUAL WHERE YEAR(TIMEDIFF(NULL, '12:12:12'));
 1
 SELECT 1 FROM DUAL WHERE MONTH(TIMEDIFF(NULL, '12:12:12'));
@@ -2167,8 +2145,8 @@ Warning	1292	Truncated incorrect DECIMAL value: '2005-05-0410'
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `f2` varchar(22) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `f2` varchar(22) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t2;
 f2
 0.000000
@@ -2285,11 +2263,11 @@ CONCAT(CASE WHEN 1 THEN TIME(101010) ELSE TIME(101010) END) AS c4;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(10) DEFAULT NULL,
-  `c2` varchar(10) DEFAULT NULL,
-  `c3` varchar(10) DEFAULT NULL,
-  `c4` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(10) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-4870 Wrong values of CASE, COALESCE, IFNULL on a combination of different temporal types
@@ -2799,10 +2777,10 @@ SET sql_mode=DEFAULT;
 #
 # MDEV-13972 crash in Item_func_sec_to_time::get_date
 #
-DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(SYS_GUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
-Warning	1292	Truncated incorrect INTEGER value: ''
+Warning	1292	Truncated incorrect DECIMAL value: ''
 Warning	1292	Truncated incorrect INTEGER value: ''
 Warning	1292	Truncated incorrect seconds value: '20000101'
 SELECT SEC_TO_TIME(MAKEDATE(0,RAND(~0)));
@@ -3142,7 +3120,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	test	t1	t1	a	a	12	26	26	Y	128	6	63
 def					EXTRACT(YEAR FROM a)	3	4	4	Y	32896	0	63
 def					EXTRACT(YEAR_MONTH FROM a)	3	6	6	Y	32896	0	63
-def					EXTRACT(QUARTER FROM a)	3	2	1	Y	32896	0	63
+def					EXTRACT(QUARTER FROM a)	3	1	1	Y	32896	0	63
 def					EXTRACT(MONTH FROM a)	3	2	2	Y	32896	0	63
 def					EXTRACT(WEEK FROM a)	3	2	2	Y	32896	0	63
 def					EXTRACT(DAY FROM a)	3	3	2	Y	32896	0	63
@@ -3230,11 +3208,11 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` datetime(6) DEFAULT NULL,
-  `EXTRACT(YEAR FROM a)` int(4) DEFAULT NULL,
-  `EXTRACT(YEAR_MONTH FROM a)` int(6) DEFAULT NULL,
+  `EXTRACT(YEAR FROM a)` int(5) DEFAULT NULL,
+  `EXTRACT(YEAR_MONTH FROM a)` int(7) DEFAULT NULL,
   `EXTRACT(QUARTER FROM a)` int(2) DEFAULT NULL,
-  `EXTRACT(MONTH FROM a)` int(2) DEFAULT NULL,
-  `EXTRACT(WEEK FROM a)` int(2) DEFAULT NULL,
+  `EXTRACT(MONTH FROM a)` int(3) DEFAULT NULL,
+  `EXTRACT(WEEK FROM a)` int(3) DEFAULT NULL,
   `EXTRACT(DAY FROM a)` int(3) DEFAULT NULL,
   `EXTRACT(DAY_HOUR FROM a)` int(5) DEFAULT NULL,
   `EXTRACT(DAY_MINUTE FROM a)` int(7) DEFAULT NULL,
@@ -3250,7 +3228,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(HOUR_MICROSECOND FROM a)` bigint(13) DEFAULT NULL,
   `EXTRACT(MINUTE_MICROSECOND FROM a)` bigint(11) DEFAULT NULL,
   `EXTRACT(SECOND_MICROSECOND FROM a)` int(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 CREATE TABLE t1 (a TIME(6));
 INSERT INTO t1 VALUES ('-838:59:59.999999'),('838:59:59.999999');
@@ -3281,7 +3259,7 @@ Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is
 def	test	t1	t1	a	a	11	17	17	Y	128	6	63
 def					EXTRACT(YEAR FROM a)	3	4	1	Y	32896	0	63
 def					EXTRACT(YEAR_MONTH FROM a)	3	6	1	Y	32896	0	63
-def					EXTRACT(QUARTER FROM a)	3	2	1	Y	32896	0	63
+def					EXTRACT(QUARTER FROM a)	3	1	1	Y	32896	0	63
 def					EXTRACT(MONTH FROM a)	3	2	1	Y	32896	0	63
 def					EXTRACT(WEEK FROM a)	3	2	9	Y	32896	0	63
 def					EXTRACT(DAY FROM a)	3	3	3	Y	32896	0	63
@@ -3411,11 +3389,11 @@ SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` time(6) DEFAULT NULL,
-  `EXTRACT(YEAR FROM a)` int(4) DEFAULT NULL,
-  `EXTRACT(YEAR_MONTH FROM a)` int(6) DEFAULT NULL,
+  `EXTRACT(YEAR FROM a)` int(5) DEFAULT NULL,
+  `EXTRACT(YEAR_MONTH FROM a)` int(7) DEFAULT NULL,
   `EXTRACT(QUARTER FROM a)` int(2) DEFAULT NULL,
-  `EXTRACT(MONTH FROM a)` int(2) DEFAULT NULL,
-  `EXTRACT(WEEK FROM a)` int(2) DEFAULT NULL,
+  `EXTRACT(MONTH FROM a)` int(3) DEFAULT NULL,
+  `EXTRACT(WEEK FROM a)` int(3) DEFAULT NULL,
   `EXTRACT(DAY FROM a)` int(3) DEFAULT NULL,
   `EXTRACT(DAY_HOUR FROM a)` int(5) DEFAULT NULL,
   `EXTRACT(DAY_MINUTE FROM a)` int(7) DEFAULT NULL,
@@ -3431,7 +3409,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(HOUR_MICROSECOND FROM a)` bigint(13) DEFAULT NULL,
   `EXTRACT(MINUTE_MICROSECOND FROM a)` bigint(11) DEFAULT NULL,
   `EXTRACT(SECOND_MICROSECOND FROM a)` int(9) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1,t2;
 #
 # MDEV-14926 AddressSanitizer: heap-use-after-free in make_date_time on weird combination of functions
@@ -3546,9 +3524,9 @@ ADDTIME('10:20:30',1) AS c2;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(19) DEFAULT NULL,
-  `c2` varchar(26) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(19) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(26) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SELECT * FROM t1;
 c1	c2
 2001-01-02	10:20:31
@@ -3614,7 +3592,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `TO_SECONDS('9999-12-31 23:59:59')` bigint(12) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
 #
@@ -3708,15 +3686,15 @@ SET TIMESTAMP=DEFAULT;
 # MDEV-15702 Remove the use of STRING_ITEM from Item_func_date_format::fix_length_and_dec()
 #
 SELECT DATE_FORMAT('2001-01-01',POINT(1,1));
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT(POINT(1,1),'10');
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT(ROW(1,1),'10');
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',POINT(1,1));
-ERROR HY000: Illegal parameter data type geometry for operation 'date_format'
+ERROR HY000: Illegal parameter data type point for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',ROW(1,1));
 ERROR HY000: Illegal parameter data type row for operation 'date_format'
 SELECT DATE_FORMAT('2001-01-01','%Y',@unknown_user_variable);
@@ -3734,13 +3712,13 @@ DATE_FORMAT('2001-01-01',TIME'10:20:30') AS c5;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c0` char(0) DEFAULT NULL,
-  `c1` varchar(2) DEFAULT NULL,
-  `c2` varchar(2) DEFAULT NULL,
-  `c3` varchar(4) DEFAULT NULL,
-  `c4` varchar(2) DEFAULT NULL,
-  `c5` varchar(8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c0` char(0) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c1` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c5` varchar(8) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 EXECUTE IMMEDIATE
 "CREATE TABLE t1 AS SELECT
@@ -3754,13 +3732,13 @@ USING NULL, '10', 10, 10.0, 10e0, TIME'10:20:30';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c0` char(0) DEFAULT NULL,
-  `c1` varchar(2) DEFAULT NULL,
-  `c2` varchar(2) DEFAULT NULL,
-  `c3` varchar(4) DEFAULT NULL,
-  `c4` varchar(2) DEFAULT NULL,
-  `c5` varchar(100) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c0` char(0) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c1` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c2` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c3` varchar(4) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c4` varchar(2) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL,
+  `c5` varchar(100) CHARACTER SET latin1 COLLATE latin1_swedish_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-16152 Expressions with INTERVAL return bad results in some cases
@@ -3804,21 +3782,13 @@ SET @sav_slow_query_log= @@session.slow_query_log;
 SET @@session.slow_query_log= ON;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @ts_func;
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 DELETE FROM t_ts;
 DELETE FROM t_trig;
 SET @@session.slow_query_log= OFF;
 SELECT current_timestamp(6),fn_sleep_before_now() INTO @ts_cur, @func_ts;
 SELECT a FROM t_ts   LIMIT 1 into @ts_func;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SELECT a FROM t_trig LIMIT 1 into @ts_trig;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SET @@session.slow_query_log= @sav_slow_query_log;
 DROP FUNCTION fn_sleep_before_now;
 DROP TRIGGER trg_insert_t_ts;
@@ -6246,7 +6216,7 @@ t2	CREATE TABLE `t2` (
   `EXTRACT(DAY_MINUTE FROM a)` int(7) DEFAULT NULL,
   `EXTRACT(DAY_SECOND FROM a)` int(9) DEFAULT NULL,
   `EXTRACT(DAY_MICROSECOND FROM a)` bigint(15) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 #
@@ -6373,3 +6343,57 @@ NULL
 SELECT FROM_UNIXTIME(LEAST(3696610869, NULL));
 FROM_UNIXTIME(LEAST(3696610869, NULL))
 NULL
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-29149 Assertion `!is_valid_datetime() || fraction_remainder(((item->decimals) < (6) ? (item->decimals) : (6))) == 0' failed in Datetime_truncation_not_needed::Datetime_truncation_not_needed
+#
+SET @@timestamp= UNIX_TIMESTAMP('2022-07-21 23:00:00');
+SELECT DATE_SUB('2022-07-21 00:00:00', INTERVAL 800 HOUR) AS expected_result;
+expected_result
+2022-06-17 16:00:00
+SELECT
+IF(1,TIMEDIFF('38:59:59','839:00:00'),CAST('2022-12-12' AS DATE)) AS c1,
+IF(1,TIMEDIFF('-839:00:00','-38:59:59'),CAST('2022-12-12' AS DATE)) AS c2;
+c1	c2
+2022-06-17 16:00:00	2022-06-17 16:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '-839:00:00'
+SELECT
+IF(1,TIMEDIFF(385959,8390000),CAST('2022-12-12' AS DATE)) AS c1,
+IF(1,TIMEDIFF(-8390000,-385959),CAST('2022-12-12' AS DATE)) AS c2;
+c1	c2
+2022-06-17 16:00:00	2022-06-17 16:00:00
+Warnings:
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '-8390000'
+SELECT
+TIMEDIFF('38:59:59','839:00:00') AS c1,
+CAST(TIMEDIFF('38:59:59','839:00:00') AS TIME(6)) AS c2,
+TIMEDIFF('839:00:00','38:59:59') AS c3,
+CAST(TIMEDIFF('839:00:00','38:59:59') AS TIME(6)) AS c4;
+c1	c2	c3	c4
+-800:00:00	-800:00:00.000000	800:00:00	800:00:00.000000
+Warnings:
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+Warning	1292	Truncated incorrect time value: '839:00:00'
+SELECT
+TIMEDIFF(385959,8390000) AS c1,
+CAST(TIMEDIFF(385959,8390000) AS TIME(6)) AS c2,
+TIMEDIFF(8390000,385959) AS c3,
+CAST(TIMEDIFF(8390000,385959) AS TIME(6)) AS c4;
+c1	c2	c3	c4
+-800:00:00	-800:00:00.000000	800:00:00	800:00:00.000000
+Warnings:
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+Warning	1292	Truncated incorrect time value: '8390000'
+SET @@timestamp= DEFAULT;
+#
+# End of 10.5 tests
+#

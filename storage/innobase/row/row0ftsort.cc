@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2021, MariaDB Corporation.
+Copyright (c) 2015, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -96,6 +96,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 0);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->prtype = idx_field->col->prtype | DATA_NOT_NULL;
@@ -103,7 +104,8 @@ row_merge_create_fts_sort_index(
 		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminlen = idx_field->col->mbminlen;
 	field->col->mbmaxlen = idx_field->col->mbmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * unsigned(field->col->mbmaxlen);
+	field->col->len = static_cast<uint16_t>(
+		HA_FT_MAXCHARLEN * field->col->mbmaxlen);
 
 	field->fixed_len = 0;
 
@@ -111,6 +113,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 1);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
@@ -150,6 +153,7 @@ row_merge_create_fts_sort_index(
 	field = dict_index_get_nth_field(new_index, 2);
 	field->name = NULL;
 	field->prefix_len = 0;
+	field->descending = false;
 	field->col = static_cast<dict_col_t*>(
 		mem_heap_zalloc(new_index->heap, sizeof(dict_col_t)));
 	field->col->mtype = DATA_INT;
@@ -187,7 +191,6 @@ row_fts_psort_info_init(
 	fts_psort_t*		merge_info = NULL;
 	ulint			block_size;
 	ibool			ret = TRUE;
-	bool			encrypted = false;
 	ut_ad(ut_is_2pow(old_zip_size));
 
 	block_size = 3 * srv_sort_buf_size;
@@ -215,13 +218,8 @@ row_fts_psort_info_init(
 	common_info->old_zip_size = old_zip_size;
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
-	common_info->sort_event = os_event_create(0);
-	common_info->merge_event = os_event_create(0);
+	pthread_cond_init(&common_info->sort_cond, nullptr);
 	common_info->opt_doc_id_size = opt_doc_id_size;
-
-	if (log_tmp_is_encrypted()) {
-		encrypted = true;
-	}
 
 	ut_ad(trx->mysql_thd != NULL);
 	const char*	path = thd_innodb_tmpdir(trx->mysql_thd);
@@ -253,14 +251,9 @@ row_fts_psort_info_init(
 			}
 
 			/* Need to align memory for O_DIRECT write */
-			psort_info[j].block_alloc[i] =
-				static_cast<row_merge_block_t*>(ut_malloc_nokey(
-					block_size + 1024));
-
 			psort_info[j].merge_block[i] =
 				static_cast<row_merge_block_t*>(
-					ut_align(
-					psort_info[j].block_alloc[i], 1024));
+					aligned_malloc(block_size, 1024));
 
 			if (!psort_info[j].merge_block[i]) {
 				ret = FALSE;
@@ -269,24 +262,18 @@ row_fts_psort_info_init(
 
 			/* If tablespace is encrypted, allocate additional buffer for
 			encryption/decryption. */
-			if (encrypted) {
-
+			if (srv_encrypt_log) {
 				/* Need to align memory for O_DIRECT write */
-				psort_info[j].crypt_alloc[i] =
-					static_cast<row_merge_block_t*>(ut_malloc_nokey(
-							block_size + 1024));
-
 				psort_info[j].crypt_block[i] =
 					static_cast<row_merge_block_t*>(
-						ut_align(
-							psort_info[j].crypt_alloc[i], 1024));
+						aligned_malloc(block_size,
+							       1024));
 
 				if (!psort_info[j].crypt_block[i]) {
 					ret = FALSE;
 					goto func_exit;
 				}
 			} else {
-				psort_info[j].crypt_alloc[i] = NULL;
 				psort_info[j].crypt_block[i] = NULL;
 			}
 		}
@@ -296,7 +283,7 @@ row_fts_psort_info_init(
 		psort_info[j].psort_common = common_info;
 		psort_info[j].error = DB_SUCCESS;
 		psort_info[j].memory_used = 0;
-		mutex_create(LATCH_ID_FTS_PLL_TOKENIZE, &psort_info[j].mutex);
+		mysql_mutex_init(0, &psort_info[j].mutex, nullptr);
 	}
 
 	/* Initialize merge_info structures parallel merge and insert
@@ -338,19 +325,15 @@ row_fts_psort_info_destroy(
 						psort_info[j].merge_file[i]);
 				}
 
-				ut_free(psort_info[j].block_alloc[i]);
+				aligned_free(psort_info[j].merge_block[i]);
 				ut_free(psort_info[j].merge_file[i]);
-
-				if (psort_info[j].crypt_alloc[i]) {
-					ut_free(psort_info[j].crypt_alloc[i]);
-				}
+				aligned_free(psort_info[j].crypt_block[i]);
 			}
 
-			mutex_free(&psort_info[j].mutex);
+			mysql_mutex_destroy(&psort_info[j].mutex);
 		}
 
-		os_event_destroy(merge_info[0].psort_common->sort_event);
-		os_event_destroy(merge_info[0].psort_common->merge_event);
+		pthread_cond_destroy(&merge_info[0].psort_common->sort_cond);
 		ut_free(merge_info[0].psort_common->dup);
 		ut_free(merge_info[0].psort_common);
 		ut_free(psort_info);
@@ -489,14 +472,12 @@ row_merge_fts_doc_tokenize(
 	ulint		len;
 	row_merge_buf_t* buf;
 	dfield_t*	field;
-	fts_string_t	t_str;
 	ibool		buf_full = FALSE;
-	byte		str_buf[FTS_MAX_WORD_LEN + 1];
+	CharBuffer<FTS_MAX_WORD_LEN> str_buf;
 	ulint		data_size[FTS_NUM_AUX_INDEX];
 	ulint		n_tuple[FTS_NUM_AUX_INDEX];
 	st_mysql_ftparser*	parser;
 
-	t_str.f_n_char = 0;
 	t_ctx->buf_used = 0;
 
 	memset(n_tuple, 0, FTS_NUM_AUX_INDEX * sizeof(ulint));
@@ -561,11 +542,8 @@ row_merge_fts_doc_tokenize(
 			continue;
 		}
 
-		t_str.f_len = innobase_fts_casedn_str(
-			doc->charset, (char*) str.f_str, str.f_len,
-			(char*) &str_buf, FTS_MAX_WORD_LEN + 1);
-
-		t_str.f_str = (byte*) &str_buf;
+		str_buf.copy_casedn(doc->charset,
+			LEX_CSTRING{(const char *) str.f_str, str.f_len});
 
 		/* if "cached_stopword" is defined, ignore words in the
 		stopword list */
@@ -583,8 +561,8 @@ row_merge_fts_doc_tokenize(
 
 		/* There are FTS_NUM_AUX_INDEX auxiliary tables, find
 		out which sort buffer to put this word record in */
-		t_ctx->buf_used = fts_select_index(
-			doc->charset, t_str.f_str, t_str.f_len);
+		t_ctx->buf_used = fts_select_index(doc->charset,
+			(const byte*) str_buf.ptr(), str_buf.length());
 
 		buf = sort_buf[t_ctx->buf_used];
 
@@ -598,7 +576,7 @@ row_merge_fts_doc_tokenize(
 				       FTS_NUM_FIELDS_SORT * sizeof *field));
 
 		/* The first field is the tokenized word */
-		dfield_set_data(field, t_str.f_str, t_str.f_len);
+		dfield_set_data(field, str_buf.ptr(), str_buf.length());
 		len = dfield_get_len(field);
 
 		dict_col_copy_type(dict_index_get_nth_col(buf->index, 0), &field->type);
@@ -654,7 +632,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
-		field->type.len = len;
+		field->type.len = static_cast<uint16_t>(field->len);
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 
@@ -678,7 +656,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL;
-		field->type.len = len;
+		field->type.len = 4;
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 		cur_len += len;
@@ -739,7 +717,7 @@ row_merge_fts_get_next_doc_item(
 		ut_free(*doc_item);
 	}
 
-	mutex_enter(&psort_info->mutex);
+	mysql_mutex_lock(&psort_info->mutex);
 
 	*doc_item = UT_LIST_GET_FIRST(psort_info->fts_doc_list);
 	if (*doc_item != NULL) {
@@ -751,16 +729,15 @@ row_merge_fts_get_next_doc_item(
 			+ (*doc_item)->field->len;
 	}
 
-	mutex_exit(&psort_info->mutex);
+	mysql_mutex_unlock(&psort_info->mutex);
 }
 
 /*********************************************************************//**
 Function performs parallel tokenization of the incoming doc strings.
 It also performs the initial in memory sort of the parsed records.
-@return OS_THREAD_DUMMY_RETURN */
+*/
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_tokenization)(
+void fts_parallel_tokenization(
 /*======================*/
 	void*		arg)	/*!< in: psort_info for the thread */
 {
@@ -896,7 +873,9 @@ loop:
 	if (t_ctx.rows_added[t_ctx.buf_used] && !processed) {
 		row_merge_buf_sort(buf[t_ctx.buf_used], NULL);
 		row_merge_buf_write(buf[t_ctx.buf_used],
+#ifndef DBUG_OFF
 				    merge_file[t_ctx.buf_used],
+#endif
 				    block[t_ctx.buf_used]);
 
 		if (!row_merge_write(merge_file[t_ctx.buf_used]->fd,
@@ -938,7 +917,7 @@ loop:
 	}
 
 	if (doc_item == NULL) {
-		os_thread_yield();
+		std::this_thread::yield();
 	}
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);
@@ -962,8 +941,11 @@ exit:
 	for (i = 0; i < FTS_NUM_AUX_INDEX; i++) {
 		if (t_ctx.rows_added[i]) {
 			row_merge_buf_sort(buf[i], NULL);
-			row_merge_buf_write(
-				buf[i], merge_file[i], block[i]);
+			row_merge_buf_write(buf[i],
+#ifndef DBUG_OFF
+					    merge_file[i],
+#endif
+					    block[i]);
 
 			/* Write to temp file, only if records have
 			been flushed to temp file before (offset > 0):
@@ -1039,11 +1021,11 @@ exit:
 				       crypt_block[i], table->space_id);
 
 		if (error != DB_SUCCESS) {
-			os_file_close(tmpfd[i]);
+			row_merge_file_destroy_low(tmpfd[i]);
 			goto func_exit;
 		}
 
-		os_file_close(tmpfd[i]);
+		row_merge_file_destroy_low(tmpfd[i]);
 	}
 
 func_exit:
@@ -1053,9 +1035,9 @@ func_exit:
 
 	mem_heap_free(blob_heap);
 
-	mutex_enter(&psort_info->mutex);
+	mysql_mutex_lock(&psort_info->mutex);
 	psort_info->error = error;
-	mutex_exit(&psort_info->mutex);
+	mysql_mutex_unlock(&psort_info->mutex);
 
 	if (UT_LIST_GET_LEN(psort_info->fts_doc_list) > 0) {
 		/* child can exit either with error or told by parent. */
@@ -1068,13 +1050,10 @@ func_exit:
 		row_merge_fts_get_next_doc_item(psort_info, &doc_item);
 	} while (doc_item != NULL);
 
+	mysql_mutex_lock(&psort_info->mutex);
 	psort_info->child_status = FTS_CHILD_COMPLETE;
-	os_event_set(psort_info->psort_common->sort_event);
-	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+	pthread_cond_signal(&psort_info->psort_common->sort_cond);
+	mysql_mutex_unlock(&psort_info->mutex);
 }
 
 /*********************************************************************//**
@@ -1085,23 +1064,20 @@ row_fts_start_psort(
 	fts_psort_t*	psort_info)	/*!< parallel sort structure */
 {
 	ulint		i = 0;
-	os_thread_id_t	thd_id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		psort_info[i].psort_id = i;
-		psort_info[i].thread_hdl =
-			os_thread_create(fts_parallel_tokenization,
-				(void*) &psort_info[i],
-				 &thd_id);
+		psort_info[i].task =
+			new tpool::waitable_task(fts_parallel_tokenization,&psort_info[i]);
+		srv_thread_pool->submit_task(psort_info[i].task);
 	}
 }
 
 /*********************************************************************//**
-Function performs the merge and insertion of the sorted records.
-@return OS_THREAD_DUMMY_RETURN */
+Function performs the merge and insertion of the sorted records. */
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_merge)(
+void
+fts_parallel_merge(
 /*===============*/
 	void*		arg)		/*!< in: parallel merge info */
 {
@@ -1115,14 +1091,6 @@ DECLARE_THREAD(fts_parallel_merge)(
 	row_fts_merge_insert(psort_info->psort_common->dup->index,
 			     psort_info->psort_common->new_table,
 			     psort_info->psort_common->all_info, id);
-
-	psort_info->child_status = FTS_CHILD_COMPLETE;
-	os_event_set(psort_info->psort_common->merge_event);
-	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit(false);
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /*********************************************************************//**
@@ -1134,15 +1102,15 @@ row_fts_start_parallel_merge(
 {
 	ulint		i = 0;
 
-	/* Kick off merge/insert threads */
+	/* Kick off merge/insert tasks */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
 		merge_info[i].psort_id = i;
 		merge_info[i].child_status = 0;
 
-		merge_info[i].thread_hdl = os_thread_create(
+		merge_info[i].task = new tpool::waitable_task(
 			fts_parallel_merge,
-			(void*) &merge_info[i],
-			&merge_info[i].thread_hdl);
+			(void*) &merge_info[i]);
+		srv_thread_pool->submit_task(merge_info[i].task);
 	}
 }
 
@@ -1665,7 +1633,7 @@ row_fts_merge_insert(
 
 	/* Get aux index */
 	fts_get_table_name(&fts_table, aux_table_name);
-	aux_table = dict_table_open_on_name(aux_table_name, FALSE, FALSE,
+	aux_table = dict_table_open_on_name(aux_table_name, false,
 					    DICT_ERR_IGNORE_NONE);
 	ut_ad(aux_table != NULL);
 	aux_index = dict_table_get_first_index(aux_table);
@@ -1676,9 +1644,7 @@ row_fts_merge_insert(
 	      == UT_BITS_IN_BYTES(aux_index->n_nullable));
 
 	/* Create bulk load instance */
-	ins_ctx.btr_bulk = UT_NEW_NOKEY(
-		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->get_flush_observer()));
+	ins_ctx.btr_bulk = UT_NEW_NOKEY(BtrBulk(aux_index, trx));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
@@ -1803,7 +1769,7 @@ exit:
 	error = ins_ctx.btr_bulk->finish(error);
 	UT_DELETE(ins_ctx.btr_bulk);
 
-	dict_table_close(aux_table, FALSE, FALSE);
+	aux_table->release();
 
 	trx->free();
 
@@ -1811,10 +1777,6 @@ exit:
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
-
-	if (psort_info[0].psort_common->trx->get_flush_observer()) {
-		row_merge_write_redo(aux_index);
 	}
 
 	return(error);

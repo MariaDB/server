@@ -1,4 +1,5 @@
-SET GLOBAL Innodb_file_per_table=on;
+SET @save_innodb_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 SET @save_innodb_compression_level = @@global.innodb_compression_level;
 SET global innodb_compression_level=0;
 #create table with 1K block size
@@ -107,3 +108,4 @@ SELECT @size >= 0;
 1
 DROP TABLE tab5, tab6;
 SET GLOBAL innodb_compression_level = @save_innodb_compression_level;
+SET GLOBAL innodb_stats_persistent = @save_innodb_stats_persistent;

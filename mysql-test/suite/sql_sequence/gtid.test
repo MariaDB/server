@@ -71,7 +71,7 @@ create sequence s2;
 alter table s2 add id int;
 
 --error ER_SEQUENCE_INVALID_TABLE_STRUCTURE
-alter table s2 add index ind_x(start);
+alter table s2 add index ind_x(start_value);
 drop sequence s2;
 
 --echo ###########################################

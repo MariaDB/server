@@ -1,0 +1,71 @@
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=10;
+ERROR HY000: This operation cannot be performed as you have a running slave ''; run STOP SLAVE '' first
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*)))
+OK
+include/stop_slave.inc
+SELECT IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) < 10, "OK", CONCAT("Found too many system user processes: ", COUNT(*)))
+OK
+include/start_slave.inc
+SELECT IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*))) FROM information_schema.processlist WHERE user = "system user";
+IF(COUNT(*) >= 10, "OK", CONCAT("Found too few system user processes: ", COUNT(*)))
+OK
+*** Test long-running query in domain 1 can run in parallel with short queries in domain 0 ***
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+INSERT INTO t2 VALUES (1);
+connection server_2;
+connect  con_temp1,127.0.0.1,root,,test,$SERVER_MYPORT_2,;
+LOCK TABLE t1 WRITE;
+connection server_1;
+SET gtid_domain_id=1;
+INSERT INTO t1 VALUES (2);
+SET gtid_domain_id=0;
+INSERT INTO t2 VALUES (2);
+INSERT INTO t2 VALUES (3);
+BEGIN;
+INSERT INTO t2 VALUES (4);
+INSERT INTO t2 VALUES (5);
+COMMIT;
+INSERT INTO t2 VALUES (6);
+connection server_2;
+SELECT * FROM t2 ORDER by a;
+a
+1
+2
+3
+4
+5
+6
+connection con_temp1;
+SELECT * FROM t1;
+a
+1
+UNLOCK TABLES;
+connection server_2;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+2
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1,t2;
+include/rpl_end.inc

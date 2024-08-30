@@ -76,7 +76,7 @@ public:
   /**
     Constructor, used to represent a SIGNAL statement.
     @param cond the SQL condition to signal (required).
-    @param set the collection of signal informations to signal.
+    @param set the collection of signal information to signal.
   */
   Sql_cmd_signal(const sp_condition_value *cond,
                  const Set_signal_information& set)
@@ -85,12 +85,12 @@ public:
 
   virtual ~Sql_cmd_signal() = default;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_SIGNAL;
   }
 
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 /**
@@ -102,7 +102,7 @@ public:
   /**
     Constructor, used to represent a RESIGNAL statement.
     @param cond the SQL condition to resignal (optional, may be NULL).
-    @param set the collection of signal informations to resignal.
+    @param set the collection of signal information to resignal.
   */
   Sql_cmd_resignal(const sp_condition_value *cond,
                    const Set_signal_information& set)
@@ -111,12 +111,12 @@ public:
 
   virtual ~Sql_cmd_resignal() = default;
 
-  virtual enum_sql_command sql_command_code() const
+  enum_sql_command sql_command_code() const override
   {
     return SQLCOM_RESIGNAL;
   }
 
-  virtual bool execute(THD *thd);
+  bool execute(THD *thd) override;
 };
 
 #endif

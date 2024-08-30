@@ -1,0 +1,9 @@
+#
+# Test rowid filters with Aria
+#
+
+SET SESSION DEFAULT_STORAGE_ENGINE='Aria';
+
+#set global aria.optimizer_rowid_compare_cost=0.00001;
+#set global aria.optimizer_rowid_copy_cost=0.00001;
+--source rowid_filter.test

@@ -1,0 +1,51 @@
+#
+# Purpose:
+#   The rpl_row_img_sequence group of tests verify that sequence MDL updates,
+# i.e. NEXTVAL and SETVAL, respect the binlog_row_image variable value when
+# written into the binary log. In particular, it ensures that only changed
+# columns are written with MINIMAL image mode, and all columns are written
+# otherwise. This test focuses on validating the behavior of
+# binlog_row_img=FULL_NODUP.
+#
+# Methodology
+#   After issuing a sequence update, ensure that both 1) it was replicated
+# correctly, and 2) it was binlogged respective to the binlog_row_image value.
+# The sequence table does not use caching to ensure each update is immediately
+# binlogged. Each command is binlogged into its own unique log file, and the
+# entirety of the file is analyzed for correctness of its sequence event.
+# Specifically, mysqlbinlog is used in verbose mode so it outputs the columns
+# which belong to the event, and the columns are analyzed to ensure the correct
+# ones were logged. rpl_row_img_general_loop.inc is used to test with multiple
+# chained replicas, varying engines between InnoDB and MyISAM.
+#
+# References:
+#   MDEV-28487: sequences not respect value of binlog_row_image with select
+#               nextval(seq_gen)
+#
+
+--let $rpl_topology= 1->2->3
+--source include/rpl_init.inc
+--source include/have_binlog_format_row.inc
+
+--connection server_1
+--source include/have_innodb.inc
+--connection server_2
+--source include/have_innodb.inc
+--connection server_3
+--source include/have_innodb.inc
+--connection server_1
+
+--echo #
+--echo # binlog_row_image=FULL_NODUP should write all columns to the binary log
+--echo #
+--let $row_img_set=server_1:FULL_NODUP:N,server_2:FULL_NODUP:Y,server_3:FULL_NODUP:Y
+--source include/rpl_row_img_set.inc
+--let $expected_columns=(1,2,3,4,5,6,7,8)
+--let row_img_test_script= include/rpl_row_img_sequence.inc
+--source include/rpl_row_img_general_loop.inc
+
+--let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y
+--source include/rpl_row_img_set.inc
+
+--source include/rpl_end.inc
+--echo # End of tests

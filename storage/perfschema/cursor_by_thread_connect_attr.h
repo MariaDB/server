@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2012, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -32,17 +32,16 @@
   @{
 */
 
+/**
+  Position of a cursor on abstract table
+  PERFORMANCE_SCHEMA.SESSION_CONNECT_ATTRS.
+*/
 struct pos_connect_attr_by_thread_by_attr
 : public PFS_double_index
 {
   pos_connect_attr_by_thread_by_attr()
     : PFS_double_index(0, 0)
   {}
-
-  inline bool has_more_thread(void)
-  {
-    return (m_index_1 < thread_max);
-  }
 
   inline void next_thread(void)
   {
@@ -61,9 +60,11 @@ struct pos_connect_attr_by_thread_by_attr
 class cursor_by_thread_connect_attr : public PFS_engine_table
 {
 public:
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  static ha_rows get_row_count();
+
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   cursor_by_thread_connect_attr(const PFS_engine_table_share *share);

@@ -11,7 +11,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='test_connection'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='test_connection'
 ALTER TABLE t1 CONNECTION='test_connection2';
 SHOW CREATE TABLE t1;
 Table	Create Table
@@ -19,7 +19,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(8) DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=ROCKSDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='test_connection2'
+) ENGINE=ROCKSDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci CONNECTION='test_connection2'
 DROP TABLE t1;
 DROP SERVER test_connection;
 DROP SERVER test_connection2;

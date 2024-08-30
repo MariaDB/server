@@ -1,0 +1,164 @@
+--echo # MDEV-24248: my_print_defaults is not taking all the values when using
+--echo # -e option which is called from mysql.server (extra_args).
+--echo #
+
+--echo # checking for mysql.server
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+table_definition_cache=2000
+read_buffer_size=1M
+thread_cache_size=8
+max_connections=1024
+long_query_time=60
+slow_query_log=1
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+table_definition_cache=2000
+read_buffer_size=1M
+thread_cache_size=8
+max_connections=1024
+long_query_time=60
+slow_query_log=1
+EOF
+
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp2.cnf --mysqld mysql.server
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+
+
+--echo #
+--echo # MDEV-25908: -e does not work for my_print_defaults
+--echo #
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--echo #Testing --defaults-extra-file
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp2.cnf --mysqld mysql.server
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+
+--echo #
+--echo # Testing other options
+--echo #
+
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+
+[mariadb.1]
+table_definition_cache=2000
+read_buffer_size=1M
+thread_cache_size=8
+EOF
+
+--echo # Testing --defaults-file
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp2.cnf --mysqld mysql.server
+
+--echo # Testing --defaults-group-suffix
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp3.cnf --defaults-group-suffix=.1 --mysqld mysql.server
+
+--echo # Testing --no-defaults
+--exec $MYSQL_MY_PRINT_DEFAULTS --no-defaults --mysqld
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+
+--echo # End of 10.5 Test
+
+--echo # Beginning of 10.7 test
+
+--echo #
+--echo # MDEV-26238: Remove inconsistent behaviour of --default-* options in
+--echo # my_print_defaults
+--echo #
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+[mariadb]
+key_buffer_size=10M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+[mariadb]
+key_buffer_size=30M
+max_allowed_packet=250M
+table_open_cache=1000
+EOF
+
+--echo # checking that --defaults* option only works when mentioned at beginning
+
+--echo # Testing --defaults-file at beginning only
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --mysqld
+--error 7
+--exec $MYSQL_MY_PRINT_DEFAULTS --mysqld --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+
+--echo # Testing --defaults-extra-file works at beginning only
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp2.cnf --mysqld
+--error 7
+--exec $MYSQL_MY_PRINT_DEFAULTS --mysqld --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp1.cnf --defaults-extra-file=$MYSQLTEST_VARDIR/tmp/tmp2.cnf
+
+--write_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+[mariadb]
+key_buffer_size=20M
+max_allowed_packet=250M
+table_open_cache=1000
+
+[mariadb.1]
+table_definition_cache=2000
+read_buffer_size=1M
+thread_cache_size=8
+EOF
+
+--echo # Testing --defaults-group-suffix works at beginning only
+--exec $MYSQL_MY_PRINT_DEFAULTS --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp3.cnf --defaults-group-suffix=.1 --mysqld
+--error 7
+--exec $MYSQL_MY_PRINT_DEFAULTS --mysqld --defaults-file=$MYSQLTEST_VARDIR/tmp/tmp3.cnf --defaults-group-suffix=.1
+
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp1.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp2.cnf
+--remove_file $MYSQLTEST_VARDIR/tmp/tmp3.cnf
+
+--echo # End of 10.7 test

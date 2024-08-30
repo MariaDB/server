@@ -31,6 +31,7 @@ CREATE TABLE t2 (key2 INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE FUNCTION f() RETURNS INT RETURN 1;
 GRANT FILE ON *.* TO 'nopriv_user'@'localhost';
+GRANT SELECT,INSERT,CREATE ON test.* TO 'nopriv_user'@'localhost';
 FLUSH PRIVILEGES;
 connect  con1,localhost,nopriv_user,,;
 connection con1;
@@ -68,7 +69,7 @@ ERROR HY000: Operation CREATE USER failed for 'user\"s_12601974'@'localhost'
 DROP USER 'user\"s_12601974'@'localhost';
 CREATE USER 'user\bs_12601974'@'localhost';
 CREATE USER 'user\bs_12601974'@'localhost';
-ERROR HY000: Operation CREATE USER failed for 'users_12601974'@'localhost'
+ERROR HY000: Operation CREATE USER failed for 'user\0008s_12601974'@'localhost'
 DROP USER 'user\bs_12601974'@'localhost';
 CREATE USER 'user\ns_12601974'@'localhost';
 CREATE USER 'user\ns_12601974'@'localhost';

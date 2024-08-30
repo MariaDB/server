@@ -21,13 +21,14 @@
 **
 **  Written by Monty
 */
-
+#define VER "1.7"
 #include <my_global.h>
 #include <my_sys.h>
 #include <m_string.h>
 #include <my_getopt.h>
 #include <my_default.h>
 #include <mysql_version.h>
+#include <welcome_copyright_notice.h>
 
 #define load_default_groups mysqld_groups
 #include <mysqld_default_groups.h>
@@ -48,21 +49,9 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log", (char**) &default_dbug_option,
    (char**) &default_dbug_option, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"defaults-file", 'c',
-   "Read this file only, do not read global or per-user config "
-   "files; should be the first option",
-   (char**) &config_file, (char*) &config_file, 0, GET_STR, REQUIRED_ARG,
-   0, 0, 0, 0, 0, 0},
-  {"defaults-extra-file", 'e',
-   "Read this file after the global config file and before the config "
-   "file in the users home directory; should be the first option",
-   (void *)&my_defaults_extra_file, (void *)&my_defaults_extra_file, 0,
-   GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"defaults-group-suffix", 'g',
-   "In addition to the given groups, read also groups with this suffix",
-   (char**) &my_defaults_group_suffix, (char**) &my_defaults_group_suffix,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"mysqld", 0, "Read the same set of groups that the mysqld binary does.",
+   &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"mariadbd", 0, "Read the same set of groups that the mariadbd binary does.",
    &opt_mysqld, &opt_mysqld, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"no-defaults", 'n', "Return an empty string (useful for scripts).",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -82,16 +71,10 @@ static void cleanup_and_exit(int exit_code)
   exit(exit_code);
 }
 
-static void version()
-{
-  printf("%s  Ver 1.7 for %s at %s\n",my_progname,SYSTEM_TYPE, MACHINE_TYPE);
-}
-
-
 static void usage() __attribute__ ((noreturn));
 static void usage()
 {
-  version();
+  print_version();
   puts("This software comes with ABSOLUTELY NO WARRANTY. This is free software,\nand you are welcome to modify and redistribute it under the GPL license\n");
   puts("Displays the options from option groups of option files, which is useful to see which options a particular tool will use");
   printf("Usage: %s [OPTIONS] [groups]\n", my_progname);
@@ -104,13 +87,11 @@ static void usage()
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt __attribute__((unused)),
+	       const char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch (optid) {
-    case 'c':
-      opt_defaults_file_used= 1;
-      break;
+  switch (opt->id) {
     case 'n':
       cleanup_and_exit(0);
     case 'I':
@@ -120,7 +101,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       verbose++;
       break;
     case 'V':
-      version();
+      print_version();
       /* fall through */
     case '#':
       DBUG_PUSH(argument ? argument : default_dbug_option);
@@ -140,28 +121,33 @@ static int get_options(int *argc,char ***argv)
   return 0;
 }
 
-
 int main(int argc, char **argv)
 {
   int count, error, args_used;
   char **load_default_groups= 0, *tmp_arguments[6];
   char **argument, **arguments, **org_argv;
-  char *defaults, *extra_defaults, *group_suffix;
   int nargs, i= 0;
   MY_INIT(argv[0]);
 
   org_argv= argv;
-  args_used= get_defaults_options(argc, argv, &defaults, &extra_defaults,
-                                  &group_suffix);
+  args_used= get_defaults_options(argv);
 
   /* Copy defaults-xxx arguments & program name */
-  count=args_used+1;
+  count= args_used;
   arguments= tmp_arguments;
-  memcpy((char*) arguments, (char*) org_argv, count * sizeof(*org_argv));
+  memcpy((char*) arguments, (char*) org_argv, count*sizeof(*org_argv));
   arguments[count]= 0;
 
+  /*
+     We already process --defaults* options at the beginning in
+     get_defaults_options(). So skip --defaults* options and
+     pass remaining options to handle_options().
+  */
+  org_argv+=args_used-1;
+  argc-=args_used-1;
+
   /* Check out the args */
-  if (get_options(&argc,&argv))
+  if (get_options(&argc,&org_argv))
     cleanup_and_exit(1);
 
   nargs= argc + 1;
@@ -171,7 +157,8 @@ int main(int argc, char **argv)
   if (nargs < 2)
     usage();
 
-  load_default_groups=(char**) my_malloc(nargs*sizeof(char*), MYF(MY_WME));
+  load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                                         nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
     exit(1);
   if (opt_mysqld)
@@ -179,7 +166,7 @@ int main(int argc, char **argv)
     for (; mysqld_groups[i]; i++)
       load_default_groups[i]= (char*) mysqld_groups[i];
   }
-  memcpy(load_default_groups + i, argv, (argc + 1) * sizeof(*argv));
+  memcpy(load_default_groups + i, org_argv, (argc + 1) * sizeof(*org_argv));
   if ((error= load_defaults(config_file, (const char **) load_default_groups,
 			   &count, &arguments)))
   {
@@ -201,8 +188,7 @@ int main(int argc, char **argv)
   }
 
   for (argument= arguments+1 ; *argument ; argument++)
-    if (!my_getopt_is_args_separator(*argument))           /* skip arguments separator */
-      puts(*argument);
+    puts(*argument);
   my_free(load_default_groups);
   free_defaults(arguments);
   my_end(0);

@@ -1,0 +1,46 @@
+include/master-slave.inc
+[connection master]
+set binlog_row_image=minimal;
+connection slave;
+stop slave;
+set global binlog_row_image=minimal;
+include/reset_slave.inc
+create table t1 (
+a int key, b blob, c char(5),
+d char(10) as (concat(trim(c), '-U')) unique,
+e char(10) as (concat('S', b)) stored) engine=innodb;
+connection master;
+create table t1 (a int primary key, b blob, c char(5)) engine=innodb;
+reset master;
+connection slave;
+start slave;
+connection master;
+set timestamp=unix_timestamp('2010-10-10 10:10:10');
+insert t1 values (1,'.','Kyle'),(2,'?','JOE'),(3,'!','QA'), (4, '$', '4TH');
+update t1 set c='UPD' where a=3;
+update t1 set b='#' where a=2;
+delete from t1 where a=4;
+select * from t1;
+a	b	c
+1	.	Kyle
+2	#	JOE
+3	!	UPD
+connection slave;
+select * from t1;
+a	b	c	d	e
+1	.	Kyle	Kyle-U	S.
+2	#	JOE	JOE-U	S#
+3	!	UPD	UPD-U	S!
+select d from t1;
+d
+JOE-U
+Kyle-U
+UPD-U
+select * from t1 where d='JOE-U';
+a	b	c	d	e
+2	#	JOE	JOE-U	S#
+connection master;
+drop table t1;
+connection slave;
+set global binlog_row_image=full;
+include/rpl_end.inc

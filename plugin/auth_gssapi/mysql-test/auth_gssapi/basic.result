@@ -1,6 +1,3 @@
-INSTALL SONAME 'auth_gssapi';
-Warnings:
-Note	1105	SSPI: using principal name 'localhost', mech 'Negotiate'
 CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi;
 connect  con1,localhost,$GSSAPI_SHORTNAME,,;
 SELECT USER(),CURRENT_USER();
@@ -23,4 +20,3 @@ DROP USER usr1;
 CREATE USER nosuchuser IDENTIFIED WITH gssapi AS 'nosuchuser@EXAMPLE.COM';
 ERROR 28000: GSSAPI name mismatch, requested 'nosuchuser@EXAMPLE.COM', actual name 'GSSAPI_FULLNAME'
 DROP USER nosuchuser;
-UNINSTALL SONAME 'auth_gssapi';

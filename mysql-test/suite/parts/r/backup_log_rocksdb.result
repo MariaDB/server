@@ -1,0 +1,15 @@
+connect  con1,localhost,root,,;
+BACKUP STAGE START;
+connection default;
+# Test partition engine read from .frm
+CREATE TABLE t220 (a INT) ENGINE ROCKSDB PARTITION BY KEY(a) PARTITIONS 2;
+DROP TABLE t220;
+#
+# Reading backup ddl log file
+#
+CREATE,ROCKSDB,1,test,t220,id: 1,,0,,,
+DROP,ROCKSDB,1,test,t220,id: 1,,0,,,
+#
+# Cleanup
+#
+disconnect con1;

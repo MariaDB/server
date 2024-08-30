@@ -19,6 +19,7 @@ eval CREATE TABLE test.regular_tbl(id MEDIUMINT NOT NULL AUTO_INCREMENT,
 
 ######## Create SPs, Functions, Views and Triggers Section ##############
 
+--enable_prepare_warnings
 delimiter |;
 CREATE PROCEDURE test.proc_norm()
 BEGIN
@@ -46,7 +47,7 @@ BEGIN
 END|   
 
 delimiter ;|
-
+--disable_prepare_warnings
 ############ Finish Setup Section ###################
 
 

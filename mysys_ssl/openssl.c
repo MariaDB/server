@@ -47,12 +47,25 @@ static void *coc_malloc(size_t size, const char *f __attribute__((unused)),
   return malloc(size);
 }
 
+static void *coc_realloc(void *addr, size_t num,
+                         const char *file __attribute__((unused)),
+                         int line __attribute__((unused)))
+{
+  return realloc(addr, num);
+}
+
+static void coc_free(void *addr, const char *file __attribute__((unused)),
+                    int line __attribute__((unused)))
+{
+  free(addr);
+}
+
 int check_openssl_compatibility()
 {
   EVP_CIPHER_CTX *evp_ctx;
   EVP_MD_CTX     *md5_ctx;
 
-  if (!CRYPTO_set_mem_functions(coc_malloc, NULL, NULL))
+  if (!CRYPTO_set_mem_functions(coc_malloc, coc_realloc, coc_free))
     return 0;
 
   testing= 1;

@@ -23,11 +23,12 @@
 #include "mariadb.h"
 #include "mysqld.h"
 #include "sql_priv.h"
-#ifndef __WIN__
+#ifndef _WIN32
 #include <netdb.h>        // getservbyname, servent
 #endif
 #include "sql_audit.h"
 #include "sql_connect.h"
+#include "thread_cache.h"
 #include "probes_mysql.h"
 #include "sql_parse.h"                          // sql_command_flags,
                                                 // execute_init_command,
@@ -35,7 +36,6 @@
 #include "sql_db.h"                             // mysql_change_db
 #include "hostname.h" // inc_host_errors, ip_to_hostname,
                       // reset_host_errors
-#include "sql_acl.h"  // acl_getroot, NO_ACCESS, SUPER_ACL
 #include "sql_callback.h"
 
 #ifdef WITH_WSREP
@@ -43,6 +43,7 @@
 #include "wsrep_mysqld.h"
 #endif /* WITH_WSREP */
 #include "proxy_protocol.h"
+#include <ssl_compat.h>
 
 HASH global_user_stats, global_client_stats, global_table_stats;
 HASH global_index_stats;
@@ -80,8 +81,8 @@ int get_or_create_user_conn(THD *thd, const char *user,
   {
     /* First connection for user; Create a user connection object */
     if (!(uc= ((struct user_conn*)
-	       my_malloc(sizeof(struct user_conn) + temp_len+1,
-			 MYF(MY_WME)))))
+	       my_malloc(key_memory_user_conn,
+                         sizeof(struct user_conn) + temp_len+1, MYF(MY_WME)))))
     {
       /* MY_WME ensures an error is set in THD. */
       return_val= 1;
@@ -139,7 +140,7 @@ int check_for_max_user_connections(THD *thd, USER_CONN *uc)
   if (global_system_variables.max_user_connections &&
       !uc->user_resources.user_conn &&
       global_system_variables.max_user_connections < uc->connections &&
-      !(thd->security_ctx->master_access & SUPER_ACL))
+      !(thd->security_ctx->master_access & PRIV_IGNORE_MAX_USER_CONNECTIONS))
   {
     my_error(ER_TOO_MANY_USER_CONNECTIONS, MYF(0), uc->user);
     error=1;
@@ -321,9 +322,10 @@ extern "C" void free_user(struct user_conn *uc)
 void init_max_user_conn(void)
 {
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-  my_hash_init(&hash_user_connections, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_conn,
-               (my_hash_free_key) free_user, 0);
+  my_hash_init(key_memory_user_conn, &hash_user_connections,
+               USER_CONN::user_host_key_charset_info_for_hash(),
+               max_connections, 0, 0, (my_hash_get_key)
+               get_key_conn, (my_hash_free_key) free_user, 0);
 #endif
 }
 
@@ -428,10 +430,7 @@ void init_user_stats(USER_STATS *user_stats,
                      ulonglong bytes_sent,
                      ulonglong binlog_bytes_written,
                      ha_rows rows_sent,
-                     ha_rows rows_read,
-                     ha_rows rows_inserted,
-                     ha_rows rows_deleted,
-                     ha_rows rows_updated,
+                     rows_stats *rows_stats,
                      ulonglong select_commands,
                      ulonglong update_commands,
                      ulonglong other_commands,
@@ -462,10 +461,7 @@ void init_user_stats(USER_STATS *user_stats,
   user_stats->bytes_sent= bytes_sent;
   user_stats->binlog_bytes_written= binlog_bytes_written;
   user_stats->rows_sent= rows_sent;
-  user_stats->rows_read= rows_read;
-  user_stats->rows_inserted= rows_inserted;
-  user_stats->rows_deleted= rows_deleted;
-  user_stats->rows_updated= rows_updated;
+  user_stats->rows_stats= *rows_stats;
   user_stats->select_commands= select_commands;
   user_stats->update_commands= update_commands;
   user_stats->other_commands= other_commands;
@@ -482,14 +478,18 @@ void init_user_stats(USER_STATS *user_stats,
 
 void init_global_user_stats(void)
 {
-  my_hash_init(&global_user_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
+               max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
 
 void init_global_client_stats(void)
 {
-  my_hash_init(&global_client_stats, system_charset_info, max_connections,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats,
+               USER_STATS::user_key_charset_info_for_hash(),
+               max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
                (my_hash_free_key) free_user_stats, 0);
 }
@@ -508,8 +508,9 @@ extern "C" void free_table_stats(TABLE_STATS* table_stats)
 
 void init_global_table_stats(void)
 {
-  my_hash_init(&global_table_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_table_stats,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats,
+               Lex_ident_fs::charset_info(),
+               max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
                (my_hash_free_key) free_table_stats, 0);
 }
 
@@ -527,8 +528,9 @@ extern "C" void free_index_stats(INDEX_STATS* index_stats)
 
 void init_global_index_stats(void)
 {
-  my_hash_init(&global_index_stats, system_charset_info, max_connections,
-               0, 0, (my_hash_get_key) get_key_index_stats,
+  my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats,
+               Lex_ident_fs::charset_info(),
+               max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
                (my_hash_free_key) free_index_stats, 0);
 }
 
@@ -568,9 +570,11 @@ static bool increment_count_by_name(const char *name, size_t name_length,
   if (!(user_stats= (USER_STATS*) my_hash_search(users_or_clients, (uchar*) name,
                                               name_length)))
   {
+    struct rows_stats rows_stats;
+    bzero(&rows_stats, sizeof(rows_stats));
     /* First connection for this user or client */
     if (!(user_stats= ((USER_STATS*)
-                       my_malloc(sizeof(USER_STATS),
+                       my_malloc(PSI_INSTRUMENT_ME, sizeof(USER_STATS),
                                  MYF(MY_WME | MY_ZEROFILL)))))
       return TRUE;                              // Out of memory
 
@@ -578,8 +582,8 @@ static bool increment_count_by_name(const char *name, size_t name_length,
                     0, 0, 0,   // connections
                     0, 0, 0,   // time
                     0, 0, 0,   // bytes sent, received and written
-                    0, 0,      // rows sent and read
-                    0, 0, 0,   // rows inserted, deleted and updated
+                    0,
+                    &rows_stats,
                     0, 0, 0,   // select, update and other commands
                     0, 0,      // commit and rollback trans
                     thd->status_var.access_denied_errors,
@@ -670,16 +674,22 @@ static void update_global_user_stats_with_user(THD *thd,
     (thd->status_var.binlog_bytes_written -
      thd->org_status_var.binlog_bytes_written);
   /* We are not counting rows in internal temporary tables here ! */
-  user_stats->rows_read+=      (thd->status_var.rows_read -
-                                thd->org_status_var.rows_read);
-  user_stats->rows_sent+=      (thd->status_var.rows_sent -
-                                thd->org_status_var.rows_sent);
-  user_stats->rows_inserted+=  (thd->status_var.ha_write_count -
-                                thd->org_status_var.ha_write_count);
-  user_stats->rows_deleted+=   (thd->status_var.ha_delete_count -
-                                thd->org_status_var.ha_delete_count);
-  user_stats->rows_updated+=   (thd->status_var.ha_update_count -
-                                thd->org_status_var.ha_update_count);
+  user_stats->rows_sent+=            (thd->status_var.rows_sent -
+                                      thd->org_status_var.rows_sent);
+  user_stats->rows_stats.read+=      (thd->status_var.rows_read -
+                                      thd->org_status_var.rows_read);
+  user_stats->rows_stats.inserted+=  (thd->status_var.ha_write_count -
+                                      thd->org_status_var.ha_write_count);
+  user_stats->rows_stats.deleted+=   (thd->status_var.ha_delete_count -
+                                      thd->org_status_var.ha_delete_count);
+  user_stats->rows_stats.updated+=   (thd->status_var.ha_update_count -
+                                      thd->org_status_var.ha_update_count);
+  user_stats->rows_stats.key_read_hit+= (thd->status_var.ha_read_key_count -
+                                         thd->org_status_var.ha_read_key_count -
+                                         (thd->status_var.ha_read_key_miss -
+                                          thd->org_status_var.ha_read_key_miss));
+  user_stats->rows_stats.key_read_miss+=   (thd->status_var.ha_read_key_miss -
+                                            thd->org_status_var.ha_read_key_miss);
   user_stats->select_commands+= thd->select_commands;
   user_stats->update_commands+= thd->update_commands;
   user_stats->other_commands+=  thd->other_commands;
@@ -778,6 +788,10 @@ void update_global_user_stats(THD *thd, bool create_user, time_t now)
 bool thd_init_client_charset(THD *thd, uint cs_number)
 {
   CHARSET_INFO *cs;
+
+  // Test a non-default collation ID. See also comments in this function below.
+  DBUG_EXECUTE_IF("thd_init_client_charset_utf8mb3_bin", cs_number= 83;);
+
   /*
    Use server character set and collation if
    - opt_character_set_client_handshake is not set
@@ -797,8 +811,27 @@ bool thd_init_client_charset(THD *thd, uint cs_number)
     {
       /* Disallow non-supported parser character sets: UCS2, UTF16, UTF32 */
       my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
-               cs->csname);
+               cs->cs_name.str);
       return true;
+    }
+    /*
+      Some connectors (e.g. JDBC, Node.js) can send non-default collation IDs
+      in the handshake packet, to set @@collation_connection right during
+      handshake. Although this is a non-documenting feature,
+      for better backward compatibility with such connectors let's:
+      a. resolve only default collations according to @@character_set_collations
+      b. preserve non-default collations as is
+
+      Perhaps eventually we should change (b) also to resolve non-default
+      collations accoding to @@character_set_collations. Clients that used to
+      send a non-default collation ID in the handshake packet will have to set
+      @@character_set_collations instead.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+    {
+      Sql_used used;
+      cs= global_system_variables.character_set_collations.
+            get_collation_for_charset(&used, cs);
     }
     thd->org_charset= cs;
     thd->update_charset(cs,cs,cs);
@@ -879,7 +912,7 @@ int thd_set_peer_addr(THD *thd,
   }
 
   my_free((void *)thd->main_security_ctx.ip);
-  if (!(thd->main_security_ctx.ip = my_strdup(ip, MYF(MY_WME))))
+  if (!(thd->main_security_ctx.ip = my_strdup(PSI_INSTRUMENT_ME, ip, MYF(MY_WME))))
   {
     /*
     No error accounting per IP in host_cache,
@@ -985,7 +1018,7 @@ static int check_connection(THD *thd)
                       /* See RFC 5737, 192.0.2.0/24 is reserved. */
                       const char* fake= "192.0.2.4";
                       inet_pton(AF_INET,fake, ip4);
-                      strcpy(ip, fake);
+                      safe_strcpy(ip, sizeof(ip), fake);
                       peer_rc= 0;
                     }
                     );
@@ -1015,7 +1048,7 @@ static int check_connection(THD *thd)
                       ip6->s6_addr[13] = 0x06;
                       ip6->s6_addr[14] = 0x00;
                       ip6->s6_addr[15] = 0x06;
-                      strcpy(ip, fake);
+                      safe_strcpy(ip, sizeof(ip), fake);
                       peer_rc= 0;
                     }
                     );
@@ -1076,7 +1109,6 @@ static int check_connection(THD *thd)
     statistic_increment(aborted_connects_preauth, &LOCK_status);
     return 1; /* The error is set by alloc(). */
   }
-
   auth_rc= acl_authenticate(thd, 0);
   if (auth_rc == 0 && connect_errors != 0)
   {
@@ -1105,24 +1137,14 @@ static int check_connection(THD *thd)
         In this case we will close the connection and increment status
 */
 
-bool setup_connection_thread_globals(THD *thd)
+void setup_connection_thread_globals(THD *thd)
 {
-
   DBUG_EXECUTE_IF("CONNECT_wait", {
-    extern MYSQL_SOCKET unix_sock;
-    while (unix_sock.fd >= 0)
+    extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
+    while (listen_sockets.size())
       my_sleep(1000);
   });
-
-  if (thd->store_globals())
-  {
-    close_connection(thd, ER_OUT_OF_RESOURCES);
-    statistic_increment(aborted_connects,&LOCK_status);
-    statistic_increment(connection_errors_internal, &LOCK_status);
-    thd->scheduler->end_thread(thd, 0);
-    return 1;                                   // Error
-  }
-  return 0;
+  thd->store_globals();
 }
 
 
@@ -1141,7 +1163,7 @@ bool setup_connection_thread_globals(THD *thd)
     1    error
 */
 
-bool login_connection(THD *thd)
+static bool login_connection(THD *thd)
 {
   NET *net= &thd->net;
   int error= 0;
@@ -1154,6 +1176,7 @@ bool login_connection(THD *thd)
   my_net_set_write_timeout(net, connect_timeout);
 
   error= check_connection(thd);
+  thd->session_tracker.sysvars.mark_all_as_changed(thd);
   thd->protocol->end_statement();
 
   if (unlikely(error))
@@ -1252,7 +1275,8 @@ void prepare_new_connection_state(THD* thd)
   thd->mark_connection_idle();
   thd->init_for_queries();
 
-  if (opt_init_connect.length && !(sctx->master_access & SUPER_ACL))
+  if (opt_init_connect.length &&
+      !(sctx->master_access & PRIV_IGNORE_INIT_CONNECT))
   {
     execute_init_command(thd, &opt_init_connect, &LOCK_sys_init_connect);
     if (unlikely(thd->is_error()))
@@ -1292,7 +1316,6 @@ void prepare_new_connection_state(THD* thd)
     }
 
     thd->proc_info=0;
-    thd->init_for_queries();
   }
 }
 
@@ -1319,8 +1342,18 @@ pthread_handler_t handle_one_connection(void *arg)
   CONNECT *connect= (CONNECT*) arg;
 
   mysql_thread_set_psi_id(connect->thread_id);
+  my_thread_set_name("one_connection");
 
-  do_handle_one_connection(connect);
+  if (init_new_connection_handler_thread())
+    connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
+  else
+    do_handle_one_connection(connect, true);
+
+  DBUG_PRINT("info", ("killing thread"));
+#if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
+  ERR_remove_state(0);
+#endif
+  my_thread_end();
   return 0;
 }
 
@@ -1354,16 +1387,13 @@ bool thd_is_connection_alive(THD *thd)
 }
 
 
-void do_handle_one_connection(CONNECT *connect)
+void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
 {
   ulonglong thr_create_utime= microsecond_interval_timer();
   THD *thd;
-  if (connect->scheduler->init_new_connection_thread() ||
-      !(thd= connect->create_thd(NULL)))
+  if (!(thd= connect->create_thd(NULL)))
   {
-    scheduler_functions *scheduler= connect->scheduler;
-    connect->close_with_error(0, 0, ER_OUT_OF_RESOURCES);
-    scheduler->end_thread(0, 0);
+    connect->close_and_delete();
     return;
   }
 
@@ -1398,8 +1428,7 @@ void do_handle_one_connection(CONNECT *connect)
     stack overruns.
   */
   thd->thread_stack= (char*) &thd;
-  if (setup_connection_thread_globals(thd))
-    return;
+  setup_connection_thread_globals(thd);
 
   for (;;)
   {
@@ -1427,16 +1456,37 @@ end_thread:
     if (thd->userstat_running)
       update_global_user_stats(thd, create_user, time(NULL));
 
-    if (thd->scheduler->end_thread(thd, 1))
-      return;                                 // Probably no-threads
+    unlink_thd(thd);
+    if (IF_WSREP(thd->wsrep_applier, false) || !put_in_cache ||
+        !(connect= thread_cache.park()))
+      break;
+
+    /* Create new instrumentation for the new THD job */
+    PSI_CALL_set_thread(PSI_CALL_new_thread(key_thread_one_connection, thd,
+                                            thd->thread_id));
+
+    if (!(connect->create_thd(thd)))
+    {
+      /* Out of resources. Free thread to get more resources */
+      connect->close_and_delete();
+      break;
+    }
+    delete connect;
 
     /*
-      If end_thread() returns, this thread has been schedule to
-      handle the next connection.
+      We have to call store_globals to update mysys_var->id and lock_info
+      with the new thread_id
     */
-    thd= current_thd;
-    thd->thread_stack= (char*) &thd;
+    thd->store_globals();
+
+    /* reset abort flag for the thread */
+    thd->mysys_var->abort= 0;
+    thd->thr_create_utime= microsecond_interval_timer();
+    thd->start_utime= thd->thr_create_utime;
+
+    server_threads.insert(thd);
   }
+  delete thd;
 }
 #endif /* EMBEDDED_LIBRARY */
 
@@ -1453,10 +1503,16 @@ void CONNECT::close_and_delete()
 {
   DBUG_ENTER("close_and_delete");
 
-  if (vio)
-    vio_close(vio);
-  if (thread_count_incremented)
-    dec_connection_count(scheduler);
+#if _WIN32
+  if (vio_type == VIO_TYPE_NAMEDPIPE)
+    CloseHandle(pipe);
+  else
+#endif
+  if (vio_type != VIO_CLOSED)
+    mysql_socket_close(sock);
+  vio_type= VIO_CLOSED;
+
+  --*scheduler->connection_count;
   statistic_increment(connection_errors_internal, &LOCK_status);
   statistic_increment(aborted_connects,&LOCK_status);
 
@@ -1485,19 +1541,12 @@ void CONNECT::close_with_error(uint sql_errno,
 }
 
 
-CONNECT::~CONNECT()
-{
-  if (vio)
-    vio_delete(vio);
-  count--;
-}
-
-
 /* Reuse or create a THD based on a CONNECT object */
 
 THD *CONNECT::create_thd(THD *thd)
 {
   bool res, thd_reused= thd != 0;
+  Vio *vio;
   DBUG_ENTER("create_thd");
 
   DBUG_EXECUTE_IF("simulate_failed_connection_2", DBUG_RETURN(0); );
@@ -1516,9 +1565,23 @@ THD *CONNECT::create_thd(THD *thd)
   else if (!(thd= new THD(thread_id)))
     DBUG_RETURN(0);
 
+#if _WIN32
+  if (vio_type == VIO_TYPE_NAMEDPIPE)
+    vio= vio_new_win32pipe(pipe);
+  else
+#endif
+  vio= mysql_socket_vio_new(sock, vio_type, vio_type == VIO_TYPE_SOCKET ?
+                                                        VIO_LOCALHOST : 0);
+  if (!vio)
+  {
+    if (!thd_reused)
+      delete thd;
+    DBUG_RETURN(0);
+  }
+
   set_current_thd(thd);
   res= my_net_init(&thd->net, vio, thd, MYF(MY_THREAD_SPECIFIC));
-  vio= 0;                              // Vio now handled by thd
+  vio_type= VIO_CLOSED;                // Vio now handled by thd
 
   if (unlikely(res || thd->is_error()))
   {
@@ -1530,9 +1593,20 @@ THD *CONNECT::create_thd(THD *thd)
 
   init_net_server_extension(thd);
 
-  thd->security_ctx->host= host;
-  thd->extra_port=         extra_port;
+  thd->security_ctx->host= thd->net.vio->type == VIO_TYPE_NAMEDPIPE ||
+                           thd->net.vio->type == VIO_TYPE_SOCKET ?
+                           my_localhost : 0;
+
   thd->scheduler=          scheduler;
-  thd->real_id=            real_id;
+  thd->real_id= pthread_self(); /* Duplicates THD::store_globals() setting. */
+
+  /* Attach PSI instrumentation to the new THD */
+
+  PSI_thread *psi= PSI_CALL_get_thread();
+  PSI_CALL_set_thread_os_id(psi);
+  PSI_CALL_set_thread_THD(psi, thd);
+  PSI_CALL_set_thread_id(psi, thd->thread_id);
+  thd->set_psi(psi);
+
   DBUG_RETURN(thd);
 }

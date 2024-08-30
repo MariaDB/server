@@ -20,8 +20,6 @@ connection node_1;
 include/diff_servers.inc [servers=1 2]
 connection node_1;
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-include/assert_grep.inc [async IST sender starting to serve]
 connection node_2;
 CALL mtr.add_suppression("Skipped GCache ring buffer recovery");
-include/assert_grep.inc [Recovering GCache ring buffer: found gapless sequence]
 DROP TABLE t1;

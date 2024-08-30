@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_partition.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo #
+--echo # MDEV-30442: Assertion `!m_innodb' failed in ha_partition::cmp_ref on MULTI-DELETE
+--echo #
+create table t1 (a int) engine=innodb;
+insert into t1 values (1),(2),(1),(2);
+
+create table t2 (
+  a int,
+  b int,
+  key(a)
+) engine=innodb partition by list(a)
+(
+  partition p0 values in (1),
+  partition p1 values in (2),
+  partition p2 values in (0,3,4,5,6,7,8,9)
+);
+
+insert into t2 select
+  mod(seq, 10), seq from seq_1_to_50;
+
+--replace_column 9 #
+explain
+delete t1, t2 from t1, t2 where t1.a=t2.a;
+delete t1, t2 from t1, t2 where t1.a=t2.a;
+
+drop table t1,t2;

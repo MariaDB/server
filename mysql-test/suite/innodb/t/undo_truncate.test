@@ -1,13 +1,26 @@
 --source include/have_innodb.inc
 --source include/innodb_page_size.inc
---source include/have_undo_tablespaces.inc
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 --source include/no_valgrind_without_big.inc
 
-SET GLOBAL innodb_undo_log_truncate = 0;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+--disable_query_log
+call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+--disable_query_log
+# This may be triggered on a slow system.
+call mtr.add_suppression("InnoDB: Trying to delete tablespace.*pending operations");
+--enable_query_log
 
+# Re-create the undo log tablespaces after slow shutdown
+SET GLOBAL innodb_fast_shutdown=0;
+let $restart_parameters=--innodb_undo_tablespaces=2;
+--source include/restart_mysqld.inc
+
+SET GLOBAL innodb_undo_log_truncate = 0;
+
+LET $MYSQLD_DATADIR = `select @@datadir`;
+LET $INNODB_PAGE_SIZE = `select @@innodb_page_size`;
+--source suite/innodb/include/show_i_s_tablespaces.inc
 #-----------------------------------------------------------------------------
 #
 # Perform DML action using multiple clients and multiple undo tablespace.
@@ -33,6 +46,7 @@ connection con1; reap; send delete from t1;
 connection con2; reap; delete from t2;
 connection con1; reap;
 
+SET GLOBAL innodb_max_undo_log_size = @@GLOBAL.innodb_page_size * 4294967296;
 SET GLOBAL innodb_undo_log_truncate = 1;
 commit; disconnect con1;
 connection con2; commit; disconnect con2;
@@ -43,9 +57,11 @@ connection default;
 let $trx_before= `SHOW ENGINE INNODB STATUS`;
 let $trx_before= `select substr('$trx_before',9)+2`;
 
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+SET GLOBAL innodb_max_undo_log_size=DEFAULT;
 SET GLOBAL innodb_max_purge_lag_wait=0;
 set global innodb_fast_shutdown=0;
+let $restart_parameters=;
 --source include/restart_mysqld.inc
 --replace_regex /.*Trx id counter ([0-9]+).*/\1/
 let $trx_after= `SHOW ENGINE INNODB STATUS`;

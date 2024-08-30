@@ -15,6 +15,10 @@
 
 # This script creates initial database for packaging on Windows
 # Force Visual Studio to output to stdout
+
+# This script can be run with "make initial_database" or
+# "cmake --build .--target initial_database"
+
 IF(ENV{VS_UNICODE_OUTPUT})
  SET ($ENV{VS_UNICODE_OUTPUT})
 ENDIF()
@@ -26,7 +30,7 @@ ENDIF()
 
 # Create bootstrapper SQL script
 FILE(WRITE bootstrap.sql "use mysql;\n" )
-FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_performance_tables.sql)
+FOREACH(FILENAME mariadb_system_tables.sql mariadb_system_tables_data.sql mariadb_performance_tables.sql)
    FILE(STRINGS ${TOP_SRCDIR}/scripts/${FILENAME} CONTENTS)
    FOREACH(STR ${CONTENTS})
     IF(NOT STR MATCHES "@current_hostname")
@@ -34,11 +38,11 @@ FOREACH(FILENAME mysql_system_tables.sql mysql_system_tables_data.sql mysql_perf
     ENDIF()
   ENDFOREACH()
 ENDFOREACH()
-FILE(READ ${TOP_SRCDIR}/scripts/fill_help_tables.sql CONTENTS)
-FILE(APPEND bootstrap.sql "${CONTENTS}")
 
-FILE(REMOVE_RECURSE mysql performance_schema)
-FILE(REMOVE ibdata1 ib_logfile0 ib_logfile1)
+FOREACH(FILENAME ${TOP_SRCDIR}/scripts/fill_help_tables.sql ${TOP_SRCDIR}/scripts/mariadb_sys_schema.sql)
+  FILE(READ ${FILENAME} CONTENTS)
+  FILE(APPEND bootstrap.sql "${CONTENTS}")
+ENDFOREACH()
 
 MAKE_DIRECTORY(mysql)
 
@@ -46,13 +50,8 @@ SET(BOOTSTRAP_COMMAND
   ${MYSQLD_EXECUTABLE} 
   --no-defaults 
   --console
-  --bootstrap 
-  --lc-messages-dir=${BINDIR}/share
-  --basedir=.
+  --bootstrap
   --datadir=.
-  --default-storage-engine=MyISAM
-  --max_allowed_packet=8M
-  --net_buffer_length=32K
 )
 
 GET_FILENAME_COMPONENT(CWD . ABSOLUTE)

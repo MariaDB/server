@@ -21,7 +21,7 @@ f7 INT DEFAULT '0',
 f8 TEXT,
 f9 LONGBLOB,
 f10 BIT(63),
-f11 VARBINARY(64))ENGINE='MyISAM';
+f11 VARBINARY(64))ENGINE='MyISAM' CHARSET=latin1;
 
 * Alter Table on Slave and drop columns f5 through f11 *
 
@@ -105,7 +105,7 @@ f9 NUMERIC(6,2) default '2000.00',
 f10 VARCHAR(1024),
 f11 BINARY(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 f12 SET('a', 'b', 'c') default 'b')
-ENGINE='MyISAM';
+ENGINE='MyISAM' CHARSET=latin1;
 
 CREATE TABLE t3 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
 /* extra */
@@ -115,7 +115,7 @@ f8 MEDIUMBLOB,
 f10 VARCHAR(1024),
 f11 BINARY(20) NOT NULL DEFAULT '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 f12 SET('a', 'b', 'c') default 'b')
-ENGINE='MyISAM';
+ENGINE='MyISAM' CHARSET=latin1;
 
 CREATE TABLE t4 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
 /* extra */
@@ -126,7 +126,7 @@ f8 NUMERIC(6,2) default '2000.00',
 f9 VARCHAR(1024),
 f10 BINARY(20) not null default '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
 f11 CHAR(255))
-ENGINE='MyISAM';
+ENGINE='MyISAM' CHARSET=latin1;
 
 CREATE TABLE t31 (f1 INT, f2 INT, f3 INT PRIMARY KEY, f4 CHAR(20),
 /* extra */
@@ -161,7 +161,7 @@ f32 NUMERIC(17,9),
 f33 SET ('a', 'b', 'c') default 'b',
 f34 VARBINARY(1025),
 f35 VARCHAR(257)       
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 ** Alter tables on slave and drop columns **
 
@@ -437,17 +437,17 @@ connection master;
 ** Stop and Reset Slave **
 
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 
 ** create table slave side **
 CREATE TABLE t10 (a INT PRIMARY KEY, b BLOB, c CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 ** Connect to master and create table **
 
 connection master;
 CREATE TABLE t10 (a INT KEY, b BLOB, f DOUBLE DEFAULT '233',
-c CHAR(5), e INT DEFAULT '1')ENGINE='MyISAM';
+c CHAR(5), e INT DEFAULT '1')ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -482,14 +482,14 @@ connection slave;
 
 *** Create t11 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t11 (a INT PRIMARY KEY, b BLOB, c VARCHAR(254)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t11 on Master ***
 connection master;
 CREATE TABLE t11 (a INT KEY, b BLOB, f TEXT,
-c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='MyISAM';
+c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -524,14 +524,14 @@ connection slave;
 
 *** Create t12 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t12 (a INT PRIMARY KEY, b BLOB, c BLOB
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t12 on Master ***
 connection master;
 CREATE TABLE t12 (a INT KEY, b BLOB, f TEXT,
-c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='MyISAM';
+c CHAR(5) DEFAULT 'test', e INT DEFAULT '1')ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -573,16 +573,16 @@ connection slave;
 
 *** Create t14 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t14 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t14 on Master ***
 connection master;
 CREATE TABLE t14 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -638,7 +638,7 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1091]
 Last_SQL_Error = 'Error 'Can't DROP COLUMN `c7`; check that it exists' on query. Default database: 'test'. Query: 'ALTER TABLE t14 DROP COLUMN c7''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 
 *** Drop t14  ***
 DROP TABLE t14;
@@ -655,16 +655,18 @@ START SLAVE;
 
 *** Create t15 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-104. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t15 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t15 on Master ***
 connection master;
 CREATE TABLE t15 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -693,7 +695,9 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1054]
 Last_SQL_Error = 'Error 'Unknown column 'c7' in 't15'' on query. Default database: 'test'. Query: 'ALTER TABLE t15 ADD COLUMN c2 DECIMAL(8,2) AFTER c7''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-105. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 
 *** Drop t15  ***
 DROP TABLE t15;
@@ -710,16 +714,18 @@ START SLAVE;
 
 *** Create t16 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-106. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t16 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t16 on Master ***
 connection master;
 CREATE TABLE t16 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -748,7 +754,9 @@ connection slave;
 include/wait_for_slave_sql_error.inc [errno=1072]
 Last_SQL_Error = 'Error 'Key column 'c6' doesn't exist in table' on query. Default database: 'test'. Query: 'CREATE INDEX part_of_c6 ON t16 (c6)''
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-107. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 
 *** Drop t16  ***
 DROP TABLE t16;
@@ -765,16 +773,18 @@ START SLAVE;
 
 *** Create t17 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
+Warnings:
+Warning	1948	Specified value for @@gtid_slave_pos contains no value for replication domain 0. This conflicts with the binary log which contains GTID 0-2-108. If MASTER_GTID_POS=CURRENT_POS is used, the binlog position will override the new value of @@gtid_slave_pos
 CREATE TABLE t17 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t17 on Master ***
 connection master;
 CREATE TABLE t17 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -831,16 +841,16 @@ connection slave;
 *** Create t18 on slave  ***
 
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t18 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t18 on Master ***
 connection master;
 CREATE TABLE t18 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 INT DEFAULT '1',
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***
@@ -896,16 +906,16 @@ connection slave;
 
 *** Create t5 on slave  ***
 STOP SLAVE;
-RESET SLAVE;
+include/reset_slave.inc
 CREATE TABLE t5 (c1 INT PRIMARY KEY, c4 BLOB, c5 CHAR(5)
-) ENGINE='MyISAM';
+) ENGINE='MyISAM' CHARSET=latin1;
 
 *** Create t5 on Master ***
 connection master;
 CREATE TABLE t5 (c1 INT KEY, c4 BLOB, c5 CHAR(5),
 c6 LONG, 
 c7 TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
-)ENGINE='MyISAM';
+)ENGINE='MyISAM' CHARSET=latin1;
 RESET MASTER;
 
 *** Start Slave ***

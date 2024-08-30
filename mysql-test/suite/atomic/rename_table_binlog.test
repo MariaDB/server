@@ -1,0 +1,170 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_csv.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
+#
+# Testing of atomic rename with binlogging
+# - First crash is before binlog is written, in which case the rename should
+#   be reverted
+# - Second crash is after binlog is written, in which case the rename should hold
+#
+
+let $engine_count=2;
+let $engines='myisam', 'aria';
+
+let $crash_count=2;
+let $crash_points='ddl_log_rename_before_binlog','ddl_log_rename_after_binlog';
+let $crash_positions= 1;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+--disable_query_log
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+
+  --eval set @@default_storage_engine=$default_engine
+  --eval create table t1 (a int not null) $extra_option;
+  --eval create table t2 (b int not null) $extra_option;
+  --eval create table t3 (c int not null) $extra_option;
+  --eval create table t4 (d int not null) $extra_option;
+  insert into t1 values(1);
+  insert into t2 values(2);
+  insert into t3 values(3);
+  insert into t4 values(4);
+
+  delimiter |;
+  create trigger t1_trg before insert on t1 for each row
+  begin
+    if isnull(new.a) then
+      set new.a:= 1000;
+    end if;
+  end|
+  create trigger t2_trg before insert on t2 for each row
+  begin
+    if isnull(new.b) then
+      set new.b:= 2000;
+    end if;
+  end|
+  create trigger t3_trg before insert on t3 for each row
+  begin
+    if isnull(new.c) then
+      set new.c:= 4000;
+    end if;
+  end|
+  create trigger t4_trg before insert on t4 for each row
+  begin
+    if isnull(new.d) then
+      set new.d:= 8000;
+    end if;
+  end|
+  delimiter ;|
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+    let $r=0;
+    while ($r < $crash_positions)
+    {
+      inc $r;
+      echo "engine: $engine  crash point: $crash  position: $r";
+      flush tables;
+
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+      let $errno=0;
+      --error 0,2013
+      rename table t1 to t5, t2 to t1, t5 to t2, t4 to t5, t3 to t4;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+        # No crash, rename things back
+        rename table t4 to t3, t5 to t4, t2 to t5, t1 to t2, t5 to t1;
+      }
+      if ($c == 1)
+      {
+        # Check that the tables are back to original
+        let $res=`select t1.a+t2.b+t3.c+t4.d from t1,t2,t3,t4`;
+        if ($res != 10)
+        {
+          die "Got result $res when 10 was expected";
+        }
+
+        # Ensure that triggers work
+        insert into t1 values(null);
+        insert into t2 values(null);
+        insert into t3 values(null);
+        insert into t4 values(null);
+        let $res=`select (select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4)`;
+        if ($res != 15010)
+        {
+          die "Got result $res when 15010 was expected";
+        }
+        # Restore tables
+        delete from t1 where a > 100;
+        delete from t2 where b > 100;
+        delete from t3 where c > 100;
+        delete from t4 where d > 100;
+      }
+      if ($c == 2)
+      {
+         # Check that rename succeded
+         insert into t1 values(null);
+         insert into t2 values(null);
+         insert into t5 values(null);
+         insert into t4 values(null);
+         let $res=`select (select sum(t1.b) from t1)+ (select sum(t2.a) from t2) + (select sum(t4.c) from t4)+ (select sum(t5.d) from t5)`;
+         if ($res != 15010)
+         {
+           die "Got result $res when 15010 was expected";
+         }
+         let $res=`select (select count(*)=2 from t1) + (select count(*)=2 from t2) + (select count(*)=2 from t4)+ (select count(*)=2 from t5)`;
+         if ($res != 4)
+         {
+           die "Got result $res when 4 was expected";
+         }
+       }
+    }
+  }
+  drop table t1,t2,t4,t5;
+}
+--enable_query_log
+
+# Show the binlogs that holds the renames
+--let $binlog_file=master-bin.000002
+--source include/show_binlog_events.inc
+--let $binlog_file=master-bin.000003
+--source include/show_binlog_events.inc
+--let $binlog_file=master-bin.000004
+--source include/show_binlog_events.inc
+--let $binlog_file=master-bin.000005
+--source include/show_binlog_events.inc

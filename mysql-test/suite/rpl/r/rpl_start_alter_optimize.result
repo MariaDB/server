@@ -1,0 +1,18 @@
+include/master-slave.inc
+[connection master]
+connection master;
+set binlog_alter_two_phase = ON;
+connection master;
+CREATE TABLE t1 (i int) engine=innodb;
+CREATE TABLE t2 (i int) engine=innodb;
+ALTER TABLE t1 DROP CONSTRAINT IF EXISTS y;
+Warnings:
+Note	1091	Can't DROP CONSTRAINT `y`; check that it exists
+OPTIMIZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t2	optimize	status	OK
+connection slave;
+connection master;
+drop table t1,t2;
+include/rpl_end.inc

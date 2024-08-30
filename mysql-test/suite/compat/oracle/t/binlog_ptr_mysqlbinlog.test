@@ -18,6 +18,8 @@
 --source include/have_log_bin.inc
 --source include/have_innodb.inc
 
+call mtr.add_suppression("Binlog_format changed to.*flashback");
+
 let $MYSQLD_DATADIR= `select @@datadir`;
 SET @@SQL_MODE = 'ORACLE';
 

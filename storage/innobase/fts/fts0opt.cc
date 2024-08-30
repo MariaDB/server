@@ -47,12 +47,18 @@ constexpr bool wsrep_sst_disable_writes= false;
 
 /** The FTS optimize thread's work queue. */
 ib_wqueue_t* fts_optimize_wq;
+static void fts_optimize_callback(void *);
+static void timer_callback(void*);
+static tpool::timer* timer;
+
+static tpool::task_group task_group(1);
+static tpool::task task(fts_optimize_callback,0, &task_group);
+
+/** FTS optimize thread, for MDL acquisition */
+static THD *fts_opt_thd;
 
 /** The FTS vector to store fts_slot_t */
 static ib_vector_t*  fts_slots;
-
-/** Time to wait for a message. */
-static const ulint FTS_QUEUE_WAIT_IN_USECS = 5000000;
 
 /** Default optimize interval in secs. */
 static const ulint FTS_OPTIMIZE_INTERVAL_IN_SECS = 300;
@@ -60,8 +66,9 @@ static const ulint FTS_OPTIMIZE_INTERVAL_IN_SECS = 300;
 /** Server is shutting down, so does we exiting the optimize thread */
 static bool fts_opt_start_shutdown = false;
 
-/** Event to wait for shutdown of the optimize thread */
-static os_event_t fts_opt_shutdown_event = NULL;
+/** Condition variable for shutting down the optimize thread.
+Protected by fts_optimize_wq->mutex. */
+static pthread_cond_t fts_opt_shutdown_cond;
 
 /** Initial size of nodes in fts_word_t. */
 static const ulint FTS_WORD_NODES_INIT_SIZE = 64;
@@ -197,12 +204,12 @@ struct fts_slot_t {
 };
 
 /** A table remove message for the FTS optimize thread. */
-struct fts_msg_del_t {
-	dict_table_t*	table;		/*!< The table to remove */
-
-	os_event_t	event;		/*!< Event to synchronize acknowledgement
-					of receipt and processing of the
-					this message by the consumer */
+struct fts_msg_del_t
+{
+  /** the table to remove */
+  dict_table_t *table;
+  /** condition variable to signal message consumption */
+  pthread_cond_t *cond;
 };
 
 /** The FTS optimize message work queue message type. */
@@ -584,7 +591,7 @@ fts_zip_read_word(
 		/* Finished decompressing block. */
 		if (zip->zp->avail_in == 0) {
 
-			/* Free the block thats been decompressed. */
+			/* Free the block that's been decompressed. */
 			if (zip->pos > 0) {
 				ulint	prev = zip->pos - 1;
 
@@ -893,7 +900,7 @@ fts_index_fetch_words(
 			}
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		/* Check if max word to fetch is exceeded */
 		if (optim->zip->n_words >= n_words) {
@@ -1006,13 +1013,10 @@ fts_table_fetch_doc_ids(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-
-	mutex_enter(&dict_sys.mutex);
 	que_graph_free(graph);
-	mutex_exit(&dict_sys.mutex);
 
 	if (error == DB_SUCCESS) {
-		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
+		fts_doc_ids_sort(doc_ids->doc_ids);
 	}
 
 	if (alloc_bk_trx) {
@@ -1464,7 +1468,7 @@ fts_optimize_write_word(
 			" when deleting a word from the FTS index.";
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 	graph = NULL;
 
 	/* Even if the operation needs to be rolled back and redone,
@@ -1496,7 +1500,7 @@ fts_optimize_write_word(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -1608,8 +1612,21 @@ fts_optimize_create(
 	optim->fts_index_table.table = table;
 
 	/* The common prefix for all this parent table's aux tables. */
-	optim->name_prefix = fts_get_table_name_prefix(
-		&optim->fts_common_table);
+	char table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
+	const size_t table_id_len = 1
+		+ size_t(fts_get_table_id(&optim->fts_common_table, table_id));
+	dict_sys.freeze(SRW_LOCK_CALL);
+	/* Include the separator as well. */
+	const size_t dbname_len = table->name.dblen() + 1;
+	ut_ad(dbname_len > 1);
+	const size_t prefix_name_len = dbname_len + 4 + table_id_len;
+	char* prefix_name = static_cast<char*>(
+		ut_malloc_nokey(prefix_name_len));
+	memcpy(prefix_name, table->name.m_name, dbname_len);
+	dict_sys.unfreeze();
+	memcpy(prefix_name + dbname_len, "FTS_", 4);
+	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
+	optim->name_prefix =prefix_name;
 
 	return(optim);
 }
@@ -1821,7 +1838,7 @@ fts_optimize_words(
 						charset, word->f_str,
 						word->f_len)
 					  && graph) {
-					fts_que_graph_free(graph);
+					que_graph_free(graph);
 					graph = NULL;
 				}
 			}
@@ -1840,7 +1857,7 @@ fts_optimize_words(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 }
 
@@ -2073,7 +2090,7 @@ fts_optimize_purge_deleted_doc_ids(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2110,7 +2127,7 @@ fts_optimize_purge_deleted_doc_id_snapshot(
 	graph = fts_parse_sql(NULL, info, fts_end_delete_sql);
 
 	error = fts_eval_sql(optim->trx, graph);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2178,7 +2195,7 @@ fts_optimize_create_deleted_doc_id_snapshot(
 
 	error = fts_eval_sql(optim->trx, graph);
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error != DB_SUCCESS) {
 		fts_sql_rollback(optim->trx);
@@ -2390,7 +2407,7 @@ fts_optimize_table_bk(
 	dict_table_t*	table = slot->table;
 	dberr_t		error;
 
-	if (fil_table_accessible(table)
+	if (table->is_accessible()
 	    && table->fts && table->fts->cache
 	    && table->fts->cache->deleted >= FTS_OPTIMIZE_THRESHOLD) {
 		error = fts_optimize_table(table);
@@ -2530,6 +2547,22 @@ fts_optimize_create_msg(
 	return(msg);
 }
 
+/** Add message to wqueue, signal thread pool*/
+static void add_msg(fts_msg_t *msg)
+{
+  ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
+  srv_thread_pool->submit_task(&task);
+}
+
+/**
+Called by "idle" timer. Submits optimize task, which
+will only recalculate is_sync_needed, in case the queue is empty.
+*/
+static void timer_callback(void*)
+{
+  srv_thread_pool->submit_task(&task);
+}
+
 /** Add the table to add to the OPTIMIZER's list.
 @param[in]	table	table to add */
 void fts_optimize_add_table(dict_table_t* table)
@@ -2540,24 +2573,18 @@ void fts_optimize_add_table(dict_table_t* table)
 		return;
 	}
 
-	/* If there is no fts index present then don't add to
-	optimize queue. */
-	if (!ib_vector_size(table->fts->indexes)) {
-		return;
-	}
-
 	/* Make sure table with FTS index cannot be evicted */
-	dict_table_prevent_eviction(table);
+	dict_sys.prevent_eviction(table);
 
 	msg = fts_optimize_create_msg(FTS_MSG_ADD_TABLE, table);
 
-	mutex_enter(&fts_optimize_wq->mutex);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 
-	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
+	add_msg(msg);
 
 	table->fts->in_queue = true;
 
-	mutex_exit(&fts_optimize_wq->mutex);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /**********************************************************************//**
@@ -2568,61 +2595,34 @@ fts_optimize_remove_table(
 /*======================*/
 	dict_table_t*	table)			/*!< in: table to remove */
 {
-	fts_msg_t*	msg;
-	os_event_t	event;
-	fts_msg_del_t*	remove;
+  if (!fts_optimize_wq)
+    return;
 
-	/* if the optimize system not yet initialized, return */
-	if (!fts_optimize_wq) {
-		return;
-	}
+  if (fts_opt_start_shutdown)
+  {
+    ib::info() << "Try to remove table " << table->name
+               << " after FTS optimize thread exiting.";
+    while (fts_optimize_wq)
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    return;
+  }
 
-	/* FTS optimizer thread is already exited */
-	if (fts_opt_start_shutdown) {
-		ib::info() << "Try to remove table " << table->name
-			<< " after FTS optimize thread exiting.";
-		/* If the table can't be removed then wait till
-		fts optimize thread shuts down */
-		while (fts_optimize_wq) {
-			os_thread_sleep(10000);
-		}
-		return;
-	}
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
 
-	mutex_enter(&fts_optimize_wq->mutex);
+  if (table->fts->in_queue)
+  {
+    fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
+    pthread_cond_t cond;
+    pthread_cond_init(&cond, nullptr);
+    msg->ptr= new(mem_heap_alloc(msg->heap, sizeof(fts_msg_del_t)))
+      fts_msg_del_t{table, &cond};
+    add_msg(msg);
+    my_cond_wait(&cond, &fts_optimize_wq->mutex.m_mutex);
+    pthread_cond_destroy(&cond);
+    ut_ad(!table->fts->in_queue);
+  }
 
-	if (!table->fts->in_queue) {
-		mutex_exit(&fts_optimize_wq->mutex);
-		return;
-	}
-
-	msg = fts_optimize_create_msg(FTS_MSG_DEL_TABLE, NULL);
-
-	/* We will wait on this event until signalled by the consumer. */
-	event = os_event_create(0);
-
-	remove = static_cast<fts_msg_del_t*>(
-		mem_heap_alloc(msg->heap, sizeof(*remove)));
-
-	remove->table = table;
-	remove->event = event;
-	msg->ptr = remove;
-
-	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
-
-	mutex_exit(&fts_optimize_wq->mutex);
-
-	os_event_wait(event);
-
-	os_event_destroy(event);
-
-#ifdef UNIV_DEBUG
-	if (!fts_opt_start_shutdown) {
-		mutex_enter(&fts_optimize_wq->mutex);
-		ut_ad(!table->fts->in_queue);
-		mutex_exit(&fts_optimize_wq->mutex);
-	}
-#endif /* UNIV_DEBUG */
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /** Send sync fts cache for the table.
@@ -2636,23 +2636,23 @@ fts_optimize_request_sync_table(
 		return;
 	}
 
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+
 	/* FTS optimizer thread is already exited */
 	if (fts_opt_start_shutdown) {
 		ib::info() << "Try to sync table " << table->name
 			<< " after FTS optimize thread exiting.";
-		return;
+	} else if (table->fts->sync_message) {
+		/* If the table already has SYNC message in
+		fts_optimize_wq queue then ignore it */
+	} else {
+		add_msg(fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table));
+		table->fts->sync_message = true;
+		DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
+				DBUG_ASSERT(fts_optimize_wq->length <= 1000););
 	}
 
-	fts_msg_t* msg = fts_optimize_create_msg(FTS_MSG_SYNC_TABLE, table);
-
-	mutex_enter(&fts_optimize_wq->mutex);
-
-	ib_wqueue_add(fts_optimize_wq, msg, msg->heap, true);
-
-	DBUG_EXECUTE_IF("fts_optimize_wq_count_check",
-			DBUG_ASSERT(fts_optimize_wq->length <= 1000););
-
-	mutex_exit(&fts_optimize_wq->mutex);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }
 
 /** Add a table to fts_slots if it doesn't already exist. */
@@ -2687,9 +2687,10 @@ static bool fts_optimize_new_table(dict_table_t* table)
 }
 
 /** Remove a table from fts_slots if it exists.
-@param[in,out]	table	table to be removed from fts_slots */
-static bool fts_optimize_del_table(const dict_table_t* table)
+@param remove	table to be removed from fts_slots */
+static bool fts_optimize_del_table(fts_msg_del_t *remove)
 {
+	const dict_table_t* table = remove->table;
 	ut_ad(table);
 	for (ulint i = 0; i < ib_vector_size(fts_slots); ++i) {
 		fts_slot_t*	slot;
@@ -2702,14 +2703,18 @@ static bool fts_optimize_del_table(const dict_table_t* table)
 					<< table->name;
 			}
 
-			mutex_enter(&fts_optimize_wq->mutex);
-			slot->table->fts->in_queue = false;
-			mutex_exit(&fts_optimize_wq->mutex);
+			mysql_mutex_lock(&fts_optimize_wq->mutex);
+			table->fts->in_queue = false;
+			pthread_cond_signal(remove->cond);
+			mysql_mutex_unlock(&fts_optimize_wq->mutex);
 			slot->table = NULL;
 			return true;
 		}
 	}
 
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
+	pthread_cond_signal(remove->cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 	return false;
 }
 
@@ -2777,55 +2782,74 @@ static bool fts_is_sync_needed()
 }
 
 /** Sync fts cache of a table
-@param[in,out]	table	table to be synced */
-static void fts_optimize_sync_table(dict_table_t* table)
+@param[in,out]  table           table to be synced
+@param[in]      process_message processing messages from fts_optimize_wq */
+static void fts_optimize_sync_table(dict_table_t *table,
+                                    bool process_message= false)
 {
-	if (table->fts && table->fts->cache && fil_table_accessible(table)) {
-		fts_sync_table(table, false);
-	}
+  MDL_ticket* mdl_ticket= nullptr;
+  dict_table_t *sync_table= dict_acquire_mdl_shared<true>(table, fts_opt_thd,
+                                                          &mdl_ticket);
 
-	DBUG_EXECUTE_IF("ib_optimize_wq_hang", os_thread_sleep(6000000););
+  if (!sync_table)
+    return;
+
+  if (sync_table->fts && sync_table->fts->cache && sync_table->is_accessible())
+  {
+    fts_sync_table(sync_table, false);
+    if (process_message)
+    {
+      mysql_mutex_lock(&fts_optimize_wq->mutex);
+      sync_table->fts->sync_message = false;
+      mysql_mutex_unlock(&fts_optimize_wq->mutex);
+    }
+  }
+
+  DBUG_EXECUTE_IF("ib_optimize_wq_hang",
+		  std::this_thread::sleep_for(std::chrono::seconds(6)););
+
+  if (mdl_ticket)
+    dict_table_close(sync_table, false, fts_opt_thd, mdl_ticket);
 }
 
 /**********************************************************************//**
 Optimize all FTS tables.
 @return Dummy return */
-static
-os_thread_ret_t
-DECLARE_THREAD(fts_optimize_thread)(
-/*================*/
-	void*		arg)			/*!< in: work queue*/
+static void fts_optimize_callback(void *)
 {
-	ulint		current = 0;
-	ibool		done = FALSE;
-	ulint		n_tables = 0;
-	ulint		n_optimize = 0;
-	ib_wqueue_t*	wq = (ib_wqueue_t*) arg;
-
 	ut_ad(!srv_read_only_mode);
-	my_thread_init();
 
-	ut_ad(fts_slots);
+	static ulint	current;
+	static bool	done;
+	static ulint	n_optimize;
 
-	/* Assign number of tables added in fts_slots_t to n_tables */
-	n_tables = ib_vector_size(fts_slots);
+	if (!fts_optimize_wq || done) {
+		/* Possibly timer initiated callback, can come after FTS_MSG_STOP.*/
+		return;
+	}
+
+	static ulint		n_tables = ib_vector_size(fts_slots);
 
 	while (!done && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
 		/* If there is no message in the queue and we have tables
 		to optimize then optimize the tables. */
 
 		if (!done
-		    && ib_wqueue_is_empty(wq)
+		    && ib_wqueue_is_empty(fts_optimize_wq)
 		    && n_tables > 0
 		    && n_optimize > 0) {
 
 			/* The queue is empty but we have tables
 			to optimize. */
-			while (UNIV_UNLIKELY(wsrep_sst_disable_writes)
-			       && srv_shutdown_state
-			       <= SRV_SHUTDOWN_INITIATED) {
-				os_thread_sleep(1000000);
-				continue;
+			if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
+retry_later:
+				if (fts_is_sync_needed()) {
+					fts_need_sync = true;
+				}
+				if (n_tables) {
+					timer->set_time(5000, 0);
+				}
+				return;
 			}
 
 			fts_slot_t* slot = static_cast<fts_slot_t*>(
@@ -2842,25 +2866,18 @@ DECLARE_THREAD(fts_optimize_thread)(
 				n_optimize = fts_optimize_how_many();
 				current = 0;
 			}
-
-		} else if (n_optimize == 0 || !ib_wqueue_is_empty(wq)) {
-			fts_msg_t*	msg;
-
-			msg = static_cast<fts_msg_t*>(
-				ib_wqueue_timedwait(wq, FTS_QUEUE_WAIT_IN_USECS));
-
+		} else if (n_optimize == 0
+			   || !ib_wqueue_is_empty(fts_optimize_wq)) {
+			fts_msg_t* msg = static_cast<fts_msg_t*>
+				(ib_wqueue_nowait(fts_optimize_wq));
 			/* Timeout ? */
-			if (msg == NULL) {
-				if (fts_is_sync_needed()) {
-					fts_need_sync = true;
-				}
-
-				continue;
+			if (!msg) {
+				goto retry_later;
 			}
 
 			switch (msg->type) {
 			case FTS_MSG_STOP:
-				done = TRUE;
+				done = true;
 				break;
 
 			case FTS_MSG_ADD_TABLE:
@@ -2875,30 +2892,26 @@ DECLARE_THREAD(fts_optimize_thread)(
 			case FTS_MSG_DEL_TABLE:
 				if (fts_optimize_del_table(
 					    static_cast<fts_msg_del_t*>(
-						    msg->ptr)->table)) {
+						    msg->ptr))) {
 					--n_tables;
 				}
-
-				/* Signal the producer that we have
-				removed the table. */
-				os_event_set(
-					((fts_msg_del_t*) msg->ptr)->event);
 				break;
 
 			case FTS_MSG_SYNC_TABLE:
 				if (UNIV_UNLIKELY(wsrep_sst_disable_writes)) {
-					ib_wqueue_add(wq, msg, msg->heap,
-						      false);
-					os_thread_sleep(1000000);
-					goto next;
+					add_msg(msg);
+					goto retry_later;
 				}
 
 				DBUG_EXECUTE_IF(
 					"fts_instrument_msg_sync_sleep",
-					os_thread_sleep(300000););
+					std::this_thread::sleep_for(
+						std::chrono::milliseconds(
+							300)););
 
 				fts_optimize_sync_table(
-					static_cast<dict_table_t*>(msg->ptr));
+					static_cast<dict_table_t*>(msg->ptr),
+					true);
 				break;
 
 			default:
@@ -2906,7 +2919,6 @@ DECLARE_THREAD(fts_optimize_thread)(
 			}
 
 			mem_heap_free(msg->heap);
-next:
 			n_optimize = done ? 0 : fts_optimize_how_many();
 		}
 	}
@@ -2925,18 +2937,12 @@ next:
 	}
 
 	ib_vector_free(fts_slots);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	fts_slots = NULL;
+	pthread_cond_broadcast(&fts_opt_shutdown_cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
 	ib::info() << "FTS optimize thread exiting.";
-
-	os_event_set(fts_opt_shutdown_event);
-	my_thread_end();
-
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit. */
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /**********************************************************************//**
@@ -2955,16 +2961,18 @@ fts_optimize_init(void)
 
 	/* Create FTS optimize work queue */
 	fts_optimize_wq = ib_wqueue_create();
+	timer = srv_thread_pool->create_timer(timer_callback);
 
 	/* Create FTS vector to store fts_slot_t */
 	heap = mem_heap_create(sizeof(dict_table_t*) * 64);
 	heap_alloc = ib_heap_allocator_create(heap);
 	fts_slots = ib_vector_create(heap_alloc, sizeof(fts_slot_t), 4);
 
+	fts_opt_thd = innobase_create_background_thd("InnoDB FTS optimizer");
 	/* Add fts tables to fts_slots which could be skipped
 	during dict_load_table_one() because fts_optimize_thread
 	wasn't even started. */
-	mutex_enter(&dict_sys.mutex);
+	dict_sys.freeze(SRW_LOCK_CALL);
 	for (dict_table_t* table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
@@ -2979,12 +2987,10 @@ fts_optimize_init(void)
 		fts_optimize_new_table(table);
 		table->fts->in_queue = true;
 	}
-	mutex_exit(&dict_sys.mutex);
+	dict_sys.unfreeze();
 
-	fts_opt_shutdown_event = os_event_create(0);
+	pthread_cond_init(&fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
-
-	os_thread_create(fts_optimize_thread, fts_optimize_wq, NULL);
 }
 
 /** Shutdown fts optimize thread. */
@@ -2993,30 +2999,56 @@ fts_optimize_shutdown()
 {
 	ut_ad(!srv_read_only_mode);
 
-	fts_msg_t*	msg;
-
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */
-	dict_mutex_enter_for_mysql();
-
+	dict_sys.freeze(SRW_LOCK_CALL);
+	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
 	optimizer thread, message send their after will not be
 	processed */
 	fts_opt_start_shutdown = true;
-	dict_mutex_exit_for_mysql();
+	dict_sys.unfreeze();
 
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs
 	deregister the FTS tables. */
+	timer->disarm();
+	task_group.cancel_pending(&task);
 
-	msg = fts_optimize_create_msg(FTS_MSG_STOP, NULL);
+	add_msg(fts_optimize_create_msg(FTS_MSG_STOP, nullptr));
 
-	ib_wqueue_add(fts_optimize_wq, msg, msg->heap);
+	while (fts_slots) {
+		my_cond_wait(&fts_opt_shutdown_cond,
+			     &fts_optimize_wq->mutex.m_mutex);
+	}
 
-	os_event_wait(fts_opt_shutdown_event);
-
-	os_event_destroy(fts_opt_shutdown_event);
+	destroy_background_thd(fts_opt_thd);
+	fts_opt_thd = NULL;
+	pthread_cond_destroy(&fts_opt_shutdown_cond);
+	mysql_mutex_unlock(&fts_optimize_wq->mutex);
 
 	ib_wqueue_free(fts_optimize_wq);
 	fts_optimize_wq = NULL;
+
+	delete timer;
+	timer = NULL;
+}
+
+/** Sync the table during commit phase
+@param[in]	table	table to be synced */
+void fts_sync_during_ddl(dict_table_t* table)
+{
+  if (!fts_optimize_wq)
+    return;
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
+  const auto sync_message= table->fts->sync_message;
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
+  if (!sync_message)
+    return;
+
+  fts_sync_table(table, false);
+
+  mysql_mutex_lock(&fts_optimize_wq->mutex);
+  table->fts->sync_message = false;
+  mysql_mutex_unlock(&fts_optimize_wq->mutex);
 }

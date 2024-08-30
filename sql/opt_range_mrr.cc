@@ -34,7 +34,7 @@ typedef struct st_range_seq_entry
   uint min_key_flag, max_key_flag;
   
   /* Number of key parts */
-  uint min_key_parts, max_key_parts;
+  int min_key_parts, max_key_parts;
   SEL_ARG *key_tree;
 } RANGE_SEQ_ENTRY;
 
@@ -47,6 +47,7 @@ typedef struct st_sel_arg_range_seq
   uint keyno;      /* index of used tree in SEL_TREE structure */
   uint real_keyno; /* Number of the index in tables */
   PARAM *param;
+  KEY_PART *key_parts; 
   SEL_ARG *start; /* Root node of the traversed SEL_ARG* graph */
   
   RANGE_SEQ_ENTRY stack[MAX_REF_PARTS];
@@ -105,13 +106,14 @@ static void step_down_to(SEL_ARG_RANGE_SEQ *arg, SEL_ARG *key_tree)
   cur->max_key_parts= prev->max_key_parts;
 
   uint16 stor_length= arg->param->key[arg->keyno][key_tree->part].store_length;
-  cur->min_key_parts += key_tree->store_min(stor_length, &cur->min_key,
-                                            prev->min_key_flag);
-  cur->max_key_parts += key_tree->store_max(stor_length, &cur->max_key,
-                                            prev->max_key_flag);
 
-  cur->min_key_flag= prev->min_key_flag | key_tree->min_flag;
-  cur->max_key_flag= prev->max_key_flag | key_tree->max_flag;
+  key_tree->store_min_max(arg->key_parts, stor_length,
+                          &cur->min_key, prev->min_key_flag,
+                          &cur->max_key, prev->max_key_flag,
+                          &cur->min_key_parts, &cur->max_key_parts);
+
+  cur->min_key_flag= prev->min_key_flag | key_tree->get_min_flag(arg->key_parts);
+  cur->max_key_flag= prev->max_key_flag | key_tree->get_max_flag(arg->key_parts);
 
   if (key_tree->is_null_interval())
     cur->min_key_flag |= NULL_RANGE;
@@ -165,12 +167,13 @@ bool sel_arg_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range)
   /* Ok, we're at some "full tuple" position in the tree */
  
   /* Step down if we can */
-  if (key_tree->next && key_tree->next != &null_element)
+  if (key_tree->index_order_next(seq->key_parts) &&
+      key_tree->index_order_next(seq->key_parts) != &null_element)
   {
     //step down; (update the tuple, we'll step right and stay there)
     seq->i--;
-    step_down_to(seq, key_tree->next);
-    key_tree= key_tree->next;
+    step_down_to(seq, key_tree->index_order_next(seq->key_parts));
+    key_tree= key_tree->index_order_next(seq->key_parts);
     seq->is_ror_scan= FALSE;
     goto walk_right_n_up;
   }
@@ -185,12 +188,13 @@ bool sel_arg_range_seq_next(range_seq_t rseq, KEY_MULTI_RANGE *range)
     key_tree= seq->stack[seq->i].key_tree;
 
     /* Step down if we can */
-    if (key_tree->next && key_tree->next != &null_element)
+    if (key_tree->index_order_next(seq->key_parts) && 
+        key_tree->index_order_next(seq->key_parts) != &null_element)
     {
       // Step down; update the tuple
       seq->i--;
-      step_down_to(seq, key_tree->next);
-      key_tree= key_tree->next;
+      step_down_to(seq, key_tree->index_order_next(seq->key_parts));
+      key_tree= key_tree->index_order_next(seq->key_parts);
       break;
     }
   }
@@ -214,16 +218,10 @@ walk_right_n_up:
             !key_tree->min_flag && !key_tree->max_flag))
       {
         seq->is_ror_scan= FALSE;
-        if (!key_tree->min_flag)
-          cur->min_key_parts += 
-            key_tree->next_key_part->store_min_key(seq->param->key[seq->keyno],
-                                                   &cur->min_key,
-                                                   &cur->min_key_flag, MAX_KEY);
-        if (!key_tree->max_flag)
-          cur->max_key_parts += 
-            key_tree->next_key_part->store_max_key(seq->param->key[seq->keyno],
-                                                   &cur->max_key,
-                                                   &cur->max_key_flag, MAX_KEY);
+        key_tree->store_next_min_max_keys(seq->param->key[seq->keyno],
+                                          &cur->min_key, &cur->min_key_flag,
+                                          &cur->max_key, &cur->max_key_flag,
+                                          &cur->min_key_parts, &cur->max_key_parts);
         break;
       }
     }
@@ -235,10 +233,11 @@ walk_right_n_up:
     key_tree= key_tree->next_key_part;
 
 walk_up_n_right:
-    while (key_tree->prev && key_tree->prev != &null_element)
+    while (key_tree->index_order_prev(seq->key_parts) &&
+           key_tree->index_order_prev(seq->key_parts) != &null_element)
     {
       /* Step up */
-      key_tree= key_tree->prev;
+      key_tree= key_tree->index_order_prev(seq->key_parts);
     }
     step_down_to(seq, key_tree);
   }

@@ -28,6 +28,9 @@ while (`SELECT $i <= $slaves`)
   --inc $i
 }
 
+# The following script will restart master and slaves. This will also set
+# rpl_semi_sync_master_enabled=0
+
 --source include/rpl_shutdown_wait_slaves.inc
 --let i= 2
 while (`SELECT $i <= $slaves`)

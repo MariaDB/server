@@ -6,7 +6,7 @@ connection server_2;
 create table t2 (i int);
 connection server_3;
 set default_master_connection = 'm2';
-change master to master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_use_gtid=slave_pos;
+change master to master_host='127.0.0.1', master_port=SERVER_MYPORT_2, master_user='root', master_ssl_verify_server_cert=0, master_use_gtid=slave_pos;
 include/start_slave.inc
 connection server_2;
 insert into t2 values (1);

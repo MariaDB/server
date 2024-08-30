@@ -51,7 +51,7 @@ let $ER_PARSE_ERROR=                      1064;
 let $ER_TOO_MANY_PARTITIONS_ERROR=        1499;
 let $ER_UNIQUE_KEY_NEED_ALL_FIELDS_IN_PF= 1503;
 let $ER_NO_PARTS_ERROR=                   1504;
-let $ER_DROP_PARTITION_NON_EXISTENT=      1507;
+let $ER_PARTITION_DOES_NOT_EXIST=         1507;
 let $ER_SAME_NAME_PARTITION=              1517;
 let $ER_NO_PARTITION_FOR_GIVEN_VALUE=     1526;
 
@@ -179,7 +179,7 @@ if (0)
 #              That means statements which
 #              - are most time of low interest and do auxiliary stuff
 #                like generating the next SQL statement to be executed
-#              - additional statements giving informations about table
+#              - additional statements giving information about table
 #                contents or the value of some variables
 #                You will get huge differences, because the file with the
 #                expected results was created with $debug = 0 .
@@ -221,7 +221,7 @@ if (0)
 #     $ls= 1 (default)
 #          --> Display the table related directory content via
 #                "ls $MYSQLTEST_VARDIR/mysqld.1/data/test/t1*"
-#              if these informations were collected.
+#              if these information were collected.
 #              This is probably not portable to some OS.
 #     $ls= 0
 #          --> Omit displaying the directory

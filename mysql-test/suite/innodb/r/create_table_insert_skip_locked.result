@@ -1,0 +1,72 @@
+connect  con1,localhost,root,,;
+SET SESSION innodb_lock_wait_timeout=1;
+connection default;
+SET SESSION innodb_lock_wait_timeout=1;
+# Case 1: Test primary index - CREATE TABLE .. SELECT .. SKIP LOCKED
+CREATE TABLE t1(
+seat_id    INT,
+state      INT,
+PRIMARY KEY(seat_id)
+) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,0), (2,0), (3,0), (4,0);
+BEGIN;
+SELECT * FROM t1 WHERE state = 0 LIMIT 2 LOCK IN SHARE MODE;
+seat_id	state
+1	0
+2	0
+connection con1;
+BEGIN;
+CREATE TEMPORARY TABLE s0 AS SELECT * FROM t1 WHERE state = 0 LIMIT 2 LOCK IN SHARE MODE;
+SELECT * FROM s0;
+seat_id	state
+1	0
+2	0
+CREATE TEMPORARY TABLE s1 AS SELECT * FROM t1 WHERE state = 0 LIMIT 2 FOR UPDATE SKIP LOCKED;
+SELECT * FROM s1;
+seat_id	state
+3	0
+4	0
+connection default;
+CREATE TEMPORARY TABLE s0 AS SELECT * FROM t1 WHERE state = 0 LOCK IN SHARE MODE SKIP LOCKED;
+SELECT * FROM s0;
+seat_id	state
+1	0
+2	0
+COMMIT;
+DROP TABLE s0;
+connection con1;
+COMMIT;
+DROP TABLE s0, s1;
+connection default;
+# Case 2: Test primary index - INSERT .. SELECT .. SKIP LOCKED
+CREATE TABLE t2 LIKE t1;
+BEGIN;
+SELECT * FROM t1 WHERE state = 0 LIMIT 2 LOCK IN SHARE MODE;
+seat_id	state
+1	0
+2	0
+connection con1;
+BEGIN;
+INSERT INTO t2 SELECT * FROM t1 WHERE state = 0 LIMIT 2 LOCK IN SHARE MODE RETURNING seat_id, state;
+seat_id	state
+1	0
+2	0
+CREATE TEMPORARY TABLE t2s LIKE t1;
+INSERT INTO t2s SELECT * FROM t1 WHERE state = 0 LIMIT 2 FOR UPDATE SKIP LOCKED RETURNING seat_id, state;
+seat_id	state
+3	0
+4	0
+connection default;
+CREATE TEMPORARY TABLE t2s LIKE t1;
+INSERT INTO t2s SELECT * FROM t1 WHERE state = 0 LOCK IN SHARE MODE SKIP LOCKED RETURNING seat_id, state;
+seat_id	state
+1	0
+2	0
+COMMIT;
+DROP TABLE t2s;
+connection con1;
+COMMIT;
+DROP TABLE t2s;
+DROP TABLE t2;
+connection default;
+DROP TABLE t1;

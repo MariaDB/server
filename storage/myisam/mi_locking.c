@@ -284,7 +284,7 @@ int mi_lock_database(MI_INFO *info, int lock_type)
 			(THR_WRITE_CONCURRENT_INSERT was used)
 */
 
-void mi_get_status(void* param, my_bool concurrent_insert)
+my_bool mi_get_status(void* param, my_bool concurrent_insert)
 {
   MI_INFO *info=(MI_INFO*) param;
   DBUG_ENTER("mi_get_status");
@@ -306,7 +306,7 @@ void mi_get_status(void* param, my_bool concurrent_insert)
   info->append_insert_at_end= concurrent_insert;
   if (concurrent_insert)
     info->s->state.state.uncacheable= TRUE;
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(0);
 }
 
 
@@ -603,12 +603,15 @@ int _mi_mark_file_changed(MI_INFO *info)
 {
   uchar buff[3];
   register MYISAM_SHARE *share=info->s;
+  uint32 state;
   DBUG_ENTER("_mi_mark_file_changed");
 
-  if (!(share->state.changed & STATE_CHANGED) || ! share->global_changed)
+  state= share->state.changed;
+  share->state.changed|= (STATE_CHANGED | STATE_NOT_ANALYZED |
+                          STATE_NOT_OPTIMIZED_KEYS);
+
+  if (!(state & STATE_CHANGED) || ! share->global_changed)
   {
-    share->state.changed|=(STATE_CHANGED | STATE_NOT_ANALYZED |
-			   STATE_NOT_OPTIMIZED_KEYS);
     if (!share->global_changed)
     {
       share->global_changed=1;

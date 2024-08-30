@@ -1,0 +1,125 @@
+#
+# MDEV-19177: Geometry support for partition feature
+# Test partition/geometry type cross-compatibility for the 4 storage engines that support
+# geometries (Aria, MyISAM, InnoDB, Archive)
+# Geometries to test - point, multipolygon, geometry collection 
+# Note: Archive does not support additional indices.
+#
+SET @point = Point(3,3);
+SET @poly = MultiPolygon(Polygon(LineString(Point(0, 3), Point(3, 3), Point(3, 0), Point(0, 3))));
+SET @collection = GeometryCollection(Point(1,1), Polygon(LineString(Point(0, 3), Point(3, 3), Point(3, 0), Point(0, 3))));
+#
+# Aria engine
+#
+CREATE TABLE t1 (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`geom` geometry NOT NULL,
+PRIMARY KEY (id),
+SPATIAL INDEX(geom)
+) Engine=Aria PARTITION BY HASH (id)
+PARTITIONS 10;
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+ST_AsGeoJSON(geom)
+{"type": "Point", "coordinates": [3, 3]}
+{"type": "MultiPolygon", "coordinates": [[[[0, 3], [3, 3], [3, 0], [0, 3]]]]}
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [1, 1]}, {"type": "Polygon", "coordinates": [[[0, 3], [3, 3], [3, 0], [0, 3]]]}]}
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `geom` geometry NOT NULL,
+  PRIMARY KEY (`id`),
+  SPATIAL KEY `geom` (`geom`)
+) ENGINE=Aria AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 10
+DROP TABLE t1;
+#
+# MyISAM engine
+#
+CREATE TABLE t1 (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`geom` geometry NOT NULL,
+PRIMARY KEY (id),
+SPATIAL INDEX(geom)
+) Engine=myisam PARTITION BY HASH (id)
+PARTITIONS 10;
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+ST_AsGeoJSON(geom)
+{"type": "Point", "coordinates": [3, 3]}
+{"type": "MultiPolygon", "coordinates": [[[[0, 3], [3, 3], [3, 0], [0, 3]]]]}
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [1, 1]}, {"type": "Polygon", "coordinates": [[[0, 3], [3, 3], [3, 0], [0, 3]]]}]}
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `geom` geometry NOT NULL,
+  PRIMARY KEY (`id`),
+  SPATIAL KEY `geom` (`geom`)
+) ENGINE=MyISAM AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 10
+DROP TABLE t1;
+#
+# InnoDB engine
+#
+CREATE TABLE t1 (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`geom` geometry NOT NULL,
+PRIMARY KEY (id),
+SPATIAL INDEX(geom)
+) Engine=innodb PARTITION BY HASH (id)
+PARTITIONS 10;
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+ST_AsGeoJSON(geom)
+{"type": "Point", "coordinates": [3, 3]}
+{"type": "MultiPolygon", "coordinates": [[[[0, 3], [3, 3], [3, 0], [0, 3]]]]}
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [1, 1]}, {"type": "Polygon", "coordinates": [[[0, 3], [3, 3], [3, 0], [0, 3]]]}]}
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `geom` geometry NOT NULL,
+  PRIMARY KEY (`id`),
+  SPATIAL KEY `geom` (`geom`)
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 10
+DROP TABLE t1;
+#
+# Archive engine
+#
+INSTALL SONAME 'ha_archive';
+CREATE TABLE t1 (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`geom` geometry,
+SPATIAL INDEX(geom)
+) Engine=archive PARTITION BY HASH (id)
+PARTITIONS 10;
+ERROR HY000: The storage engine partition doesn't support SPATIAL indexes
+CREATE TABLE t1 (
+`id` int(11) NOT NULL AUTO_INCREMENT,
+`geom` geometry,
+PRIMARY KEY (id)
+) Engine=archive PARTITION BY HASH (id)
+PARTITIONS 10;
+INSERT INTO t1 VALUES (NULL, @point), (NULL, @poly), (NULL, @collection);
+SELECT ST_AsGeoJSON(geom) FROM t1;
+ST_AsGeoJSON(geom)
+{"type": "Point", "coordinates": [3, 3]}
+{"type": "MultiPolygon", "coordinates": [[[[0, 3], [3, 3], [3, 0], [0, 3]]]]}
+{"type": "GeometryCollection", "geometries": [{"type": "Point", "coordinates": [1, 1]}, {"type": "Polygon", "coordinates": [[[0, 3], [3, 3], [3, 0], [0, 3]]]}]}
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `geom` geometry DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=ARCHIVE AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+ PARTITION BY HASH (`id`)
+PARTITIONS 10
+DROP TABLE t1;
+UNINSTALL SONAME 'ha_archive';

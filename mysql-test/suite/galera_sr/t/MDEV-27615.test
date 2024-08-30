@@ -43,7 +43,8 @@ SET DEBUG_SYNC = 'now SIGNAL continue';
 # Disconnect causes connection to node_2 to be closed
 #
 --connection node_2
---error 2013 # CR_SERVER_LOST
+# CR_SERVER_LOST, CR_SSL_CONNECTION_ERROR
+--error 2013,2026
 --reap
 
 

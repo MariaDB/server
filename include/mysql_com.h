@@ -23,10 +23,13 @@
 
 #include "my_decimal_limits.h"
 
-#define HOSTNAME_LENGTH 60
+#define HOSTNAME_LENGTH 255
+#define HOSTNAME_LENGTH_STR STRINGIFY_ARG(HOSTNAME_LENGTH)
 #define SYSTEM_CHARSET_MBMAXLEN 3
-#define NAME_CHAR_LEN	64U             /* Field/table name length */
+#define NAME_CHAR_LEN	64              /* Field/table name length */
 #define USERNAME_CHAR_LENGTH 128
+#define USERNAME_CHAR_LENGTH_STR STRINGIFY_ARG(USERNAME_CHAR_LENGTH)
+
 #define NAME_LEN                (NAME_CHAR_LEN*SYSTEM_CHARSET_MBMAXLEN)
 #define USERNAME_LENGTH         (USERNAME_CHAR_LENGTH*SYSTEM_CHARSET_MBMAXLEN)
 #define DEFINER_CHAR_LENGTH     (USERNAME_CHAR_LENGTH + HOSTNAME_LENGTH + 1)
@@ -37,27 +40,6 @@
 #define MYSQL50_TABLE_NAME_PREFIX         "#mysql50#"
 #define MYSQL50_TABLE_NAME_PREFIX_LENGTH  (sizeof(MYSQL50_TABLE_NAME_PREFIX)-1)
 #define SAFE_NAME_LEN (NAME_LEN + MYSQL50_TABLE_NAME_PREFIX_LENGTH)
-
-/*
-  MDEV-4088
-
-  MySQL (and MariaDB 5.x before the fix) was using the first character of the
-  server version string (as sent in the first handshake protocol packet) to
-  decide on the replication event formats. And for 10.x the first character
-  is "1", which the slave thought comes from some ancient 1.x version
-  (ignoring the fact that the first ever MySQL version was 3.x).
-
-  To support replication to these old clients, we fake the version in the
-  first handshake protocol packet to start from "5.5.5-" (for example,
-  it might be "5.5.5-10.0.1-MariaDB-debug-log".
-
-  On the client side we remove this fake version prefix to restore the
-  correct server version. The version "5.5.5" did not support
-  pluggable authentication, so any version starting from "5.5.5-" and
-  claiming to support pluggable auth, must be using this fake prefix.
-*/
-/* this version must be the one that *does not* support pluggable auth */
-#define RPL_VERSION_HACK "5.5.5-"
 
 #define SERVER_VERSION_LENGTH 60
 #define SQLSTATE_LENGTH 5
@@ -71,6 +53,7 @@
 #define COLUMN_COMMENT_MAXLEN 1024
 #define INDEX_COMMENT_MAXLEN 1024
 #define TABLE_PARTITION_COMMENT_MAXLEN 1024
+#define DATABASE_COMMENT_MAXLEN 1024
 
 /*
   Maximum length of protocol packet.
@@ -92,10 +75,10 @@
 #define LOCAL_HOST_NAMEDPIPE "."
 
 
-#if defined(__WIN__) && !defined( _CUSTOMCONFIG_)
+#if defined(_WIN32) && !defined( _CUSTOMCONFIG_)
 #define MYSQL_NAMEDPIPE "MySQL"
 #define MYSQL_SERVICENAME "MySQL"
-#endif /* __WIN__ */
+#endif
 
 /*
   You should add new commands to the end of this list, otherwise old
@@ -120,7 +103,7 @@ enum enum_server_command
   COM_SLAVE_WORKER=251,
   COM_SLAVE_IO=252,
   COM_SLAVE_SQL=253,
-  COM_MULTI=254,
+  COM_RESERVED_1=254, /* Old COM_MULTI, now removed */
   /* Must be last */
   COM_END=255
 };
@@ -141,8 +124,7 @@ enum enum_indicator_type
   bulk PS flags
 */
 #define STMT_BULK_FLAG_CLIENT_SEND_TYPES 128
-#define STMT_BULK_FLAG_INSERT_ID_REQUEST 64
-
+#define STMT_BULK_FLAG_SEND_UNIT_RESULTS 64
 
 /* sql type stored in .frm files for virtual fields */
 #define MYSQL_TYPE_VIRTUAL 245
@@ -176,7 +158,7 @@ enum enum_indicator_type
 #define NUM_FLAG	32768U		/* Field is num (for clients) */
 #define PART_KEY_FLAG	16384U		/* Intern; Part of some key */
 #define GROUP_FLAG	32768U		/* Intern: Group field */
-#define BINCMP_FLAG	131072U		/* Intern: Used by sql_yacc */
+#define CONTEXT_COLLATION_FLAG 131072U  /* Intern: Used by sql_yacc */
 #define GET_FIXED_FIELDS_FLAG (1U << 18) /* Used to get fields in item tree */
 #define FIELD_IN_PART_FUNC_FLAG (1U << 19)/* Field part of partition func */
 #define PART_INDIRECT_KEY_FLAG (1U << 20)
@@ -205,6 +187,8 @@ enum enum_indicator_type
                                                 itself supports it*/
 #define LONG_UNIQUE_HASH_FIELD       (1<< 30) /* This field will store hash for unique
                                                 column */
+#define FIELD_PART_OF_TMP_UNIQUE     (1<< 31) /* part of an unique constrain
+                                                for a tmporary table*/
 
 #define REFRESH_GRANT           (1ULL << 0)  /* Refresh grant tables */
 #define REFRESH_LOG             (1ULL << 1)  /* Start on new log file */
@@ -212,8 +196,8 @@ enum enum_indicator_type
 #define REFRESH_HOSTS           (1ULL << 3)  /* Flush host cache */
 #define REFRESH_STATUS          (1ULL << 4)  /* Flush status variables */
 #define REFRESH_THREADS         (1ULL << 5)  /* Flush thread cache */
-#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart slave
-                                             thread */
+#define REFRESH_SLAVE           (1ULL << 6)  /* Reset master info and restart
+                                                slave thread */
 #define REFRESH_MASTER          (1ULL << 7)  /* Remove all bin logs in the index
                                              and truncate the index */
 
@@ -234,6 +218,8 @@ enum enum_indicator_type
 #define REFRESH_USER_RESOURCES  (1ULL << 19)
 #define REFRESH_FOR_EXPORT      (1ULL << 20) /* FLUSH TABLES ... FOR EXPORT */
 #define REFRESH_SSL             (1ULL << 21)
+#define REFRESH_GLOBAL_STATUS   (1ULL << 22)  /* Flush global status */
+#define REFRESH_SESSION_STATUS  (1ULL << 23)  /* Flush session status */
 
 #define REFRESH_GENERIC         (1ULL << 30)
 #define REFRESH_FAST            (1ULL << 31) /* Intern flag */
@@ -291,10 +277,20 @@ enum enum_indicator_type
 #define MARIADB_CLIENT_FLAGS_MASK 0xffffffff00000000ULL
 /* Client support progress indicator */
 #define MARIADB_CLIENT_PROGRESS (1ULL << 32)
-/* support COM_MULTI */
-#define MARIADB_CLIENT_COM_MULTI (1ULL << 33)
+
+/* Old COM_MULTI experiment (functionality removed).*/
+#define MARIADB_CLIENT_RESERVED_1 (1ULL << 33)
+
 /* support of array binding */
 #define MARIADB_CLIENT_STMT_BULK_OPERATIONS (1ULL << 34)
+/* support of extended metadata (e.g. type/format information) */
+#define MARIADB_CLIENT_EXTENDED_METADATA (1ULL << 35)
+
+/* Do not resend metadata for prepared statements, since 10.6*/
+#define MARIADB_CLIENT_CACHE_METADATA (1ULL << 36)
+
+/* permit sending unit result-set for BULK commands */
+#define MARIADB_CLIENT_BULK_UNIT_RESULTS (1ULL << 37)
 
 #ifdef HAVE_COMPRESS
 #define CAN_CLIENT_COMPRESS CLIENT_COMPRESS
@@ -333,10 +329,11 @@ enum enum_indicator_type
                            CLIENT_SESSION_TRACK |\
                            CLIENT_DEPRECATE_EOF |\
                            CLIENT_CONNECT_ATTRS |\
-                           MARIADB_CLIENT_COM_MULTI |\
                            MARIADB_CLIENT_STMT_BULK_OPERATIONS |\
-                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS)
-
+                           MARIADB_CLIENT_EXTENDED_METADATA|\
+                           MARIADB_CLIENT_CACHE_METADATA |\
+                           CLIENT_CAN_HANDLE_EXPIRED_PASSWORDS |\
+                           MARIADB_CLIENT_BULK_UNIT_RESULTS)
 /*
   Switch off the flags that are optional and depending on build flags
   If any of the optional flags is supported by the build it will be switched
@@ -344,6 +341,15 @@ enum enum_indicator_type
 */
 #define CLIENT_BASIC_FLAGS ((CLIENT_ALL_FLAGS & ~CLIENT_SSL) \
                                                & ~CLIENT_COMPRESS)
+
+enum mariadb_field_attr_t
+{
+  MARIADB_FIELD_ATTR_DATA_TYPE_NAME= 0,
+  MARIADB_FIELD_ATTR_FORMAT_NAME= 1
+};
+
+#define MARIADB_FIELD_ATTR_LAST MARIADB_FIELD_ATTR_FORMAT_NAME
+
 
 /**
   Is raised when a multi-statement transaction
@@ -455,7 +461,7 @@ typedef struct st_net {
   char net_skip_rest_factor;
   my_bool thread_specific_malloc;
   unsigned char compress;
-  my_bool unused3; /* Please remove with the next incompatible ABI change. */
+  my_bool pkt_nr_can_be_reset;
   my_bool using_proxy_protocol;
   /*
     Pointer to query object in query cache, do not equal NULL (0) for
@@ -599,6 +605,15 @@ enum enum_session_state_type
   SESSION_TRACK_GTIDS,
   SESSION_TRACK_TRANSACTION_CHARACTERISTICS,  /* Transaction chistics */
   SESSION_TRACK_TRANSACTION_STATE,            /* Transaction state */
+#ifdef USER_VAR_TRACKING
+  SESSION_TRACK_MYSQL_RESERVED1,
+  SESSION_TRACK_MYSQL_RESERVED2,
+  SESSION_TRACK_MYSQL_RESERVED3,
+  SESSION_TRACK_MYSQL_RESERVED4,
+  SESSION_TRACK_MYSQL_RESERVED5,
+  SESSION_TRACK_MYSQL_RESERVED6,
+  SESSION_TRACK_USER_VARIABLES,
+#endif // USER_VAR_TRACKING
   SESSION_TRACK_always_at_the_end             /* must be last */
 };
 
@@ -708,7 +723,7 @@ void scramble(char *to, const char *message, const char *password);
 my_bool check_scramble(const unsigned char *reply, const char *message,
                        const unsigned char *hash_stage2);
 void get_salt_from_password(unsigned char *res, const char *password);
-char *octet2hex(char *to, const char *str, size_t len);
+char *octet2hex(char *to, const unsigned char *str, size_t len);
 
 /* end of password.c */
 

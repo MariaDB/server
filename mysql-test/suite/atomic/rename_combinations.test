@@ -1,0 +1,171 @@
+#
+# This tests tries cover most of the recovery cases in
+# DDL_LOG_RENAME_TABLE_ACTION and do_rename()
+# This test does not intend to crash the server
+# It's a complement to main.rename
+#
+
+create database test2;
+
+--echo #
+--echo # Testing rename error in different places
+--echo #
+
+create table t1 (a int);
+create table t2 (b int);
+create table t3 (c int);
+create table t4 (d int);
+
+insert into t1 values(1);
+insert into t2 values(2);
+insert into t3 values(3);
+insert into t4 values(4);
+
+create temporary table tmp1 (a int);
+create temporary table tmp2 (b int);
+create temporary table tmp3 (c int);
+create temporary table tmp4 (d int);
+
+insert into tmp1 values(11);
+insert into tmp2 values(22);
+insert into tmp3 values(33);
+insert into tmp4 values(44);
+
+--error ER_TABLE_EXISTS_ERROR
+rename table t3 to t4, t1 to t5, t2 to t1, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t3 to t4, t2 to t1, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t3 to t4, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, t3 to t4;
+
+--echo # Try failed rename using two databases
+--error ER_NO_SUCH_TABLE
+rename table test.t1 to test2.t5, test.t2 to test.t1, t5 to test.t2;
+
+select t1.a+t2.b+t3.c+t4.d from t1,t2,t3,t4;
+--error ER_NO_SUCH_TABLE
+select * from t5;
+
+--echo #
+--echo # Testing rename error in different places with temporary tables
+--echo #
+
+--error ER_TABLE_EXISTS_ERROR
+rename table tmp3 to tmp4, tmp1 to t5, tmp2 to tmp1, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table tmp1 to t5, tmp3 to tmp4, tmp2 to tmp1, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table tmp1 to t5, tmp2 to tmp1, tmp3 to tmp4, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table tmp1 to t5, tmp2 to tmp1, t5 to tmp1, tmp3 to tmp4;
+
+select tmp1.a+tmp2.b+tmp3.c+tmp4.d from tmp1,tmp2,tmp3,tmp4;
+--error ER_NO_SUCH_TABLE
+select * from t5;
+
+--echo #
+--echo # Testing combinations of rename normal and temporary tables
+--echo #
+
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, tmp3 to tmp4, tmp1 to t5, tmp2 to tmp1, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, tmp1 to t5, tmp3 to tmp4, tmp2 to tmp1, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, tmp1 to t5, tmp2 to tmp1, tmp3 to tmp4, t5 to tmp1;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, tmp1 to t5, tmp2 to tmp1, t5 to tmp1, t3 to t4;
+
+--error ER_NO_SUCH_TABLE
+rename table t1 to t5, tmp2 to tmp5, t2 to t1, tmp2 to tmp1, t5 to t2, tmp5 to tmp1, t8 to t9;
+
+select t1.a+t2.b+t3.c+t4.d from t1,t2,t3,t4;
+select tmp1.a+tmp2.b+tmp3.c+tmp4.d from tmp1,tmp2,tmp3,tmp4;
+
+drop table tmp1,tmp2,tmp3,tmp4;
+
+--echo #
+--echo # Similar tests with triggers
+--echo #
+
+delimiter |;
+create trigger t1_trg before insert on t1 for each row
+begin
+  if isnull(new.a) then
+    set new.a:= 10;
+  end if;
+end|
+create trigger t2_trg before insert on t2 for each row
+begin
+  if isnull(new.b) then
+    set new.b:= 100;
+  end if;
+end|
+create trigger t3_trg before insert on t3 for each row
+begin
+  if isnull(new.c) then
+    set new.c:= 1000;
+  end if;
+end|
+
+delimiter ;|
+
+--error ER_TABLE_EXISTS_ERROR
+rename table t3 to t4, t1 to t5, t2 to t1, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t3 to t4, t2 to t1, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t3 to t4, t5 to t2;
+--error ER_TABLE_EXISTS_ERROR
+rename table t1 to t5, t2 to t1, t5 to t2, t3 to t4;
+
+--echo # Test of move table between databases
+--error ER_TRG_IN_WRONG_SCHEMA
+rename table t4 to test2.t5, t2 to t4, test2.t5 to t2, t1 to test2.t6;
+
+--replace_column 6 #
+show triggers;
+
+select t1.a+t2.b+t3.c+t4.d from t1,t2,t3,t4;
+insert into t1 values(null);
+insert into t2 values(null);
+insert into t3 values(null);
+select (select sum(t1.a) from t1)+ (select sum(t2.b) from t2) + (select sum(t3.c) from t3)+ (select sum(t4.d) from t4);
+
+drop trigger t1_trg;
+drop trigger t2_trg;
+drop trigger t3_trg;
+
+--echo #
+--echo # Test with views
+--echo #
+
+create view v1 as select * from t1;
+create view v2 as select * from t2;
+create view v3 as select * from t3;
+create view v4 as select * from t4;
+
+--error ER_TABLE_EXISTS_ERROR
+rename table v3 to v4, v1 to t5, v2 to v1, t5 to v2;
+--error ER_TABLE_EXISTS_ERROR
+rename table v1 to t5, v3 to v4, v2 to v1, t5 to v2;
+--error ER_TABLE_EXISTS_ERROR
+rename table v1 to t5, v2 to v1, v3 to v4, t5 to v2;
+--error ER_TABLE_EXISTS_ERROR
+rename table v1 to t5, v2 to v1, t5 to v2, v3 to v4;
+
+--echo # Try failed rename using two databases
+--error ER_FORBID_SCHEMA_CHANGE
+rename table test.v1 to test.v5, test.v2 to test.v1, test.v3 to test2.v2, non_existing_view to another_non_existing_view;
+
+select (select sum(v1.a) from v1)+ (select sum(v2.b) from v2) + (select sum(v3.c) from v3)+ (select sum(v4.d) from v4);
+
+drop view v1,v2,v3,v4;
+
+#
+# Clean up
+#
+drop table t1, t2, t3, t4;
+drop database test2;

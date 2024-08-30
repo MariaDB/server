@@ -1,0 +1,425 @@
+#
+# Test different combinations of doing DROP TABLE/SEQUENCE/VIEW
+#
+
+SET @save_default_engine= @@DEFAULT_STORAGE_ENGINE;
+SET default_storage_engine=myisam;
+let $DATADIR= `select @@datadir`;
+
+# Create tables t1,t2, sequences s1,s2 and views v1,v2
+let $create_option=;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TABLE
+--echo #
+
+--error ER_BAD_TABLE_ERROR
+drop table t1,t2,t3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop table t1,t3,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop table t1,t4,t2,t3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+drop table t1,s1,s2,t2;
+--source drop_combinations.inc
+--error ER_IT_IS_A_VIEW
+drop table t1,v1,v2,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_IT_IS_A_VIEW
+drop table v1,s1,s2,v2,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--remove_file $DATADIR/test/t1.MYD
+--replace_result $DATADIR ./
+--error ER_IT_IS_A_VIEW
+drop table t1,s1,v1,t3,t4;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_IT_IS_A_VIEW
+drop table s2,v2,t2,t1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--replace_result $DATADIR ./
+--error ER_IT_IS_A_VIEW
+drop table s1,v1,s2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TABLE with if exists
+--echo #
+
+drop table if exists t1,t2,t3;
+--source drop_combinations.inc
+drop table if exists t1,t3,t2;
+--source drop_combinations.inc
+drop table if exists t1,t4,t2,t3;
+--source drop_combinations.inc
+drop table if exists t1,s1,s2,t2;
+--source drop_combinations.inc
+drop table if exists t1,v1,v2,t2;
+--source drop_combinations.inc
+drop table if exists v1,s1,s2,v2,t2;
+--source drop_combinations.inc
+--remove_file $DATADIR/test/t1.MYD
+--replace_result \\ /
+--replace_result $DATADIR ./
+drop table if exists t1,s1,v1,t3,t4;
+drop table if exists s2,v2,t2,t1;
+--source drop_combinations.inc
+--replace_result $DATADIR ./
+drop table if exists s1,v1,s2,v2;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TEMPORARY TABLE
+--echo #
+
+--disable_warnings
+drop table if exists t1,t2;
+drop temporary table if exists tt1,tt2;
+drop sequence if exists s1,s2;
+drop temporary sequence if exists ss1,ss2;
+drop view if exists v1,v2;
+--enable_warnings
+let $create_option=temporary;
+
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1,t2,t3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1,t3,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1,t4,t2,t3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+drop temporary table t1,s1,s2,t2;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1,v1,v2,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table v1,s1,s2,v2,t2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table t1,s1,v1,t3,t4;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table s2,v2,t2,t1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_BAD_TABLE_ERROR
+drop temporary table s1,v1,s2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TEMPORARY TABLE with if exists
+--echo #
+
+drop temporary table if exists t1,t2,t3;
+--source drop_combinations.inc
+drop temporary table if exists t1,t3,t2;
+--source drop_combinations.inc
+drop temporary table if exists t1,t4,t2,t3;
+--source drop_combinations.inc
+drop temporary table if exists t1,s1,s2,t2;
+--source drop_combinations.inc
+drop temporary table if exists t1,v1,v2,t2;
+--source drop_combinations.inc
+drop temporary table if exists v1,s1,s2,v2,t2;
+--source drop_combinations.inc
+drop temporary table if exists t1,s1,v1,t3,t4;
+drop temporary table if exists s2,v2,t2,t1;
+--source drop_combinations.inc
+drop temporary table if exists s1,v1,s2,v2;
+--source drop_combinations.inc
+
+let $create_option=;
+drop temporary table t1,t2;
+drop temporary sequence s1,s2;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP SEQUENCE
+--echo #
+
+--error ER_UNKNOWN_SEQUENCES
+drop sequence s1,s2,s3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop sequence s1,s3,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop sequence s1,s4,s2,s3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_NOT_SEQUENCE2
+drop sequence s1,t1,t2,s2,s3,s4;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_IT_IS_A_VIEW
+drop sequence s1,v1,v2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_IT_IS_A_VIEW
+drop sequence v1,t1,t2,v2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_NOT_SEQUENCE2
+drop sequence t1,v1,t2,v2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--remove_file $DATADIR/test/s1.MYD
+--replace_result \\ /
+--error ER_NOT_SEQUENCE2
+drop sequence s1,t1,v1,t3,s4;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_NOT_SEQUENCE2
+drop sequence t2,v2,s2,s1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_NOT_SEQUENCE2
+drop sequence t1,v1,t2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP SEQUENCE with if exists
+--echo #
+
+drop sequence if exists s1,s2,s3;
+--source drop_combinations.inc
+drop sequence if exists s1,s3,s2;
+--source drop_combinations.inc
+drop sequence if exists s1,s4,s2,s3;
+--source drop_combinations.inc
+drop sequence if exists s1,t1,t2,s2;
+--source drop_combinations.inc
+drop sequence if exists s1,v1,v2,s2;
+--source drop_combinations.inc
+drop sequence if exists v1,t1,t2,v2,s2;
+--source drop_combinations.inc
+--remove_file $DATADIR/test/s1.MYD
+--replace_result \\ /
+--replace_result $DATADIR ./
+drop sequence if exists s1,t1,v1,t3,s4;
+drop sequence if exists t2,v2,s2,s1;
+--source drop_combinations.inc
+drop sequence if exists t1,v1,t2,v2;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TEMPORARY SEQUENCE
+--echo #
+
+--disable_warnings
+drop table if exists t1,t2;
+drop temporary table if exists tt1,tt2;
+drop sequence if exists s1,s2;
+drop temporary sequence if exists ss1,ss2;
+drop view if exists v1,v2;
+--enable_warnings
+let $create_option=temporary;
+--source drop_combinations.inc
+
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,s2,s3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,s3,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,s4,s2,s3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,t1,t2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,v1,v2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence v1,t1,t2,v2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence s1,t1,v1,t3,s4;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence t2,v2,s2,s1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_SEQUENCES
+drop temporary sequence t1,v1,t2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP TEMPORARY SEQUENCE with if exists
+--echo #
+
+drop temporary sequence if exists s1,s2,s3;
+--source drop_combinations.inc
+drop temporary sequence if exists s1,s3,s2;
+--source drop_combinations.inc
+drop temporary sequence if exists s1,s4,s2,s3;
+--source drop_combinations.inc
+drop temporary sequence if exists s1,t1,t2,s2;
+--source drop_combinations.inc
+drop temporary sequence if exists s1,v1,v2,s2;
+--source drop_combinations.inc
+drop temporary sequence if exists v1,t1,t2,v2,s2;
+--source drop_combinations.inc
+drop temporary sequence if exists s1,t1,v1,t3,s4;
+drop temporary sequence if exists t2,v2,s2,s1;
+--source drop_combinations.inc
+drop temporary sequence if exists t1,v1,t2,v2;
+--source drop_combinations.inc
+
+let $create_option=;
+drop temporary table t1,t2;
+drop temporary sequence s1,s2;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP VIEW
+--echo #
+
+--error ER_UNKNOWN_VIEW
+drop view v1,v2,v3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view v1,v3,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view v1,v4,v2,v3;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view v1,t1,t2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view v1,s1,s2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--remove_file $DATADIR/test/t1.MYD
+--replace_result \\ /
+--error ER_UNKNOWN_VIEW
+drop view s1,t1,t2,s2,v2;
+--replace_result $DATADIR ./
+show warnings;
+--replace_result $DATADIR ./
+drop table t1;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_UNKNOWN_VIEW
+drop view v1,t1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view v1,t1,s1,t3,v4;
+--replace_result $DATADIR ./
+show warnings;
+--error ER_UNKNOWN_VIEW
+drop view t2,s2,v2,v1;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+--error ER_UNKNOWN_VIEW
+drop view t1,s1,t2,s2;
+--replace_result $DATADIR ./
+show warnings;
+--source drop_combinations.inc
+
+--echo #
+--echo # DROP VIEW with if exists
+--echo #
+
+drop view if exists v1,v2,v3;
+--source drop_combinations.inc
+drop view if exists v1,v3,v2;
+--source drop_combinations.inc
+drop view if exists v1,v4,v2,v3;
+--source drop_combinations.inc
+drop view if exists v1,t1,t2,v2;
+--source drop_combinations.inc
+drop view if exists v1,s1,s2,v2;
+--source drop_combinations.inc
+drop view if exists s1,t1,t2,s2,v2;
+drop table t1;
+drop view if exists v1,t1;
+--source drop_combinations.inc
+drop view if exists v1,t1,s1,t3,v4;
+drop view if exists t2,s2,v2,v1;
+--source drop_combinations.inc
+drop view if exists t1,s1,t2,s2;
+--source drop_combinations.inc
+
+--echo # cleanup
+drop table if exists t1,t2;
+drop sequence if exists s1,s2;
+drop view if exists v1,v2;
+
+SET default_storage_engine=@save_default_engine;

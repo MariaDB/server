@@ -1,4 +1,4 @@
-
+--source include/not_msan.inc
 --source include/not_valgrind_build.inc
 
 --echo # MDEV-20699 do not cache SP in SHOW CREATE

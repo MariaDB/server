@@ -4,6 +4,7 @@
 --source include/no_valgrind_without_big.inc
 # need to restart server
 --source include/not_embedded.inc
+--source include/no_valgrind_without_big.inc
 
 --disable_query_log
 # Ignore messages from the innodb_force_recovery=5 startup.
@@ -46,7 +47,8 @@ SET DEBUG_SYNC='now WAIT_FOR committed';
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 BEGIN;
 INSERT INTO t VALUES(-10000);
-ROLLBACK;
+DELETE FROM t WHERE a=-10000;
+COMMIT;
 --let $restart_parameters= --innodb-force-recovery=3
 --let $shutdown_timeout= 0
 --source include/restart_mysqld.inc

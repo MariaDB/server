@@ -24,11 +24,9 @@ Transaction system global type definitions
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0types_h
-#define trx0types_h
-
-#include "ut0byte.h"
-#include "ut0mutex.h"
+#pragma once
+#include "univ.i"
+#include "ut0new.h"
 
 #include <vector>
 
@@ -40,7 +38,7 @@ the terminating NUL character. */
 static const ulint TRX_ID_MAX_LEN = 17;
 
 /** Space id of the transaction system page (the system tablespace) */
-static const ulint TRX_SYS_SPACE = 0;
+static constexpr uint32_t TRX_SYS_SPACE= 0;
 
 /** Page number of the transaction system page */
 #define TRX_SYS_PAGE_NO		FSP_TRX_SYS_PAGE_NO
@@ -48,14 +46,8 @@ static const ulint TRX_SYS_SPACE = 0;
 /** Random value to check for corruption of trx_t */
 static const ulint TRX_MAGIC_N = 91118598;
 
-/** Transaction execution states when trx->state == TRX_STATE_ACTIVE */
-enum trx_que_t {
-	TRX_QUE_RUNNING,		/*!< transaction is running */
-	TRX_QUE_LOCK_WAIT,		/*!< transaction is waiting for
-					a lock */
-	TRX_QUE_ROLLING_BACK,		/*!< transaction is rolling back */
-	TRX_QUE_COMMITTING		/*!< transaction is committing */
-};
+constexpr uint innodb_purge_threads_MAX= 32;
+constexpr uint innodb_purge_batch_size_MAX= 5000;
 
 /** Transaction states (trx_t::state) */
 enum trx_state_t {
@@ -68,21 +60,6 @@ enum trx_state_t {
 	/** XA PREPARE transaction that was returned to ha_recover() */
 	TRX_STATE_PREPARED_RECOVERED,
 	TRX_STATE_COMMITTED_IN_MEMORY
-};
-
-/** Type of data dictionary operation */
-enum trx_dict_op_t {
-	/** The transaction is not modifying the data dictionary. */
-	TRX_DICT_OP_NONE = 0,
-	/** The transaction is creating a table or an index, or
-	dropping a table.  The table must be dropped in crash
-	recovery.  This and TRX_DICT_OP_NONE are the only possible
-	operation modes in crash recovery. */
-	TRX_DICT_OP_TABLE = 1,
-	/** The transaction is creating or dropping an index in an
-	existing table.  In crash recovery, the data dictionary
-	must be locked, but the table must not be dropped. */
-	TRX_DICT_OP_INDEX = 2
 };
 
 /** Memory objects */
@@ -119,8 +96,6 @@ struct trx_savept_t{
 
 /** File objects */
 /* @{ */
-/** Rollback segment header */
-typedef byte	trx_rsegf_t;
 /** Undo segment header */
 typedef byte	trx_usegf_t;
 /** Undo log header */
@@ -133,10 +108,24 @@ typedef	byte	trx_undo_rec_t;
 
 /* @} */
 
-typedef ib_mutex_t RsegMutex;
-typedef ib_mutex_t TrxMutex;
-typedef ib_mutex_t PQMutex;
-typedef ib_mutex_t TrxSysMutex;
+/** Info required to purge a record */
+struct trx_purge_rec_t
+{
+  /** Undo log record, or nullptr (roll_ptr!=0 if the log can be skipped) */
+  const trx_undo_rec_t *undo_rec;
+  /** File pointer to undo_rec */
+  roll_ptr_t roll_ptr;
+};
 
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
-#endif /* trx0types_h */
+
+/** Number of std::unordered_map hash buckets expected to be needed
+for table IDs in a purge batch. GNU libstdc++ would default to 1 and
+enlarge and rehash on demand. */
+static constexpr size_t TRX_PURGE_TABLE_BUCKETS= 128;
+
+/** The number of rollback segments; rollback segment id must fit in
+the 7 bits reserved for it in DB_ROLL_PTR. */
+static constexpr unsigned TRX_SYS_N_RSEGS= 128;
+/** Maximum number of undo tablespaces (not counting the system tablespace) */
+static constexpr unsigned TRX_SYS_MAX_UNDO_SPACES= TRX_SYS_N_RSEGS - 1;

@@ -1,9 +1,9 @@
 --source suite/versioning/common.inc
 --source include/have_partition.inc
 --source suite/versioning/engines.inc
+--source include/word_size.inc
 
-set @saved_frequency= @@global.innodb_purge_rseg_truncate_frequency;
-set global innodb_purge_rseg_truncate_frequency= 1;
+call mtr.add_suppression("need more HISTORY partitions");
 
 create table t (a int);
 --error ER_VERS_NOT_VERSIONED
@@ -59,12 +59,8 @@ select * from t for system_time all;
 drop procedure truncate_sp;
 
 --echo # Truncate partitioned
-create or replace table t (a int)
-with system versioning
-partition by system_time limit 1 (
-    partition p0 history,
-    partition p1 history,
-    partition pn current);
+create or replace table t (a int) with system versioning
+partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
@@ -200,7 +196,7 @@ drop table t1;
 --echo # MDEV-25004 Missing row in FTS_DOC_ID_INDEX during DELETE HISTORY
 --echo #
 create table t1 (a integer, c0 varchar(255), fulltext key (c0))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 set system_versioning_alter_history= keep;
 alter table t1 drop system versioning;
 alter table t1 add system versioning;
@@ -211,13 +207,11 @@ delete history from t1;
 drop table t1;
 
 create table t1 (id int primary key, ftx varchar(255))
-with system versioning engine innodb;
+with system versioning engine innodb stats_persistent=0;
 insert into t1 values (1, 'c');
 delete from t1;
 alter table t1 add fulltext key(ftx);
 drop table t1;
-
-set global innodb_purge_rseg_truncate_frequency= @saved_frequency;
 
 --echo #
 --echo # MDEV-28201 Server crashes upon SHOW ANALYZE/EXPLAIN FORMAT=JSON
@@ -233,5 +227,21 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-17554 Auto-create new partition for system versioned tables with history partitioned by INTERVAL/LIMIT
+--echo #
+--echo # Don't auto-create new partition on DELETE HISTORY:
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t (a int) with system versioning
+partition by system_time interval 1 hour auto;
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+delete history from t;
+set timestamp= default;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t;
+drop table t;
+
+--echo # End of 10.9 tests
 
 --source suite/versioning/common_finish.inc

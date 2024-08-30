@@ -1,5 +1,6 @@
 --source include/have_perfschema.inc
 --source include/word_size.inc
+--source include/platform.inc
 --vertical_results
 
 # need stable timestamp, because its current value is printed below
@@ -23,7 +24,7 @@ select VARIABLE_NAME,VARIABLE_SCOPE,VARIABLE_TYPE,VARIABLE_COMMENT,NUMERIC_MIN_V
           variable_name not like 'wsrep%' and
           variable_name not like 's3%' and
           variable_name not in (
-          'log_tc_size','have_sanitizer'
+          'log_tc_size','have_sanitizer','timestamp'
         )
   order by variable_name;
 

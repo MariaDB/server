@@ -142,11 +142,13 @@ Within(g1.g, g2.g) as w, Contains(g1.g, g2.g) as c, Overlaps(g1.g, g2.g) as o,
 Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
 Intersects(g1.g, g2.g) as i, Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--disable_view_protocol
 explain extended SELECT g1.fid as first, g2.fid as second,
 Within(g1.g, g2.g) as w, Contains(g1.g, g2.g) as c, Overlaps(g1.g, g2.g) as o,
 Equals(g1.g, g2.g) as e, Disjoint(g1.g, g2.g) as d, Touches(g1.g, g2.g) as t,
 Intersects(g1.g, g2.g) as i, Crosses(g1.g, g2.g) as r
 FROM gis_geometrycollection g1, gis_geometrycollection g2 ORDER BY first, second;
+--enable_view_protocol
 
 DROP TABLE gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 
@@ -180,9 +182,9 @@ insert IGNORE into t1 (a) values ('Garbage');
 drop table t1;
 
 create table t1 (pk integer primary key auto_increment, fl geometry not null);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 (fl) values (1);
---error 1416
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
 insert into t1 (fl) values (1.11);
 --error 1416
 insert into t1 (fl) values ("qwerty");

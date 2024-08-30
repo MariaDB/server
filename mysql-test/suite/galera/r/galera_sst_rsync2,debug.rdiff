@@ -1,5 +1,5 @@
---- r/galera_sst_rsync2.result	2021-04-10 14:34:48.646288119 +0300
-+++ r/galera_sst_rsync2,debug.reject	2021-04-10 15:04:10.276286996 +0300
+--- r/galera_sst_rsync2.result
++++ r/galera_sst_rsync2,debug.reject
 @@ -516,3 +516,187 @@
  1
  DROP TABLE t1;

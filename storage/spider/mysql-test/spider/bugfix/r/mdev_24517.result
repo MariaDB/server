@@ -31,6 +31,10 @@ PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
 PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
 PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
   )
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (i, j) VALUES
 (1, '{"ID": "3", "Name": "Barney", "Age": 18}'),
 (2, '{"ID": "4", "Name": "Betty", "Age": 19}'),

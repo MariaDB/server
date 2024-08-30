@@ -1,5 +1,5 @@
 # Copyright (c) 2007, 2013, Oracle and/or its affiliates
-# Copyright (c) 2010, 2013, Monty Program Ab
+# Copyright (c) 2010, 2021, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -20,7 +20,8 @@ disable-getopt-prefix-matching
 plugin-maturity=unknown
 open-files-limit=           1024
 local-infile
-character-set-server=      latin1
+character-set-server=      utf8mb4
+collation-server=          utf8mb4_uca1400_ai_ci
 
 # Increase default connect_timeout to avoid intermittent
 # disconnects when test servers are put under load see BUG#28359
@@ -52,10 +53,8 @@ loose-innodb_buffer_pool_size=    8M
 loose-innodb_lru_scan_depth=      100
 loose-innodb_write_io_threads=    2
 loose-innodb_read_io_threads=     2
-loose-innodb_log_buffer_size=     1M
-loose-innodb_log_file_size=       5M
-loose-innodb_log_files_in_group=  2
-loose-innodb-stats-persistent=    OFF
+loose-innodb_log_buffer_size=     2M
+loose-innodb_log_file_size=       10M
 
 slave-net-timeout=120
 
@@ -73,11 +72,17 @@ loose-performance-schema-hosts-size=100
 loose-performance-schema-users-size=100
 loose-performance-schema-max-mutex-instances=5000
 loose-performance-schema-max-rwlock-instances=5000
-loose-performance-schema-max-cond-instances=1000
+loose-performance-schema-max-cond-instances=1500
 loose-performance-schema-max-file-instances=10000
 loose-performance-schema-max-socket-instances=1000
 loose-performance-schema-max-table-instances=500
+loose-performance-schema-max-table-lock-stat=500
+loose-performance-schema-max-index-stat=5000
 loose-performance-schema-max-table-handles=1000
+loose-performance-schema-max-prepared-statements-instances=100
+loose-performance-schema-max-program-instances=5000
+loose-performance-schema-setup-actors-size=100
+loose-performance-schema-setup-objects-size=100
 
 loose-performance-schema-events-waits-history-size=10
 loose-performance-schema-events-waits-history-long-size=10000
@@ -85,8 +90,11 @@ loose-performance-schema-events-stages-history-size=10
 loose-performance-schema-events-stages-history-long-size=1000
 loose-performance-schema-events-statements-history-size=10
 loose-performance-schema-events-statements-history-long-size=1000
-loose-performance-schema-max-thread-instances=200
+loose-performance-schema-events-transactions-history-size=10
+loose-performance-schema-events-transactions-history-long-size=1000
+loose-performance-schema-max-thread-instances=400
 loose-performance-schema-session-connect-attrs-size=2048
+loose-performance-schema-max-metadata-locks=10000
 
 # Enable everything, for maximun code exposure during testing
 
@@ -98,6 +106,9 @@ loose-performance-schema-consumer-events-stages-history-long=ON
 loose-performance-schema-consumer-events-statements-current=ON
 loose-performance-schema-consumer-events-statements-history=ON
 loose-performance-schema-consumer-events-statements-history-long=ON
+loose-performance-schema-consumer-events-transactions-current=ON
+loose-performance-schema-consumer-events-transactions-history=ON
+loose-performance-schema-consumer-events-transactions-history-long=ON
 loose-performance-schema-consumer-events-waits-current=ON
 loose-performance-schema-consumer-events-waits-history=ON
 loose-performance-schema-consumer-events-waits-history-long=ON
@@ -108,6 +119,7 @@ binlog-direct-non-transactional-updates
 
 default-storage-engine=myisam
 use_stat_tables=preferably
+histogram_type=json_hb
 
 loose-ssl-ca=@ENV.MYSQL_TEST_DIR/std_data/cacert.pem
 loose-ssl-cert=@ENV.MYSQL_TEST_DIR/std_data/server-cert.pem

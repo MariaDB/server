@@ -31,7 +31,7 @@ POSSIBILITY OF SUCH DAMAGE.
 #include "server_plugin.h"
 #include <mysql/plugin_auth.h>
 #include <mysqld_error.h>
-
+#include <sddl.h>
 
 /* This sends the error to the client */
 static void log_error(SECURITY_STATUS err, const char *msg)
@@ -140,32 +140,140 @@ static int get_client_name_from_context(CtxtHandle *ctxt,
 }
 
 
-int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
-{
-  int ret;
-  SECURITY_STATUS sspi_ret;
-  ULONG  attribs = 0;
-  TimeStamp   lifetime;
-  CredHandle  cred;
-  CtxtHandle  ctxt;
+/*
+  Check if username from SSPI context matches the name requested
+  in MYSQL_SERVER_AUTH_INFO
 
+  There are 2 ways to specify SSPI username
+  username, of auth_string.
+
+  if auth_string is used,  we compare full name (i.e , with user+domain)
+  if not, we match just the user name.
+*/
+static bool check_username_match(CtxtHandle *ctxt,
+  MYSQL_SERVER_AUTH_INFO *auth_info)
+{
+  char client_name[MYSQL_USERNAME_LENGTH + 1];
+  const char *user= 0;
+  int compare_full_name;;
+  if (auth_info->auth_string_length > 0)
+  {
+    compare_full_name= 1;
+    user= auth_info->auth_string;
+  }
+  else
+  {
+    compare_full_name= 0;
+    user= auth_info->user_name;
+  }
+  if (get_client_name_from_context(ctxt, client_name, MYSQL_USERNAME_LENGTH,
+                                   compare_full_name) != CR_OK)
+  {
+    return false;
+  }
+
+  /* Always compare case-insensitive on Windows. */
+  if (_stricmp(client_name, user))
+  {
+    my_printf_error(ER_ACCESS_DENIED_ERROR,
+      "GSSAPI name mismatch, requested '%s', actual name '%s'", 0, user,
+      client_name);
+    return false;
+  }
+  return true;
+}
+
+
+/*
+  Checks the security token extracted from SSPI context
+  for membership in specfied group.
+
+  @param ctxt  -  SSPI context
+  @param group_name - group name to check membership against
+  NOTE: this can also be a user's name
+
+  @param use_sid - whether name is SID
+  @last_error - will be set, if the function returns false, and
+  some of the API's have failed.
+  @failing_api - name of the API that has failed(for error logging)
+*/
+static bool check_group_match(CtxtHandle *ctxt, const char *name,
+  bool name_is_sid)
+{
+  BOOL is_member= FALSE;
+  bool is_impersonating= false;
+  bool free_sid= false;
+  PSID sid= 0;
+
+
+#define FAIL(msg)                                                             \
+  do                                                                          \
+  {                                                                           \
+    log_error(GetLastError(), msg);                                           \
+    goto cleanup;                                                             \
+  } while (0)
+
+  /* Get the group SID.*/
+  if (name_is_sid)
+  {
+    if (!ConvertStringSidToSidA(name, &sid))
+      FAIL("ConvertStringSidToSid");
+    free_sid= true;
+  }
+  else
+  {
+    /* Get the SID of the specified group via LookupAccountName().*/
+    char sid_buf[SECURITY_MAX_SID_SIZE];
+    char domain[256];
+    DWORD sid_size= sizeof(sid_buf);
+    DWORD domain_size= sizeof(domain);
+
+    SID_NAME_USE sid_name_use;
+    sid= (PSID) sid_buf;
+
+    if (!LookupAccountName(0, name, sid, &sid_size, domain,
+          &domain_size, &sid_name_use))
+    {
+      FAIL("LookupAccountName");
+    }
+  }
+
+  /* Impersonate, to check group membership */
+  if (ImpersonateSecurityContext(ctxt))
+    FAIL("ImpersonateSecurityContext");
+  is_impersonating= true;
+
+  if (!CheckTokenMembership(GetCurrentThreadToken(), sid, &is_member))
+      FAIL("CheckTokenMembership");
+
+cleanup:
+  if (is_impersonating)
+    RevertSecurityContext(ctxt);
+  if (free_sid)
+    LocalFree(sid);
+  return is_member;
+}
+
+static SECURITY_STATUS sspi_get_context(MYSQL_PLUGIN_VIO *vio,
+  CtxtHandle *ctxt, CredHandle *cred)
+{
+  SECURITY_STATUS sspi_ret= SEC_E_OK;
+  ULONG attribs= 0;
+  TimeStamp lifetime;
   SecBufferDesc inbuf_desc;
   SecBuffer     inbuf;
   SecBufferDesc outbuf_desc;
   SecBuffer     outbuf;
   void*         out= NULL;
-  char client_name[MYSQL_USERNAME_LENGTH + 1];
-  const char *user= 0;
-  int compare_full_name;
 
-  ret= CR_ERROR;
-  SecInvalidateHandle(&cred);
-  SecInvalidateHandle(&ctxt);
+  SecInvalidateHandle(cred);
+  SecInvalidateHandle(ctxt);
 
   out= malloc(SSPI_MAX_TOKEN_SIZE);
   if (!out)
   {
     log_error(SEC_E_OK, "memory allocation failed");
+    sspi_ret= SEC_E_INSUFFICIENT_MEMORY;
     goto cleanup;
   }
   sspi_ret= AcquireCredentialsHandle(
@@ -176,7 +284,7 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
     NULL,
     NULL,
     NULL,
-    &cred,
+    cred,
     &lifetime);
 
   if (SEC_ERROR(sspi_ret))
@@ -209,28 +317,15 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
       log_error(SEC_E_OK, "communication error(read)");
       goto cleanup;
     }
-    if (!user)
-    {
-      if (auth_info->auth_string_length > 0)
-      {
-        compare_full_name= 1;
-        user= auth_info->auth_string;
-      }
-      else
-      {
-        compare_full_name= 0;
-        user= auth_info->user_name;
-      }
-    }
     inbuf.cbBuffer= len;
     outbuf.cbBuffer= SSPI_MAX_TOKEN_SIZE;
     sspi_ret= AcceptSecurityContext(
-      &cred,
-      SecIsValidHandle(&ctxt) ? &ctxt : NULL,
+      cred,
+      SecIsValidHandle(ctxt) ? ctxt : NULL,
       &inbuf_desc,
       attribs,
       SECURITY_NATIVE_DREP,
-      &ctxt,
+      ctxt,
       &outbuf_desc,
       &attribs,
       &lifetime);
@@ -256,18 +351,57 @@ int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
     }
   } while (sspi_ret == SEC_I_CONTINUE_NEEDED);
 
-  /* Authentication done, now extract and compare user name. */
-  ret= get_client_name_from_context(&ctxt, client_name, MYSQL_USERNAME_LENGTH, compare_full_name);
-  if (ret != CR_OK)
+cleanup:
+  free(out);
+  return sspi_ret;
+}
+
+
+int auth_server(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *auth_info)
+{
+  int ret= CR_ERROR;
+  const char* group = 0;
+  bool use_sid = 0;
+
+  CtxtHandle ctxt;
+  CredHandle cred;
+  if (sspi_get_context(vio, &ctxt, &cred) != SEC_E_OK)
     goto cleanup;
 
-  /* Always compare case-insensitive on Windows. */
-  ret= _stricmp(client_name, user) == 0 ? CR_OK : CR_ERROR;
-  if (ret != CR_OK)
+
+  /*
+    Authentication done, now test user name, or group
+    membership.
+    First, find out if matching group was requested.
+  */
+  static struct
   {
-    my_printf_error(ER_ACCESS_DENIED_ERROR,
-      "GSSAPI name mismatch, requested '%s', actual name '%s'",
-      0, user, client_name);
+    const char *str;
+    size_t len;
+    bool sid;
+  } prefixes[]= {{"GROUP:", sizeof("GROUP:") - 1, false},
+                 {"SID:", sizeof("SID:") - 1, true}};
+  group= 0;
+  for (auto &prefix : prefixes)
+  {
+    if (auth_info->auth_string_length >= prefix.len &&
+        !strncmp(auth_info->auth_string, prefix.str, prefix.len))
+    {
+      group= auth_info->auth_string + prefix.len;
+      use_sid= prefix.sid;
+      break;
+    }
+  }
+
+  if (group)
+  {
+    /* Test group membership.*/
+    ret= check_group_match(&ctxt, group, use_sid) ? CR_OK : CR_ERROR;
+  }
+  else
+  {
+    /* Compare username. */
+    ret= check_username_match(&ctxt, auth_info) ? CR_OK : CR_ERROR;
   }
 
 cleanup:
@@ -277,7 +411,6 @@ cleanup:
   if (SecIsValidHandle(&cred))
     FreeCredentialsHandle(&cred);
 
-  free(out);
   return ret;
 }
 

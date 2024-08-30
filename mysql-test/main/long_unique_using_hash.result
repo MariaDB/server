@@ -13,6 +13,7 @@ Null	YES
 Index_type	HASH
 Comment	
 Index_comment	
+Ignored	NO
 drop table t1;
 create table t1(a blob , unique(a) using btree);
 ERROR 42000: Specified key was too long; max key length is 1000 bytes
@@ -31,23 +32,24 @@ Null	YES
 Index_type	HASH
 Comment	
 Index_comment	
+Ignored	NO
 drop table t1;
 create table t1(a int ,b int , c int,  unique(a, b, c) using hash);
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	A	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	A	NULL	NULL	NULL	YES	HASH			NO
 insert into t1 values(1,1,1);
 insert into t1 values(1,1,1);
 ERROR 23000: Duplicate entry '1-1-1' for key 'a'
 drop table t1;
 create table t1(a int ,b int , c int,  unique(a, b, c) using hash) engine=memory;
 show keys from t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	a	1	a	NULL	NULL	NULL	NULL	YES	HASH		
-t1	0	a	2	b	NULL	NULL	NULL	NULL	YES	HASH		
-t1	0	a	3	c	NULL	0	NULL	NULL	YES	HASH		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	NULL	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	2	b	NULL	NULL	NULL	NULL	YES	HASH			NO
+t1	0	a	3	c	NULL	0	NULL	NULL	YES	HASH			NO
 insert into t1 values(1,1,1);
 insert into t1 values(1,1,1);
 ERROR 23000: Duplicate entry '1-1-1' for key 'a'

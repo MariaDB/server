@@ -1417,7 +1417,7 @@ e25388fde8290dc286a6164fa2d97e551b53498dcbf7bc378eb1f178
 SET NAMES utf8;
 SELECT sha2('1',224);
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def					sha2('1',224)	253	168	56	Y	0	39	33
+def					sha2('1',224)	253	168	56	Y	0	39	192
 sha2('1',224)
 e25388fde8290dc286a6164fa2d97e551b53498dcbf7bc378eb1f178
 SET NAMES latin1;
@@ -1472,7 +1472,7 @@ t1	CREATE TABLE `t1` (
   `a` varchar(30) DEFAULT NULL,
   `b` text DEFAULT sha(`a`),
   `c` text DEFAULT sha2(`a`,224)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 INSERT INTO t1 (a) VALUES ('abc');
 SELECT * FROM t1;
 a	b	c

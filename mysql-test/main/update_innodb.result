@@ -143,3 +143,111 @@ connection default;
 disconnect con2;
 drop table t1,t2;
 # End of 10.4 tests
+#
+# MDEV-33533: multi-delete using rowid filter
+#
+set @save_default_storage_engine=@@default_storage_engine;
+set default_storage_engine=InnoDB;
+CREATE DATABASE dbt3_s001;
+use dbt3_s001;
+create index i_n_name on nation(n_name);
+analyze table
+nation, lineitem, customer, orders, part, supplier, partsupp, region
+persistent for all;
+Table	Op	Msg_type	Msg_text
+dbt3_s001.nation	analyze	status	Engine-independent statistics collected
+dbt3_s001.nation	analyze	status	OK
+dbt3_s001.lineitem	analyze	status	Engine-independent statistics collected
+dbt3_s001.lineitem	analyze	status	OK
+dbt3_s001.customer	analyze	status	Engine-independent statistics collected
+dbt3_s001.customer	analyze	status	OK
+dbt3_s001.orders	analyze	status	Engine-independent statistics collected
+dbt3_s001.orders	analyze	status	OK
+dbt3_s001.part	analyze	status	Engine-independent statistics collected
+dbt3_s001.part	analyze	status	OK
+dbt3_s001.supplier	analyze	status	Engine-independent statistics collected
+dbt3_s001.supplier	analyze	status	OK
+dbt3_s001.partsupp	analyze	status	Engine-independent statistics collected
+dbt3_s001.partsupp	analyze	status	OK
+dbt3_s001.region	analyze	status	Engine-independent statistics collected
+dbt3_s001.region	analyze	status	OK
+explain
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	nation	ref	PRIMARY,i_n_name	i_n_name	101	const	1	Using where; Using index
+1	SIMPLE	customer	ref	PRIMARY,i_c_nationkey	i_c_nationkey	5	dbt3_s001.nation.n_nationkey	6	Using index
+1	SIMPLE	orders	ref|filter	i_o_orderdate,i_o_custkey	i_o_custkey|i_o_orderdate	5|4	dbt3_s001.customer.c_custkey	15 (8%)	Using where; Using rowid filter
+explain format=json
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "nation",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_n_name"],
+          "key": "i_n_name",
+          "key_length": "101",
+          "used_key_parts": ["n_name"],
+          "ref": ["const"],
+          "loops": 1,
+          "rows": 1,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "attached_condition": "nation.n_name = 'PERU'",
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "customer",
+          "access_type": "ref",
+          "possible_keys": ["PRIMARY", "i_c_nationkey"],
+          "key": "i_c_nationkey",
+          "key_length": "5",
+          "used_key_parts": ["c_nationkey"],
+          "ref": ["dbt3_s001.nation.n_nationkey"],
+          "loops": 1,
+          "rows": 6,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "orders",
+          "access_type": "ref",
+          "possible_keys": ["i_o_orderdate", "i_o_custkey"],
+          "key": "i_o_custkey",
+          "key_length": "5",
+          "used_key_parts": ["o_custkey"],
+          "ref": ["dbt3_s001.customer.c_custkey"],
+          "rowid_filter": {
+            "range": {
+              "key": "i_o_orderdate",
+              "used_key_parts": ["o_orderDATE"]
+            },
+            "rows": 119,
+            "selectivity_pct": 7.933333333
+          },
+          "loops": 6,
+          "rows": 15,
+          "cost": "COST_REPLACED",
+          "filtered": 7.933333397,
+          "attached_condition": "orders.o_orderDATE between '1992-01-01' and '1992-06-30'"
+        }
+      }
+    ]
+  }
+}
+update  orders, customer, nation set orders.o_comment = "+++" where o_orderDATE between '1992-01-01' and '1992-06-30' and
+o_custkey =  c_custkey and c_nationkey = n_nationkey and n_name='PERU';
+DROP DATABASE dbt3_s001;
+set default_storage_engine=@save_default_storage_engine;

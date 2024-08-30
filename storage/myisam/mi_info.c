@@ -17,7 +17,7 @@
 /* Return useful base information for an open table */
 
 #include "myisamdef.h"
-#ifdef	__WIN__
+#ifdef	_WIN32
 #include <sys/stat.h>
 #endif
 
@@ -87,7 +87,10 @@ int mi_status(MI_INFO *info, register MI_ISAMINFO *x, uint flag)
     x->index_file_name  = share->index_file_name;
   }
   if ((flag & HA_STATUS_TIME) && !mysql_file_fstat(info->dfile, &state, MYF(0)))
+  {
+    MSAN_STAT_WORKAROUND(&state);
     x->update_time=state.st_mtime;
+  }
   else
     x->update_time=0;
   if (flag & HA_STATUS_AUTO)

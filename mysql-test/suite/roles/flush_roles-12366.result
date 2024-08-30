@@ -240,7 +240,6 @@ connect con1,localhost,u,,;
 SHOW DATABASES;
 Database
 information_schema
-test
 SET ROLE operations_cluster;
 SHOW DATABASES;
 Database
@@ -261,7 +260,6 @@ oms_live_sg
 oms_live_th
 oms_live_tw
 oms_live_vn
-test
 SELECT COUNT(1) FROM oms_live_sg.a;
 COUNT(1)
 0
@@ -364,7 +362,6 @@ connect con3,localhost,u,,;
 SHOW DATABASES;
 Database
 information_schema
-test
 SET ROLE operations_cluster;
 SHOW DATABASES;
 Database
@@ -385,7 +382,6 @@ oms_live_sg
 oms_live_th
 oms_live_tw
 oms_live_vn
-test
 SELECT COUNT(1) FROM oms_live_sg.a;
 COUNT(1)
 0

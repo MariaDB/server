@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2022, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -13,10 +14,11 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-/* Alloc a block of locked memory */
+/* Alloc a block of locked memory (memory protected against swap) */
 
 #include "mysys_priv.h"
 #include "mysys_err.h"
+#include "aligned.h"
 #include <my_list.h>
 
 #ifdef HAVE_MLOCK
@@ -30,16 +32,16 @@ struct st_mem_list
 
 LIST *mem_list;
 
-uchar *my_malloc_lock(uint size,myf MyFlags)
+uchar *my_malloc_lock(size_t size, myf MyFlags)
 {
   int success;
-  uint pagesize=sysconf(_SC_PAGESIZE);
+  uint pagesize= my_system_page_size;
   uchar *ptr;
   struct st_mem_list *element;
   DBUG_ENTER("my_malloc_lock");
 
   size=((size-1) & ~(pagesize-1))+pagesize;
-  if (!(ptr=memalign(pagesize,size)))
+  if (!(ptr=aligned_malloc(size,pagesize)))
   {
     if (MyFlags & (MY_FAE+MY_WME))
       my_error(EE_OUTOFMEMORY, MYF(ME_BELL+ME_FATAL), size);
@@ -68,6 +70,7 @@ uchar *my_malloc_lock(uint size,myf MyFlags)
     mysql_mutex_lock(&THR_LOCK_malloc);
     mem_list=list_add(mem_list,&element->list);
     mysql_mutex_unlock(&THR_LOCK_malloc);
+    update_malloc_size((longlong) size, 0);
   }
   DBUG_RETURN(ptr);
 }
@@ -86,12 +89,13 @@ void my_free_lock(uchar *ptr)
     {						/* Found locked mem */
       (void) munlock((uchar*) ptr,element->size);
       mem_list=list_delete(mem_list,list);
+      update_malloc_size(- (longlong) element->size, 0);
       break;
     }
   }
   mysql_mutex_unlock(&THR_LOCK_malloc);
   my_free(element);
-  free(ptr);					/* Free even if not locked */
+  aligned_free(ptr);				/* Free even if not locked */
 }
 
 #endif /* HAVE_MLOCK */

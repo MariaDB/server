@@ -22,12 +22,12 @@
 #include <mrn_mysql.h>
 
 namespace mrn {
-  class TableFieldsOffsetMover {
+  class FieldTableChanger {
   public:
-    TableFieldsOffsetMover(TABLE *table, my_ptrdiff_t diff);
-    ~TableFieldsOffsetMover();
+    FieldTableChanger(TABLE *table, TABLE *new_table);
+    ~FieldTableChanger();
   private:
-    TABLE *table_;
-    my_ptrdiff_t diff_;
+    TABLE *old_table_;
+    TABLE *new_table_;
   };
 }

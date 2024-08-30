@@ -1,4 +1,3 @@
-drop table if exists t1, t2;
 select 1 in (1,2,3);
 1 in (1,2,3)
 1
@@ -287,7 +286,7 @@ a	filler
 2006-04-25 10:17:00	yes
 2006-04-25 10:19:00	yes
 drop table t2;
-create table t2 (a varchar(10), filler char(200), key(a));
+create table t2 (a varchar(10), filler char(200), key(a)) charset=latin1;
 insert into t2 select 'foo', 'no' from t1 A, t1 B;
 insert into t2 select 'barbar', 'no' from t1 A, t1 B;
 insert into t2 select 'bazbazbaz', 'no' from t1 A, t1 B;
@@ -491,7 +490,7 @@ Warnings:
 Warning	1365	Division by 0
 DROP TABLE t1;
 End of 5.0 tests
-create table t1(f1 char(1));
+create table t1(f1 char(1)) charset=latin1;
 insert into t1 values ('a'),('b'),('1');
 select f1 from t1 where f1 in ('a',1);
 f1
@@ -522,7 +521,7 @@ a
 b
 explain select f1 from t1 where f1 in ('a','b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	t1f1_idx	t1f1_idx	2	NULL	3	Using where; Using index
+1	SIMPLE	t1	range	t1f1_idx	t1f1_idx	2	NULL	2	Using where; Using index
 select f1 from t1 where f1 in (2,1);
 f1
 1
@@ -532,6 +531,8 @@ Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f1 from t1 where f1 in (2,1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	t1f1_idx	t1f1_idx	2	NULL	3	Using where; Using index
+Warnings:
+Note	1105	Cannot use key `t1f1_idx` part[0] for lookup: `test`.`t1`.`f1` of type `char` = "2" of type `int`
 create table t2(f2 int, index t2f2(f2));
 insert into t2 values(0),(1),(2);
 select f2 from t2 where f2 in ('a',2);
@@ -553,7 +554,7 @@ Warning	1292	Truncated incorrect DECIMAL value: 'a'
 Warning	1292	Truncated incorrect DECIMAL value: 'b'
 explain select f2 from t2 where f2 in ('a','b');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	t2f2	t2f2	5	NULL	3	Using where; Using index
+1	SIMPLE	t2	ref	t2f2	t2f2	5	const	1	Using index
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: 'a'
 Warning	1292	Truncated incorrect DECIMAL value: 'b'
@@ -628,7 +629,7 @@ c_year YEAR NOT NULL,
 c_char CHAR(10) NOT NULL,
 INDEX(c_int), INDEX(c_decimal), INDEX(c_float), INDEX(c_bit), INDEX(c_date),
 INDEX(c_datetime), INDEX(c_timestamp), INDEX(c_time), INDEX(c_year),
-INDEX(c_char));
+INDEX(c_char)) CHARSET=latin1;
 INSERT IGNORE INTO t1 (c_int) VALUES (1), (2), (3), (4), (5);
 INSERT IGNORE INTO t1 (c_int) SELECT 0 FROM t1;
 INSERT IGNORE INTO t1 (c_int) SELECT 0 FROM t1;
@@ -784,7 +785,7 @@ SELECT 1 IN (YEAR(FROM_UNIXTIME(NULL)) ,1);
 # Bug#13012483: EXPLAIN EXTENDED, PREPARED STATEMENT, CRASH IN CHECK_SIMPLE_EQUALITY
 #
 CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
+PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @a:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
 EXECUTE s;
 1
 DROP TABLE t1;
@@ -804,15 +805,6 @@ a	b
 select * from t1 where IF(1,a,a)='2.1';
 a	b
 drop table t1;
-#
-# LP bug#992380 Crash when creating PS for a query with
-# subquery in WHERE (see also mysql bug#13012483)
-#
-CREATE TABLE t1 (a INT);
-PREPARE s FROM "SELECT 1 FROM t1 WHERE 1 < ALL (SELECT @:= (1 IN (SELECT 1 FROM t1)) FROM t1)";
-EXECUTE s;
-1
-DROP TABLE t1;
 #
 # End of 5.3 tests
 #
@@ -871,15 +863,15 @@ DROP TABLE t1;
 #
 # MDEV-11514 IN with a mixture of TIME and DATETIME returns a wrong result
 #
-SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32');
-TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp;
+exp
 1
-PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')";
+PREPARE stmt FROM "SELECT TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32') as exp";
 EXECUTE stmt;
-TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+exp
 1
 EXECUTE stmt;
-TIME'10:20:30' IN (102030,TIME'10:20:31',TIMESTAMP'2001-01-01 10:20:32')
+exp
 1
 DEALLOCATE PREPARE stmt;
 #
@@ -943,4 +935,344 @@ Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: '0x'
 #
 # End of 10.4 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-31303: Key not used
+#
+CREATE TABLE `a` (
+`id` bigint AUTO_INCREMENT PRIMARY KEY,
+`c1` bigint unsigned,
+KEY (`c1`)
+);
+INSERT INTO `a` VALUES (1,9223382399205928659),(2,9223384207280813348),
+(3,9223385953115437234),(4,9223387250780556749),(5,9223387354282558788),
+(6,9223387603870501596),(7,9223389270813433667),(8,9223389903231468827),
+(9,9223390280789586779),(10,9223391591398222899),(11,9223391875473564350),
+(12,9223393152250049433),(13,9223393939696790223),(14,9223394417225350415),
+(15,9223397646397141015),(16,9223398025879291243),(17,9223399038671098072),
+(18,9223399534968874556),(19,9223400449518009285),(20,9223400860292643549),
+(21,9223400940692256924),(22,9223401073791948119),(23,9223402820804649616),
+(24,9223403470951992681),(25,9223405581879567267),(26,9223405754978563829),
+(27,9223405972966828221), (28, 9223372036854775808), (29, 9223372036854775807) ;
+explain SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775807 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	range	c1	c1	9	NULL	2	Using where; Using index
+explain SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775808 );
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	range	c1	c1	9	NULL	2	Using where; Using index
+SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775807 );
+c1
+9223372036854775807
+SELECT c1 FROM a WHERE c1 IN ( 1, 9223372036854775808 );
+c1
+9223372036854775808
+drop table `a`;
+#
+# MDEV-18319 BIGINT UNSIGNED Performance issue
+#
+CREATE OR REPLACE TABLE t1 (
+id bigint(20) unsigned NOT NULL AUTO_INCREMENT PRIMARY KEY
+);
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES ();
+END FOR
+$$
+SELECT MIN(id), MAX(id), COUNT(*) FROM t1;
+MIN(id)	MAX(id)	COUNT(*)
+1	256	256
+EXPLAIN SELECT id FROM t1 WHERE id IN (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+EXPLAIN SELECT id FROM t1 WHERE id IN (9223372036854775806, 9223372036854775807);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+EXPLAIN SELECT id FROM t1 WHERE id IN (9223372036854775807, 9223372036854775808);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	8	NULL	2	Using where; Using index
+DROP TABLE t1;
+#
+# MDEV-18898 SELECT using wrong index when using operator IN with mixed types
+#
+CREATE TEMPORARY TABLE t1 (
+id int(10) unsigned NOT NULL AUTO_INCREMENT,
+name varchar(100) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+PRIMARY KEY (`id`),
+UNIQUE KEY `name` (`name`)
+);
+FOR i IN 1..255
+DO
+INSERT INTO t1 VALUES (i, MD5(i));
+END FOR
+$$
+#
+# Constants alone
+#
+ANALYZE SELECT id, name FROM t1 WHERE id = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+ANALYZE SELECT id, name FROM t1 WHERE id = '2';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	NULL	100.00	NULL	
+#
+# Two constants using IN
+#
+ANALYZE SELECT id, name FROM t1 WHERE id IN (1, 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id IN ('1', 2) /* Used a wrong index */;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id IN (1, '2') /* Used a wrong index */;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id IN ('1', '2');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+#
+# Two constants using OR
+#
+ANALYZE SELECT id, name FROM t1 WHERE id = 1 OR id = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id = '1' OR id = '2';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id = 1 OR id = '2';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+ANALYZE SELECT id, name FROM t1 WHERE id = '1' OR id = 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	2.00	100.00	100.00	Using index condition
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
+#
+# MDEV-29662 same values in `IN` set vs equal comparison produces
+#            the different performance
+#
+CREATE TABLE t1 (a INT, PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1),(2),(3);
+SELECT * FROM t1 WHERE a IN (1,1);
+a
+1
+# 'const' access since 'a IN (1,1)' is converted to equality 'a=1'
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+EXPLAIN SELECT * FROM t1 WHERE a = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+SELECT * FROM t1 WHERE a IN (1,1,2);
+a
+1
+2
+# Conversion to equality is impossible due to different values
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index
+SELECT * FROM t1 WHERE a IN (1,NULL,1);
+a
+1
+# Conversion to equality is impossible due to NULL in the IN list
+EXPLAIN SELECT * FROM t1 WHERE a IN (1,NULL,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+a
+1
+3
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (2,2,2,2,2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+EXPLAIN SELECT * FROM t1 WHERE a != 3;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+a
+2
+EXPLAIN SELECT * FROM t1 WHERE a NOT IN (3,3,1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+SELECT * FROM t1 WHERE a NOT IN (1,2,NULL,NULL);
+a
+# No conversion is possible since elements are not constant
+SELECT * FROM t1 WHERE a IN ((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+a
+3
+EXPLAIN SELECT * FROM t1 WHERE a IN 
+((SELECT MAX(a) FROM t1), (SELECT MAX(a) FROM t1));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	range	PRIMARY	PRIMARY	4	NULL	1	Using where; Using index
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+# There must be no conversion here:
+SELECT * FROM t1 WHERE a IN (3,2,3,3,1,2,3);
+a
+1
+2
+3
+# Prepared statement
+PREPARE stmt FROM "SELECT * FROM t1 WHERE a IN (3,3,3)";
+EXECUTE stmt;
+a
+3
+EXECUTE stmt;
+a
+3
+DEALLOCATE PREPARE stmt;
+# Conversion to equality since SELECT 2 is evaluated as const
+SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+a
+2
+EXPLAIN SELECT * FROM t1 WHERE a IN ((SELECT 2), (SELECT 2));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	Using index
+CREATE TABLE t2 (a INT, b VARCHAR(10), PRIMARY KEY(a,b)) CHARSET=latin1;
+INSERT INTO t2 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+a	b
+1	abc
+# 'const' access due to conversion to equality
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	16	const,const	1	Using index
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+a	b
+2	def
+# No conversion due to different values
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,'XYZ'));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	16	NULL	2	Using where; Using index
+SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+a	b
+2	def
+# No conversion due to NULL
+EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((2,'def'),(2,'def'),(2,NULL));
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	range	PRIMARY	PRIMARY	16	NULL	1	Using where; Using index
+SELECT * FROM t2 WHERE (a,b) NOT IN ((2,'def'),(2,'def'),(2,NULL));
+a	b
+1	abc
+3	ghi
+SELECT * FROM t2 WHERE a IN (1,1,1,1);
+a	b
+1	abc
+EXPLAIN SELECT * FROM t2 WHERE a IN (1,1,1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using index
+EXPLAIN SELECT * FROM t2 WHERE a = 1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ref	PRIMARY	PRIMARY	4	const	1	Using index
+SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+a	b
+2	def
+3	ghi
+EXPLAIN SELECT * FROM t2 WHERE b NOT IN ('abc','abc');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	16	NULL	3	Using where; Using index
+EXPLAIN SELECT * FROM t2 WHERE b != 'abc';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	PRIMARY	16	NULL	3	Using where; Using index
+# Prepared statements
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t2 WHERE (a,b) IN ((1,'abc'),(1,'abc'))";
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	16	const,const	1	Using index
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	16	const,const	1	Using index
+DEALLOCATE PREPARE stmt;
+CREATE TABLE t3(a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3);
+PREPARE stmt FROM "EXPLAIN SELECT * FROM t3 WHERE a IN (?,?,?)";
+EXECUTE stmt USING 1,1,1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	Using index
+EXECUTE stmt USING 2,3,4;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t3	range	PRIMARY	PRIMARY	4	NULL	3	Using where; Using index
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+# Nested joins
+CREATE TABLE t1 (a INT, b VARCHAR(10), PRIMARY KEY(a));
+INSERT INTO t1 VALUES (1,'abc'),(2,'def'),(3,'ghi');
+CREATE TABLE t2 (a INT, b VARCHAR(20), PRIMARY KEY(a));
+INSERT INTO t2 (a) VALUES (2),(3);
+CREATE TABLE t3 (a INT, PRIMARY KEY(a));
+INSERT INTO t3 VALUES (1),(2),(3),(4);
+CREATE TABLE t4 (a INT);
+INSERT INTO t4 VALUES (2),(3);
+# Conversion to equalities
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,2,2)
+AND t3.a IN (1,1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	const	PRIMARY	PRIMARY	4	const	1	Using where; Using index
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	
+# No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM (t1,t2) LEFT JOIN (t3,t4) ON t1.a IN (2,3)
+AND t3.a IN (1,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using join buffer (flat, BNL join)
+1	SIMPLE	t3	range	PRIMARY	PRIMARY	4	NULL	2	Using where; Using index; Using join buffer (incremental, BNL join)
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using join buffer (incremental, BNL join)
+# Conversion to equalities
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+ON t1.a = t2.a WHERE t1.a IN (2,2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	index	NULL	PRIMARY	4	NULL	4	Using index
+# No conversion to equalities due to different values in IN()
+EXPLAIN SELECT * FROM t1 LEFT JOIN ((t2, t3) LEFT JOIN t4 ON t2.a = t4.a)
+ON t1.a = t2.a WHERE t1.a IN (1,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
+1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	index	NULL	PRIMARY	4	NULL	4	Using index
+# View
+CREATE VIEW v1 AS SELECT t1.*, t2.b AS t2_b FROM t1 LEFT JOIN t2
+ON t1.a = t2.a;
+EXPLAIN SELECT * FROM v1 WHERE a IN (2,2,2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
+1	SIMPLE	t2	const	PRIMARY	PRIMARY	4	const	1	
+EXPLAIN SELECT * FROM v1 WHERE a IN (1,2,3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	3	Using index condition
+1	SIMPLE	t2	eq_ref	PRIMARY	PRIMARY	4	test.t1.a	1	
+# Stored procedures
+CREATE PROCEDURE p1(pa INT, pb INT)
+EXPLAIN SELECT * FROM t1 WHERE a IN (pa, pb);
+CALL p1(1,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	4	const	1	
+CALL p1(2,1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	PRIMARY	PRIMARY	4	NULL	2	Using index condition
+DROP TABLE t1, t2, t3, t4;
+DROP VIEW v1;
+DROP PROCEDURE p1;
+#
+# MDEV-29895 prepared view crash server (unit.conc_view)
+#
+create table t1 (username varchar(12) not null, id int(11) not null);
+create view v1 as select username from t1 where id = 0;
+prepare stmt from "select username from v1 where username in (?, ?)";
+execute stmt using "1", "1";
+username
+deallocate prepare stmt;
+drop view v1;
+drop table t1;
+#
+# End of 10.6 tests
 #

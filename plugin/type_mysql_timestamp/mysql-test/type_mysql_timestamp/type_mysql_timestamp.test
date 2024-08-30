@@ -1,0 +1,31 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # MDEV-30483 After upgrade to 10.6 from Mysql 5.7 seeing "InnoDB: Column last_update in table mysql.innodb_table_stats is BINARY(4) NOT NULL but should be INT UNSIGNED NOT NULL"
+--echo #
+
+--vertical_results
+SELECT
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_TYPE='DATA TYPE'
+    AND PLUGIN_NAME LIKE 'type_mysql_timestamp';
+--horizontal_results
+
+CREATE TABLE t1 (a TYPE_MYSQL_TIMESTAMP);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TIMESTAMP);
+SHOW CREATE TABLE t1;
+ALTER TABLE t1 MODIFY a TYPE_MYSQL_TIMESTAMP;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

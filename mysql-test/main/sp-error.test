@@ -10,10 +10,11 @@ drop table if exists t1, t2;
 
 --disable_ps2_protocol
 # Backup the mysql.proc table
+--enable_prepare_warnings
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 eval SELECT * FROM mysql.proc INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/proc.txt';
+--disable_prepare_warnings
 --enable_ps2_protocol
-
 # Make sure we don't have any procedures left.
 delete from mysql.proc;
 
@@ -44,8 +45,10 @@ drop table if exists t3|
 create table t3 ( x int )|
 insert into t3 values (2), (3)|
 
+--enable_prepare_warnings
 create procedure bad_into(out param int)
   select x from t3 into param|
+--disable_prepare_warnings
 
 --error 1172
 call bad_into(@x)|
@@ -610,13 +613,10 @@ create procedure nodb.bug3339() begin end|
 #
 # BUG#2653
 #
+--error ER_SP_UNDECLARED_VAR
 create procedure bug2653_1(a int, out b int)
   set b = aa|
 
---error ER_BAD_FIELD_ERROR
-call bug2653_1(1, @b)|
-
-drop procedure bug2653_1|
 
 --error ER_SP_UNDECLARED_VAR
 create procedure bug2653_2(a int, out b int)
@@ -1719,6 +1719,7 @@ drop procedure if exists bug15091;
 --enable_warnings
 
 delimiter |;
+--error ER_SP_UNDECLARED_VAR
 create procedure bug15091()
 begin
   declare selectstr varchar(6000) default ' ';
@@ -1730,15 +1731,6 @@ begin
                          'in (',conditionstr, ')');
 end|
 delimiter ;|
-
-# The error message used to be:
-#   ERROR 1109 (42S02): Unknown table 'c' in order clause
-# but is now rephrased to something less misleading:
-#   ERROR 1109 (42S02): Unknown table 'c' in field list
---error ER_UNKNOWN_TABLE
-call bug15091();
-
-drop procedure bug15091;
 
 
 #
@@ -2356,24 +2348,6 @@ DROP PROCEDURE IF EXISTS p1|
 DROP TABLE t1|
 
 delimiter ;|
-
-#
-# Bug#21801: SQL exception handlers and warnings
-#
-
---disable_warnings
-drop procedure if exists p1;
---enable_warnings
-delimiter |;
-create procedure p1()
-begin
-  create table t1 (a int) engine=MyISAM;
-  drop table t1;
-end|
-delimiter ;|
-call p1();
-call p1();
-drop procedure p1;
 
 #
 # Bug#8759 (Stored Procedures: SQLSTATE '00000' should be illegal)
@@ -3180,7 +3154,7 @@ END|
 CALL p9()|
 
 --echo
---echo # -- Check that handlers are choosen properly in case of deep stack and
+--echo # -- Check that handlers are chosen properly in case of deep stack and
 --echo # -- nested SQL-blocks.
 --echo
 
@@ -3730,7 +3704,7 @@ DROP PROCEDURE IF EXISTS p2;
 
 delimiter |;
 
-SET sql_mode = '';
+SET sql_mode = ''|
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE var1 INTEGER DEFAULT 'string';
@@ -3740,7 +3714,7 @@ END|
 --echo
 CALL p1()|
 --echo
-SET sql_mode = DEFAULT;
+SET sql_mode = DEFAULT|
 
 CREATE PROCEDURE p2()
 BEGIN
@@ -3816,12 +3790,14 @@ delimiter |;
 --echo # because SIGNAL would raise SQL-error in that case.
 --echo
 
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
   DECLARE v VARCHAR(5) DEFAULT -1;
   SELECT b FROM t1 WHERE a = 2 INTO v;
   RETURN v;
 END|
+--disable_prepare_warnings
 
 --echo
 --echo # Here we check that the NOT_FOUND condition raised in f1()

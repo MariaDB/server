@@ -38,6 +38,8 @@ id int NOT NULL,
 greeting VARCHAR(255),
 KEY k (greeting)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_a WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";
@@ -48,6 +50,8 @@ id int NOT NULL,
 greeting VARCHAR(255),
 KEY k (greeting(5))
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_b", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_b VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_b WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";
@@ -58,18 +62,16 @@ id int NOT NULL,
 greeting TEXT,
 KEY k (greeting(5))
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_c", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_c VALUES (1, "Hi!"),(2, "Aloha!"),(3, "Aloha!!!");
 SELECT * FROM tbl_c WHERE greeting = "Aloha!"
   AND CASE greeting WHEN "Aloha!" THEN "one" ELSE 'more' END = "one";
 id	greeting
 2	Aloha!
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %';
+SELECT argument FROM mysql.general_log WHERE argument LIKE 'select `id`,`greeting` from %';
 argument
-select t0.`id` `id`,t0.`greeting` `greeting` from `auto_test_remote`.`tbl_a` t0 where ((t0.`greeting` = 'Aloha!') and ((case t0.`greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
-select t0.`id` `id`,t0.`greeting` `greeting` from `auto_test_remote`.`tbl_b` t0 where ((t0.`greeting` = 'Aloha!') and ((case t0.`greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
-select t0.`id` `id`,t0.`greeting` `greeting` from `auto_test_remote`.`tbl_c` t0 where ((t0.`greeting` = 'Aloha!') and ((case t0.`greeting` when 'Aloha!' then _latin1'one' else _latin1'more' end) = _latin1'one'))
-SELECT argument FROM mysql.general_log WHERE argument LIKE 'select %'
 connection child2_1;
 SET @@global.general_log = @general_log_backup;
 SET @@global.log_output = @log_output_backup;

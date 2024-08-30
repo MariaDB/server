@@ -1,3 +1,6 @@
+call mtr.add_suppression("Operating system error number .* in a file operation.");
+call mtr.add_suppression("The error means the system cannot find the path specified.");
+call mtr.add_suppression("File ./test/t1.ibd was not found");
 set default_storage_engine=innodb;
 #
 # MDEV-18295 IMPORT TABLESPACE fails with instant-altered tables
@@ -136,6 +139,7 @@ call mtr.add_suppression(" InnoDB: Tablespace for table `test`.`t` is set as dis
 CREATE TABLE t (a INTEGER, b INTEGER as (a) VIRTUAL,
 c INTEGER)engine=innodb;
 ALTER TABLE t DISCARD TABLESPACE;
+FLUSH TABLES;
 ALTER TABLE t DROP COLUMN b, algorithm=instant;
 Warnings:
 Warning	1814	Tablespace has been discarded for table `t`

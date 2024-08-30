@@ -1,0 +1,52 @@
+--echo #
+--echo # MDEV-32462: mysql_upgrade -s still checks for non system tables
+--echo #
+
+# Let's now load plugin first
+--source include/have_utf8.inc
+--source include/not_embedded.inc
+
+--source include/mysql_upgrade_preparation.inc
+call mtr.add_suppression("Table rebuild required");
+
+SET NAMES utf8;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--echo # mariadb_upgrade on system and user table
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/mysql/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/mysql/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/mysql/mysql_json_test.MYD
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+
+show tables from mysql like '%json%';
+use mysql;
+--error ER_UNKNOWN_DATA_TYPE
+show create table mysql.mysql_json_test;
+--error ER_UNKNOWN_DATA_TYPE
+show create table test.mysql_json_test;
+
+SET @old_general_log= @@global.general_log;
+SET @old_log_output= @@global.log_output;
+SET @@global.general_log = ON;
+SET @@global.log_output = "TABLE";
+--exec $MYSQL_UPGRADE -s --force 2>&1
+--remove_file $MYSQLD_DATADIR/mariadb_upgrade_info
+SET @@global.general_log = @old_general_log;
+SET @@global.log_output = @old_log_output;
+
+select command_type, argument from mysql.general_log where argument like "%SELECT table_comment FROM information_schema.tables%";
+
+# User table is not upgraded in `mysql\test` DB, so we cannot see it.
+--error ER_UNKNOWN_DATA_TYPE
+show create table mysql.mysql_json_test;
+--error ER_UNKNOWN_DATA_TYPE
+show create table test.mysql_json_test;
+drop table mysql.mysql_json_test;
+drop table test.mysql_json_test;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -1,0 +1,422 @@
+#
+# Start of 10.11 tests
+#
+#
+# MDEV-33442 REPAIR TABLE corrupts UUIDs
+#
+CREATE PROCEDURE show_table(long_version INT)
+BEGIN
+SHOW CREATE TABLE t1;
+SELECT VERSION FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1' AND TABLE_SCHEMA='test';
+IF long_version>0 THEN
+SELECT * FROM t1 ORDER BY b;
+ELSE
+SELECT * FROM t1 ORDER BY a DESC LIMIT 5;
+END IF;
+END;
+$$
+# Upgrade a 10.11.4 table using REPAIR
+CALL show_table(1);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+00001234-5566-0777-0888-99aabbccddee	0
+10101234-5566-0777-8888-99aabbccddee	1
+00201234-5566-0777-c888-99aabbccddee	2
+10301234-5566-0777-e888-99aabbccddee	3
+00401234-5566-1777-0888-99aabbccddee	4
+10501234-5566-1777-8888-99aabbccddee	5
+00601234-5566-1777-c888-99aabbccddee	6
+10701234-5566-1777-e888-99aabbccddee	7
+00801234-5566-2777-0888-99aabbccddee	8
+10901234-5566-2777-8888-99aabbccddee	9
+01001234-5566-2777-c888-99aabbccddee	10
+11101234-5566-2777-e888-99aabbccddee	11
+01201234-5566-3777-0888-99aabbccddee	12
+11301234-5566-3777-8888-99aabbccddee	13
+01401234-5566-3777-c888-99aabbccddee	14
+11501234-5566-3777-e888-99aabbccddee	15
+01601234-5566-4777-0888-99aabbccddee	16
+11701234-5566-4777-8888-99aabbccddee	17
+01801234-5566-4777-c888-99aabbccddee	18
+11901234-5566-4777-e888-99aabbccddee	19
+02001234-5566-5777-0888-99aabbccddee	20
+12101234-5566-5777-8888-99aabbccddee	21
+02201234-5566-5777-c888-99aabbccddee	22
+12301234-5566-5777-e888-99aabbccddee	23
+02401234-5566-6777-0888-99aabbccddee	24
+12501234-5566-6777-8888-99aabbccddee	25
+02601234-5566-6777-c888-99aabbccddee	26
+12701234-5566-6777-e888-99aabbccddee	27
+02801234-5566-7777-0888-99aabbccddee	28
+12901234-5566-7777-8888-99aabbccddee	29
+03001234-5566-7777-c888-99aabbccddee	30
+13101234-5566-7777-e888-99aabbccddee	31
+03201234-5566-8777-0888-99aabbccddee	32
+13301234-5566-8777-8888-99aabbccddee	33
+03401234-5566-8777-c888-99aabbccddee	34
+13501234-5566-8777-e888-99aabbccddee	35
+03601234-5566-9777-0888-99aabbccddee	36
+13701234-5566-9777-8888-99aabbccddee	37
+03801234-5566-9777-c888-99aabbccddee	38
+13901234-5566-9777-e888-99aabbccddee	39
+04001234-5566-a777-0888-99aabbccddee	40
+14101234-5566-a777-8888-99aabbccddee	41
+04201234-5566-a777-c888-99aabbccddee	42
+14301234-5566-a777-e888-99aabbccddee	43
+04401234-5566-b777-0888-99aabbccddee	44
+14501234-5566-b777-8888-99aabbccddee	45
+04601234-5566-b777-c888-99aabbccddee	46
+14701234-5566-b777-e888-99aabbccddee	47
+04801234-5566-c777-0888-99aabbccddee	48
+14901234-5566-c777-8888-99aabbccddee	49
+05001234-5566-c777-c888-99aabbccddee	50
+15101234-5566-c777-e888-99aabbccddee	51
+05201234-5566-d777-0888-99aabbccddee	52
+15301234-5566-d777-8888-99aabbccddee	53
+05401234-5566-d777-c888-99aabbccddee	54
+15501234-5566-d777-e888-99aabbccddee	55
+05601234-5566-e777-0888-99aabbccddee	56
+15701234-5566-e777-8888-99aabbccddee	57
+05801234-5566-e777-c888-99aabbccddee	58
+15901234-5566-e777-e888-99aabbccddee	59
+06001234-5566-f777-0888-99aabbccddee	60
+16101234-5566-f777-8888-99aabbccddee	61
+06201234-5566-f777-c888-99aabbccddee	62
+16301234-5566-f777-e888-99aabbccddee	63
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+16301234-5566-f777-e888-99aabbccddee	63
+15901234-5566-e777-e888-99aabbccddee	59
+15501234-5566-d777-e888-99aabbccddee	55
+15101234-5566-c777-e888-99aabbccddee	51
+14701234-5566-b777-e888-99aabbccddee	47
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	error	Table rebuild required. Please do "ALTER TABLE `t1` FORCE" or dump/reload to fix it!
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+16301234-5566-f777-e888-99aabbccddee	63
+15901234-5566-e777-e888-99aabbccddee	59
+15501234-5566-d777-e888-99aabbccddee	55
+15101234-5566-c777-e888-99aabbccddee	51
+14701234-5566-b777-e888-99aabbccddee	47
+REPAIR TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	Warning	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 33
+test.t1	repair	Warning	Incorrect uuid value: '03601234-5566-9777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 37
+test.t1	repair	Warning	Incorrect uuid value: '04001234-5566-a777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 41
+test.t1	repair	Warning	Incorrect uuid value: '04401234-5566-b777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 45
+test.t1	repair	Warning	Incorrect uuid value: '04801234-5566-c777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 49
+test.t1	repair	Warning	Incorrect uuid value: '05201234-5566-d777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 53
+test.t1	repair	Warning	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 57
+test.t1	repair	Warning	Incorrect uuid value: '06001234-5566-f777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 61
+test.t1	repair	status	OK
+CALL show_table(1);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+00001234-5566-0777-0888-99aabbccddee	0
+10101234-5566-0777-8888-99aabbccddee	1
+00201234-5566-0777-c888-99aabbccddee	2
+10301234-5566-0777-e888-99aabbccddee	3
+00401234-5566-1777-0888-99aabbccddee	4
+10501234-5566-1777-8888-99aabbccddee	5
+00601234-5566-1777-c888-99aabbccddee	6
+10701234-5566-1777-e888-99aabbccddee	7
+00801234-5566-2777-0888-99aabbccddee	8
+10901234-5566-2777-8888-99aabbccddee	9
+01001234-5566-2777-c888-99aabbccddee	10
+11101234-5566-2777-e888-99aabbccddee	11
+01201234-5566-3777-0888-99aabbccddee	12
+11301234-5566-3777-8888-99aabbccddee	13
+01401234-5566-3777-c888-99aabbccddee	14
+11501234-5566-3777-e888-99aabbccddee	15
+01601234-5566-4777-0888-99aabbccddee	16
+11701234-5566-4777-8888-99aabbccddee	17
+01801234-5566-4777-c888-99aabbccddee	18
+11901234-5566-4777-e888-99aabbccddee	19
+02001234-5566-5777-0888-99aabbccddee	20
+12101234-5566-5777-8888-99aabbccddee	21
+02201234-5566-5777-c888-99aabbccddee	22
+12301234-5566-5777-e888-99aabbccddee	23
+02401234-5566-6777-0888-99aabbccddee	24
+12501234-5566-6777-8888-99aabbccddee	25
+02601234-5566-6777-c888-99aabbccddee	26
+12701234-5566-6777-e888-99aabbccddee	27
+02801234-5566-7777-0888-99aabbccddee	28
+12901234-5566-7777-8888-99aabbccddee	29
+03001234-5566-7777-c888-99aabbccddee	30
+13101234-5566-7777-e888-99aabbccddee	31
+NULL	32
+13301234-5566-8777-8888-99aabbccddee	33
+03401234-5566-8777-c888-99aabbccddee	34
+13501234-5566-8777-e888-99aabbccddee	35
+NULL	36
+13701234-5566-9777-8888-99aabbccddee	37
+03801234-5566-9777-c888-99aabbccddee	38
+13901234-5566-9777-e888-99aabbccddee	39
+NULL	40
+14101234-5566-a777-8888-99aabbccddee	41
+04201234-5566-a777-c888-99aabbccddee	42
+14301234-5566-a777-e888-99aabbccddee	43
+NULL	44
+14501234-5566-b777-8888-99aabbccddee	45
+04601234-5566-b777-c888-99aabbccddee	46
+14701234-5566-b777-e888-99aabbccddee	47
+NULL	48
+14901234-5566-c777-8888-99aabbccddee	49
+05001234-5566-c777-c888-99aabbccddee	50
+15101234-5566-c777-e888-99aabbccddee	51
+NULL	52
+15301234-5566-d777-8888-99aabbccddee	53
+05401234-5566-d777-c888-99aabbccddee	54
+15501234-5566-d777-e888-99aabbccddee	55
+NULL	56
+15701234-5566-e777-8888-99aabbccddee	57
+05801234-5566-e777-c888-99aabbccddee	58
+15901234-5566-e777-e888-99aabbccddee	59
+NULL	60
+16101234-5566-f777-8888-99aabbccddee	61
+06201234-5566-f777-c888-99aabbccddee	62
+16301234-5566-f777-e888-99aabbccddee	63
+CHECK TABLE t1 FOR UPGRADE;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+DROP TABLE t1;
+# Upgrade a 10.11.4 table using ALTER, adding a table COMMENT
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+16301234-5566-f777-e888-99aabbccddee	63
+15901234-5566-e777-e888-99aabbccddee	59
+15501234-5566-d777-e888-99aabbccddee	55
+15101234-5566-c777-e888-99aabbccddee	51
+14701234-5566-b777-e888-99aabbccddee	47
+# ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test10';
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 COMMENT 'test11';
+Warnings:
+Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 33
+Warning	1292	Incorrect uuid value: '03601234-5566-9777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 37
+Warning	1292	Incorrect uuid value: '04001234-5566-a777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 41
+Warning	1292	Incorrect uuid value: '04401234-5566-b777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 45
+Warning	1292	Incorrect uuid value: '04801234-5566-c777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 49
+Warning	1292	Incorrect uuid value: '05201234-5566-d777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 53
+Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 57
+Warning	1292	Incorrect uuid value: '06001234-5566-f777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 61
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test11'
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, COMMENT 'test12';
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci COMMENT='test12'
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+DROP TABLE t1;
+# Upgrade a 10.11.4 table using ALTER, adding a DEFAULT for 'b INT'
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+16301234-5566-f777-e888-99aabbccddee	63
+15901234-5566-e777-e888-99aabbccddee	59
+15501234-5566-d777-e888-99aabbccddee	55
+15101234-5566-c777-e888-99aabbccddee	51
+14701234-5566-b777-e888-99aabbccddee	47
+# ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY b INT NOT NULL DEFAULT 10;
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY b INT NOT NULL DEFAULT 11;
+Warnings:
+Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 33
+Warning	1292	Incorrect uuid value: '03601234-5566-9777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 37
+Warning	1292	Incorrect uuid value: '04001234-5566-a777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 41
+Warning	1292	Incorrect uuid value: '04401234-5566-b777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 45
+Warning	1292	Incorrect uuid value: '04801234-5566-c777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 49
+Warning	1292	Incorrect uuid value: '05201234-5566-d777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 53
+Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 57
+Warning	1292	Incorrect uuid value: '06001234-5566-f777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 61
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL DEFAULT 11,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY b INT NOT NULL DEFAULT 12;
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL DEFAULT 12,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+DROP TABLE t1;
+# Upgrade a 10.11.4 table using ALTER, adding a DEFAULT for 'a UUID'
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT NULL,
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+16301234-5566-f777-e888-99aabbccddee	63
+15901234-5566-e777-e888-99aabbccddee	59
+15501234-5566-d777-e888-99aabbccddee	55
+15101234-5566-c777-e888-99aabbccddee	51
+14701234-5566-b777-e888-99aabbccddee	47
+# ALTER..INPLACE should fail - the old column 'b UUID' needs upgrade
+ALTER IGNORE TABLE t1 ALGORITHM=INPLACE, MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd00';
+ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
+ALTER IGNORE TABLE t1 MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd01';
+Warnings:
+Warning	1292	Incorrect uuid value: '03201234-5566-8777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 33
+Warning	1292	Incorrect uuid value: '03601234-5566-9777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 37
+Warning	1292	Incorrect uuid value: '04001234-5566-a777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 41
+Warning	1292	Incorrect uuid value: '04401234-5566-b777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 45
+Warning	1292	Incorrect uuid value: '04801234-5566-c777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 49
+Warning	1292	Incorrect uuid value: '05201234-5566-d777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 53
+Warning	1292	Incorrect uuid value: '05601234-5566-e777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 57
+Warning	1292	Incorrect uuid value: '06001234-5566-f777-0888-99aabbccddee' for column `test`.`t1`.`a` at row 61
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT '16301234-5566-f777-e888-99aabbccdd01',
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+# Now ALTER..INPLACE should work
+ALTER IGNORE TABLE t1 MODIFY a UUID DEFAULT '16301234-5566-f777-e888-99aabbccdd02';
+CALL show_table(0);
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` uuid DEFAULT '16301234-5566-f777-e888-99aabbccdd02',
+  `b` int(11) NOT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+VERSION
+10
+a	b
+12301234-5566-5777-e888-99aabbccddee	23
+11901234-5566-4777-e888-99aabbccddee	19
+11501234-5566-3777-e888-99aabbccddee	15
+11101234-5566-2777-e888-99aabbccddee	11
+10701234-5566-1777-e888-99aabbccddee	7
+DROP TABLE t1;
+DROP PROCEDURE show_table;
+#
+# End of 10.11 tests
+#

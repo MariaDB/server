@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2021, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -167,7 +167,7 @@ rec_get_n_extern_new(
 	ulint		i;
 
 	ut_ad(dict_table_is_comp(index->table));
-	ut_ad(!index->table->supports_instant() || index->is_dummy);
+	ut_ad(!index->table->supports_instant());
 	ut_ad(!index->is_instant());
 	ut_ad(rec_get_status(rec) == REC_STATUS_ORDINARY
 	      || rec_get_status(rec) == REC_STATUS_INSTANT);
@@ -242,6 +242,12 @@ enum rec_leaf_format {
 	REC_LEAF_INSTANT
 };
 
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic push
+# if __GNUC__ < 12 || defined WITH_UBSAN
+#  pragma GCC diagnostic ignored "-Wconversion"
+# endif
+#endif
 /** Determine the offset to each field in a leaf-page record
 in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
 This is a special case of rec_init_offsets() and rec_get_offsets_func().
@@ -293,8 +299,8 @@ rec_init_offsets_comp_ordinary(
 		   : index->n_core_null_bytes);
 
 	if (mblob) {
-		ut_ad(index->is_dummy || index->table->instant);
-		ut_ad(index->is_dummy || index->is_instant());
+		ut_ad(index->table->instant);
+		ut_ad(index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		ut_ad(!def_val);
@@ -453,8 +459,9 @@ start:
 	} while (field++, rec_offs_base(offsets)[++i] = len,
 		 i < rec_offs_n_fields(offsets));
 
-	*rec_offs_base(offsets)
-		= static_cast<rec_offs>(rec - (lens + 1)) | REC_OFFS_COMPACT | any;
+	*rec_offs_base(offsets) = static_cast<rec_offs>((rec - (lens + 1))
+							| REC_OFFS_COMPACT
+							| any);
 }
 
 #ifdef UNIV_DEBUG
@@ -472,12 +479,13 @@ rec_offs_make_valid(
 {
 	const bool is_alter_metadata = leaf
 		&& rec_is_alter_metadata(rec, *index);
-	ut_ad(is_alter_metadata
-	      || rec_offs_n_fields(offsets)
-	      <= (leaf
-		  ? dict_index_get_n_fields(index)
-		  : dict_index_get_n_unique_in_tree_nonleaf(index) + 1)
-	      || index->is_dummy || dict_index_is_ibuf(index));
+	ut_ad((leaf && rec_is_metadata(rec, *index))
+	      || index->is_dummy
+	      || (leaf
+		  ? rec_offs_n_fields(offsets)
+		  <= dict_index_get_n_fields(index)
+		  : rec_offs_n_fields(offsets) - 1
+		  <= dict_index_get_n_unique_in_tree_nonleaf(index)));
 	const bool is_user_rec = (dict_table_is_comp(index->table)
 				  ? rec_get_heap_no_new(rec)
 				  : rec_get_heap_no_old(rec))
@@ -533,7 +541,7 @@ rec_offs_validate(
 	}
 	if (index) {
 		ut_ad(!memcmp(&index, &offsets[INDEX_OFFSET], sizeof(index)));
-		ulint max_n_fields = std::max(
+		ulint max_n_fields = std::max<ulint>(
 			dict_index_get_n_fields(index),
 			dict_index_get_n_unique_in_tree(index) + 1);
 		if (comp && rec) {
@@ -565,7 +573,8 @@ rec_offs_validate(
 		}
 		/* index->n_def == 0 for dummy indexes if !comp */
 		ut_ad(!comp || index->n_def);
-		ut_ad(!index->n_def || i <= max_n_fields);
+		ut_ad(!index->n_def || i <= max_n_fields
+		      || rec_is_metadata(rec, *index));
 	}
 	while (i--) {
 		ulint curr = get_value(rec_offs_base(offsets)[1 + i]);
@@ -603,7 +612,7 @@ rec_init_offsets(
 	ulint	i	= 0;
 	rec_offs	offs;
 
-	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	/* This assertion was relaxed for the btr_cur_t::open_leaf()
 	call in btr_cur_instant_init_low(). We cannot invoke
 	index->is_instant(), because the same assertion would fail there
 	until btr_cur_instant_init_low() has invoked
@@ -736,8 +745,8 @@ resolved:
 		} while (++i < rec_offs_n_fields(offsets));
 
 		*rec_offs_base(offsets)
-			= static_cast<rec_offs>(rec - (lens + 1))
-			  | REC_OFFS_COMPACT;
+			= static_cast<rec_offs>((rec - (lens + 1))
+						| REC_OFFS_COMPACT);
 	} else {
 		/* Old-style record: determine extra size and end offsets */
 		offs = REC_N_OLD_EXTRA_BYTES;
@@ -821,7 +830,7 @@ rec_get_offsets_func(
 	bool	alter_metadata = false;
 
 	ut_ad(index->n_core_fields >= n_core);
-	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	/* This assertion was relaxed for the btr_cur_t::open_leaf()
 	call in btr_cur_instant_init_low(). We cannot invoke
 	index->is_instant(), because the same assertion would fail there
 	until btr_cur_instant_init_low() has invoked
@@ -846,19 +855,19 @@ rec_get_offsets_func(
 			ut_ad(!n_core);
 			n = dict_index_get_n_unique_in_tree_nonleaf(index) + 1;
 			break;
+		default:
+			ut_ad("corrupted record header" == 0);
+			/* fall through */
 		case REC_STATUS_INFIMUM:
 		case REC_STATUS_SUPREMUM:
 			/* infimum or supremum record */
 			ut_ad(rec_get_heap_no_new(rec)
 			      == ulint(rec_get_status(rec)
-                                       == REC_STATUS_INFIMUM
-                                       ? PAGE_HEAP_NO_INFIMUM
-                                       : PAGE_HEAP_NO_SUPREMUM));
+				       == REC_STATUS_INFIMUM
+				       ? PAGE_HEAP_NO_INFIMUM
+				       : PAGE_HEAP_NO_SUPREMUM));
 			n = 1;
 			break;
-		default:
-			ut_error;
-			return(NULL);
 		}
 	} else {
 		n = rec_get_n_fields_old(rec);
@@ -873,20 +882,15 @@ rec_get_offsets_func(
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
 		ut_ad(!is_user_rec || n_core || index->is_dummy
-		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
-		      || n
-		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		      || n - 1
+		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 		ut_ad(!is_user_rec || !n_core || index->is_dummy
-		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
-		      || (n + (index->id == DICT_INDEXES_ID)
-			  >= n_core && n <= index->n_fields
-			  + unsigned(rec_is_alter_metadata(rec, false))));
+		      || (n + (index->id == DICT_INDEXES_ID) >= n_core));
 
 		if (is_user_rec && n_core && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
-			ut_ad(!dict_index_is_ibuf(index));
 			n = index->n_fields;
 		}
 	}
@@ -919,8 +923,8 @@ rec_get_offsets_func(
 		memcpy(&offsets[INDEX_OFFSET], &index, sizeof index);
 #endif /* UNIV_DEBUG */
 		ut_ad(n_core);
-		ut_ad(index->is_dummy || index->table->instant);
-		ut_ad(index->is_dummy || index->is_instant());
+		ut_ad(index->table->instant);
+		ut_ad(index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		rec_init_offsets_comp_ordinary<true>(rec, index, offsets,
@@ -1036,7 +1040,7 @@ rec_get_offsets_reverse(
 
 			len = offs += len;
 		} else {
-			len = offs += static_cast<rec_offs>(field->fixed_len);
+			len = offs += field->fixed_len;
 		}
 resolved:
 		rec_offs_base(offsets)[i + 1] = len;
@@ -1122,7 +1126,7 @@ rec_get_converted_size_comp_prefix_low(
 {
 	ulint	extra_size = temp ? 0 : REC_N_NEW_EXTRA_BYTES;
 	ut_ad(n_fields > 0);
-	ut_ad(n_fields <= dict_index_get_n_fields(index) + mblob);
+	ut_ad(n_fields - mblob <= dict_index_get_n_fields(index));
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
 	      || status == REC_STATUS_INSTANT);
@@ -1333,61 +1337,6 @@ rec_get_converted_size_comp(
 	return(ULINT_UNDEFINED);
 }
 
-/***********************************************************//**
-Sets the value of the ith field SQL null bit of an old-style record. */
-void
-rec_set_nth_field_null_bit(
-/*=======================*/
-	rec_t*	rec,	/*!< in: record */
-	ulint	i,	/*!< in: ith field */
-	ibool	val)	/*!< in: value to set */
-{
-	ulint	info;
-
-	if (rec_get_1byte_offs_flag(rec)) {
-
-		info = rec_1_get_field_end_info(rec, i);
-
-		if (val) {
-			info = info | REC_1BYTE_SQL_NULL_MASK;
-		} else {
-			info = info & ~REC_1BYTE_SQL_NULL_MASK;
-		}
-
-		rec_1_set_field_end_info(rec, i, info);
-
-		return;
-	}
-
-	info = rec_2_get_field_end_info(rec, i);
-
-	if (val) {
-		info = info | REC_2BYTE_SQL_NULL_MASK;
-	} else {
-		info = info & ~REC_2BYTE_SQL_NULL_MASK;
-	}
-
-	rec_2_set_field_end_info(rec, i, info);
-}
-
-/***********************************************************//**
-Sets an old-style record field to SQL null.
-The physical size of the field is not changed. */
-void
-rec_set_nth_field_sql_null(
-/*=======================*/
-	rec_t*	rec,	/*!< in: record */
-	ulint	n)	/*!< in: index of the field */
-{
-	ulint	offset;
-
-	offset = rec_get_field_start_offs(rec, n);
-
-	data_write_sql_null(rec + offset, rec_get_nth_field_size(rec, n));
-
-	rec_set_nth_field_null_bit(rec, n, TRUE);
-}
-
 /*********************************************************//**
 Builds an old-style physical record out of a data tuple and
 stores it beginning from the start of the given buffer.
@@ -1425,9 +1374,12 @@ rec_convert_dtuple_to_rec_old(
 	rec_set_n_fields_old(rec, n_fields);
 
 	/* Set the info bits of the record */
-	rec_set_info_bits_old(rec, dtuple_get_info_bits(dtuple)
-			      & REC_INFO_BITS_MASK);
-	rec_set_heap_no_old(rec, PAGE_HEAP_NO_USER_LOW);
+	rec_set_bit_field_1(rec,
+			    dtuple_get_info_bits(dtuple) & REC_INFO_BITS_MASK,
+			    REC_OLD_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
+	rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW, REC_OLD_HEAP_NO,
+			    REC_HEAP_NO_MASK, REC_HEAP_NO_SHIFT);
 
 	/* Store the data and the offsets */
 
@@ -1544,7 +1496,9 @@ rec_convert_dtuple_to_rec_comp(
 		ut_ad(status == REC_STATUS_INSTANT);
 		ut_ad(n_fields == ulint(index->n_fields) + 1);
 		rec_set_n_add_field(nulls, n_fields - 1 - n_core_fields);
-		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
+		rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
+				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
+				    REC_HEAP_NO_SHIFT);
 		rec_set_status(rec, REC_STATUS_INSTANT);
 		n_node_ptr_field = ULINT_UNDEFINED;
 		lens = nulls - UT_BITS_IN_BYTES(index->n_nullable);
@@ -1559,7 +1513,9 @@ rec_convert_dtuple_to_rec_comp(
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
-			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
+			rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
+					    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
+					    REC_HEAP_NO_SHIFT);
 			rec_set_status(rec, n_fields == n_core_fields
 				       ? REC_STATUS_ORDINARY
 				       : REC_STATUS_INSTANT);
@@ -1581,10 +1537,12 @@ rec_convert_dtuple_to_rec_comp(
 		break;
 	case REC_STATUS_NODE_PTR:
 		ut_ad(!temp);
-		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
+		rec_set_bit_field_2(rec, PAGE_HEAP_NO_USER_LOW,
+				    REC_NEW_HEAP_NO, REC_HEAP_NO_MASK,
+				    REC_HEAP_NO_SHIFT);
 		rec_set_status(rec, status);
-		ut_ad(n_fields
-		      == dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+		ut_ad(n_fields - 1
+		      == dict_index_get_n_unique_in_tree_nonleaf(index));
 		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
 					     index->n_nullable));
 		n_node_ptr_field = n_fields - 1;
@@ -1674,21 +1632,20 @@ start:
 			ut_ad(DATA_BIG_COL(ifield->col));
 			ut_ad(len <= REC_ANTELOPE_MAX_INDEX_COL_LEN
 					+ BTR_EXTERN_FIELD_REF_SIZE);
-			*lens-- = (byte) (len >> 8) | 0xc0;
-			*lens-- = (byte) len;
+			*lens-- = static_cast<byte>(len >> 8 | 0xc0);
+			*lens-- = static_cast<byte>(len);
 		} else {
 			ut_ad(len <= field->type.len
 			      || DATA_LARGE_MTYPE(field->type.mtype)
 			      || !strcmp(index->name,
 					 FTS_INDEX_TABLE_IND_NAME));
 			if (len < 128 || !DATA_BIG_LEN_MTYPE(
-				field->type.len, field->type.mtype)) {
-
-				*lens-- = (byte) len;
+				    field->type.len, field->type.mtype)) {
+				*lens-- = static_cast<byte>(len);
 			} else {
 				ut_ad(len < 16384);
-				*lens-- = (byte) (len >> 8) | 0x80;
-				*lens-- = (byte) len;
+				*lens-- = static_cast<byte>(len >> 8 | 0x80);
+				*lens-- = static_cast<byte>(len);
 			}
 		}
 
@@ -1744,9 +1701,14 @@ rec_convert_dtuple_to_rec_new(
 			status, false);
 	}
 
-	rec_set_info_bits_new(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK);
+	rec_set_bit_field_1(buf, dtuple->info_bits & ~REC_NEW_STATUS_MASK,
+			    REC_NEW_INFO_BITS,
+			    REC_INFO_BITS_MASK, REC_INFO_BITS_SHIFT);
 	return buf;
 }
+#if defined __GNUC__ && !defined __clang__
+# pragma GCC diagnostic pop /* ignored "-Wconversion" */
+#endif
 
 /*********************************************************//**
 Builds a physical record out of a data tuple and
@@ -1919,8 +1881,8 @@ rec_copy_prefix_to_dtuple(
 	rec_offs_init(offsets_);
 
 	ut_ad(n_core <= index->n_core_fields);
-	ut_ad(n_core || n_fields
-	      <= dict_index_get_n_unique_in_tree_nonleaf(index) + 1);
+	ut_ad(n_core || n_fields - 1
+	      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 
 	offsets = rec_get_offsets(rec, index, offsets, n_core,
 				  n_fields, &heap);
@@ -1982,7 +1944,7 @@ rec_copy_prefix_to_buf_old(
 		*buf = static_cast<byte*>(ut_malloc_nokey(prefix_len));
 	}
 
-	ut_memcpy(*buf, rec - area_start, prefix_len);
+	memcpy(*buf, rec - area_start, prefix_len);
 
 	copy_rec = *buf + area_start;
 
@@ -2007,7 +1969,7 @@ rec_copy_prefix_to_buf(
 						or NULL */
 	ulint*			buf_size)	/*!< in/out: buffer size */
 {
-	ut_ad(n_fields <= index->n_fields || dict_index_is_ibuf(index));
+	ut_ad(n_fields <= index->n_fields);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	UNIV_PREFETCH_RW(*buf);
 
@@ -2279,7 +2241,7 @@ rec_print_old(
 	n = rec_get_n_fields_old(rec);
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" %u-byte offsets; info bits " ULINTPF "\n",
+		" %u-byte offsets; info bits %u\n",
 		n,
 		rec_get_1byte_offs_flag(rec) ? 1 : 2,
 		rec_get_info_bits(rec, FALSE));
@@ -2533,7 +2495,7 @@ rec_print_new(
 	}
 
 	fprintf(file, "PHYSICAL RECORD: n_fields " ULINTPF ";"
-		" compact format; info bits " ULINTPF "\n",
+		" compact format; info bits %u\n",
 		rec_offs_n_fields(offsets),
 		rec_get_info_bits(rec, TRUE));
 
@@ -2771,8 +2733,9 @@ wsrep_rec_get_foreign_key(
 			memcpy(buf, data, len);
 			*buf_len = wsrep_innobase_mysql_sort(
 				(int)(col_f->prtype & DATA_MYSQL_TYPE_MASK),
-				(uint)dtype_get_charset_coll(col_f->prtype),
-				buf, len, *buf_len);
+				dtype_get_charset_coll(col_f->prtype),
+				buf, static_cast<uint>(len),
+				static_cast<uint>(*buf_len));
 		} else { /* new protocol */
 			if (!(col_r->prtype & DATA_NOT_NULL)) {
 				*buf++ = 0;
@@ -2789,7 +2752,7 @@ wsrep_rec_get_foreign_key(
 					}
 					data++;
 				}
-		
+
 				if (!(col_f->prtype & DATA_UNSIGNED)) {
 					buf[len-1] = (byte) (buf[len-1] ^ 128);
 				}
@@ -2801,11 +2764,10 @@ wsrep_rec_get_foreign_key(
 			case DATA_CHAR:
 			case DATA_MYSQL:
 				/* Copy the actual data */
-				ut_memcpy(buf, data, len);
+				memcpy(buf, data, len);
 				len = wsrep_innobase_mysql_sort(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
-					(uint)
 					dtype_get_charset_coll(col_f->prtype),
 					buf, len, *buf_len);
 				break;

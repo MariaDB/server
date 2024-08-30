@@ -1,0 +1,6 @@
+use mysql;
+# Kill the server
+# restart: --datadir=MYSQLTEST_VARDIR/tmp/ddir
+connect  root,localhost,root,wrongpass,mysql;
+# Kill the server
+# restart

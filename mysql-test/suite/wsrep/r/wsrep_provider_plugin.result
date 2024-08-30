@@ -1,0 +1,24 @@
+# Correct Galera library found
+CREATE TABLE t1 (f1 INT PRIMARY KEY) ENGINE=InnoDB;
+SET GLOBAL wsrep_provider_repl_max_ws_size=1;
+SHOW VARIABLES LIKE 'wsrep_provider_repl_max_ws_size';
+Variable_name	Value
+wsrep_provider_repl_max_ws_size	1
+INSERT INTO t1 VALUES (1);
+ERROR HY000: Maximum writeset size exceeded
+SET GLOBAL wsrep_provider_repl_max_ws_size=DEFAULT;
+SHOW VARIABLES LIKE 'wsrep_provider_repl_max_ws_size';
+Variable_name	Value
+wsrep_provider_repl_max_ws_size	2147483647
+INSERT INTO t1 VALUES (1);
+SET GLOBAL wsrep_provider_options='repl.max_ws_size=1';
+ERROR HY000: Variable 'wsrep_provider_options' is a read only variable
+INSERT INTO t1 VALUES (2);
+SET GLOBAL wsrep_provider='none';
+ERROR HY000: Variable 'wsrep_provider' is a read only variable
+DROP TABLE t1;
+CALL mtr.add_suppression("transaction size limit");
+CALL mtr.add_suppression("rbr write fail");
+SELECT VARIABLE_NAME,READ_ONLY FROM information_schema.system_variables where VARIABLE_NAME like '%wsrep_provider_options%';
+VARIABLE_NAME	READ_ONLY
+WSREP_PROVIDER_OPTIONS	YES

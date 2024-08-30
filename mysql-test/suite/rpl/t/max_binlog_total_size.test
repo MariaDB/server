@@ -1,0 +1,58 @@
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+
+--echo #
+--echo # MDEV-31404 Implement binlog_space_limit
+--echo #
+
+--echo # Test that master is not deleting binary logs before slave has a
+--echo # chance to digest them
+
+select @@global.max_binlog_total_size;
+select @@global.max_binlog_size;
+
+--connection slave
+STOP SLAVE IO_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+--connection master
+
+# Kill the dump thread
+let $id=`SELECT id from information_schema.processlist where command='Binlog Dump'`;
+
+if ($id)
+{
+  replace_result $id DUMP_THREAD;
+  eval kill $id;
+  let $wait_condition= SELECT count(*)=0 from information_schema.processlist where command='Killed';
+  source include/wait_condition.inc;
+}
+
+CREATE TABLE `t1` (
+  `v1` int(11) DEFAULT NULL,
+  `v2` varchar(8000) DEFAULT NULL,
+  KEY `v1` (`v1`)
+);
+
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+--source include/show_binary_logs.inc
+
+INSERT INTO t1 VALUES (0,repeat("a",3000));
+--source include/show_binary_logs.inc
+
+--connection slave
+START SLAVE IO_THREAD;
+--connection master
+
+--sync_slave_with_master
+--connection master
+
+# Slave is now connected. Next query should remove old binary logs.
+
+DROP TABLE t1;
+--source include/show_binary_logs.inc
+
+# End of 11.4 tests
+--source include/rpl_end.inc

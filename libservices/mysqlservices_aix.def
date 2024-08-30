@@ -1,0 +1,23 @@
+#! .
+base64_service
+debug_sync_service
+encryption_scheme_service
+encryption_service
+json_service
+logger_service
+my_crypt_service
+my_md5_service
+my_print_error_service
+my_sha1_service
+my_sha2_service
+my_snprintf_service
+progress_report_service
+thd_alloc_service
+thd_autoinc_service
+thd_error_context_service
+thd_kill_statement_service
+thd_rnd_service
+thd_specifics_service
+thd_timezone_service
+thd_wait_service
+wsrep_service

@@ -25,6 +25,7 @@ SET(MYSQLSERVICES_SOURCES
   my_crypt_service.c
   my_md5_service.c
   my_print_error_service.c
+  print_check_msg_service.c
   my_sha1_service.c
   my_sha2_service.c
   my_snprintf_service.c
@@ -39,7 +40,12 @@ SET(MYSQLSERVICES_SOURCES
   wsrep_service.c
   json_service.c
   sql_service.c
-  )
+  provider_service_bzip2.c
+  provider_service_lz4.c
+  provider_service_lzma.c
+  provider_service_lzo.c
+  provider_service_snappy.c
+)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
 INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)

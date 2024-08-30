@@ -47,4 +47,4 @@ SET GLOBAL debug_dbug = NULL;
 SET debug_sync='RESET';
 SELECT @@debug_sync;
 @@debug_sync
-ON - current signal: ''
+ON - current signals: ''

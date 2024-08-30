@@ -47,6 +47,14 @@
 -- let $row_img_test_script= include/rpl_row_img_blobs.test
 -- source include/rpl_row_img_general_loop.inc
 
+## FULL_NODUP
+
+-- let $row_img_set=server_1:FULL_NODUP:N,server_2:FULL_NODUP:Y,server_3:FULL_NODUP:Y
+-- source include/rpl_row_img_set.inc
+
+-- let $row_img_test_script= include/rpl_row_img_blobs.test
+-- source include/rpl_row_img_general_loop.inc
+
 ## FULL
 
 -- let $row_img_set=server_1:FULL:N,server_2:FULL:Y,server_3:FULL:Y

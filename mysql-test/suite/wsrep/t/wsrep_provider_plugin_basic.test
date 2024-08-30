@@ -1,0 +1,77 @@
+--source include/have_wsrep.inc
+--source include/have_innodb.inc
+
+--let $galera_version=26.4.14
+source include/check_galera_version.inc;
+
+#
+# Test string option
+#
+
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider_socket_recv_buf_size';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_provider_socket_recv_buf_size = 'foo';
+set global wsrep_provider_socket_recv_buf_size = '1M';
+show global variables like 'wsrep_provider_socket_recv_buf_size';
+set global wsrep_provider_socket_recv_buf_size = default;
+show global variables like 'wsrep_provider_socket_recv_buf_size';
+
+
+#
+# Test integer option
+#
+
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider_evs_send_window';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_provider_evs_send_window = -10;
+set global wsrep_provider_evs_send_window = 10;
+show global variables like 'wsrep_provider_evs_send_window';
+set global wsrep_provider_evs_send_window = default;
+show global variables like 'wsrep_provider_evs_send_window';
+
+
+#
+# Test double option
+#
+
+select variable_type from information_schema.system_variables where variable_name = 'wsrep_provider_gcs_max_throttle';
+--error ER_WRONG_VALUE_FOR_VAR
+set global wsrep_provider_gcs_max_throttle = 1.1;
+set global wsrep_provider_gcs_max_throttle = 0.5;
+show global variables like 'wsrep_provider_gcs_max_throttle';
+set global wsrep_provider_gcs_max_throttle = default;
+show global variables like 'wsrep_provider_gcs_max_throttle';
+
+
+#
+# Test bool option
+#
+
+select variable_type from information_schema.system_variables where variable_name = 'wsrep_provider_cert_log_conflicts';
+set global wsrep_provider_cert_log_conflicts = on;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+set global wsrep_provider_cert_log_conflicts = off;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+set global wsrep_provider_cert_log_conflicts = default;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+
+
+#
+# Test read-only option
+#
+
+select read_only from information_schema.system_variables where variable_name = 'wsrep_provider_evs_auto_evict';
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set global wsrep_provider_evs_auto_evict = on;
+
+
+#
+# Test deprecated option (expect warning in result file)
+#
+
+set global wsrep_provider_gcs_fc_master_slave = default;
+
+
+call mtr.add_suppression("error setting param");
+call mtr.add_suppression("Unknown parameter");
+call mtr.add_suppression("Setting parameter");

@@ -9,7 +9,7 @@ manager CHAR(5) NOT NULL,
 department CHAR(4) NOT NULL FLAG=41,
 secretary CHAR(5) NOT NULL FLAG=46,
 salary DOUBLE(8,2) NOT NULL FLAG=52
-) ENGINE=connect TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix FILE_NAME='employee.dat' ENDING=1;
 SELECT * FROM employee;
 serialno	name	sex	title	manager	department	secretary	salary
 74200	BANCROFT	2	SALESMAN	70012	0318	24888	9600.00
@@ -59,7 +59,7 @@ END//
 #
 # Testing DOS table changes
 #
-CREATE TABLE t1 ENGINE=connect AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -157,7 +157,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DOS table changes
 #
-CREATE TABLE t1 ENGINE=connect mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No table_type. Will be set to DOS
 Warning	1105	No file name. Table will use t1.dos
@@ -255,7 +255,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -352,7 +352,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -449,7 +449,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing FIX table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=fix huge=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.fix
 CALL test.tst_up();
@@ -546,7 +546,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing CSV table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.csv
 CALL test.tst_up();
@@ -643,7 +643,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing CSV table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=csv mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.csv
 CALL test.tst_up();
@@ -740,7 +740,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DBF table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.dbf
 CALL test.tst_up();
@@ -837,7 +837,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing DBF table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=dbf mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.dbf
 CALL test.tst_up();
@@ -934,7 +934,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1031,7 +1031,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin mapped=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1128,7 +1128,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing BIN table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=bin huge=yes AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.bin
 CALL test.tst_up();
@@ -1225,7 +1225,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1322,7 +1322,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec mapped=yes MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1419,7 +1419,7 @@ serialno	name	sex	title	manager	department	secretary	salary
 #
 # Testing VEC table changes
 #
-CREATE TABLE t1 ENGINE=connect TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
+CREATE TABLE t1 ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=vec huge=yes MAX_ROWS=30 AS SELECT * FROM employee;
 Warnings:
 Warning	1105	No file name. Table will use t1.vec
 CALL test.tst_up();
@@ -1526,7 +1526,7 @@ manager CHAR(5),
 department CHAR(4),
 secretary CHAR(5),
 salary DOUBLE(8,2) NOT NULL
-) ENGINE=connect TABLE_TYPE=ini;
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=ini;
 Warnings:
 Warning	1105	No file name. Table will use t1.ini
 INSERT INTO t1 SELECT * FROM employee;
@@ -1627,3 +1627,159 @@ serialno	name	sex	title	manager	department	secretary	salary
 DROP PROCEDURE test.tst_up;
 DROP TABLE employee;
 SET sql_mode = DEFAULT;
+#
+# End of 10.10 tests
+#
+SET sql_mode = 'NO_ENGINE_SUBSTITUTION';
+CREATE TABLE t1
+(
+name char(12) not null,
+city char(11) not null,
+birth date not null date_format='DD/MM/YYYY',
+hired date not null date_format='DD/MM/YYYY' flag=36
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=FIX FILE_NAME='boys.txt' ENDING=1;
+CREATE TABLE t2 (
+_id INT(2) NOT NULL,
+name_first CHAR(9) NOT NULL JPATH='$.name.first',
+name_aka CHAR(4) DEFAULT NULL JPATH='$.name.aka',
+name_last CHAR(10) NOT NULL JPATH='$.name.last',
+title CHAR(12) DEFAULT NULL,
+birth CHAR(20) DEFAULT NULL,
+death CHAR(20) DEFAULT NULL,
+contribs CHAR(50) NOT NULL JPATH='$.contribs',
+awards_award CHAR(42) DEFAULT NULL JPATH='$.awards.award',
+awards_year CHAR(4) DEFAULT NULL JPATH='$.awards.year',
+awards_by CHAR(38) DEFAULT NULL JPATH='$.awards.by'
+) ENGINE=CONNECT CHARSET=latin1 TABLE_TYPE=JSON FILE_NAME='bios.json';
+# Multi-update 
+select t1.name, t1.city from t1;
+name	city
+John	Boston
+Henry	Boston
+George	San Jose
+Sam	Chicago
+James	Dallas
+Bill	Boston
+select t2._id, t2.name_first, t2.name_aka, t2.name_last from t2;
+_id	name_first	name_aka	name_last
+1	John	NULL	Backus
+2	John	NULL	McCarthy
+3	Grace	NULL	Hopper
+4	Kristen	NULL	Nygaard
+5	Ole-Johan	NULL	Dahl
+6	Guido	NULL	van Rossum
+7	Dennis	NULL	Ritchie
+8	Yukihiro	Matz	Matsumoto
+9	James	NULL	Gosling
+10	Martin	NULL	Odersky
+select t1.name, t2.name_last, t2.name_aka, t1.city from t1, t2 where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+name	name_last	name_aka	city
+James	Gosling	NULL	Dallas
+explain update t1, t2
+set t1.city='Washington',  t2.name_aka='von' where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+update t1, t2
+set t1.city='Washington',  t2.name_aka='von' where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+select t1.name, t2.name_last, t2.name_aka, t1.city from t1, t2 where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+name	name_last	name_aka	city
+James	Gosling	von	Washington
+# Conversion to multi-update
+select t1.name, t1.city from t1;
+name	city
+John	Boston
+Henry	Boston
+George	San Jose
+Sam	Chicago
+James	Washington
+Bill	Boston
+explain update t1
+set t1.city='New York' where t1.name in (select t2.name_first from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	10	Using where; FirstMatch(t1)
+update t1
+set t1.city='New York' where t1.name in (select t2.name_first from t2);
+select t1.name, t1.city from t1;
+name	city
+John	New York
+Henry	Boston
+George	San Jose
+Sam	Chicago
+James	New York
+Bill	Boston
+select t1.name, t1.city from t1 where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+name	city
+George	San Jose
+explain update t1 set t1.city='Los Angeles' where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	6	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	6	Using where; FirstMatch(t1)
+update t1 set t1.city='Los Angeles' where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+select t1.name, t1.city from t1 where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+name	city
+George	Los Angeles
+# Multi-delete 
+explain delete t1.*, t2.*  from t1, t2 where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	6	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	10	Using where
+delete t1.*, t2.*  from t1, t2 where t1.name=t2.name_first and t1.birth
+BETWEEN '1992-01-01' and '1995-01-01';
+select t1.name, t1.city from t1;
+name	city
+John	New York
+Henry	Boston
+George	Los Angeles
+Sam	Chicago
+Bill	Boston
+select t2._id, t2.name_first, t2.name_aka, t2.name_last from t2;
+_id	name_first	name_aka	name_last
+1	John	NULL	Backus
+2	John	NULL	McCarthy
+3	Grace	NULL	Hopper
+4	Kristen	NULL	Nygaard
+5	Ole-Johan	NULL	Dahl
+6	Guido	NULL	van Rossum
+7	Dennis	NULL	Ritchie
+8	Yukihiro	Matz	Matsumoto
+10	Martin	NULL	Odersky
+# Conversion to multi-delete
+explain delete from t1 where t1.name in (select t2.name_first from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	5	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	9	Using where; FirstMatch(t1)
+delete from t1 where t1.name in (select t2.name_first from t2);
+select t1.name, t1.city from t1;
+name	city
+Henry	Boston
+George	Los Angeles
+Sam	Chicago
+Bill	Boston
+explain delete from t1 where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	a	ALL	NULL	NULL	NULL	NULL	4	Using where; FirstMatch(t1)
+delete from t1 where t1.name in (select a.name from t1 as a where a.birth
+BETWEEN '1981-01-01' and '1982-01-01');
+select t1.name, t1.city from t1;
+name	city
+Henry	Boston
+Sam	Chicago
+Bill	Boston
+drop tables t1, t2;
+SET sql_mode = DEFAULT;
+#
+# End of 11.0 tests
+#

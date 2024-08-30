@@ -1,0 +1,29 @@
+--source include/have_stat_tables.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20800 Server crashes in Field_inet6::store_warning upon updating table statistics
+--echo #
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('1::1'),('2::2');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+INSERT INTO t1 VALUES ('3::3');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-22509: Server crashes in Field_inet6::store_inet6_null_with_warn / Field::maybe_null
+--echo #
+
+CREATE TABLE t1 (a INT, b INET6 NOT NULL);
+INSERT INTO t1 VALUES (1,'::'),(2,'::');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT t1.a from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

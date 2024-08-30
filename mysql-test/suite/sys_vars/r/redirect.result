@@ -1,0 +1,81 @@
+#
+# MDEV-15935 Connection Redirection Mechanism in MariaDB Client/Server Protocol
+#
+connect  con,localhost,anyone_but_root;
+select @@redirect_url;
+@@redirect_url
+mysql://foobar
+connection default;
+set @old_global_redirect_url=@@global.redirect_url;
+set @old_session_redirect_url=@@session.redirect_url;
+set @old_session_track_system_variables=@@session_track_system_variables;
+set session_track_system_variables="";
+select @@global.redirect_url;
+@@global.redirect_url
+
+set global redirect_url=default;
+select @@global.redirect_url;
+@@global.redirect_url
+
+set global redirect_url="mariadb.org";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb.org'
+set global redirect_url="https://mariadb.org";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'https://mariadb.org'
+set global redirect_url="mysql://mariadb.org:";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mysql://mariadb.org:'
+set global redirect_url="mysql://mariadb.org:hello";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mysql://mariadb.org:hello'
+set global redirect_url="mysql://";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mysql://'
+set global redirect_url="mysql://mariadb.org";
+select @@global.redirect_url;
+@@global.redirect_url
+mysql://mariadb.org
+set global redirect_url="mysql://mariadb.org:12a";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mysql://mariadb.org:12a'
+set global redirect_url="mysql://mariadb.org:66666";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mysql://mariadb.org:66666'
+set global redirect_url="mysql://mariadb.org:12345";
+select @@global.redirect_url;
+@@global.redirect_url
+mysql://mariadb.org:12345
+set global redirect_url="maria";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'maria'
+set global redirect_url="mariadb://mariadb.org:";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb://mariadb.org:'
+set global redirect_url="mariadb://mariadb.org:hello";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb://mariadb.org:hello'
+set global redirect_url="mariadb://";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb://'
+set global redirect_url="mariadb://mariadb.org";
+select @@global.redirect_url;
+@@global.redirect_url
+mariadb://mariadb.org
+set global redirect_url="mariadb://mariadb.org:12a";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb://mariadb.org:12a'
+set global redirect_url="mariadb://mariadb.org:66666";
+ERROR 42000: Variable 'redirect_url' can't be set to the value of 'mariadb://mariadb.org:66666'
+set global redirect_url="mariadb://mariadb.org:12345";
+select @@global.redirect_url;
+@@global.redirect_url
+mariadb://mariadb.org:12345
+select @@session.redirect_url;
+@@session.redirect_url
+
+set session redirect_url=default;
+select @@session.redirect_url;
+@@session.redirect_url
+mariadb://mariadb.org:12345
+set session redirect_url="mysql://localhost";
+select @@session.redirect_url;
+@@session.redirect_url
+mysql://localhost
+select @@global.redirect_url;
+@@global.redirect_url
+mariadb://mariadb.org:12345
+set global redirect_url=@old_global_redirect_url;
+set session redirect_url=@old_session_redirect_url;
+set session session_track_system_variables=@old_session_track_system_variables;
+#
+# end of test MDEV-15935
+#

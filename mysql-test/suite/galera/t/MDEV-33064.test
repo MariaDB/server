@@ -1,0 +1,57 @@
+#
+# MDEV-33064: ALTER INPLACE running TOI should abort a conflicting DML operation
+#
+# DDL operations may commit InnoDB transactions more than once during the execution.
+# In this case wsrep flag on trx object is cleared, which may cause wrong logic of
+# such operations afterwards (wsrep-related hooks are not run).
+# One of the consequences was that DDL operation couldn't abort a DML operation
+# holding conflicting locks.
+#
+# The fix: re-enable wsrep flag on trx restart if it's a part of a DDL operation.
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+--source include/have_debug.inc
+
+--connect con1,127.0.0.1,root,,test,$NODE_MYPORT_1
+
+CREATE TABLE t1(c1 INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1_fk(c1 INT PRIMARY KEY, c2 INT, INDEX (c2), FOREIGN KEY (c2) REFERENCES t1(c1)) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (1);
+
+--connection con1
+SET SESSION wsrep_retry_autocommit = 0;
+SET DEBUG_SYNC = 'ib_after_row_insert SIGNAL may_alter WAIT_FOR bf_abort';
+# INSERT also grabs FK-referenced table lock.
+--send
+  INSERT INTO t1_fk VALUES (1, 1);
+
+--connection node_1
+SET DEBUG_SYNC = 'now WAIT_FOR may_alter';
+SET DEBUG_SYNC = 'lock_wait_end WAIT_FOR alter_continue';
+# ALTER BF-aborts INSERT.
+--send
+  ALTER TABLE t1 ADD COLUMN c2 INT, ALGORITHM=INPLACE;
+
+--connection con1
+# INSERT gets BF-aborted.
+--error ER_LOCK_DEADLOCK
+--reap
+SET DEBUG_SYNC = 'now SIGNAL alter_continue';
+
+--connection node_1
+# ALTER succeeds.
+--reap
+
+--connection node_2
+# Sanity check that ALTER has been replicated.
+INSERT INTO t1 (c1, c2) VALUES (2, 2);
+
+# Cleanup.
+--connection node_1
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1_fk, t1;
+--disconnect con1
+--source include/galera_end.inc

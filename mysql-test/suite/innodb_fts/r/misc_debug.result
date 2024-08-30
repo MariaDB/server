@@ -20,12 +20,13 @@ DROP TABLE t;
 CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
 FULLTEXT KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
-DROP TABLE t1;
+DROP TABLE/*foo*/ t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 DROP TABLE t2, t1;
+SET SESSION debug_dbug=@saved_debug_dbug;
 #
 # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 #
@@ -56,11 +57,20 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET @save_dbug= @@debug_dbug;
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Too many concurrent transactions");
+SET @saved_debug_dbug= @@debug_dbug;
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;
-Got one of the listed errors
-SET debug_dbug=@save_dbug;
+SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 # End of 10.3 tests
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+SET DEBUG_DBUG="+d,stats_lock_fail";
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET debug_dbug=@saved_debug_dbug;
+ALTER TABLE t1 DISCARD TABLESPACE;
+ALTER TABLE t1 ADD FULLTEXT(f2);
+ERROR HY000: Tablespace has been discarded for table `t1`
+DROP TABLE t1;

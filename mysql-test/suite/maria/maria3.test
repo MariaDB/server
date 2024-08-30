@@ -1,11 +1,12 @@
 -- source include/have_maria.inc
+--source include/test_db_charset_latin1.inc
 
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 
-let $default_engine=`select @@global.storage_engine`;
+let $default_engine=`select @@global.default_storage_engine`;
 let $default_checksum=`select @@global.aria_page_checksum`;
-set global storage_engine=aria;
-set session storage_engine=aria;
+set global default_storage_engine=aria;
+set session default_storage_engine=aria;
 set global aria_page_checksum=0;
 let $default_log_file_size=`select @@global.aria_log_file_size`;
 set global aria_log_file_size=4294959104;
@@ -22,7 +23,7 @@ create table t1 (a int not null, key `a` (a) key_block_size=512);
 show create table t1;
 drop table t1;
 
-create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
+create table t1 (a varchar(4096), key `a` (a) key_block_size=1000000000000000000);
 show create table t1;
 drop table t1;
 
@@ -561,8 +562,10 @@ drop table t1;
 
 --disable_result_log
 --disable_query_log
-eval set global storage_engine=$default_engine,
+eval set global default_storage_engine=$default_engine,
 aria_page_checksum=$default_checksum,
 aria_log_file_size=$default_log_file_size;
 --enable_result_log
 --enable_query_log
+
+--source include/test_db_charset_restore.inc

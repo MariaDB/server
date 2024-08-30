@@ -35,7 +35,7 @@
 
 #define HA_OPEN_ABORT_IF_LOCKED		0U	/* default */
 #define HA_OPEN_WAIT_IF_LOCKED		1U
-#define HA_OPEN_IGNORE_IF_LOCKED	2U
+#define HA_OPEN_IGNORE_IF_LOCKED	2U      /* Ignore lock error */
 #define HA_OPEN_TMP_TABLE		4U	/* Table is a temp table */
 #define HA_OPEN_DELAY_KEY_WRITE		8U	/* Don't update index  */
 #define HA_OPEN_ABORT_IF_CRASHED	16U
@@ -50,12 +50,17 @@
 #define HA_OPEN_FOR_CREATE              4096U
 #define HA_OPEN_FOR_DROP                (1U << 13) /* Open part of drop */
 #define HA_OPEN_GLOBAL_TMP_TABLE	(1U << 14) /* TMP table used by repliction */
+#define HA_OPEN_SIZE_TRACKING           (1U << 15)
 
 /*
   Allow opening even if table is incompatible as this is for ALTER TABLE which
   will fix the table structure.
 */
-#define HA_OPEN_FOR_ALTER		4096U
+#define HA_OPEN_FOR_ALTER		8192U
+
+/* Open table for FLUSH */
+#define HA_OPEN_FOR_FLUSH               8192U
+
 
 /* The following is parameter to ha_rkey() how to use key */
 
@@ -102,7 +107,8 @@ enum ha_key_alg {
   HA_KEY_ALG_RTREE=	2,		/* R-tree, for spatial searches */
   HA_KEY_ALG_HASH=	3,		/* HASH keys (HEAP tables) */
   HA_KEY_ALG_FULLTEXT=	4,		/* FULLTEXT (MyISAM tables) */
-  HA_KEY_ALG_LONG_HASH= 5		/* long BLOB keys */
+  HA_KEY_ALG_LONG_HASH= 5,		/* long BLOB keys */
+  HA_KEY_ALG_UNIQUE_HASH= 6		/* Internal UNIQUE hash (Aria) */
 };
 
         /* Storage media types */ 
@@ -265,18 +271,23 @@ enum ha_base_keytype {
 
 #define HA_NOSAME		 1U	/* Set if not dupplicated records */
 #define HA_PACK_KEY		 2U	/* Pack string key to previous key */
-#define HA_AUTO_KEY		 16U
+#define HA_AUTO_KEY		 16U    /* MEMORY/MyISAM/Aria internal */
 #define HA_BINARY_PACK_KEY	 32U	/* Packing of all keys to prev key */
 #define HA_FULLTEXT		128U    /* For full-text search */
-#define HA_UNIQUE_CHECK		256U	/* Check the key for uniqueness */
 #define HA_SPATIAL		1024U   /* For spatial search */
 #define HA_NULL_ARE_EQUAL	2048U	/* NULL in key are cmp as equal */
 #define HA_GENERATED_KEY	8192U	/* Automatically generated key */
+/* 
+  Part of unique hash key. Used only for temporary (work) tables so is not
+  written to .frm files.
+*/
+#define HA_UNIQUE_HASH          262144U
 
         /* The combination of the above can be used for key type comparison. */
 #define HA_KEYFLAG_MASK (HA_NOSAME | HA_AUTO_KEY | \
-                         HA_FULLTEXT | HA_UNIQUE_CHECK | \
-                         HA_SPATIAL | HA_NULL_ARE_EQUAL | HA_GENERATED_KEY)
+                         HA_FULLTEXT | \
+                         HA_SPATIAL | HA_NULL_ARE_EQUAL | HA_GENERATED_KEY | \
+                         HA_UNIQUE_HASH)
 
 /*
   Key contains partial segments.
@@ -516,7 +527,7 @@ enum ha_base_keytype {
 #define HA_ERR_INDEX_CORRUPT      180    /* Index corrupted */
 #define HA_ERR_UNDO_REC_TOO_BIG   181    /* Undo log record too big */
 #define HA_FTS_INVALID_DOCID      182	 /* Invalid InnoDB Doc ID */
-#define HA_ERR_TABLE_IN_FK_CHECK  183    /* Table being used in foreign key check */
+/* #define HA_ERR_TABLE_IN_FK_CHECK  183 */ /* Table being used in foreign key check */
 #define HA_ERR_TABLESPACE_EXISTS  184    /* The tablespace existed in storage engine */
 #define HA_ERR_TOO_MANY_FIELDS    185    /* Table has too many columns */
 #define HA_ERR_ROW_IN_WRONG_PARTITION 186 /* Row in wrong partition */
@@ -533,7 +544,9 @@ enum ha_base_keytype {
 #define HA_ERR_COMMIT_ERROR       197
 #define HA_ERR_PARTITION_LIST     198
 #define HA_ERR_NO_ENCRYPTION      199
-#define HA_ERR_LAST               199  /* Copy of last error nr * */
+#define HA_ERR_LOCAL_TMP_SPACE_FULL   200
+#define HA_ERR_GLOBAL_TMP_SPACE_FULL  201
+#define HA_ERR_LAST               201  /* Copy of last error nr * */
 
 /* Number of different errors */
 #define HA_ERR_ERRORS            (HA_ERR_LAST - HA_ERR_FIRST + 1)
@@ -625,7 +638,6 @@ enum data_file_type {
 #define EQ_RANGE	32U
 #define NULL_RANGE	64U
 #define GEOM_FLAG      128U
-#define SKIP_RANGE     256U
 
 typedef struct st_key_range
 {
@@ -651,6 +663,17 @@ typedef struct st_key_multi_range
   uint  range_flag;
 } KEY_MULTI_RANGE;
 
+
+/* Store first and last leaf page accessed by records_in_range */
+
+typedef struct st_page_range
+{
+  ulonglong first_page;
+  ulonglong last_page;
+} page_range;
+
+#define UNUSED_PAGE_NO ULONGLONG_MAX
+#define unused_page_range { UNUSED_PAGE_NO, UNUSED_PAGE_NO }
 
 /* For number of records */
 #ifdef BIG_TABLES

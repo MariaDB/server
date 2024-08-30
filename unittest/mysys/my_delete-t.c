@@ -35,17 +35,17 @@ int main(int argc __attribute__((unused)),char *argv[])
 
   /* Delete an open file */
   ok(GetTempFileNameA(tmp_dir, "foo", 0,  tmp_filename) != 0, "create temp file 2");
-  h = CreateFileA(tmp_filename, GENERIC_READ|GENERIC_WRITE, 
+  h = CreateFileA(tmp_filename, GENERIC_READ|GENERIC_WRITE,
       FILE_SHARE_DELETE, NULL, OPEN_EXISTING, 0, NULL);
   ok (h != INVALID_HANDLE_VALUE || h != 0, "open temp file");
   ok(my_delete(tmp_filename, MYF(0)) == 0, "Delete open file");
 
 
-  /* 
-    Check if it is possible to reuse file name after delete (not all handles 
+  /*
+    Check if it is possible to reuse file name after delete (not all handles
     to it are closed.
   */
-  h2 = CreateFileA(tmp_filename, GENERIC_READ|GENERIC_WRITE, 
+  h2 = CreateFileA(tmp_filename, GENERIC_READ|GENERIC_WRITE,
         FILE_SHARE_DELETE, NULL, CREATE_NEW, FILE_FLAG_DELETE_ON_CLOSE, NULL);
   ok(h2 != 0 && h2 != INVALID_HANDLE_VALUE, "Reuse file name");
   CloseHandle(h);
@@ -54,4 +54,3 @@ int main(int argc __attribute__((unused)),char *argv[])
   my_end(0);
   return exit_status();
 }
-

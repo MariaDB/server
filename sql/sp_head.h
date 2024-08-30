@@ -1,7 +1,7 @@
 /* -*- C++ -*- */
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2022, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -47,6 +47,14 @@ class sp_instr;
 class sp_instr_opt_meta;
 class sp_instr_jump_if_not;
 
+/**
+  Number of PSI_statement_info instruments
+  for internal stored programs statements.
+*/
+#ifdef HAVE_PSI_INTERFACE
+void init_sp_psi_keys(void);
+#endif
+
 /*************************************************************************/
 
 /**
@@ -79,7 +87,7 @@ protected:
   { }
 
 protected:
-  virtual void change_env(THD *thd) const
+  void change_env(THD *thd) const override
   {
     thd->variables.collation_database= m_db_cl;
 
@@ -105,12 +113,16 @@ class sp_name : public Sql_alloc,
 public:
   bool       m_explicit_name;                   /**< Prepend the db name? */
 
-  sp_name(const LEX_CSTRING *db, const LEX_CSTRING *name,
+  sp_name(const Lex_ident_db_normalized &db, const LEX_CSTRING &name,
           bool use_explicit_name)
     : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
-    if (lower_case_table_names && m_db.length)
-      m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
+    /*
+      "db" can be {NULL,0} in case of a "DROP FUNCTION udf" statement.
+      Otherwise, a valid normalized non-NULL database name is expected.
+    */
+    DBUG_ASSERT((!db.str && !db.length) ||
+                !Lex_ident_fs(db).check_db_name_quick());
   }
 
   /** Create temporary sp_name object from MDL key. Store in qname_buff */
@@ -119,9 +131,6 @@ public:
   ~sp_name() = default;
 };
 
-
-bool
-check_routine_name(const LEX_CSTRING *ident);
 
 class sp_head :private Query_arena,
                public Database_qualified_name,
@@ -182,6 +191,11 @@ public:
   sp_package *m_parent;
   const Sp_handler *m_handler;
   uint m_flags;                 // Boolean attributes of a stored routine
+
+  /**
+    Instrumentation interface for SP.
+  */
+  PSI_sp_share *m_sp_share;
 
   Column_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
 
@@ -259,6 +273,7 @@ private:
   */
   uint32 unsafe_flags;
 
+  bool new_query_arena_is_set;
 public:
   inline Stored_program_creation_ctx *get_creation_ctx()
   {
@@ -311,7 +326,13 @@ public:
   const char *m_param_end;
 
 private:
-  const char *m_body_begin;
+  /*
+    A pointer to the body start inside the cpp buffer.
+    Used only during parsing. Should be removed eventually.
+    The affected functions/methods should be fixed to get the cpp body start
+    as a parameter, rather than through this member.
+  */
+  const char *m_cpp_body_begin;
 
 public:
   /*
@@ -320,15 +341,6 @@ public:
   */
   Security_context m_security_ctx;
 
-  /**
-    List of all items (Item_trigger_field objects) representing fields in
-    old/new version of row in trigger. We use this list for checking whenever
-    all such fields are valid at trigger creation time and for binding these
-    fields to TABLE object at table open (although for latter pointer to table
-    being opened is probably enough).
-  */
-  SQL_I_List<Item_trigger_field> m_trg_table_fields;
-
 protected:
   sp_head(MEM_ROOT *mem_root, sp_package *parent, const Sp_handler *handler,
           enum_sp_aggregate_type agg_type);
@@ -336,24 +348,24 @@ protected:
 public:
   static void destroy(sp_head *sp);
   static sp_head *create(sp_package *parent, const Sp_handler *handler,
-                         enum_sp_aggregate_type agg_type);
+                         enum_sp_aggregate_type agg_type,
+                         MEM_ROOT *sp_mem_root);
 
   /// Initialize after we have reset mem_root
   void
   init(LEX *lex);
 
   /** Copy sp name from parser. */
-  void
+  bool
   init_sp_name(const sp_name *spname);
 
   /** Set the body-definition start position. */
   void
-  set_body_start(THD *thd, const char *begin_ptr);
+  set_body_start(THD *thd, const char *cpp_body_start);
 
   /** Set the statement-definition (body-definition) end position. */
   void
-  set_stmt_end(THD *thd);
-
+  set_stmt_end(THD *thd, const char *cpp_body_end);
 
   bool
   execute_trigger(THD *thd,
@@ -397,7 +409,8 @@ public:
   }
 
   bool
-  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item, LEX *lex);
+  add_instr_freturn(THD *thd, sp_pcontext *spcont, Item *item,
+                    sp_expr_lex *lex);
 
   bool
   add_instr_preturn(THD *thd, sp_pcontext *spcont);
@@ -417,16 +430,19 @@ public:
   bool set_local_variable(THD *thd, sp_pcontext *spcont,
                           const Sp_rcontext_handler *rh,
                           sp_variable *spv, Item *val, LEX *lex,
-                          bool responsible_to_free_lex);
+                          bool responsible_to_free_lex,
+                          const LEX_CSTRING &value_query);
   bool set_local_variable_row_field(THD *thd, sp_pcontext *spcont,
                                     const Sp_rcontext_handler *rh,
                                     sp_variable *spv, uint field_idx,
-                                    Item *val, LEX *lex);
+                                    Item *val, LEX *lex,
+                                    const LEX_CSTRING &value_query);
   bool set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
                                             const Sp_rcontext_handler *rh,
                                             sp_variable *spv,
                                             const LEX_CSTRING *field_name,
-                                            Item *val, LEX *lex);
+                                            Item *val, LEX *lex,
+                                            const LEX_CSTRING &value_query);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
   bool check_standalone_routine_end_name(const sp_name *end_name) const;
   bool check_group_aggregate_instructions_function() const;
@@ -456,7 +472,8 @@ private:
     m_thd->free_list= prm->get_free_list();
     if (set_local_variable(thd, param_spcont,
                            &sp_rcontext_handler_local,
-                           spvar, prm->get_item(), prm, true))
+                           spvar, prm->get_item(), prm, true,
+                           prm->get_expr_str()))
       return true;
     /*
       Safety:
@@ -500,6 +517,18 @@ private:
                                                sp_pcontext *param_spcont,
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
+
+  bool bind_input_param(THD *thd,
+                        Item *arg_item,
+                        uint arg_no,
+                        sp_rcontext *nctx,
+                        bool is_function);
+
+  bool bind_output_param(THD *thd,
+                         Item *arg_item,
+                         uint arg_no,
+                         sp_rcontext *octx,
+                         sp_rcontext *nctx);
 
 public:
   /**
@@ -557,7 +586,7 @@ public:
   { return m_flags & MODIFIES_DATA; }
 
   inline uint instructions()
-  { return m_instr.elements; }
+  { return (uint)m_instr.elements; }
 
   inline sp_instr *
   last_instruction()
@@ -605,21 +634,35 @@ public:
   restore_lex(THD *thd)
   {
     DBUG_ENTER("sp_head::restore_lex");
+    /*
+      There is no a need to free the current thd->lex here.
+      - In the majority of the cases restore_lex() is called
+        on success and thd->lex does not need to be deleted.
+      - In cases when restore_lex() is called on error,
+        e.g. from sp_create_assignment_instr(), thd->lex is
+        already linked to some sp_instr_xxx (using sp_lex_keeper).
+
+      Note, we don't get to here in case of a syntax error
+      when the current thd->lex is not yet completely
+      initialized and linked. It gets automatically deleted
+      by the Bison %destructor in sql_yacc.yy.
+    */
     LEX *oldlex= (LEX *) m_lex.pop();
     if (!oldlex)
       DBUG_RETURN(false); // Nothing to restore
-    LEX *sublex= thd->lex;
     // This restores thd->lex and thd->stmt_lex
-    if (thd->restore_from_local_lex_to_old_lex(oldlex))
-      DBUG_RETURN(true);
-    if (!sublex->sp_lex_in_use)
-    {
-      sublex->sphead= NULL;
-      lex_end(sublex);
-      delete sublex;
-    }
-    DBUG_RETURN(false);
+    DBUG_RETURN(thd->restore_from_local_lex_to_old_lex(oldlex));
   }
+
+
+  /**
+    Delete all auxiliary LEX objects created on parsing a statement and
+    restore a value of the data member THD::lex to point on the LEX object
+    that was actual before parsing started.
+  */
+
+  void unwind_aux_lexes_and_restore_original_lex();
+
 
   /**
     Iterate through the LEX stack from the top (the newest) to the bottom
@@ -723,7 +766,7 @@ public:
     return false;
   }
   bool fill_spvar_definition(THD *thd, Column_definition *def,
-                             LEX_CSTRING *name)
+                             const Lex_ident_column *name)
   {
     def->field_name= *name;
     return fill_spvar_definition(thd, def);
@@ -781,6 +824,10 @@ public:
     m_definer.copy(mem_root, user_name, host_name);
   }
 
+  void set_definition_string(LEX_STRING &defstr)
+  {
+    m_definition_string= defstr;
+  }
   void reset_thd_mem_root(THD *thd);
 
   void restore_thd_mem_root(THD *thd);
@@ -887,6 +934,8 @@ public:
     return NULL;
   }
 
+  virtual void init_psi_share();
+
 protected:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
@@ -929,6 +978,12 @@ protected:
   */
   HASH m_sptabs;
 
+  /**
+    Text of the query CREATE PROCEDURE/FUNCTION/TRIGGER/EVENT ...
+    used for DDL parsing.
+  */
+  LEX_STRING m_definition_string;
+
   bool
   execute(THD *thd, bool merge_da_on_success);
 
@@ -949,6 +1004,30 @@ protected:
   push_backpatch(THD *thd, sp_instr *, sp_label *, List<bp_t> *list,
                  backpatch_instr_type itype);
 
+public:
+  /*
+    List of lists of Item_trigger_field objects representing all fields in
+    old/new version of row in trigger. We use this list of lists for checking
+    whenever all such fields are valid at trigger creation time and for binding
+    these fields to TABLE object at table open (although for latter pointer
+    to table being opened is probably enough).
+  */
+  SQL_I_List<SQL_I_List<Item_trigger_field> > m_trg_table_fields;
+
+  /**
+    The object of the Trigger class corresponding to this sp_head object.
+    This data member is set on table's triggers loading at the function
+    check_n_load and is used at the method sp_lex_instr::parse_expr
+    for accessing to the trigger's table after re-parsing of failed
+    trigger's instruction.
+  */
+  Trigger *m_trg= nullptr;
+
+  /*
+    List of Item_trigger_field objects created on parsing
+    a current instruction of trigger's body
+  */
+  SQL_I_List<Item_trigger_field> m_cur_instr_trig_field_items;
 }; // class sp_head : public Sql_alloc
 
 
@@ -962,9 +1041,9 @@ public:
   public:
     LexList() { elements= 0; }
     // Find a package routine by a non qualified name
-    LEX *find(const LEX_CSTRING &name, stored_procedure_type type);
+    LEX *find(const LEX_CSTRING &name, enum_sp_type type);
     // Find a package routine by a package-qualified name, e.g. 'pkg.proc'
-    LEX *find_qualified(const LEX_CSTRING &name, stored_procedure_type type);
+    LEX *find_qualified(const LEX_CSTRING &name, enum_sp_type type);
     // Check if a routine with the given qualified name already exists
     bool check_dup_qualified(const LEX_CSTRING &name, const Sp_handler *sph)
     {
@@ -1008,7 +1087,7 @@ private:
   ~sp_package();
 public:
   static sp_package *create(LEX *top_level_lex, const sp_name *name,
-                            const Sp_handler *sph);
+                            const Sp_handler *sph, MEM_ROOT *sp_mem_root);
 
   bool add_routine_declaration(LEX *lex)
   {
@@ -1020,8 +1099,9 @@ public:
     return m_routine_implementations.check_dup_qualified(lex->sphead) ||
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
-  sp_package *get_package() { return this; }
-  bool is_invoked() const
+  sp_package *get_package() override { return this; }
+  void init_psi_share() override;
+  bool is_invoked() const override
   {
     /*
       Cannot flush a package out of the SP cache when:
@@ -1044,1040 +1124,11 @@ public:
 };
 
 
-class sp_lex_cursor: public sp_lex_local, public Query_arena
-{
-public:
-  sp_lex_cursor(THD *thd, const LEX *oldlex, MEM_ROOT *mem_root_arg)
-   :sp_lex_local(thd, oldlex),
-    Query_arena(mem_root_arg, STMT_INITIALIZED_FOR_SP)
-  { }
-  sp_lex_cursor(THD *thd, const LEX *oldlex)
-   :sp_lex_local(thd, oldlex),
-    Query_arena(thd->lex->sphead->get_main_mem_root(), STMT_INITIALIZED_FOR_SP)
-  { }
-  ~sp_lex_cursor() { free_items(); }
-  void cleanup_stmt() { }
-  Query_arena *query_arena() { return this; }
-  bool validate()
-  {
-    DBUG_ASSERT(sql_command == SQLCOM_SELECT);
-    if (result)
-    {
-      my_error(ER_SP_BAD_CURSOR_SELECT, MYF(0));
-      return true;
-    }
-    return false;
-  }
-  bool stmt_finalize(THD *thd)
-  {
-    if (validate())
-      return true;
-    sp_lex_in_use= true;
-    free_list= thd->free_list;
-    thd->free_list= NULL;
-    return false;
-  }
-};
-
-
-//
-// "Instructions"...
-//
-
-class sp_instr :public Query_arena, public Sql_alloc
-{
-  sp_instr(const sp_instr &);	/**< Prevent use of these */
-  void operator=(sp_instr &);
-
-public:
-
-  uint marked;
-  uint m_ip;			///< My index
-  sp_pcontext *m_ctx;		///< My parse context
-  uint m_lineno;
-
-  /// Should give each a name or type code for debugging purposes?
-  sp_instr(uint ip, sp_pcontext *ctx)
-    :Query_arena(0, STMT_INITIALIZED_FOR_SP), marked(0), m_ip(ip), m_ctx(ctx)
-#ifdef PROTECT_STATEMENT_MEMROOT
-  , m_has_been_run(NON_RUN)
-#endif
-  {}
-
-  virtual ~sp_instr()
-  { free_items(); }
-
-
-  /**
-    Execute this instruction
-
-   
-    @param thd         Thread handle
-    @param[out] nextp  index of the next instruction to execute. (For most
-                       instructions this will be the instruction following this
-                       one). Note that this parameter is undefined in case of
-                       errors, use get_cont_dest() to find the continuation
-                       instruction for CONTINUE error handlers.
-   
-    @retval 0      on success, 
-    @retval other  if some error occurred
-  */
-
-  virtual int execute(THD *thd, uint *nextp) = 0;
-
-  /**
-    Execute <code>open_and_lock_tables()</code> for this statement.
-    Open and lock the tables used by this statement, as a pre-requisite
-    to execute the core logic of this instruction with
-    <code>exec_core()</code>.
-    @param thd the current thread
-    @param tables the list of tables to open and lock
-    @return zero on success, non zero on failure.
-  */
-  int exec_open_and_lock_tables(THD *thd, TABLE_LIST *tables);
-
-  /**
-    Get the continuation destination of this instruction.
-    @return the continuation destination
-  */
-  virtual uint get_cont_dest() const;
-
-  /*
-    Execute core function of instruction after all preparations (e.g.
-    setting of proper LEX, saving part of the thread context have been
-    done).
-
-    Should be implemented for instructions using expressions or whole
-    statements (thus having to have own LEX). Used in concert with
-    sp_lex_keeper class and its descendants (there are none currently).
-  */
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str) = 0;
-
-  virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
-  {}
-
-  /**
-    Mark this instruction as reachable during optimization and return the
-    index to the next instruction. Jump instruction will add their
-    destination to the leads list.
-  */
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
-  {
-    marked= 1;
-    return m_ip+1;
-  }
-
-  /**
-    Short-cut jumps to jumps during optimization. This is used by the
-    jump instructions' opt_mark() methods. 'start' is the starting point,
-    used to prevent the mark sweep from looping for ever. Return the
-    end destination.
-  */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
-  {
-    return m_ip;
-  }
-
-  /**
-    Inform the instruction that it has been moved during optimization.
-    Most instructions will simply update its index, but jump instructions
-    must also take care of their destination pointers. Forward jumps get
-    pushed to the backpatch list 'ibp'.
-  */
-  virtual void opt_move(uint dst, List<sp_instr> *ibp)
-  {
-    m_ip= dst;
-  }
-
-#ifdef PROTECT_STATEMENT_MEMROOT
-  bool has_been_run() const
-  {
-    return m_has_been_run == RUN;
-  }
-
-  void mark_as_qc_used()
-  {
-    m_has_been_run= QC;
-  }
-
-  void mark_as_run()
-  {
-    if (m_has_been_run == QC)
-      m_has_been_run= NON_RUN; // answer was from WC => not really executed
-    else
-      m_has_been_run= RUN;
-  }
-
-  void mark_as_not_run()
-  {
-    m_has_been_run= NON_RUN;
-  }
-
-private:
-  enum {NON_RUN, QC, RUN} m_has_been_run;
-#endif
-}; // class sp_instr : public Sql_alloc
-
-
-/**
-  Auxilary class to which instructions delegate responsibility
-  for handling LEX and preparations before executing statement
-  or calculating complex expression.
-
-  Exist mainly to avoid having double hierarchy between instruction
-  classes.
-
-  @todo
-    Add ability to not store LEX and do any preparations if
-    expression used is simple.
-*/
-
-class sp_lex_keeper
-{
-  /** Prevent use of these */
-  sp_lex_keeper(const sp_lex_keeper &);
-  void operator=(sp_lex_keeper &);
-public:
-
-  sp_lex_keeper(LEX *lex, bool lex_resp)
-    : m_lex(lex), m_lex_resp(lex_resp), 
-      lex_query_tables_own_last(NULL)
-  {
-    lex->sp_lex_in_use= TRUE;
-  }
-  virtual ~sp_lex_keeper()
-  {
-    if (m_lex_resp)
-    {
-      /* Prevent endless recursion. */
-      m_lex->sphead= NULL;
-      lex_end(m_lex);
-      delete m_lex;
-    }
-  }
-
-  /**
-    Prepare execution of instruction using LEX, if requested check whenever
-    we have read access to tables used and open/lock them, call instruction's
-    exec_core() method, perform cleanup afterwards.
-   
-    @todo Conflicting comment in sp_head.cc
-  */
-  int reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
-                              sp_instr* instr);
-
-  int cursor_reset_lex_and_exec_core(THD *thd, uint *nextp, bool open_tables,
-                                     sp_instr *instr);
-
-  inline uint sql_command() const
-  {
-    return (uint)m_lex->sql_command;
-  }
-
-  void disable_query_cache()
-  {
-    m_lex->safe_to_cache_query= 0;
-  }
-
-private:
-
-  LEX *m_lex;
-  /**
-    Indicates whenever this sp_lex_keeper instance responsible
-    for LEX deletion.
-  */
-  bool m_lex_resp;
-
-  /*
-    Support for being able to execute this statement in two modes:
-    a) inside prelocked mode set by the calling procedure or its ancestor.
-    b) outside of prelocked mode, when this statement enters/leaves
-       prelocked mode itself.
-  */
-  
-  /**
-    List of additional tables this statement needs to lock when it
-    enters/leaves prelocked mode on its own.
-  */
-  TABLE_LIST *prelocking_tables;
-
-  /**
-    The value m_lex->query_tables_own_last should be set to this when the
-    statement enters/leaves prelocked mode on its own.
-  */
-  TABLE_LIST **lex_query_tables_own_last;
-};
-
-
-/**
-  Call out to some prepared SQL statement.
-*/
-class sp_instr_stmt : public sp_instr
-{
-  sp_instr_stmt(const sp_instr_stmt &);	/**< Prevent use of these */
-  void operator=(sp_instr_stmt &);
-
-public:
-
-  LEX_STRING m_query;		///< For thd->query
-
-  sp_instr_stmt(uint ip, sp_pcontext *ctx, LEX *lex)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, TRUE)
-  {
-    m_query.str= 0;
-    m_query.length= 0;
-  }
-
-  virtual ~sp_instr_stmt() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-
-  sp_lex_keeper m_lex_keeper;
-
-}; // class sp_instr_stmt : public sp_instr
-
-
-class sp_instr_set : public sp_instr
-{
-  sp_instr_set(const sp_instr_set &);	/**< Prevent use of these */
-  void operator=(sp_instr_set &);
-
-public:
-
-  sp_instr_set(uint ip, sp_pcontext *ctx,
-               const Sp_rcontext_handler *rh,
-	       uint offset, Item *val,
-               LEX *lex, bool lex_resp)
-    : sp_instr(ip, ctx),
-      m_rcontext_handler(rh), m_offset(offset), m_value(val),
-      m_lex_keeper(lex, lex_resp)
-  {}
-
-  virtual ~sp_instr_set() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-protected:
-  sp_rcontext *get_rcontext(THD *thd) const;
-  const Sp_rcontext_handler *m_rcontext_handler;
-  uint m_offset;		///< Frame offset
-  Item *m_value;
-  sp_lex_keeper m_lex_keeper;
-}; // class sp_instr_set : public sp_instr
-
-
-/*
-  This class handles assignments of a ROW fields:
-    DECLARE rec ROW (a INT,b INT);
-    SET rec.a= 10;
-*/
-class sp_instr_set_row_field : public sp_instr_set
-{
-  sp_instr_set_row_field(const sp_instr_set_row_field &); // Prevent use of this
-  void operator=(sp_instr_set_row_field &);
-  uint m_field_offset;
-
-public:
-
-  sp_instr_set_row_field(uint ip, sp_pcontext *ctx,
-                         const Sp_rcontext_handler *rh,
-                         uint offset, uint field_offset,
-                         Item *val,
-                         LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
-      m_field_offset(field_offset)
-  {}
-
-  virtual ~sp_instr_set_row_field() = default;
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-}; // class sp_instr_set_field : public sp_instr_set
-
-
-/**
-  This class handles assignment instructions like this:
-  DECLARE
-    CURSOR cur IS SELECT * FROM t1;
-    rec cur%ROWTYPE;
-  BEGIN
-    rec.column1:= 10; -- This instruction
-  END;
-
-  The idea is that during sp_rcontext::create() we do not know the extact
-  structure of "rec". It gets resolved at run time, during the corresponding
-  sp_instr_cursor_copy_struct::exec_core().
-
-  So sp_instr_set_row_field_by_name searches for ROW fields by name,
-  while sp_instr_set_row_field (see above) searches for ROW fields by index.
-*/
-class sp_instr_set_row_field_by_name : public sp_instr_set
-{
-  // Prevent use of this
-  sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
-  void operator=(sp_instr_set_row_field_by_name &);
-  const LEX_CSTRING m_field_name;
-
-public:
-
-  sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
-                                 const Sp_rcontext_handler *rh,
-                                 uint offset, const LEX_CSTRING &field_name,
-                                 Item *val,
-                                 LEX *lex, bool lex_resp)
-    : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp),
-      m_field_name(field_name)
-  {}
-
-  virtual ~sp_instr_set_row_field_by_name() = default;
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-}; // class sp_instr_set_field_by_name : public sp_instr_set
-
-
-/**
-  Set NEW/OLD row field value instruction. Used in triggers.
-*/
-class sp_instr_set_trigger_field : public sp_instr
-{
-  sp_instr_set_trigger_field(const sp_instr_set_trigger_field &);
-  void operator=(sp_instr_set_trigger_field &);
-
-public:
-
-  sp_instr_set_trigger_field(uint ip, sp_pcontext *ctx,
-                             Item_trigger_field *trg_fld,
-                             Item *val, LEX *lex)
-    : sp_instr(ip, ctx),
-      trigger_field(trg_fld),
-      value(val), m_lex_keeper(lex, TRUE)
-  {}
-
-  virtual ~sp_instr_set_trigger_field() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-  Item_trigger_field *trigger_field;
-  Item *value;
-  sp_lex_keeper m_lex_keeper;
-}; // class sp_instr_trigger_field : public sp_instr
-
-
-/**
-  An abstract class for all instructions with destinations that
-  needs to be updated by the optimizer.
-
-  Even if not all subclasses will use both the normal destination and
-  the continuation destination, we put them both here for simplicity.
-*/
-class sp_instr_opt_meta : public sp_instr
-{
-public:
-
-  uint m_dest;			///< Where we will go
-  uint m_cont_dest;             ///< Where continue handlers will go
-
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx)
-    : sp_instr(ip, ctx),
-      m_dest(0), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
-  {}
-
-  sp_instr_opt_meta(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr(ip, ctx),
-      m_dest(dest), m_cont_dest(0), m_optdest(0), m_cont_optdest(0)
-  {}
-
-  virtual ~sp_instr_opt_meta() = default;
-
-  virtual void set_destination(uint old_dest, uint new_dest)
-    = 0;
-
-  virtual uint get_cont_dest() const;
-
-protected:
-
-  sp_instr *m_optdest;		///< Used during optimization
-  sp_instr *m_cont_optdest;     ///< Used during optimization
-
-}; // class sp_instr_opt_meta : public sp_instr
-
-class sp_instr_jump : public sp_instr_opt_meta
-{
-  sp_instr_jump(const sp_instr_jump &);	/**< Prevent use of these */
-  void operator=(sp_instr_jump &);
-
-public:
-
-  sp_instr_jump(uint ip, sp_pcontext *ctx)
-    : sp_instr_opt_meta(ip, ctx)
-  {}
-
-  sp_instr_jump(uint ip, sp_pcontext *ctx, uint dest)
-    : sp_instr_opt_meta(ip, ctx, dest)
-  {}
-
-  virtual ~sp_instr_jump() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
-
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start);
-
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
-
-  virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
-  {
-    /* Calling backpatch twice is a logic flaw in jump resolution. */
-    DBUG_ASSERT(m_dest == 0);
-    m_dest= dest;
-  }
-
-  /**
-    Update the destination; used by the optimizer.
-  */
-  virtual void set_destination(uint old_dest, uint new_dest)
-  {
-    if (m_dest == old_dest)
-      m_dest= new_dest;
-  }
-
-}; // class sp_instr_jump : public sp_instr_opt_meta
-
-
-class sp_instr_jump_if_not : public sp_instr_jump
-{
-  sp_instr_jump_if_not(const sp_instr_jump_if_not &); /**< Prevent use of these */
-  void operator=(sp_instr_jump_if_not &);
-
-public:
-
-  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, LEX *lex)
-    : sp_instr_jump(ip, ctx), m_expr(i),
-      m_lex_keeper(lex, TRUE)
-  {}
-
-  sp_instr_jump_if_not(uint ip, sp_pcontext *ctx, Item *i, uint dest, LEX *lex)
-    : sp_instr_jump(ip, ctx, dest), m_expr(i),
-      m_lex_keeper(lex, TRUE)
-  {}
-
-  virtual ~sp_instr_jump_if_not() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
-
-  /** Override sp_instr_jump's shortcut; we stop here */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
-  {
-    return m_ip;
-  }
-
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
-
-  virtual void set_destination(uint old_dest, uint new_dest)
-  {
-    sp_instr_jump::set_destination(old_dest, new_dest);
-    if (m_cont_dest == old_dest)
-      m_cont_dest= new_dest;
-  }
-
-private:
-
-  Item *m_expr;			///< The condition
-  sp_lex_keeper m_lex_keeper;
-
-}; // class sp_instr_jump_if_not : public sp_instr_jump
-
-
-class sp_instr_preturn : public sp_instr
-{
-  sp_instr_preturn(const sp_instr_preturn &);	/**< Prevent use of these */
-  void operator=(sp_instr_preturn &);
-
-public:
-
-  sp_instr_preturn(uint ip, sp_pcontext *ctx)
-    : sp_instr(ip, ctx)
-  {}
-
-  virtual ~sp_instr_preturn() = default;
-
-  virtual int execute(THD *thd, uint *nextp)
-  {
-    DBUG_ENTER("sp_instr_preturn::execute");
-    *nextp= UINT_MAX;
-    DBUG_RETURN(0);
-  }
-
-  virtual void print(String *str)
-  {
-    str->append(STRING_WITH_LEN("preturn"));
-  }
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
-  {
-    marked= 1;
-    return UINT_MAX;
-  }
-
-}; // class sp_instr_preturn : public sp_instr
-
-
-class sp_instr_freturn : public sp_instr
-{
-  sp_instr_freturn(const sp_instr_freturn &);	/**< Prevent use of these */
-  void operator=(sp_instr_freturn &);
-
-public:
-
-  sp_instr_freturn(uint ip, sp_pcontext *ctx,
-		   Item *val, const Type_handler *handler, LEX *lex)
-    : sp_instr(ip, ctx), m_value(val), m_type_handler(handler),
-      m_lex_keeper(lex, TRUE)
-  {}
-
-  virtual ~sp_instr_freturn() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
-  {
-    marked= 1;
-    return UINT_MAX;
-  }
-
-protected:
-
-  Item *m_value;
-  const Type_handler *m_type_handler;
-  sp_lex_keeper m_lex_keeper;
-
-}; // class sp_instr_freturn : public sp_instr
-
-
-class sp_instr_hpush_jump : public sp_instr_jump
-{
-  sp_instr_hpush_jump(const sp_instr_hpush_jump &); /**< Prevent use of these */
-  void operator=(sp_instr_hpush_jump &);
-
-public:
-
-  sp_instr_hpush_jump(uint ip,
-                      sp_pcontext *ctx,
-                      sp_handler *handler)
-   :sp_instr_jump(ip, ctx),
-    m_handler(handler),
-    m_opt_hpop(0),
-    m_frame(ctx->current_var_count())
-  {
-    DBUG_ASSERT(m_handler->condition_values.elements == 0);
-  }
-
-  virtual ~sp_instr_hpush_jump()
-  {
-    m_handler->condition_values.empty();
-    m_handler= NULL;
-  }
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
-
-  /** Override sp_instr_jump's shortcut; we stop here. */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
-  {
-    return m_ip;
-  }
-
-  virtual void backpatch(uint dest, sp_pcontext *dst_ctx)
-  {
-    DBUG_ASSERT(!m_dest || !m_opt_hpop);
-    if (!m_dest)
-      m_dest= dest;
-    else
-      m_opt_hpop= dest;
-  }
-
-  void add_condition(sp_condition_value *condition_value)
-  { m_handler->condition_values.push_back(condition_value); }
-
-  sp_handler *get_handler()
-  { return m_handler; }
-
-private:
-  /// Handler.
-  sp_handler *m_handler;
-
-  /// hpop marking end of handler scope.
-  uint m_opt_hpop;
-
-  // This attribute is needed for SHOW PROCEDURE CODE only (i.e. it's needed in
-  // debug version only). It's used in print().
-  uint m_frame;
-
-}; // class sp_instr_hpush_jump : public sp_instr_jump
-
-
-class sp_instr_hpop : public sp_instr
-{
-  sp_instr_hpop(const sp_instr_hpop &);	/**< Prevent use of these */
-  void operator=(sp_instr_hpop &);
-
-public:
-
-  sp_instr_hpop(uint ip, sp_pcontext *ctx, uint count)
-    : sp_instr(ip, ctx), m_count(count)
-  {}
-
-  virtual ~sp_instr_hpop() = default;
-
-  void update_count(uint count)
-  {
-    m_count= count;
-  }
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-
-  uint m_count;
-
-}; // class sp_instr_hpop : public sp_instr
-
-
-class sp_instr_hreturn : public sp_instr_jump
-{
-  sp_instr_hreturn(const sp_instr_hreturn &);	/**< Prevent use of these */
-  void operator=(sp_instr_hreturn &);
-
-public:
-
-  sp_instr_hreturn(uint ip, sp_pcontext *ctx)
-   :sp_instr_jump(ip, ctx),
-    m_frame(ctx->current_var_count())
-  {}
-
-  virtual ~sp_instr_hreturn() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  /* This instruction will not be short cut optimized. */
-  virtual uint opt_shortcut_jump(sp_head *sp, sp_instr *start)
-  {
-    return m_ip;
-  }
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
-
-private:
-
-  uint m_frame;
-
-}; // class sp_instr_hreturn : public sp_instr_jump
-
-
-/** This is DECLARE CURSOR */
-class sp_instr_cpush : public sp_instr,
-                       public sp_cursor
-{
-  sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
-  void operator=(sp_instr_cpush &);
-
-public:
-
-  sp_instr_cpush(uint ip, sp_pcontext *ctx, LEX *lex, uint offset)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, TRUE), m_cursor(offset)
-  {}
-
-  virtual ~sp_instr_cpush() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  /**
-    This call is used to cleanup the instruction when a sensitive
-    cursor is closed. For now stored procedures always use materialized
-    cursors and the call is not used.
-  */
-  virtual void cleanup_stmt() { /* no op */ }
-private:
-
-  sp_lex_keeper m_lex_keeper;
-  uint m_cursor;                /**< Frame offset (for debugging) */
-
-}; // class sp_instr_cpush : public sp_instr
-
-
-class sp_instr_cpop : public sp_instr
-{
-  sp_instr_cpop(const sp_instr_cpop &); /**< Prevent use of these */
-  void operator=(sp_instr_cpop &);
-
-public:
-
-  sp_instr_cpop(uint ip, sp_pcontext *ctx, uint count)
-    : sp_instr(ip, ctx), m_count(count)
-  {}
-
-  virtual ~sp_instr_cpop() = default;
-
-  void update_count(uint count)
-  {
-    m_count= count;
-  }
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-
-  uint m_count;
-
-}; // class sp_instr_cpop : public sp_instr
-
-
-class sp_instr_copen : public sp_instr
-{
-  sp_instr_copen(const sp_instr_copen &); /**< Prevent use of these */
-  void operator=(sp_instr_copen &);
-
-public:
-
-  sp_instr_copen(uint ip, sp_pcontext *ctx, uint c)
-    : sp_instr(ip, ctx), m_cursor(c)
-  {}
-
-  virtual ~sp_instr_copen() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-
-  uint m_cursor;		///< Stack index
-
-}; // class sp_instr_copen : public sp_instr_stmt
-
-
-/**
-  Initialize the structure of a cursor%ROWTYPE variable
-  from the LEX containing the cursor SELECT statement.
-*/
-class sp_instr_cursor_copy_struct: public sp_instr
-{
-  /**< Prevent use of these */
-  sp_instr_cursor_copy_struct(const sp_instr_cursor_copy_struct &);
-  void operator=(sp_instr_cursor_copy_struct &);
-  sp_lex_keeper m_lex_keeper;
-  uint m_cursor;
-  uint m_var;
-public:
-  sp_instr_cursor_copy_struct(uint ip, sp_pcontext *ctx, uint coffs,
-                              sp_lex_cursor *lex, uint voffs)
-    : sp_instr(ip, ctx), m_lex_keeper(lex, FALSE),
-      m_cursor(coffs),
-      m_var(voffs)
-  {}
-  virtual ~sp_instr_cursor_copy_struct() = default;
-  virtual int execute(THD *thd, uint *nextp);
-  virtual int exec_core(THD *thd, uint *nextp);
-  virtual void print(String *str);
-};
-
-
-class sp_instr_cclose : public sp_instr
-{
-  sp_instr_cclose(const sp_instr_cclose &); /**< Prevent use of these */
-  void operator=(sp_instr_cclose &);
-
-public:
-
-  sp_instr_cclose(uint ip, sp_pcontext *ctx, uint c)
-    : sp_instr(ip, ctx), m_cursor(c)
-  {}
-
-  virtual ~sp_instr_cclose() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-private:
-
-  uint m_cursor;
-
-}; // class sp_instr_cclose : public sp_instr
-
-
-class sp_instr_cfetch : public sp_instr
-{
-  sp_instr_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
-  void operator=(sp_instr_cfetch &);
-
-public:
-
-  sp_instr_cfetch(uint ip, sp_pcontext *ctx, uint c, bool error_on_no_data)
-    : sp_instr(ip, ctx), m_cursor(c), m_error_on_no_data(error_on_no_data)
-  {
-    m_varlist.empty();
-  }
-
-  virtual ~sp_instr_cfetch() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  void add_to_varlist(sp_variable *var)
-  {
-    m_varlist.push_back(var);
-  }
-
-private:
-
-  uint m_cursor;
-  List<sp_variable> m_varlist;
-  bool m_error_on_no_data;
-
-}; // class sp_instr_cfetch : public sp_instr
-
-/*
-This class is created for the special fetch instruction
-FETCH GROUP NEXT ROW, used in the user-defined aggregate
-functions
-*/
-
-class sp_instr_agg_cfetch : public sp_instr
-{
-  sp_instr_agg_cfetch(const sp_instr_cfetch &); /**< Prevent use of these */
-  void operator=(sp_instr_cfetch &);
-
-public:
-
-  sp_instr_agg_cfetch(uint ip, sp_pcontext *ctx)
-    : sp_instr(ip, ctx){}
-
-  virtual ~sp_instr_agg_cfetch() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-}; // class sp_instr_agg_cfetch : public sp_instr
-
-
-
-
-class sp_instr_error : public sp_instr
-{
-  sp_instr_error(const sp_instr_error &); /**< Prevent use of these */
-  void operator=(sp_instr_error &);
-
-public:
-
-  sp_instr_error(uint ip, sp_pcontext *ctx, int errcode)
-    : sp_instr(ip, ctx), m_errcode(errcode)
-  {}
-
-  virtual ~sp_instr_error() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
-  {
-    marked= 1;
-    return UINT_MAX;
-  }
-
-private:
-
-  int m_errcode;
-
-}; // class sp_instr_error : public sp_instr
-
-
-class sp_instr_set_case_expr : public sp_instr_opt_meta
-{
-public:
-
-  sp_instr_set_case_expr(uint ip, sp_pcontext *ctx, uint case_expr_id,
-                         Item *case_expr, LEX *lex)
-    : sp_instr_opt_meta(ip, ctx),
-      m_case_expr_id(case_expr_id), m_case_expr(case_expr),
-      m_lex_keeper(lex, TRUE)
-  {}
-
-  virtual ~sp_instr_set_case_expr() = default;
-
-  virtual int execute(THD *thd, uint *nextp);
-
-  virtual int exec_core(THD *thd, uint *nextp);
-
-  virtual void print(String *str);
-
-  virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads);
-
-  virtual void opt_move(uint dst, List<sp_instr> *ibp);
-
-  virtual void set_destination(uint old_dest, uint new_dest)
-  {
-    if (m_cont_dest == old_dest)
-      m_cont_dest= new_dest;
-  }
-
-private:
-
-  uint m_case_expr_id;
-  Item *m_case_expr;
-  sp_lex_keeper m_lex_keeper;
-
-}; // class sp_instr_set_case_expr : public sp_instr_opt_meta
-
 bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access);
+bool check_db_routine_access(THD *thd, privilege_t privilege,
+                             const char *db, const char *name,
+                             const Sp_handler *sph,
+                             bool no_errors);
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 bool

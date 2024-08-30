@@ -46,6 +46,7 @@ my %debuggers = (
     script => 'set args {args} < {input}',
   },
   ddd => {
+    interactive => 1,
     options => '--command {script} {exe}',
     script => 'set args {args} < {input}',
   },
@@ -54,9 +55,11 @@ my %debuggers = (
     options => '-c "stop in main; run {exe} {args} < {input}"',
   },
   devenv => {
+    interactive => 1,
     options => '/debugexe {exe} {args}',
   },
   windbg => {
+    interactive => 1,
     options => '{exe} {args}',
   },
   lldb => {
@@ -128,7 +131,7 @@ for my $k (sort keys %debuggers) {
   register_opt "", $k, "Start mysqld";
   register_opt "client-", $k, "Start mysqltest client";
   register_opt "boot-", $k, "Start bootstrap server";
-  register_opt "manual-", "$k", "Before running test(s) let user manually start mysqld";
+  register_opt "manual-", "$k", "Before running test(s) let user manually start mariadbd";
 }
 
 sub subst($%) {
@@ -197,6 +200,7 @@ sub fix_options(@) {
 
 sub pre_setup() {
   my $used;
+  my $interactive;
   my %options;
   my %client_options;
   my %boot_options;
@@ -208,6 +212,9 @@ sub pre_setup() {
       my $val= $opt_vals{$opt};
       if ($val) {
         $used = 1;
+        $interactive ||= ($debuggers{$k}->{interactive} ||
+                          $debuggers{$k}->{term} ||
+                          ($opt =~ /^manual-/));
         if ($debuggers{$k}->{pre}) {
           $debuggers{$k}->{pre}->();
           delete $debuggers{$k}->{pre};
@@ -252,10 +259,11 @@ sub pre_setup() {
 
     $::opt_retry= 1;
     $::opt_retry_failure= 1;
-    $::opt_testcase_timeout= 7 * 24 * 60; # in minutes
-    $::opt_suite_timeout= 7 * 24 * 60;    # in minutes
-    $::opt_shutdown_timeout= 24 * 60 *60; # in seconds
-    $::opt_start_timeout= 24 * 60 * 60;   # in seconds
+    $::opt_testcase_timeout= ($interactive ? 24 : 4) * 60;      # in minutes
+    $::opt_suite_timeout= 24 * 60;                              # in minutes
+    $::opt_shutdown_timeout= ($interactive ? 24 * 60 : 3) * 60; # in seconds
+    $::opt_start_timeout= $::opt_shutdown_timeout;              # in seconds
+    $::opt_debug_sync_timeout= 3000;                            # in seconds
   }
 }
 

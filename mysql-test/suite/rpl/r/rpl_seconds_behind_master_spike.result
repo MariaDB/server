@@ -2,6 +2,9 @@ include/master-slave.inc
 [connection master]
 connection slave;
 include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";
 SET @@global.debug_dbug="+d,negate_clock_diff_with_master";

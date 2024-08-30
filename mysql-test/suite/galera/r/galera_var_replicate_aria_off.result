@@ -1,0 +1,15 @@
+connection node_2;
+connection node_1;
+CREATE TABLE t1 (f1 INT PRIMARY KEY) Engine=Aria;
+INSERT INTO t1 VALUES (1);
+SELECT * FROM t1;
+f1
+1
+connection node_2;
+# Only DDL is replicated
+SELECT COUNT(*) AS EXPECT_0 FROM t1;
+EXPECT_0
+0
+SELECT * FROM t1;
+f1
+DROP TABLE t1;

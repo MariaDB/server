@@ -1,0 +1,66 @@
+# Correct Galera library found
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider_socket_recv_buf_size';
+variable_type	global_value
+VARCHAR	auto
+set global wsrep_provider_socket_recv_buf_size = 'foo';
+ERROR 42000: Variable 'socket_recv_buf_size' can't be set to the value of 'foo'
+set global wsrep_provider_socket_recv_buf_size = '1M';
+show global variables like 'wsrep_provider_socket_recv_buf_size';
+Variable_name	Value
+wsrep_provider_socket_recv_buf_size	1M
+set global wsrep_provider_socket_recv_buf_size = default;
+show global variables like 'wsrep_provider_socket_recv_buf_size';
+Variable_name	Value
+wsrep_provider_socket_recv_buf_size	auto
+select variable_type, global_value from information_schema.system_variables where variable_name = 'wsrep_provider_evs_send_window';
+variable_type	global_value
+BIGINT	4
+set global wsrep_provider_evs_send_window = -10;
+ERROR 42000: Variable 'evs_send_window' can't be set to the value of '-10'
+set global wsrep_provider_evs_send_window = 10;
+show global variables like 'wsrep_provider_evs_send_window';
+Variable_name	Value
+wsrep_provider_evs_send_window	10
+set global wsrep_provider_evs_send_window = default;
+show global variables like 'wsrep_provider_evs_send_window';
+Variable_name	Value
+wsrep_provider_evs_send_window	4
+select variable_type from information_schema.system_variables where variable_name = 'wsrep_provider_gcs_max_throttle';
+variable_type
+DOUBLE
+set global wsrep_provider_gcs_max_throttle = 1.1;
+ERROR 42000: Variable 'gcs_max_throttle' can't be set to the value of '1.100000'
+set global wsrep_provider_gcs_max_throttle = 0.5;
+show global variables like 'wsrep_provider_gcs_max_throttle';
+Variable_name	Value
+wsrep_provider_gcs_max_throttle	0.500000
+set global wsrep_provider_gcs_max_throttle = default;
+show global variables like 'wsrep_provider_gcs_max_throttle';
+Variable_name	Value
+wsrep_provider_gcs_max_throttle	0.250000
+select variable_type from information_schema.system_variables where variable_name = 'wsrep_provider_cert_log_conflicts';
+variable_type
+BOOLEAN
+set global wsrep_provider_cert_log_conflicts = on;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+Variable_name	Value
+wsrep_provider_cert_log_conflicts	ON
+set global wsrep_provider_cert_log_conflicts = off;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+Variable_name	Value
+wsrep_provider_cert_log_conflicts	OFF
+set global wsrep_provider_cert_log_conflicts = default;
+show global variables like 'wsrep_provider_cert_log_conflicts';
+Variable_name	Value
+wsrep_provider_cert_log_conflicts	OFF
+select read_only from information_schema.system_variables where variable_name = 'wsrep_provider_evs_auto_evict';
+read_only
+YES
+set global wsrep_provider_evs_auto_evict = on;
+ERROR HY000: Variable 'wsrep_provider_evs_auto_evict' is a read only variable
+set global wsrep_provider_gcs_fc_master_slave = default;
+Warnings:
+Warning	1287	'@@wsrep_provider_gcs_fc_master_slave' is deprecated and will be removed in a future release
+call mtr.add_suppression("error setting param");
+call mtr.add_suppression("Unknown parameter");
+call mtr.add_suppression("Setting parameter");

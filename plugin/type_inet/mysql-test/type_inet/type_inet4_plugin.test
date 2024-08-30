@@ -1,0 +1,27 @@
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo #
+
+--vertical_results
+SELECT
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+  WHERE PLUGIN_TYPE='DATA TYPE'
+    AND PLUGIN_NAME='inet4';
+--horizontal_results
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

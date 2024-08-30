@@ -26,6 +26,9 @@ PRIMARY KEY (`a`)
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a"' PARTITION BY LIST COLUMNS(`a`) (
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
 );
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 connection master_1;
 SELECT distinct b FROM tbl_a WHERE b=999;
 b

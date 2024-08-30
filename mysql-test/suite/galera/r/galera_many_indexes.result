@@ -1,6 +1,6 @@
 connection node_2;
 connection node_1;
-CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (f1 VARCHAR(767) PRIMARY KEY) ENGINE=InnoDB CHARSET=latin1;
 CREATE UNIQUE INDEX i63 ON t1(f1);
 CREATE UNIQUE INDEX i62 ON t1(f1);
 CREATE UNIQUE INDEX i61 ON t1(f1);
@@ -74,7 +74,7 @@ LENGTH(f1) = 767
 1
 EXPLAIN SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	PRIMARY	PRIMARY	769	const	1	Using index
+1	SIMPLE	t1	const	PRIMARY	PRIMARY	769	const	1	
 SELECT COUNT(*) = 1 FROM t1 FORCE KEY (PRIMARY) WHERE f1 = REPEAT('a', 767);
 COUNT(*) = 1
 1

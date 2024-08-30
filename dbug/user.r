@@ -771,32 +771,20 @@ artificial delay checking for race conditions.
 .SP 1
 EX:\ \fCDBUG_EXECUTE_IF\ ("crashme",\ DBUG_ABORT()\ ());\fR
 .SP 1
-.LI DBUG_EVALUATE\ 
-The DBUG_EVALUATE macro is similar to DBUG_EXECUTE, but it can be used in
-the expression context. The first argument is the debug keyword that is used to
-choose whether the second (keyword is enabled) or the third (keyword is not
-enabled) argument is evaluated. When
-.I dbug
-is compiled off, the third argument is evaluated.
-.SP 1
-EX:\fC
-.br
-  printf("Info-debug is %s",
-.br
-         DBUG_EVALUATE\ ("info", "ON", "OFF"));\fR
-.SP 1
-.LI DBUG_EVALUATE_IF\ 
-Works like DBUG_EVALUATE macro, but the second argument is
-.B not
-evaluated, if the keyword is not explicitly listed in
-the 'd' flag. Like DBUG_EXECUTE_IF this could be used to conditionally execute
+.LI DBUG_IF\
+Returns
+.B 1
+if the keyword is explicitly listed in
+the 'd' flag. Otherwise returns
+.B 0
+Like DBUG_EXECUTE_IF this could be used to conditionally execute
 "dangerous" actions.
 .SP 1
 EX:\fC
 .br
     if (prepare_transaction () ||
 .br
-        DBUG_EVALUATE ("crashme", (DBUG_ABORT(), 0), 0) ||
+        (DBUG_IF("crashme") && (DBUG_ABORT(), 0)) ||
 .br
         commit_transaction () )\fR
 .SP 1

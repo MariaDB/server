@@ -385,22 +385,6 @@ fts_query_terms_in_document(
 	ulint*		total);		/*!< out: total words in document */
 #endif
 
-/********************************************************************
-Compare two fts_doc_freq_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_freq_doc_id_cmp(
-/*================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const fts_doc_freq_t*	fq1 = (const fts_doc_freq_t*) p1;
-	const fts_doc_freq_t*	fq2 = (const fts_doc_freq_t*) p2;
-
-	return((int) (fq1->doc_id - fq2->doc_id));
-}
-
 #if 0
 /*******************************************************************//**
 Print the table used for calculating LCS. */
@@ -506,14 +490,11 @@ fts_query_compare_rank(
 	if (r2->rank < r1->rank) {
 		return(-1);
 	} else if (r2->rank == r1->rank) {
-
 		if (r1->doc_id < r2->doc_id) {
-			return(1);
-		} else if (r1->doc_id > r2->doc_id) {
-			return(1);
+			return -1;
 		}
 
-		return(0);
+		return r1->doc_id > r2->doc_id;
 	}
 
 	return(1);
@@ -602,14 +583,15 @@ fts_ranking_words_add(
 
 		ranking->words = static_cast<byte*>(
 			mem_heap_zalloc(query->heap, words_len));
-		ut_memcpy(ranking->words, words, ranking->words_len);
+		memcpy(ranking->words, words, ranking->words_len);
 		ranking->words_len = words_len;
 	}
 
 	/* Set ranking words */
 	ut_ad(byte_offset < ranking->words_len);
 	bit_offset = pos % CHAR_BIT;
-	ranking->words[byte_offset] |= 1 << bit_offset;
+	ranking->words[byte_offset] = static_cast<byte>(
+		ranking->words[byte_offset] | 1 << bit_offset);
 }
 
 /*******************************************************************//**
@@ -673,8 +655,9 @@ fts_query_add_word_freq(
 
 		word_freq.doc_count = 0;
 
+		static_assert(!offsetof(fts_doc_freq_t, doc_id), "ABI");
 		word_freq.doc_freqs = rbt_create(
-			sizeof(fts_doc_freq_t), fts_freq_doc_id_cmp);
+			sizeof(fts_doc_freq_t), fts_doc_id_cmp);
 
 		parent.last = rbt_add_node(
 			query->word_freqs, &parent, &word_freq);
@@ -1145,7 +1128,7 @@ fts_query_difference(
 		fts_cache_t*		cache = table->fts->cache;
 		dberr_t			error;
 
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 
 		index_cache = fts_find_index_cache(cache, query->index);
 
@@ -1171,7 +1154,7 @@ fts_query_difference(
 			}
 		}
 
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 
 		/* error is passed by 'query->error' */
 		if (query->error != DB_SUCCESS) {
@@ -1193,7 +1176,7 @@ fts_query_difference(
 			query->error = error;
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	/* The size can't increase. */
@@ -1252,8 +1235,9 @@ fts_query_intersect(
 
 		/* Create the rb tree that will hold the doc ids of
 		the intersection. */
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		query->intersection = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += SIZEOF_RBT_CREATE;
 
@@ -1278,7 +1262,7 @@ fts_query_intersect(
 
 		/* Search the cache for a matching word first. */
 
-		rw_lock_x_lock(&cache->lock);
+		mysql_mutex_lock(&cache->lock);
 
 		/* Search for the index specific cache. */
 		index_cache = fts_find_index_cache(cache, query->index);
@@ -1303,7 +1287,7 @@ fts_query_intersect(
 			}
 		}
 
-		rw_lock_x_unlock(&cache->lock);
+		mysql_mutex_unlock(&cache->lock);
 
 		/* error is passed by 'query->error' */
 		if (query->error != DB_SUCCESS) {
@@ -1326,7 +1310,7 @@ fts_query_intersect(
 			query->error = error;
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		if (query->error == DB_SUCCESS) {
 			/* Make the intesection (rb tree) the current doc id
@@ -1360,7 +1344,7 @@ fts_query_cache(
 	fts_cache_t*		cache = table->fts->cache;
 
 	/* Search the cache for a matching word first. */
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	/* Search for the index specific cache. */
 	index_cache = fts_find_index_cache(cache, query->index);
@@ -1390,7 +1374,7 @@ fts_query_cache(
 		}
 	}
 
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 	return(query->error);
 }
@@ -1448,7 +1432,7 @@ fts_query_union(
 		query->error = error;
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (query->error == DB_SUCCESS) {
 
@@ -1539,8 +1523,9 @@ fts_merge_doc_ids(
 	to create a new result set for fts_query_intersect(). */
 	if (query->oper == FTS_EXIST) {
 
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		query->intersection = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += SIZEOF_RBT_CREATE;
 	}
@@ -1640,9 +1625,10 @@ fts_query_match_phrase_terms(
 			token = static_cast<const fts_string_t*>(
 				ib_vector_get_const(tokens, i));
 
-			fts_string_dup(&cmp_str, &match, heap);
+			cmp_str = fts_string_dup_casedn(phrase->charset,
+							match, heap);
 
-			result = innobase_fts_text_case_cmp(
+			result = innobase_fts_text_cmp(
 				phrase->charset, token, &cmp_str);
 
 			/* Skip the rest of the tokens if this one doesn't
@@ -1796,9 +1782,9 @@ fts_query_match_phrase_add_word_for_parser(
 		token = static_cast<const fts_string_t*>(
 			ib_vector_get_const(tokens, phrase_param->token_index));
 
-		fts_string_dup(&cmp_str, &match, heap);
+		cmp_str = fts_string_dup_casedn(phrase->charset, match, heap);
 
-		result = innobase_fts_text_case_cmp(
+		result = innobase_fts_text_cmp(
 			phrase->charset, token, &cmp_str);
 
 		if (result == 0) {
@@ -1937,9 +1923,10 @@ fts_query_match_phrase(
 				break;
 			}
 
-			fts_string_dup(&cmp_str, &match, heap);
+			cmp_str = fts_string_dup_casedn(phrase->charset,
+							match, heap);
 
-			if (innobase_fts_text_case_cmp(
+			if (innobase_fts_text_cmp(
 				phrase->charset, first, &cmp_str) == 0) {
 
 				/* This is the case for the single word
@@ -2346,7 +2333,7 @@ fts_query_total_docs_containing_term(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2428,7 +2415,7 @@ fts_query_terms_in_document(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2495,9 +2482,9 @@ fts_query_is_in_proximity_range(
 
 	memset(&get_doc, 0x0, sizeof(get_doc));
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 	get_doc.index_cache = fts_find_index_cache(cache, query->index);
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 	ut_a(get_doc.index_cache != NULL);
 
 	fts_phrase_t	phrase(get_doc.index_cache->index->table);
@@ -2519,7 +2506,7 @@ fts_query_is_in_proximity_range(
 
 	/* Free the prepared statement. */
 	if (get_doc.get_document_graph) {
-		fts_que_graph_free(get_doc.get_document_graph);
+		que_graph_free(get_doc.get_document_graph);
 		get_doc.get_document_graph = NULL;
 	}
 
@@ -2555,14 +2542,14 @@ fts_query_search_phrase(
 	/* Setup the doc retrieval infrastructure. */
 	memset(&get_doc, 0x0, sizeof(get_doc));
 
-	rw_lock_x_lock(&cache->lock);
+	mysql_mutex_lock(&cache->lock);
 
 	get_doc.index_cache = fts_find_index_cache(cache, query->index);
 
 	/* Must find the index cache */
 	ut_a(get_doc.index_cache != NULL);
 
-	rw_lock_x_unlock(&cache->lock);
+	mysql_mutex_unlock(&cache->lock);
 
 #ifdef FTS_INTERNAL_DIAG_PRINT
 	ib::info() << "Start phrase search";
@@ -2609,7 +2596,7 @@ fts_query_search_phrase(
 func_exit:
 	/* Free the prepared statement. */
 	if (get_doc.get_document_graph) {
-		fts_que_graph_free(get_doc.get_document_graph);
+		que_graph_free(get_doc.get_document_graph);
 		get_doc.get_document_graph = NULL;
 	}
 
@@ -2824,7 +2811,7 @@ fts_query_phrase_search(
 				query->error = error;
 			}
 
-			fts_que_graph_free(graph);
+			que_graph_free(graph);
 			graph = NULL;
 
 			fts_query_cache(query, token);
@@ -3011,8 +2998,9 @@ fts_query_visitor(
 
 		if (query->oper == FTS_EXIST) {
 			ut_ad(query->intersection == NULL);
+			static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 			query->intersection = rbt_create(
-				sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+				sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 			query->total_size += SIZEOF_RBT_CREATE;
 		}
@@ -3122,8 +3110,8 @@ fts_ast_visit_sub_exp(
 
 	/* Create new result set to store the sub-expression result. We
 	will merge this result set with the parent after processing. */
-	query->doc_ids = rbt_create(sizeof(fts_ranking_t),
-				    fts_ranking_doc_id_cmp);
+	static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
+	query->doc_ids = rbt_create(sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 	query->total_size += SIZEOF_RBT_CREATE;
 
@@ -3525,8 +3513,9 @@ fts_query_calculate_idf(
 				word_freq->idf = log10(1.0001);
 			} else {
 				word_freq->idf = log10(
-					total_docs
-					/ (double) word_freq->doc_count);
+					static_cast<double>(total_docs)
+					/ static_cast<double>(
+						word_freq->doc_count));
 			}
 		}
 	}
@@ -3659,8 +3648,9 @@ fts_query_prepare_result(
 		result = static_cast<fts_result_t*>(
 			ut_zalloc_nokey(sizeof(*result)));
 
+		static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 		result->rankings_by_id = rbt_create(
-			sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+			sizeof(fts_ranking_t), fts_doc_id_cmp);
 
 		query->total_size += sizeof(fts_result_t) + SIZEOF_RBT_CREATE;
 		result_is_null = true;
@@ -3800,7 +3790,7 @@ fts_query_free(
 {
 
 	if (query->read_nodes_graph) {
-		fts_que_graph_free(query->read_nodes_graph);
+		que_graph_free(query->read_nodes_graph);
 	}
 
 	if (query->root) {
@@ -4036,12 +4026,12 @@ fts_query(
 	DEBUG_SYNC_C("fts_deleted_doc_ids_append");
 
 	/* Sort the vector so that we can do a binary search over the ids. */
-	ib_vector_sort(query.deleted->doc_ids, fts_doc_id_cmp);
+	fts_doc_ids_sort(query.deleted->doc_ids);
 
 	/* Convert the query string to lower case before parsing. We own
 	the ut_malloc'ed result and so remember to free it before return. */
 
-	lc_query_str_len = query_len * charset->casedn_multiply + 1;
+	lc_query_str_len = query_len * charset->casedn_multiply() + 1;
 	lc_query_str = static_cast<byte*>(ut_malloc_nokey(lc_query_str_len));
 
 	/* For binary collations, a case sensitive search is
@@ -4051,20 +4041,19 @@ fts_query(
 		lc_query_str[query_len]= 0;
 		result_len= query_len;
 	} else {
-	result_len = innobase_fts_casedn_str(
-				charset, (char*)( query_str), query_len,
-				(char*)(lc_query_str), lc_query_str_len);
+		result_len = charset->casedn_z(
+				(const char*) query_str, query_len,
+				(char*) lc_query_str, lc_query_str_len);
 	}
 
 	ut_ad(result_len < lc_query_str_len);
 
-	lc_query_str[result_len] = 0;
-
 	query.heap = mem_heap_create(128);
 
 	/* Create the rb tree for the doc id (current) set. */
+	static_assert(!offsetof(fts_ranking_t, doc_id), "ABI");
 	query.doc_ids = rbt_create(
-		sizeof(fts_ranking_t), fts_ranking_doc_id_cmp);
+		sizeof(fts_ranking_t), fts_doc_id_cmp);
 	query.parser = index->parser;
 
 	query.total_size += SIZEOF_RBT_CREATE;
@@ -4269,9 +4258,9 @@ fts_expand_query(
 	/* Init "result_doc", to hold words from the first search pass */
 	fts_doc_init(&result_doc);
 
-	rw_lock_x_lock(&index->table->fts->cache->lock);
+	mysql_mutex_lock(&index->table->fts->cache->lock);
 	index_cache = fts_find_index_cache(index->table->fts->cache, index);
-	rw_lock_x_unlock(&index->table->fts->cache->lock);
+	mysql_mutex_unlock(&index->table->fts->cache->lock);
 
 	ut_a(index_cache);
 

@@ -4,15 +4,15 @@
 drop table if exists t1,t2,t3,t4;
 --enable_warnings
 
-set @save_storage_engine= @@storage_engine;
-set storage_engine=InnoDB;
+set @save_storage_engine= @@default_storage_engine;
+set default_storage_engine=InnoDB;
 
 set @innodb_mrr_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 
 --source include/mrr_tests.inc 
 
-set storage_engine= @save_storage_engine;
+set default_storage_engine= @save_storage_engine;
 
 # Try big rowid sizes
 set @mrr_buffer_size_save= @@mrr_buffer_size;
@@ -23,7 +23,7 @@ set mrr_buffer_size=64;
 # Verify that DS-MRR's code extra(HA_EXTRA_RETRIEVE_ALL_COLS) call has effect:
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB;
+create table t2(a char(8), b char(8), c char(8), filler char(100), key(a,b,c) ) engine=InnoDB charset=latin1;
 
 insert into t2 select 
   concat('a-', 1000 + A.a, '-a'),
@@ -151,6 +151,9 @@ INSERT INTO `t1` VALUES (97,7,0,'z','z');
 INSERT INTO `t1` VALUES (98,1,1,'j','j');
 INSERT INTO `t1` VALUES (99,7,8,'c','c');
 INSERT INTO `t1` VALUES (100,2,5,'f','f');
+--replace_column 9 #
+EXPLAIN SELECT table1 .`col_varchar_key`
+FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
 SELECT table1 .`col_varchar_key`
 FROM t1 table1 STRAIGHT_JOIN ( t1 table3 JOIN t1 table4 ON table4 .`pk` = table3 .`col_int_nokey` ) ON table4 .`col_varchar_nokey` ;
 DROP TABLE t1;

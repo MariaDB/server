@@ -139,7 +139,9 @@ select * from t;
 update t set a=3 where a=1;
 select * from t;
 select * from t for system_time all;
+--enable_prepare_warnings
 select row_start from t where a=3 into @tm;
+--disable_prepare_warnings
 alter table t add column b int;
 select @tm=row_start from t where a=3;
 show create table t;
@@ -609,7 +611,7 @@ create or replace table t1 (
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 create or replace table t1 (
@@ -619,7 +621,7 @@ a int, b int primary key,
   period for system_time(row_start, row_end)
 ) with system versioning;
 show create table t1;
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column b;
 
 # cleanup
@@ -754,3 +756,26 @@ ALTER TABLE t ADD FULLTEXT (f);
 DROP TABLE t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-21941 RENAME doesn't work for system time or period fields
+--echo #
+create or replace table t1 (a int) with system versioning;
+--error ER_BAD_FIELD_ERROR
+alter table t1 rename column row_start to x;
+
+create or replace table t1 (
+  a int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time (row_start, row_end)
+) with system versioning;
+
+alter table t1 rename column row_start to x;
+alter table t1 rename column row_end to y;
+
+show create table t1;
+# cleanup
+drop table t1;
+
+--echo # End of 10.5 tests
