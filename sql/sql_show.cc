@@ -2389,7 +2389,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(STRING_WITH_LEN("FULLTEXT KEY "));
     else if (key_info->algorithm == HA_KEY_ALG_RTREE)
       packet->append(STRING_WITH_LEN("SPATIAL KEY "));
-    else if (key_info->algorithm == HA_KEY_ALG_MHNSW)
+    else if (key_info->algorithm == HA_KEY_ALG_VECTOR)
       packet->append(STRING_WITH_LEN("VECTOR KEY "));
     else
       packet->append(STRING_WITH_LEN("KEY "));
@@ -2416,7 +2416,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&
           key_part->length != table->field[key_part->fieldnr-1]->key_length() &&
-          key_info->algorithm != HA_KEY_ALG_MHNSW &&
+          key_info->algorithm != HA_KEY_ALG_VECTOR &&
           key_info->algorithm != HA_KEY_ALG_RTREE &&
           key_info->algorithm != HA_KEY_ALG_FULLTEXT)
       {
@@ -7335,7 +7335,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
           else
           {
             /* there are no others at the moment */
-            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_MHNSW);
+            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_VECTOR);
             table->field[13]->store(STRING_WITH_LEN("VECTOR"), cs);
           }
         }

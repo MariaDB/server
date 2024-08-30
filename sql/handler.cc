@@ -6407,7 +6407,7 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   {
     /* as of now: only one vector index can be here */
     DBUG_ASSERT(share.total_keys == share.keys + 1);
-    DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_MHNSW);
+    DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
     HA_CREATE_INFO index_cinfo;

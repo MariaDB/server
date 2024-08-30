@@ -7239,7 +7239,7 @@ static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
 	continue;
       if (form->key_info[key].algorithm == HA_KEY_ALG_FULLTEXT ||
           form->key_info[key].algorithm == HA_KEY_ALG_RTREE ||
-          form->key_info[key].algorithm == HA_KEY_ALG_MHNSW)
+          form->key_info[key].algorithm == HA_KEY_ALG_VECTOR)
 	continue;
 
       KEY *keyinfo= form->key_info+key;
