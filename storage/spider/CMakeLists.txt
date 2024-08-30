@@ -31,6 +31,19 @@ ELSE()
   IF(NOT TARGET spider)
     RETURN()
   ENDIF()
+
+  CONFIGURE_FILE(spd_err.h . COPYONLY)
+  CONFIGURE_FILE(pspderr . COPYONLY)
+  INSTALL(FILES
+    "spd_err.h"
+    DESTINATION ${INSTALL_PLUGINDIR}
+    COMPONENT Server
+  )
+  INSTALL_SCRIPT(
+    "pspderr"
+    DESTINATION ${INSTALL_PLUGINDIR}
+    COMPONENT Server
+  )
 ENDIF()
 
 IF(MSVC AND (TARGET spider))

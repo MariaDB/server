@@ -1,0 +1,4 @@
+#!/bin/bash
+
+er=$(grep "$1" $(dirname "$0")/spd_err.h | grep -oE [A-Z_]+_NUM | sed 's/_NUM//')
+grep -E "#define[[:space:]]+$er(_NUM|_STR)" $(dirname "$0")/spd_err.h
