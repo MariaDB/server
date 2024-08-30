@@ -15549,11 +15549,13 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
           join_cache_hashed, join_cache_bka,
         are set on or off
       - the join cache level set for the query
-      - the join 'options'.
+      - the join 'options'
+      - combination of optimizer hints (see section "Optimizer hints" below).
 
     In any case join buffer is not used if the number of the joined table is
-    greater than 'no_jbuf_after'. It's also never used if the value of
-    join_cache_level is equal to 0.
+    greater than 'no_jbuf_after'. It's also not used if the value of
+    join_cache_level is equal to 0 and BNL() hint is not specified for
+    the table (see section below).
     If the optimizer switch outer_join_with_cache is off no join buffer is
     used for outer join operations.
     If the optimizer switch semijoin_with_cache is off no join buffer is used
@@ -15563,10 +15565,12 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     If the optimizer switch join_cache_hashed is off then the optimizer uses
     neither BNLH algorithm, nor BKAH algorithm to perform join operations.
 
-    If the optimizer switch join_cache_bka is off then the optimizer uses
-    neither BKA algorithm, nor BKAH algorithm to perform join operation.
+    If the optimizer switch join_cache_bka is off and BKA() hint is
+    not specified then, the optimizer uses neither BKA algorithm,
+    nor BKAH algorithm to perform join operation.
     The valid settings for join_cache_level lay in the interval 0..8.
-    If it set to 0 no join buffers are used to perform join operations.
+    If it set to 0 and BNL() hint is not specified, no join buffers are used
+    to perform join operations.
     Currently we differentiate between join caches of 8 levels:
       1 : non-incremental join cache used for BNL join algorithm
       2 : incremental join cache used for BNL join algorithm
@@ -15584,14 +15588,18 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     the following rules are applied.
     If join_cache_level==1|2 then join buffer is used for inner joins, outer
     joins and semi-joins with 'JT_ALL' access method. In this case a
-    JOIN_CACHE_BNL object is employed.
+    JOIN_CACHE_BNL object is employed (unless NO_BNL() hint is specified
+    for the table).
     If join_cache_level==3|4 and then join buffer is used for a join operation
     (inner join, outer join, semi-join) with 'JT_REF'/'JT_EQREF' access method
-    then a JOIN_CACHE_BNLH object is employed. 
+    then a JOIN_CACHE_BNLH object is employed (unless NO_BNL() hint
+    is specified).
     If an index is used to access rows of the joined table and the value of
-    join_cache_level==5|6 then a JOIN_CACHE_BKA object is employed. 
+    join_cache_level==5|6 then a JOIN_CACHE_BKA object is employed (unless
+    NO_BKA() hint is specified).
     If an index is used to access rows of the joined table and the value of
-    join_cache_level==7|8 then a JOIN_CACHE_BKAH object is employed. 
+    join_cache_level==7|8 then a JOIN_CACHE_BKAH object is employed (unless
+    NO_BKA() hint is specified).
     If the value of join_cache_level is odd then creation of a non-linked 
     join cache is forced.
 
@@ -15619,6 +15627,30 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
     The functions changes the value the fields tab->icp_other_tables_ok and
     tab->idx_cond_fact_out to FALSE if the chosen join cache algorithm 
     requires it.
+
+  OPTIMIZER_HINTS
+    The following hints may influence the choice of join buffering:
+    BNL(t1,t2,..):    enables BNL and BNLH buffers for the specified tables
+                      when join_cache_level=0. Effectively it increases
+                      join_cache_level to 4 for given tables.
+    NO_BNL(t1,t2,..): disables BNL/BNLH join buffers, which could have been
+                      chosen for the specified tables otherwise. Does not
+                      prevent employing of BKA/BKAH buffers
+    BKA(t1,t2,..):    enables BKA and BKAH buffers for the specified tables
+                      when optimizer switch join_cache_bka=off. Does not
+                      increase join_cache_level, i.e., when join_cache_level=4
+                      and the hint is specified, BKA join buffers will still
+                      not be employed. The hint effectively overrides only
+                      optimizer switch join_cache_bka setting.
+    NO_BKA(t1,t2,..): disables BKA/BKAH join buffers, which could have been
+                      chosen for the specified tables otherwise. However,
+                      does not prevent employing of BNL/BNLH buffers.
+
+    Optimizer hints do not break the rules of join buffer application, such as
+    a chain of linked buffers or applying buffers to an outer join tables like
+    in the case described in Notes below.
+    If a hint cannot be applied it is either ignored or other tables' join
+    buffering choices are revised to ensure the consistency of buffers chains.
  
   NOTES
     An inner table of a nested outer join or a nested semi-join can be currently
@@ -15688,12 +15720,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
+  if (cache_level == 0 && hint_table_state_or_fallback(join->thd,
+                                                       tab->tab_list->table,
+                                                       BNL_HINT_ENUM, false))
+  {
+    cache_level= 4; // BNL() hint present, raise join_cache_level to BNLH
+  }
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
   */
   if (cache_level == 0 || !prev_tab)
-    return 0;
+    goto no_join_cache;
 
   if (force_unlinked_cache && (cache_level%2 == 0))
     cache_level--;
@@ -15772,6 +15811,12 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->loosescan_match_tab || tab->bush_children)
     goto no_join_cache;
 
+  /*
+    An inner table of an outer join nest must not use join buffering if
+    the first inner table of that outer join nest does not use join buffering
+    or if the tables in the embedding outer join nest do not use join buffering.
+    Also see revise_cache_usage()
+  */
   for (JOIN_TAB *first_inner= tab->first_inner; first_inner;
        first_inner= first_inner->first_upper)
   {
@@ -15847,6 +15892,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         tab->is_ref_for_hash_join() ||
 	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
     {
+      if (no_bnl_cache)
+        goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())
         goto no_join_cache;
