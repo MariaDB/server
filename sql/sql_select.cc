@@ -15143,12 +15143,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
+  if (cache_level == 0 && hint_table_state_or_fallback(join->thd,
+                                                       tab->tab_list->table,
+                                                       BNL_HINT_ENUM, false))
+  {
+    cache_level= 4; // BNL() hint present, raise join_cache_level to BNLH
+  }
+
   /*
     Don't use join cache if @@join_cache_level==0 or this table is the first
     one join suborder (either at top level or inside a bush)
   */
   if (cache_level == 0 || !prev_tab)
-    return 0;
+    goto no_join_cache;
 
   if (force_unlinked_cache && (cache_level%2 == 0))
     cache_level--;
@@ -15227,6 +15234,12 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   if (tab->loosescan_match_tab || tab->bush_children)
     goto no_join_cache;
 
+  /*
+    An inner table of an outer join nest must not use join buffering if
+    the first inner table of that outer join nest does not use join buffering
+    or if the tables in the embedding outer join nest do not use join buffering.
+    Also see revise_cache_usage()
+  */
   for (JOIN_TAB *first_inner= tab->first_inner; first_inner;
        first_inner= first_inner->first_upper)
   {
@@ -15302,6 +15315,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
         tab->is_ref_for_hash_join() ||
 	((flags & HA_MRR_NO_ASSOCIATION) && cache_level <=6))
     {
+      if (no_bnl_cache)
+        goto no_join_cache;
       if (!tab->hash_join_is_possible() ||
           tab->make_scan_filter())
         goto no_join_cache;
