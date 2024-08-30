@@ -1584,4 +1584,16 @@ eval $q;
 
 DROP TABLE t1;
 
+
+--echo #
+--echo # MDEV-25084: Moving equality with constant right side
+--echo #             from HAVING to WHERE
+--echo # (fixed by the patch for MDEV-26402)
+--echo #
+
+CREATE TABLE t1 (a CHAR(3)) CHARSET=sjis;
+INSERT INTO t1 VALUES ('foo'),('bar');
+SELECT LOAD_FILE('') AS f, a FROM t1 GROUP BY f, a HAVING f = a;
+DROP TABLE t1;
+
 --echo End of 10.5 tests
