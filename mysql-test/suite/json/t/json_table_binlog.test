@@ -1,0 +1,25 @@
+--source include/have_binlog_format_mixed.inc
+
+--echo #
+--echo # MDEV-25154: JSON_TABLE: Queries involving ordinality columns are unsafe for statement binlog and should be marked as such
+--echo #
+
+create table t1 (a int);
+
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+set binlog_format='statement';
+insert into t1 
+select * 
+from json_table('[1,2,3]', '$[*]' columns (a for ordinality)) as T ;
+
+set binlog_format='mixed';
+let $binlog_start= query_get_value(SHOW MASTER STATUS, Position, 1);
+let $binlog_file= LAST;
+
+insert into t1 
+select * 
+from json_table('[1,2,3]', '$[*]' columns (a for ordinality)) as T ;
+
+--echo # This must show Annotate_rows, Write_rows_v1 events. Not the statement event
+--source include/show_binlog_events.inc
+drop table t1;

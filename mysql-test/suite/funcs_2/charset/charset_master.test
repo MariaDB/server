@@ -38,7 +38,7 @@ if (`SELECT COUNT(*) <> 36 FROM information_schema.character_sets
     'hp8'     , 'keybcs2', 'koi8r'  , 'koi8u'  , 'latin1',
     'latin2'  , 'latin5' , 'latin7' , 'macce'  , 'macroman',
     'sjis'    , 'swe7'   , 'tis620' , 'ucs2'   , 'ujis',
-    'utf8'
+    'utf8mb3'
     )`)
 {
    --skip Not all character sets required for this test are present
@@ -72,12 +72,12 @@ WHERE collation_name IN (
 'ucs2_latvian_ci', 'ucs2_lithuanian_ci', 'ucs2_persian_ci', 'ucs2_polish_ci',
 'ucs2_roman_ci', 'ucs2_romanian_ci', 'ucs2_slovak_ci', 'ucs2_slovenian_ci',
 'ucs2_spanish2_ci', 'ucs2_spanish_ci', 'ucs2_swedish_ci', 'ucs2_turkish_ci',
-'ucs2_unicode_ci', 'ujis_bin', 'ujis_japanese_ci', 'utf8_bin',
-'utf8_czech_ci', 'utf8_danish_ci', 'utf8_estonian_ci', 'utf8_general_ci',
-'utf8_hungarian_ci', 'utf8_icelandic_ci', 'utf8_latvian_ci', 'utf8_lithuanian_ci',
-'utf8_persian_ci', 'utf8_polish_ci', 'utf8_roman_ci', 'utf8_romanian_ci',
-'utf8_slovak_ci', 'utf8_slovenian_ci', 'utf8_spanish2_ci', 'utf8_spanish_ci',
-'utf8_swedish_ci', 'utf8_turkish_ci', 'utf8_unicode_ci'
+'ucs2_unicode_ci', 'ujis_bin', 'ujis_japanese_ci', 'utf8mb3_bin',
+'utf8mb3_czech_ci', 'utf8mb3_danish_ci', 'utf8mb3_estonian_ci', 'utf8mb3_general_ci',
+'utf8mb3_hungarian_ci', 'utf8mb3_icelandic_ci', 'utf8mb3_latvian_ci', 'utf8mb3_lithuanian_ci',
+'utf8mb3_persian_ci', 'utf8mb3_polish_ci', 'utf8mb3_roman_ci', 'utf8mb3_romanian_ci',
+'utf8mb3_slovak_ci', 'utf8mb3_slovenian_ci', 'utf8mb3_spanish2_ci', 'utf8mb3_spanish_ci',
+'utf8mb3_swedish_ci', 'utf8mb3_turkish_ci', 'utf8mb3_unicode_ci'
 )`)
 {
    --skip Not all collations required for this test are present
@@ -86,7 +86,7 @@ WHERE collation_name IN (
 ################################
 let $check_std_csets= 1;
 let $check_ucs2_csets= 1;
-let $check_utf8_csets= 1;
+let $check_utf8mb3_csets= 1;
 
 # Bug#32784: Timeout in test "innodb_charset": InnoDB much slower 
 #            than other handlers
@@ -104,7 +104,7 @@ SET autocommit=0;
 ################################
 let $check_std_csets= 1;
 let $check_ucs2_csets= 1;
-let $check_utf8_csets= 1;
+let $check_utf8mb3_csets= 1;
 
 #
 # Check all charsets/collation combinations
@@ -610,7 +610,7 @@ let $coll= ucs2_unicode_ci;
 
 }
 
-if ($check_utf8_csets)
+if ($check_utf8mb3_csets)
 {
 
 # utf8

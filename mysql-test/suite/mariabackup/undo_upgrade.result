@@ -1,0 +1,19 @@
+set global innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=2
+CREATE TABLE t1(a varchar(60)) ENGINE INNODB;
+start transaction;
+INSERT INTO t1 VALUES(1);
+# xtrabackup backup
+# Restart the server with 4 undo tablespaces
+set global innodb_fast_shutdown=0;
+# restart: --innodb_undo_tablespaces=4
+# incremental backup should fail
+FOUND 1 /--incremental backup is impossible if the server had been restarted with different innodb_undo_tablespaces/ in backup.log
+# Take full backup again
+# Prepare full backup
+# Display 4 undo log files from target directory
+undo001
+undo002
+undo003
+undo004
+DROP TABLE t1;

@@ -15,7 +15,8 @@ MASTER_LOG_FILE='MASTER_BINLOG',
 MASTER_SSL=1,
 MASTER_SSL_CA='MYSQL_TEST_DIR/std_data/cacert.pem',
 MASTER_SSL_CERT='MYSQL_TEST_DIR/std_data/client-cert.pem',
-MASTER_SSL_KEY='MYSQL_TEST_DIR/std_data/client-key.pem';
+MASTER_SSL_KEY='MYSQL_TEST_DIR/std_data/client-key.pem',
+MASTER_USE_GTID=NO;
 include/start_slave.inc
 Master_SSL_Allowed: Yes
 Heartbeat event has received
@@ -23,7 +24,7 @@ Heartbeat event has received
 *** Clean up ***
 include/stop_slave.inc
 CHANGE MASTER TO 
-MASTER_SSL=0,
+MASTER_SSL=1,
 MASTER_SSL_CA='',
 MASTER_SSL_CERT='',
 MASTER_SSL_KEY='';

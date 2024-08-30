@@ -1,0 +1,73 @@
+--echo #
+--echo # SET STATEMENT (bad|good.bad|bad.good)=1
+--echo #
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '=1 SELECT 1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
+
+
+--echo #
+--echo # SET SESSION (bad|good.bad|bad.good)=1
+--echo #
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '=1 SELECT 1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
+
+
+--echo #
+--echo # SET (bad|good.bad|bad.good)=1
+--echo #
+
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '=1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
+
+
+--echo #
+--echo # Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
+--echo #
+
+SET sql_mode=ORACLE;
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '(1); END;');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
+
+
+--echo #
+--echo # Oracle assignment: (bad|good.bad|bad.good):= value
+--echo #
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT(@seq, ':=1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
+
+--error ER_INVALID_CHARACTER_STRING
+EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
+
+
+SET sql_mode=DEFAULT;

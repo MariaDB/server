@@ -1,0 +1,43 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int primary key) engine=innodb;
+connection slave;
+connection slave1;
+begin;
+insert into t1(a) values(1);
+connection master;
+select * from t1;
+a
+insert into t1(a) values(1);
+#monitoring write rows
+connection slave;
+#monitoring update rows
+connection slave1;
+rollback;
+begin;
+select a from t1 for update;
+a
+1
+connection master;
+update t1 set a = a + 1 ;
+connection slave;
+#monitoring delete rows
+connection slave1;
+rollback;
+begin;
+select * from t1 for update;
+a
+2
+connection master;
+delete from t1;
+connection slave;
+select * from t1;
+a
+2
+connection slave1;
+rollback;
+connection master;
+drop table t1;
+connection slave;
+include/rpl_end.inc

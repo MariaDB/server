@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
 --source include/innodb_row_format.inc
+--source include/test_db_charset_latin1.inc
 
 CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
@@ -21,6 +22,10 @@ CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 SHOW TABLE STATUS LIKE 't1';
 DROP TABLE t1;
 
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1(c1 TEXT,c2 BLOB) ENGINE=InnoDB
 ROW_FORMAT=COMPRESSED;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
@@ -28,6 +33,9 @@ SHOW TABLE STATUS LIKE 't1';
 TRUNCATE TABLE t1;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 #
 SHOW TABLE STATUS LIKE 't1';
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE t1;
 
 --error 0,ER_CANT_CREATE_TABLE
@@ -62,10 +70,15 @@ DROP TABLE IF EXISTS t;
 
 SET GLOBAL innodb_compression_level=1;
 CREATE TABLE t(a INT)ENGINE=InnoDB ROW_FORMAT=DYNAMIC page_compressed=1;
+CREATE TEMPORARY TABLE tt(a INT PRIMARY KEY)
+ROW_FORMAT=DYNAMIC page_compressed=1 ENGINE=InnoDB;
 SET GLOBAL innodb_compression_level=0;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=INPLACE;
 --error ER_CANT_CREATE_TABLE
 ALTER TABLE t FORCE, ROW_FORMAT=DEFAULT, ALGORITHM=COPY;
 DROP TABLE t;
+TRUNCATE tt;
 SET GLOBAL innodb_compression_level=@save_level;
+
+--source include/test_db_charset_restore.inc

@@ -14,6 +14,12 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+/**
+  @file
+
+  Interfaces for creating server and client plugins.
+*/
+
 #ifndef MYSQL_PLUGIN_INCLUDED
 #define MYSQL_PLUGIN_INCLUDED
 
@@ -23,18 +29,20 @@
   unlike other compilers, uses C++ mangling for variables not only
   for functions.
 */
-#if defined(_MSC_VER)
-  #ifdef __cplusplus
-    #define MYSQL_PLUGIN_EXPORT extern "C" __declspec(dllexport)
+#ifdef MYSQL_DYNAMIC_PLUGIN
+  #ifdef _MSC_VER
+    #define MYSQL_DLLEXPORT _declspec(dllexport)
   #else
-    #define MYSQL_PLUGIN_EXPORT __declspec(dllexport)
+    #define MYSQL_DLLEXPORT
   #endif
-#else /*_MSC_VER */
-  #ifdef __cplusplus
-    #define MYSQL_PLUGIN_EXPORT extern "C"
-  #else
-    #define MYSQL_PLUGIN_EXPORT
-  #endif
+#else
+  #define MYSQL_DLLEXPORT
+#endif
+
+#ifdef __cplusplus
+  #define MYSQL_PLUGIN_EXPORT extern "C" MYSQL_DLLEXPORT
+#else
+  #define MYSQL_PLUGIN_EXPORT MYSQL_DLLEXPORT
 #endif
 
 #ifdef __cplusplus
@@ -71,28 +79,34 @@ typedef struct st_mysql_xid MYSQL_XID;
   Plugin API. Common for all plugin types.
 */
 
-/* MySQL plugin interface version */
+/** MySQL plugin interface version */
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
-/* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x010e
+/** MariaDB plugin interface version */
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010f
 
 /*
   The allowable types of plugins
 */
-#define MYSQL_UDF_PLUGIN             0  /* not implemented              */
+#define MYSQL_UDF_PLUGIN             0  /**< not implemented            */
 #define MYSQL_STORAGE_ENGINE_PLUGIN  1
-#define MYSQL_FTPARSER_PLUGIN        2  /* Full-text parser plugin      */
+#define MYSQL_FTPARSER_PLUGIN        2  /**< Full-text parser plugin    */
 #define MYSQL_DAEMON_PLUGIN          3
 #define MYSQL_INFORMATION_SCHEMA_PLUGIN  4
 #define MYSQL_AUDIT_PLUGIN           5
 #define MYSQL_REPLICATION_PLUGIN     6
 #define MYSQL_AUTHENTICATION_PLUGIN  7
-#define MYSQL_MAX_PLUGIN_TYPE_NUM    10  /* The number of plugin types   */
+#define MYSQL_MAX_PLUGIN_TYPE_NUM    12  /**< The number of plugin types */
 
 /* MariaDB plugin types */
-#define MariaDB_PASSWORD_VALIDATION_PLUGIN  8
+/** Client and server password validation */
+#define MariaDB_PASSWORD_VALIDATION_PLUGIN  8 
+/**< Encryption and key managment plugins */
 #define MariaDB_ENCRYPTION_PLUGIN 9
+/**< Plugins for SQL data storage types */
+#define MariaDB_DATA_TYPE_PLUGIN  10
+/**< Plugins for new native SQL functions */
+#define MariaDB_FUNCTION_PLUGIN 11
 
 /* We use the following strings to define licenses for plugins */
 #define PLUGIN_LICENSE_PROPRIETARY 0
@@ -175,7 +189,7 @@ enum enum_mysql_show_type
   SHOW_ULONGLONG, SHOW_CHAR, SHOW_CHAR_PTR,
   SHOW_ARRAY, SHOW_FUNC, SHOW_DOUBLE,
   SHOW_SINT, SHOW_SLONG, SHOW_SLONGLONG, SHOW_SIMPLE_FUNC,
-  SHOW_always_last
+  SHOW_SIZE_T, SHOW_always_last
 };
 
 /* backward compatibility mapping. */
@@ -216,8 +230,8 @@ struct st_mysql_show_var SHOW_FUNC_ENTRY(const char *name,
   Constants for plugin flags.
  */
 
-#define PLUGIN_OPT_NO_INSTALL   1UL   /* Not dynamically loadable */
-#define PLUGIN_OPT_NO_UNINSTALL 2UL   /* Not dynamically unloadable */
+#define PLUGIN_OPT_NO_INSTALL   1UL   /**< Not dynamically loadable */
+#define PLUGIN_OPT_NO_UNINSTALL 2UL   /**< Not dynamically unloadable */
 
 
 /*
@@ -234,20 +248,20 @@ struct st_mysql_show_var SHOW_FUNC_ENTRY(const char *name,
 #define PLUGIN_VAR_SET          0x0007
 #define PLUGIN_VAR_DOUBLE       0x0008
 #define PLUGIN_VAR_UNSIGNED     0x0080
-#define PLUGIN_VAR_THDLOCAL     0x0100 /* Variable is per-connection */
-#define PLUGIN_VAR_READONLY     0x0200 /* Server variable is read only */
-#define PLUGIN_VAR_NOSYSVAR     0x0400 /* Not a server variable */
-#define PLUGIN_VAR_NOCMDOPT     0x0800 /* Not a command line option */
-#define PLUGIN_VAR_NOCMDARG     0x1000 /* No argument for cmd line */
-#define PLUGIN_VAR_RQCMDARG     0x0000 /* Argument required for cmd line */
-#define PLUGIN_VAR_OPCMDARG     0x2000 /* Argument optional for cmd line */
-#define PLUGIN_VAR_DEPRECATED   0x4000 /* Server variable is deprecated */
-#define PLUGIN_VAR_MEMALLOC     0x8000 /* String needs memory allocated */
+#define PLUGIN_VAR_THDLOCAL     0x0100 /**< Variable is per-connection */
+#define PLUGIN_VAR_READONLY     0x0200 /**< Server variable is read only */
+#define PLUGIN_VAR_NOSYSVAR     0x0400 /**< Not a server variable */
+#define PLUGIN_VAR_NOCMDOPT     0x0800 /**< Not a command line option */
+#define PLUGIN_VAR_NOCMDARG     0x1000 /**< No argument for cmd line */
+#define PLUGIN_VAR_RQCMDARG     0x0000 /**< Argument required for cmd line */
+#define PLUGIN_VAR_OPCMDARG     0x2000 /**< Argument optional for cmd line */
+#define PLUGIN_VAR_DEPRECATED   0x4000 /**< Server variable is deprecated */
+#define PLUGIN_VAR_MEMALLOC     0x8000 /**< String needs memory allocated */
 
 struct st_mysql_sys_var;
 struct st_mysql_value;
 
-/*
+/**
   SYNOPSIS
     (*mysql_var_check_func)()
       thd               thread handle
@@ -270,7 +284,7 @@ typedef int (*mysql_var_check_func)(MYSQL_THD thd,
                                     struct st_mysql_sys_var *var,
                                     void *save, struct st_mysql_value *value);
 
-/*
+/**
   SYNOPSIS
     (*mysql_var_update_func)()
       thd               thread handle
@@ -320,6 +334,12 @@ typedef void (*mysql_var_update_func)(MYSQL_THD thd,
 #define DECLARE_MYSQL_SYSVAR_BASIC(name, type) struct { \
   MYSQL_PLUGIN_VAR_HEADER;      \
   type *value;                  \
+  const type def_val;                 \
+} MYSQL_SYSVAR_NAME(name)
+
+#define DECLARE_MYSQL_SYSVAR_CONST_BASIC(name, type) struct { \
+  MYSQL_PLUGIN_VAR_HEADER;      \
+  const type *value;                  \
   const type def_val;                 \
 } MYSQL_SYSVAR_NAME(name)
 
@@ -374,6 +394,11 @@ DECLARE_MYSQL_SYSVAR_BASIC(name, char) = { \
 
 #define MYSQL_SYSVAR_STR(name, varname, opt, comment, check, update, def) \
 DECLARE_MYSQL_SYSVAR_BASIC(name, char *) = { \
+  PLUGIN_VAR_STR | ((opt) & PLUGIN_VAR_MASK), \
+  #name, comment, check, update, &varname, def}
+
+#define MYSQL_SYSVAR_CONST_STR(name, varname, opt, comment, check, update, def) \
+DECLARE_MYSQL_SYSVAR_CONST_BASIC(name, char *) = { \
   PLUGIN_VAR_STR | ((opt) & PLUGIN_VAR_MASK), \
   #name, comment, check, update, &varname, def}
 
@@ -504,49 +529,61 @@ DECLARE_MYSQL_THDVAR_SIMPLE(name, double) = { \
   (*(MYSQL_SYSVAR_NAME(name).resolve(thd, MYSQL_SYSVAR_NAME(name).offset)))
 
 
-/*
+/**
   Plugin description structure.
 */
 
 struct st_mysql_plugin
 {
-  int type;             /* the plugin type (a MYSQL_XXX_PLUGIN value)   */
-  void *info;           /* pointer to type-specific plugin descriptor   */
-  const char *name;     /* plugin name                                  */
-  const char *author;   /* plugin author (for I_S.PLUGINS)              */
-  const char *descr;    /* general descriptive text (for I_S.PLUGINS)   */
-  int license;          /* the plugin license (PLUGIN_LICENSE_XXX)      */
-  int (*init)(void *);  /* the function to invoke when plugin is loaded */
-  int (*deinit)(void *);/* the function to invoke when plugin is unloaded */
-  unsigned int version; /* plugin version (for I_S.PLUGINS)             */
+  int type;             /**< the plugin type (a MYSQL_XXX_PLUGIN value)   */
+  void *info;           /**< pointer to type-specific plugin descriptor   */
+  const char *name;     /**< plugin name                                  */
+  const char *author;   /**< plugin author (for I_S.PLUGINS)              */
+  const char *descr;    /**< general descriptive text (for I_S.PLUGINS)   */
+  int license;          /**< the plugin license (PLUGIN_LICENSE_XXX)      */
+  /**
+    The function to invoke when plugin is loaded. Plugin
+    initialisation done here should defer any ALTER TABLE queries to
+    after the ddl recovery is done, in the signal_ddl_recovery_done()
+    callback called by ha_signal_ddl_recovery_done().
+  */
+  int (*init)(void *);
+  int (*deinit)(void *);/**< the function to invoke when plugin is unloaded */
+  unsigned int version; /**< plugin version (for I_S.PLUGINS)               */
   struct st_mysql_show_var *status_vars;
   struct st_mysql_sys_var **system_vars;
-  void * __reserved1;   /* reserved for dependency checking             */
-  unsigned long flags;  /* flags for plugin */
+  void * __reserved1;   /**< reserved for dependency checking               */
+  unsigned long flags;  /**< flags for plugin */
 };
 
-/*
+/**
   MariaDB extension for plugins declaration structure.
 
-  It also copy current MySQL plugin fields to have more independency
+  It also copies current MySQL plugin fields to have more independency
   in plugins extension
 */
 
 struct st_maria_plugin
 {
-  int type;             /* the plugin type (a MYSQL_XXX_PLUGIN value)   */
-  void *info;           /* pointer to type-specific plugin descriptor   */
-  const char *name;     /* plugin name                                  */
-  const char *author;   /* plugin author (for SHOW PLUGINS)             */
-  const char *descr;    /* general descriptive text (for SHOW PLUGINS ) */
-  int license;          /* the plugin license (PLUGIN_LICENSE_XXX)      */
-  int (*init)(void *);  /* the function to invoke when plugin is loaded */
-  int (*deinit)(void *);/* the function to invoke when plugin is unloaded */
-  unsigned int version; /* plugin version (for SHOW PLUGINS)            */
+  int type;             /**< the plugin type (a MYSQL_XXX_PLUGIN value)   */
+  void *info;           /**< pointer to type-specific plugin descriptor   */
+  const char *name;     /**< plugin name                                  */
+  const char *author;   /**< plugin author (for SHOW PLUGINS)             */
+  const char *descr;    /**< general descriptive text (for SHOW PLUGINS ) */
+  int license;          /**< the plugin license (PLUGIN_LICENSE_XXX)      */
+  /**
+    The function to invoke when plugin is loaded. Plugin
+    initialisation done here should defer any ALTER TABLE queries to
+    after the ddl recovery is done, in the signal_ddl_recovery_done()
+    callback called by ha_signal_ddl_recovery_done().
+  */
+  int (*init)(void *);
+  int (*deinit)(void *);/**< the function to invoke when plugin is unloaded */
+  unsigned int version; /**< plugin version (for SHOW PLUGINS)            */
   struct st_mysql_show_var *status_vars;
   struct st_mysql_sys_var **system_vars;
-  const char *version_info;  /* plugin version string */
-  unsigned int maturity; /* MariaDB_PLUGIN_MATURITY_XXX */
+  const char *version_info;  /**< plugin version string */
+  unsigned int maturity;     /**< MariaDB_PLUGIN_MATURITY_XXX */
 };
 
 /*************************************************************************
@@ -623,6 +660,10 @@ struct handlerton;
    int interface_version;
  };
 
+#define MYSQL_VALUE_TYPE_STRING 0
+#define MYSQL_VALUE_TYPE_REAL   1
+#define MYSQL_VALUE_TYPE_INT    2
+
 /*************************************************************************
   st_mysql_value struct for reading values from mysqld.
   Used by server variables framework to parse user-provided values.
@@ -632,10 +673,6 @@ struct handlerton;
   that will be freed at the end of statement. Copy the string
   if you need it to persist.
 */
-
-#define MYSQL_VALUE_TYPE_STRING 0
-#define MYSQL_VALUE_TYPE_REAL   1
-#define MYSQL_VALUE_TYPE_INT    2
 
 struct st_mysql_value
 {
@@ -659,10 +696,12 @@ int thd_in_lock_tables(const MYSQL_THD thd);
 int thd_tablespace_op(const MYSQL_THD thd);
 long long thd_test_options(const MYSQL_THD thd, long long test_options);
 int thd_sql_command(const MYSQL_THD thd);
-void **thd_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
+struct DDL_options_st;
+struct DDL_options_st *thd_ddl_options(const MYSQL_THD thd);
 void thd_storage_lock_wait(MYSQL_THD thd, long long value);
 int thd_tx_isolation(const MYSQL_THD thd);
 int thd_tx_is_read_only(const MYSQL_THD thd);
+
 /**
   Create a temporary file.
 

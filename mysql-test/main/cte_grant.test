@@ -12,7 +12,7 @@ create database mysqltest;
 --enable_warnings
 
 create user mysqltest_1@localhost;
-connect (user1,localhost,mysqltest_1,,test);
+connect (user1,localhost,mysqltest_1,,"*NO-ONE*");
 connection user1;
 
 connection root;
@@ -96,8 +96,7 @@ create user foo@localhost;
 grant SELECT on db.t1 to foo@localhost;
 grant SELECT(a) on db.t2 to foo@localhost;
 
---connect (con1,localhost,foo,,)
-use db;
+--connect (con1,localhost,foo,,db)
 with cte as (select * from t1 where i < 4)
   select * from cte;
 with cte as (select * from t1 where i < 4 group by i)

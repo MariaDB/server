@@ -1,0 +1,7 @@
+[parsec]
+--plugin-load-add=$AUTH_PARSEC_SO
+--loose-parsec
+
+[ed25519]
+--plugin-load-add=$AUTH_ED25519_SO
+--loose-ed25519

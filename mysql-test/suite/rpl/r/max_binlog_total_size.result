@@ -1,0 +1,49 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-31404 Implement binlog_space_limit
+#
+# Test that master is not deleting binary logs before slave has a
+# chance to digest them
+select @@global.max_binlog_total_size;
+@@global.max_binlog_total_size
+1500
+select @@global.max_binlog_size;
+@@global.max_binlog_size
+4096
+connection slave;
+STOP SLAVE IO_THREAD;
+include/wait_for_slave_io_to_stop.inc
+connection master;
+kill DUMP_THREAD;
+CREATE TABLE `t1` (
+`v1` int(11) DEFAULT NULL,
+`v2` varchar(8000) DEFAULT NULL,
+KEY `v1` (`v1`)
+);
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+show binary logs;
+Log_name	File_size
+binary.000001	#
+binary.000002	#
+binary.000003	#
+binary.000004	#
+INSERT INTO t1 VALUES (0,repeat("a",3000));
+show binary logs;
+Log_name	File_size
+binary.000001	#
+binary.000002	#
+binary.000003	#
+binary.000004	#
+connection slave;
+START SLAVE IO_THREAD;
+connection master;
+connection slave;
+connection master;
+DROP TABLE t1;
+show binary logs;
+Log_name	File_size
+binary.000004	#
+include/rpl_end.inc

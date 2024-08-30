@@ -9,6 +9,7 @@ set @@log_slow_verbosity="";
 select @@log_slow_filter;
 select @@log_slow_rate_limit;
 select @@log_slow_verbosity;
+--replace_regex /\S+mysqld-slow.log/$PATH\/mysqld-slow.log/
 show variables like "log_slow%";
 set @org_slow_query_log= @@global.slow_query_log;
 
@@ -184,7 +185,37 @@ drop function get_zero;
 
 --enable_view_protocol
 --enable_ps2_protocol
+--enable_view_protocol
+
+--echo # End of 10.4 tests
 
 --echo #
---echo # End of 10.4 tests
+--echo # MDEV-34539 Invalid "use" and "Schema" in slow query log file with multi-line schema
 --echo #
+set global log_output='file';
+set @@log_slow_filter= 'not_using_index';
+set slow_query_log=1;
+set timestamp=1234567890;
+create database `a
+b`;
+use `a
+b`;
+--disable_ps_protocol
+--disable_view_protocol
+select count(*) from mysql.global_priv where length(priv)>2;
+--enable_view_protocol
+--enable_ps_protocol
+drop database `a
+b`;
+use test;
+set global log_output= @old_log_output;
+set slow_query_log=default;
+set log_slow_filter=default;
+set timestamp=default;
+
+let SEARCH_FILE=`select @@slow_query_log_file`;
+let SEARCH_PATTERN=use.*2;
+let SEARCH_OUTPUT=matches;
+source include/search_pattern_in_file.inc;
+
+--echo # End of 10.5 tests

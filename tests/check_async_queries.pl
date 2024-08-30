@@ -13,7 +13,7 @@ my $D= [];
 die "Usage: $0 <host> <user> <password> <database>\n"
     unless @ARGV == 4;
 
-my $dbh= DBI->connect("DBI:mysql:database=$ARGV[3];host=$ARGV[0]",
+my $dbh= DBI->connect("DBI:MariaDB:database=$ARGV[3];host=$ARGV[0]",
                       $ARGV[1], $ARGV[2],
                       { RaiseError => 1, PrintError => 0 });
 

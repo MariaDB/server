@@ -17,6 +17,10 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
+
+const char charset_name_latin1[]= "latin1";
+#define charset_name_latin1_length  sizeof(charset_name_latin1)-1
 
 static const uchar ctype_latin1[] = {
     0,
@@ -403,8 +407,6 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_mb_wc_latin1,
     my_wc_mb_latin1,
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,
@@ -423,6 +425,9 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
+    my_wc_to_printable_generic,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 
@@ -430,8 +435,8 @@ struct charset_info_st my_charset_latin1=
 {
     8,0,0,				/* number    */
     MY_CS_COMPILED | MY_CS_PRIMARY,	/* state     */
-    "latin1",				/* cs name    */
-    "latin1_swedish_ci",		/* name      */
+    { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
+    { STRING_WITH_LEN("latin1_swedish_ci") },            /* name       */
     "",					/* comment   */
     NULL,				/* tailoring */
     ctype_latin1,
@@ -441,19 +446,17 @@ struct charset_info_st my_charset_latin1=
     NULL,		/* uca          */
     cs_to_uni,		/* tab_to_uni   */
     NULL,		/* tab_from_uni */
-    &my_unicase_default,/* caseinfo     */
+    NULL,               /* casefold     */
     NULL,		/* state_map    */
     NULL,		/* ident_map    */
     1,			/* strxfrm_multiply */
-    1,                  /* caseup_multiply  */
-    1,                  /* casedn_multiply  */
     1,			/* mbminlen   */
     1,			/* mbmaxlen  */
     0,			/* min_sort_char */
     255,		/* max_sort_char */
     ' ',                /* pad char      */
     0,                  /* escape_with_backslash_is_dangerous */
-    1,                  /* levels_for_order   */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_ci_handler
 };
@@ -463,8 +466,8 @@ struct charset_info_st my_charset_latin1_nopad=
 {
     MY_NOPAD_ID(8),0,0,           /* number           */
     MY_CS_COMPILED | MY_CS_NOPAD, /* state            */
-    "latin1",                     /* cs name          */
-    "latin1_swedish_nopad_ci",    /* name             */
+    { charset_name_latin1, charset_name_latin1_length }, /* cs_name    */
+    { STRING_WITH_LEN("latin1_swedish_nopad_ci") },      /* name       */
     "",                           /* comment          */
     NULL,                         /* tailoring        */
     ctype_latin1,
@@ -474,19 +477,17 @@ struct charset_info_st my_charset_latin1_nopad=
     NULL,                         /* uca              */
     cs_to_uni,                    /* tab_to_uni       */
     NULL,                         /* tab_from_uni     */
-    &my_unicase_default,          /* caseinfo         */
+    NULL,                         /* casefold     */
     NULL,                         /* state_map        */
     NULL,                         /* ident_map        */
     1,                            /* strxfrm_multiply */
-    1,                            /* caseup_multiply  */
-    1,                            /* casedn_multiply  */
     1,                            /* mbminlen         */
     1,                            /* mbmaxlen         */
     0,                            /* min_sort_char    */
     255,                          /* max_sort_char    */
     ' ',                          /* pad char         */
     0,                            /* escape_with_backslash_is_dangerous */
-    1,                            /* levels_for_order */
+    MY_CS_COLL_LEVELS_S1,
     &my_charset_handler,
     &my_collation_8bit_simple_nopad_ci_handler
 };
@@ -731,10 +732,13 @@ static MY_COLLATION_HANDLER my_collation_german2_ci_handler=
   my_strnxfrmlen_simple,
   my_like_range_simple,
   my_wildcmp_8bit,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_latin1_de,
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
@@ -742,8 +746,8 @@ struct charset_info_st my_charset_latin1_german2_ci=
 {
   31,0,0,				/* number    */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NON1TO1, /* state     */
-  "latin1",				/* cs name    */
-  "latin1_german2_ci",			/* name      */
+  { charset_name_latin1, charset_name_latin1_length}, /* cs_name    */
+  { STRING_WITH_LEN("latin1_german2_ci") },           /* name      */
   "",					/* comment   */
   NULL,					/* tailoring */
   ctype_latin1,
@@ -753,19 +757,17 @@ struct charset_info_st my_charset_latin1_german2_ci=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
-  &my_unicase_default,                  /* caseinfo     */
+  NULL,                                 /* casefold     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
   2,					/* strxfrm_multiply */
-  1,                                    /* caseup_multiply  */
-  1,                                    /* casedn_multiply  */
   1,					/* mbminlen   */
   1,					/* mbmaxlen  */
   0,					/* min_sort_char */
   247,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_german2_ci_handler
 };
@@ -775,8 +777,8 @@ struct charset_info_st my_charset_latin1_bin=
 {
   47,0,0,				/* number    */
   MY_CS_COMPILED|MY_CS_BINSORT,		/* state     */
-  "latin1",				/* cs name    */
-  "latin1_bin",				/* name      */
+  { charset_name_latin1, charset_name_latin1_length}, /* cs_name    */
+  { STRING_WITH_LEN("latin1_bin") },	              /* name      */
   "",					/* comment   */
   NULL,					/* tailoring */
   ctype_latin1,
@@ -786,19 +788,17 @@ struct charset_info_st my_charset_latin1_bin=
   NULL,					/* uca          */
   cs_to_uni,				/* tab_to_uni   */
   NULL,					/* tab_from_uni */
-  &my_unicase_default,                  /* caseinfo     */
+  NULL,                                 /* casefold     */
   NULL,					/* state_map    */
   NULL,					/* ident_map    */
   1,					/* strxfrm_multiply */
-  1,                                    /* caseup_multiply  */
-  1,                                    /* casedn_multiply  */
   1,					/* mbminlen   */
   1,					/* mbmaxlen  */
   0,					/* min_sort_char */
   255,					/* max_sort_char */
   ' ',                                  /* pad char      */
   0,                                    /* escape_with_backslash_is_dangerous */
-  1,                                    /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_bin_handler
 };
@@ -808,8 +808,8 @@ struct charset_info_st my_charset_latin1_nopad_bin=
 {
   MY_NOPAD_ID(47),0,0,                 /* number           */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD,/* state        */
-  "latin1",                            /* cs name          */
-  "latin1_nopad_bin",                  /* name             */
+  { charset_name_latin1, charset_name_latin1_length}, /* cs_name    */
+  { STRING_WITH_LEN("latin1_nopad_bin") },            /* name       */
   "",                                  /* comment          */
   NULL,                                /* tailoring        */
   ctype_latin1,
@@ -819,19 +819,17 @@ struct charset_info_st my_charset_latin1_nopad_bin=
   NULL,                                /* uca              */
   cs_to_uni,                           /* tab_to_uni       */
   NULL,                                /* tab_from_uni     */
-  &my_unicase_default,                 /* caseinfo         */
+  NULL,                                /* casefold         */
   NULL,                                /* state_map        */
   NULL,                                /* ident_map        */
   1,                                   /* strxfrm_multiply */
-  1,                                   /* caseup_multiply  */
-  1,                                   /* casedn_multiply  */
   1,                                   /* mbminlen         */
   1,                                   /* mbmaxlen         */
   0,                                   /* min_sort_char    */
   255,                                 /* max_sort_char    */
   ' ',                                 /* pad char         */
   0,                                   /* escape_with_backslash_is_dangerous */
-  1,                                   /* levels_for_order */
+  MY_CS_COLL_LEVELS_S1,
   &my_charset_handler,
   &my_collation_8bit_nopad_bin_handler
 };

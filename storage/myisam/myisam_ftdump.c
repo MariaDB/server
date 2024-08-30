@@ -22,7 +22,8 @@
 
 static void usage();
 static void complain(int val);
-static my_bool get_one_option(int, const struct my_option *, char *);
+static my_bool get_one_option(const struct my_option *, const char *,
+                              const char *);
 
 static int count=0, stats=0, dump=0, lstats=0;
 static my_bool verbose;
@@ -117,8 +118,9 @@ int main(int argc,char *argv[])
     if (subkeys.i >= 0)
       weight= subkeys.f;
 
-    snprintf(buf,MAX_LEN,"%.*s",(int) keylen,info->lastkey+1);
-    my_casedn_str(default_charset_info,buf);
+    keylen= (uint) my_ci_casedn(default_charset_info, buf, sizeof(buf) - 1,
+                                (char *) info->lastkey + 1, keylen);
+    buf[keylen]= '\0';
     total++;
     lengths[keylen]++;
 
@@ -224,10 +226,11 @@ err:
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       const char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'd':
     dump=1;
     complain(count || query);

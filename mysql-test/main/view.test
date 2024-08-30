@@ -2,6 +2,8 @@
 # Save the initial number of concurrent sessions.
 --source include/count_sessions.inc
 --source include/default_optimizer_switch.inc
+--source include/have_innodb.inc
+--source include/test_db_charset_latin1.inc
 
 SET optimizer_switch='outer_join_with_cache=off';
 
@@ -130,7 +132,7 @@ select * from v2;
 drop view v100;
 
 # try to drop table with DROP VIEW
--- error ER_WRONG_OBJECT
+-- error ER_UNKNOWN_VIEW
 drop view t1;
 
 # try to drop VIEW with DROP TABLE
@@ -500,7 +502,7 @@ insert into t1 values(5,'Hello, world of views');
 create view v1 as select * from t1;
 create view v2 as select * from v1;
 update v2 set col2='Hello, view world';
-select is_updatable from information_schema.views;
+select is_updatable from information_schema.views where table_schema <> 'sys';
 select * from t1;
 drop view v2, v1;
 drop table t1;
@@ -510,7 +512,7 @@ drop table t1;
 #
 create table t1 (a int, b int);
 create view v1 as select a, sum(b) from t1 group by a;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 select b from v1 use index (some_index) where b=1;
 drop view v1;
 drop table t1;
@@ -1093,10 +1095,11 @@ insert into t1 values (1);
 update v2 set s1 = 1;
 select * from v2;
 select * from t2;
-# scheck how VIEWs with subqueries work with prepared statements
+# check how VIEWs with subqueries work with prepared statements
 prepare stmt1 from "select * from v2;";
 execute stmt1;
 insert into t1 values (0);
+--sorted_result
 execute stmt1;
 deallocate prepare stmt1;
 drop view v2;
@@ -1125,15 +1128,16 @@ drop view v2, v1;
 drop table t1;
 
 #
-# inserting single value with check option failed always get error
+# inserting single value with check option warns like 2 values
 #
 create table t1 (s1 int);
 create view v1 as select * from t1 where s1 < 5 with check option;
 #single value
--- error ER_VIEW_CHECK_FAILED
 insert ignore into v1 values (6);
+SHOW WARNINGS;
 #several values
 insert ignore into v1 values (6),(3);
+SHOW WARNINGS;
 select * from t1;
 drop view v1;
 drop table t1;
@@ -1718,18 +1722,6 @@ drop view v1;
 drop table t1;
 
 #
-# using encrypt & substring_index in view (Bug#7024)
-#
-CREATE VIEW v1 AS SELECT ENCRYPT("dhgdhgd");
-disable_result_log;
-SELECT * FROM v1;
-enable_result_log;
-drop view v1;
-CREATE VIEW v1 AS SELECT SUBSTRING_INDEX("dkjhgd:kjhdjh", ":", 1);
-SELECT * FROM v1;
-drop view v1;
-
-#
 # hide underlying tables names in case of imposibility to update (Bug#10773)
 #
 create table t1 (f59 int, f60 int, f61 int);
@@ -1892,7 +1884,9 @@ CREATE VIEW v1 AS SELECT id, f FROM t1 WHERE id <= 2;
 INSERT INTO t1 VALUES (2, 'foo2');
 INSERT INTO t1 VALUES (1, 'foo1');
 
+--sorted_result
 SELECT * FROM v1;
+--sorted_result
 SELECT * FROM v1;
 
 DROP VIEW v1;
@@ -2047,12 +2041,12 @@ create view abc as select * from t1 as abc;
 drop table t1;
 drop view abc;
 
-
-#
-# Bug#12993 View column rename broken in subselect
-#
+--echo #
+--echo # Bug#12993 View column rename broken in subselect
+--echo #
 
 flush status;
+flush global status;
 create table t1(f1 char(1));
 create view v1 as select * from t1;
 select * from (select f1 as f2, f1 as f3 from v1) v where v.f2='a';
@@ -2296,6 +2290,7 @@ CREATE VIEW v1 AS SELECT 42 AS Meaning;
 DROP FUNCTION IF EXISTS f1;
 --enable_warnings
 DELIMITER //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
   DECLARE retn INTEGER;
@@ -2304,6 +2299,7 @@ BEGIN
 END
 //
 DELIMITER ;//
+--disable_prepare_warnings
 CREATE VIEW v2 AS SELECT f1();
 select * from v2;
 drop view v2,v1;
@@ -2480,6 +2476,7 @@ drop view t1, v1;
 # using SP function
 create table t1 (a int);
 delimiter //;
+--enable_prepare_warnings
 create function f1() returns int
 begin
   declare mx int;
@@ -2487,6 +2484,7 @@ begin
   return mx;
 end//
 delimiter ;//
+--disable_prepare_warnings
 create view v1 as select f1() as a;
 create view v2 as select * from v1;
 drop table t1;
@@ -2734,8 +2732,9 @@ DROP VIEW v2,v1;
 SHOW TABLES;
 
 CREATE VIEW v1 AS SELECT id FROM t1;
---error ER_WRONG_OBJECT
+--error ER_UNKNOWN_VIEW
 DROP VIEW t1,v1;
+show warnings;
 SHOW TABLES;
 
 DROP TABLE t1;
@@ -2815,7 +2814,7 @@ CREATE DEFINER=longer_than_80_45678901234567890123456789012345678901234567890123
   VIEW v1 AS SELECT a FROM t1;
 
 --error ER_WRONG_STRING_LENGTH
-CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYabcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
   VIEW v2 AS SELECT b FROM t1;
 
 # Cleanup.
@@ -3084,7 +3083,9 @@ create view v1 as select * from t1 order by f2;
 select * from v1;
 explain extended select * from v1;
 select * from v1 order by f1;
+--enable_prepare_warnings
 explain extended select * from v1 order by f1;
+--disable_prepare_warnings
 drop view v1;
 drop table t1;
 
@@ -3118,12 +3119,13 @@ DROP VIEW IF EXISTS v1;
 
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
+--enable_prepare_warnings
 eval $query;
 --error ER_PARSE_ERROR
 eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
-
+--disable_prepare_warnings
 
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
@@ -3474,11 +3476,11 @@ drop table t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1),(2);
 CREATE VIEW v1 AS SELECT * FROM t1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 USE KEY(non_existant);
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 FORCE KEY(non_existant);
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 IGNORE KEY(non_existant);
 
 DROP VIEW v1;
@@ -3633,17 +3635,17 @@ SELECT * FROM t1 USE INDEX (c2) WHERE c2=2;
 
 CREATE VIEW v1 AS SELECT c1, c2 FROM t1;
 SHOW INDEX FROM v1;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 USE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 FORCE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 IGNORE INDEX (PRIMARY) WHERE c1=2;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 USE INDEX (c2) WHERE c2=2;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 FORCE INDEX (c2) WHERE c2=2;
---error ER_KEY_DOES_NOT_EXITS
+--error ER_KEY_DOES_NOT_EXISTS
 SELECT * FROM v1 IGNORE INDEX (c2) WHERE c2=2;
 
 DROP VIEW v1;
@@ -3886,11 +3888,13 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 
 delimiter //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   SELECT a FROM v2 INTO @a;
   RETURN @a;
 END//
+--disable_prepare_warnings
 delimiter ;//
 
 --echo # Trigger pre-locking when opening v2.
@@ -4167,12 +4171,18 @@ FLUSH STATUS;
 SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
 
+analyze table t1,t2;
+explain extended SELECT t1.a,t2.c  FROM t1,t2 WHERE t2.pk = t1.a AND t2.pk > 8;
+
 CREATE VIEW v AS SELECT * FROM t2;
 EXPLAIN EXTENDED
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 FLUSH STATUS;
 SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
 SHOW STATUS LIKE 'Handler_read_%';
+
+set statement optimizer_where_cost=100 FOR explain extended SELECT t1.a,v.c  FROM t1,v WHERE v.pk = t1.a AND v.pk > 8;
+
 DROP VIEW v;
 
 DROP TABLE t1, t2;
@@ -4426,7 +4436,9 @@ CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT f1 FROM t1;
 CREATE ALGORITHM=MERGE VIEW v2 AS SELECT f1 FROM v1 ORDER BY f1;
 
 SELECT * FROM v2 AS a1, v2 AS a2;
+--enable_prepare_warnings
 EXPLAIN EXTENDED SELECT * FROM v2 AS a1, v2 AS a2;
+--disable_prepare_warnings
 
 DROP VIEW v1, v2;
 DROP TABLE t1;
@@ -5642,8 +5654,7 @@ drop view v60;
 --echo # MDEV-15572: view.test, server crash with --big-tables=1
 --echo #
 
-set @save_big_tables=@@big_tables;
-set big_tables=ON;
+set tmp_memory_table_size=0; # force on-disk tmp table
 CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
 CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
 
@@ -5656,7 +5667,7 @@ REPLACE INTO v1 (f1, f2, f3, f4)
 
 drop view v1;
 drop table t1, t2;
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 
 --echo # -----------------------------------------------------------------
 --echo # -- End of 5.5 tests.
@@ -6731,3 +6742,119 @@ DROP VIEW v2;
 DROP TABLE t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-13115: SELECT .. SKIP LOCKED - ensure SHOW CREATE VIEW is correct
+--echo #
+
+# Note: MDEV-10063 - LOCK IN SHARE MODE/FOR UPDATE/SKIP LOCKED ignored in views
+
+CREATE TABLE t1 (id int, foo int);
+CREATE VIEW v1 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 LOCK IN SHARE MODE;
+CREATE VIEW v2 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 FOR UPDATE;
+CREATE VIEW v3 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+CREATE VIEW v4 AS  SELECT id, IFNULL(foo,'') AS foo FROM t1 FOR UPDATE SKIP LOCKED;
+
+SHOW CREATE VIEW v1;
+SHOW CREATE VIEW v2;
+SHOW CREATE VIEW v3;
+SHOW CREATE VIEW v4;
+
+#Cleanup
+Drop View v1;
+Drop View v2;
+Drop View v3;
+Drop View v4;
+Drop table t1;
+
+--echo #
+--echo # MDEV-26456: SIGSEGV in flush_tables_with_read_lock on FLUSH TABLE
+--echo #
+
+CREATE FUNCTION f() RETURNS INT RETURN (SELECT 1 FROM t);
+CREATE VIEW v AS SELECT f();
+--error ER_VIEW_INVALID
+SELECT * FROM v;
+FLUSH TABLE v WITH READ LOCK;
+UNLOCK TABLES;
+FLUSH TABLES v FOR EXPORT;
+UNLOCK TABLES;
+--error ER_VIEW_INVALID
+SELECT * FROM v;
+
+DROP VIEW v;
+DROP FUNCTION f;
+
+--echo #
+--echo # MDEV-32164 Server crashes in JOIN::cleanup after erroneous query with
+--echo # view
+--echo #
+
+CREATE TABLE t1 (a INT, b INT, KEY (a,b)) ENGINE=InnoDB;
+CREATE VIEW v1 AS SELECT a FROM t1 WHERE a != '' GROUP BY a;
+INSERT INTO t1 VALUES (1,NULL),(2,0),(3,NULL);
+CREATE TABLE t2 (c INT) ENGINE=InnoDB;
+--error ER_TRUNCATED_WRONG_VALUE
+CREATE TEMPORARY TABLE tmp SELECT v1.a FROM v1 JOIN t2 ON (v1.a = t2.c);
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+
+--echo #
+--echo # MDEV-29587: Allowing insert into a view with columns that
+--echo # are not part the table
+--echo #
+
+--echo # view with 2 the same fields
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over the field
+CREATE TABLE table1 (x INT);
+CREATE VIEW view1 AS SELECT x, x + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and collation expression over the field
+CREATE TABLE table1 (x char(20));
+CREATE VIEW view1 AS SELECT x, x collate latin1_german1_ci as x1 FROM table1;
+INSERT INTO view1(x) VALUES ("ua");
+--echo # we can insert in the field with collation
+INSERT INTO view1(x1) VALUES ("ua");
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES ("ua","ua");
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo # view with a field and expression over other field
+CREATE TABLE table1 (x INT, y INT);
+CREATE VIEW view1 AS SELECT x, y + 1 as x1 FROM table1;
+INSERT INTO view1(x) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1) VALUES (1);
+--error ER_NON_INSERTABLE_TABLE
+INSERT INTO view1(x1,x) VALUES (1,1);
+DROP VIEW view1;
+DROP TABLE table1;
+
+--echo #
+--echo # End of 10.11 test
+--echo #
+
+--source include/test_db_charset_restore.inc

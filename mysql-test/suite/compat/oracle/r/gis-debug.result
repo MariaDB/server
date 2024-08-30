@@ -1,0 +1,24 @@
+SET sql_mode=ORACLE;
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-19994 Add class Function_collection
+#
+SET SESSION debug_dbug="+d,make_item_func_call_native_simulate_not_found";
+SELECT CONTAINS(POINT(1,1),POINT(1,1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
+SELECT WITHIN(POINT(1,1),POINT(1,1));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(POINT(1,1),POINT(1,1))' at line 1
+SET SESSION debug_dbug="-d,make_item_func_call_native_simulate_not_found";
+#
+# MDEV-20009 Add CAST(expr AS pluggable_type)
+#
+SET SESSION debug_dbug="+d,emulate_geometry_create_typecast_item";
+SELECT AsText(CAST('POINT(0 0)' AS GEOMETRY));
+AsText(CAST('POINT(0 0)' AS GEOMETRY))
+POINT(0 0)
+SET SESSION debug_dbug="-d,emulate_geometry_create_typecast_item";
+#
+# End of 10.5 tests
+#

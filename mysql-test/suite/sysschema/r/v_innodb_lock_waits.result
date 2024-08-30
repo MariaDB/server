@@ -1,0 +1,70 @@
+DESC sys.innodb_lock_waits;
+Field	Type	Null	Key	Default	Extra
+wait_started	datetime	YES		NULL	
+wait_age	time /* mariadb-5.3 */	YES		NULL	
+wait_age_secs	bigint(21)	YES		NULL	
+locked_table	varchar(1024)	NO		NULL	
+locked_index	varchar(1024)	YES		NULL	
+locked_type	enum('RECORD','TABLE')	NO		NULL	
+waiting_trx_id	bigint(21) unsigned	NO		NULL	
+waiting_trx_started	datetime	NO		NULL	
+waiting_trx_age	time /* mariadb-5.3 */	YES		NULL	
+waiting_trx_rows_locked	bigint(21) unsigned	NO		NULL	
+waiting_trx_rows_modified	bigint(21) unsigned	NO		NULL	
+waiting_pid	bigint(21) unsigned	NO		NULL	
+waiting_query	longtext	YES		NULL	
+waiting_lock_id	varchar(81)	NO		NULL	
+waiting_lock_mode	enum('S','S,GAP','X','X,GAP','IS','IS,GAP','IX','IX,GAP','AUTO_INC')	NO		NULL	
+blocking_trx_id	bigint(21) unsigned	NO		NULL	
+blocking_pid	bigint(21) unsigned	NO		NULL	
+blocking_query	longtext	YES		NULL	
+blocking_lock_id	varchar(81)	NO		NULL	
+blocking_lock_mode	enum('S','S,GAP','X','X,GAP','IS','IS,GAP','IX','IX,GAP','AUTO_INC')	NO		NULL	
+blocking_trx_started	datetime	NO		NULL	
+blocking_trx_age	time /* mariadb-5.3 */	YES		NULL	
+blocking_trx_rows_locked	bigint(21) unsigned	NO		NULL	
+blocking_trx_rows_modified	bigint(21) unsigned	NO		NULL	
+sql_kill_blocking_query	varchar(32)	YES		NULL	
+sql_kill_blocking_connection	varchar(26)	YES		NULL	
+SELECT * FROM sys.innodb_lock_waits;
+DESC sys.x$innodb_lock_waits;
+Field	Type	Null	Key	Default	Extra
+wait_started	datetime	YES		NULL	
+wait_age	time /* mariadb-5.3 */	YES		NULL	
+wait_age_secs	bigint(21)	YES		NULL	
+locked_table	varchar(1024)	NO		NULL	
+locked_index	varchar(1024)	YES		NULL	
+locked_type	enum('RECORD','TABLE')	NO		NULL	
+waiting_trx_id	bigint(21) unsigned	NO		NULL	
+waiting_trx_started	datetime	NO		NULL	
+waiting_trx_age	time /* mariadb-5.3 */	YES		NULL	
+waiting_trx_rows_locked	bigint(21) unsigned	NO		NULL	
+waiting_trx_rows_modified	bigint(21) unsigned	NO		NULL	
+waiting_pid	bigint(21) unsigned	NO		NULL	
+waiting_query	varchar(1024)	YES		NULL	
+waiting_lock_id	varchar(81)	NO		NULL	
+waiting_lock_mode	enum('S','S,GAP','X','X,GAP','IS','IS,GAP','IX','IX,GAP','AUTO_INC')	NO		NULL	
+blocking_trx_id	bigint(21) unsigned	NO		NULL	
+blocking_pid	bigint(21) unsigned	NO		NULL	
+blocking_query	varchar(1024)	YES		NULL	
+blocking_lock_id	varchar(81)	NO		NULL	
+blocking_lock_mode	enum('S','S,GAP','X','X,GAP','IS','IS,GAP','IX','IX,GAP','AUTO_INC')	NO		NULL	
+blocking_trx_started	datetime	NO		NULL	
+blocking_trx_age	time /* mariadb-5.3 */	YES		NULL	
+blocking_trx_rows_locked	bigint(21) unsigned	NO		NULL	
+blocking_trx_rows_modified	bigint(21) unsigned	NO		NULL	
+sql_kill_blocking_query	varchar(32)	YES		NULL	
+sql_kill_blocking_connection	varchar(26)	YES		NULL	
+SELECT * FROM sys.x$innodb_lock_waits;
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-26507 Assertion `tmp != ((long long) 0x8000000000000000LL)' failed in TIME_from_longlong_datetime_packed
+#
+SET SESSION sql_mode='ALLOW_INVALID_DATES';
+SELECT * FROM sys.x$innodb_lock_waits;
+SET SESSION sql_mode=DEFAULT;
+#
+# End of 10.6 tests
+#

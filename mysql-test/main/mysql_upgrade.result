@@ -1,6 +1,7 @@
 set sql_mode="";
+call mtr.add_suppression("Incorrect definition of table mysql.column_stats:.*");
 Run mysql_upgrade once
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -31,26 +32,130 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 Run it again - should say already completed
-This installation of MariaDB is already upgraded to VERSION.There is no need to run mysql_upgrade again for VERSION.
-You can use --force if you still want to run mysql_upgrade
+This installation of MariaDB is already upgraded to VERSION.There is no need to run mariadb-upgrade again for VERSION.
+You can use --force if you still want to run mariadb-upgrade
 Force should run it regardless of whether it has been run before
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -81,25 +186,129 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 CREATE USER mysqltest1@'%' IDENTIFIED by 'sakila';
 GRANT ALL ON *.* TO mysqltest1@'%';
 Run mysql_upgrade with password protected account
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -130,20 +339,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 DROP USER mysqltest1@'%';
 Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
@@ -151,10 +464,10 @@ ERROR 1045 (28000): Access denied for user 'mysqltest1'@'localhost' (using passw
 FATAL ERROR: Upgrade failed
 Run mysql_upgrade with a non existing server socket
 Reading datadir from the MariaDB server failed. Got the following error when executing the 'mysql' command line client
-ERROR 2005 (HY000): Unknown MySQL server host 'not_existing_host' (errno)
+ERROR 2005 (HY000): Unknown server host 'not_existing_host' (errno)
 FATAL ERROR: Upgrade failed
 set GLOBAL sql_mode='STRICT_ALL_TABLES,ANSI_QUOTES,NO_ZERO_DATE';
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -185,20 +498,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 set GLOBAL sql_mode=default;
 #
@@ -209,7 +626,7 @@ CREATE PROCEDURE testproc() BEGIN END;
 UPDATE mysql.proc SET character_set_client = NULL WHERE name LIKE 'testproc';
 UPDATE mysql.proc SET collation_connection = NULL WHERE name LIKE 'testproc';
 UPDATE mysql.proc SET db_collation = NULL WHERE name LIKE 'testproc';
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -240,20 +657,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 CALL testproc();
 DROP PROCEDURE testproc;
@@ -267,7 +788,7 @@ WARNING: NULL values of the 'db_collation' column ('mysql.proc' table) have been
 GRANT USAGE ON *.* TO 'user3'@'%';
 GRANT ALL PRIVILEGES ON `roelt`.`test2` TO 'user3'@'%';
 Run mysql_upgrade with all privileges on a user
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -298,20 +819,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW GRANTS FOR 'user3'@'%';
 Grants for user3@%
@@ -320,7 +945,7 @@ GRANT ALL PRIVILEGES ON `roelt`.`test2` TO `user3`@`%`
 DROP USER 'user3'@'%';
 # End of 5.1 tests
 The --upgrade-system-tables option was used, user tables won't be touched.
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -351,20 +976,21 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views... Skipped
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names ... Skipped
-Phase 6/7: Checking and upgrading tables... Skipped
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views... Skipped
+Phase 5/8: Fixing table and database names ... Skipped
+Phase 6/8: Checking and upgrading tables... Skipped
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 #
 # Bug#11827359 60223: MYSQL_UPGRADE PROBLEM WITH OPTION
 #                     SKIP-WRITE-BINLOG
 #
-# Droping the previously created mysql_upgrade_info file..
+# Droping the previously created mariadb_upgrade_info file..
 # Running mysql_upgrade with --skip-write-binlog..
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -395,20 +1021,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 #
 # Bug #21489398: MYSQL_UPGRADE: FATAL ERROR: UPGRADE FAILED - IMPROVE ERROR
@@ -433,7 +1163,7 @@ GRANT INSERT ON mysql.user TO very_long_user_name_number_2;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_1;
 GRANT UPDATE (User) ON mysql.db TO very_long_user_name_number_2;
 CREATE PROCEDURE test.pr() BEGIN END;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -464,20 +1194,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SELECT definer FROM mysql.proc WHERE db = 'test' AND name = 'pr';
 definer
@@ -503,18 +1337,14 @@ partition p2008 values less than (2009)
 );
 select length(table_name) from mysql.innodb_table_stats;
 length(table_name)
-79
-79
-79
-79
 drop table extralongname_extralongname_extralongname_extralongname_ext;
 # End of 10.0 tests
 set sql_mode=default;
-# Droping the previously created mysql_upgrade_info file..
+# Droping the previously created mariadb_upgrade_info file..
 create table test.t1(a int) engine=MyISAM;
 # Trying to enforce InnoDB for all tables
 SET GLOBAL enforce_storage_engine=InnoDB;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -545,21 +1375,125 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
 test.t1                                            OK
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 # Should return 2
 SELECT count(*) FROM information_schema.tables where ENGINE="InnoDB";
@@ -569,7 +1503,7 @@ SHOW CREATE TABLE test.t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE test.t1;
 SET GLOBAL enforce_storage_engine=NULL;
 # End of 10.1 tests
@@ -585,36 +1519,36 @@ Table	Create Table
 user	CREATE TABLE `user` (
   `Host` char(60) NOT NULL DEFAULT '',
   `User` char(32) NOT NULL DEFAULT '',
-  `Select_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Insert_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Update_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Delete_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Drop_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Reload_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Shutdown_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Process_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `File_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Grant_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `References_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Index_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Alter_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Show_db_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Super_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_tmp_table_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Lock_tables_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Execute_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Repl_slave_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Repl_client_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_view_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Show_view_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_routine_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_user_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Event_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Trigger_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `Create_tablespace_priv` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
-  `ssl_type` enum('','ANY','X509','SPECIFIED') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT '',
+  `Select_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Insert_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Update_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Delete_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Drop_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Reload_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Shutdown_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Process_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `File_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Grant_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `References_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Index_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Alter_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Show_db_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Super_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_tmp_table_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Lock_tables_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Execute_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Repl_slave_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Repl_client_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_view_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Show_view_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Alter_routine_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_user_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Event_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Trigger_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `Create_tablespace_priv` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
+  `ssl_type` enum('','ANY','X509','SPECIFIED') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT '',
   `ssl_cipher` blob NOT NULL,
   `x509_issuer` blob NOT NULL,
   `x509_subject` blob NOT NULL,
@@ -624,13 +1558,13 @@ user	CREATE TABLE `user` (
   `max_user_connections` int(11) unsigned NOT NULL DEFAULT 0,
   `plugin` char(64) NOT NULL DEFAULT 'mysql_native_password',
   `authentication_string` text DEFAULT NULL,
-  `password_expired` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
+  `password_expired` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
   `password_last_changed` timestamp NULL DEFAULT NULL,
   `password_lifetime` smallint(5) unsigned DEFAULT NULL,
-  `account_locked` enum('N','Y') CHARACTER SET utf8 COLLATE utf8_general_ci NOT NULL DEFAULT 'N',
+  `account_locked` enum('N','Y') CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci NOT NULL DEFAULT 'N',
   PRIMARY KEY (`Host`,`User`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_bin COMMENT='Users and global privileges'
-Phase 1/7: Checking and upgrading mysql database
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin COMMENT='Users and global privileges'
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -663,20 +1597,125 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
-Phase 2/7: Installing used storage engines
+Phase 2/8: Installing used storage engines
 Checking for tables with unknown storage engine
-Phase 3/7: Fixing views
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user                                         OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE mysql.user;
 View	Create View	character_set_client	collation_connection
@@ -706,7 +1745,7 @@ ALTER TABLE mysql.user ADD is_role enum('N', 'Y') COLLATE utf8_general_ci DEFAUL
 ALTER TABLE mysql.user ADD default_role char(80) binary DEFAULT '' NOT NULL;
 ALTER TABLE mysql.user ADD max_statement_time decimal(12,6) DEFAULT 0 NOT NULL;
 FLUSH PRIVILEGES;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -738,19 +1777,126 @@ mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user
+Warning  : The user specified as a definer ('mariadb.sys'@'localhost') does not exist
+status   : OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE TABLE mysql.user;
 View	Create View	character_set_client	collation_connection
@@ -777,24 +1923,24 @@ FLUSH PRIVILEGES;
 # MDEV-27279: mariadb_upgrade add --check-if-upgrade-is-needed
 #
 This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
-Looking for 'mysql' as: mysql
+There is no need to run mariadb-upgrade again for MariaDB .
+Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
+There is no need to run mariadb-upgrade again for MariaDB .
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade absence is do it
 #
-Looking for 'mysql' as: mysql
-Empty or non existent ...mysql_upgrade_info. Assuming mysql_upgrade has to be run!
+Looking for 'mariadb' as: mariadb
+Empty or non existent ...mariadb_upgrade_info. Assuming mysql_upgrade has to be run!
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with minor version change
 #
-Looking for 'mysql' as: mysql
+Looking for 'mariadb' as: mariadb
 This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
+There is no need to run mariadb-upgrade again for MariaDB .
 This installation of MariaDB is already upgraded to MariaDB .
-There is no need to run mysql_upgrade again for MariaDB .
-You can use --force if you still want to run mysql_upgrade
+There is no need to run mariadb-upgrade again for MariaDB .
+You can use --force if you still want to run mariadb-upgrade
 #
 # MDEV-27279: mariadb_upgrade check-if-upgrade with major version change
 #
@@ -826,66 +1972,7 @@ DROP USER 'user3'@'%';
 update mysql.db set Delete_history_priv='Y' where db like 'test%';
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
-#
-# MDEV-16735 Upgrades only work if 'alter_algorithm' is 'DEFAULT'
-# or 'COPY'. Test that the session value 'DEFAULT' in mysql_upgrade
-# properly overrides the potentially incompatible global value.
-#
-SET GLOBAL alter_algorithm='INPLACE';
-SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
-Variable_name	Value
-alter_algorithm	INPLACE
-Phase 1/7: Checking and upgrading mysql database
-Processing databases
-mysql
-mysql.column_stats                                 OK
-mysql.columns_priv                                 OK
-mysql.db                                           OK
-mysql.event                                        OK
-mysql.func                                         OK
-mysql.global_priv                                  OK
-mysql.gtid_slave_pos                               OK
-mysql.help_category                                OK
-mysql.help_keyword                                 OK
-mysql.help_relation                                OK
-mysql.help_topic                                   OK
-mysql.index_stats                                  OK
-mysql.innodb_index_stats                           OK
-mysql.innodb_table_stats                           OK
-mysql.plugin                                       OK
-mysql.proc                                         OK
-mysql.procs_priv                                   OK
-mysql.proxies_priv                                 OK
-mysql.roles_mapping                                OK
-mysql.servers                                      OK
-mysql.table_stats                                  OK
-mysql.tables_priv                                  OK
-mysql.time_zone                                    OK
-mysql.time_zone_leap_second                        OK
-mysql.time_zone_name                               OK
-mysql.time_zone_transition                         OK
-mysql.time_zone_transition_type                    OK
-mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
-mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
-Processing databases
-information_schema
-mtr
-mtr.global_suppressions                            OK
-mtr.test_suppressions                              OK
-performance_schema
-test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
-OK
-SET GLOBAL alter_algorithm=DEFAULT;
-SHOW GLOBAL VARIABLES LIKE 'alter_algorithm';
-Variable_name	Value
-alter_algorithm	DEFAULT
-End of 10.3 tests
+# End of 10.3 tests
 # switching from mysql.global_priv to mysql.user
 drop view mysql.user_bak;
 create user 'user3'@'localhost' identified with mysql_native_password as password('a_password');
@@ -947,7 +2034,7 @@ FLUSH PRIVILEGES;
 CREATE USER mariadb_102;
 UPDATE mysql.user SET password_last_changed=0 WHERE user='mariadb_102';
 FLUSH PRIVILEGES;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -980,20 +2067,127 @@ mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
 mysql.user                                         OK
 Upgrading from a version before MariaDB-10.1
-Phase 2/7: Installing used storage engines
+Phase 2/8: Installing used storage engines
 Checking for tables with unknown storage engine
-Phase 3/7: Fixing views
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
+mysql.user
+Warning  : The user specified as a definer ('mariadb.sys'@'localhost') does not exist
+status   : OK
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 SHOW CREATE USER mariadb_102;
 CREATE USER for mariadb_102@%
@@ -1011,7 +2205,7 @@ rename table mysql.global_priv_bak to mysql.global_priv;
 #
 set @orig_sql_safe_updates = @@GLOBAL.sql_safe_updates;
 set global sql_safe_updates=ON;
-Phase 1/7: Checking and upgrading mysql database
+Phase 1/8: Checking and upgrading mysql database
 Processing databases
 mysql
 mysql.column_stats                                 OK
@@ -1042,20 +2236,124 @@ mysql.time_zone_name                               OK
 mysql.time_zone_transition                         OK
 mysql.time_zone_transition_type                    OK
 mysql.transaction_registry                         OK
-Phase 2/7: Installing used storage engines... Skipped
-Phase 3/7: Fixing views
+Phase 2/8: Installing used storage engines... Skipped
+Phase 3/8: Running 'mysql_fix_privilege_tables'
+Phase 4/8: Fixing views
 mysql.user                                         OK
-Phase 4/7: Running 'mysql_fix_privilege_tables'
-Phase 5/7: Fixing table and database names
-Phase 6/7: Checking and upgrading tables
+sys.host_summary                                   OK
+sys.host_summary_by_file_io                        OK
+sys.host_summary_by_file_io_type                   OK
+sys.host_summary_by_stages                         OK
+sys.host_summary_by_statement_latency              OK
+sys.host_summary_by_statement_type                 OK
+sys.innodb_buffer_stats_by_schema                  OK
+sys.innodb_buffer_stats_by_table                   OK
+sys.innodb_lock_waits                              OK
+sys.io_by_thread_by_latency                        OK
+sys.io_global_by_file_by_bytes                     OK
+sys.io_global_by_file_by_latency                   OK
+sys.io_global_by_wait_by_bytes                     OK
+sys.io_global_by_wait_by_latency                   OK
+sys.latest_file_io                                 OK
+sys.memory_by_host_by_current_bytes                OK
+sys.memory_by_thread_by_current_bytes              OK
+sys.memory_by_user_by_current_bytes                OK
+sys.memory_global_by_current_bytes                 OK
+sys.memory_global_total                            OK
+sys.metrics                                        OK
+sys.privileges_by_table_by_level                   OK
+sys.processlist                                    OK
+sys.ps_check_lost_instrumentation                  OK
+sys.schema_auto_increment_columns                  OK
+sys.schema_index_statistics                        OK
+sys.schema_object_overview                         OK
+sys.schema_redundant_indexes                       OK
+sys.schema_table_lock_waits                        OK
+sys.schema_table_statistics                        OK
+sys.schema_table_statistics_with_buffer            OK
+sys.schema_tables_with_full_table_scans            OK
+sys.schema_unused_indexes                          OK
+sys.session                                        OK
+sys.session_ssl_status                             OK
+sys.statement_analysis                             OK
+sys.statements_with_errors_or_warnings             OK
+sys.statements_with_full_table_scans               OK
+sys.statements_with_runtimes_in_95th_percentile    OK
+sys.statements_with_sorting                        OK
+sys.statements_with_temp_tables                    OK
+sys.user_summary                                   OK
+sys.user_summary_by_file_io                        OK
+sys.user_summary_by_file_io_type                   OK
+sys.user_summary_by_stages                         OK
+sys.user_summary_by_statement_latency              OK
+sys.user_summary_by_statement_type                 OK
+sys.version                                        OK
+sys.wait_classes_global_by_avg_latency             OK
+sys.wait_classes_global_by_latency                 OK
+sys.waits_by_host_by_latency                       OK
+sys.waits_by_user_by_latency                       OK
+sys.waits_global_by_latency                        OK
+sys.x$host_summary                                 OK
+sys.x$host_summary_by_file_io                      OK
+sys.x$host_summary_by_file_io_type                 OK
+sys.x$host_summary_by_stages                       OK
+sys.x$host_summary_by_statement_latency            OK
+sys.x$host_summary_by_statement_type               OK
+sys.x$innodb_buffer_stats_by_schema                OK
+sys.x$innodb_buffer_stats_by_table                 OK
+sys.x$innodb_lock_waits                            OK
+sys.x$io_by_thread_by_latency                      OK
+sys.x$io_global_by_file_by_bytes                   OK
+sys.x$io_global_by_file_by_latency                 OK
+sys.x$io_global_by_wait_by_bytes                   OK
+sys.x$io_global_by_wait_by_latency                 OK
+sys.x$latest_file_io                               OK
+sys.x$memory_by_host_by_current_bytes              OK
+sys.x$memory_by_thread_by_current_bytes            OK
+sys.x$memory_by_user_by_current_bytes              OK
+sys.x$memory_global_by_current_bytes               OK
+sys.x$memory_global_total                          OK
+sys.x$processlist                                  OK
+sys.x$ps_digest_95th_percentile_by_avg_us          OK
+sys.x$ps_digest_avg_latency_distribution           OK
+sys.x$ps_schema_table_statistics_io                OK
+sys.x$schema_flattened_keys                        OK
+sys.x$schema_index_statistics                      OK
+sys.x$schema_table_lock_waits                      OK
+sys.x$schema_table_statistics                      OK
+sys.x$schema_table_statistics_with_buffer          OK
+sys.x$schema_tables_with_full_table_scans          OK
+sys.x$session                                      OK
+sys.x$statement_analysis                           OK
+sys.x$statements_with_errors_or_warnings           OK
+sys.x$statements_with_full_table_scans             OK
+sys.x$statements_with_runtimes_in_95th_percentile  OK
+sys.x$statements_with_sorting                      OK
+sys.x$statements_with_temp_tables                  OK
+sys.x$user_summary                                 OK
+sys.x$user_summary_by_file_io                      OK
+sys.x$user_summary_by_file_io_type                 OK
+sys.x$user_summary_by_stages                       OK
+sys.x$user_summary_by_statement_latency            OK
+sys.x$user_summary_by_statement_type               OK
+sys.x$wait_classes_global_by_avg_latency           OK
+sys.x$wait_classes_global_by_latency               OK
+sys.x$waits_by_host_by_latency                     OK
+sys.x$waits_by_user_by_latency                     OK
+sys.x$waits_global_by_latency                      OK
+Phase 5/8: Fixing table and database names
+Phase 6/8: Checking and upgrading tables
 Processing databases
 information_schema
 mtr
 mtr.global_suppressions                            OK
 mtr.test_suppressions                              OK
 performance_schema
+sys
+sys.sys_config                                     OK
 test
-Phase 7/7: Running 'FLUSH PRIVILEGES'
+Phase 7/8: uninstalling plugins
+Phase 8/8: Running 'FLUSH PRIVILEGES'
 OK
 set global sql_safe_updates=@orig_sql_safe_updates;
 #
@@ -1067,3 +2365,89 @@ INSERT INTO mysql.plugin SELECT 'unix_socket', 'auth_socket.so'
 SELECT * FROM mysql.plugin WHERE name='unix_socket';
 name	dl
 # End of 10.4 tests
+#
+# Check that mysql_upgrade can be run on mysqldump
+# of mysql schema from previous versions
+#
+call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");
+#
+# Upgrade from version 5.5
+#
+# Loading dump of 5.5 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.0
+#
+# Loading dump of 10.0 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.1
+#
+# Loading dump of 10.1 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.2
+#
+# Loading dump of 10.2 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.3
+#
+# Loading dump of 10.3 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.4
+#
+# Loading dump of 10.4 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+# End of 10.5 tests
+#
+# MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
+#
+alter table mysql.db drop column show_create_routine_priv;
+flush privileges;
+create user foo@bar;
+grant all privileges on mysql.* to foo@bar;
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+flush privileges;
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+select show_create_routine_priv from mysql.db where user='foo';
+show_create_routine_priv
+Y
+show grants for foo@bar;
+Grants for foo@bar
+GRANT USAGE ON *.* TO `foo`@`bar`
+GRANT ALL PRIVILEGES ON `mysql`.* TO `foo`@`bar`
+drop user foo@bar;
+# End of 11.3 tests

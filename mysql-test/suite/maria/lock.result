@@ -1,7 +1,6 @@
 drop table if exists t1,t2;
 Warnings:
-Note	1051	Unknown table 'test.t1'
-Note	1051	Unknown table 'test.t2'
+Note	1051	Unknown table 'test.t1,test.t2'
 CREATE TABLE t1 (i INT) ENGINE=Aria;
 CREATE TABLE t2 (i INT) ENGINE=Aria;
 LOCK TABLE t1 WRITE, t2 WRITE;
@@ -40,7 +39,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 INSERT INTO t1 VALUES (1);
 CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
 CREATE TABLE tmp (f3 INT) engine=Aria;
@@ -60,7 +59,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 TRANSACTIONAL=0
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 TRANSACTIONAL=0
 INSERT INTO t1 VALUES (2);
 CREATE TABLE t2 (f2 INT) ENGINE=MyISAM;
 CREATE TABLE tmp (f3 INT) transactional=0 engine=Aria;
@@ -82,7 +81,7 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) DEFAULT NULL,
   `c1` geometry NOT NULL,
   SPATIAL KEY `i1` (`c1`)
-) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1
+) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 TRANSACTIONAL=1
 INSERT INTO t1 VALUES (3,
 PolygonFromText('POLYGON((-18.6086111000 -66.9327777000,
                           -18.6055555000 -66.8158332999,
@@ -166,4 +165,15 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	Table is already up to date
 disconnect con1;
 connection default;
+DROP TABLE t1, t2;
+#
+# MDEV-22829 SIGSEGV in _ma_reset_history on LOCK
+#
+CREATE TABLE t1 (f1 INT) ENGINE=Aria;
+CREATE TABLE t2 (f2 INT) ENGINE=Aria;
+LOCK TABLES t2 WRITE, t1 WRITE;
+INSERT INTO t1 VALUES (1);
+CREATE TRIGGER ai AFTER INSERT ON t1 FOR EACH ROW UPDATE t1 SET v=1 WHERE b=new.a;
+ERROR 42S22: Unknown column 'a' in 'NEW'
+UNLOCK TABLES;
 DROP TABLE t1, t2;

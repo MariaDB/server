@@ -1,0 +1,14 @@
+# Partitioning test that require debug features
+# including crashing tests.
+
+--source include/have_debug.inc
+--source include/have_partition.inc
+--source include/not_embedded.inc
+
+--let $DATADIR= `SELECT @@datadir;`
+
+let $engine= 'MyISAM';
+
+--echo # Test failures in fast_alter_partition_table.
+let $do_fail=1;
+--source suite/parts/inc/partition_mgm_crash.inc

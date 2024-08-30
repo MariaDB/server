@@ -1,0 +1,1 @@
+--exec vault secrets disable mariadbtest > /dev/null

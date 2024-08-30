@@ -1,8 +1,9 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 select * from INFORMATION_SCHEMA.ENGINES where ENGINE="ARIA";
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
 Aria	YES	Crash-safe tables with MyISAM heritage. Used for internal temporary tables and privilege tables	NO	NO	NO
-set global storage_engine=aria;
-set session storage_engine=aria;
+set global default_storage_engine=aria;
+set session default_storage_engine=aria;
 set global aria_page_checksum=0;
 set global aria_log_file_size=4294959104;
 drop table if exists t1,t2;
@@ -15,14 +16,14 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`) KEY_BLOCK_SIZE=8192
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=0
 drop table t1;
-create table t1 (a varchar(2048), key `a` (a) key_block_size=1000000000000000000);
+create table t1 (a varchar(4096), key `a` (a) key_block_size=1000000000000000000);
 Warnings:
-Note	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 2300 bytes
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(2048) DEFAULT NULL,
-  KEY `a` (`a`(1000)) KEY_BLOCK_SIZE=8192
+  `a` varchar(4096) DEFAULT NULL,
+  KEY `a` (`a`(2300)) KEY_BLOCK_SIZE=8192
 ) ENGINE=Aria DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci PAGE_CHECKSUM=0
 drop table t1;
 create table t1 (a int not null, key `a` (a) key_block_size=1025);
@@ -521,8 +522,6 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (n int not null, c char(1)) engine=aria transactional=1;
 alter table t1 engine=myisam;
-Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
 alter table t1 engine=aria;
 show create table t1;
 Table	Create Table
@@ -533,7 +532,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 create table t1 (n int not null, c char(1)) engine=myisam transactional=1;
 Warnings:
-Warning	1478	Table storage engine 'MyISAM' does not support the create option 'TRANSACTIONAL=1'
+Warning	1911	Unknown option 'transactional'
 alter table t1 engine=aria;
 show create table t1;
 Table	Create Table
@@ -660,3 +659,4 @@ drop table t1,t2;
 create table t1 (a int) engine=aria;
 lock table t1 write;
 drop table t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

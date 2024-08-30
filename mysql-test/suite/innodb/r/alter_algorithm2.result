@@ -1,7 +1,5 @@
 CREATE TABLE t1 (a INT)ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
-SET alter_algorithm='INPLACE';
-affected rows: 0
 PREPARE stmt FROM 'ALTER TABLE t1 ADD KEY idx(a)';
 affected rows: 0
 info: Statement prepared
@@ -18,20 +16,6 @@ BEGIN
 ALTER TABLE t1 DROP KEY idx2;
 END|
 affected rows: 0
-SET alter_algorithm='COPY';
-affected rows: 0
-EXECUTE stmt;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
-EXECUTE stmt1;
-affected rows: 1
-info: Records: 1  Duplicates: 0  Warnings: 0
-call p1();
-affected rows: 1
-call p2();
-affected rows: 1
-SET alter_algorithm='NOCOPY';
-affected rows: 0
 EXECUTE stmt;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
@@ -42,12 +26,6 @@ call p1();
 affected rows: 0
 call p2();
 affected rows: 0
-SET alter_algorithm='INSTANT';
-affected rows: 0
-EXECUTE stmt;
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
-call p1();
-ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 DROP TABLE t1;
 affected rows: 0
 DROP PROCEDURE p1;
@@ -64,9 +42,7 @@ affected rows: 0
 INSERT INTO t1 VALUES(1,1),(2,2),(3,3);
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
-SET ALTER_ALGORITHM=INSTANT;
-affected rows: 0
-ALTER TABLE t1 DROP COLUMN col1;
+ALTER TABLE t1 DROP COLUMN col1, ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE
 ALTER TABLE t1 DROP COLUMN col1, ALGORITHM=NOCOPY;
 ERROR 0A000: ALGORITHM=NOCOPY is not supported. Reason: innodb_instant_alter_column_allowed=never. Try ALGORITHM=INPLACE

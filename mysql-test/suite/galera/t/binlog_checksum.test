@@ -1,5 +1,4 @@
 --source include/galera_cluster.inc
---source include/have_innodb.inc
 
 --echo # On node_1
 --connection node_1

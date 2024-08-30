@@ -146,16 +146,16 @@ public:
   Gcalc_operation_transporter(Gcalc_function *fn, Gcalc_heap *heap) :
     Gcalc_shape_transporter(heap), m_fn(fn) {}
 
-  int single_point(double x, double y);
-  int start_line();
-  int complete_line();
-  int start_poly();
-  int complete_poly();
-  int start_ring();
-  int complete_ring();
-  int add_point(double x, double y);
-  int start_collection(int n_objects);
-  int empty_shape();
+  int single_point(double x, double y) override;
+  int start_line() override;
+  int complete_line() override;
+  int start_poly() override;
+  int complete_poly() override;
+  int start_ring() override;
+  int complete_ring() override;
+  int add_point(double x, double y) override;
+  int start_collection(int n_objects) override;
+  int empty_shape() override;
 };
 
 

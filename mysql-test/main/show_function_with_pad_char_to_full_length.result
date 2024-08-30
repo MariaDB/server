@@ -1,9 +1,9 @@
 create function f() returns int return 1;
-show function status;
+show function status where db='test';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 T	f	T	T	T	T	T	T	T	T	T
 set sql_mode = 'PAD_CHAR_TO_FULL_LENGTH';
-show function status;
+show function status where db='test';
 Db	Name	Type	Definer	Modified	Created	Security_type	Comment	character_set_client	collation_connection	Database Collation
 T	f	T	T	T	T	T	T	T	T	T
 drop function f;

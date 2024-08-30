@@ -1,4 +1,5 @@
 SET @global_start_value = @@global.character_set_connection;
+SET @global_collation_connection = @@global.collation_connection;
 SET @save_character_set_client=@@global.character_set_client;
 SET @@global.character_set_client=@@character_set_client;
 SET @session_start_value = @@character_set_connection;
@@ -19,7 +20,7 @@ ERROR 42S22: Unknown column 'character_set_connection' in 'field list'
 SET character_set_connection=utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET session character_set_connection=utf8;
 SELECT session character_set_connection;
 ERROR 42S22: Unknown column 'session' in 'field list'
@@ -41,14 +42,14 @@ SELECT @@global.character_set_connection = @global_start_value;
 SET @@session.character_set_connection = utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = latin2;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
 latin2
 SELECT @@session.character_set_connection AS res_is_utf8;
 res_is_utf8
-utf8
+utf8mb3
 SET @@session.character_set_connection = latin5;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
@@ -158,7 +159,7 @@ armscii8
 SET @@session.character_set_connection = utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET @@session.character_set_connection = ucs2;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
@@ -303,7 +304,7 @@ armscii8
 SET @@global.character_set_connection = utf8;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = ucs2;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
@@ -364,24 +365,23 @@ eucjpms
 SET @@character_set_connection = UTF8;
 SELECT @@character_set_connection;
 @@character_set_connection
-utf8
+utf8mb3
 SET @@character_set_connection = utf8;
 SELECT @@character_set_connection;
 @@character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = uTf8;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
-utf8
+utf8mb3
 '#--------------------FN_DYNVARS_011_09-------------------------#'
 SET @@character_set_connection = 1;
 SELECT @@character_set_connection;
 @@character_set_connection
 big5
+# latin2_czech_cs is not a default collation
 SET @@character_set_connection = 2;
-SELECT @@character_set_connection;
-@@character_set_connection
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@character_set_connection = 3;
 SELECT @@character_set_connection;
 @@character_set_connection
@@ -390,20 +390,19 @@ SET @@character_set_connection = 36;
 SELECT @@character_set_connection;
 @@character_set_connection
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@character_set_connection = 99;
-SELECT @@character_set_connection;
-@@character_set_connection
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@character_set_connection = 100;
 ERROR 42000: Unknown character set: '100'
 SET @@global.character_set_connection = 1;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
 big5
+# latin2_czech_cs is not a default collation
 SET @@global.character_set_connection = 2;
-SELECT @@global.character_set_connection;
-@@global.character_set_connection
-latin2
+ERROR 42000: Unknown character set: '2'
 SET @@global.character_set_connection = 3;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
@@ -412,10 +411,10 @@ SET @@global.character_set_connection = 36;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
 cp866
+# cp1250_polish_ci is not a default collation
 SET @@global.character_set_connection = 99;
-SELECT @@global.character_set_connection;
-@@global.character_set_connection
-cp1250
+ERROR 42000: Unknown character set: '99'
+# Collation ID 100 does not exist
 SET @@global.character_set_connection = 100;
 ERROR 42000: Unknown character set: '100'
 SET @total_charset = (SELECT count(*) FROM INFORMATION_SCHEMA.CHARACTER_SETS);
@@ -435,8 +434,12 @@ SET @@character_set_connection = -1;
 ERROR 42000: Unknown character set: '-1'
 SET @@character_set_connection = 'utf8 ';
 ERROR 42000: Unknown character set: 'utf8 '
+SET @@character_set_connection=cp1250;
 SET @@character_set_connection = 'lätin2';
 ERROR 42000: Unknown character set: 'lätin2'
+SET @@character_set_connection=cp866;
+SET @@character_set_connection = 'lätin2';
+ERROR 42000: Unknown character set: 'l?tin2'
 SET @@character_set_connection = true;
 SELECT @@character_set_connection AS res_with_true;
 res_with_true
@@ -492,5 +495,21 @@ SELECT @@session.character_set_connection =
 WHERE VARIABLE_NAME='character_set_connection') AS res;
 res
 1
-SET @@global.character_set_connection = @global_start_value;
+#
+# MDEV-31018 Replica of 10.3, 10.4, <10.5.19 and <10.6.12 to 10.11 will not work when using non-default charset
+#
+SET character_set_connection=2/*latin2_czech_cs*/;
+ERROR 42000: Unknown character set: '2'
+SET @@pseudo_slave_mode=1;
+SET character_set_connection=2/*latin2_czech_cs*/;
+SHOW VARIABLES LIKE 'character_set_connection';
+Variable_name	Value
+character_set_connection	latin2
+SHOW VARIABLES LIKE 'collation_connection';
+Variable_name	Value
+collation_connection	latin2_general_ci
+SET @@pseudo_slave_mode=0;
+Warnings:
+Warning	1231	Slave applier execution mode not active, statement ineffective.
+SET @@global.collation_connection = @global_collation_connection;
 SET @@global.character_set_client = @save_character_set_client;

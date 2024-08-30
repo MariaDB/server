@@ -21,13 +21,13 @@ AND enabled = 'yes' AND timed = 'no'
 ORDER BY name;
 
 SELECT * FROM performance_schema.setup_instruments
-WHERE name = 'wait/synch/mutex/sql/LOCK_thread_count'
+WHERE name = 'wait/synch/mutex/sql/LOCK_thd_list'
 AND enabled = 'no' AND timed = 'no';
 
 SELECT * FROM performance_schema.setup_instruments
 WHERE name IN (
   'wait/synch/mutex/sql/LOG_INFO::lock',
-  'wait/synch/mutex/sql/THD::LOCK_thd_data')
+  'wait/synch/mutex/sql/THD::LOCK_thd_list')
 AND enabled = 'yes' AND timed = 'yes'
 ORDER BY name;
 
@@ -35,6 +35,21 @@ SELECT * FROM performance_schema.setup_instruments
 WHERE name = 'wait/synch/mutex/sql/hash_filo::lock'
 AND enabled = 'no' AND timed = 'no'
 ORDER BY name;
+
+--echo #
+--echo # Verify that the memory instruments are never timed
+--echo #
+SELECT * FROM performance_schema.setup_instruments
+WHERE name like 'memory/%'
+AND timed = 'YES';
+
+--echo #
+--echo # Verify that the memory/performance_schema instruments are never disabled
+--echo #
+SELECT * FROM performance_schema.setup_instruments
+WHERE name like 'memory/performance_schema/%'
+AND enabled = 'NO';
+
 
 --echo #
 --echo # Verify that the instrument startup settings are not not visible.
@@ -54,7 +69,7 @@ SELECT * FROM performance_schema.setup_instruments
 WHERE name like "%wait/io/table/sql/handler%";
 
 # Write file to make mysql-test-run.pl wait for the server to stop
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Restart the server
 --echo #
@@ -64,7 +79,7 @@ WHERE name like "%wait/io/table/sql/handler%";
 
 --echo # Restart server with wait/io/table/sql/handler disabled
 
---exec echo "restart:--loose-performance-schema-instrument=%wait/io/table/sql/%=off" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line "restart:--loose-performance-schema-instrument=%wait/io/table/sql/%=off"  $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 
 # Turn on reconnect
 --echo # Enable reconnect

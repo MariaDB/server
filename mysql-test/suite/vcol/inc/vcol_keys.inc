@@ -15,6 +15,8 @@
 ################################################################################
 
 
+--source include/have_sequence.inc
+
 --echo #            - UNIQUE KEY
 --echo #            - INDEX
 --echo #            - FULLTEXT INDEX
@@ -231,3 +233,18 @@ CREATE TABLE t1 (
 DELETE FROM t1 WHERE vc IS NULL ORDER BY pk;
 DROP TABLE t1;
 
+#
+# MDEV-34632 Assertion `table->field[0]->ptr >= table->record[0] &&
+# table->field[0]->ptr <= table->record[0] + table->s->reclength' failed in
+# void handler::assert_icp_limitations(uchar*)
+#
+SET sql_mode='';
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 FROM seq_1_to_2 ;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL,KEY(a)) ENGINE=MyISAM;
+INSERT INTO t1 SELECT 1 UNION SELECT 1;
+SELECT * FROM t1;
+DROP TABLE t1;

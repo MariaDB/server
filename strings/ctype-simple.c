@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,10 +16,12 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 #include "my_sys.h"  /* Needed for MY_ERRNO_ERANGE */
 #include <errno.h>
 
 #include "stdarg.h"
+#include "my_bit.h"
 
 /*
   Returns the number of bytes required for strnxfrm().
@@ -174,7 +176,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
 {
   const uchar *map= cs->sort_order, *end;
   size_t length;
-  int res;
 
   end= a + (length= MY_MIN(a_length, b_length));
   while (a < end)
@@ -182,7 +183,6 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
     if (map[*a++] != map[*b++])
       return ((int) map[a[-1]] - (int) map[b[-1]]);
   }
-  res= 0;
   if (a_length != b_length)
   {
     int swap= 1;
@@ -196,15 +196,14 @@ int my_strnncollsp_simple(CHARSET_INFO * cs, const uchar *a, size_t a_length,
       a_length= b_length;
       a= b;
       swap= -1;                                 /* swap sign of result */
-      res= -res;
     }
     for (end= a + a_length-length; a < end ; a++)
     {
       if (map[*a] != map[' '])
-	return (map[*a] < map[' ']) ? -swap : swap;
+        return (map[*a] < map[' ']) ? -swap : swap;
     }
   }
-  return res;
+  return 0;
 }
 
 
@@ -452,7 +451,11 @@ long my_strntol_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -547,7 +550,11 @@ ulong my_strntoul_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -635,7 +642,11 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -657,8 +668,12 @@ longlong my_strntoll_8bit(CHARSET_INFO *cs __attribute__((unused)),
 
   if (negative)
   {
-    if (i  > (ulonglong) LONGLONG_MIN)
+    if (i >= (ulonglong) LONGLONG_MIN)
+    {
+      if (i == (ulonglong) LONGLONG_MIN)
+        return LONGLONG_MIN;
       overflow = 1;
+    }
   }
   else if (i > (ulonglong) LONGLONG_MAX)
     overflow = 1;
@@ -732,7 +747,11 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     else if (c>='A' && c<='Z')
       c = c - 'A' + 10;
     else if (c>='a' && c<='z')
+    {
       c = c - 'a' + 10;
+      if (base > 36)
+        c += 26;
+    }
     else
       break;
     if (c >= base)
@@ -901,6 +920,35 @@ size_t my_longlong10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
 cnv:
   memcpy(dst, p, len);
   return len+sign;
+}
+
+
+size_t my_min_str_8bit_simple(CHARSET_INFO *cs,
+                              uchar *dst, size_t dst_size,
+                              size_t nchars)
+{
+  set_if_smaller(dst_size, nchars);
+  memset(dst, cs->min_sort_char, dst_size);
+  return dst_size;
+}
+
+
+size_t my_min_str_8bit_simple_nopad(CHARSET_INFO *cs,
+                                    uchar *dst, size_t dst_size,
+                                    size_t nchars)
+{
+  /* For NOPAD collations, the empty string is always the smallest */
+  return 0;
+}
+
+
+size_t my_max_str_8bit_simple(CHARSET_INFO *cs,
+                              uchar *dst, size_t dst_size,
+                              size_t nchars)
+{
+  set_if_smaller(dst_size, nchars);
+  memset(dst, cs->max_sort_char, dst_size);
+  return dst_size;
 }
 
 
@@ -1456,10 +1504,8 @@ static my_bool
 my_cset_init_8bit(struct charset_info_st *cs, MY_CHARSET_LOADER *loader)
 {
   cs->state|= my_8bit_charset_flags_from_data(cs);
-  cs->caseup_multiply= 1;
-  cs->casedn_multiply= 1;
   cs->pad_char= ' ';
-  if (!cs->to_lower || !cs->to_upper || !cs->ctype || !cs->tab_to_uni)
+  if (!cs->to_lower || !cs->to_upper || !cs->m_ctype || !cs->tab_to_uni)
     return TRUE;
   return create_fromuni(cs, loader);
 }
@@ -1509,7 +1555,7 @@ int my_mb_ctype_8bit(CHARSET_INFO *cs, int *ctype,
     *ctype= 0;
     return MY_CS_TOOSMALL;
   }
-  *ctype= cs->ctype[*s + 1];
+  *ctype= cs->m_ctype[*s + 1];
   return 1;
 }
 
@@ -1911,13 +1957,27 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
+void my_ci_set_strength(struct charset_info_st *cs, uint strength)
+{
+  DBUG_ASSERT(strength > 0);
+  DBUG_ASSERT(strength <= MY_STRXFRM_NLEVELS);
+  cs->levels_for_order= ((1 << strength) - 1);
+}
+
+
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags)
+{
+  DBUG_ASSERT(flags < (1<<MY_STRXFRM_NLEVELS));
+  cs->levels_for_order= flags;
+}
+
 /*
   Normalize strxfrm flags
 
   SYNOPSIS:
     my_strxfrm_flag_normalize()
+    cs       - the CHARSET_INFO pointer
     flags    - non-normalized flags
-    nlevels  - number of levels
     
   NOTES:
     If levels are omitted, then 1-maximum is assumed.
@@ -1928,8 +1988,9 @@ my_bool my_propagate_complex(CHARSET_INFO *cs __attribute__((unused)),
     normalized flags
 */
 
-uint my_strxfrm_flag_normalize(uint flags, uint maximum)
+uint my_strxfrm_flag_normalize(CHARSET_INFO *cs, uint flags)
 {
+  uint maximum= my_bit_log2_uint32(cs->levels_for_order) + 1;
   DBUG_ASSERT(maximum >= 1 && maximum <= MY_STRXFRM_NLEVELS);
   
   /* If levels are omitted, then 1-maximum is assumed*/
@@ -2036,14 +2097,14 @@ my_strxfrm_pad_desc_and_reverse(CHARSET_INFO *cs,
   if (nweights && frmend < strend && (flags & MY_STRXFRM_PAD_WITH_SPACE))
   {
     uint fill_length= MY_MIN((uint) (strend - frmend), nweights * cs->mbminlen);
-    cs->cset->fill(cs, (char*) frmend, fill_length, cs->pad_char);
+    my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend+= fill_length;
   }
   my_strxfrm_desc_and_reverse(str, frmend, flags, level);
   if ((flags & MY_STRXFRM_PAD_TO_MAXLEN) && frmend < strend)
   {
     size_t fill_length= strend - frmend;
-    cs->cset->fill(cs, (char*) frmend, fill_length, cs->pad_char);
+    my_ci_fill(cs, (char*) frmend, fill_length, cs->pad_char);
     frmend= strend;
   }
   return frmend - str;
@@ -2082,8 +2143,6 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_mb_wc_8bit,
     my_wc_mb_8bit,
     my_mb_ctype_8bit,
-    my_caseup_str_8bit,
-    my_casedn_str_8bit,
     my_caseup_8bit,
     my_casedn_8bit,
     my_snprintf_8bit,
@@ -2102,6 +2161,9 @@ MY_CHARSET_HANDLER my_charset_8bit_handler=
     my_well_formed_char_length_8bit,
     my_copy_8bit,
     my_wc_mb_bin, /* native_to_mb */
+    my_wc_to_printable_8bit,
+    my_casefold_multiply_1,
+    my_casefold_multiply_1
 };
 
 MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
@@ -2114,10 +2176,13 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,
-    my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple,
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };
 
 
@@ -2131,8 +2196,11 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_strnxfrmlen_simple,
     my_like_range_simple,
     my_wildcmp_8bit,
-    my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple_nopad,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple_nopad,
+    my_max_str_8bit_simple,
+    my_ci_get_id_generic,
+    my_ci_get_collation_name_generic
 };

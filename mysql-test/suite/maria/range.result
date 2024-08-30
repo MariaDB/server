@@ -1,0 +1,6 @@
+#
+# MDEV-22935 Erroneous Aria Index / Optimizer behaviour
+#
+create table t1 (a char(255), b datetime, primary key(a,b)) engine=aria transactional=0 pack_keys=0;
+insert into t1 select concat("hello world hello world", truncate(seq/100,0)),from_unixtime(seq+1) from seq_1_to_20000;
+drop table t1;

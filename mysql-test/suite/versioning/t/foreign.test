@@ -224,6 +224,7 @@ create or replace table child(
 
 insert into parent values(1);
 insert into child values(1);
+
 -- error ER_ROW_IS_REFERENCED_2
 delete from parent;
 -- error ER_ROW_IS_REFERENCED_2
@@ -314,7 +315,9 @@ create or replace table subchild (
 ) engine=innodb;
 
 insert into parent (value) values (23);
+--enable_prepare_warnings
 select id, value from parent into @id, @value;
+--disable_prepare_warnings
 insert into child values (default, @id, @value);
 insert into subchild values (default, @id, @value);
 
@@ -580,5 +583,48 @@ create temporary table t (a int unique) engine=innodb
     replace select 1 as a, 2 as b union select 1 as a, 3 as c;
 select * from t;
 drop table t;
+
+--echo #
+--echo # MDEV-20729 Fix REFERENCES constraint in column definition
+--echo #
+create table t1(id int);
+--echo # system fields can't be foreign keys:
+--replace_result $sys_datatype_expl SYS_DATATYPE
+--error ER_PARSE_ERROR,ER_PARSE_ERROR
+eval create or replace table t2(
+  x int,
+  sys_start $sys_datatype_expl as row start references t1(id),
+  sys_end $sys_datatype_expl as row end,
+  period for system_time(sys_start, sys_end)
+) engine innodb with system versioning;
+--replace_result $sys_datatype_expl SYS_DATATYPE
+--error ER_PARSE_ERROR,ER_PARSE_ERROR
+eval create or replace table t2(
+  x int,
+  sys_start $sys_datatype_expl as row start,
+  sys_end $sys_datatype_expl as row end references t1(id),
+  period for system_time(sys_start, sys_end)
+) engine innodb with system versioning;
+--replace_result $sys_datatype_expl SYS_DATATYPE
+--error ER_CANT_CREATE_TABLE
+eval create or replace table t2(
+  x int,
+  sys_start $sys_datatype_expl as row start,
+  sys_end $sys_datatype_expl as row end,
+  period for system_time(sys_start, sys_end),
+  foreign key (sys_start) references t1(id)
+) engine innodb with system versioning;
+--replace_result $sys_datatype_expl SYS_DATATYPE
+--error ER_CANT_CREATE_TABLE
+eval create or replace table t2(
+  x int,
+  sys_start $sys_datatype_expl as row start,
+  sys_end $sys_datatype_expl as row end,
+  period for system_time(sys_start, sys_end),
+  foreign key (sys_end) references t1(id)
+) engine innodb with system versioning;
+drop table t1;
+
+--echo # End of 10.5 tests
 
 --source suite/versioning/common_finish.inc

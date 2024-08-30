@@ -23,7 +23,7 @@
   The longest query in use depends on the documentation content,
   see the file fill_help_tables.sql
 */
-#define MAX_BOOTSTRAP_QUERY_SIZE 20000
+#define MAX_BOOTSTRAP_QUERY_SIZE 60000
 /**
   The maximum size of a bootstrap query, expressed in a single line.
   Do not increase this size, use the multiline syntax instead.
@@ -39,8 +39,16 @@
 typedef void *fgets_input_t;
 typedef char * (*fgets_fn_t)(char *, size_t, fgets_input_t, int *error);
 
-int read_bootstrap_query(char *query, int *query_length,
-                         fgets_input_t input, fgets_fn_t fgets_fn, int *error);
+#ifdef __cplusplus
+extern "C" {
+#endif
+int read_bootstrap_query(char *query, int *query_length, fgets_input_t input,
+                           fgets_fn_t fgets_fn,
+                           int preserve_delimiter,
+                           int *error);
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 

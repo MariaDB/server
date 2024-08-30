@@ -25,15 +25,11 @@ add period for system_time(s, e),
 add system versioning,
 algorithm=inplace;
 select s from t1 into @trx_start;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 count(*) = 1
 1
 create or replace table t1 (x int);
 select count(*) from mysql.transaction_registry into @tmp;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table t1
 add column s bigint unsigned as row start,
 add column e bigint unsigned as row end,
@@ -52,15 +48,11 @@ add period for system_time(s, e),
 add system versioning,
 algorithm=copy;
 select s from t1 into @trx_start;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select count(*) = 1 from mysql.transaction_registry where transaction_id = @trx_start;
 count(*) = 1
 1
 create or replace table t1 (x int);
 select count(*) from mysql.transaction_registry into @tmp;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 alter table t1
 add column s bigint unsigned as row start,
 add column e bigint unsigned as row end,
@@ -89,6 +81,7 @@ sys_start bigint(20) unsigned as row start invisible,
 sys_end bigint(20) unsigned as row end invisible,
 period for system_time (sys_start, sys_end)
 ) with system versioning;
+INSERT INTO t1 VALUES(100);
 set transaction isolation level read committed;
 start transaction;
 insert into t1 values (1);
@@ -112,14 +105,8 @@ set @ts2= sysdate(6);
 commit;
 set @ts3= sysdate(6);
 select sys_start from t1 where x = 1 into @trx_id1;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select sys_start from t1 where x = 2 into @trx_id2;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select sys_start from t1 where x = 3 into @trx_id3;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select @trx_id1 < @trx_id2, @trx_id2 < @trx_id3;
 @trx_id1 < @trx_id2	@trx_id2 < @trx_id3
 1	1
@@ -129,25 +116,31 @@ select @ts1 < @ts2, @ts2 < @ts3;
 # MVCC is resolved
 select * from t1 for system_time as of transaction @trx_id1;
 x
+100
 1
 2
 3
 select * from t1 for system_time as of timestamp @ts1;
 x
+100
 3
 select * from t1 for system_time as of transaction @trx_id2;
 x
+100
 2
 3
 select * from t1 for system_time as of timestamp @ts2;
 x
+100
 2
 3
 select * from t1 for system_time as of transaction @trx_id3;
 x
+100
 3
 select * from t1 for system_time as of timestamp @ts3;
 x
+100
 1
 2
 3
@@ -271,8 +264,6 @@ set @ts1= now(6);
 insert into t1 values (1);
 commit;
 select row_start from t1 into @trx_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 select trt_begin_ts(@trx_id) <= @ts1 as BEGIN_TS_GOOD;
 BEGIN_TS_GOOD
 1
@@ -333,41 +324,41 @@ ERROR HY000: Illegal parameter data type row for operation 'FOR SYSTEM_TIME'
 #
 # DOUBLE is not supported, use explicit CAST
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF RAND();
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION RAND();
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (RAND());
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION (RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF RAND();
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION RAND();
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (RAND());
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION (RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(RAND());
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(RAND());
 ERROR HY000: Illegal parameter data type double for operation 'FOR SYSTEM_TIME'
 #
 # DECIMAL is not supported, use explicit CAST
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF 10.1;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION 10.1;
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(10.1);
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF 10.1;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION 10.1;
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF COALESCE(10.1);
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION COALESCE(10.1);
 ERROR HY000: Illegal parameter data type decimal for operation 'FOR SYSTEM_TIME'
 #
 # YEAR is not supported, use explicit CAST
 #
 BEGIN NOT ATOMIC
 DECLARE var YEAR;
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var YEAR;
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
@@ -376,13 +367,13 @@ ERROR HY000: Illegal parameter data type year for operation 'FOR SYSTEM_TIME'
 #
 BEGIN NOT ATOMIC
 DECLARE var ENUM('xxx') DEFAULT 'xxx';
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var ENUM('xxx') DEFAULT 'xxx';
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
@@ -391,53 +382,30 @@ ERROR HY000: Illegal parameter data type enum for operation 'FOR SYSTEM_TIME'
 #
 BEGIN NOT ATOMIC
 DECLARE var SET('xxx') DEFAULT 'xxx';
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
 BEGIN NOT ATOMIC
 DECLARE var SET('xxx') DEFAULT 'xxx';
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Illegal parameter data type set for operation 'FOR SYSTEM_TIME'
-#
-# BIT is resolved to TRANSACTION
-#
 BEGIN NOT ATOMIC
 DECLARE var BIT(10);
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF var;
-END;
-$$
-x
-BEGIN NOT ATOMIC
-DECLARE var BIT(10);
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF var;
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF TRANSACTION var;
 END;
 $$
 ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 #
 # String literals resolve to TIMESTAMP
 #
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t1 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
 x
 1
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2038-12-30 00:00:00';
+SELECT * FROM t2 FOR SYSTEM_TIME AS OF '2107-12-30 00:00:00';
 x
-#
-# HEX hybrids resolve to TRANSACTION
-#
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
-ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (0xFFFFFFFF);
-ERROR HY000: Transaction-precise system versioning for `t2` is not supported
-#
-# BIT literals resolve to TRANSACTION
-#
-SELECT * FROM t1 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
-ERROR HY000: TRX_ID 4294967295 not found in `mysql.transaction_registry`
-SELECT * FROM t2 FOR SYSTEM_TIME AS OF (b'11111111111111111111111111111111');
-ERROR HY000: Transaction-precise system versioning for `t2` is not supported
 DROP TABLE t1, t2;
 #
 # MDEV-16094 Crash when using AS OF with a stored function
@@ -460,11 +428,11 @@ PERIOD FOR SYSTEM_TIME(start_timestamp, end_timestamp)
 ) ENGINE=InnoDB WITH SYSTEM VERSIONING;
 SELECT * FROM tts FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
-SELECT * FROM tts FOR SYSTEM_TIME AS OF ftx();
+SELECT * FROM tts FOR SYSTEM_TIME AS OF TRANSACTION ftx();
 ERROR HY000: Transaction-precise system versioning for `tts` is not supported
 SELECT * FROM ttx FOR SYSTEM_TIME AS OF fts();
 x	start_timestamp	end_timestamp
-SELECT * FROM ttx FOR SYSTEM_TIME AS OF ftx();
+SELECT * FROM ttx FOR SYSTEM_TIME AS OF TRANSACTION ftx();
 x	start_timestamp	end_timestamp
 DROP TABLE tts;
 DROP TABLE ttx;
@@ -536,7 +504,7 @@ t	CREATE TABLE `t` (
   `row_end` bigint(20) unsigned GENERATED ALWAYS AS ROW END INVISIBLE,
   PRIMARY KEY (`a`,`row_end`),
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 # handles VIRTUAL columns too
 CREATE OR REPLACE TABLE t (
 a INT AS (b + 1),

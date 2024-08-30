@@ -38,13 +38,13 @@
 int test_file(PAGECACHE_FILE file, char *file_name,
               off_t size, size_t buff_size, struct file_desc *desc)
 {
-  unsigned char *buffr= my_malloc(buff_size, MYF(0));
+  unsigned char *buffr= my_malloc(PSI_NOT_INSTRUMENTED, buff_size, MYF(0));
   off_t pos= 0;
   size_t byte;
   int step= 0;
   int res= 1;                                   /* ok */
 
-#ifdef __WIN__
+#ifdef _WIN32
   /*
     On Windows, the info returned by stat(), specifically file length
     is not necessarily current, because this is the behavior of

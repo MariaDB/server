@@ -214,6 +214,7 @@ set global sql_mode=default;
 create database db1;
 create user foo@localhost;
 grant create on db1.* to foo@localhost;
+grant all privileges on test.* to foo@localhost;
 connect foo,localhost,foo;
 create temporary table t as values (1),(2),(3);
 use db1;

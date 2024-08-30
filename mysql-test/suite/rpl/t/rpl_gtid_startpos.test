@@ -19,7 +19,7 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 SET GLOBAL gtid_slave_pos="";
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 --source include/start_slave.inc
 --sync_with_master
 SELECT * FROM t1;
@@ -46,7 +46,7 @@ INSERT INTO t1 VALUES (2);
 SET GLOBAL gtid_slave_pos="";
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 START SLAVE;
 --let $slave_io_errno= 1236
 --source include/wait_for_slave_io_error.inc
@@ -54,7 +54,7 @@ START SLAVE;
 
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_LOG_FILE="master-bin.000003", MASTER_LOG_POS=4;
+     MASTER_LOG_FILE="master-bin.000003", MASTER_LOG_POS=4, MASTER_USE_GTID=NO;
 --source include/start_slave.inc
 --sync_with_master
 SELECT * FROM t1 ORDER BY a;
@@ -73,7 +73,7 @@ INSERT INTO t1 VALUES(3);
 SET GLOBAL gtid_slave_pos='0-1-3';
 --replace_result $MASTER_MYPORT MASTER_PORT
 eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,
-     MASTER_USE_GTID=CURRENT_POS;
+     MASTER_USE_GTID=SLAVE_POS;
 --source include/start_slave.inc
 --source include/sync_with_master_gtid.inc
 SELECT * FROM t1 ORDER by a;
@@ -118,7 +118,7 @@ RESET MASTER;
 --connection server_2
 SET GLOBAL gtid_slave_pos='';
 --replace_result $MASTER_MYPORT MASTER_PORT
-eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$MASTER_MYPORT, master_user='root', master_use_gtid=current_pos;
+eval CHANGE MASTER TO master_host='127.0.0.1', master_port=$MASTER_MYPORT, master_user='root', master_use_gtid=slave_pos;
 --source include/start_slave.inc
 
 --connection server_1
@@ -185,7 +185,8 @@ SELECT * FROM t1 ORDER BY a;
 
 --echo *** Test that RESET SLAVE clears the Using_Gtid flag. ***
 --source include/stop_slave.inc
-RESET SLAVE;
+--let $master_use_gtid_option= No
+--source include/reset_slave.inc
 --let $status_items= Using_Gtid
 --source include/show_slave_status.inc
 
@@ -198,7 +199,7 @@ START SLAVE;
 
 # Going back to using GTID should fix things.
 STOP SLAVE IO_THREAD;
-CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
 --source include/start_slave.inc
 
 --connection server_1
@@ -286,6 +287,7 @@ eval SELECT '$value' AS Gtid_Slave_Pos;
 --source include/stop_slave.inc
 DROP TABLE t1;
 RESET SLAVE ALL;
+CHANGE MASTER TO MASTER_USE_GTID=NO;
 RESET MASTER;
 SET GLOBAL gtid_slave_pos= "";
 

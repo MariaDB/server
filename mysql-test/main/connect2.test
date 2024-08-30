@@ -5,7 +5,7 @@
 --source include/not_embedded.inc
 --source include/have_debug.inc
 call mtr.add_suppression("Allocation failed");
-SET @old_debug= @@session.debug;
+SET @old_debug= @@session.debug_dbug;
 set @old_thread_cache_size=@@global.thread_cache_size;
 set @@global.thread_cache_size=0;
 # Test connections to the

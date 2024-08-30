@@ -1,0 +1,48 @@
+CREATE TABLE tx1 (c1 int, c2 varchar(30));
+CREATE TABLE tx2 (c1 int, c2 varchar(30));
+CREATE TABLE tx3 (c1 int, c2 varchar(30));
+INSERT INTO tx1 VALUES (1, 'jim');
+INSERT INTO tx1 VALUES (2, 'menny');
+INSERT INTO tx1 VALUES (3, 'linda');
+INSERT INTO tx2 VALUES (1, 'jim');
+INSERT INTO tx2 VALUES (2, 'kris');
+INSERT INTO tx2 VALUES (3, 'shory');
+INSERT INTO tx3 VALUES (1, 'jim');
+INSERT INTO tx3 VALUES (2, 'kris');
+INSERT INTO tx3 VALUES (3, 'linda');
+#
+# test when sql_mode is not oracle
+#
+SELECT c2 FROM tx1 EXCEPT SELECT c2 from tx2;
+c2
+menny
+linda
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SELECT c2 from tx2' at line 1
+create table MINUS (a int);
+drop table MINUS;
+#
+# test when sql_mode is oracle
+#
+SET sql_mode=ORACLE;
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2;
+c2
+menny
+linda
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 MINUS SELECT c2 from tx3;
+c2
+menny
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 EXCEPT SELECT c2 from tx3;
+c2
+menny
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 UNION SELECT c2 from tx3;
+c2
+jim
+menny
+linda
+kris
+create table MINUS (a int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'MINUS (a int)' at line 1
+DROP TABLE tx1;
+DROP TABLE tx2;
+DROP TABLE tx3;

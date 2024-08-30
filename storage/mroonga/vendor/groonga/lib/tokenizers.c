@@ -668,7 +668,7 @@ regexp_next(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
       break;
     }
 
-    if (n_characters == ngram_unit) {
+    if (n_characters == (uint) ngram_unit) {
       break;
     }
   }
@@ -676,7 +676,7 @@ regexp_next(grn_ctx *ctx, int nargs, grn_obj **args, grn_user_data *user_data)
   if (tokenizer->is_overlapping) {
     status |= GRN_TOKEN_OVERLAP;
   }
-  if (n_characters < ngram_unit) {
+  if (n_characters < (uint) ngram_unit) {
     status |= GRN_TOKEN_UNMATURED;
   }
   tokenizer->is_overlapping = (n_characters > 1);
@@ -835,11 +835,14 @@ grn_rc
 grn_db_init_builtin_tokenizers(grn_ctx *ctx)
 {
   grn_obj *obj;
-  grn_expr_var vars[] = {
-    {NULL, 0},
-    {NULL, 0},
-    {NULL, 0}
-  };
+  grn_expr_var vars[3];
+  vars[0].name= NULL;
+  vars[0].name_size= 0;
+  vars[1].name= NULL;
+  vars[1].name_size= 0;
+  vars[2].name= NULL;
+  vars[2].name_size= 0;
+
   GRN_TEXT_INIT(&vars[0].value, 0);
   GRN_TEXT_INIT(&vars[1].value, 0);
   GRN_UINT32_INIT(&vars[2].value, 0);

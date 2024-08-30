@@ -1,0 +1,8 @@
+"engine: crash point: ddl_log_rename_after_disable_entry  position: 1"
+"engine: crash point: ddl_log_rename_after_disable_entry  position: 2"
+"engine: crash point: ddl_log_rename_after_disable_entry  position: 3"
+"engine: crash point: ddl_log_rename_after_disable_entry  position: 4"
+"engine: crash point: ddl_log_rename_after_disable_entry  position: 5"
+#
+# At last check that rename works when there is no crash
+#

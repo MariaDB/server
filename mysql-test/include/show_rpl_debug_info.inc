@@ -28,7 +28,7 @@
 #     By default, debug info is printed from all connections, starting
 #     with the current connection. If this variable is set, debug
 #     info is printed only for the current connection.
-#     
+#
 #
 # ==== Side effects ====
 #
@@ -42,6 +42,7 @@
 --enable_query_log
 --enable_result_log
 --enable_warnings
+--enable_connect_log
 --disable_abort_on_error
 --horizontal_results
 
@@ -49,6 +50,10 @@
 --let $_rpl_old_con= $CURRENT_CONNECTION
 --let $_rpl_is_first_server= 1
 --let $_rpl_server= $rpl_server_count
+if ($_rpl_server == '')
+{
+  --let $_rpl_server= 0
+}
 --inc $_rpl_server
 
 

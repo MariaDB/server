@@ -25,7 +25,11 @@
 /* minimum possible transaction log size */
 #define TRANSLOG_MIN_FILE_SIZE (8*MB)
 /* transaction log default flags (TODO: make it global variable) */
+#ifdef HAVE_DBUG_TRANSLOG_CRC
+#define TRANSLOG_DEFAULT_FLAGS IF_DBUG(TRANSLOG_PAGE_CRC,0)
+#else
 #define TRANSLOG_DEFAULT_FLAGS 0
+#endif
 
 /*
   Transaction log flags.
@@ -533,6 +537,14 @@ typedef enum
   TRANSLOG_SYNC_DIR_ALWAYS
 } enum_maria_sync_log_dir;
 extern ulong sync_log_dir;
+
+/* sizeof(maria_trans_file_magic) */
+#define LOG_MAGIC_SIZE 12
+#define LOG_HEADER_DATA_SIZE (LOG_MAGIC_SIZE + \
+                              8 + 4 + 4 + 4 + 2 + 3 + \
+                              LSN_STORE_SIZE)
+/* Flags when creating aria_log_control */
+#define control_file_open_flags (O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC)
 
 C_MODE_END
 #endif

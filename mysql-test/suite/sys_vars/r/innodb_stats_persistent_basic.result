@@ -1,6 +1,7 @@
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
 SELECT @@innodb_stats_persistent;
 @@innodb_stats_persistent
-0
+1
 SET GLOBAL innodb_stats_persistent=ON;
 SELECT @@innodb_stats_persistent;
 @@innodb_stats_persistent
@@ -21,4 +22,4 @@ SET GLOBAL innodb_stats_persistent=123;
 ERROR 42000: Variable 'innodb_stats_persistent' can't be set to the value of '123'
 SET GLOBAL innodb_stats_persistent='foo';
 ERROR 42000: Variable 'innodb_stats_persistent' can't be set to the value of 'foo'
-SET GLOBAL innodb_stats_persistent=OFF;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

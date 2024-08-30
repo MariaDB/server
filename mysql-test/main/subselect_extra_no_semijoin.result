@@ -97,7 +97,7 @@ drop table t1,t2;
 # 
 create table t1 (
 a1 char(64), a2 char(64), b char(16), c char(16) not null, d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t1 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
 ('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
@@ -140,7 +140,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 create table t2 (
 a1 char(64), a2 char(64) not null, b char(16), c char(16), d char(16), dummy char(64) default ' '
-);
+) charset=latin1;
 insert into t2 select * from t1;
 insert into t2 (a1, a2, b, c, d) values
 ('a','a',NULL,'a777','xyz'),('a','a',NULL,'a888','xyz'),('a','a',NULL,'a999','xyz'),
@@ -168,7 +168,7 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	Table is already up to date
 create table t3 (
 a1 char(1), a2 char(1), b char(1), c char(4) not null, d char(3), dummy char(1) default ' '
-);
+) charset=latin1;
 insert into t3 (a1, a2, b, c, d) values
 ('a','a','a','a111','xy1'),('a','a','a','b111','xy2'),('a','a','a','c111','xy3'),('a','a','a','d111','xy4'),
 ('a','a','b','e112','xy1'),('a','a','b','f112','xy2'),('a','a','b','g112','xy3'),('a','a','b','h112','xy4'),
@@ -395,7 +395,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	10	func,func	2	Using where
+2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	10	func,func	1	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	Using temporary; Using filesort
 SELECT * FROM v2;
 a	b
@@ -415,7 +415,7 @@ EXPLAIN
 SELECT a FROM t1 WHERE (a,b) IN (SELECT * FROM v2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	index_subquery	key0	key0	10	func,func	1	Using where
+2	DEPENDENT SUBQUERY	<derived3>	unique_subquery	distinct_key	distinct_key	10	func,func	1	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	6	
 4	UNION	t3	ALL	NULL	NULL	NULL	NULL	4	
 NULL	UNION RESULT	<union3,4>	ALL	NULL	NULL	NULL	NULL	NULL	
@@ -424,11 +424,11 @@ DROP TABLE t1,t2,t3;
 #
 # LP bug #874006: materialized view used in IN subquery
 #
-CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1));
+CREATE TABLE t3 (a int NOT NULL, b varchar(1), c varchar(1)) CHARSET=latin1;
 INSERT INTO t3 VALUES (19,NULL,NULL), (20,'r','r');
-CREATE TABLE t1 (a int, b varchar(1) , c varchar(1));
+CREATE TABLE t1 (a int, b varchar(1) , c varchar(1)) CHARSET=latin1;
 INSERT INTO t1 VALUES (1,NULL,NULL), (5,'r','r'), (7,'y','y');
-CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1));
+CREATE TABLE t2 (a int NOT NULL , b int, c varchar(1)) CHARSET=latin1;
 INSERT INTO t2 VALUES (4,3,'r');
 CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t1;
 SET SESSION optimizer_switch='derived_with_keys=off';
@@ -476,7 +476,7 @@ EXPLAIN
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	Using where
-2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	2	Using where
+2	DEPENDENT SUBQUERY	<derived3>	ref	key0	key0	5	test.t1.a	1	Using where
 3	DERIVED	t2	ALL	NULL	NULL	NULL	NULL	2	
 SELECT * FROM t1 WHERE t1.b IN (SELECT v2.a FROM v2 WHERE v2.b = t1.a);
 a	b
@@ -495,7 +495,7 @@ set @tmp= @@global.slow_query_log;
 SET GLOBAL slow_query_log = 1;
 SET long_query_time = 0.000001;
 SET log_slow_verbosity = 'explain';
-CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM;
+CREATE TABLE t1 (a VARCHAR(3)) ENGINE=MyISAM CHARSET=latin1;
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo');
 a
 SELECT * FROM t1 WHERE a >= ANY ( SELECT 'foo' UNION SELECT 'bar' );

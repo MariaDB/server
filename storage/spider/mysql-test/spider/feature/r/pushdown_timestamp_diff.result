@@ -19,6 +19,8 @@ b CHAR(1),
 c DATETIME,
 PRIMARY KEY(a)
 ) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO t1 (a, b, c) VALUES
 (1, 'a', '2018-11-01 10:21:39'),
 (2, 'b', '2015-06-30 23:59:59'),

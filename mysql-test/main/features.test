@@ -1,6 +1,7 @@
 # Testing of feature statistics
 
 -- source include/have_geometry.inc
+-- source include/protocol.inc
 
 --disable_warnings
 drop table if exists t1;
@@ -10,7 +11,7 @@ set sql_mode="";
 
 --disable_ps2_protocol
 
-flush status;
+flush global status;
 
 show status like "feature%";
 
@@ -134,10 +135,36 @@ drop table t1;
 
 show status like "feature_delay_key_write";
 
-#
-# Feature CHECK CONSTRAINT
-#
+--echo #
+--echo # Feature CHECK CONSTRAINT
+--echo #
 create table t1 (a int check (a > 5));
 create table t2 (b int, constraint foo check (b < 10));
 drop table t1, t2;
 show status like "feature_check_constraint";
+
+--echo #
+--echo # Feature insert...returning
+--echo #
+create table t1(id1 int);
+insert into t1 values (1),(2) returning *;
+drop table t1;
+show status like "feature_insert_returning";
+
+--echo #
+--echo # Feature into outfile/variables
+--echo #
+create table t1(id1 int);
+insert into t1 values (1),(2);
+--disable_ps2_protocol
+select * into outfile '../../tmp/features_outfile.1' from t1;
+select * from t1 into outfile '../../tmp/features_outfile.2';
+--enable_ps2_protocol
+select id1 INTO @x from t1 where id1=1;
+select * from t1 where id1=1 into @y;
+select * from t1 where id1=@x;
+select @x=@y;
+drop table t1;
+--remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.1
+--remove_file $MYSQLTEST_VARDIR/tmp/features_outfile.2
+show status like "feature_into_%";

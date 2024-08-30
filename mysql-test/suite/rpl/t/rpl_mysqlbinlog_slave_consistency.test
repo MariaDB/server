@@ -1,0 +1,401 @@
+#
+# Purpose:
+#
+# This test ensures the mariadb-binlog command line tool filters events
+# by domain id (via --do-domain-ids and --ignore-domain-ids) and server id (via
+# --ignore-server-ids) in the same way that a replica server does.
+#
+#
+# Methodology:
+#
+# This test validates that the domain and server id filtering logic of
+# mariadb-binlog matches that of a replica server. In particular, it validates
+# a mariadb-binlog replay of a master's binary log is consistent with a
+# replica's state which is configured using the same filtering configuration.
+#
+# It uses a repeatable process to allow for multiple test cases that span
+# different filtering configurations. First, a master is seeded with an initial
+# set of SQL statements with varying domain and server ids. Then, a set of
+# filtering parameters supported by both mariadb-binlog and replica
+# capabilities are defined. The replica is configured using these parameters
+# and run it until it has processed all events from the primary server; it is
+# stopped afterward. For mariadb-binlog validation, the binary log of the
+# primary server is copied to a different location for later replay. The
+# primary is then reset to its initial state (i.e. the tables are dropped and
+# the logs are reset). The mariadb-binlog tool is then used to replay the
+# copied binary log file back onto the clean primary server under the same
+# filtering conditions as the replica. At this point, the data on the primary
+# and replica should be exactly the same because the filtering conditions were
+# the same, and all existing tables on both servers are compared using.
+# checksums.
+#
+#
+# References:
+#
+#   MDEV-20119: Implement the --do-domain-ids, --ignore-domain-ids, and
+#               --ignore-server-ids options for mysqlbinlog
+#
+--source include/master-slave.inc
+
+--connection slave
+SET sql_log_bin=0;
+call mtr.add_suppression("Slave: An attempt was made.*");
+call mtr.add_suppression("Both DO_DOMAIN_IDS & IGNORE_DOMAIN_IDS lists can't be non-empty at the same time");
+SET sql_log_bin=1;
+
+--source include/stop_slave.inc
+
+--connection master
+RESET MASTER;
+
+# Save old state
+let $ORIG_GTID_DOMAIN_ID = `select @@session.gtid_domain_id`;
+let $ORIG_SERVER_ID = `select @@session.server_id`;
+
+--connection slave
+--source include/start_slave.inc
+
+# Initial tests do not use strict mode
+--let $strict_mode=0
+--let $slave_sql_errno=0
+
+--echo #
+--echo #
+--echo #  Test Case 1: Base case to ensure that mariadb-binlog and replica
+--echo #  are consistent without any filtering
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 2: Ensure filtering by a single id in --do-domain-ids is
+--echo #  consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 3: Ensure filtering by multiple ids in --do-domain-ids is
+--echo #  consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=0,1
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #  Test Case 4: Ensure filtering by a single id in --ignore-domain-ids
+--echo #  is consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 5: Ensure filtering by multiple ids in --ignore-domain-ids
+--echo #  is consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0,1
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #  Test Case 6: Ensure filtering by a single id in --ignore-server-ids
+--echo #  is consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 7: Ensure filtering by multiple ids in --ignore-server-ids
+--echo #  is consistent between mariadb-binlog and replica
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=0,1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 8: Ensure stop position consistency
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=1-1-2
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 9: Ensure start position consistency
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=1-4-2
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 10: Ensure consistency when filtering by both
+--echo #  --do-domain-ids and --ignore-server-ids
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 11: Ensure consistency when filtering by both
+--echo #  --ignore-domain-ids and --ignore-server-ids
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=1,2
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 12: Ensure consistency when filtering by
+--echo #  --do-domain-ids with a stop position
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 13: Ensure consistency when filtering by
+--echo #  --ignore-domain-ids with a stop position
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 14: Ensure consistency when filtering by
+--echo #  --ignore-server-ids with a stop position
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=3
+--let $stop_position=0-1-4
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 15: Ensure consistency when filtering by
+--echo #  --do-domain-ids with a start position
+--echo #
+--let $do_domain_ids=2
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=1-1-2
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 16: Ensure consistency when filtering by
+--echo #  --ignore-domain-ids with a start position
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 17: Ensure consistency when filtering by
+--echo #  --ignore-server-ids with a start position
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 18: Ensure consistency when filtering by
+--echo #  --do-domain-ids with both a start position and stop position that
+--echo # all have the same domain id
+--echo #
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 19: Ensure consistency when filtering by
+--echo #  --do-domain-ids with both a start position and stop position that
+--echo #  have differing domain ids. Due to the implicit filtering in stop
+--echo #  position, the result should be empty (no tables replicated).
+--echo #
+--let $do_domain_ids=1
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 20: Ensure consistency when filtering by
+--echo #  --ignore-domain-ids with both a start position and stop position that
+--echo #  all have the same domain id. The result set should be empty due to
+--echo #  implicit filtering from stop position and ignoring that same domain.
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=0
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 21: Ensure consistency when filtering by
+--echo #  --ignore-domain-ids with both a start position and stop position that
+--echo #  have differing domain ids. The ignore domain ids should take no
+--echo #  effect due to the implicit filtering by stop position, i.e. the
+--echo #  specified domain to ignore is already being filtered.
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=1
+--let $ignore_server_ids=
+--let $stop_position=0-3-3
+--let $start_position=0-1-1
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 22: Ensure consistency when filtering by
+--echo #  --ignore-server-ids with both a start position and stop position.
+--echo #
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=3
+--let $stop_position=0-3-3
+--let $start_position=0-1-0
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 23: Out of order GTIDs from domains or servers which are
+--echo #  filtered out should not error
+--echo #
+--let $strict_mode=1
+--let $strict_mode_err=0
+--let $slave_sql_errno=0
+--let $do_domain_ids=0
+--let $ignore_domain_ids=
+--let $ignore_server_ids=3
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 24: Out of order GTIDs from included domains should error
+--echo #
+--let $strict_mode=1
+--let $strict_mode_err=1
+--let $slave_sql_errno=1950
+--let $do_domain_ids=1
+--let $ignore_domain_ids=
+--let $ignore_server_ids=
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 25: Out of order GTIDs from included servers should error
+--echo #
+--let $strict_mode=1
+--let $strict_mode_err=1
+--let $slave_sql_errno=1950
+--let $do_domain_ids=
+--let $ignore_domain_ids=
+--let $ignore_server_ids=1
+--let $stop_position=
+--let $start_position=
+--source include/mysqlbinlog_slave_consistency.inc
+
+--echo #
+--echo #
+--echo #  Test Case 26: Neither mysqlbinlog nor CHANGE MASTER TO should allow
+--echo #  both do domain ids and ignore domain ids to be set together
+--echo #
+--connection slave
+--source include/stop_slave.inc
+
+--error 1201
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(0), IGNORE_DOMAIN_IDS=(1);
+
+--let $MYSQLD_DATADIR=`select @@datadir`
+--let BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+--let BINLOG_FILE_PARAM= $MYSQLD_DATADIR/$BINLOG_FILENAME.orig
+--error 1
+--exec $MYSQL_BINLOG $MYSQLD_DATADIR/$BINLOG_FILENAME --do-domain-ids=0 --ignore-domain-ids=1
+
+RESET MASTER;
+set global gtid_slave_pos="";
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos, DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
+--source include/start_slave.inc
+
+# Cleanup
+--connection master
+RESET MASTER;
+
+--source include/rpl_end.inc
+
+--echo # End of tests (rpl.rpl_mysqlbinlog_slave_consistency)

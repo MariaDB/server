@@ -71,7 +71,7 @@ int az_open (azio_stream *s, const char *path, int Flags, File fd)
   s->in = 0;
   s->out = 0;
   s->back = EOF;
-  s->crc = crc32(0L, Z_NULL, 0);
+  s->crc = 0;
   s->transparent = 0;
   s->mode = 'r';
   s->version = (unsigned char)az_magic[1]; /* this needs to be a define to version */
@@ -197,7 +197,7 @@ int write_header(azio_stream *s)
 
   /* Write a very simple .az header: */
   memset(buffer, 0, AZHEADER_SIZE + AZMETA_BUFFER_SIZE);
-  *(ptr + AZ_MAGIC_POS)= az_magic[0];
+  *(ptr + AZ_MAGIC_POS)= (char) az_magic[0];
   *(ptr + AZ_VERSION_POS)= (unsigned char)s->version;
   *(ptr + AZ_MINOR_VERSION_POS)= (unsigned char)s->minor_version;
   *(ptr + AZ_BLOCK_POS)= (unsigned char)(s->block_size/1024); /* Reserved for block size */

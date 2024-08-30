@@ -1,9 +1,3 @@
-drop table if exists t1, t2, t3, t4;
-drop view if exists v1;
-drop database if exists mysqltest;
-drop function if exists f1;
-drop function if exists f2;
-drop procedure if exists p1;
 connect  addconroot1, localhost, root,,;
 connect  addconroot2, localhost, root,,;
 connect  addconwithoutdb, localhost, root,,*NO-ONE*;
@@ -319,7 +313,7 @@ drop table t1;
 drop table t3;
 create temporary table t1 (i int);
 create trigger trg before insert on t1 for each row set @a:=1;
-ERROR HY000: Trigger's 't1' is view, temporary table or sequence
+ERROR HY000: Trigger's 't1' is a view, temporary table or sequence
 drop table t1;
 create table t1 (x1col char);
 create trigger tx1 before insert on t1 for each row set new.x1col = 'x';
@@ -616,8 +610,8 @@ select @a;
 10
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
-t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_bi	INSERT	t1	set new."t1 column" = 5	BEFORE	#	REAL_AS_FLOAT,PIPES_AS_CONCAT,ANSI_QUOTES,IGNORE_SPACE,ANSI	root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
+t1_af	INSERT	t1	set @a=10	AFTER	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop table t1;
 set sql_mode="traditional";
 create table t1 (a date);
@@ -635,10 +629,10 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` date DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show triggers;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	latin1_swedish_ci
+t1_bi	INSERT	t1	set new.a = '2004-01-00'	BEFORE	#		root@localhost	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 drop table t1;
 create table t1 (id int);
 create trigger t1_ai after insert on t1 for each row reset query cache;
@@ -736,8 +730,6 @@ select user() into user;
 set NEW.username = user;
 select count(*) from ((select 1) union (select 2)) as d1 into i;
 end|
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 update t1 set data = 1;
 connection addconroot1;
 update t1 set data = 2;
@@ -967,7 +959,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop trigger test.t1_bi;
 ERROR HY000: Trigger does not exist
 drop trigger t1_bi;
@@ -1187,10 +1179,10 @@ CREATE TABLE t1(c INT);
 CREATE TABLE t2(c INT);
 CREATE DEFINER=longer_than_80_456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789@localhost
 TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW SET @a = 1;
-ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 80)
-CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY
+ERROR HY000: String 'longer_than_80_4567890123456789012345678901234567890123456789012345...' is too long for user name (should be no longer than 128)
+CREATE DEFINER=some_user_name@1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYsome_user_name1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYvvv234567890abcdefghijQWERTYvvvjdnkjfbewfjefnkejfnejfnERTYvvvjdnkjfbewfjefnkejfnejfn
 TRIGGER t2_bi BEFORE INSERT ON t2 FOR EACH ROW SET @a = 2;
-ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTY' is too long for host name (should be no longer than 60)
+ERROR HY000: String '1234567890abcdefghij1234567890abcdefghij1234567890abcdefghijQWERTYs...' is too long for host name (should be no longer than 255)
 DROP TABLE t1;
 DROP TABLE t2;
 drop table if exists t1;
@@ -2086,8 +2078,6 @@ FOR EACH ROW BEGIN
 SELECT 1 FROM t1 c WHERE
 (@bug51650 IS NULL OR @bug51650 != c.b) AND c.b = NEW.a LIMIT 1 INTO @foo;
 END//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 SET @bug51650 = 1;
 INSERT IGNORE INTO t2 VALUES();
 INSERT IGNORE INTO t1 SET b = '777';
@@ -2127,7 +2117,7 @@ CREATE TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERT/*!INTO*/t1 VALUES (1
 # Used to crash
 SHOW TRIGGERS IN db1;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
-trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	latin1_swedish_ci
+trg1	INSERT	t2	CREATE DEFINER=`root`@`localhost` TRIGGER trg1 BEFORE INSERT ON t2 FOR EACH ROW INSERTINTOt1 VALUES (1)	BEFORE	#	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION		latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci
 INSERT INTO t2 VALUES (1);
 ERROR 42000: Trigger 'trg1' has an error in its body: 'You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'VALUES (1)' at line 1'
 SELECT * FROM t1;
@@ -2308,18 +2298,20 @@ DROP TABLE t1, t2;
 set time_zone="+00:00";
 SET TIMESTAMP=UNIX_TIMESTAMP('2001-01-01 10:20:30');
 SET @@session.sql_mode = 'STRICT_ALL_TABLES,STRICT_TRANS_TABLES';
+set @rpt=1;
 CREATE TABLE t1 (c CHAR(1) NOT NULL);
 CREATE TRIGGER t1_bi
 BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
 END;
 |
 SET @@session.sql_mode = default;
-INSERT INTO t1 VALUES ('a');
-ERROR 22001: Data too long for column 'c' at row 1
+INSERT INTO t1 VALUES ('a'),('b');
+ERROR 22001: Data too long for column 'c' at row 0
 show create trigger t1_bi;
 Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
 t1_bi	STRICT_TRANS_TABLES,STRICT_ALL_TABLES	CREATE DEFINER=`root`@`localhost` TRIGGER t1_bi
@@ -2327,8 +2319,9 @@ BEFORE INSERT
 ON t1
 FOR EACH ROW
 BEGIN
-SET NEW.c = 'www';
-END	latin1	latin1_swedish_ci	latin1_swedish_ci	2001-01-01 10:20:30.00
+SET NEW.c = repeat(@rpt,@rpt);
+set @rpt=@rpt+1;
+END	latin1	latin1_swedish_ci	utf8mb4_uca1400_ai_ci	2001-01-01 10:20:30.00
 DROP TRIGGER t1_bi;
 DROP TABLE t1;
 SET TIMESTAMP=DEFAULT;
@@ -2456,4 +2449,42 @@ a	b	total
 DROP TABLE t1;
 #
 # End of 10.3 tests
+#
+#
+# Test dropping orphan .trn file
+#
+create table t1 (a int);
+create trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end|
+insert into t1 values (null);
+select * from t1;
+a
+1000
+drop table t1;
+drop trigger t1_trg;
+Warnings:
+Error	1146	Table 'test.t1' doesn't exist
+Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+create table t1 (a int);
+drop trigger t1_trg;
+Warnings:
+Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+create trigger t1_trg_2 before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end|
+drop trigger t1_trg;
+Warnings:
+Error	1360	Trigger does not exist
+Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+drop trigger t1_trg_2;
+drop table t1;
+#
+# End of 10.6 tests
 #

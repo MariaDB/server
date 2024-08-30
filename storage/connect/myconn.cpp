@@ -88,8 +88,8 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
     DBUG_RETURN(NULL);
     } // endif status
 
-  if (!(result = (MYSQL_RES*) my_malloc(sizeof(*result) +
-				          sizeof(ulong) * mysql->field_count,
+  if (!(result = (MYSQL_RES*) my_malloc(PSI_NOT_INSTRUMENTED,
+                  sizeof(*result) + sizeof(ulong) * mysql->field_count,
 				          MYF(MY_WME | MY_ZEROFILL))))
     DBUG_RETURN(NULL);
 
@@ -97,8 +97,8 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
   result->methods = mysql->methods;
 
   /* Ptrs: to one row */
-  if (!(result->row = (MYSQL_ROW)my_malloc(sizeof(result->row[0]) *
-                                (mysql->field_count+1), MYF(MY_WME)))) {
+  if (!(result->row = (MYSQL_ROW)my_malloc(PSI_NOT_INSTRUMENTED,
+                sizeof(result->row[0]) * (mysql->field_count+1), MYF(MY_WME)))) {
     my_free(result);
     DBUG_RETURN(NULL);
     }  // endif row
@@ -120,7 +120,7 @@ static MYSQL_RES *connect_use_result(MYSQL *mysql)
 /************************************************************************/
 /*  MyColumns: constructs the result blocks containing all columns      */
 /*  of a MySQL table or view.                                           */
-/*  info = TRUE to get catalog column informations.                     */
+/*  info = TRUE to get catalog column information.                     */
 /************************************************************************/
 PQRYRES MyColumns(PGLOBAL g, THD *thd, const char *host, const char *db,
                   const char *user, const char *pwd,
@@ -480,6 +480,7 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
   const char *pipe = NULL;
   //uint      cto = 10, nrt = 20;
   my_bool     my_true= 1;
+  my_bool     my_false= 0;
 
   m_DB = mysql_init(NULL);
 
@@ -528,8 +529,8 @@ int MYSQLC::Open(PGLOBAL g, const char *host, const char *db,
     mysql_options(m_DB, MYSQL_SET_CHARSET_NAME, csname);
 
   // Don't know what this one do but FEDERATED does it
-  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
-                  (char*)&my_true);
+  mysql_options(m_DB, MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY, &my_true);
+  mysql_options(m_DB, MYSQL_OPT_SSL_VERIFY_SERVER_CERT, &my_false);
 
   if (!mysql_real_connect(m_DB, host, user, pwd, db, pt, pipe,
 		CLIENT_MULTI_RESULTS | CLIENT_REMEMBER_OPTIONS)) {
@@ -648,7 +649,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
 int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strcpy(g->Message, "MariaDB not connected");
     return RC_FX;
   } else
     assert(m_Stmt);

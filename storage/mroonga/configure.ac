@@ -186,11 +186,7 @@ AC_DEFUN([CONFIG_OPTION_MYSQL],[
     mysql_regex_include_dir="$ac_mysql_source_dir/extra/regex"
     MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
   else
-    if test -d "$ac_mysql_source_dir/pcre"; then
-      mysql_regex_include_dir="$ac_mysql_source_dir/pcre"
-    else
-      mysql_regex_include_dir="$ac_mysql_source_dir/regex"
-    fi
+    mysql_regex_include_dir="$ac_mysql_source_dir/regex"
     MYSQL_INCLUDES="$MYSQL_INCLUDES -I$mysql_regex_include_dir"
   fi
   if test -d "$ac_mysql_source_dir/libbinlogevents"; then

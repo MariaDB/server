@@ -51,7 +51,7 @@ $kill_file= "/tmp/mysqltest_index_corrupt.$$";
 $start_time=new Benchmark;
 if (!$opt_skip_create)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table if exists $firsttable, $secondtable");
@@ -111,7 +111,7 @@ while (($pid=wait()) != -1)
 
 if (!$opt_skip_delete && !$errors)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   $dbh->do("drop table $firsttable, $secondtable");
@@ -134,7 +134,7 @@ sub insert_in_bench
 {
   my ($dbh,$rows,$found,$i);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   for ($rows= 1; $rows <= $opt_loop_count ; $rows++)
@@ -179,7 +179,7 @@ sub select_from_bench
 {
   my ($dbh,$rows,$cursor);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
   for ($rows= 1; $rows < $opt_loop_count ; $rows++)
@@ -206,7 +206,7 @@ sub delete_from_bench
 {
   my ($dbh,$row, $t_value, $t2_value, $statement, $cursor);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 

@@ -94,13 +94,13 @@ use mysqltest_db1;
 ** SELECT FROM INFORMATION_SCHEMA.STATISTICS will succeed because any privileges will do (authentication is enough).
 ** but will return no rows
 SELECT * FROM INFORMATION_SCHEMA.STATISTICS WHERE table_name='t5';
-TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	NON_UNIQUE	INDEX_SCHEMA	INDEX_NAME	SEQ_IN_INDEX	COLUMN_NAME	COLLATION	CARDINALITY	SUB_PART	PACKED	NULLABLE	INDEX_TYPE	COMMENT	INDEX_COMMENT	IGNORED
 ** SHOW INDEX FROM t5 will fail because we don't have any privileges on any column combination.
 SHOW INDEX FROM t5;
 ERROR 42000: SELECT command denied to user 'mysqltest_u1'@'localhost' for table `mysqltest_db1`.`t5`
 ** SHOW INDEX FROM t6 will succeed because there exist a privilege on a column combination on t6.
 SHOW INDEX FROM t6;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 ** CHECK TABLE requires any privilege on any column combination and should succeed for t6:
 CHECK TABLE t6;
 Table	Op	Msg_type	Msg_text
@@ -165,7 +165,7 @@ End of 5.5 tests
 # are insufficient are discovered.
 #
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*mysqltest_u1 Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*mysqltest_u1 Checking table");
 drop database if exists mysqltest_db1;
 create database mysqltest_db1;
 # Create tables which we are going to CHECK/REPAIR.
@@ -186,8 +186,8 @@ connection con1;
 check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	1 client is using or hasn't closed the table properly
-mysqltest_db1.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-mysqltest_db1.t1	check	warning	Size of datafile is: 14       Should be: 7
+mysqltest_db1.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+mysqltest_db1.t1	check	warning	Size of datafile is:        14       Should be: 7
 mysqltest_db1.t1	check	error	Corrupt
 # The below statement should fail before repairing t1.
 # Otherwise info about such repair will be missing from its result-set.
@@ -200,8 +200,8 @@ check table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text
 mysqltest_db1.t1	check	warning	Table is marked as crashed
 mysqltest_db1.t1	check	warning	1 client is using or hasn't closed the table properly
-mysqltest_db1.t1	check	error	Size of indexfile is: 1024        Should be: 2048
-mysqltest_db1.t1	check	warning	Size of datafile is: 14       Should be: 7
+mysqltest_db1.t1	check	error	Size of indexfile is:     1024        Should be: 2048
+mysqltest_db1.t1	check	warning	Size of datafile is:        14       Should be: 7
 mysqltest_db1.t1	check	error	Corrupt
 repair table mysqltest_db1.t1;
 Table	Op	Msg_type	Msg_text

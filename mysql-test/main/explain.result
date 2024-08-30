@@ -13,16 +13,16 @@ id	str
 3	foo
 explain select * from t1 where str is null;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ref	str	str	11	const	2	Using index condition
+1	SIMPLE	t1	ref	str	str	41	const	2	Using index condition
 explain select * from t1 where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	str	str	11	const	1	
+1	SIMPLE	t1	const	str	str	41	const	1	
 explain select * from t1 ignore key (str) where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
 explain select * from t1 use key (str,str) where str="foo";
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	const	str	str	11	const	1	
+1	SIMPLE	t1	const	str	str	41	const	1	
 explain select * from t1 use key (str,str,foo) where str="foo";
 ERROR 42000: Key 'foo' doesn't exist in table 't1'
 explain select * from t1 ignore key (str,str,foo) where str="foo";
@@ -325,7 +325,7 @@ DROP TABLE t1;
 # Bug#56814 Explain + subselect + fulltext crashes server
 #
 CREATE TABLE t1(f1 VARCHAR(6) NOT NULL,
-FULLTEXT KEY(f1),UNIQUE(f1));
+FULLTEXT KEY `fulltext` (f1), UNIQUE `unique` (f1));
 INSERT INTO t1 VALUES ('test');
 EXPLAIN SELECT 1 FROM t1
 WHERE 1 > ALL((SELECT t1.f1 FROM t1 JOIN t1 a ON (MATCH(t1.f1) AGAINST (""))
@@ -333,7 +333,7 @@ WHERE t1.f1 GROUP BY t1.f1));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 PREPARE stmt FROM
 'EXPLAIN SELECT 1 FROM t1
  WHERE 1 > ALL((SELECT t1.f1 FROM t1 RIGHT OUTER JOIN t1 a
@@ -343,12 +343,12 @@ EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
 DEALLOCATE PREPARE stmt;
 PREPARE stmt FROM
 'EXPLAIN SELECT 1 FROM t1
@@ -359,12 +359,13 @@ EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
 2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
+INSERT into t1 values('test1'),('test2'),('test3'),('test4'),('test5');
 EXECUTE stmt;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	a	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	fulltext	f1_2,f1	f1	0		1	Using where
+1	PRIMARY	t1	index	NULL	unique	26	NULL	6	Using index
+2	SUBQUERY	t1	fulltext	unique,fulltext	fulltext	0		1	Using where
+2	SUBQUERY	a	index	NULL	unique	26	NULL	6	Using index
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 End of 5.1 tests.
@@ -424,8 +425,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 2	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 NULL	UNION RESULT	<union1,2>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
-Warnings:
-Note	1249	Select 3 was reduced during optimization
+3	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
 #
 # MDEV-23160: SIGSEGV in Explain_node::print_explain_for_children on UNION SELECT
 #
@@ -459,3 +459,43 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 NULL	UNION RESULT	<union1,3>	ALL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1249	Select 4 was reduced during optimization
+#
+# End of 10.4 tests
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT);
+INSERT INTO t2 VALUES (3),(4);
+EXPLAIN SELECT * FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where; Using join buffer (flat, BNL join)
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+prepare stmt from "EXPLAIN DELETE t2 FROM t1, t2 WHERE t2.b IN (SELECT 5 UNION SELECT 6)";
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+execute stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	2	
+1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+2	DEPENDENT SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+3	DEPENDENT UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	
+DROP TABLE t1, t2;
+#
+# End of 10.5 tests
+#

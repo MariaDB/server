@@ -130,6 +130,13 @@
 */
 #define OPEN_TRIGGER_ONLY      (1 << 21)
 
+/**
+  This flag is used in information schema to determine if handling funciton
+  can treat open result extensively and provide some user output even if
+  table open fails.
+*/
+#define I_S_EXTENDED_ERROR_HANDLING (1 << 22)
+
 /*
   Minimum length pattern before Turbo Boyer-Moore is used
   for SELECT "text" LIKE "%pattern%", excluding the two
@@ -173,18 +180,40 @@ enum extra2_frm_value_type {
   EXTRA2_GIS=2,
   EXTRA2_APPLICATION_TIME_PERIOD=3,
   EXTRA2_PERIOD_FOR_SYSTEM_TIME=4,
+  EXTRA2_INDEX_FLAGS=5,
 
 #define EXTRA2_ENGINE_IMPORTANT 128
 
   EXTRA2_ENGINE_TABLEOPTS=128,
-  EXTRA2_FIELD_FLAGS=129
+  EXTRA2_FIELD_FLAGS=129,
+  EXTRA2_FIELD_DATA_TYPE_INFO=130,
+  EXTRA2_PERIOD_WITHOUT_OVERLAPS=131,
 };
 
 enum extra2_field_flags {
   VERS_OPTIMIZED_UPDATE= 1 << INVISIBLE_MAX_BITS,
 };
 
-size_t extra2_read_len(const uchar **extra2, const uchar *end);
+enum extra2_index_flags {
+  EXTRA2_DEFAULT_INDEX_FLAGS,
+  EXTRA2_IGNORED_KEY
+};
+
+
+static inline size_t extra2_read_len(const uchar **extra2, const uchar *end)
+{
+  size_t length= *(*extra2)++;
+  if (length)
+    return length;
+
+  if ((*extra2) + 2 >= end)
+    return 0;
+  length= uint2korr(*extra2);
+  (*extra2)+= 2;
+  if (length < 256 || *extra2 + length > end)
+    return 0;
+  return length;
+}
 
 LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
                              HA_CREATE_INFO *create_info,
@@ -195,7 +224,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 #define FRM_FORMINFO_SIZE 288
 #define FRM_MAX_SIZE (1024*1024)
 
-static inline bool is_binary_frm_header(uchar *head)
+static inline bool is_binary_frm_header(const uchar *head)
 {
   return head[0] == 254
       && head[1] == 1

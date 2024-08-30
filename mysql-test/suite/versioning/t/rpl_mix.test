@@ -16,4 +16,4 @@ DELETE HISTORY FROM t1;
 connection master;
 drop table t1;
 
---source include/rpl_end.inc
+--source rpl_common.inc

@@ -13,7 +13,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) VIRTUAL,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -26,7 +26,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -39,7 +39,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) VIRTUAL,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -52,7 +52,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   UNIQUE KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -77,7 +77,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) VIRTUAL,
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -92,7 +92,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `b` (`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES		NULL	
@@ -105,7 +105,7 @@ t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) GENERATED ALWAYS AS (`a` * 2) STORED,
   KEY `a` (`a`,`b`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 describe t1;
 Field	Type	Null	Key	Default	Extra
 a	int(11)	YES	MUL	NULL	
@@ -192,11 +192,7 @@ INSERT INTO c ( col_time_nokey,col_datetime_nokey,col_varchar_nokey) values
 ('01:46:09.016386','2007-10-09 19:53:04.008332', NULL),
 ('16:21:18.052408','2001-11-08 21:02:12.009395', 'x'),
 ('18:56:33.027423','2003-04-01 00:00:00', 'i');
-Warnings:
-Note	1265	Data truncated for column 'col_time_key' at row 1
-Note	1265	Data truncated for column 'col_time_key' at row 2
-Note	1265	Data truncated for column 'col_time_key' at row 3
-Note	1265	Data truncated for column 'col_time_key' at row 4
+insert into c (col_time_nokey,col_datetime_nokey,col_varchar_nokey) select '10:10:10', '2021-12-24 01:50:27', 'z' from seq_1_to_10;
 EXPLAIN SELECT
 outr.col_time_key AS x
 FROM c as outr
@@ -205,7 +201,7 @@ outr.col_varchar_nokey in ('c', 'x', 'i')
 AND (outr.col_time_key IS NULL OR
 outr.col_datetime_key = '2009-09-27');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	outr	ALL	col_time_key,col_datetime_key	NULL	NULL	NULL	4	x
+1	SIMPLE	outr	index_merge	col_time_key,col_datetime_key	col_time_key,col_datetime_key	4,6	NULL	x	x
 SELECT
 outr.col_time_key AS x
 FROM c AS outr
@@ -695,7 +691,7 @@ a	b	c
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD UNIQUE INDEX (c(1));
 Warnings:
-Warning	1264	Out of range value for column 'b' at row 1
+Warning	1264	Out of range value for column 'b' at row 0
 SELECT * FROM t WHERE c = '0';
 a	b	c
 1	127	0

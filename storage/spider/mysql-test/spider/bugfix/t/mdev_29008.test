@@ -25,7 +25,9 @@ eval CREATE TABLE tbl_a (
     b INT
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
+--disable_ps_protocol
 SELECT MIN(t2.a) AS f1, t1.b AS f2 FROM tbl_a AS t1 JOIN tbl_a AS t2 GROUP BY f2 ORDER BY f1, f2;
+--enable_ps_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;

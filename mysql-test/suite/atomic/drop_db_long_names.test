@@ -1,0 +1,117 @@
+--source include/have_debug.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
+#
+# Testing of atomic DROP DATABASE when the generated query could be too long
+#
+
+let $engine_count=1;
+let $engines='aria';
+
+let $crash_count=2;
+let $crash_points='ddl_log_drop_after_drop_tables','ddl_log_drop_before_binlog';
+
+let $max_tables=30;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $keep_include_silent=1;
+let $grep_script=DROP;
+--disable_query_log
+
+let $e=0;
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+    let $r=0;
+    while ($r < 1)
+    {
+      inc $r;
+      create database test2;
+      use test2;
+      --eval set @@default_storage_engine=$default_engine
+      let $t=0;
+      while ($t < $max_tables)
+      {
+        inc $t;
+        let $name=`select concat("t",char(floor(65+$t/26)),repeat(char(65+mod($t,26)),60))`;
+        let $view=`select concat("t",char(floor(65+$t/26)),repeat(char(65+mod($t,26)),30),'v')`;
+        --eval create table $name (a int not null) $extra_option
+        --eval create view $view as select * from $name
+      }
+
+      flush tables;
+      use test;
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      echo "engine: $engine  crash point: $crash  position: $r";
+     --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
+      let $errno=0;
+      --error 0,2013
+      DROP DATABASE test2;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      use test;
+      # Check which tables still exists
+      --error 0,1
+      --list_files $MYSQLD_DATADIR/test2 t*
+      --error 0,ER_SP_DOES_NOT_EXIST
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Really drop the tables. The warnings will show what was dropped
+      --disable_warnings
+      --error 0, ER_DB_DROP_EXISTS
+      DROP DATABASE test2;
+      --enable_warnings
+    }
+  }
+}
+drop database if exists test2;
+
+--enable_query_log

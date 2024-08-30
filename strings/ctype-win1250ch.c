@@ -42,6 +42,8 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
+
 
 #else
 
@@ -52,6 +54,8 @@
 
 #ifdef HAVE_CHARSET_cp1250
 
+const char charset_name_cp1250[]= "cp1250";
+#define charset_name_cp1250_length (sizeof(charset_name_cp1250) -1)
 
 static const uint16 tab_cp1250_uni[256]={
      0,0x0001,0x0002,0x0003,0x0004,0x0005,0x0006,0x0007,
@@ -669,7 +673,7 @@ my_like_range_win1250ch(CHARSET_INFO *cs __attribute__((unused)),
 }
 
 
-static MY_COLLATION_HANDLER my_collation_czech_ci_handler =
+static MY_COLLATION_HANDLER my_collation_czech_cs_handler =
 {
   NULL,				/* init */
   my_strnncoll_win1250ch,
@@ -679,20 +683,23 @@ static MY_COLLATION_HANDLER my_collation_czech_ci_handler =
   my_strnxfrmlen_simple,
   my_like_range_win1250ch,
   my_wildcmp_8bit,
-  my_strcasecmp_8bit,
   my_instr_simple,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple,
+  my_ci_get_id_generic,
+  my_ci_get_collation_name_generic
 };
 
 
-struct charset_info_st my_charset_cp1250_czech_ci =
+struct charset_info_st my_charset_cp1250_czech_cs =
 {
   34,0,0,                                     /* number    */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
   MY_CS_STRNXFRM_BAD_NWEIGHTS|MY_CS_NON1TO1,  /* state     */
-  "cp1250",                                   /* cs name   */
-  "cp1250_czech_cs",                          /* name      */
+  { charset_name_cp1250, charset_name_cp1250_length }, /* cs name   */
+  { STRING_WITH_LEN("cp1250_czech_cs") },              /* name      */
   "",                                         /* comment   */
   NULL,                                       /* tailoring */
   ctype_win1250ch,
@@ -702,21 +709,19 @@ struct charset_info_st my_charset_cp1250_czech_ci =
   NULL,				/* uca          */
   tab_cp1250_uni,		/* tab_to_uni   */
   idx_uni_cp1250,		/* tab_from_uni */
-  &my_unicase_default,          /* caseinfo     */
+  NULL,                         /* casefold     */
   NULL,				/* state_map    */
   NULL,				/* ident_map    */
   2,				/* strxfrm_multiply */
-  1,                            /* caseup_multiply  */
-  1,                            /* casedn_multiply  */
   1,				/* mbminlen  */
   1,				/* mbmaxlen  */
   0,				/* min_sort_char */
-  0,				/* max_sort_char */
+  0xFF,                         /* max_sort_char */
   ' ',                          /* pad char      */
   0,                            /* escape_with_backslash_is_dangerous */
-  2,                            /* levels_for_order   */
+  MY_CS_COLL_LEVELS_S2,
   &my_charset_8bit_handler,
-  &my_collation_czech_ci_handler
+  &my_collation_czech_cs_handler
 };
 
 

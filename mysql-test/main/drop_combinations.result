@@ -1,0 +1,878 @@
+SET @save_default_engine= @@DEFAULT_STORAGE_ENGINE;
+SET default_storage_engine=myisam;
+show tables;
+Tables_in_test
+# Generating test tables
+#
+# DROP TABLE
+#
+drop table t1,t2,t3;
+ERROR 42S02: Unknown table 'test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table t1,t3,t2;
+ERROR 42S02: Unknown table 'test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table t1,t4,t2,t3;
+ERROR 42S02: Unknown table 'test.t4,test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t4,test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table t1,s1,s2,t2;
+show tables;
+Tables_in_test
+v1
+v2
+# Generating test tables
+drop table t1,v1,v2,t2;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v1' is a view
+Error	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table v1,s1,s2,v2,t2;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v1' is a view
+Error	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+v1
+v2
+# Generating test tables
+drop table t1,s1,v1,t3,t4;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+Error	1965	'test.v1' is a view
+Error	1051	Unknown table 'test.t3,test.t4'
+drop table s2,v2,t2,t1;
+ERROR 42S02: 'test.v2' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v2' is a view
+Error	1051	Unknown table 'test.t1'
+show tables;
+Tables_in_test
+v1
+v2
+# Generating test tables
+drop table s1,v1,s2,v2;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v1' is a view
+Error	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+#
+# DROP TABLE with if exists
+#
+drop table if exists t1,t2,t3;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table if exists t1,t3,t2;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table if exists t1,t4,t2,t3;
+Warnings:
+Note	1051	Unknown table 'test.t4,test.t3'
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table if exists t1,s1,s2,t2;
+show tables;
+Tables_in_test
+v1
+v2
+# Generating test tables
+drop table if exists t1,v1,v2,t2;
+Warnings:
+Note	1965	'test.v1' is a view
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+s1
+s2
+v1
+v2
+# Generating test tables
+drop table if exists v1,s1,s2,v2,t2;
+Warnings:
+Note	1965	'test.v1' is a view
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+v1
+v2
+# Generating test tables
+drop table if exists t1,s1,v1,t3,t4;
+Warnings:
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+Note	1965	'test.v1' is a view
+Note	1051	Unknown table 'test.t3,test.t4'
+drop table if exists s2,v2,t2,t1;
+Warnings:
+Note	1965	'test.v2' is a view
+Note	1051	Unknown table 'test.t1'
+show tables;
+Tables_in_test
+v1
+v2
+# Generating test tables
+drop table if exists s1,v1,s2,v2;
+Warnings:
+Note	1965	'test.v1' is a view
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+#
+# DROP TEMPORARY TABLE
+#
+drop table if exists t1,t2;
+drop temporary table if exists tt1,tt2;
+drop sequence if exists s1,s2;
+drop temporary sequence if exists ss1,ss2;
+drop view if exists v1,v2;
+drop temporary table t1,t2,t3;
+ERROR 42S02: Unknown table 'test.t1,test.t2,test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t1,test.t2,test.t3'
+# Generating test tables
+drop temporary table t1,t3,t2;
+ERROR 42S02: Unknown table 'test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t3'
+# Generating test tables
+drop temporary table t1,t4,t2,t3;
+ERROR 42S02: Unknown table 'test.t4,test.t3'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.t4,test.t3'
+# Generating test tables
+drop temporary table t1,s1,s2,t2;
+# Generating test tables
+drop temporary table t1,v1,v2,t2;
+ERROR 42S02: Unknown table 'test.v1,test.v2'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+drop temporary table v1,s1,s2,v2,t2;
+ERROR 42S02: Unknown table 'test.v1,test.v2'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+drop temporary table t1,s1,v1,t3,t4;
+ERROR 42S02: Unknown table 'test.v1,test.t3,test.t4'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.v1,test.t3,test.t4'
+# Generating test tables
+drop temporary table s2,v2,t2,t1;
+ERROR 42S02: Unknown table 'test.v2'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.v2'
+# Generating test tables
+drop temporary table s1,v1,s2,v2;
+ERROR 42S02: Unknown table 'test.v1,test.v2'
+show warnings;
+Level	Code	Message
+Error	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+#
+# DROP TEMPORARY TABLE with if exists
+#
+drop temporary table if exists t1,t2,t3;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+# Generating test tables
+drop temporary table if exists t1,t3,t2;
+Warnings:
+Note	1051	Unknown table 'test.t3'
+# Generating test tables
+drop temporary table if exists t1,t4,t2,t3;
+Warnings:
+Note	1051	Unknown table 'test.t4,test.t3'
+# Generating test tables
+drop temporary table if exists t1,s1,s2,t2;
+# Generating test tables
+drop temporary table if exists t1,v1,v2,t2;
+Warnings:
+Note	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+drop temporary table if exists v1,s1,s2,v2,t2;
+Warnings:
+Note	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+drop temporary table if exists t1,s1,v1,t3,t4;
+Warnings:
+Note	1051	Unknown table 'test.v1,test.t3,test.t4'
+drop temporary table if exists s2,v2,t2,t1;
+Warnings:
+Note	1051	Unknown table 'test.v2,test.t1'
+# Generating test tables
+drop temporary table if exists s1,v1,s2,v2;
+Warnings:
+Note	1051	Unknown table 'test.v1,test.v2'
+# Generating test tables
+drop temporary table t1,t2;
+drop temporary sequence s1,s2;
+show tables;
+Tables_in_test
+# Generating test tables
+#
+# DROP SEQUENCE
+#
+drop sequence s1,s2,s3;
+ERROR 42S02: Unknown SEQUENCE: 'test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence s1,s3,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence s1,s4,s2,s3;
+ERROR 42S02: Unknown SEQUENCE: 'test.s4,test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s4,test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence s1,t1,t2,s2,s3,s4;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+show warnings;
+Level	Code	Message
+Error	4090	'test.t1' is not a SEQUENCE
+Error	4090	'test.t2' is not a SEQUENCE
+Error	4091	Unknown SEQUENCE: 'test.s3,test.s4'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence s1,v1,v2,s2;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v1' is a view
+Error	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence v1,t1,t2,v2,s2;
+ERROR 42S02: 'test.v1' is a view
+show warnings;
+Level	Code	Message
+Error	1965	'test.v1' is a view
+Error	4090	'test.t1' is not a SEQUENCE
+Error	4090	'test.t2' is not a SEQUENCE
+Error	1965	'test.v2' is a view
+drop sequence t1,v1,t2,v2,s2;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+show warnings;
+Level	Code	Message
+Error	4090	'test.t1' is not a SEQUENCE
+Error	1965	'test.v1' is a view
+Error	4090	'test.t2' is not a SEQUENCE
+Error	1965	'test.v2' is a view
+Error	4091	Unknown SEQUENCE: 'test.s2'
+show tables;
+Tables_in_test
+s1
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence s1,t1,v1,t3,s4;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+show warnings;
+Level	Code	Message
+Warning	1017	Can't find file: './test/s1.MYI' (errno: 2 "No such file or directory")
+Error	4090	'test.t1' is not a SEQUENCE
+Error	1965	'test.v1' is a view
+Error	4091	Unknown SEQUENCE: 'test.t3,test.s4'
+drop sequence t2,v2,s2,s1;
+ERROR 42S02: 'test.t2' is not a SEQUENCE
+show warnings;
+Level	Code	Message
+Error	4090	'test.t2' is not a SEQUENCE
+Error	1965	'test.v2' is a view
+Error	4091	Unknown SEQUENCE: 'test.s1'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence t1,v1,t2,v2;
+ERROR 42S02: 'test.t1' is not a SEQUENCE
+show warnings;
+Level	Code	Message
+Error	4090	'test.t1' is not a SEQUENCE
+Error	1965	'test.v1' is a view
+Error	4090	'test.t2' is not a SEQUENCE
+Error	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+v1
+v2
+# Generating test tables
+#
+# DROP SEQUENCE with if exists
+#
+drop sequence if exists s1,s2,s3;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists s1,s3,s2;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists s1,s4,s2,s3;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s4,test.s3'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists s1,t1,t2,s2;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists s1,v1,v2,s2;
+Warnings:
+Note	1965	'test.v1' is a view
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists v1,t1,t2,v2,s2;
+Warnings:
+Note	1965	'test.v1' is a view
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+s1
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists s1,t1,v1,t3,s4;
+Warnings:
+Warning	1017	Can't find file: './test/s1.MYI' (errno: 2 "No such file or directory")
+Note	4090	'test.t1' is not a SEQUENCE
+Note	1965	'test.v1' is a view
+Note	4091	Unknown SEQUENCE: 'test.t3,test.s4'
+drop sequence if exists t2,v2,s2,s1;
+Warnings:
+Note	4090	'test.t2' is not a SEQUENCE
+Note	1965	'test.v2' is a view
+Note	4091	Unknown SEQUENCE: 'test.s1'
+show tables;
+Tables_in_test
+t1
+t2
+v1
+v2
+# Generating test tables
+drop sequence if exists t1,v1,t2,v2;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	1965	'test.v1' is a view
+Note	4090	'test.t2' is not a SEQUENCE
+Note	1965	'test.v2' is a view
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+v1
+v2
+# Generating test tables
+#
+# DROP TEMPORARY SEQUENCE
+#
+drop table if exists t1,t2;
+drop temporary table if exists tt1,tt2;
+drop sequence if exists s1,s2;
+drop temporary sequence if exists ss1,ss2;
+drop view if exists v1,v2;
+# Generating test tables
+drop temporary sequence s1,s2,s3;
+ERROR 42S02: Unknown SEQUENCE: 'test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s3'
+# Generating test tables
+drop temporary sequence s1,s3,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s3'
+# Generating test tables
+drop temporary sequence s1,s4,s2,s3;
+ERROR 42S02: Unknown SEQUENCE: 'test.s4,test.s3'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.s4,test.s3'
+# Generating test tables
+drop temporary sequence s1,t1,t2,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.t2'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.t1,test.t2'
+# Generating test tables
+drop temporary sequence s1,v1,v2,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.v1,test.v2'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.v1,test.v2'
+# Generating test tables
+drop temporary sequence v1,t1,t2,v2,s2;
+ERROR 42S02: Unknown SEQUENCE: 'test.v1,test.t1,test.t2,test.v2'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.v1,test.t1,test.t2,test.v2'
+# Generating test tables
+drop temporary sequence s1,t1,v1,t3,s4;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.v1,test.t3,test.s4'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t3,test.s4'
+drop temporary sequence t2,v2,s2,s1;
+ERROR 42S02: Unknown SEQUENCE: 'test.t2,test.v2,test.s1'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.t2,test.v2,test.s1'
+# Generating test tables
+drop temporary sequence t1,v1,t2,v2;
+ERROR 42S02: Unknown SEQUENCE: 'test.t1,test.v1,test.t2,test.v2'
+show warnings;
+Level	Code	Message
+Error	4091	Unknown SEQUENCE: 'test.t1,test.v1,test.t2,test.v2'
+# Generating test tables
+#
+# DROP TEMPORARY SEQUENCE with if exists
+#
+drop temporary sequence if exists s1,s2,s3;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s3'
+# Generating test tables
+drop temporary sequence if exists s1,s3,s2;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s3'
+# Generating test tables
+drop temporary sequence if exists s1,s4,s2,s3;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.s4,test.s3'
+# Generating test tables
+drop temporary sequence if exists s1,t1,t2,s2;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+# Generating test tables
+drop temporary sequence if exists s1,v1,v2,s2;
+Warnings:
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
+# Generating test tables
+drop temporary sequence if exists v1,t1,t2,v2,s2;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
+# Generating test tables
+drop temporary sequence if exists s1,t1,v1,t3,s4;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.t3,test.s4'
+drop temporary sequence if exists t2,v2,s2,s1;
+Warnings:
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v2,test.s1'
+# Generating test tables
+drop temporary sequence if exists t1,v1,t2,v2;
+Warnings:
+Note	4090	'test.t1' is not a SEQUENCE
+Note	4090	'test.t2' is not a SEQUENCE
+Note	4091	Unknown SEQUENCE: 'test.v1,test.v2'
+# Generating test tables
+drop temporary table t1,t2;
+drop temporary sequence s1,s2;
+show tables;
+Tables_in_test
+# Generating test tables
+#
+# DROP VIEW
+#
+drop view v1,v2,v3;
+ERROR 42S02: Unknown VIEW: 'test.v3'
+show warnings;
+Level	Code	Message
+Error	4092	Unknown VIEW: 'test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view v1,v3,v2;
+ERROR 42S02: Unknown VIEW: 'test.v3'
+show warnings;
+Level	Code	Message
+Error	4092	Unknown VIEW: 'test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view v1,v4,v2,v3;
+ERROR 42S02: Unknown VIEW: 'test.v4,test.v3'
+show warnings;
+Level	Code	Message
+Error	4092	Unknown VIEW: 'test.v4,test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view v1,t1,t2,v2;
+ERROR 42S02: Unknown VIEW: 'test.t1,test.t2'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t1,test.t2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view v1,s1,s2,v2;
+ERROR 42S02: Unknown VIEW: 'test.s1,test.s2'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.s1,test.s2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view s1,t1,t2,s2,v2;
+ERROR 42S02: Unknown VIEW: 'test.s1,test.t1,test.t2,test.s2'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.s1,test.t1,test.t2,test.s2'
+drop table t1;
+Warnings:
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+show warnings;
+Level	Code	Message
+Warning	1017	Can't find file: './test/t1.MYI' (errno: 2 "No such file or directory")
+drop view v1,t1;
+ERROR 42S02: Unknown VIEW: 'test.t1'
+show warnings;
+Level	Code	Message
+Error	4092	Unknown VIEW: 'test.t1'
+show tables;
+Tables_in_test
+s1
+s2
+t2
+# Generating test tables
+drop view v1,t1,s1,t3,v4;
+ERROR 42S02: Unknown VIEW: 'test.t1,test.s1,test.t3,test.v4'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.s1' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t1,test.s1,test.t3,test.v4'
+drop view t2,s2,v2,v1;
+ERROR 42S02: Unknown VIEW: 'test.t2,test.s2,test.v1'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t2,test.s2,test.v1'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view t1,s1,t2,s2;
+ERROR 42S02: Unknown VIEW: 'test.t1,test.s1,test.t2,test.s2'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t1,test.s1,test.t2,test.s2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+v1
+v2
+# Generating test tables
+#
+# DROP VIEW with if exists
+#
+drop view if exists v1,v2,v3;
+Warnings:
+Note	4092	Unknown VIEW: 'test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists v1,v3,v2;
+Warnings:
+Note	4092	Unknown VIEW: 'test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists v1,v4,v2,v3;
+Warnings:
+Note	4092	Unknown VIEW: 'test.v4,test.v3'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists v1,t1,t2,v2;
+Warnings:
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.t1,test.t2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists v1,s1,s2,v2;
+Warnings:
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.s1,test.s2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists s1,t1,t2,s2,v2;
+Warnings:
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.s1,test.t1,test.t2,test.s2'
+drop table t1;
+drop view if exists v1,t1;
+Warnings:
+Note	4092	Unknown VIEW: 'test.t1'
+show tables;
+Tables_in_test
+s1
+s2
+t2
+# Generating test tables
+drop view if exists v1,t1,s1,t3,v4;
+Warnings:
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.s1' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.t1,test.s1,test.t3,test.v4'
+drop view if exists t2,s2,v2,v1;
+Warnings:
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.t2,test.s2,test.v1'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+# Generating test tables
+drop view if exists t1,s1,t2,s2;
+Warnings:
+Warning	1347	'test.t1' is not of type 'VIEW'
+Warning	1347	'test.s1' is not of type 'VIEW'
+Warning	1347	'test.t2' is not of type 'VIEW'
+Warning	1347	'test.s2' is not of type 'VIEW'
+Note	4092	Unknown VIEW: 'test.t1,test.s1,test.t2,test.s2'
+show tables;
+Tables_in_test
+s1
+s2
+t1
+t2
+v1
+v2
+# Generating test tables
+# cleanup
+drop table if exists t1,t2;
+drop sequence if exists s1,s2;
+drop view if exists v1,v2;
+SET default_storage_engine=@save_default_engine;

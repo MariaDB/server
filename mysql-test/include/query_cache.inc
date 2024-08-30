@@ -18,7 +18,7 @@
 --disable_view_protocol
 SET global query_cache_type=ON;
 SET local query_cache_type=ON;
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 
 # Initialise
 --disable_warnings
@@ -31,7 +31,7 @@ set GLOBAL query_cache_size = 1355776;
 #
 # Without auto_commit.
 #
-flush status;
+flush global status;
 set autocommit=0;
 eval create table t1 (a int not null)$partitions_a;
 insert into t1 values (1),(2),(3);
@@ -121,7 +121,7 @@ drop table t3,t2,t1;
 
 # Establish connection1
 connect (connection1,localhost,root,,);
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 SET @@autocommit=1;
 
 connection default;
@@ -129,9 +129,9 @@ connection default;
 SHOW VARIABLES LIKE 'have_query_cache';
 
 SET GLOBAL query_cache_size = 204800;
-flush status;
+flush global status;
 SET @@autocommit=1;
-eval SET SESSION STORAGE_ENGINE = $engine_type;
+eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
 eval CREATE TABLE t2 (s1 int, s2 varchar(1000), key(s1))$partitions_s1;
 INSERT INTO t2 VALUES (1,repeat('a',10)),(2,repeat('a',10)),(3,repeat('a',10)),(4,repeat('a',10));
 COMMIT;

@@ -15,4 +15,4 @@ SET GLOBAL wsrep_provider_options="pc.bootstrap=1";
 connection node_2;
 SET SESSION wsrep_on=0;
 connection node_2;
-CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast.isolate=2.");
+CALL mtr.add_suppression("WSREP: exception from gcomm, backend must be restarted: Gcomm backend termination was requested by setting gmcast\\.isolate=2\\.");

@@ -4,7 +4,7 @@
 
 --source include/not_windows.inc
 --source include/not_embedded.inc
---source include/have_dbi_dbd-mysql.inc
+--source include/have_dbi_dbd-mariadb.inc
 
 if (!$MYSQLHOTCOPY)
 {
@@ -19,7 +19,7 @@ if (!$MYSQLHOTCOPY)
 #       executable, i.e. not necessarily using the perl interpreter in PATH,
 #       because that is how the documentation demonstrates it.
 #
-#       We include have_dbi_dbd-mysql.inc above so that the test will
+#       We include have_dbi_dbd-mariadb.inc above so that the test will
 #       be skipped if Perl modules required by the mysqlhotcopy tool are not
 #       found when the script is run this way.
 

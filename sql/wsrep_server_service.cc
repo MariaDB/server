@@ -41,6 +41,7 @@ static void init_service_thd(THD* thd, char* thread_stack)
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
   thd->mark_connection_idle();
   thd->reset_for_next_command(true);
+  server_threads.insert(thd); // as wsrep_innobase_kill_one_trx() uses find_thread_by_id()
 }
 
 Wsrep_storage_service*
@@ -80,6 +81,7 @@ void Wsrep_server_service::release_storage_service(
     static_cast<Wsrep_storage_service*>(storage_service);
   THD* thd= ss->m_thd;
   wsrep_reset_threadvars(thd);
+  server_threads.erase(thd);
   delete ss;
   delete thd;
 }
@@ -93,7 +95,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
      streaming transaction is BF aborted and streaming applier
      is created from BF aborter context. */
   Wsrep_threadvars saved_threadvars(wsrep_save_threadvars());
-  wsrep_reset_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_reset_threadvars(saved_threadvars.cur_thd);
   THD *thd= 0;
   Wsrep_applier_service *ret= 0;
   if (!wsrep_create_threadvars() &&
@@ -110,7 +113,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
   }
   /* Restore original thread local storage state before returning. */
   wsrep_restore_threadvars(saved_threadvars);
-  wsrep_store_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_store_threadvars(saved_threadvars.cur_thd);
   return ret;
 }
 
@@ -139,6 +143,7 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
   THD* thd= hps->m_thd;
   delete hps;
   wsrep_store_threadvars(thd);
+  server_threads.erase(thd);
   delete thd;
   wsrep_delete_threadvars();
 }
@@ -158,7 +163,7 @@ void Wsrep_server_service::bootstrap()
   wsrep::log_info()
     << "Bootstrapping a new cluster, setting initial position to "
     << wsrep::gtid::undefined();
-  wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+  wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
 }
 
 void Wsrep_server_service::log_message(enum wsrep::log::level level,
@@ -221,7 +226,7 @@ void Wsrep_server_service::log_view(
       if (prev_view.state_id().id() != view.state_id().id())
       {
         WSREP_DEBUG("New cluster UUID was generated, resetting position info");
-        wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+        wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
         checkpoint_was_reset= true;
       }
 
@@ -234,29 +239,9 @@ void Wsrep_server_service::log_view(
                     view.state_id().seqno().get() >= prev_view.state_id().seqno().get());
       }
 
-      if (trans_begin(applier->m_thd, MYSQL_START_TRANS_OPT_READ_WRITE))
+      if (wsrep_schema->store_view(applier->m_thd, view))
       {
-        WSREP_WARN("Failed to start transaction for store view");
-      }
-      else
-      {
-        if (wsrep_schema->store_view(applier->m_thd, view))
-        {
-          WSREP_WARN("Failed to store view");
-          trans_rollback_stmt(applier->m_thd);
-          if (!trans_rollback(applier->m_thd))
-          {
-            close_thread_tables(applier->m_thd);
-          }
-        }
-        else
-        {
-          if (trans_commit(applier->m_thd))
-          {
-            WSREP_WARN("Failed to commit transaction for store view");
-          }
-        }
-        applier->m_thd->release_transactional_locks();
+        WSREP_WARN("Failed to store view");
       }
 
       /*
@@ -272,9 +257,9 @@ void Wsrep_server_service::log_view(
           Wsrep_server_state::instance().provider().last_committed_gtid().seqno();
       if (checkpoint_was_reset || last_committed != view.state_id().seqno())
       {
-          wsrep_set_SE_checkpoint(view.state_id());
+        wsrep_set_SE_checkpoint(view.state_id(), wsrep_gtid_server.gtid());
       }
-      DBUG_ASSERT(wsrep_get_SE_checkpoint().id() == view.state_id().id());
+      DBUG_ASSERT(wsrep_get_SE_checkpoint<wsrep::gtid>().id() == view.state_id().id());
     }
     else
     {
@@ -308,7 +293,7 @@ wsrep::view Wsrep_server_service::get_view(wsrep::client_service& c,
 
 wsrep::gtid Wsrep_server_service::get_position(wsrep::client_service&)
 {
-  return wsrep_get_SE_checkpoint();
+  return wsrep_get_SE_checkpoint<wsrep::gtid>();
 }
 
 void Wsrep_server_service::set_position(wsrep::client_service& c WSREP_UNUSED,
@@ -326,7 +311,7 @@ void Wsrep_server_service::set_position(wsrep::client_service& c WSREP_UNUSED,
     WSREP_WARN("Wait for gtid returned error %d while waiting for "
                "prior transactions to commit before setting position", err);
   }
-  wsrep_set_SE_checkpoint(gtid);
+  wsrep_set_SE_checkpoint(gtid, wsrep_gtid_server.gtid());
 }
 
 void Wsrep_server_service::log_state_change(
@@ -340,7 +325,6 @@ void Wsrep_server_service::log_state_change(
   switch (current_state)
   {
   case Wsrep_server_state::s_synced:
-    wsrep_ready= TRUE;
     WSREP_INFO("Synchronized with group, ready for connections");
     wsrep_ready_set(true);
     /* fall through */

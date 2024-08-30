@@ -22,7 +22,7 @@ START SLAVE;
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
 START SLAVE;
 ERROR HY000: Could not initialize master info structure for ''; more error messages can be found in the MariaDB error log
-RESET SLAVE;
+include/reset_slave.inc
 DROP TABLE t1;
 START SLAVE UNTIL MASTER_LOG_FILE= 'MASTER_LOG_FILE', MASTER_LOG_POS= MASTER_LOG_POS;;
 include/wait_for_slave_sql_to_stop.inc

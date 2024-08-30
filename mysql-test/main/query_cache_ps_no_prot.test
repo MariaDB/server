@@ -14,7 +14,7 @@
 --source include/have_query_cache.inc
 --source include/default_charset.inc
 
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
 # The file with expected results fits only to a run without

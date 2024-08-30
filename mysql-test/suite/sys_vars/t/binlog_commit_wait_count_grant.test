@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21963 Bind BINLOG ADMIN to a number of global system variables
+--echo #
+
+--let var = binlog_commit_wait_count
+--let grant = BINLOG ADMIN
+--let value = 65536
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc

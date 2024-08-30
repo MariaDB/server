@@ -1,0 +1,1 @@
+--log-error=$MYSQLTEST_VARDIR/tmp/system_mysql_db_error_log.err

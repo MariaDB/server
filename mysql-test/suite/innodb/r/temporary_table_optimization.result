@@ -128,7 +128,7 @@ ERROR 23000: Duplicate entry '2.5' for key 'sec_index'
 alter table t1 add index sec_index(t1_f);
 explain select * from t1 where t1_f >= 2.5;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	sec_index	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t1	range	sec_index	sec_index	5	NULL	3	Using index condition
 select * from t1 where t1_f >= 2.5;
 t1_i	t1_f
 2	2.5
@@ -149,7 +149,7 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `t1_i` int(11) DEFAULT NULL,
   `t1_c` char(10) DEFAULT NULL,
   UNIQUE KEY `pri_index` (`t1_i`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t1 where t1_f >= 2.5;
 ERROR 42S22: Unknown column 't1_f' in 'where clause'
 alter table t1 add index sec_index2(t1_c), algorithm=inplace;
@@ -244,23 +244,14 @@ index sk (b(3021))
 drop table t;
 CREATE TABLE t1 ( i INT ) ENGINE = Innodb;
 CREATE TEMPORARY TABLE t2 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 1
 CREATE TEMPORARY table t3 ( i INT ) ENGINE = Innodb;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 1
 DROP TABLE t1,t2,t3;
-SELECT COUNT(*) FROM information_schema.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%t_';
-COUNT(*)
-0
 SELECT COUNT(*) FROM information_schema.INNODB_SYS_TABLES WHERE NAME LIKE '%test%t_';
 COUNT(*)
 0

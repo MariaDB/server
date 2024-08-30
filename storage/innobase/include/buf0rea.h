@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2019, MariaDB Corporation.
+Copyright (c) 2015, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,8 +24,7 @@ The database buffer read
 Created 11/5/1995 Heikki Tuuri
 *******************************************************/
 
-#ifndef buf0rea_h
-#define buf0rea_h
+#pragma once
 
 #include "buf0buf.h"
 
@@ -33,43 +32,40 @@ Created 11/5/1995 Heikki Tuuri
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
-@param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param page_id    page id
+@param zip_size   ROW_FORMAT=COMPRESSED page size, or 0
+@param chain      buf_pool.page_hash cell for page_id
 @retval DB_SUCCESS if the page was read and is not corrupted,
+@retval DB_SUCCESS_LOCKED_REC if the page was not read
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id, ulint zip_size);
+dberr_t buf_read_page(const page_id_t page_id, ulint zip_size,
+                      buf_pool_t::hash_chain &chain);
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
 an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
+@param[in,out]	space		tablespace
 @param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	sync		true if synchronous aio is desired */
-void
-buf_read_page_background(const page_id_t page_id, ulint zip_size, bool sync);
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
+void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
+                              ulint zip_size)
+  MY_ATTRIBUTE((nonnull));
 
 /** Applies a random read-ahead in buf_pool if there are at least a threshold
 value of accessed pages from the random read-ahead area. Does not read any
 page, not even the one at the position (space, offset), if the read-ahead
-mechanism is not activated. NOTE 1: the calling thread may own latches on
+mechanism is not activated. NOTE: the calling thread may own latches on
 pages: to avoid deadlocks this function must be written such that it cannot
-end up waiting for these latches! NOTE 2: the calling thread must want
-access to the page given: this rule is set to prevent unintended read-aheads
-performed by ibuf routines, a situation which could result in a deadlock if
-the OS does not support asynchronous i/o.
+end up waiting for these latches!
 @param[in]	page_id		page id of a page which the current thread
 wants to access
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	ibuf		whether we are inside ibuf routine
-@return number of page read requests issued; NOTE that if we read ibuf
-pages, it may happen that the page at the given page number does not
-get read even if we return a positive value! */
-ulint
-buf_read_ahead_random(const page_id_t page_id, ulint zip_size, bool ibuf);
+@return number of page read requests issued */
+ulint buf_read_ahead_random(const page_id_t page_id, ulint zip_size);
 
 /** Applies linear read-ahead if in the buf_pool the page is a border page of
 a linear read-ahead area and all the pages in the area have been accessed.
@@ -90,60 +86,15 @@ only very improbably.
 NOTE 2: the calling thread may own latches on pages: to avoid deadlocks this
 function must be written such that it cannot end up waiting for these
 latches!
-NOTE 3: the calling thread must want access to the page given: this rule is
-set to prevent unintended read-aheads performed by ibuf routines, a situation
-which could result in a deadlock if the OS does not support asynchronous io.
 @param[in]	page_id		page id; see NOTE 3 above
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	ibuf		whether if we are inside ibuf routine
 @return number of page read requests issued */
-ulint
-buf_read_ahead_linear(const page_id_t page_id, ulint zip_size, bool ibuf);
+ulint buf_read_ahead_linear(const page_id_t page_id, ulint zip_size);
 
-/********************************************************************//**
-Issues read requests for pages which the ibuf module wants to read in, in
-order to contract the insert buffer tree. Technically, this function is like
-a read-ahead function. */
-void
-buf_read_ibuf_merge_pages(
-/*======================*/
-	bool		sync,		/*!< in: true if the caller
-					wants this function to wait
-					for the highest address page
-					to get read in, before this
-					function returns */
-	const ulint*	space_ids,	/*!< in: array of space ids */
-	const ulint*	page_nos,	/*!< in: array of page numbers
-					to read, with the highest page
-					number the last in the
-					array */
-	ulint		n_stored);	/*!< in: number of elements
-					in the arrays */
-
-/** Issues read requests for pages which recovery wants to read in.
-@param[in]	sync		true if the caller wants this function to wait
-for the highest address page to get read in, before this function returns
-@param[in]	space_id	tablespace id
-@param[in]	page_nos	array of page numbers to read, with the
-highest page number the last in the array
-@param[in]	n_stored	number of page numbers in the array */
-
-void
-buf_read_recv_pages(
-	bool		sync,
-	ulint		space_id,
-	const ulint*	page_nos,
-	ulint		n_stored);
-
-/** The size in pages of the area which the read-ahead algorithms read if
-invoked */
-#define	BUF_READ_AHEAD_AREA(b)		((b)->read_ahead_area)
-
-/** @name Modes used in read-ahead @{ */
-/** read only pages belonging to the insert buffer tree */
-#define BUF_READ_IBUF_PAGES_ONLY	131
-/** read any page */
-#define BUF_READ_ANY_PAGE		132
-/* @} */
-
-#endif
+/** Schedule a page for recovery.
+@param space    tablespace
+@param page_id  page identifier
+@param recs     log records
+@param init_lsn page initialization, or 0 if the page needs to be read */
+void buf_read_recover(fil_space_t *space, const page_id_t page_id,
+                      page_recv_t &recs, lsn_t init_lsn);

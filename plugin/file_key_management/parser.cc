@@ -260,7 +260,7 @@ int Parser::parse_line(char **line_ptr, keyentry *key)
     while (isdigit(*p))
     {
       id = id * 10 + *p - '0';
-      if (id > UINT_MAX32)
+      if (id > (longlong) UINT_MAX32)
       {
         report_error("Invalid key id", p - *line_ptr);
         return -1;

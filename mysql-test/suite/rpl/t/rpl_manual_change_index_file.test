@@ -1,5 +1,11 @@
 source include/master-slave.inc;
 
+connection slave;
+source include/stop_slave.inc;
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+source include/start_slave.inc;
+connection master;
+
 #
 # BUG#28421 Infinite loop on slave relay logs
 # 

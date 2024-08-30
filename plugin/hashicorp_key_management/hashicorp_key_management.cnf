@@ -1,0 +1,117 @@
+# Copyright (C) 2019-2022 MariaDB Corporation
+#
+# This is a default configuration for the Hashicorp Vault plugin.
+# You can read more about the parameters of this plugin in the
+# hashicorp_key_management.txt file.
+#
+# NOTE THAT YOU MUST MANUALLY UNCOMMENT THE "plugin-load-add"
+# LINE AND ALL THE NECESSARY PARAMETERS BELOW, SETTING THEM
+# TO APPROPRIATE VALUES!
+#
+[mariadb]
+
+#
+# To use Hashicorp Vault KMS, the plugin must be preloaded and
+# activated on the server:
+#
+#plugin-load-add=hashicorp_key_management.so
+
+# Most of its parameters should not be changed during plugin
+# operation and therefore must be preconfigured as part of
+# the server configuration:
+
+#
+# HTTP[s] URL that is used to connect to the Hashicorp Vault server.
+# It must include the name of the scheme ("https://" for a secure
+# connection) and, according to the API rules for storages of the
+# key-value type in Hashicorp Vault, after the server address, the
+# path must begin with the "/v1/" string (as prefix), for example:
+# "https://127.0.0.1:8200/v1/my_secrets"
+#
+#hashicorp-key-management-vault-url="<url>"
+
+#
+# Authentication token that passed to the Hashicorp Vault
+# in the request header:
+#
+#hashicorp-key-management-token="<token>"
+
+#
+# Optional path to the Certificate Authority (CA) bundle
+# (is a file that contains root and intermediate certificates):
+#
+#hashicorp-key-management-vault-ca="<path>"
+
+#
+# Set the duration (in seconds) for the Hashicorp Vault server
+# connection timeout. The allowed range is from 1 to 86400 seconds.
+# The user can also specify a zero value, which means the default
+# timeout value set by the libcurl library (currently 300 seconds):
+#
+#hashicorp-key-management-timeout=15
+
+#
+# Number of server request retries in case of timeout:
+#
+#hashicorp-key-management-retries=3
+
+#
+# Enable key caching (storing key values received from
+# the Hashicorp Vault server in the local memory):
+#
+#hashicorp-key-management-caching-enabled="on"
+
+#
+# This parameter instructs the plugin to use the key values
+# or version numbers taken from the cache in the event of a
+# timeout when accessing the vault server. By default this
+# option is disabled.
+#
+# Please note that key values or version numbers will be read
+# from the cache when the timeout expires only after the number
+# of attempts to read them from the storage server that specified
+# by the hashicorp-key-management-retries parameter has been
+# exhausted:
+#
+#hashicorp-key-management-use-cache-on-timeout="off"
+
+#
+# The time (in milliseconds) after which the value of the key
+# stored in the cache becomes invalid and an attempt to read this
+# data causes a new request send to the vault server. By default,
+# cache entries become invalid after 60,000 milliseconds (after
+# one minute).
+#
+# If the value of this parameter is zero, then the keys will always
+# be considered invalid, but they still can be used if the vault
+# server is unavailable and the corresponding cache operating mode
+# (--[loose-]hashicorp-key-management-use-cache-on-timeout="on")
+# is enabled.
+#
+#hashicorp-key-management-cache-timeout=0
+
+#
+# The time (in milliseconds) after which the information about
+# latest version number of the key (which stored in the cache)
+# becomes invalid and an attempt to read this information causes
+# a new request send to the vault server.
+#
+# If the value of this parameter is zero, then information abount
+# latest key version numbers always considered invalid, unless
+# there is no communication with the vault server and use of the
+# cache is allowed when the server is unavailable.
+#
+# By default, this parameter is zero, that is, the latest version
+# numbers for the keys stored in the cache are considered always
+# invalid, except when the vault server is unavailable and use
+# of the cache is allowed on server failures.
+#
+#hashicorp-key-management-cache-version-timeout=0
+
+#
+# This parameter enables ("on", this is the default value) or disables
+# ("off") checking the kv storage version during plugin initialization.
+# The plugin requires storage to be version 2 or older in order for it
+# to work properly.
+#
+#hashicorp-key-management-check-kv-version=on

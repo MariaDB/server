@@ -15,6 +15,7 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA */
 
+#include "my_global.h"
 #include "hash.h"
 
 
@@ -28,15 +29,21 @@ class Hash_set
 public:
   enum { START_SIZE= 8 };
   /**
-    Constructs an empty hash. Does not allocate memory, it is done upon
-    the first insert. Thus does not cause or return errors.
+    Constructs an empty unique hash.
   */
-  Hash_set(uchar *(*K)(const T *, size_t *, my_bool),
+  Hash_set(PSI_memory_key psi_key, uchar *(*K)(const T *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
-    my_hash_clear(&m_hash);
-    m_hash.get_key= (my_hash_get_key)K;
-    m_hash.charset= cs;
+    my_hash_init(psi_key, &m_hash, cs, START_SIZE, 0, 0, (my_hash_get_key)K, 0,
+                 HASH_UNIQUE);
+  }
+
+  Hash_set(PSI_memory_key psi_key, CHARSET_INFO *charset, ulong default_array_elements,
+           size_t key_offset, size_t key_length, my_hash_get_key get_key,
+           void (*free_element)(void*), uint flags)
+  {
+    my_hash_init(psi_key, &m_hash, charset, default_array_elements, key_offset,
+                 key_length, get_key, free_element, flags);
   }
   /**
     Destroy the hash by freeing the buckets table. Does
@@ -57,14 +64,7 @@ public:
   */
   bool insert(T *value)
   {
-    my_hash_init_opt(&m_hash, m_hash.charset, START_SIZE, 0, 0,
-                     m_hash.get_key, 0, MYF(0));
-    size_t key_len;
-    uchar *v= reinterpret_cast<uchar *>(value);
-    const uchar *key= m_hash.get_key(v, &key_len, FALSE);
-    if (find(key, key_len) == NULL)
-      return my_hash_insert(&m_hash, v);
-    return FALSE;
+    return my_hash_insert(&m_hash, reinterpret_cast<const uchar*>(value));
   }
   bool remove(T *value)
   {
@@ -78,6 +78,8 @@ public:
   bool is_empty() const { return m_hash.records == 0; }
   /** Returns the number of unique elements. */
   size_t size() const { return static_cast<size_t>(m_hash.records); }
+  /** Erases all elements from the container */
+  void clear() { my_hash_reset(&m_hash); }
   const T* at(size_t i) const
   {
     return reinterpret_cast<T*>(my_hash_element(const_cast<HASH*>(&m_hash), i));

@@ -1,4 +1,3 @@
-drop table if exists t1;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
 a VARCHAR(200),
@@ -133,7 +132,6 @@ AGAINST ('"xyz blob"@3' IN BOOLEAN MODE);
 count(*)
 2
 DROP TABLE t1;
-set global innodb_file_per_table=1;
 set names utf8;
 CREATE TABLE t1 (
 id INT UNSIGNED AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -215,4 +213,3 @@ AGAINST ('"very blob"@3' IN BOOLEAN MODE);
 count(*)
 1
 DROP TABLE t1;
-SET GLOBAL innodb_file_per_table=1;

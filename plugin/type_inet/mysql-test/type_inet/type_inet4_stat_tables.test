@@ -1,0 +1,40 @@
+--source include/have_stat_tables.inc
+
+--echo #
+--echo # Start of 10.10 tests
+--echo #
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo # MDEV-20800 Server crashes in Field_inet6::store_warning upon updating table statistics
+--echo #
+
+CREATE TABLE t1 (a INET4);
+INSERT INTO t1 VALUES ('1.0.0.1'),('2.0.0.2');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+--vertical_results
+--source include/histogram_replaces.inc
+SELECT db_name, table_name, column_name,
+       min_value, max_value,
+       nulls_ratio, avg_frequency,
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1';
+--horizontal_results
+INSERT INTO t1 VALUES ('3.0.0.3');
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23287 The INET4 data type
+--echo # MDEV-22509: Server crashes in Field_inet6::store_inet6_null_with_warn / Field::maybe_null
+--echo #
+
+CREATE TABLE t1 (a INT, b INET4 NOT NULL);
+INSERT INTO t1 VALUES (1,'0.0.0.0'),(2,'0.0.0.0');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT t1.a from t1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.10 tests
+--echo #

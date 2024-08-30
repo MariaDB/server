@@ -132,6 +132,8 @@ sort_buffer_size	100000
 '#------------------ STATEMENT Test 6 -----------------------#'
 '# Initialize variables to known setting'
 SET SESSION  keep_files_on_create=ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Pre-STATEMENT variable value'
 SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
@@ -142,6 +144,9 @@ SET STATEMENT keep_files_on_create=OFF FOR SELECT *,@@keep_files_on_create FROM 
 v1	v2	@@keep_files_on_create
 1	2	0
 3	4	0
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT variable value'
 SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
@@ -174,6 +179,8 @@ myisam_repair_threads=1,
 sort_buffer_size = 200000,
 max_join_size=2222220000000,
 keep_files_on_create=ON;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '#  LONG    '
 SHOW SESSION VARIABLES LIKE 'sort_buffer_size';
@@ -195,6 +202,9 @@ SET STATEMENT keep_files_on_create=OFF
 FOR SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
 Variable_name	Value
 keep_files_on_create	OFF
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SHOW SESSION VARIABLES LIKE 'keep_files_on_create';
 Variable_name	Value
 keep_files_on_create	ON
@@ -231,6 +241,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 '# Pre-STATEMENT variable value
@@ -263,6 +275,9 @@ max_join_size=4444440000000 FOR
 SELECT myProc(123.45);
 myProc(123.45)
 200006.17
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SET STATEMENT myisam_sort_buffer_size=400000,
 myisam_repair_threads=2,
 sort_buffer_size=300000,
@@ -272,6 +287,9 @@ max_join_size=4444440000000 FOR
 SELECT myProc(123.45);
 myProc(123.45)
 300006.17
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT No 1 variable value Pre-STATEMENT for No 2'
 SELECT @@myisam_sort_buffer_size,
@@ -290,6 +308,9 @@ binlog_format=row,
 keep_files_on_create=OFF,
 max_join_size=4444440000000 FOR
 DROP FUNCTION myProc;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT No 2 variable value
 SELECT @@myisam_sort_buffer_size,
@@ -309,6 +330,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 '# Pre-STATEMENT variable value
@@ -329,6 +352,9 @@ keep_files_on_create=OFF,
 max_join_size=4444440000000 FOR
 PREPARE stmt1 FROM
 'SET STATEMENT binlog_format=row FOR SELECT *,@@binlog_format,@@sort_buffer_size FROM t1';
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 'Test No 1 Post Value & Test 2 Pre values'
 SELECT @@myisam_sort_buffer_size,
@@ -350,6 +376,9 @@ EXECUTE stmt1;
 v1	v2	@@binlog_format	@@sort_buffer_size
 1	2	ROW	200000
 3	4	ROW	200000
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT No 2
 SELECT @@myisam_sort_buffer_size,
@@ -370,6 +399,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 '# Pre-STATEMENT variable value
@@ -397,6 +428,9 @@ SELECT @@myisam_sort_buffer_size,
 @@keep_files_on_create,
 @@max_join_size;
 END|
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 'Test No 1 Post Value & Test 2 Pre values'
 SELECT @@myisam_sort_buffer_size,
@@ -418,6 +452,9 @@ max_join_size=4444440000001 FOR
 CALL p1();
 @@myisam_sort_buffer_size	@@myisam_repair_threads	@@sort_buffer_size	@@binlog_format	@@keep_files_on_create	@@max_join_size
 400001	3	200001	ROW	0	4444440000001
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT No 2
 SELECT @@myisam_sort_buffer_size,
@@ -438,6 +475,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 CREATE PROCEDURE p2() BEGIN
@@ -470,6 +509,11 @@ max_join_size=4444440000000 FOR
 CALL p2();
 @@myisam_sort_buffer_size	@@myisam_repair_threads	@@sort_buffer_size	@@binlog_format	@@keep_files_on_create	@@max_join_size
 400000	3	300000	MIXED	0	3333330000000
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT
 SELECT @@myisam_sort_buffer_size,
@@ -490,6 +534,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 CREATE PROCEDURE p3() BEGIN
@@ -530,6 +576,13 @@ CALL p3();
 400000	2	200000	ROW	0	4444440000000
 @@myisam_sort_buffer_size	@@myisam_repair_threads	@@sort_buffer_size	@@binlog_format	@@keep_files_on_create	@@max_join_size
 400000	3	300000	MIXED	0	3333330000000
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT
 SELECT @@myisam_sort_buffer_size,
@@ -552,6 +605,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 ''
 CREATE PROCEDURE p4() BEGIN
@@ -625,6 +680,11 @@ CALL p4();
 320000	2	220022	ROW	1	2222220000000
 @@myisam_sort_buffer_size	@@myisam_repair_threads	@@sort_buffer_size	@@binlog_format	@@keep_files_on_create	@@max_join_size
 320000	2	220022	ROW	1	2222220000000
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT
 SELECT @@myisam_sort_buffer_size,
@@ -768,6 +828,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Pre-STATEMENT variable value
 SELECT @@myisam_sort_buffer_size,
@@ -793,6 +855,10 @@ sort_buffer_size=230013,
 binlog_format=row,
 keep_files_on_create=ON,
 max_join_size=2323230000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT
 SELECT @@myisam_sort_buffer_size,
@@ -813,6 +879,8 @@ sort_buffer_size=100000,
 binlog_format=mixed,
 keep_files_on_create=ON,
 max_join_size=2222220000000;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Pre-STATEMENT variable value
 SELECT @@myisam_sort_buffer_size,
@@ -859,6 +927,10 @@ CALL p5();
 400000	2	200000	ROW	0	4444440000000
 @@myisam_sort_buffer_size	@@myisam_repair_threads	@@sort_buffer_size	@@binlog_format	@@keep_files_on_create	@@max_join_size
 260000	3	230013	ROW	1	2323230000000
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 ''
 '# Post-STATEMENT
 SELECT @@myisam_sort_buffer_size,
@@ -970,6 +1042,8 @@ SELECT @@binlog_format;
 ROW
 SET @@binlog_format           = @save_binlog_format;
 SET @@keep_files_on_create    = @save_keep_files_on_create;
+Warnings:
+Warning	1287	'@@keep_files_on_create' is deprecated and will be removed in a future release
 SET @@max_join_size           = @save_max_join_size;
 SET @@myisam_repair_threads   = @save_myisam_repair_threads;
 SET @@myisam_sort_buffer_size = @save_myisam_sort_buffer_size;
@@ -1011,7 +1085,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select @@default_storage_engine;
 @@default_storage_engine
 MyISAM
@@ -1021,7 +1095,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 SET @@default_storage_engine=@save_dfs;
 SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
@@ -1073,6 +1147,16 @@ sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
 #---
+#should be written
+set statement log_slow_query_time=0.01 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
+#---
 set @@long_query_time=0.01;
 #should NOT be written
 set statement slow_query_log=0 for select sleep(0.1);
@@ -1083,6 +1167,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,log_slow_filter='full_scan' for select sleep(0.1);
@@ -1092,6 +1177,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,log_slow_rate_limit=9999 for select sleep(0.1);
@@ -1101,6 +1187,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 #should NOT be written
 set statement long_query_time=0.01,min_examined_row_limit=50 for select sleep(0.1);
@@ -1110,6 +1197,17 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 sql_text
 select sleep(0.1)
 set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
+#---
+#should NOT be written
+set statement long_query_time=0.01,log_slow_min_examined_row_limit=50 for select sleep(0.1);
+sleep(0.1)
+0
+select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_time%';
+sql_text
+select sleep(0.1)
+set statement long_query_time=0.01 for select sleep(0.1)
+set statement log_slow_query_time=0.01 for select sleep(0.1)
 #---
 set global log_output= @save_log_output;
 set @@slow_query_log= @save_slow_query_log;
@@ -1117,8 +1215,6 @@ set @@long_query_time= @save_long_query_time;
 truncate table mysql.slow_log;
 set statement autocommit=default for select 1;
 ERROR 42000: The system variable autocommit cannot be set in SET STATEMENT.
-set statement tx_isolation=default for select 1;
-ERROR 42000: The system variable tx_isolation cannot be set in SET STATEMENT.
 set statement skip_replication=default for select 1;
 ERROR 42000: The system variable skip_replication cannot be set in SET STATEMENT.
 set statement sql_log_off=default for select 1;
@@ -1228,8 +1324,8 @@ DEALLOCATE PREPARE stmt;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 # Create the table t1 with the same definition as it used before
 # using regular statement execution mode.
@@ -1239,8 +1335,8 @@ SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT 
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(3) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `c1` varchar(3) CHARACTER SET latin1 COLLATE latin1_swedish_ci NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-29074 GET_BIT variables crash in SET STATEMENT

@@ -39,7 +39,17 @@ enum enum_vio_type
 {
   VIO_CLOSED, VIO_TYPE_TCPIP, VIO_TYPE_SOCKET, VIO_TYPE_NAMEDPIPE,
   VIO_TYPE_SSL
+  /* see also vio_type_names[] */
 };
+
+enum enum_vio_state
+{
+  VIO_STATE_NOT_INITIALIZED, VIO_STATE_ACTIVE, VIO_STATE_SHUTDOWN,
+  VIO_STATE_CLOSED
+};
+
+#define FIRST_VIO_TYPE VIO_CLOSED
+#define LAST_VIO_TYPE VIO_TYPE_SSL
 
 /**
   VIO I/O events.
@@ -71,11 +81,11 @@ struct vio_keepalive_opts
 
 Vio* vio_new(my_socket sd, enum enum_vio_type type, uint flags);
 Vio*  mysql_socket_vio_new(MYSQL_SOCKET mysql_socket, enum enum_vio_type type, uint flags);
-#ifdef __WIN__
+#ifdef _WIN32
 Vio* vio_new_win32pipe(HANDLE hPipe);
 #else
 #define HANDLE void *
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 void	vio_delete(Vio* vio);
 int	vio_close(Vio* vio);
@@ -187,6 +197,8 @@ void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd);
 
 void vio_end(void);
 
+const char *vio_type_name(enum enum_vio_type vio_type, size_t *len);
+
 #ifdef	__cplusplus
 }
 #endif
@@ -239,12 +251,12 @@ struct st_vio
   struct sockaddr_storage local;	/* Local internet address */
   struct sockaddr_storage remote;	/* Remote internet address */
   enum enum_vio_type	type;		/* Type of connection */
+  enum enum_vio_state	state;		/* State of the connection */
   const char		*desc;		/* String description */
   char                  *read_buffer;   /* buffer for vio_read_buff */
   char                  *read_pos;      /* start of unfetched data in the
                                            read buffer */
   char                  *read_end;      /* end of unfetched data */
-  struct mysql_async_context *async_context; /* For non-blocking API */
   int                   read_timeout;   /* Timeout value (ms) for read ops. */
   int                   write_timeout;  /* Timeout value (ms) for write ops. */
   /* function pointers. They are similar for socket/SSL/whatever */
@@ -274,6 +286,7 @@ struct st_vio
   HANDLE hPipe;
   OVERLAPPED overlapped;
   int shutdown_flag;
+  void *tp_ctx; /* threadpool context */
 #endif
 };
 #endif /* vio_violite_h_ */

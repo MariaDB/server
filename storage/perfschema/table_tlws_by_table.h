@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -55,21 +55,23 @@ struct row_tlws_by_table
 class table_tlws_by_table : public PFS_engine_table
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_init(bool scan);
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_init(bool scan) override;
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_tlws_by_table();
 

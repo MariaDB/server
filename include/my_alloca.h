@@ -16,8 +16,6 @@
 #ifndef MY_ALLOCA_INCLUDED
 #define MY_ALLOCA_INCLUDED
 
-#include <my_config.h>
-
 #ifdef _WIN32
 #include <malloc.h> /*for alloca*/
 /*

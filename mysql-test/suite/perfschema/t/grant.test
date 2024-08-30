@@ -1,0 +1,12 @@
+--source include/not_embedded.inc
+--source include/have_perfschema.inc
+#
+# MDEV-22884 Assertion `grant_table || grant_table_role' failed on perfschema
+#
+create user a@localhost;
+connect a,localhost,a;
+select * from performance_schema.global_status where variable_name='b';
+connection default;
+disconnect a;
+drop user a@localhost;
+

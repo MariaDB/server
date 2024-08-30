@@ -97,77 +97,77 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｶｶｶ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｲｲｲ`;
 Table	Create Table
 ｲｲｲ	CREATE TABLE `ｲｲｲ` (
   `ｷｷｷ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｳｳｳ`;
 Table	Create Table
 ｳｳｳ	CREATE TABLE `ｳｳｳ` (
   `ｸｸｸ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｴｴｴ`;
 Table	Create Table
 ｴｴｴ	CREATE TEMPORARY TABLE `ｴｴｴ` (
   `ｹｹｹ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｵｵｵ`;
 Table	Create Table
 ｵｵｵ	CREATE TEMPORARY TABLE `ｵｵｵ` (
   `ｺｺｺ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `かかか` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `いいい`;
 Table	Create Table
 いいい	CREATE TABLE `いいい` (
   `ききき` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ううう`;
 Table	Create Table
 ううう	CREATE TABLE `ううう` (
   `くくく` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `えええ`;
 Table	Create Table
 えええ	CREATE TEMPORARY TABLE `えええ` (
   `けけけ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `おおお`;
 Table	Create Table
 おおお	CREATE TEMPORARY TABLE `おおお` (
   `こここ` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龗龗龗`;
 Table	Create Table
 龗龗龗	CREATE TABLE `龗龗龗` (
   `丄丄丄` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龞龞龞`;
 Table	Create Table
 龞龞龞	CREATE TABLE `龞龞龞` (
   `丅丅丅` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龡龡龡`;
 Table	Create Table
 龡龡龡	CREATE TEMPORARY TABLE `龡龡龡` (
   `丌丌丌` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龢龢龢`;
 Table	Create Table
 龢龢龢	CREATE TEMPORARY TABLE `龢龢龢` (
   `丒丒丒` char(1) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `ｳｳｳ`;
@@ -265,77 +265,77 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｶｶｶ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｲｲｲ`;
 Table	Create Table
 ｲｲｲ	CREATE TABLE `ｲｲｲ` (
   `ｷｷｷ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｳｳｳ`;
 Table	Create Table
 ｳｳｳ	CREATE TABLE `ｳｳｳ` (
   `ｸｸｸ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｴｴｴ`;
 Table	Create Table
 ｴｴｴ	CREATE TEMPORARY TABLE `ｴｴｴ` (
   `ｹｹｹ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｵｵｵ`;
 Table	Create Table
 ｵｵｵ	CREATE TEMPORARY TABLE `ｵｵｵ` (
   `ｺｺｺ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `かかか` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `いいい`;
 Table	Create Table
 いいい	CREATE TABLE `いいい` (
   `ききき` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ううう`;
 Table	Create Table
 ううう	CREATE TABLE `ううう` (
   `くくく` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `えええ`;
 Table	Create Table
 えええ	CREATE TEMPORARY TABLE `えええ` (
   `けけけ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `おおお`;
 Table	Create Table
 おおお	CREATE TEMPORARY TABLE `おおお` (
   `こここ` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龗龗龗`;
 Table	Create Table
 龗龗龗	CREATE TABLE `龗龗龗` (
   `丄丄丄` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龞龞龞`;
 Table	Create Table
 龞龞龞	CREATE TABLE `龞龞龞` (
   `丅丅丅` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龡龡龡`;
 Table	Create Table
 龡龡龡	CREATE TEMPORARY TABLE `龡龡龡` (
   `丌丌丌` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龢龢龢`;
 Table	Create Table
 龢龢龢	CREATE TEMPORARY TABLE `龢龢龢` (
   `丒丒丒` char(1) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `ｳｳｳ`;
@@ -433,77 +433,77 @@ SHOW CREATE TABLE `ｱｱｱ`;
 Table	Create Table
 ｱｱｱ	CREATE TABLE `ｱｱｱ` (
   `ｶｶｶ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｲｲｲ`;
 Table	Create Table
 ｲｲｲ	CREATE TABLE `ｲｲｲ` (
   `ｷｷｷ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｳｳｳ`;
 Table	Create Table
 ｳｳｳ	CREATE TABLE `ｳｳｳ` (
   `ｸｸｸ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｴｴｴ`;
 Table	Create Table
 ｴｴｴ	CREATE TEMPORARY TABLE `ｴｴｴ` (
   `ｹｹｹ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ｵｵｵ`;
 Table	Create Table
 ｵｵｵ	CREATE TEMPORARY TABLE `ｵｵｵ` (
   `ｺｺｺ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `あああ`;
 Table	Create Table
 あああ	CREATE TABLE `あああ` (
   `かかか` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `いいい`;
 Table	Create Table
 いいい	CREATE TABLE `いいい` (
   `ききき` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `ううう`;
 Table	Create Table
 ううう	CREATE TABLE `ううう` (
   `くくく` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `えええ`;
 Table	Create Table
 えええ	CREATE TEMPORARY TABLE `えええ` (
   `けけけ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `おおお`;
 Table	Create Table
 おおお	CREATE TEMPORARY TABLE `おおお` (
   `こここ` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龖龖龖`;
 Table	Create Table
 龖龖龖	CREATE TABLE `龖龖龖` (
   `丂丂丂` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龗龗龗`;
 Table	Create Table
 龗龗龗	CREATE TABLE `龗龗龗` (
   `丄丄丄` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龞龞龞`;
 Table	Create Table
 龞龞龞	CREATE TABLE `龞龞龞` (
   `丅丅丅` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龡龡龡`;
 Table	Create Table
 龡龡龡	CREATE TEMPORARY TABLE `龡龡龡` (
   `丌丌丌` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `龢龢龢`;
 Table	Create Table
 龢龢龢	CREATE TEMPORARY TABLE `龢龢龢` (
   `丒丒丒` char(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DROP TABLE `ｱｱｱ`;
 DROP TABLE `ｲｲｲ`;
 DROP TABLE `ｳｳｳ`;

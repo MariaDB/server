@@ -64,9 +64,8 @@ execute stmt;
 deallocate prepare stmt;
 end|
 call p1()|
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 call p1()|
-ERROR HY000: This command is not supported in the prepared statement protocol yet
+ERROR 42000: PROCEDURE p2 already exists
 drop procedure p1|
 create procedure p1()
 begin
@@ -75,9 +74,8 @@ execute stmt;
 deallocate prepare stmt;
 end|
 call p1()|
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 call p1()|
-ERROR HY000: This command is not supported in the prepared statement protocol yet
+ERROR 42000: PROCEDURE test.p2 does not exist
 drop procedure p1|
 create procedure p1()
 begin
@@ -295,15 +293,15 @@ select * from t1|
 id	stmt_text	status
 1	select 1	supported
 2	flush tables	supported
-3	handler t1 open as ha	not supported
+3	handler t1 open as ha	supported
 4	analyze table t1	supported
-5	check table t1	not supported
+5	check table t1	supported
 6	checksum table t1	supported
-7	check table t1	not supported
+7	check table t1	supported
 8	optimize table t1	supported
 9	repair table t1	supported
 10	describe extended select * from t1	supported
-11	help help	not supported
+11	help help	supported
 12	show databases	supported
 13	show tables	supported
 14	show table status	supported
@@ -316,7 +314,7 @@ id	stmt_text	status
 21	call p1()	supported
 22	foo bar	syntax error
 23	create view v1 as select 1	supported
-24	alter view v1 as select 2	not supported
+24	alter view v1 as select 2	supported
 25	drop view v1	supported
 26	create table t2 (a int)	supported
 27	alter table t2 add (b int)	supported

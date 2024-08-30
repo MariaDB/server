@@ -23,8 +23,12 @@ let $message= Testcase: 3.5:;
 	create User test_super@localhost;
 	set password for test_super@localhost = password('PWD');
 	grant ALL on *.* to test_super@localhost with grant OPTION;
-	connect (con1_general,localhost,test_general,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
-	connect (con1_super,localhost,test_super,PWD,test,$MASTER_MYPORT,$MASTER_MYSOCK);
+	connect (con1_general,localhost,test_general,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection con1_general;
+	connect (con1_super,localhost,test_super,PWD,"*NO-ONE*",$MASTER_MYPORT,$MASTER_MYSOCK);
+# next is to check that we connected above
+        connection con1_super;
 	connection default;
 
 ####################################

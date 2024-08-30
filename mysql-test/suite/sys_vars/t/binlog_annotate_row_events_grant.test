@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21971 Bind BINLOG ADMIN to binlog_annotate_row_events and binlog_row_image global and session variables
+--echo #
+
+--let var = binlog_annotate_row_events
+--let grant = BINLOG ADMIN
+--let value = 1
+
+--source suite/sys_vars/inc/sysvar_global_and_session_grant.inc

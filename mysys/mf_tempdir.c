@@ -16,7 +16,7 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define DELIM ';'
 #else
 #define DELIM ':'
@@ -30,13 +30,14 @@ my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist)
   DBUG_PRINT("enter", ("pathlist: %s", pathlist ? pathlist : "NULL"));
 
   mysql_mutex_init(key_TMPDIR_mutex, &tmpdir->mutex, MY_MUTEX_INIT_FAST);
-  if (my_init_dynamic_array(&tmpdir->full_list, sizeof(char*), 1, 5, MYF(0)))
+  if (my_init_dynamic_array(key_memory_MY_TMPDIR_full_list, &tmpdir->full_list,
+                            sizeof(char*), 1, 5, MYF(0)))
     goto err;
   if (!pathlist || !pathlist[0])
   {
     /* Get default temporary directory */
     pathlist=getenv("TMPDIR");	/* Use this if possible */
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (!pathlist)
       pathlist=getenv("TEMP");
     if (!pathlist)
@@ -51,7 +52,7 @@ my_bool init_tmpdir(MY_TMPDIR *tmpdir, const char *pathlist)
     end=strcend(pathlist, DELIM);
     strmake(buff, pathlist, (uint) (end-pathlist));
     length= cleanup_dirname(buff, buff);
-    if (!(copy= my_strndup(buff, length, MYF(MY_WME))) ||
+    if (!(copy= my_strndup(key_memory_MY_TMPDIR_full_list, buff, length, MYF(MY_WME))) ||
         insert_dynamic(&tmpdir->full_list, (uchar*) &copy))
       DBUG_RETURN(TRUE);
     pathlist=end+1;

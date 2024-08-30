@@ -40,6 +40,8 @@
 #include <arpa/inet.h>
 #endif
 
+#include "my_valgrind.h"
+
 static const my_bool my_true= 1;
 
 
@@ -467,7 +469,7 @@ static void test_prepare_simple()
   strmov(query, "SHOW SLAVE STATUS");
   stmt= mysql_simple_prepare(mysql, query);
   check_stmt(stmt);
-  DIE_UNLESS(mysql_stmt_field_count(stmt) == 53);
+  DIE_UNLESS(mysql_stmt_field_count(stmt) == 54);
   mysql_stmt_close(stmt);
 
   /* show master status */
@@ -671,6 +673,11 @@ static void test_wl4435()
   check_stmt(stmt);
 
   /* Init PS-parameters. */
+
+  memset(str_data, 0, sizeof str_data);
+  memset(dbl_data, 0, sizeof dbl_data);
+  memset(dec_data, 0, sizeof dec_data);
+  memset(int_data, 0, sizeof int_data);
 
   bzero((char *) ps_params, sizeof (ps_params));
 
@@ -1072,7 +1079,7 @@ static void test_wl4435_2()
   MYSQL_RES *rs_metadata; \
   MYSQL_FIELD *fields; \
   c_type pspv c_type_ext; \
-  my_bool psp_null; \
+  my_bool psp_null= FALSE; \
   \
   bzero(&pspv, sizeof (pspv)); \
   \
@@ -1133,6 +1140,7 @@ static void test_wl4435_3()
 {
   char tmp[255];
 
+  memset(tmp, 0, sizeof tmp);
   puts("");
 
   /*
@@ -1631,6 +1639,7 @@ static void test_double_compare()
   my_bind[2].buffer= (void *)&double_data;
 
   tiny_data= 1;
+  memset(real_data, 0, sizeof real_data);
   strmov(real_data, "10.2");
   double_data= 34.5;
   rc= mysql_stmt_bind_param(stmt, my_bind);
@@ -3833,7 +3842,7 @@ static void test_bind_result_ext1()
   short      i_data;
   uchar      b_data;
   int        f_data;
-  long       bData;
+  int        bData;
   char       d_data[20];
   double     szData;
   MYSQL_BIND my_bind[8];
@@ -3929,7 +3938,7 @@ static void test_bind_result_ext1()
     fprintf(stdout, "\n data (float)  : %d(%lu)", f_data, length[4]);
     fprintf(stdout, "\n data (double) : %s(%lu)", d_data, length[5]);
 
-    fprintf(stdout, "\n data (bin)    : %ld(%lu)", bData, length[6]);
+    fprintf(stdout, "\n data (bin)    : %d(%lu)", bData, length[6]);
     fprintf(stdout, "\n data (str)    : %g(%lu)", szData, length[7]);
   }
 
@@ -7489,7 +7498,7 @@ static void test_embedded_start_stop()
   if (mysql_server_init(embedded_server_arg_count,
                         embedded_server_args,
                         (char**) embedded_server_groups))
-    DIE("Can't initialize MySQL server");
+    DIE("Can't initialize MariaDB server");
 
   /* connect to server with no flags, default protocol, auto reconnect true */
   mysql= client_connect(0, MYSQL_PROTOCOL_DEFAULT, 1);
@@ -7731,6 +7740,7 @@ static void test_decimal_bug()
   rc= mysql_stmt_bind_param(stmt, my_bind);
   check_execute(stmt, rc);
 
+  memset(data, 0, sizeof data);
   strmov(data, "8.0");
   rc= mysql_stmt_execute(stmt);
   check_execute(stmt, rc);
@@ -11883,6 +11893,7 @@ static void test_view_insert_fields()
     my_bind[i].is_null= 0;
     my_bind[i].buffer= (char *)&parm[i];
 
+    memset(parm[i], 0, sizeof parm[i]);
     strmov(parm[i], "1");
     my_bind[i].buffer_length= 2;
     my_bind[i].length= &l[i];
@@ -13480,6 +13491,7 @@ static void test_bug8330()
     check_execute(stmt[i], rc);
 
     my_bind[i].buffer_type= MYSQL_TYPE_LONG;
+    lval[i]= 0;
     my_bind[i].buffer= (void*) &lval[i];
     my_bind[i].is_null= 0;
     mysql_stmt_bind_param(stmt[i], &my_bind[i]);
@@ -14640,8 +14652,8 @@ static void test_client_character_set()
   DIE_UNLESS(rc == 0);
 
   mysql_get_character_set_info(mysql, &cs);
-  DIE_UNLESS(!strcmp(cs.csname, "utf8"));
-  DIE_UNLESS(!strcmp(cs.name, "utf8_general_ci"));
+  DIE_UNLESS(!strcmp(cs.csname, "utf8mb3"));
+  DIE_UNLESS(!strcmp(cs.name, "utf8mb3_general_ci"));
   /* Restore the default character set */
   rc= mysql_set_character_set(mysql, csdefault);
   myquery(rc);
@@ -16216,6 +16228,7 @@ static void test_bug20152()
   my_bind[0].buffer_type= MYSQL_TYPE_DATE;
   my_bind[0].buffer= (void*)&tm;
 
+  memset(&tm, 0, sizeof tm);
   tm.year = 2006;
   tm.month = 6;
   tm.day = 18;
@@ -16271,7 +16284,7 @@ static void test_bug15752()
                            opt_unix_socket,
                            CLIENT_MULTI_STATEMENTS))
   {
-    printf("Unable connect to MySQL server: %s\n", mysql_error(&mysql_local));
+    printf("Unable connect to MariaDB server: %s\n", mysql_error(&mysql_local));
     DIE_UNLESS(0);
   }
   rc= mysql_real_query(&mysql_local, query, strlen(query));
@@ -17307,25 +17320,25 @@ static void test_bug30472()
 {
   MYSQL con;
 
-  char character_set_name_1[MY_CS_NAME_SIZE];
-  char character_set_client_1[MY_CS_NAME_SIZE];
-  char character_set_results_1[MY_CS_NAME_SIZE];
-  char collation_connnection_1[MY_CS_NAME_SIZE];
+  char character_set_name_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_1[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_1[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_2[MY_CS_NAME_SIZE];
-  char character_set_client_2[MY_CS_NAME_SIZE];
-  char character_set_results_2[MY_CS_NAME_SIZE];
-  char collation_connnection_2[MY_CS_NAME_SIZE];
+  char character_set_name_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_2[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_2[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_3[MY_CS_NAME_SIZE];
-  char character_set_client_3[MY_CS_NAME_SIZE];
-  char character_set_results_3[MY_CS_NAME_SIZE];
-  char collation_connnection_3[MY_CS_NAME_SIZE];
+  char character_set_name_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_3[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_3[MY_CS_COLLATION_NAME_SIZE];
 
-  char character_set_name_4[MY_CS_NAME_SIZE];
-  char character_set_client_4[MY_CS_NAME_SIZE];
-  char character_set_results_4[MY_CS_NAME_SIZE];
-  char collation_connnection_4[MY_CS_NAME_SIZE];
+  char character_set_name_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_client_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char character_set_results_4[MY_CS_CHARACTER_SET_NAME_SIZE];
+  char collation_connnection_4[MY_CS_COLLATION_NAME_SIZE];
 
   /* Create a new connection. */
 
@@ -17422,10 +17435,10 @@ static void test_bug30472()
 
   /* Check that we have UTF8 on the server and on the client. */
 
-  DIE_UNLESS(strcmp(character_set_name_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_client_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(character_set_results_4, "utf8") == 0);
-  DIE_UNLESS(strcmp(collation_connnection_4, "utf8_general_ci") == 0);
+  DIE_UNLESS(strcmp(character_set_name_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(character_set_client_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(character_set_results_4, "utf8mb3") == 0);
+  DIE_UNLESS(strcmp(collation_connnection_4, "utf8mb3_uca1400_ai_ci") == 0);
 
   /* That's it. Cleanup. */
 
@@ -19195,7 +19208,7 @@ static void test_bug58036()
   if (!mysql_change_user(conn, opt_user, opt_password, NULL))
   {
     if (!opt_silent)
-      printf("mysql_change_user() succedded, error expected!");
+      printf("mysql_change_user() succeeded, error expected!");
     mysql_close(conn);
     DIE("");
   }
@@ -19251,6 +19264,7 @@ static void test_bug49972()
 
   in_param_bind.buffer_type= MYSQL_TYPE_LONG;
   in_param_bind.buffer= (char *) &int_data;
+  int_data= 0;
   in_param_bind.length= 0;
   in_param_bind.is_null= 0;
 
@@ -19346,7 +19360,7 @@ static void test_bug56976()
   rc= mysql_stmt_bind_param(stmt, bind);
   check_execute(stmt, rc);
 
-  long_buffer= (char*) my_malloc(packet_len, MYF(0));
+  long_buffer= (char*) my_malloc(PSI_NOT_INSTRUMENTED, packet_len, MYF(0));
   DIE_UNLESS(long_buffer);
 
   memset(long_buffer, 'a', packet_len);
@@ -19423,7 +19437,7 @@ static void test_progress_reporting()
   }
   
   progress_stage= progress_max_stage= progress_count= 0;
-  rc= mysql_query(conn, "alter table t1 add f1 int primary key auto_increment, order by f2");
+  rc= mysql_query(conn, "alter table t1 add f1 int primary key auto_increment, lock=shared, order by f2");
   myquery(rc);
   if (!opt_silent)
     printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
@@ -19431,7 +19445,7 @@ static void test_progress_reporting()
   DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 3);
 
   progress_stage= progress_max_stage= progress_count= 0;
-  rc= mysql_query(conn, "create index f2 on t1 (f2)");
+  rc= mysql_query(conn, "create index f2 on t1 (f2) lock=shared");
   myquery(rc);
   if (!opt_silent)
     printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
@@ -19444,7 +19458,7 @@ static void test_progress_reporting()
   if (!opt_silent)
     printf("Got progress_count: %u  stage: %u  max_stage: %u\n",
            progress_count, progress_stage, progress_max_stage);
-  DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 2);
+  DIE_UNLESS(progress_count > 0 && progress_stage >=2 && progress_max_stage == 4);
 
   rc= mysql_query(conn, "set @@global.progress_report_time=@save");
   myquery(rc);
@@ -19515,6 +19529,9 @@ static void test_bug11766854()
   struct st_mysql_client_plugin *plugin;
 
   DBUG_ENTER("test_bug11766854");
+  if (!getenv("QA_AUTH_CLIENT_SO"))
+    DBUG_VOID_RETURN;
+
   myheader("test_bug11766854");
 
   plugin= mysql_load_plugin(mysql, "foo", -1, 0);
@@ -19769,6 +19786,7 @@ static void test_ps_sp_out_params()
   DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
 
   memset(bind, 0, sizeof(MYSQL_BIND));
+  memset(buffer, 0, sizeof buffer);
   bind[0].buffer= buffer;
   bind[0].buffer_length= sizeof(buffer);
   bind[0].buffer_type= MYSQL_TYPE_STRING;
@@ -20114,7 +20132,7 @@ static void test_big_packet()
 
   myheader("test_big_packet");
 
-  query= (char*) my_malloc(big_packet+1024, MYF(MY_WME));
+  query= (char*) my_malloc(PSI_NOT_INSTRUMENTED, big_packet+1024, MYF(MY_WME));
   DIE_UNLESS(query);
   
   if (!(mysql_local= mysql_client_init(NULL)))
@@ -20466,6 +20484,7 @@ static void test_mdev14454_internal(const char *init,
   DIE_UNLESS(rc == 0);
   DIE_UNLESS(mysql_stmt_param_count(stmt) == 1);
 
+  memset(&bind, 0, sizeof bind);
   bind.buffer_type= MYSQL_TYPE_NULL;
   rc= mysql_stmt_bind_param(stmt, &bind);
   DIE_UNLESS(rc == 0);
@@ -20474,7 +20493,6 @@ static void test_mdev14454_internal(const char *init,
   DIE_UNLESS(rc == 0);
 
   memset(res, 0, sizeof(res));
-  memset(&bind, 0, sizeof(bind));
   bind.buffer_type= MYSQL_TYPE_STRING;
   bind.buffer_length= sizeof(res);
   bind.buffer= res;
@@ -20514,7 +20532,7 @@ static void test_mdev14454()
 {
   myheader("test_mdev14454");
   test_mdev14454_internal("SET NAMES latin1", 8, "test\xFF");
-  test_mdev14454_internal("SET NAMES utf8", 33, "test\xC3\xBF");
+  test_mdev14454_internal("SET NAMES utf8 COLLATE utf8_general_ci", 33, "test\xC3\xBF");
 }
 
 
@@ -20892,6 +20910,178 @@ static void test_bulk_replace()
   rc= mysql_query(mysql, "DROP TABLE t1");
   myquery(rc);
 }
+
+
+static void test_bulk_insert_returning()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[2], res_bind[2];
+  MYSQL_ROW  row;
+  MYSQL_RES *result;
+  int        i,
+             id[]= {1, 2, 3, 4},
+             val[]= {1, 1, 1, 1},
+             count= sizeof(id)/sizeof(id[0]);
+  unsigned long length[2];
+  my_bool       is_null[2];
+  my_bool       error[2];
+  int32         res[2];
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql,
+                  "CREATE TABLE t1 (id int not null primary key, active int)");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt,
+                         "insert into t1  values (?, ?) returning id, active",
+                         -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+  bind[1].buffer_type = MYSQL_TYPE_LONG;
+  bind[1].buffer = (void *)val;
+  bind[1].buffer_length = 0;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  myquery(rc);
+
+  memset(res_bind, 0, sizeof(res_bind));
+  for (i= 0; i < 2; i++)
+  {
+    res_bind[i].buffer_type= MYSQL_TYPE_LONG;
+    res_bind[i].buffer= (char *)&res[i];
+    res_bind[i].is_null= &is_null[i];
+    res_bind[i].length= &length[i];
+    res_bind[i].error= &error[i];
+  }
+  rc= mysql_stmt_bind_result(stmt, res_bind);
+  myquery(rc);
+  rc= mysql_stmt_store_result(stmt);
+  myquery(rc);
+
+  i= 0;
+  while (!mysql_stmt_fetch(stmt))
+  {
+    i++;
+    DIE_IF(is_null[0] || is_null[1]);
+    DIE_IF(res[0] != i);
+    DIE_IF(res[1] != 1);
+  }
+  DIE_IF(i != 4);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id,active FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    DIE_IF(atoi(row[0]) != i);
+    DIE_IF(atoi(row[1]) != 1);
+  }
+  DIE_IF(i != 4);
+  mysql_free_result(result);
+
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
+
+static void test_bulk_delete_returning()
+{
+  int rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind[2], res_bind[2];
+  MYSQL_ROW  row;
+  MYSQL_RES *result;
+  int        i,
+             id[]= {1, 2, 3, 4},
+             count= sizeof(id)/sizeof(id[0]);
+  unsigned long length[1];
+  my_bool       is_null[1];
+  my_bool       error[1];
+  int32         res[1];
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+  rc= mysql_query(mysql, "CREATE TABLE t1 (id int not null primary key)");
+  myquery(rc);
+  rc= mysql_query(mysql, "insert into t1 values (1), (2), (3), (4)");
+  myquery(rc);
+  verify_affected_rows(4);
+
+  stmt= mysql_stmt_init(mysql);
+  rc= mysql_stmt_prepare(stmt, "DELETE FROM t1 WHERE id=? RETURNING id", -1);
+  check_execute(stmt, rc);
+
+  memset(bind, 0, sizeof(bind));
+  bind[0].buffer_type = MYSQL_TYPE_LONG;
+  bind[0].buffer = (void *)id;
+  bind[0].buffer_length = 0;
+
+  mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, (void*)&count);
+  rc= mysql_stmt_bind_param(stmt, bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  myquery(rc);
+
+  memset(res_bind, 0, sizeof(res_bind));
+  res_bind[0].buffer_type= MYSQL_TYPE_LONG;
+  res_bind[0].buffer= (char *)&res[0];
+  res_bind[0].is_null= &is_null[0];
+  res_bind[0].length= &length[0];
+  res_bind[0].error= &error[0];
+  rc= mysql_stmt_bind_result(stmt, res_bind);
+  myquery(rc);
+  rc= mysql_stmt_store_result(stmt);
+  myquery(rc);
+
+  i= 0;
+  while (!mysql_stmt_fetch(stmt))
+  {
+    i++;
+    DIE_IF(is_null[0]);
+    DIE_IF(res[0] != i);
+  }
+  DIE_IF(i != 4);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "SELECT id FROM t1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  i= 0;
+  while ((row= mysql_fetch_row(result)))
+  {
+    i++;
+    printf("\nResult (SHOULD NOT BE HERE!!!) %d %s \n", i, row[0]);
+  }
+  DIE_IF(i != 0 );
+  mysql_free_result(result);
+
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+}
 #endif
 
 
@@ -20927,6 +21117,7 @@ static void test_ps_params_in_ctes()
 
   int_data[0]=2;
 
+  memset(ps_params, 0, sizeof ps_params);
   ps_params[0].buffer_type= MYSQL_TYPE_LONG;
   ps_params[0].buffer= (char *) &int_data[0];
   ps_params[0].length= 0;
@@ -21682,6 +21873,103 @@ static void test_mdev19838()
   rc = mysql_query(mysql, "drop table mdev19838");
   myquery(rc);
 }
+
+static void test_mdev_24411()
+{
+  int        rc;
+  MYSQL_STMT *stmt;
+  MYSQL_BIND bind;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  my_ulonglong row_count;
+  unsigned int vals[] = { 1, 2, 3};
+  unsigned int vals_array_len = 3;
+  const char *insert_stmt= "INSERT INTO t1 VALUES (?)";
+
+  myheader("test_mdev_24411");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t2");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql,
+  "CREATE TRIGGER t1_bi BEFORE INSERT ON t1 FOR EACH ROW "
+  "BEGIN INSERT INTO t2 (a) VALUES (NEW.a); END;");
+  myquery(rc);
+
+  stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+
+  rc= mysql_stmt_prepare(stmt, insert_stmt, strlen(insert_stmt));
+  check_execute(stmt, rc);
+
+  memset(&bind, 0, sizeof(bind));
+  bind.buffer_type= MYSQL_TYPE_LONG;
+  bind.buffer= vals;
+
+  rc= mysql_stmt_attr_set(stmt, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_bind_param(stmt, &bind);
+  check_execute(stmt, rc);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  /*
+    It's expected that the INSERT statement adds three rows into
+    the table t1
+  */
+  row_count = mysql_stmt_affected_rows(stmt);
+  DIE_UNLESS(row_count == 3);
+
+  /*
+   * Check that the BEFORE INSERT trigger of the table t1 does work correct
+   * and inserted the rows (1), (2), (3) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname,a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 3);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
 #endif // EMBEDDED_LIBRARY
 
 
@@ -21774,6 +22062,452 @@ static void test_mdev_30159()
   myquery(rc);
 }
 
+
+#ifndef EMBEDDED_LIBRARY
+/**
+  Test case for bulk UPDATE against a table with an active AFTER UPDATE
+  trigger.
+*/
+
+static void  test_mdev_34718_au()
+{
+  int rc;
+  MYSQL_STMT *stmt_update;
+  MYSQL_BIND bind[2];
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int new_vals[]= { 5, 6, 7};
+  unsigned int vals_array_len= 3;
+  my_ulonglong row_count;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  const char *update_stmt= "UPDATE t1 SET a = ? WHERE a = ?";
+  const char *update_stmt_state_info;
+
+  myheader("test_mdev_34718_au");
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1), (2), (3)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au AFTER UPDATE ON t1 "
+                  "FOR EACH ROW BEGIN INSERT INTO t2 (a) VALUES (NEW.a); END;");
+
+  stmt_update= mysql_stmt_init(mysql);
+  check_stmt(stmt_update);
+
+  rc= mysql_stmt_prepare(stmt_update, update_stmt, strlen(update_stmt));
+  check_execute(stmt_update, rc);
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+  memset(&bind[1], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= new_vals;
+
+  bind[1].buffer_type= MYSQL_TYPE_LONG;
+  bind[1].buffer= vals;
+
+  /*
+    Every input positional parameter is bound with array of 3 elements
+    containing actual values for positional parameters
+  */
+  rc= mysql_stmt_attr_set(stmt_update, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt_update, rc);
+
+  rc= mysql_stmt_bind_param(stmt_update, bind);
+  check_execute(stmt_update, rc);
+
+  /*
+    Execution of this prepared statement replaces the table rows (1), (2), (3)
+    with values (5), (6), (7)
+  */
+  rc= mysql_stmt_execute(stmt_update);
+  check_execute(stmt_update, rc);
+
+  /*
+    Check that the BULK UPDATE statement affects exactly 3 rows
+  */
+  row_count = mysql_stmt_affected_rows(stmt_update);
+  DIE_UNLESS(row_count == 3);
+
+  update_stmt_state_info= mysql_info(mysql);
+
+  /*
+    Check that information about executed operation is matched with
+    the expected result
+  */
+  DIE_UNLESS(!strcmp("Rows matched: 3  Changed: 3  Warnings: 0",
+                     update_stmt_state_info));
+
+  /*
+   * Check that the AFTER UPDATE trigger of the table t1 does work correctly
+   * and inserts the rows (5), (6), (7) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname, a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 5);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 6);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 7);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 5);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 6);
+
+  row = mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 7);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_update);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
+
+/**
+  Test case for bulk UPDATE against a table with an active BEFORE UPDATE
+  trigger.
+*/
+
+static void  test_mdev_34718_bu()
+{
+  int rc;
+  MYSQL_STMT *stmt_update;
+  MYSQL_BIND bind[2];
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int new_vals[]= { 5, 6, 7};
+  unsigned int vals_array_len= 3;
+  my_ulonglong row_count;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  const char *update_stmt= "UPDATE t1 SET a = ? WHERE a = ?";
+  const char *update_stmt_state_info;
+
+  myheader("test_mdev_34718_bu");
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1), (2), (3)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_au BEFORE UPDATE ON t1 "
+                  "FOR EACH ROW BEGIN INSERT INTO t2 (a) VALUES (NEW.a); END;");
+
+  /* Initialize the prepared statement and set it up for bulk operations */
+  stmt_update= mysql_stmt_init(mysql);
+  check_stmt(stmt_update);
+
+  rc= mysql_stmt_prepare(stmt_update, update_stmt, strlen(update_stmt));
+  check_execute(stmt_update, rc);
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+  memset(&bind[1], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= new_vals;
+
+  bind[1].buffer_type= MYSQL_TYPE_LONG;
+  bind[1].buffer= vals;
+
+  /*
+    Every input positional parameter is bound with array of 3 elements
+    containing actual values for positional parameters
+  */
+  rc= mysql_stmt_attr_set(stmt_update, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt_update, rc);
+
+  rc= mysql_stmt_bind_param(stmt_update, bind);
+  check_execute(stmt_update, rc);
+
+  /*
+    Execution of this prepared statement replaces the table rows (1), (2), (3)
+    with values (5), (6), (7)
+  */
+  rc= mysql_stmt_execute(stmt_update);
+  check_execute(stmt_update, rc);
+
+  /*
+    Check that the BULK UPDATE statement affects exactly 3 rows
+  */
+  row_count= mysql_stmt_affected_rows(stmt_update);
+  DIE_UNLESS(row_count == 3);
+
+  update_stmt_state_info= mysql_info(mysql);
+
+  /*
+    Check that information about executed operation is matched with
+    the expected result
+  */
+  DIE_UNLESS(!strcmp("Rows matched: 3  Changed: 3  Warnings: 0",
+                     update_stmt_state_info));
+
+  /*
+   * Check that the BEFORE UPDATE trigger of the table t1 does work correctly
+   * and inserts the rows (5), (6), (7) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname, a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 5);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 6);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t1") == 0 && atoi(row[1]) == 7);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 5);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 6);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 7);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_update);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
+
+/**
+  Test case for bulk DELETE against a table with an active BEFORE DELETE
+  trigger.
+*/
+
+static void  test_mdev_34718_bd()
+{
+  int rc;
+  MYSQL_STMT *stmt_delete;
+  MYSQL_BIND bind[1];
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int vals_array_len= 3;
+  my_ulonglong row_count;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  const char *delete_stmt= "DELETE FROM t1 WHERE a = ?";
+
+  myheader("test_mdev_34718_bd");
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1), (2), (3)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_bd BEFORE DELETE ON t1 "
+                  "FOR EACH ROW BEGIN INSERT INTO t2 (a) VALUES (OLD.a); END;");
+
+  /* Initialize the prepared statement and set it up for bulk operations */
+  stmt_delete= mysql_stmt_init(mysql);
+  check_stmt(stmt_delete);
+
+  rc= mysql_stmt_prepare(stmt_delete, delete_stmt, strlen(delete_stmt));
+  check_execute(stmt_delete, rc);
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  /*
+    Input positional parameter is bound with array of 3 elements
+    containing actual values for the positional parameter
+  */
+  rc= mysql_stmt_attr_set(stmt_delete, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt_delete, rc);
+
+  rc= mysql_stmt_bind_param(stmt_delete, bind);
+  check_execute(stmt_delete, rc);
+
+  /*
+    Execution of this prepared statement deletes the rows (1), (2), (3)
+    from the table t1 and inserts the rows (1), (2), (3) into the table t2
+    in result of firing the BEFORE DELETE trigger
+  */
+  rc= mysql_stmt_execute(stmt_delete);
+  check_execute(stmt_delete, rc);
+
+  /*
+    Check that the BULK DELETE statement affects exactly 3 rows
+  */
+  row_count= mysql_stmt_affected_rows(stmt_delete);
+  DIE_UNLESS(row_count == 3);
+
+  /*
+   * Check that the BEFORE DELETE trigger of the table t1 does work correctly
+   * and inserts the rows (1), (2), (3) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname, a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_delete);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+
+
+/**
+  Test case for bulk DELETE against a table with an active AFTER DELETE
+  trigger.
+*/
+static void  test_mdev_34718_ad()
+{
+  int rc;
+  MYSQL_STMT *stmt_delete;
+  MYSQL_BIND bind[1];
+  unsigned int vals[]= { 1, 2, 3};
+  unsigned int vals_array_len= 3;
+  my_ulonglong row_count;
+  MYSQL_RES *result;
+  MYSQL_ROW row;
+  const char *delete_stmt= "DELETE FROM t1 WHERE a = ?";
+
+  myheader("test_mdev_34718_bd");
+
+  /* Set up test's environment */
+  rc= mysql_query(mysql, "CREATE TABLE t1 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t2 (a INT)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "INSERT INTO t1 VALUES (1), (2), (3)");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TRIGGER t1_bd AFTER DELETE ON t1 "
+                  "FOR EACH ROW BEGIN INSERT INTO t2 (a) VALUES (OLD.a); END;");
+
+  /* Initialize the prepared statement and set it up for bulk operations */
+  stmt_delete= mysql_stmt_init(mysql);
+  check_stmt(stmt_delete);
+
+  rc= mysql_stmt_prepare(stmt_delete, delete_stmt, strlen(delete_stmt));
+  check_execute(stmt_delete, rc);
+
+  memset(&bind[0], 0, sizeof(MYSQL_BIND));
+
+  bind[0].buffer_type= MYSQL_TYPE_LONG;
+  bind[0].buffer= vals;
+
+  /*
+    Input positional parameter is bound with array of 3 elements
+    containing actual values for the positional parameter
+  */
+  rc= mysql_stmt_attr_set(stmt_delete, STMT_ATTR_ARRAY_SIZE, &vals_array_len);
+  check_execute(stmt_delete, rc);
+
+  rc= mysql_stmt_bind_param(stmt_delete, bind);
+  check_execute(stmt_delete, rc);
+
+  /*
+    Execution of this prepared statement deletes the rows (1), (2), (3)
+    from the table t1 and inserts the rows (1), (2), (3) into the table t2
+    in result of firing the BEFORE DELETE trigger
+  */
+  rc= mysql_stmt_execute(stmt_delete);
+  check_execute(stmt_delete, rc);
+
+  /*
+    Check that the BULK DELETE statement affects exactly 3 rows
+  */
+  row_count= mysql_stmt_affected_rows(stmt_delete);
+  DIE_UNLESS(row_count == 3);
+
+  /*
+   * Check that the AFTER DELETE trigger of the table t1 does work correctly
+   * and inserts the rows (1), (2), (3) into the table t2.
+  */
+  rc= mysql_query(mysql, "SELECT 't1' tname, a FROM t1 "
+                  "UNION SELECT 't2' tname, a FROM t2 ORDER BY tname, a");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 1);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 2);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(strcmp(row[0], "t2") == 0 && atoi(row[1]) == 3);
+
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(row == NULL);
+
+  mysql_free_result(result);
+
+  mysql_stmt_close(stmt_delete);
+
+  /* Clean up */
+  rc= mysql_query(mysql, "DROP TABLE t1, t2");
+  myquery(rc);
+}
+#endif // EMBEDDED_LIBRARY
+
 /*
   Check that server_status returned after connecting to server
   is consistent with the value of autocommit variable.
@@ -21810,6 +22544,225 @@ static void test_connect_autocommit()
   }
   rc= mysql_query(mysql, "SET global autocommit=@save_autocommit");
   myquery(rc);
+}
+
+
+static void test_execute_direct()
+{
+#ifndef EMBEDDED_LIBRARY
+  MYSQL_STMT* stmt= mysql_stmt_init(mysql);
+  int rc= mariadb_stmt_execute_direct(stmt,"do 1",-1);
+  myquery(rc);
+  mysql_stmt_close(stmt);
+#endif
+}
+
+
+static void assert_metadata_skipped_count_equals(MYSQL *mysql, int val)
+{
+  MYSQL_ROW row;
+  MYSQL_RES *result;
+  int rc= mysql_query(mysql, "SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE "
+                         "VARIABLE_NAME='Resultset_metadata_skipped'");
+  myquery(rc);
+  result= mysql_use_result(mysql);
+  mytest(result);
+  row= mysql_fetch_row(result);
+  DIE_UNLESS(atoi(row[0]) == val);
+  mysql_free_result(result);
+}
+
+
+static void flush_session_status(MYSQL* mysql)
+{
+  int rc= mysql_query(mysql, "flush status");
+  myquery(rc);
+}
+
+
+static void exec_stmt(MYSQL_STMT* stmt)
+{
+  int rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+  rc= mysql_stmt_store_result(stmt);
+  check_execute(stmt, rc);
+}
+
+
+
+static void test_cache_metadata()
+{
+  char char_val[]= "blah";
+  int int_val = 1;
+  int rc;
+  MYSQL_BIND param= {0};
+  my_bool is_null= FALSE;
+
+
+  MYSQL_STMT* stmt= mysql_stmt_init(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, "SELECT ?", -1);
+  myquery(rc);
+
+  param.buffer= char_val;
+  param.buffer_type= MYSQL_TYPE_STRING;
+  param.is_null= &is_null;
+  param.buffer_length = 4;
+
+  rc= mysql_stmt_bind_param(stmt,&param);
+  exec_stmt(stmt);
+
+  flush_session_status(mysql);
+  /* Execute the statement again, check that metadata is skipped*/
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  flush_session_status(mysql);
+  /*
+    Execute the statement again, such that metadata changes,
+    (using LONG parameter in bind for "SELECT ?", instead of string.
+    Check that metadata is NOT skipped.
+  */
+  param.buffer= &int_val;
+  param.buffer_type= MYSQL_TYPE_LONG;
+  param.is_null= &is_null;
+  rc= mysql_stmt_bind_param(stmt, &param);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 0);
+  mysql_stmt_close(stmt);
+
+
+  /*
+    Test with real table, and DDL which causes column info to be
+    changed.
+  */
+  stmt= mysql_stmt_init(mysql);
+
+  rc= mysql_query(
+      mysql, "CREATE OR REPLACE TABLE t1 (a int, b bigint) engine=memory");
+  myquery(rc);
+
+  flush_session_status(mysql);
+  check_stmt(stmt);
+  rc= mysql_stmt_prepare(stmt, "SELECT * from t1", -1);
+  myquery(rc);
+
+  exec_stmt(stmt);
+  /* Metadata skipped, since already sent with COM_STMT_PREPARE result.*/
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  /* Metadata skipped again*/
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  rc= mysql_query(mysql, "ALTER TABLE t1 MODIFY b CHAR(10)");
+  myquery(rc);
+
+  /* Column metadata WILL change for the next execution due to DDL*/
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 0);
+
+  /* On reexecution, PS column metadata will NOT change. */
+  flush_session_status(mysql);
+  exec_stmt(stmt);
+  assert_metadata_skipped_count_equals(mysql, 1);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+  myquery(rc);
+
+  mysql_stmt_close(stmt);
+}
+
+void test_mdev_10075()
+{
+  MYSQL_STMT *stmt;
+  int        rc;
+  MYSQL_RES  *result;
+  MYSQL_BIND my_bind[1];
+  MYSQL_BIND my_bind2[1];
+
+  struct st_data {
+    unsigned long id;
+    char id_ind;
+  };
+
+  struct st_data data[]= {
+    {0, STMT_INDICATOR_NONE},
+    {1, STMT_INDICATOR_NONE},
+    {2, STMT_INDICATOR_NONE}
+  };
+
+  struct st_data data2[]= {
+    {3, STMT_INDICATOR_NONE},
+    {2, STMT_INDICATOR_NONE},
+    {4, STMT_INDICATOR_NONE}
+  };
+
+  myheader("test_mdev_10075");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(id INT PRIMARY KEY)");
+  myquery(rc);
+
+  /* insert by prepare */
+  stmt= mysql_simple_prepare(mysql,
+                             "INSERT INTO t1 VALUES(?)");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  /* bzero bind structure */
+  bzero((char*) my_bind, sizeof(my_bind));
+  my_bind[0].buffer_type= MYSQL_TYPE_LONG;
+  my_bind[0].buffer= (void *)&data[0].id;
+
+  rc= mysql_stmt_bind_param(stmt, my_bind);
+  check_execute(stmt, rc);
+
+  /* Set array size, row size and bind the parameter */
+  mysql_stmt_bind_param(stmt, my_bind);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  stmt= mysql_simple_prepare(mysql,
+                             "INSERT IGNORE INTO t1 VALUES(?)");
+  check_stmt(stmt);
+  verify_param_count(stmt, 1);
+
+  /* bzero bind structure */
+  bzero((char*) my_bind2, sizeof(my_bind2));
+  my_bind2[0].buffer_type= MYSQL_TYPE_LONG;
+  my_bind2[0].buffer= (void *)&data2[0].id;
+
+  rc= mysql_stmt_bind_param(stmt, my_bind2);
+  check_execute(stmt, rc);
+
+  mysql_stmt_bind_param(stmt, my_bind2);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "GET DIAGNOSTICS CONDITION 1 @var1 = ROW_NUMBER");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "SELECT @var1");
+  myquery(rc);
+
+  result= mysql_store_result(mysql);
+  mytest(result);
+
+  rc= my_process_result_set(result);
+  DIE_UNLESS(rc == 1);
+
+  mysql_free_result(result);
 }
 
 static struct my_tests_st my_tests[]= {
@@ -22106,6 +23059,8 @@ static struct my_tests_st my_tests[]= {
   { "test_bulk_autoinc", test_bulk_autoinc},
   { "test_bulk_delete", test_bulk_delete },
   { "test_bulk_replace", test_bulk_replace },
+  { "test_bulk_insert_returning", test_bulk_insert_returning },
+  { "test_bulk_delete_returning", test_bulk_delete_returning },
 #endif
   { "test_ps_params_in_ctes", test_ps_params_in_ctes },
   { "test_explain_meta", test_explain_meta },
@@ -22117,6 +23072,16 @@ static struct my_tests_st my_tests[]= {
   { "test_mdev20261", test_mdev20261 },
   { "test_mdev_30159", test_mdev_30159 },
   { "test_connect_autocommit", test_connect_autocommit},
+  { "test_execute_direct", test_execute_direct },
+  { "test_cache_metadata", test_cache_metadata},
+#ifndef EMBEDDED_LIBRARY
+  { "test_mdev_24411", test_mdev_24411},
+  { "test_mdev_34718_bu", test_mdev_34718_bu },
+  { "test_mdev_34718_au", test_mdev_34718_au },
+  { "test_mdev_34718_bd", test_mdev_34718_bd },
+  { "test_mdev_34718_ad", test_mdev_34718_ad },
+#endif
+  { "test_mdev_10075", test_mdev_10075},
   { 0, 0 }
 };
 

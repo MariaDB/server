@@ -51,7 +51,7 @@ Rdb_index_merge::~Rdb_index_merge() {
   if (m_merge_tmp_file_removal_delay > 0) {
     uint64 curr_size = m_merge_buf_size * m_merge_file.m_num_sort_buffers;
     for (uint i = 0; i < m_merge_file.m_num_sort_buffers; i++) {
-      if (my_chsize(m_merge_file.m_fd, curr_size, 0, MYF(MY_WME))) {
+      if (my_chsize(m_merge_file.m_fd, curr_size, 0, MYF(MY_WME)) > 0) {
         // NO_LINT_DEBUG
         sql_print_error("Error truncating file during fast index creation.");
       }

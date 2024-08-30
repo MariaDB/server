@@ -16,7 +16,7 @@
 
 /* Resolves IP's to hostname and hostnames to IP's */
 
-#define RESOLVE_VERSION "2.3"
+#define VER "2.3"
 
 #include <my_global.h>
 #include <m_ctype.h>
@@ -31,6 +31,7 @@
 #endif
 #include <my_net.h>
 #include <my_getopt.h>
+#include <welcome_copyright_notice.h>
 
 #if !defined(_AIX) && !defined(h_errno)
 extern int h_errno;
@@ -52,13 +53,6 @@ static struct my_option my_long_options[] =
 };
 
 
-static void print_version(void)
-{
-  printf("%s Ver %s, for %s (%s)\n",my_progname,RESOLVE_VERSION,
-	 SYSTEM_TYPE,MACHINE_TYPE);
-}
-
-
 static void usage(void)
 {
   print_version();
@@ -71,10 +65,11 @@ static void usage(void)
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       const char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch (optid) {
+  switch (opt->id) {
   case 'V': print_version(); exit(0);
   case 'I':
   case '?':

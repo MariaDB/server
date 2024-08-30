@@ -1,0 +1,7 @@
+#
+--echo # Specialized --log-slave-updates = 0 version of parallel_backup test.
+#
+--echo # MDEV-21953: deadlock between BACKUP STAGE BLOCK_COMMIT and parallel
+--echo # MDEV-30423: dealock XA COMMIT vs BACKUP
+--let $rpl_skip_reset_master_and_slave = 1
+--source parallel_backup.test

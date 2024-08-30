@@ -109,12 +109,7 @@ EOF
 
 --connection node_1
 
---let $wsrep_load_data_splitting_orig = `SELECT @@wsrep_load_data_splitting`
-
---echo # Case 1: wsrep_load_data_splitting = ON & LOAD DATA with 20002
---echo # entries.
-
-SET GLOBAL wsrep_load_data_splitting = ON;
+--echo # Case 1: LOAD DATA with 20002 entries.
 
 CREATE TABLE t1 (pk INT PRIMARY KEY)
   ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
@@ -138,17 +133,15 @@ SELECT COUNT(*) FROM t1;
 # 3 commits to be registered when the Galera library does not support streaming replication and
 # 5 commits to be registered when the Galera library supports streaming replication
 --disable_query_log
---replace_result 3 AS_EXPECTED_3_or_5 5 AS_EXPECTED_3_or_5
+--replace_result 1 AS_EXPECTED_1_or_2 2 AS_EXPECTED_1_or_2
 --eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before AS wsrep_last_committed_diff;
 --enable_query_log
 
 DROP TABLE t1;
 
---echo # Case 2: wsrep_load_data_splitting = ON & LOAD DATA with 101 entries.
+--echo # Case 2: LOAD DATA with 101 entries.
 
 --connection node_1
-
-SET GLOBAL wsrep_load_data_splitting = ON;
 
 CREATE TABLE t1 (pk INT PRIMARY KEY)
   ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
@@ -175,43 +168,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
---echo # Case 3: wsrep_load_data_splitting = OFF & LOAD DATA with 20002
---echo # entries.
-
 --connection node_1
-
-SET GLOBAL wsrep_load_data_splitting = OFF;
-
-CREATE TABLE t1 (pk INT PRIMARY KEY)
-  ENGINE=INNODB PARTITION BY HASH(pk) PARTITIONS 2;
-
-# Record wsrep_last_committed as it was before LOAD DATA
---let $wsrep_last_committed_before = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
-
---disable_query_log
---eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/mdev-5146-1.dat' INTO TABLE t1;
---enable_query_log
-
---let $wsrep_last_committed_after = `SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME = 'wsrep_last_committed'`
-
---connection node_2
---let $wait_condition = SELECT COUNT(*) = 20002 FROM t1;
---source include/wait_condition.inc
-SELECT COUNT(*) FROM t1;
-
-# LOAD-ing 20002 rows causes
-# 1 commit  to be registered when the Galera library does not support streaming replication and
-# 2 commits to be registered when the Galera library supports streaming replication
---disable_query_log
---replace_result 1 AS_EXPECTED_1_or_2 2 AS_EXPECTED_1_or_2
---eval SELECT $wsrep_last_committed_after - $wsrep_last_committed_before AS wsrep_last_committed_diff;
---enable_query_log
-
-DROP TABLE t1;
-
---connection node_1
-# Restore the original value
---eval SET GLOBAL wsrep_load_data_splitting = $wsrep_load_data_splitting_orig;
 
 # Cleanup
 remove_file '$MYSQLTEST_VARDIR/tmp/mdev-5146-1.dat';

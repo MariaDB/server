@@ -1,0 +1,4 @@
+# embedded server uses absolute path, causing result mismatch in warning messages
+--source include/not_embedded.inc
+--source include/import_begin.inc
+--source include/import_end.inc

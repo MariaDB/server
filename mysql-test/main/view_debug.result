@@ -21,5 +21,8 @@ connection con1;
 3
 3
 SET DEBUG_SYNC= 'RESET';
+disconnect con1;
+disconnect con2;
+connection default;
 drop procedure proc;
 drop view v1,v2;

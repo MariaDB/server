@@ -1,0 +1,1118 @@
+--source include/have_sequence.inc
+--source include/test_db_charset_latin1.inc
+
+select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+
+select * from JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+SELECT *  FROM   JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'), NESTED PATH '$.b[*]' COLUMNS (c INT PATH '$') ) ) jt;
+
+create table t1 (id varchar(5), json varchar(1024));
+insert into t1 values ('j1', '[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]');
+insert into t1 values ('j2', '[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]');
+select id, json, a from t1, json_table(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a')) as tt;
+select * from t1, JSON_TABLE(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+--error ER_BAD_FIELD_ERROR
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+
+--error ER_DUP_FIELDNAME
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, a INT PATH '$'))) as jt;
+
+DROP TABLE t1;
+
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Laptop', '{"color": "black", "price": 1000}');
+insert into t1 values ('Jeans',  '{"color": "blue", "price": 50}');
+
+select * from t1 left join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+
+--error ER_BAD_FIELD_ERROR
+select * from t1 right join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+
+DROP TABLE t1;
+
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 101 on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default 202 on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+--error ER_JSON_SYNTAX
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3} xx YY]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+--error ER_JSON_TABLE_SCALAR_EXPECTED
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' error on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+#
+# MDEV-22290 JSON_TABLE: Decimal type with M equal D causes Assertion
+#    `scale <= precision' failure
+#
+select * from json_table('{"a":0}',"$" columns(a decimal(1,1) path '$.a')) foo;
+
+
+#
+# MDEV-22291 JSON_TABLE: SELECT from json_table does not work without default database
+#
+connect (con1,localhost,root,,);
+select a from json_table('{"a":0}',"$" columns(a for ordinality)) foo;
+connection default;
+disconnect con1;
+
+create table t1 (
+      color varchar(32),
+        price int
+    );
+insert into t1 values ("red", 100), ("blue", 50);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+--sorted_result
+select * from 
+  json_table('[{"color": "blue", "price": 50},
+                     {"color": "red", "price": 100}]',
+                                  '$[*]' columns( color varchar(100) path '$.color',
+                                                              price text path '$.price'
+                                                                                      )
+                                               ) as T
+  where
+    T.color in (select color from t1 where t1.price=T.price);
+set @@optimizer_switch=@save_optimizer_switch;
+
+drop table t1;
+
+select * from
+json_table(' [ {"color": "blue", "sizes": [1,2,3,4],  "prices" : [10,20]},
+               {"color": "red",  "sizes": [10,11,12,13,14],  "prices" : [100,200,300]} ]',
+    '$[*]' columns(
+      color varchar(4) path '$.color',
+      seq0 for ordinality,
+      nested path '$.sizes[*]'
+      columns (seq1 for ordinality,
+        size int path '$'),
+      nested path '$.prices[*]'
+      columns (seq2 for ordinality,
+        price int path '$')
+      )
+    ) as T;
+
+
+select * from   json_table('[{"color": "blue", "price": 50},
+    {"color": "red", "price": 100},
+    {"color": "rojo", "price": 10.0},
+    {"color": "blanco", "price": 11.0}]',
+    '$[*]' columns( color varchar(100) path '$.color',
+      price text path '$.price', seq for ordinality)) as T order by color desc;
+
+create view v as select * from json_table('{"as":"b", "x":123}',"$" columns(a varchar(8) path '$.a' default '-' on empty, x int path '$.x')) x;
+select * from v;
+show create table v;
+drop view v;
+
+--error ER_PARSE_ERROR
+select * from json_table('{"as":"b", "x":123}',
+        "$" columns(a varchar(8) path '$.a' default '-' on empty null on error null on empty, x int path '$.x')) x;
+
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*')) as jt;
+
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+
+select * from json_table('{"b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+
+create table t1 (a varchar(100));
+insert into t1 values ('1');
+--error ER_NONUNIQ_TABLE
+select * from t1 as T, json_table(T.a, '$[*]' columns(color varchar(100) path '$.nonexistent', seq for ordinality)) as T;
+
+drop table t1;
+
+prepare s from 'select * from
+json_table(?,
+    \'$[*]\' columns( color varchar(100) path \'$.color\',
+      price text path \'$.price\',
+      seq for ordinality)) as T
+order by color desc; ';
+
+execute s using '[{"color": "red", "price":1}, {"color":"brown", "price":2}]';
+deallocate prepare s;
+
+create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50}]',              '$[*]' columns( color varchar(100) path '$.co\\\\lor')              ) as T;
+select * from v2;
+drop view v2;
+
+--source include/explain-no-costs.inc
+explain format=json select * from
+  json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+explain select * from
+  json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+
+create view v1 as select * from
+  json_table('[{"color": "blue", "price": 50}]',
+             '$[*]' columns(color text path '$.nonexistent',
+              seq for ordinality)) as `ALIAS NOT QUOTED`;
+select * from v1;
+drop view v1;
+create view v1 as select * from
+  json_table('[{"color": "blue", "price": 50},
+               {"color": "red", "price": 100}]',
+               '$[*]' columns(
+                   color text path "$.QUOTES \" HERE \"",
+                   color1 text path '$.QUOTES " HERE "',
+                   color2 text path "$.QUOTES ' HERE '",
+                   seq for ordinality)) as T;
+select * from v1;
+drop view v1;
+
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+--error ER_BAD_FIELD_ERROR
+SELECT t1.x*2 m, jt.* FROM t1,
+       JSON_TABLE(m, '$[*]' COLUMNS (i INT PATH '$')) jt;
+DROP TABLE t1;
+
+--error ER_BAD_FIELD_ERROR
+select *
+from
+  json_table(JS3.size, '$' columns (size INT PATH '$.size')) as JS1,
+  json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS2,
+  json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS3 where  1;
+
+create table t1 (json varchar(100) character set utf8);
+insert into t1 values ('{"value":"АБВ"}');
+create table tj1 as 
+select T.value
+  from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
+show create table tj1;
+drop table t1;
+drop table tj1;
+
+CREATE TABLE t1(id INT, f1 JSON);
+INSERT INTO t1 VALUES
+ (1, '{\"1\": 1}'),
+ (2, '{\"1\": 2}'),
+ (3, '{\"1\": 3}'),
+ (4, '{\"1\": 4}'),
+ (5, '{\"1\": 5}'),
+ (6, '{\"1\": 6}');
+ANALYZE TABLE t1;
+
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl STRAIGHT_JOIN t1 AS tt3;
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t1 as jj1,
+  (SELECT tt2.*
+   FROM
+      t1 as tt2,
+      JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl
+      STRAIGHT_JOIN
+      t1 AS tt3
+   ) dt
+ORDER BY 1,3 LIMIT 10;
+
+drop table t1;
+
+select collation(x) from 
+    JSON_TABLE('["abc"]', '$[*]' COLUMNS (x VARCHAR(10) CHARSET latin1 PATH '$')) tbl;
+
+SELECT * FROM  JSON_TABLE('{"x":1, "y":2}', _utf8mb4'$' COLUMNS (NESTED PATH _utf8mb4'$.x'
+  COLUMNS(y INT PATH _utf8mb4'$.y' DEFAULT _utf8mb4'1' ON EMPTY DEFAULT _utf8mb4'2' ON ERROR))) jt;
+
+select * from json_table(
+'{"name":"t-shirt", "colors": ["yellow", "blue"],"sizes":  ["small", "medium", "large"]}', 
+ '$' columns(name varchar(32) path '$.name',
+             nested path '$.colors[*]' columns (
+               color varchar(32) path '$',
+               nested path '$.sizes[*]' columns (
+                 size varchar(32) path '$' 
+)))) as t;
+
+SELECT x, length(x) FROM
+  JSON_TABLE('{}', '$' COLUMNS (x VARCHAR(10) PATH '$.x' DEFAULT 'abcdefg' ON EMPTY)) jt;
+
+# check how conversion works for JSON NULL, TRUE and FALSE
+
+select * from
+  json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+
+select * from
+  json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]'
+      columns (id for ordinality,
+        intcol int path '$.a' default '1234' on empty default '5678' on error)
+      ) as tt;
+
+SELECT COUNT(*) FROM JSON_TABLE('[1, 2]', '$[*]' COLUMNS( I INT PATH '$')) tt;
+
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (js json, b int);
+insert into t2 select '[1,2,3]',A.a from t1 A, t1 B;
+
+explain select * from t1,
+    (select * from t2, json_table(t2.js, '$[*]' columns (o for ordinality)) as jt) as TT2
+    where 1;
+
+drop table t1, t2;
+
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (j JSON);
+INSERT INTO t2 (j) VALUES ('[1,2,3]');
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN
+  (SELECT o FROM t2, JSON_TABLE(j, '$[*]' COLUMNS (o FOR ORDINALITY)) AS jt) AS t3 ON (t3.o = t1.x);
+DROP TABLE t1, t2;
+
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+insert into t20 values (1),(2);
+insert into t21 values (1, '{"a":100}');
+
+explain select t20.a, jt1.ab
+  from t20 left join t21 on t20.a=t21.a
+    join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1;
+
+drop table t20, t21;
+
+select * from
+json_table(
+'[
+  {"name": "X",
+    "colors":["blue"], "sizes": [1,2,3,4],  "prices" : [10,20]},
+  {"name": "Y",
+    "colors":["red"], "sizes": [10,11],  "prices" : [100,200,300]}
+]',
+'$[*]' columns
+(
+  seq0 for ordinality,
+  name varchar(4) path '$.name',
+  nested path '$.colors[*]' columns (
+    seq1 for ordinality,
+    color text path '$'
+  ),
+  nested path '$.sizes[*]' columns (
+    seq2 for ordinality,
+    size int path '$'
+  ),
+  nested path '$.prices[*]' columns (
+    seq3 for ordinality,
+    price int path '$'
+  )
+)
+) as T order by seq0, name;
+
+# MDEV-25140 Success of query execution depends on the outcome of previous queries.
+--error ER_JSON_TABLE_ALIAS_REQUIRED
+select * from json_table('[]', '$' COLUMNS(x FOR ORDINALITY));
+select min(x) from json_table('[]', '$' COLUMNS(x FOR ORDINALITY)) a;
+
+--echo #
+--echo # Test for the problem with 
+--echo #   - Cross-outer-join dependency
+--echo #   - dead-end join prefix
+--echo #   - join order pruning
+--echo #
+
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+
+insert into t20 select seq from seq_1_to_100;
+insert into t21 select a, '{"a":100}' from t20;
+
+create table t31(a int);
+create table t32(b int);
+insert into t31 values (1);
+insert into t32 values (1);
+
+explain
+select
+  t20.a, jt1.ab
+from
+  t20
+  left join t21 on t20.a=t21.a
+  join
+  (t31 left join (t32 join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1) on t31.a<3);
+
+drop table t20,t21,t31,t32;
+
+--echo #
+--echo # MDEV-25142: JSON_TABLE: CREATE VIEW involving EXISTS PATH ends up with invalid frm
+--echo #
+--disable_warnings
+drop view if exists v1;
+--enable_warnings
+
+CREATE VIEW v1 AS SELECT * FROM JSON_TABLE('[]', '$' COLUMNS (f INT EXISTS PATH '$')) a ;
+show create view v1;
+drop view v1;
+
+--echo #
+--echo # MDEV-25145: JSON_TABLE: Assertion `fixed == 1' failed in Item_load_file::val_str on 2nd execution of PS	
+--echo #
+PREPARE stmt FROM "SELECT * FROM (SELECT * FROM JSON_TABLE(LOAD_FILE('x'), '$' COLUMNS (a FOR ORDINALITY)) AS t) AS sq";
+EXECUTE stmt;
+EXECUTE stmt;
+
+--echo #
+--echo # MDEV-JSON_TABLE: Server crashes in handler::print_error / hton_name upon ERROR ON EMPTY
+--echo #
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT a, b FROM JSON_TABLE('[]', '$' COLUMNS (a FOR ORDINALITY, b INT PATH '$[*]' ERROR ON EMPTY)) AS t ORDER BY a;
+
+--echo #
+--echo # MDEV-25151 JSON_TABLE: Unexpectedly padded values in a PATH column.
+--echo #
+SET @old_character_set_connection= @@character_set_connection;
+SET @@character_set_connection= utf8;
+select hex(a), b from json_table('["foo","bar"]','$[*]' columns (a char(3) path '$', b for ordinality)) t;
+SET @@character_set_connection= @old_character_set_connection;
+
+--echo #
+--echo # MDEV-25183 JSON_TABLE: CREATE VIEW involving NESTED PATH ends up with invalid frm
+--echo #
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$**.*' COLUMNS(a FOR ORDINALITY), b VARCHAR(8) PATH '$')) AS jt;
+SHOW CREATE VIEW v;
+SELECT * FROM v;
+DROP VIEW v;
+
+--echo #
+--echo # MDEV-25178 JSON_TABLE: ASAN use-after-poison in my_fill_8bit / Json_table_column::On_response::respond
+--echo #
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(100) PATH '$' DEFAULT "0" ON ERROR)) AS jt;
+
+--echo #
+--echo # MDEV-25188 JSON_TABLE: ASAN use-after-poison in Field_long::reset / Table_function_json_table::setup or malloc(): invalid size.
+--echo #
+SELECT * FROM JSON_TABLE(CONVERT('{"x":1}' USING utf8mb4), '$' COLUMNS(a INT PATH '$', b CHAR(64) PATH '$.*', c INT EXISTS PATH '$**.*')) AS jt;
+
+--echo #
+--echo # 25192 JSON_TABLE: ASAN use-after-poison in field_conv_memcpy / Create_tmp_table::finalize upon query with derived table.
+--echo #
+SET NAMES utf8;
+SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
+SET NAMES latin1;
+
+--echo #
+--echo # MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
+DROP TABLE t1;
+SET NAMES latin1;
+
+
+--echo #
+--echo # MDEV-25230 SON_TABLE: CREATE VIEW with 2nd level NESTED PATH ends up with invalid frm, Assertion `m_status == DA_ERROR || m_status == DA_OK || m_status == DA_OK_BULK' failed.
+--echo #
+
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$' COLUMNS(NESTED PATH '$.*' COLUMNS(o FOR ORDINALITY)))) AS jt;
+SELECT * FROM v;
+SHOW CREATE VIEW v;
+DROP VIEW v;
+
+--echo #
+--echo # MDEV-25229 JSON_TABLE: Server crashes in hton_name upon MATCH .. AGAINST.
+--echo #
+
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT val, MATCH(val) AGAINST( 'MariaDB') FROM JSON_TABLE('{"db":"xx"}', '$' COLUMNS(val VARCHAR(32) PATH '$**.*')) AS jt;
+
+--echo #
+--echo # MDEV-25138 JSON_TABLE: A space between JSON_TABLE and opening bracket causes syntax error
+--echo #
+select * from json_table ('{}', '$' COLUMNS(x FOR ORDINALITY)) a;
+create table json_table(id int);
+insert into json_table values (1), (2), (3);
+select * from json_table;
+drop table json_table;
+
+--echo #
+--echo # MDEV-25146 JSON_TABLE: Non-descriptive + wrong error messages upon trying to store array or object.
+--echo #
+--error ER_JSON_TABLE_SCALAR_EXPECTED
+select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error)) t;
+show warnings;
+
+--echo #
+--echo # MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
+--echo #
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{"x":1}', '$' COLUMNS(f DATE PATH '$.*')) AS jt;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25254: JSON_TABLE: Inconsistent name resolution with right joins
+--echo #
+CREATE TABLE t1 (a INT);
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+
+--error ER_BAD_FIELD_ERROR
+CREATE VIEW v AS
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+
+insert into t1 values (1),(2),(3);
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t1 RIGHT JOIN JSON_TABLE(t1.a,'$' COLUMNS(o FOR ORDINALITY)) jt ON TRUE;
+
+drop table t1;
+--echo #
+--echo # MDEV-25202: JSON_TABLE: Early table reference leads to unexpected result set, server crash
+--echo #
+CREATE TABLE t1 (o INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (3),(4);
+
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM JSON_TABLE(a, '$' COLUMNS(o FOR ORDINALITY)) AS jt1 NATURAL JOIN t1 JOIN t2;
+
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM JSON_TABLE(a, '$' COLUMNS(o FOR ORDINALITY)) AS jt1 NATURAL JOIN t1 STRAIGHT_JOIN t2;
+
+drop table t1,t2;
+
+--echo # Now, try a JSON_TABLE that has a subquery that has an outside reference:
+
+create table t1(a int, js varchar(32));
+
+create table t2(a varchar(100));
+insert into t2 values('');
+
+# First, without subquery:
+explain
+select *
+from
+  t1 left join
+  json_table(concat('',js),
+             '$' columns ( color varchar(32) path '$.color')
+             ) as JT on 1;
+
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 right join
+  json_table(concat('',js),
+             '$' columns ( color varchar(32) path '$.color')
+             ) as JT on 1;
+
+# Now, with subquery:
+explain
+select *
+from
+  t1 left join
+  json_table((select concat(a,js) from t2),
+             '$' columns ( color varchar(32) path '$.color')
+             ) as JT on 1;
+
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 right join
+  json_table((select concat(a,js) from t2),
+             '$' columns ( color varchar(32) path '$.color')
+             ) as JT on 1;
+
+drop table t1,t2;
+
+--echo #
+--echo # Now, a testcase with JSON_TABLEs inside NATURAL JOIN
+--echo #
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+
+--error ER_BAD_FIELD_ERROR
+select * from
+  t1,
+  ( t2
+    natural join
+    (
+      json_table(JT2.d, '$' COLUMNS (d for ordinality)) as JT
+      natural join
+      json_table(JT.d, '$' COLUMNS (d for ordinality)) as JT2
+    )
+  );
+
+drop table t1, t2;
+
+--echo #
+--echo # MDEV-25352: JSON_TABLE: Inconsistent name resolution and ER_VIEW_INVALID ...
+--echo # (Just the testcase)
+--echo #
+
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'{}'),(2,'[]');
+
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+
+--error ER_BAD_FIELD_ERROR
+SELECT t1.*
+FROM
+  t1 NATURAL JOIN t2
+  RIGHT JOIN
+    JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o)
+WHERE t1.a = 1;
+
+--error ER_BAD_FIELD_ERROR
+CREATE OR REPLACE VIEW v AS
+SELECT t1.* FROM t1 NATURAL JOIN t2 RIGHT JOIN JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o) WHERE t1.a = 1;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-25256: JSON_TABLE: Error ER_VIEW_INVALID upon running query via view
+--echo #
+
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM
+JSON_TABLE('[]', '$' COLUMNS(a TEXT PATH '$[*]')) AS jt1
+  RIGHT JOIN JSON_TABLE(jt1.a, '$' COLUMNS(o2 FOR ORDINALITY)) AS jt2
+    ON(1)
+  RIGHT JOIN JSON_TABLE('[]', '$' COLUMNS(o3 FOR ORDINALITY)) AS jt3
+    ON(1)
+WHERE 0;
+
+--echo #
+--echo # MDEV-25346: JSON_TABLE: Server crashes in Item_field::fix_outer_field upon subquery with unknown column
+--echo #
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM ( SELECT * FROM t1 JOIN t2 ON (b IN(SELECT x FROM (SELECT 1 AS c) AS sq1))) AS sq2;
+
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Another testcase
+--echo #
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Jeans',  '{"color": ["green", "brown"], "price": 50}');
+insert into t1 values ('Shirt',  '{"color": ["blue", "white"], "price": 20}');
+insert into t1 values ('Jeans',  '{"color": ["black"], "price": 60}');
+insert into t1 values ('Jeans',  '{"color": ["gray"], "price": 60}');
+insert into t1 values ('Laptop', '{"color": ["black"], "price": 1000}');
+insert into t1 values ('Shirt',  '{"color": ["black"], "price": 20}');
+
+select
+  t.item_name,
+  jt.*
+from
+  (select
+     t1.item_name,
+     concat(
+        concat(
+          concat(
+            "{\"color\": ",
+            concat(
+               concat("[\"",
+                      group_concat( jt.color separator "\", \"")
+                     ),
+                "\"]")
+          ),','
+        ),
+      concat(concat("\"price\": ",jt.price),'}')
+     ) as item_props
+   from
+      t1,
+      json_table(
+         t1.item_props,
+         '$' columns (
+             nested path '$.color[*]' columns (color varchar(32) path '$'),
+             price int path '$.price')
+      ) as jt
+   group by
+     t1.item_name, jt.price
+  ) as t,
+
+  json_table(t.item_props,
+     '$' columns (
+       nested path '$.color[*]' columns (color varchar(32) path '$'),
+       price int path '$.price')
+  ) as jt
+order by
+  t.item_name, jt.price, jt.color;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-25380: JSON_TABLE: Assertion `join->best_read < double(1.797...) fails
+--echo #
+
+CREATE TABLE t1 (a INT, b TEXT);
+INSERT INTO t1 VALUES (1,'{}'),(2,'[]');
+
+explain
+SELECT *
+FROM t1
+WHERE
+  EXISTS(SELECT *
+         FROM JSON_TABLE(b, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+         WHERE jt.o = t1.a);
+
+drop table t1;
+
+--echo #
+--echo # MDEV-25381: JSON_TABLE: ER_WRONG_OUTER_JOIN upon query with LEFT and RIGHT joins and view
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT, c TEXT);
+INSERT INTO t2 VALUES (1,'{}'),(2,'[]');
+CREATE VIEW v2 AS SELECT * FROM t2;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+     t2 AS tt
+     LEFT JOIN
+     JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+     ON tt.b = jt.o
+  ON t1.a = tt.b;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+  ON t1.a = tt.b;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+ ON t1.a = tt.b;
+
+prepare s from
+"SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+ ON t1.a = tt.b";
+execute s;
+execute s;
+
+
+DROP VIEW v2;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-25259 JSON_TABLE: Illegal mix of collations upon executing query with combination of charsets via view.
+--echo #
+
+CREATE VIEW v AS
+  SELECT * FROM JSON_TABLE(CONVERT('[]' USING dec8),
+      '$' COLUMNS(b VARCHAR(8) CHARSET utf8 PATH '$')) AS jt2
+  WHERE (CONVERT('[]' USING cp1256) = b);
+
+SELECT * FROM v;
+
+DROP VIEW v;
+
+--echo #
+--echo # MDEV-25397: JSON_TABLE: Unexpected ER_MIX_OF_GROUP_FUNC_AND_FIELDS upon query with JOIN
+--echo #
+set @save_sql_mode= @@sql_mode;
+SET sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1 (a TEXT);
+SELECT SUM(o) FROM t1 JOIN JSON_TABLE(t1.a, '$' COLUMNS(o FOR ORDINALITY)) jt;
+
+set sql_mode=@save_sql_mode;
+drop table t1;
+
+--echo #
+--echo # MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
+--echo #
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+
+
+--echo #
+--echo # MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+--echo #
+SELECT x, COUNT(*) FROM JSON_TABLE( '{}', '$' COLUMNS(
+      a BIT(14) PATH '$', b CHAR(16) PATH '$', c INT PATH '$[0]', d INT PATH '$[1]', e INT PATH '$[2]',
+      f INT PATH '$[3]', g INT PATH '$[4]', h INT PATH '$[5]', i INT PATH '$[6]', j INT PATH '$[7]',
+      x TEXT PATH '$[9]')) AS jt GROUP BY x;
+
+--echo #
+--echo # MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+--echo #
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(
+      a TEXT EXISTS PATH '$', b VARCHAR(40) PATH '$', c BIT(60) PATH '$', d VARCHAR(60) PATH '$', e BIT(62) PATH '$',
+      f FOR ORDINALITY, g INT PATH '$', h VARCHAR(36) PATH '$', i DATE PATH '$', j CHAR(4) PATH '$'
+      )) AS jt;
+
+--echo #
+--echo # MDEV-25373 JSON_TABLE: Illegal mix of collations upon executing PS once, or SP/function twice.
+--echo #
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+ 
+PREPARE stmt1 FROM "
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+";
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+
+--echo #
+--echo # MDEV-25149 JSON_TABLE: Inconsistency in implicit data type conversion.
+--echo #
+select * from json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]' 
+    columns ( id for ordinality,
+              intcol int path '$.a' default '1234' on empty default '5678' on error)
+    ) as tt;
+
+--echo #
+--echo # MDEV-25377 JSON_TABLE: Wrong value with implicit conversion.
+--echo #
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt;
+ 
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
+ 
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
+
+select * from
+  json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
+               {"color": "white",   "price": "pretty low"},
+               {"color": "yellow",  "price": 256.20},
+               {"color": "red",   "price": { "high": 20, "low": 8}}]',
+             '$[*]' columns(color varchar(100) path '$.color',
+                          price json path '$.price'
+                        )
+             ) as T;
+
+--echo #
+--echo # MDEV-27696 Json table columns accept redundant COLLATE syntax
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name BLOB COLLATE `binary` PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) COLLATE latin1_bin COLLATE latin1_swedish_ci PATH '$.name'
+  )
+) AS jt;
+
+
+--error ER_PARSE_ERROR
+SELECT * FROM json_table('[{"name":"str"}]', '$[*]'
+  COLUMNS (
+    name VARCHAR(10) BINARY COLLATE utf8_czech_ci path '$.name'
+  )
+) AS jt;
+
+
+--echo #
+--echo # MDEV-27690 Crash on `CHARACTER SET csname COLLATE DEFAULT` in column definition
+--echo #
+
+SELECT * FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) CHARACTER SET latin1 COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+
+--echo #
+--echo # MDEV-28480: Assertion `0' failed in Item_row::illegal_method_call
+--echo #             on SELECT FROM JSON_TABLE
+--echo #
+
+--error ER_OPERAND_COLUMNS
+SELECT 1 FROM JSON_TABLE (row(1,2), '$' COLUMNS (o FOR ORDINALITY)) AS j;
+
+--echo #
+--echo # MDEV-30623 JSON_TABLE in subquery not correctly marked as correlated
+--echo # update_correlated_cache() fails to take JSON_TABLE functions in
+--echo # subqueries into account.
+--echo #
+
+create table t1(c json);
+insert into t1 values ('[{"x":"1"},{"x":"2"}]'),
+                      ('[{"x":"10"},{"x":"20"}]'),
+                      ('[{"x":"100"},{"x":"200"}]');
+select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt) as SUBQ
+  from t1;
+
+explain select c,
+       (SELECT sum(x) FROM json_table(c, "$[*]" columns( x int path "$.x"))
+       AS jt) as SUBQ
+  from t1;
+
+drop table t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
+--echo #
+--echo # Start of 10.9 tests
+--echo #
+
+--echo #
+--echo #  MDEV-27743 Remove Lex::charset
+--echo #
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+
+SELECT collation(name)
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) COLLATE DEFAULT PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT *
+FROM json_table('[{"name":"Jeans"}]', '$[*]'
+  COLUMNS(
+    name  VARCHAR(10) BINARY PATH '$.name'
+  )
+) AS jt;
+SHOW CREATE VIEW v1;
+SELECT collation(name) FROM v1;
+DROP VIEW v1;
+
+--echo #
+--echo # MDEV-28319: Assertion `cur_step->type & JSON_PATH_KEY' failed in json_find_path
+--echo #
+
+SELECT * FROM JSON_TABLE('{"foo":{"bar":1},"qux":2}', '$' COLUMNS(c1 VARCHAR(8) PATH '$[0]', c2 CHAR(8) PATH '$.*.x')) AS js;
+
+
+--echo #
+--echo # MDEV-29446 Change SHOW CREATE TABLE to display default collations
+--echo #
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET latin1 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET utf8mb3 PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name VARCHAR(10) CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+SHOW CREATE VIEW v1;
+DROP VIEW v1;
+
+# ENUM is not supported yet in JSON_TABLE.
+# But if it is eventually supported, the below
+# test should be modified to make sure that "CHARACTER SET BINARY"
+# is not followed by "COLLATE BINARY".
+--error ER_PARSE_ERROR
+CREATE VIEW v1 AS
+SELECT * FROM
+JSON_TABLE('[{"name":"Laptop"}]', '$[*]'
+COLUMNS
+(
+  name ENUM('Laptop') CHARACTER SET BINARY PATH '$.name')
+) AS jt;
+
+--echo #
+--echo # End of 10.9 tests
+--echo #
+
+--echo #
+--echo # MDEV-29390: Improve coverage for UPDATE and DELETE statements in MTR test suites
+--echo #
+
+--echo # Multi-update with JSON_TABLE
+
+create table  t1 ( name  varchar(10), 
+   color varchar(10),
+   price decimal(8,2),
+   instock BOOLEAN);
+
+insert into t1 values ("Laptop", "black", 20000, 1);
+insert into t1 values ("Jacket", "brown", 5000, 1);
+insert into t1 values ("Jeans", "blue", 5000, 1);
+
+select * from t1;
+
+set @json='
+[
+  {"name":"Laptop", "color":"black", "price":"1000", "ordered":"3"},
+  {"name":"Jeans",  "color":"blue",  "ordered":"0"},
+  {"name":"Phone",  "color":"red",  "ordered":"0"}
+]';
+
+select * from json_table(@json, '$[*]' 
+  columns(
+   name  varchar(10) path '$.name', 
+   color varchar(10) path '$.color',
+   price decimal(8,2) path '$.price',
+   ordered boolean path '$.ordered' ) 
+) as jt;
+
+explain update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=3;
+
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0 where t1.name=jt1.name and jt1.ordered=2;
+
+select * from t1;
+
+explain update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+
+update t1
+  SET t1.instock=2 where t1.name in (
+    select jt1.name from json_table(@json, '$[*]' 
+      columns(
+      name  varchar(10) path '$.name', 
+      color varchar(10) path '$.color',
+      price decimal(8,2) path '$.price',
+      ordered boolean path '$.ordered' ) 
+    ) as jt1);
+
+select * from t1;
+
+
+-- error ER_NON_UPDATABLE_TABLE
+update t1, JSON_TABLE(@json,'$[*]'  
+    COLUMNS (
+        name  varchar(10) path '$.name',
+        color varchar(10) path '$.color',
+        price decimal(8,2) path '$.price',
+        ordered boolean path '$.ordered'
+    )) AS jt1
+  SET t1.instock=0, jt1.ordered=1  where t1.name=jt1.name;
+
+select * from t1;
+
+drop table t1;
+
+--echo #
+--echo # End of 11.0 tests
+--echo #
+
+--source include/test_db_charset_restore.inc

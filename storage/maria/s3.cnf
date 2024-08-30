@@ -1,0 +1,22 @@
+[mariadbd]
+#
+# Uncomment line to enable
+#
+#plugin-maturity = alpha
+
+[mariadb]
+#
+# Uncomment line to enable
+#
+#plugin-load-add = ha_s3
+
+#
+# Uncomment to configure the S3 engine
+# See all options at https://mariadb.com/kb/en/s3-storage-engine/
+#
+#s3-host-name = s3.amazonaws.com
+#s3-protocol-version = Amazon
+#s3-bucket = ...
+#s3-access-key = ...
+#s3-secret-key = ...
+#s3-region = eu-north-1

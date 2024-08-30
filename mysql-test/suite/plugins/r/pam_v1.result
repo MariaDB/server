@@ -1,6 +1,8 @@
 install plugin pam soname 'auth_pam_v1.so';
 create user test_pam identified via pam using 'mariadb_mtr';
+grant all on test.* to test_pam;
 create user pam_test;
+grant all on test.* to pam_test;
 grant proxy on pam_test to test_pam;
 #
 # athentication is successful, challenge/pin are ok

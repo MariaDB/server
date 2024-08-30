@@ -1,0 +1,27 @@
+#
+# MDEV-32090 Index does not handle null-safe equals operator correctly in join
+#
+CREATE TEMPORARY TABLE t1 (
+`id` int(10) unsigned NOT NULL,
+`number` int(10) unsigned DEFAULT 0,
+`name` varchar(47) DEFAULT NULL,
+`street` mediumint(8) unsigned DEFAULT NULL,
+PRIMARY KEY (`id`),
+KEY `streetNumber` (`street`,`number`,`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
+INSERT INTO t1 (id, number, name, street) VALUES (100733476, 14, NULL, 1115569);
+SELECT
+b1.id
+FROM
+t1 b1
+INNER JOIN t1 b2 ON (
+b1.street = b2.street
+AND b1.number <=> b2.number
+AND b1.name <=> b2.name
+);
+id
+100733476
+DROP TABLE t1;
+#
+# End of 10.11 tests
+#

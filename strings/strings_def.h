@@ -129,4 +129,38 @@ uint my_8bit_collation_flags_from_data(CHARSET_INFO *cs);
 #define MY_HASH_ADD_16(A, B, value) \
   do { MY_HASH_ADD(A, B, ((value) & 0xFF)) ; MY_HASH_ADD(A, B, ((value >>8 ))); } while(0) 
 
-#endif
+
+#define my_wc_t ulong
+
+int my_wc_to_printable_ex(CHARSET_INFO *cs, my_wc_t wc,
+                          uchar *s, uchar *e,
+                          uint bs, uint bslen, uint diglen);
+
+int my_wc_to_printable_generic(CHARSET_INFO *cs, my_wc_t wc,
+                               uchar *s, uchar *e);
+
+int my_wc_to_printable_8bit(CHARSET_INFO *cs, my_wc_t wc,
+                            uchar *s, uchar *e);
+
+void my_ci_set_strength(struct charset_info_st *cs, uint strength);
+void my_ci_set_level_flags(struct charset_info_st *cs, uint flags);
+
+uint my_casefold_multiply_1(CHARSET_INFO *cs);
+uint my_casefold_multiply_2(CHARSET_INFO *cs);
+
+
+/* Some common character set names */
+extern const char charset_name_latin2[];
+#define charset_name_latin2_length 6
+extern const char charset_name_utf8mb3[];
+#define charset_name_utf8mb3_length 7
+extern const char charset_name_utf16[];
+#define charset_name_utf16_length 5
+extern const char charset_name_utf32[];
+#define charset_name_utf32_length 5
+extern const char charset_name_ucs2[];
+#define charset_name_ucs2_length 4
+extern const char charset_name_utf8mb4[];
+#define charset_name_utf8mb4_length 7
+
+#endif /*STRINGS_DEF_INCLUDED */

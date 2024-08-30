@@ -1,0 +1,37 @@
+--echo #
+--echo # MDEV-26693 ROW_NUMBER is wrong upon INSERT or UPDATE on Spider table
+--echo #
+
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--connection child2_1
+create database auto_test_remote;
+use auto_test_remote;
+create table ta_r (id int primary key);
+
+--connection master_1
+evalp create table spd (id int primary key) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+
+--error ER_DUP_ENTRY
+insert into spd values (1),(2),(1);
+get diagnostics condition 1 @n = row_number;
+select @n;
+
+delete from spd;
+insert into spd values (1),(2),(3),(13);
+--error ER_DUP_ENTRY
+update spd set id = id + 10;
+get diagnostics condition 1 @n = row_number;
+select @n;
+
+drop table spd;
+--connection child2_1
+drop database auto_test_remote;
+--connection master_1
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc

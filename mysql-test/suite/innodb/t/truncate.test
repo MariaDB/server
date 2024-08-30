@@ -19,10 +19,17 @@ DROP TABLE t;
 --echo #
 --echo # MDEV-17831 TRUNCATE TABLE removes ROW_FORMAT=COMPRESSED
 --echo #
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1 (a SERIAL) ENGINE=InnoDB KEY_BLOCK_SIZE=4;
 TRUNCATE TABLE t1;
 --replace_column 3 # 5 # 6 # 7 # 8 # 9 # 10 # 12 # 13 #
 SHOW TABLE STATUS;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 DROP TABLE t1;
 
 --echo #
@@ -36,7 +43,7 @@ call mtr.add_suppression("InnoDB: (Operating system )?[Ee]rror number");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t1\\.ibd");
 FLUSH TABLES;
 --move_file $MYSQLD_DATADIR/test/t1.frm $MYSQLD_DATADIR/test/hidden.frm
---error ER_TABLESPACE_EXISTS
+--error ER_TABLE_EXISTS_ERROR
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 --move_file $MYSQLD_DATADIR/test/hidden.frm $MYSQLD_DATADIR/test/t1.frm
 SELECT * FROM t1;
@@ -60,3 +67,15 @@ RENAME TABLE t TO u;
 TRUNCATE u;
 TRUNCATE u;
 DROP TABLE u;
+
+--echo #
+--echo # Test for a regression found during MDEV-25506 rewrite of DROP
+--echo #
+CREATE TEMPORARY TABLE t1 (a INT) ENGINE=InnoDB;
+LOCK TABLE t1 READ;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TEMPORARY TABLE t1;
+
+--echo # End of 10.6 tests

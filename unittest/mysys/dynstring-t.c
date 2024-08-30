@@ -71,4 +71,3 @@ int main(void)
 
   return exit_status();
 }
-

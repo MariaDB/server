@@ -1,7 +1,7 @@
 SET timestamp=UNIX_TIMESTAMP('2001-02-03 10:20:30');
 drop table if exists t1, t2, t3;
 create table t1 (a timestamp(7));
-ERROR 42000: Too big precision 7 specified for 'a'. Maximum is 6
+ERROR 42000: Too big precision specified for 'a'. Maximum is 6
 create table t1 (a timestamp(3), key(a));
 insert t1 values ('2010-12-11 00:20:03.1234');
 insert t1 values ('2010-12-11 15:47:11.1234');
@@ -65,7 +65,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show columns from t1;
 Field	Type	Null	Key	Default	Extra
 a	timestamp(4)	NO		current_timestamp(4)	on update current_timestamp(4)
@@ -110,12 +110,12 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` timestamp(4) NOT NULL DEFAULT current_timestamp(4) ON UPDATE current_timestamp(4)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t2, t3;
 insert t1 values ('2010-12-13 14:15:16.222222');
 select a, a+0, a-1, a*1, a/2 from t1;
@@ -135,7 +135,7 @@ t2	CREATE TABLE `t2` (
   `a-1` decimal(19,4) NOT NULL,
   `a*1` decimal(19,4) NOT NULL,
   `a/2` decimal(22,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
@@ -143,7 +143,7 @@ t3	CREATE TABLE `t3` (
   `min(a)` timestamp(4) NULL DEFAULT NULL,
   `sum(a)` decimal(40,4) DEFAULT NULL,
   `avg(a)` decimal(22,8) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1, t2, t3;
 create table t1 (f0_timestamp timestamp(0), f1_timestamp timestamp(1), f2_timestamp timestamp(2), f3_timestamp timestamp(3), f4_timestamp timestamp(4), f5_timestamp timestamp(5), f6_timestamp timestamp(6));
 insert t1 values ( '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432', '2010-11-12 11:14:17.765432');
@@ -256,7 +256,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `b` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 select * from t2;
 a	b
 2010-02-03 04:05:06.000000	2010-02-03 04:05:06.789100
@@ -276,20 +276,20 @@ create or replace table t1 (a timestamp(5) default current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) default current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) default current_timestamp(2));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(2)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT current_timestamp(2)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert t1 () values ();
 select * from t1;
 a
@@ -298,40 +298,40 @@ create or replace table t1 (a timestamp(5) default current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) default current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp());
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp(3));
 ERROR HY000: Invalid ON UPDATE clause for 'a' column
 create or replace table t1 (a timestamp(5) on update current_timestamp(5));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create or replace table t1 (a timestamp(5) on update current_timestamp(6));
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` timestamp(5) NOT NULL DEFAULT '0000-00-00 00:00:00.00000' ON UPDATE current_timestamp(5)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+  `a` timestamp(5) NULL DEFAULT NULL ON UPDATE current_timestamp(5)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
 # Start of 10.4 tests
@@ -355,7 +355,7 @@ t2	CREATE TABLE `t2` (
   `r2` datetime DEFAULT NULL,
   `t1` datetime DEFAULT NULL,
   `t2` datetime NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t2;
 DROP TABLE t1;
 SET time_zone='+00:00';
@@ -635,7 +635,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `FLOOR(a)` datetime DEFAULT NULL,
   `CEILING(a)` datetime DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1, t2;
 #
 # End of 10.4 tests

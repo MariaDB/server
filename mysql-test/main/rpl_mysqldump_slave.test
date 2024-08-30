@@ -37,7 +37,7 @@ start slave;
 start slave;
 
 
---echo *** Test mysqldump --dump-slave GTID functionality.
+--echo *** Test mysqldump --dump-slave GTID/non-gtid functionality.
 
 --connection master
 SET gtid_seq_no = 1000;
@@ -52,37 +52,80 @@ CREATE TABLE t2 (a INT PRIMARY KEY);
 DROP TABLE t2;
 
 --echo
---echo 1. --dump-slave=1
+--echo 1. --dump-slave=1 --gtid
 --echo
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --dump-slave=1 --gtid test
 
 --echo
---echo 2. --dump-slave=2
+--echo 1a. --dump-slave=1
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP_SLAVE --compact --dump-slave=1 test
+
+--echo
+--echo 2. --dump-slave=2 --gtid
 --echo
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --dump-slave=2 --gtid test
 
-
---echo *** Test mysqldump --master-data GTID functionality.
 --echo
---echo 1. --master-data=1
+--echo 2. --dump-slave=2
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP_SLAVE --compact --dump-slave=2 test
+
+
+--echo *** Test mysqldump --master-data GTID/non-gtid functionality.
+--echo
+--echo 1. --master-data=1 --gtid
 --echo
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --master-data=1 --gtid test
 
 --echo
---echo 2. --master-data=2
+--echo 1a. --master-data=1
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP_SLAVE --compact --master-data=1 test
+
+--echo
+--echo 2. --master-data=2 --gtid
 --echo
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --master-data=2 --gtid test
 
 --echo
---echo 3. --master-data --single-transaction
+--echo 2a. --master-data=2
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP_SLAVE --compact --master-data=2 test
+
+--echo
+--echo 3. --master-data --single-transaction --gtid
 --echo
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --master-data --single-transaction --gtid test
 
+--echo
+--echo 3a. --master-data --single-transaction
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
+--exec $MYSQL_DUMP_SLAVE --compact --master-data --single-transaction test
+
+--echo
+--echo 4. --master-data=2 --dump-slave=2 --single-transaction --gtid (MDEV-4827)
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/ /MariaDB dump.*/MariaDB dump/ /Dump completed.*/Dump completed/ /Server version.*/Server version/
+--exec $MYSQL_DUMP_SLAVE --master-data=2 --dump-slave=2 --single-transaction --gtid test
+--echo
+
+--echo
+--echo 4a. --master-data=2 --dump-slave=2 --single-transaction (MDEV-4827)
+--echo
+--replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/ /MariaDB dump.*/MariaDB dump/ /Dump completed.*/Dump completed/ /Server version.*/Server version/
+--exec $MYSQL_DUMP_SLAVE --master-data=2 --dump-slave=2 --single-transaction test
+--echo
 #
 # MDEV-32611 Added test for mysqldump --delete-master-logs option.
 # This options is alias of
@@ -154,5 +197,21 @@ if ($postdump_first_binary_log_filename != $postdump_binlog_filename)
 
 connection slave;
 --source include/start_slave.inc
+
+# MDEV-33212: mysqldump uses MASTER_LOG_POS with dump-slave
+# The bug was that the MASTER_LOG_POS was wrong. So check that it is correct.
+--connection master
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+--sync_slave_with_master
+--connection master
+--exec $MYSQL_DUMP_SLAVE --compact --dump-slave test >$MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+--let SEARCH_RANGE=500000000
+--let SEARCH_FILE=$MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+--let SEARCH_PATTERN= MASTER_LOG_POS=$pos
+--let SEARCH_OUTPUT=count
+--source include/search_pattern_in_file.inc
+
+--remove_file $MYSQLTEST_VARDIR/tmp/MDEV-33212.sql
+
 
 --source include/rpl_end.inc

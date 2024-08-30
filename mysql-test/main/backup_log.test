@@ -1,0 +1,39 @@
+# Testing of logging of ddl's under backup stages
+
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+CREATE TABLE t_exists (a INT);
+CREATE TABLE t_exists_template (a INT);
+
+connect (con1,localhost,root,,);
+BACKUP STAGE START;
+connection default;
+
+--let $part_int=
+--let $part_date=
+--source backup_log.inc
+
+--echo #
+--echo # Testing create/drop/alter database
+--echo #
+
+create database mysqltest;
+create table mysqltest.t90 (a int primary key, b int) engine=myisam;
+create table mysqltest.t91 (a int primary key, b int) engine=innodb;
+alter database mysqltest character set utf8;
+drop database mysqltest;
+
+--echo #
+--echo # MENT-222 bug testing
+--echo #
+CREATE TABLE IF NOT EXISTS t_exists LIKE t_exists_template;
+
+--source include/print_ddl_log.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+DROP TABLE t_exists;
+DROP TABLE t_exists_template;
+disconnect con1;

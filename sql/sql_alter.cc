@@ -18,17 +18,24 @@
 #include "sql_parse.h"                       // check_access
 #include "sql_table.h"                       // mysql_alter_table,
                                              // mysql_exchange_partition
+#include "sql_statistics.h"                  // delete_statistics_for_column
 #include "sql_alter.h"
+#include "rpl_mi.h"
+#include "slave.h"
+#include "debug_sync.h"
 #include "wsrep_mysqld.h"
 
 Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   :drop_list(rhs.drop_list, mem_root),
   alter_list(rhs.alter_list, mem_root),
   key_list(rhs.key_list, mem_root),
+  alter_rename_key_list(rhs.alter_rename_key_list, mem_root),
   create_list(rhs.create_list, mem_root),
+  alter_index_ignorability_list(rhs.alter_index_ignorability_list, mem_root),
   check_constraint_list(rhs.check_constraint_list, mem_root),
   flags(rhs.flags), partition_flags(rhs.partition_flags),
   keys_onoff(rhs.keys_onoff),
+  original_table(0),
   partition_names(rhs.partition_names, mem_root),
   num_parts(rhs.num_parts),
   requested_algorithm(rhs.requested_algorithm),
@@ -46,6 +53,7 @@ Alter_info::Alter_info(const Alter_info &rhs, MEM_ROOT *mem_root)
   list_copy_and_replace_each_value(drop_list, mem_root);
   list_copy_and_replace_each_value(alter_list, mem_root);
   list_copy_and_replace_each_value(key_list, mem_root);
+  list_copy_and_replace_each_value(alter_rename_key_list, mem_root);
   list_copy_and_replace_each_value(create_list, mem_root);
   /* partition_names are not deeply copied currently */
 }
@@ -171,16 +179,14 @@ bool Alter_info::supports_algorithm(THD *thd,
 }
 
 
-bool Alter_info::supports_lock(THD *thd,
-                               const Alter_inplace_info *ha_alter_info)
+bool Alter_info::supports_lock(THD *thd, bool online,
+                               Alter_inplace_info *ha_alter_info)
 {
   switch (ha_alter_info->inplace_supported) {
   case HA_ALTER_INPLACE_EXCLUSIVE_LOCK:
     // If SHARED lock and no particular algorithm was requested, use COPY.
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
-        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
-        thd->variables.alter_algorithm ==
-                Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
+        algorithm(thd) == Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
          return false;
 
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED ||
@@ -201,8 +207,13 @@ bool Alter_info::supports_lock(THD *thd,
   case HA_ALTER_INPLACE_SHARED_LOCK:
     if (requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
     {
-      ha_alter_info->report_unsupported_error("LOCK=NONE", "LOCK=SHARED");
-      return true;
+      if (online)
+        ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+      else
+      {
+        ha_alter_info->report_unsupported_error("LOCK=NONE", "LOCK=SHARED");
+        return true;
+      }
     }
     return false;
   case HA_ALTER_ERROR:
@@ -245,21 +256,137 @@ Alter_info::enum_alter_table_algorithm
 Alter_info::algorithm(const THD *thd) const
 {
   if (requested_algorithm == ALTER_TABLE_ALGORITHM_NONE)
-   return (Alter_info::enum_alter_table_algorithm) thd->variables.alter_algorithm;
+    return ALTER_TABLE_ALGORITHM_DEFAULT;
   return requested_algorithm;
+}
+
+bool Alter_info::algorithm_is_nocopy(const THD *thd) const
+{
+  auto alg= algorithm(thd);
+  return alg == ALTER_TABLE_ALGORITHM_INPLACE
+         || alg == ALTER_TABLE_ALGORITHM_INSTANT
+         || alg == ALTER_TABLE_ALGORITHM_NOCOPY;
+}
+
+
+uint Alter_info::check_vcol_field(Item_field *item) const
+{
+  /*
+    vcol->flags are modified in-place, so we'll need to reset them
+    if ALTER fails for any reason
+  */
+  if (item->field && !item->field->table->needs_reopen())
+    item->field->table->mark_table_for_reopen();
+
+  if (!item->field &&
+      ((item->db_name.length && !db.streq(item->db_name)) ||
+       (item->table_name.length && !table_name.streq(item->table_name))))
+  {
+    char *ptr= (char*)current_thd->alloc(item->db_name.length +
+                                         item->table_name.length +
+                                         item->field_name.length + 3);
+    strxmov(ptr, safe_str(item->db_name.str), item->db_name.length ? "." : "",
+            item->table_name.str, ".", item->field_name.str, NullS);
+    item->field_name.str= ptr;
+    return VCOL_IMPOSSIBLE;
+  }
+  for (Key &k: key_list)
+  {
+    if (k.type != Key::FOREIGN_KEY)
+      continue;
+    Foreign_key *fk= (Foreign_key*) &k;
+    if (fk->update_opt < FK_OPTION_CASCADE &&
+        fk->delete_opt < FK_OPTION_SET_NULL)
+      continue;
+    for (Key_part_spec& kp: fk->columns)
+    {
+      if (item->field_name.streq(kp.field_name))
+        return VCOL_NON_DETERMINISTIC;
+    }
+  }
+  for (Create_field &cf: create_list)
+  {
+    if (item->field_name.streq(cf.field_name))
+      return cf.vcol_info ? cf.vcol_info->flags : 0;
+  }
+  return 0;
+}
+
+
+bool Alter_info::collect_renamed_fields(THD *thd)
+{
+  List_iterator_fast<Create_field> new_field_it;
+  Create_field *new_field;
+  DBUG_ENTER("Alter_info::collect_renamed_fields");
+
+  new_field_it.init(create_list);
+  while ((new_field= new_field_it++))
+  {
+    Field *field= new_field->field;
+
+    if (new_field->field &&
+        cmp(&field->field_name, &new_field->field_name))
+    {
+      field->flags|= FIELD_IS_RENAMED;
+      if (add_stat_rename_field(field,
+                                &new_field->field_name,
+                                thd->mem_root))
+        DBUG_RETURN(true);
+
+    }
+  }
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Delete duplicate index found during mysql_prepare_create_table()
+
+  Notes:
+    - In case of temporary generated foreign keys, the key_name may not
+      be set!  These keys are ignored.
+*/
+
+bool Alter_info::add_stat_drop_index(THD *thd, const LEX_CSTRING *key_name)
+{
+  if (original_table && key_name->length)       // If from alter table
+  {
+    KEY *key_info= original_table->key_info;
+    for (uint i= 0; i < original_table->s->keys; i++, key_info++)
+    {
+      if (key_info->name.length && key_info->name.streq(*key_name))
+        return add_stat_drop_index(key_info, false, thd->mem_root);
+    }
+  }
+  return false;
+}
+
+
+void Alter_info::apply_statistics_deletes_renames(THD *thd, TABLE *table)
+{
+  List_iterator<Field>                     it_drop_field(drop_stat_fields);
+  List_iterator<RENAME_COLUMN_STAT_PARAMS> it_rename_field(rename_stat_fields);
+  List_iterator<DROP_INDEX_STAT_PARAMS>    it_drop_index(drop_stat_indexes);
+  List_iterator<RENAME_INDEX_STAT_PARAMS>  it_rename_index(rename_stat_indexes);
+
+  while (Field *field= it_drop_field++)
+    delete_statistics_for_column(thd, table, field);
+
+  if (!rename_stat_fields.is_empty())
+    (void) rename_columns_in_stat_table(thd, table, &rename_stat_fields);
+
+  while (DROP_INDEX_STAT_PARAMS *key= it_drop_index++)
+    (void) delete_statistics_for_index(thd, table, key->key,
+                                       key->ext_prefixes_only);
+
+  if (!rename_stat_indexes.is_empty())
+    (void) rename_indexes_in_stat_table(thd, table, &rename_stat_indexes);
 }
 
 
 Alter_table_ctx::Alter_table_ctx()
-  : datetime_field(NULL), error_if_not_empty(false),
-    tables_opened(0),
-    db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
-    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL), modified_primary_key(false)
-#ifdef DBUG_ASSERT_EXISTS
-    , tmp_table(false)
-#endif
+  : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
+    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)
 {
 }
 
@@ -272,14 +399,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
-  : datetime_field(NULL), error_if_not_empty(false),
-    tables_opened(tables_opened_arg),
-    new_db(*new_db_arg), new_name(*new_name_arg),
-    fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL), modified_primary_key(false)
-#ifdef DBUG_ASSERT_EXISTS
-    , tmp_table(false)
-#endif
+  : tables_opened(tables_opened_arg),
+    new_db(*new_db_arg), new_name(*new_name_arg)
 {
   /*
     Assign members db, table_name, new_db and new_name
@@ -290,7 +411,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   table_name= table_list->table_name;
   alias= (lower_case_table_names == 2) ? table_list->alias : table_name;
 
-  if (!new_db.str || !my_strcasecmp(table_alias_charset, new_db.str, db.str))
+  if (!new_db.str || new_db.streq(db))
     new_db= db;
 
   if (new_name.str)
@@ -299,22 +420,23 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
 
     if (lower_case_table_names == 1) // Convert new_name/new_alias to lower
     {
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
       new_alias= new_name;
     }
     else if (lower_case_table_names == 2) // Convert new_name to lower case
     {
-      new_alias.str=    new_alias_buff;
-      new_alias.length= new_name.length;
-      strmov(new_alias_buff, new_name.str);
-      new_name.length= my_casedn_str(files_charset_info, (char*) new_name.str);
-
+      new_alias= new_name;
+      new_name= Lex_ident_table(new_name_buff.copy_casedn(files_charset_info,
+                                                          new_name).
+                                                to_lex_cstring());
     }
     else
       new_alias= new_name; // LCTN=0 => case sensitive + case preserving
 
     if (!is_database_changed() &&
-        !my_strcasecmp(table_alias_charset, new_name.str, table_name.str))
+        new_name.streq(table_name))
     {
       /*
         Source and destination table names are equal:
@@ -331,11 +453,15 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   }
 
   tmp_name.str= tmp_name_buff;
-  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff), "%s-%lx_%llx",
+  tmp_name.length= my_snprintf(tmp_name_buff, sizeof(tmp_name_buff),
+                               "%s-alter-%lx-%llx",
                                tmp_file_prefix, current_pid, thd->thread_id);
   /* Safety fix for InnoDB */
   if (lower_case_table_names)
-    tmp_name.length= my_casedn_str(files_charset_info, tmp_name_buff);
+  {
+    // Ok to latin1, as the file name is in the form '#sql-alter-abc-def'
+    tmp_name.length= my_casedn_str_latin1(tmp_name_buff);
+  }
 
   if (table_list->table->s->tmp_table == NO_TMP_TABLE)
   {
@@ -357,10 +483,37 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
       this case. This fact is enforced with assert.
     */
     build_tmptable_filename(thd, tmp_path, sizeof(tmp_path));
-#ifdef DBUG_ASSERT_EXISTS
     tmp_table= true;
-#endif
   }
+  if ((id.length= table_list->table->s->tabledef_version.length))
+    memcpy(id_buff, table_list->table->s->tabledef_version.str, MY_UUID_SIZE);
+  id.str= id_buff;
+  storage_engine_partitioned= table_list->table->file->partition_engine();
+  storage_engine_name.str= storage_engine_buff;
+  storage_engine_name.length= ((strmake(storage_engine_buff,
+                                        table_list->table->file->
+                                        real_table_type(),
+                                        sizeof(storage_engine_buff)-1)) -
+                               storage_engine_buff);
+  tmp_storage_engine_name.str= tmp_storage_engine_buff;
+  tmp_storage_engine_name.length= 0;
+  tmp_id.str= 0;
+  tmp_id.length= 0;
+}
+
+
+void Alter_table_ctx::report_implicit_default_value_error(THD *thd,
+                                                          const TABLE_SHARE *s)
+                                                          const
+{
+  Create_field *error_field= implicit_default_value_error_field;
+  const Type_handler *h= error_field->type_handler();
+  thd->push_warning_truncated_value_for_field(Sql_condition::WARN_LEVEL_WARN,
+                                              h->name().ptr(),
+                                              h->default_value().ptr(),
+                                              s ? s->db.str : nullptr,
+                                              s ? s->table_name.str : nullptr,
+                                              error_field->field_name.str);
 }
 
 
@@ -390,10 +543,11 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     referenced from this structure will be modified.
     @todo move these into constructor...
   */
-  HA_CREATE_INFO create_info(lex->create_info);
+  Table_specification_st create_info(lex->create_info);
   Alter_info alter_info(lex->alter_info, thd->mem_root);
-  ulong priv=0;
-  ulong priv_needed= ALTER_ACL;
+  create_info.alter_info= &alter_info;
+  privilege_t priv(NO_ACL);
+  privilege_t priv_needed(ALTER_ACL);
   bool result;
 
   DBUG_ENTER("Sql_cmd_alter_table::execute");
@@ -408,6 +562,8 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE
   */
   if ((alter_info.partition_flags & ALTER_PARTITION_DROP) ||
+      (alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN) ||
+      (alter_info.partition_flags & ALTER_PARTITION_CONVERT_OUT) ||
       (alter_info.flags & ALTER_RENAME))
     priv_needed|= DROP_ACL;
 
@@ -424,6 +580,14 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                    NULL, /* Don't use first_tab->grant with sel_lex->db */
                    0, 0))
     DBUG_RETURN(TRUE);                  /* purecov: inspected */
+
+  if ((alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN))
+  {
+    TABLE_LIST *tl= first_table->next_local;
+    tl->grant.privilege= first_table->grant.privilege;
+    tl->grant.m_internal= first_table->grant.m_internal;
+  }
+
 
   /* If it is a merge table, check privileges for merge children. */
   if (create_info.merge_list)
@@ -492,16 +656,18 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     wsrep::key_array keys;
     if (!wsrep_append_fk_parent_table(thd, first_table, &keys))
     {
-      WSREP_TO_ISOLATION_BEGIN_ALTER((lex->name.str ? select_lex->db.str : NULL),
-                                     (lex->name.str ? lex->name.str : NULL),
-                                     first_table, &alter_info, &keys)
+      WSREP_TO_ISOLATION_BEGIN_ALTER(lex->name.str ? select_lex->db.str
+                                     : first_table->db.str,
+                                     lex->name.str ? lex->name.str
+                                     : first_table->table_name.str,
+                                     first_table, &alter_info, &keys,
+                                     used_engine ? &create_info : nullptr)
       {
         WSREP_WARN("ALTER TABLE isolation failure");
         DBUG_RETURN(TRUE);
       }
-
-      DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
     }
+    DEBUG_SYNC(thd, "wsrep_alter_table_after_toi");
   }
 #endif
 
@@ -539,7 +705,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
                             &alter_info,
                             select_lex->order_list.elements,
                             select_lex->order_list.first,
-                            lex->ignore);
+                            lex->ignore, lex->if_exists());
 
   DBUG_RETURN(result);
 }

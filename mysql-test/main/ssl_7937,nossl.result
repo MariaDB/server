@@ -12,4 +12,10 @@ mysql --ssl-ca=cacert.pem --ssl-verify-server-cert -e "call test.have_ssl()"
 ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
 mysql --ssl --ssl-verify-server-cert -e "call test.have_ssl()"
 ERROR 2026 (HY000): TLS/SSL error: SSL is required, but the server does not support it
+#
+# MDEV-27105 --ssl option set as default for mariadb CLI
+#
+mysql -e "call test.have_ssl()"
+have_ssl
+no
 drop procedure have_ssl;

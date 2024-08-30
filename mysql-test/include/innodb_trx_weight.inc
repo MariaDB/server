@@ -2,6 +2,8 @@
 -- connect (con2,localhost,root,,)
 
 -- connection con1
+# Enable MDEV-515 table-level undo logging for insert into empty table
+SET foreign_key_checks=0, unique_checks=0;
 SET autocommit=0;
 SELECT * FROM t1 FOR UPDATE;
 -- if ($con1_extra_sql_present) {
@@ -9,6 +11,8 @@ SELECT * FROM t1 FOR UPDATE;
 -- }
 
 -- connection con2
+# Enable MDEV-515 table-level undo logging for insert into empty table
+SET foreign_key_checks=0, unique_checks=0;
 SET autocommit=0;
 SELECT * FROM t2 FOR UPDATE;
 -- if ($con2_extra_sql_present) {

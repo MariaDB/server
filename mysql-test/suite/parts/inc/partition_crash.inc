@@ -3,25 +3,33 @@
 --eval $create_statement
 --eval $insert_statement
 --echo # State before crash
+
+--list_files_write_file $DATADIR.files.txt $DATADIR/test
 --replace_result #p# #P# #sp# #SP#
---list_files $DATADIR/test
+--cat_file $DATADIR.files.txt
+--remove_file $DATADIR.files.txt
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT * FROM t1;
---exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --disable_reconnect
 # CR_SERVER_LOST
 --error 2013
 --eval $crash_statement
 --echo # State after crash (before recovery)
---replace_regex /sqlx.*\./sqlx-nnnn_nnnn./ /#p#/#P#/ /#sp#/#SP#/ /#tmp#/#TMP#/
---list_files $DATADIR/test
---exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+--list_files_write_file $DATADIR.files.txt $DATADIR/test
+--replace_result #p# #P# #sp# #SP# #tmp# #TMP#
+--replace_regex /sql-exchange.*\./sql-exchange./ /sql-shadow-[0-9a-f]*-/sql-shadow-/
+--cat_file $DATADIR.files.txt
+--remove_file $DATADIR.files.txt
+--write_line restart $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
 --enable_reconnect
 --source include/wait_until_connected_again.inc
 --echo # State after crash recovery
+--list_files_write_file $DATADIR.files.txt $DATADIR/test
 --replace_result #p# #P# #sp# #SP#
---list_files $DATADIR/test
+--cat_file $DATADIR.files.txt
+--remove_file $DATADIR.files.txt
 SHOW CREATE TABLE t1;
 --sorted_result
 SELECT * FROM t1;

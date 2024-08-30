@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1
 (
 t1_BIGINT BIGINT,
@@ -82,7 +83,7 @@ t1_VARCHAR_0 VARCHAR(0),
 t1_VARMYSQL_0 VARCHAR(0) CHARACTER SET utf8
 ) ENGINE=InnoDB;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Warning	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use 'YEAR(4)' instead
 INSERT INTO t1 () VALUES ();
 SELECT
 name,
@@ -181,3 +182,4 @@ CREATE TABLE t1 (b BINARY(0), v VARBINARY(0), KEY(b), KEY(v)) ENGINE=InnoDB;
 INSERT INTO t1 SET b='',v='';
 DROP TABLE t1;
 # End of 10.4 tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

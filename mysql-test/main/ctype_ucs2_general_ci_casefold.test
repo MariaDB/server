@@ -1,0 +1,14 @@
+--echo #
+--echo # Start of 10.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-30716 Wrong casefolding in xxx_unicode_520_ci for U+0700..U+07FF
+--echo #
+
+SET collation_connection=ucs2_general_ci, @@character_set_results=utf8mb3;
+--source include/ctype_unicode_casefold_bmp.inc
+
+--echo #
+--echo # End of 10.7 tests
+--echo #

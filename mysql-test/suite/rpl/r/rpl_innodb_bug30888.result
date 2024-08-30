@@ -26,10 +26,6 @@ DELETE FROM test.regular_tbl WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
-Warnings:
-Level	Warning
-Code	1287
-Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CALL test.proc_norm();
 connection slave;
 connection master;

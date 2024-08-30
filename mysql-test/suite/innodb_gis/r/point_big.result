@@ -260,7 +260,7 @@ INSERT INTO gis_point VALUES
 'The ORDER BY for spatial index will use filesort'
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	13	#
+1	SIMPLE	gis_point	ALL	NULL	NULL	NULL	NULL	#	Using filesort
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 ST_AsText(p1)	ST_AsText(p2)
 POINT(2 4)	POINT(-2 -6)

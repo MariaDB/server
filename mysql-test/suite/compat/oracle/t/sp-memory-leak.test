@@ -1,0 +1,35 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-26186 280 Bytes lost in mysys/array.c, mysys/hash.c, sql/sp.cc, sql/sp.cc, sql/item_create.cc, sql/item_create.cc, sql/sql_yacc.yy:10748 when using oracle sql_mode
+--echo #
+
+SET sql_mode= 'oracle';
+--error ER_SP_LILABEL_MISMATCH
+BEGIN CONTINUE WHEN f0();
+
+SET sql_mode= 'oracle';
+--error ER_SP_LILABEL_MISMATCH
+BEGIN CONTINUE label WHEN f0();
+
+SET sql_mode= 'oracle';
+--error ER_SP_LILABEL_MISMATCH
+BEGIN EXIT WHEN f0();
+
+SET sql_mode= 'oracle';
+--error ER_SP_LILABEL_MISMATCH
+BEGIN EXIT label WHEN f0();
+
+SET sql_mode= 'oracle';
+--error ER_PARSE_ERROR
+--query WHILE f(8)<1 DO SELECT 1;
+
+SET sql_mode= 'oracle';
+--error ER_SP_BADRETURN
+BEGIN DECLARE CONTINUE HANDLER FOR SQLEXCEPTION RETURN f0();
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

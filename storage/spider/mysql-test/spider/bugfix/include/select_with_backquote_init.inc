@@ -22,4 +22,4 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey, txt_utf8 FROM tbl_a ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';

@@ -30,3 +30,14 @@ update graph set origid=123;
 ERROR HY000: Table 'graph' is read only
 DROP TABLE graph_base;
 DROP TABLE graph;
+#
+# End of 10.0 tests
+#
+#
+# MDEV-25373 DROP TABLE doesn't raise error while dropping non-existing table in MariaDB 10.5.9 when OQGraph SE is loaded to the server
+#
+drop table foobar;
+ERROR 42S02: Unknown table 'test.foobar'
+#
+# End of 10.5 tests
+#

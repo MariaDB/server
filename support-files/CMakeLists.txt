@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates.
-# Copyright (c) 2012, 2017, MariaDB
+# Copyright (c) 2012, 2022, MariaDB
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -32,6 +32,21 @@ ELSE()
   SET(MYSQLD_GROUP "mysql")
   SET(ini_file_extension "cnf")
   SET(HOSTNAME "uname -n")
+
+  # Define directly here, as cmake/install_layout.cmake has no LOGDIR to be inherited
+  SET(su_user "su mysql mysql")
+  IF(RPM MATCHES "(suse|sles)")
+    SET(logdir "/var/log/mysql")
+  ELSEIF(RPM)
+    SET(logdir "/var/log/mariadb")
+  ELSE()
+    SET(logdir "/var/log/mysql")
+  ENDIF()
+  IF(DEB)
+    SET(su_user "#su mysql mysql")
+  ENDIF()
+  get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+  SET(mysqlunixdir ${MYSQL_UNIX_DIR})
 ENDIF()
 
 # XXX: shouldn't we just have variables for all this stuff and centralise
@@ -42,17 +57,21 @@ ELSE()
   SET(inst_location ${INSTALL_SUPPORTFILESDIR})
 ENDIF()
 
-IF(WITH_WSREP)
+IF(WITH_WSREP AND NOT WITHOUT_SERVER)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh
                  ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension}
           DESTINATION ${inst_location} COMPONENT IniFiles)
 ENDIF()
 
-IF(UNIX)
+IF(UNIX AND NOT WITHOUT_SERVER)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
-  FOREACH(script mysqld_multi.server mysql-log-rotate binary-configure wsrep_notify)
-    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh 
+  SET(SCRIPTS mysqld_multi.server mariadb.logrotate binary-configure mini-benchmark)
+  IF(WITH_WSREP)
+    SET(SCRIPTS ${SCRIPTS} wsrep_notify)
+  ENDIF()
+  FOREACH(script ${SCRIPTS})
+    CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
     INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/${script}
       DESTINATION ${inst_location} COMPONENT Server_Scripts)
@@ -121,8 +140,23 @@ IF(UNIX)
   IF(HAVE_SYSTEMD)
     CONFIGURE_FILE(mariadb.service.in
                    ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service @ONLY)
-    INSTALL(FILES use_galera_new_cluster.conf
+    CONFIGURE_FILE(mariadb.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb.socket @ONLY)
+    CONFIGURE_FILE(mariadb-extra.socket.in
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra.socket @ONLY)
+    EXECUTE_PROCESS(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysql.service
+    COMMAND ${CMAKE_COMMAND} -E create_symlink ./mariadb.service mysqld.service
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+    IF(WITH_WSREP)
+      INSTALL(FILES use_galera_new_cluster.conf
+              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+    ENDIF()
+    INSTALL(FILES
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+            ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
@@ -130,12 +164,26 @@ IF(UNIX)
     IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
       CONFIGURE_FILE(mariadb@.service.in
                      ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service @ONLY)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+      CONFIGURE_FILE(mariadb@.socket.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket @ONLY)
+      CONFIGURE_FILE(mariadb-extra@.socket.in
+                     ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket @ONLY)
+      INSTALL(FILES
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
     ENDIF()
 
     IF(INSTALL_SYSTEMD_UNITDIR)
-      INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+      INSTALL(FILES
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra.socket
+              ${CMAKE_CURRENT_BINARY_DIR}/mysql.service
+              ${CMAKE_CURRENT_BINARY_DIR}/mysqld.service
               DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
 
       # http://public.kitware.com/Bug/view.php?id=14782
@@ -145,6 +193,8 @@ IF(UNIX)
                 "${INSTALL_SYSTEMD_UNITDIR}/mariadb@bootstrap.service.d"
                 COMPONENT Server)
         INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.service
+                ${CMAKE_CURRENT_BINARY_DIR}/mariadb@.socket
+                ${CMAKE_CURRENT_BINARY_DIR}/mariadb-extra@.socket
                 DESTINATION ${INSTALL_SYSTEMD_UNITDIR} COMPONENT Server)
       ENDIF()
 
@@ -164,6 +214,9 @@ IF(UNIX)
 
   IF((HAVE_SYSTEMD OR INSTALL_SYSTEMD_TMPUSERS) AND INSTALL_SYSTEMD_TMPFILESDIR)
     get_filename_component(MYSQL_UNIX_DIR ${MYSQL_UNIX_ADDR} DIRECTORY)
+    IF(MYSQL_DATADIR STREQUAL MYSQL_UNIX_DIR)
+      SET(DISABLE_TMP "#")
+    ENDIF()
     CONFIGURE_FILE(tmpfiles.conf.in
             ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf @ONLY)
     INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/tmpfiles.conf
@@ -172,8 +225,9 @@ IF(UNIX)
   ENDIF()
 
   IF (INSTALL_SYSCONFDIR)
-    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mysql-log-rotate DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
-            RENAME mysql COMPONENT SupportFiles)
+    INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/mariadb.logrotate
+            DESTINATION ${INSTALL_SYSCONFDIR}/logrotate.d
+            RENAME mariadb COMPONENT SupportFiles)
     IF(NOT HAVE_SYSTEMD)
       INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mysql.server
               DESTINATION  ${INSTALL_SYSCONFDIR}/init.d

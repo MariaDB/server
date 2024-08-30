@@ -17,14 +17,18 @@
 #include <mysqld.h>
 #include "wsrep_priv.h"
 #include "wsrep_utils.h"
+#include "wsrep_status.h"
 
 void wsrep_notify_status(enum wsrep::server_state::state status,
                          const wsrep::view* view)
 {
+
+  Wsrep_status::report_state(status);
+
   if (!view)
   {
     WSREP_DEBUG("wsrep_notify_status server not yet ready : wsrep_ready=%d status %d",
-		wsrep_ready, (int)status);
+		(int) wsrep_ready_get(), (int)status);
     return;
   }
 
@@ -35,7 +39,7 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
   }
 
   const long  cmd_len = (1 << 16) - 1;
-  char* cmd_ptr = (char*) my_malloc(cmd_len + 1, MYF(MY_WME));
+  char* cmd_ptr = (char*) my_malloc(PSI_NOT_INSTRUMENTED, cmd_len + 1, MYF(MY_WME));
   long  cmd_off = 0;
 
   if (!cmd_ptr)

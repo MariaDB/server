@@ -77,8 +77,6 @@ select count(*) as cnt from (select id1 from t1 force index (primary) where id1 
 set id1_cond = id1_cond + 1;
 end while;
 end//
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 insert t1 select seq, seq, 1, 1, seq, seq, seq from seq_1_to_2000;
 set @before=unix_timestamp();
 call select_test();

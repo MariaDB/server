@@ -55,6 +55,7 @@
 #elif defined(_ARCH_PWR8)
 #elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
 #else
+# include "my_global.h"
 # include "my_atomic.h"
 #endif
 

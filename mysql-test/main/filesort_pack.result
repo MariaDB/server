@@ -1,0 +1,29 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-27307 main.ctype_utf8mb4_uca_allkeys tests fail with Valgrind/MSAN
+#
+# In this scenario packing is fully disabled:
+# - The sortkey is of a fixed width data type
+# - The addon fields have too small potential savings
+SET NAMES latin1;
+CREATE TABLE t1 (
+code INT NOT NULL,
+str VARCHAR(5) CHARACTER SET latin1 NOT NULL
+) ENGINE=MyISAM;
+FOR i IN 0..50
+DO
+INSERT INTO t1 VALUES (i, REPEAT('a',1));
+END FOR;
+$$
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+51
+SET sort_buffer_size=1024;
+SELECT HEX(code), HEX(str) FROM t1 ORDER BY HEX(str);
+SET sort_buffer_size=DEFAULT;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

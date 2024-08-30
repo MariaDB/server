@@ -1,0 +1,23 @@
+#--echo #
+#--echo #
+#--echo #
+
+--vertical_results
+SELECT
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='FUNCTION'
+  AND PLUGIN_NAME='sysconst_test';
+--horizontal_results
+
+
+SELECT sysconst_test();
+SELECT sysconst_test();

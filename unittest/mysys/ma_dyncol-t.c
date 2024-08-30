@@ -197,12 +197,12 @@ static CHARSET_INFO *charset_list[]=
   &my_charset_ujis_japanese_ci,
   &my_charset_ujis_bin,
 #endif
-#ifdef HAVE_CHARSET_utf8
-  &my_charset_utf8_general_ci,
+#ifdef HAVE_CHARSET_utf8mb3
+  &my_charset_utf8mb3_general_ci,
 #ifdef HAVE_UCA_COLLATIONS
-  &my_charset_utf8_unicode_ci,
+  &my_charset_utf8mb3_unicode_ci,
 #endif
-  &my_charset_utf8_bin,
+  &my_charset_utf8mb3_bin,
 #endif
 };
 
@@ -236,7 +236,7 @@ void test_value_single_string(const char *string, size_t len,
 err:
   ok(rc, "'%s' - '%s' %u %u-%s", string,
      res.x.string.value.str, (uint)res.x.string.value.length,
-     (uint)res.x.string.charset->number, res.x.string.charset->name);
+     (uint)res.x.string.charset->number, res.x.string.charset->coll_name.str);
   /* cleanup */
   val.x.string.value.str= NULL; // we did not allocated it
   mariadb_dyncol_free(&str);

@@ -117,7 +117,7 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 		else
 		  len = MY_MIN(abs(len), GetConvSize());
 
-		// Pass through
+                /* fall through */
 	case 12:   // VARCHAR
 		if (tn && !stricmp(tn, "TEXT"))
 			// Postgresql returns 12 for TEXT
@@ -128,14 +128,14 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 		if (len == 0x7FFFFFFF)
 			len = GetConvSize();
 
-		// Pass through
+                /* fall through */
 	case -9:   // NVARCHAR	(unicode)
 		// Postgresql can return this when size is unknown 
 		if (len == 0x7FFFFFFF)
 			len = GetConvSize();
 
 		v = 'V';
-		// Pass through
+                /* fall through */
 	case 1:    // CHAR
 	case -15:  // NCHAR	 (unicode)
 	case -8:   // ROWID
@@ -194,7 +194,7 @@ int TranslateJDBCType(int stp, char *tn, int prec, int& len, char& v)
 				break;
 			}	// endif tn
 
-			// Pass through
+                        /* fall through */
 		case 0:    // NULL
 		case -2:   // BINARY
 		case -4:   // LONGVARBINARY
@@ -294,7 +294,7 @@ public:
 
 		} // endif name
 
-			// If it was not specified, set schema as the passed db name
+		// If it was not specified, set schema as the passed db name
 		if (db && !m_part[1].length)
 			lex_string_set(&m_part[1], db, strlen(db));
 
@@ -772,10 +772,8 @@ void JDBConn::AddJars(PSTRG jpop, char sep)
 /***********************************************************************/
 bool JDBConn::Connect(PJPARM sop)
 {
-	int      irc = RC_FX;
 	bool		 err = false;
 	jint     rc;
-	jboolean jt = (trace(1));
 	PGLOBAL& g = m_G;
 
 	/*******************************************************************/
@@ -945,7 +943,7 @@ int JDBConn::Rewind(PCSZ sql)
 		if (gmID(m_G, fetchid, "Fetch", "(I)Z"))
 			return -1;
 
-		jboolean b = env->CallBooleanMethod(job, fetchid, 0);
+		(void) env->CallBooleanMethod(job, fetchid, 0);
 
 		rbuf = m_Rows;
 	} else if (ExecuteCommand(sql) != RC_FX)
@@ -1094,7 +1092,7 @@ void JDBConn::SetColumnValue(int rank, PSZ name, PVAL val)
 		break;
 	case 0:						// NULL
 		val->SetNull(true);
-		// passthru
+                /* fall through */
 	default:
 		val->Reset();
 	} // endswitch Type
@@ -1197,7 +1195,7 @@ int JDBConn::ExecuteUpdate(PCSZ sql)
 /***********************************************************************/
 int JDBConn::GetResultSize(PCSZ sql, PCOL colp)
 {
-	int rc, n = 0;
+	int rc;
 
 	if ((rc = ExecuteQuery(sql)) != RC_OK)
 		return -1;
@@ -1504,7 +1502,6 @@ bool JDBConn::SetParam(JDBCCOL *colp)
 		PCSZ     fnc = "Unknown";
 		uint     n;
 		short    len, tp;
-		int      crow = 0;
 		PQRYRES  qrp = cap->Qrp;
 		PCOLRES  crp;
 		jboolean rc = false;

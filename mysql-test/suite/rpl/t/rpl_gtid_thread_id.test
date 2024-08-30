@@ -1,0 +1,185 @@
+#
+#   Verify that GTID log events are written into the binary log along with the
+# id of the thread which originally executed the transaction. On the primary,
+# this is the id of the user connection (or the pseudo_thread_id). The replica
+# should maintain this value when binlogging.
+#
+# References:
+#   MDEV-7850:  MariaDB doesn't show thread_id for ROW-based events in binlog
+#
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+--let primary_thread_id=`select connection_id()`
+create table t1(a int);
+insert into t1 values(1);
+optimize table t1;
+
+--sync_slave_with_master
+
+--connection master
+--let datadir= `select @@datadir`
+--let filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let primary_local_binlog=$datadir/$filename
+--let primary_outfile=$MYSQLTEST_VARDIR/tmp/primary_binlog.sql
+--echo # MYSQL_BINLOG primary_local_binlog > primary_outfile
+--exec $MYSQL_BINLOG $primary_local_binlog > $primary_outfile
+
+--let $assert_count= 3
+--let $assert_text= Ensure only $assert_count GTID events exist (Primary)
+--let $assert_select=GTID [0-9]-[0-9]-[0-9]
+--let $assert_file= $primary_outfile
+--source include/assert_grep.inc
+
+--let $assert_text= Ensure each GTID event has the thread id (Primary)
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--source include/assert_grep.inc
+
+--echo #
+--echo # GTID event's thread_id should use pseudo_thread_id
+--connection master
+--let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
+set @@pseudo_thread_id=99999;
+insert into t1 values(2);
+--echo # MYSQL_BINLOG primary_local_binlog > primary_outfile
+--exec $MYSQL_BINLOG $primary_local_binlog > $primary_outfile
+
+--let $assert_count= 1
+--let $assert_text= GTID event's thread_id should use pseudo_thread_id
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
+--source include/assert_grep.inc
+
+--disable_query_log
+--eval set @@pseudo_thread_id=$old_pseudo_id
+--enable_query_log
+
+
+--echo #
+--echo # Test the serial replica
+--connection slave
+--let replica_thread_id=`select connection_id()`
+--let datadir= `select @@datadir`
+--let filename= query_get_value(SHOW MASTER STATUS, File, 1)
+--let replica_local_binlog=$datadir/$filename
+--let replica_outfile=$MYSQLTEST_VARDIR/tmp/serial_replica_binlog.sql
+--echo # MYSQL_BINLOG replica_local_binlog > replica_outfile
+--exec $MYSQL_BINLOG $replica_local_binlog > $replica_outfile
+
+--let $assert_count= 4
+--let $assert_text= Ensure the same number of GTID events on the replica as the primary
+--let $assert_select=GTID [0-9]-[0-9]-[0-9]
+--let $assert_file= $replica_outfile
+--source include/assert_grep.inc
+
+--let $assert_count= 3
+--let $assert_text= Ensure GTID events logged with primary's thread id maintain that value
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--source include/assert_grep.inc
+
+--let $assert_count= 1
+--let $assert_text= Ensure GTID event logged with pseudo_thread_id on primary maintains that value
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=99999\$
+--source include/assert_grep.inc
+
+
+--echo #
+--echo # Test the parallel replica
+--connection slave
+--source include/stop_slave.inc
+--let $old_parallel_threads= `SELECT @@GLOBAL.slave_parallel_threads`
+SET @@GLOBAL.slave_parallel_threads=1;
+--source include/start_slave.inc
+
+--connection master
+insert into t1 values(3);
+insert into t1 values(4);
+--sync_slave_with_master
+
+--connection slave
+--echo # MYSQL_BINLOG replica_local_binlog > replica_outfile
+--exec $MYSQL_BINLOG $replica_local_binlog > $replica_outfile
+
+--let $assert_count= 6
+--let $assert_text= Ensure the same number of GTID events on the replica as the primary
+--let $assert_select=GTID [0-9]-[0-9]-[0-9]
+--source include/assert_grep.inc
+
+--let $assert_count= 5
+--let $assert_text= Ensure GTID the new events are logged on the replica with the thread_id of the master primary thread id
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=$primary_thread_id\$
+--source include/assert_grep.inc
+
+--source include/stop_slave.inc
+--eval SET @@GLOBAL.slave_parallel_threads=$old_parallel_threads
+--source include/start_slave.inc
+
+
+--echo #
+--echo # MDEV-33924: If pseudo_thread_id is set to 0, thread_id should still be
+--echo # written and propagated to slaves
+--connection master
+--let $old_pseudo_id= `SELECT @@SESSION.pseudo_thread_id`
+set @@pseudo_thread_id=0;
+insert into t1 values(33924);
+--echo # MYSQL_BINLOG primary_local_binlog > primary_outfile
+--exec $MYSQL_BINLOG $primary_local_binlog > $primary_outfile
+
+--let $assert_count= 1
+--let $assert_text= GTID event's thread_id should write pseudo_thread_id value of 0
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_file= $primary_outfile
+--source include/assert_grep.inc
+
+--sync_slave_with_master
+--connection slave
+--echo # MYSQL_BINLOG replica_local_binlog > replica_outfile
+--exec $MYSQL_BINLOG $replica_local_binlog > $replica_outfile
+
+--let $assert_text= A 0 value for GTID event's thread_id should be propagated on replicas
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=0\$
+--let $assert_file= $replica_outfile
+--source include/assert_grep.inc
+
+--echo # If pseudo_thread_id is set to a value greater than 4 bytes, thread_id
+--echo # should be truncated to a 32-bit value in the binary log (see
+--echo # MDEV-15089 for details)
+--connection master
+# Silence the truncation warning
+--disable_warnings
+set @@pseudo_thread_id=99999999999999999999;
+--enable_warnings
+insert into t1 values(15089);
+--echo # MYSQL_BINLOG primary_local_binlog > primary_outfile
+--exec $MYSQL_BINLOG $primary_local_binlog > $primary_outfile
+
+--let $assert_count= 1
+--let $assert_text= GTID event's thread_id should truncate values higher than 32 bit
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=4294967295\$
+--let $assert_file= $primary_outfile
+--source include/assert_grep.inc
+
+--sync_slave_with_master
+--connection slave
+--echo # MYSQL_BINLOG replica_local_binlog > replica_outfile
+--exec $MYSQL_BINLOG $replica_local_binlog > $replica_outfile
+
+--let $assert_text= The truncated thread_id should be preserved on the replica
+--let $assert_select=GTID [0-9]-[0-9]-[0-9].*thread_id=4294967295\$
+--let $assert_file= $replica_outfile
+--source include/assert_grep.inc
+
+--disable_query_log
+--connection master
+--eval set @@pseudo_thread_id=$old_pseudo_id
+--enable_query_log
+
+
+--echo #
+--echo # Cleanup
+--connection master
+drop table t1;
+remove_file $primary_outfile;
+remove_file $replica_outfile;
+
+--source include/rpl_end.inc

@@ -1,0 +1,36 @@
+--source include/have_innodb.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+--echo #
+
+
+SET default_storage_engine=InnoDB;
+--source type_inet6_engines.inc
+
+--echo #
+--echo # MDEV-26742 Assertion `field->type_handler() == this' failed in FixedBinTypeBundle<NATIVE_LEN, MAX_CHAR_LEN>::Type_handler_fbt::stored_field_cmp_to_item
+--echo #
+
+CREATE TABLE t1 (pk inet6, c text) engine=myisam;
+INSERT INTO t1 VALUES ('::',1);
+CREATE TABLE t2 (d text, KEY (d)) engine=innodb ;
+INSERT INTO t2 VALUES (2);
+SELECT * FROM t2 JOIN t1 ON ( t1.pk > t2.d);
+--error ER_TRUNCATED_WRONG_VALUE
+UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
+SET sql_mode='';
+UPDATE t2 JOIN t1 ON ( t1.pk > t2.d) SET t1.c = 1;
+SET sql_mode=DEFAULT;
+SELECT * FROM t1;
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

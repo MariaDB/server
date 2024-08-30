@@ -31,13 +31,14 @@ ENDIF()
 INCLUDE_DIRECTORIES(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/sql
+  ${CMAKE_SOURCE_DIR}/storage/maria
   ${CMAKE_CURRENT_SOURCE_DIR}/quicklz
   ${CMAKE_CURRENT_SOURCE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/crc
   )
 
 IF(NOT HAVE_SYSTEM_REGEX)
-  INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/pcre)
+  INCLUDE_DIRECTORIES(${PCRE_INCLUDE_DIRS})
+  ADD_DEFINITIONS(${PCRE2_DEBIAN_HACK})
 ENDIF()
 
 
@@ -46,18 +47,12 @@ ADD_DEFINITIONS(-UMYSQL_SERVER)
 # xtrabackup binary
 ########################################################################
 
-IF(WIN32)
-  SET(NT_SERVICE_SOURCE ${PROJECT_SOURCE_DIR}/sql/nt_servc.cc)
-ELSE()
-  SET(NT_SERVICE_SOURCE)
-ENDIF()
-
 ADD_DEFINITIONS(-DPCRE_STATIC=1)
 ADD_DEFINITIONS(${SSL_DEFINES})
-MYSQL_ADD_EXECUTABLE(mariabackup
+
+MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
   innobackupex.cc
-  changed_page_bitmap.cc
   datasink.cc
   ds_buffer.cc
   ds_compress.cc
@@ -75,23 +70,22 @@ MYSQL_ADD_EXECUTABLE(mariabackup
   backup_copy.cc
   encryption_plugin.cc
   ${PROJECT_BINARY_DIR}/sql/sql_builtin.cc
+  aria_backup_client.cc
+  thread_pool.cc
+  ddl_log.cc
+  common_engine.cc
   ${PROJECT_SOURCE_DIR}/sql/net_serv.cc
-  ${NT_SERVICE_SOURCE}
   ${PROJECT_SOURCE_DIR}/libmysqld/libmysql.c
-  COMPONENT backup
+  COMPONENT Backup
   )
 
-
-
-
 # Export all symbols on Unix, for better crash callstacks
-SET_TARGET_PROPERTIES(mariabackup PROPERTIES ENABLE_EXPORTS TRUE)
-ADD_SUBDIRECTORY(crc)
+SET_TARGET_PROPERTIES(mariadb-backup PROPERTIES ENABLE_EXPORTS TRUE)
 
+TARGET_LINK_LIBRARIES(mariadb-backup  sql sql_builtins aria)
 
-TARGET_LINK_LIBRARIES(mariabackup sql sql_builtins crc)
 IF(NOT HAVE_SYSTEM_REGEX)
-  TARGET_LINK_LIBRARIES(mariabackup pcreposix)
+  TARGET_LINK_LIBRARIES(mariadb-backup pcre2-posix)
 ENDIF()
 
 
@@ -106,13 +100,12 @@ MYSQL_ADD_EXECUTABLE(mbstream
   xbstream.cc
   xbstream_read.cc
   xbstream_write.cc
-  COMPONENT backup
+  COMPONENT Backup
   )
 
 
 TARGET_LINK_LIBRARIES(mbstream
   mysys
-  crc
 )
 ADD_DEPENDENCIES(mbstream GenError)
 

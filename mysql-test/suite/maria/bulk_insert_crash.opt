@@ -1,2 +1,2 @@
---skip-stack-trace --skip-core-file
+--loose-skip-stack-trace --skip-core-file
 --default-storage-engine=Aria

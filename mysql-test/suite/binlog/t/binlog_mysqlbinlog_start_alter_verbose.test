@@ -1,0 +1,58 @@
+#
+# Purpose:
+#
+#   This test ensures that mysqlbinlog prints a comment when two-phase alter
+# is enabled which shows the original alter query issued.
+#
+#
+# References:
+#   MENT-662: Finalize MDEV-11675 "Lag Free Alter On Slave"
+#
+
+# Just row format for faster testing
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+#---
+# Setup
+#---
+--let $binlog_alter_two_phase= `select @@binlog_alter_two_phase`
+set global binlog_alter_two_phase = ON;
+set binlog_alter_two_phase = ON;
+
+RESET MASTER;
+create table myt (a int) engine=InnoDB;
+
+
+#---
+# Issue ALTER
+#---
+alter table myt add column (b int);
+
+
+#---
+# Check binlog output
+#---
+FLUSH LOGS;
+
+--disable_query_log
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let $BINLOG_FILENAME= query_get_value(SHOW BINARY LOGS, Log_name, 1)
+
+--echo # Exec MYSQL_BINLOG --base64-output=decode-rows -v MYSQLD_DATADIR/BINLOG_FILENAME > MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+--exec $MYSQL_BINLOG --base64-output=decode-rows -v $MYSQLD_DATADIR/$BINLOG_FILENAME > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+
+create table raw_binlog_rows (txt varchar(1000));
+--eval load data local infile '$MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql' into table raw_binlog_rows columns terminated by '\n'
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_verbose.sql
+--enable_query_log
+--echo Verbose statements from : $BINLOG_FILENAME
+# Output --verbose lines, with extra Windows CR's trimmed
+select replace(txt,'\r', '') as stmt from raw_binlog_rows where txt like '###%';
+
+#---
+# Cleanup
+#---
+drop table raw_binlog_rows;
+drop table myt;
+--eval set global binlog_alter_two_phase=$binlog_alter_two_phase

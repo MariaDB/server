@@ -4,6 +4,8 @@ call mtr.add_suppression("Invalid .old.. table or database name");
 #remove this include after fix MDEV-27872
 --source include/no_view_protocol.inc
 
+--source include/test_db_charset_latin1.inc
+
 --disable_warnings
 drop database if exists `mysqltest1`;
 drop database if exists `mysqltest-1`;
@@ -61,6 +63,10 @@ copy_file std_data/bug37631.MYI $MYSQLD_DATADIR/test/t1.MYI;
 CHECK TABLE t1;
 --echo # query the table created using mysql 4.0
 SELECT * FROM t1;
+ALTER TABLE t1 algorithm=NOCOPY;
+CHECK TABLE t1;
+ALTER TABLE t1 FORCE;
+CHECK TABLE t1;
 DROP TABLE t1;
 
 #
@@ -183,3 +189,4 @@ drop table `ltoriaeinnovacionendesarrolloempres#9120761097220077376#cio_com`;
 
 --echo # End of 5.1 tests
 
+--source include/test_db_charset_restore.inc

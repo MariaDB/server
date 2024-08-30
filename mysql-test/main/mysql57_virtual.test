@@ -13,8 +13,8 @@ insert into mysql57_virtual (a) values (1),(2);
 select * from mysql57_virtual;
 
 # We can't do online changes, as the MariaDB storage is incompatible with MySQL
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter online table mysql57_virtual comment "I am now a MariaDB table";
+--error ER_ALTER_OPERATION_NOT_SUPPORTED
+alter online table mysql57_virtual comment "I am now a MariaDB table", algorithm=nocopy;
 
 alter table mysql57_virtual comment "I am now a MariaDB table";
 SHOW CREATE TABLE mysql57_virtual;

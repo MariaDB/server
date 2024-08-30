@@ -25,6 +25,12 @@
 --source include/master-slave.inc
 
 --connection slave
+
+# Using_Gtid needs to start as NO before updating debug_dbug
+--source include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+--source include/start_slave.inc
+
 --source include/stop_slave.inc
 SET @save_dbug= @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug="+d,pause_sql_thread_on_relay_fde_after_trans";

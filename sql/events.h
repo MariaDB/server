@@ -31,6 +31,8 @@ extern PSI_cond_key key_event_scheduler_COND_state;
 extern PSI_thread_key key_thread_event_scheduler, key_thread_event_worker;
 #endif /* HAVE_PSI_INTERFACE */
 
+extern PSI_memory_key key_memory_event_basic_root;
+
 /* Always defined, for SHOW PROCESSLIST. */
 extern PSI_stage_info stage_waiting_on_empty_queue;
 extern PSI_stage_info stage_waiting_for_next_activation;
@@ -117,7 +119,7 @@ public:
              bool if_exists);
 
   static void
-  drop_schema_events(THD *thd, const char *db);
+  drop_schema_events(THD *thd, const LEX_CSTRING &db);
 
   static bool
   show_create_event(THD *thd, const LEX_CSTRING *dbname,

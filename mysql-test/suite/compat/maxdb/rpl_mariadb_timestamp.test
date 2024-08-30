@@ -7,7 +7,7 @@
 
 SET timestamp=UNIX_TIMESTAMP('2001-01-01 10:00:00');
 SET sql_mode=DEFAULT;
-CREATE TABLE t1 (a TIMESTAMP);
+CREATE TABLE t1 (a TIMESTAMP NOT NULL DEFAULT NOW());
 INSERT INTO t1 VALUES (NULL);
 INSERT INTO t1 VALUES ('2001-01-01 10:20:30');
 SET sql_mode=MAXDB;
@@ -16,7 +16,6 @@ SET timestamp=DEFAULT;
 
 --let $binlog_file = LAST
 source include/show_binlog_events.inc;
-
 
 --sync_slave_with_master
 SELECT * FROM t1;

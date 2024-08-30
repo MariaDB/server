@@ -78,55 +78,55 @@ Table	Create Table
 £Τ£±	CREATE TABLE `£Τ£±` (
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£²`;
 Table	Create Table
 £Τ£²	CREATE TABLE `£Τ£²` (
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£³`;
 Table	Create Table
 £Τ£³	CREATE TABLE `£Τ£³` (
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£΄`;
 Table	Create Table
 £Τ£΄	CREATE TABLE `£Τ£΄` (
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£µ`;
 Table	Create Table
 £Τ£µ	CREATE TABLE `£Τ£µ` (
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£¶`;
 Table	Create Table
 £Τ£¶	CREATE TABLE `£Τ£¶` (
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£·`;
 Table	Create Table
 £Τ£·	CREATE TABLE `£Τ£·` (
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£Έ`;
 Table	Create Table
 £Τ£Έ	CREATE TABLE `£Τ£Έ` (
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£Ή`;
 Table	Create Table
 £Τ£Ή	CREATE TABLE `£Τ£Ή` (
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DESC `£Τ£±`;
 Field	Type	Null	Key	Default	Extra
 £Γ£±	enum('±','²','³')	YES	MUL	NULL	
@@ -169,63 +169,63 @@ Table	Create Table
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£²`;
 Table	Create Table
 £Τ£²	CREATE TABLE `£Τ£²` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£³`;
 Table	Create Table
 £Τ£³	CREATE TABLE `£Τ£³` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£΄`;
 Table	Create Table
 £Τ£΄	CREATE TABLE `£Τ£΄` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£µ`;
 Table	Create Table
 £Τ£µ	CREATE TABLE `£Τ£µ` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£¶`;
 Table	Create Table
 £Τ£¶	CREATE TABLE `£Τ£¶` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MyISAM DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£·`;
 Table	Create Table
 £Τ£·	CREATE TABLE `£Τ£·` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('±','²','³') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£Έ`;
 Table	Create Table
 £Τ£Έ	CREATE TABLE `£Τ£Έ` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('¤Ά','¤¤','¤¦') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 SHOW CREATE TABLE `£Τ£Ή`;
 Table	Create Table
 £Τ£Ή	CREATE TABLE `£Τ£Ή` (
   `£Γ£²` char(1) NOT NULL,
   `£Γ£±` enum('νά','νέ','νή') DEFAULT NULL,
   KEY `£Γ£±` (`£Γ£±`)
-) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=ucs2 COLLATE=ucs2_uca1400_ai_ci
 DESC `£Τ£±`;
 Field	Type	Null	Key	Default	Extra
 £Γ£²	char(1)	NO		NULL	

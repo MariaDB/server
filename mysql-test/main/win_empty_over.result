@@ -36,23 +36,32 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "pk"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "pk"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "index",
-          "key": "PRIMARY",
-          "key_length": "4",
-          "used_key_parts": ["pk"],
-          "rows": 11,
-          "filtered": 100,
-          "using_index": true
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "index",
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["pk"],
+              "loops": 1,
+              "rows": 11,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "using_index": true
+            }
+          }
+        ]
       }
     }
   }
@@ -62,23 +71,32 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
+    "cost": "COST_REPLACED",
     "window_functions_computation": {
-      "sorts": {
-        "filesort": {
-          "sort_key": "`row_number() over ()`"
+      "sorts": [
+        {
+          "filesort": {
+            "sort_key": "`row_number() over ()`"
+          }
         }
-      },
+      ],
       "temporary_table": {
-        "table": {
-          "table_name": "t1",
-          "access_type": "index",
-          "key": "PRIMARY",
-          "key_length": "4",
-          "used_key_parts": ["pk"],
-          "rows": 11,
-          "filtered": 100,
-          "using_index": true
-        }
+        "nested_loop": [
+          {
+            "table": {
+              "table_name": "t1",
+              "access_type": "index",
+              "key": "PRIMARY",
+              "key_length": "4",
+              "used_key_parts": ["pk"],
+              "loops": 1,
+              "rows": 11,
+              "cost": "COST_REPLACED",
+              "filtered": 100,
+              "using_index": true
+            }
+          }
+        ]
       }
     }
   }

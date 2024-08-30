@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2014, SkySQL Ab.
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -25,7 +25,7 @@
 #include "my_stacktrace.h"
 #include <source_revision.h>
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <crtdbg.h>
 #include <direct.h>
 #define SIGNAL_FMT "exception 0x%x"
@@ -50,9 +50,6 @@
 static volatile sig_atomic_t segfaulted= 0;
 extern ulong max_used_connections;
 extern volatile sig_atomic_t calling_initgroups;
-#ifdef HAVE_NPTL
-extern volatile sig_atomic_t ld_assume_kernel_is_set;
-#endif
 
 extern const char *optimizer_switch_names[];
 
@@ -63,12 +60,17 @@ static inline void output_core_info()
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
-  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff)-1)) >= 0)
   {
+    buff[len]= 0;
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
-  if ((fd= open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+#ifdef __FreeBSD__
+  if ((fd= open("/proc/curproc/rlimit", O_RDONLY)) >= 0)
+#else
+  if ((fd= open("/proc/self/limits", O_RDONLY)) >= 0)
+#endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
     while ((len= read(fd, (uchar*)buff, sizeof(buff))) > 0)
@@ -78,7 +80,7 @@ static inline void output_core_info()
     close(fd);
   }
 #ifdef __linux__
-  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= open("/proc/sys/kernel/core_pattern", O_RDONLY)) >= 0)
   {
     len= read(fd, (uchar*)buff, sizeof(buff));
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
@@ -147,6 +149,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
     goto end;
   }
   segfaulted = 1;
+  abort_loop= 1;                                // Disable now connections
   DBUG_PRINT("error", ("handling fatal signal"));
 
   curr_time= my_time(0);
@@ -184,35 +187,36 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 		        server_version, SOURCE_REVISION);
 
   if (dflt_key_cache)
-    my_safe_printf_stderr("key_buffer_size=%lu\n",
-                          (ulong) dflt_key_cache->key_cache_mem_size);
+    my_safe_printf_stderr("key_buffer_size=%zu\n",
+                          dflt_key_cache->key_cache_mem_size);
 
-  my_safe_printf_stderr("read_buffer_size=%ld\n",
-                        (long) global_system_variables.read_buff_size);
+  my_safe_printf_stderr("read_buffer_size=%lu\n",
+                        global_system_variables.read_buff_size);
 
   my_safe_printf_stderr("max_used_connections=%lu\n",
-                        (ulong) max_used_connections);
+                        max_used_connections);
 
   if (thread_scheduler)
-    my_safe_printf_stderr("max_threads=%u\n",
-                          (uint) thread_scheduler->max_threads +
-                          (uint) extra_max_connections);
+    my_safe_printf_stderr("max_threads=%lu\n",
+                          thread_scheduler->max_threads +
+                          extra_max_connections);
 
   my_safe_printf_stderr("thread_count=%u\n", THD_count::value());
 
   if (dflt_key_cache && thread_scheduler)
   {
+    size_t used_mem=
+        (dflt_key_cache->key_cache_mem_size +
+         (global_system_variables.read_buff_size +
+          (size_t) global_system_variables.sortbuff_size) *
+             (thread_scheduler->max_threads + extra_max_connections) +
+         (max_connections + extra_max_connections) * sizeof(THD)) / 1024;
+
     my_safe_printf_stderr("It is possible that mysqld could use up to \n"
                           "key_buffer_size + "
                           "(read_buffer_size + sort_buffer_size)*max_threads = "
-                          "%lu K  bytes of memory\n",
-                          (ulong)
-                          (dflt_key_cache->key_cache_mem_size +
-                           (global_system_variables.read_buff_size +
-                            global_system_variables.sortbuff_size) *
-                           (thread_scheduler->max_threads + extra_max_connections) +
-                           (max_connections + extra_max_connections) *
-                           sizeof(THD)) / 1024);
+                          "%zu K  bytes of memory\n", used_mem);
+
     my_safe_printf_stderr("%s",
                           "Hope that's ok; if not, decrease some variables in "
                           "the equation.\n\n");
@@ -322,21 +326,6 @@ extern "C" sig_handler handle_fatal_signal(int sig)
   }
 #endif
 
-#ifdef HAVE_NPTL
-  if (thd_lib_detected == THD_LIB_LT && !ld_assume_kernel_is_set)
-  {
-    my_safe_printf_stderr("%s",
-      "You are running a statically-linked LinuxThreads binary on an NPTL\n"
-      "system. This can result in crashes on some distributions due to "
-      "LT/NPTL conflicts.\n"
-      "You should either build a dynamically-linked binary, "
-      "or force LinuxThreads\n"
-      "to be used with the LD_ASSUME_KERNEL environment variable.\n"
-      "Please consult the documentation for your distribution "
-      "on how to do that.\n");
-  }
-#endif
-
   if (locked_in_memory)
   {
     my_safe_printf_stderr("%s", "\n"
@@ -371,7 +360,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 #endif
 
 end:
-#ifndef __WIN__
+#ifndef _WIN32
   /*
      Quit, without running destructors (etc.)
      Use a signal, because the parent (systemd) can check that with WIFSIGNALED

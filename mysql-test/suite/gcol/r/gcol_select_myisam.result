@@ -7,6 +7,7 @@ DROP TRIGGER IF EXISTS trg2;
 set sql_warnings = 0;
 SET @@session.default_storage_engine = 'MyISAM';
 SET optimizer_switch='derived_merge=off';
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 create table t1 (a int,
 b int generated always as (-a) virtual,
 c int generated always as (-a) stored,
@@ -89,7 +90,7 @@ a	b	c
 2	-2	-2
 explain select * from t1 where c in (select c from t3 where c between -2 and -1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t3	index	c	c	5	NULL	6	Using where; Using index
+1	PRIMARY	t3	range	c	c	5	NULL	2	Using where; Using index
 1	PRIMARY	t1	ref	c	c	5	test.t3.c	1	
 # select_type=UNION, type=system
 # select_type=UNION RESULT, type=<union1,2>
@@ -146,7 +147,7 @@ count(distinct c)
 3
 explain select count(distinct c) from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	c	5	NULL	6	Using index for group-by (scanning)
+1	SIMPLE	t1	range	NULL	c	5	NULL	5	Using index for group-by
 ###
 ### filesort & range-based utils
 ###
@@ -591,9 +592,9 @@ FROM (c AS subquery2_t1 RIGHT JOIN
 (subquery2_t3.col_varchar_key = subquery2_t2.col_varchar_key))
 ORDER BY subquery2_field1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	subquery2_t2	index	NULL	col_int_key_2	10	NULL	20	#
-1	SIMPLE	subquery2_t3	ALL	NULL	NULL	NULL	NULL	20	#
-1	SIMPLE	subquery2_t1	index	NULL	PRIMARY	4	NULL	20	#
+1	SIMPLE	subquery2_t2	index	NULL	col_int_key_2	10	NULL	#	#
+1	SIMPLE	subquery2_t3	ALL	NULL	NULL	NULL	NULL	#	#
+1	SIMPLE	subquery2_t1	index	NULL	PRIMARY	4	NULL	#	#
 SELECT subquery2_t2.col_int_key AS subquery2_field1
 FROM (c AS subquery2_t1 RIGHT JOIN
 (c AS subquery2_t2 LEFT JOIN cc AS subquery2_t3 ON
@@ -792,18 +793,18 @@ PRIMARY KEY (pk),
 KEY (col_int_key)
 );
 INSERT INTO cc (col_int_nokey) VALUES (0),(1),(7),(0),(4),(5);
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	3	#
-SELECT pk FROM cc WHERE col_int_key > 3;
+1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3;
 pk
 5
 6
 3
-EXPLAIN SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+EXPLAIN SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	3	#
-SELECT pk FROM cc WHERE col_int_key > 3 ORDER BY 1;
+1	SIMPLE	cc	range	col_int_key	col_int_key	5	NULL	#	#
+SELECT pk FROM cc force index(col_int_key) WHERE col_int_key > 3 ORDER BY 1;
 pk
 3
 5
@@ -876,12 +877,12 @@ ON (table3.col_int_key = table2.col_int_key  ) ) )
 ON (table3.col_int_nokey = table2.pk  ) )
 GROUP BY field1, field2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	table1	system	NULL	NULL	NULL	NULL	1	#
-1	PRIMARY	table2	ALL	PRIMARY,col_int_key,col_int_key_2	NULL	NULL	NULL	19	#
-1	PRIMARY	<derived2>	ref	key0	key0	9	test.table2.pk,test.table2.col_int_key	10	#
-2	DERIVED	SUBQUERY1_t2	ALL	PRIMARY,col_int_key,col_varchar_key,col_int_key_2	NULL	NULL	NULL	19	#
-2	DERIVED	SUBQUERY1_t3	ref	PRIMARY,col_varchar_key	col_varchar_key	5	test.SUBQUERY1_t2.col_varchar_key	1	#
-2	DERIVED	SUBQUERY1_t1	ALL	col_int_key,col_int_key_2	NULL	NULL	NULL	19	#
+1	PRIMARY	table1	system	NULL	NULL	NULL	NULL	#	
+1	PRIMARY	table2	ALL	PRIMARY,col_int_key,col_int_key_2	NULL	NULL	NULL	#	Using where
+1	PRIMARY	<derived2>	ref	key0	key0	9	test.table2.pk,test.table2.col_int_key	#	
+2	DERIVED	SUBQUERY1_t2	ALL	PRIMARY,col_int_key,col_varchar_key,col_int_key_2	NULL	NULL	NULL	#	Using where
+2	DERIVED	SUBQUERY1_t3	ref	PRIMARY,col_varchar_key	col_varchar_key	5	test.SUBQUERY1_t2.col_varchar_key	#	
+2	DERIVED	SUBQUERY1_t1	ALL	col_int_key,col_int_key_2	NULL	NULL	NULL	#	Using where; Using join buffer (flat, BNL join)
 SELECT
 table1.pk AS field1 ,
 table1.col_datetime_key AS field2
@@ -955,10 +956,10 @@ GROUP BY SQ1_field1 , SQ1_field2
 )
 GROUP BY field1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	alias1	index	NULL	col_int_key_3	10	NULL	20	#
-1	PRIMARY	alias2	index	NULL	col_int_key_2	10	NULL	20	#
-2	MATERIALIZED	SQ1_alias1	index	col_int_key,col_int_key_2,col_int_key_3	col_int_key	5	NULL	20	#
-2	MATERIALIZED	SQ1_alias2	ALL	NULL	NULL	NULL	NULL	20	#
+1	PRIMARY	alias1	index	NULL	col_int_key_3	10	NULL	#	Using index; Using temporary; Using filesort
+1	PRIMARY	alias2	index	NULL	col_int_key_2	10	NULL	#	Using where; Using index; Using join buffer (flat, BNL join)
+2	MATERIALIZED	SQ1_alias1	index	col_int_key,col_int_key_2,col_int_key_3	col_int_key	5	NULL	#	Using index
+2	MATERIALIZED	SQ1_alias2	ALL	NULL	NULL	NULL	NULL	#	Using join buffer (flat, BNL join)
 SELECT
 alias2 . col_varchar_key AS field1
 FROM ( cc AS alias1 , cc AS alias2 )
@@ -1018,7 +1019,7 @@ INSERT INTO j(col_int, pk, col_varchar_10_utf8) VALUES(9, 1, '951910400'),
 (-1934295040, 2, '1235025920'),(-584581120, 3, '-1176633344'),(3, 4, '1074462720');
 EXPLAIN SELECT col_varchar_255_utf8_key FROM j ORDER BY 1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	j	index	NULL	cover_key1	773	NULL	4	#
+1	SIMPLE	j	index	NULL	cover_key1	773	NULL	#	Using index; Using filesort
 SELECT col_varchar_255_utf8_key FROM j ORDER BY col_varchar_255_utf8_key;
 col_varchar_255_utf8_key
 -117663334
@@ -1121,7 +1122,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t2 AS t1 WHERE b NOT IN (SELECT b FROM t1 FORCE INDEX(b));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	
-2	SUBQUERY	t1	index_subquery	b	b	5	func	2	Using index; Full scan on NULL key
+2	SUBQUERY	t1	index_subquery	b	b	5	func	3	Using index; Full scan on NULL key
 DROP TABLE t1;
 DROP TABLE t2, t3;
 #
@@ -1155,9 +1156,9 @@ INSERT INTO t1 VALUES(2147483647);
 ALTER TABLE t1 ADD COLUMN h INT AS (a) VIRTUAL;
 ALTER TABLE t1 CHANGE h i INT AS (a) VIRTUAL, ALGORITHM=COPY;
 ALTER TABLE t1 ADD COLUMN b SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+Got one of the listed errors
 ALTER TABLE t1 ADD COLUMN e SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=NONE;
-ERROR 0A000: LOCK=NONE is not supported. Reason: COPY algorithm requires a lock. Try LOCK=SHARED
+Got one of the listed errors
 ALTER TABLE t1 ADD COLUMN f SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=SHARED;
 ERROR 22003: Out of range value for column 'f' at row 1
 ALTER TABLE t1 ADD COLUMN g SMALLINT AS (a) VIRTUAL, ALGORITHM=COPY, LOCK=EXCLUSIVE;
@@ -1325,11 +1326,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1381,11 +1381,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1439,11 +1438,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx2	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1506,11 +1504,10 @@ WHERE t4.c1 < 'o'
 )
 AND t1.i1 <= t3.i2_key;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	
-1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where
+1	PRIMARY	t4	ALL	NULL	NULL	NULL	NULL	3	Using where; Start temporary
+1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	4	Using join buffer (flat, BNL join)
+1	PRIMARY	t3	eq_ref	PRIMARY,v_idx	PRIMARY	4	test.t4.i1	1	Using where; End temporary
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	5	Using join buffer (flat, BNL join)
-2	MATERIALIZED	t4	ALL	NULL	NULL	NULL	NULL	3	Using where
 SELECT /*+ NO_SEMIJOIN(@subq1) */ t1.c1, t2.i1, t3.i1
 FROM t1 STRAIGHT_JOIN t3 STRAIGHT_JOIN t2
 WHERE ( t3.pk IN
@@ -1603,6 +1600,7 @@ t	7
 t	9
 t	9
 DROP TABLE t1, t2, t3, t4;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;
 SET optimizer_switch='derived_merge=default';
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;

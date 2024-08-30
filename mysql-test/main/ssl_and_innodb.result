@@ -5,4 +5,6 @@ convert((SELECT des_decrypt(2,1) AS a FROM t1 WHERE @a:=1), signed) as d
 FROM t1 ;
 d
 2
+Warnings:
+Warning	1287	'des_decrypt' is deprecated and will be removed in a future release
 DROP TABLE t1;

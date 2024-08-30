@@ -98,7 +98,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
     if (!opt_allow_suspicious_udfs)
       return nm;
     if (thd->variables.log_warnings)
-      sql_print_warning(ER_THD(thd, ER_CANT_FIND_DL_ENTRY), nm);
+      sql_print_warning(ER_DEFAULT(ER_CANT_FIND_DL_ENTRY), nm, tmp->name.str);
   }
   return 0;
 }
@@ -112,12 +112,19 @@ extern "C" uchar* get_hash_key(const uchar *buff, size_t *length,
   return (uchar*) udf->name.str;
 }
 
+static PSI_memory_key key_memory_udf_mem;
+
 #ifdef HAVE_PSI_INTERFACE
 static PSI_rwlock_key key_rwlock_THR_LOCK_udf;
 
 static PSI_rwlock_info all_udf_rwlocks[]=
 {
   { &key_rwlock_THR_LOCK_udf, "THR_LOCK_udf", PSI_FLAG_GLOBAL}
+};
+
+static PSI_memory_info all_udf_memory[]=
+{
+  { &key_memory_udf_mem, "udf_mem", PSI_FLAG_GLOBAL}
 };
 
 static void init_udf_psi_keys(void)
@@ -130,6 +137,9 @@ static void init_udf_psi_keys(void)
 
   count= array_elements(all_udf_rwlocks);
   PSI_server->register_rwlock(category, all_udf_rwlocks, count);
+
+  count= array_elements(all_udf_memory);
+  mysql_memory_register(category, all_udf_memory, count);
 }
 #endif
 
@@ -156,10 +166,12 @@ void udf_init()
 
   mysql_rwlock_init(key_rwlock_THR_LOCK_udf, &THR_LOCK_udf);
 
-  init_sql_alloc(&mem, "udf", UDF_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_sql_alloc(key_memory_udf_mem, &mem, UDF_ALLOC_BLOCK_SIZE, 0, MYF(0));
   THD *new_thd = new THD(0);
   if (!new_thd ||
-      my_hash_init(&udf_hash,system_charset_info,32,0,0,get_hash_key, NULL, 0))
+      my_hash_init(key_memory_udf_mem, &udf_hash,
+                   Lex_ident_routine::charset_info(),
+                   32,0,0,get_hash_key, NULL, 0))
   {
     sql_print_error("Can't allocate memory for udf structures");
     my_hash_free(&udf_hash);
@@ -170,6 +182,8 @@ void udf_init()
   initialized = 1;
   new_thd->thread_stack= (char*) &new_thd;
   new_thd->store_globals();
+  new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
+                           default_charset_info);
   new_thd->set_db(&MYSQL_SCHEMA_NAME);
 
   tables.init_one_table(&new_thd->db, &MYSQL_FUNC_NAME, 0, TL_READ);
@@ -195,10 +209,11 @@ void udf_init()
   while (!(error= read_record_info.read_record()))
   {
     DBUG_PRINT("info",("init udf record"));
-    LEX_CSTRING name;
-    name.str=get_field(&mem, table->field[0]);
-    name.length = (uint) safe_strlen(name.str);
-    char *dl_name= get_field(&mem, table->field[2]);
+    DBUG_ASSERT(!(new_thd->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH));
+    DBUG_ASSERT(table->field[0]->get_thd() == new_thd);
+    DBUG_ASSERT(table->field[2]->get_thd() == new_thd);
+    LEX_CSTRING name= table->field[0]->val_lex_string_strmake(&mem);
+    LEX_CSTRING dl_name= table->field[2]->val_lex_string_strmake(&mem);
     bool new_dl=0;
     Item_udftype udftype=UDFTYPE_FUNCTION;
     if (table->s->fields >= 4)			// New func table
@@ -211,7 +226,8 @@ void udf_init()
 
       On windows we must check both FN_LIBCHAR and '/'.
     */
-    if (!name.str || !dl_name || check_valid_path(dl_name, strlen(dl_name)) ||
+    if (!name.length || !dl_name.length ||
+        check_valid_path(dl_name.str, dl_name.length) ||
         check_string_char_length(&name, 0, NAME_CHAR_LEN,
                                  system_charset_info, 1))
     {
@@ -221,7 +237,7 @@ void udf_init()
     }
 
     if (!(tmp= add_udf(&name,(Item_result) table->field[1]->val_int(),
-                       dl_name, udftype)))
+                       dl_name.str, udftype)))
     {
       sql_print_error("Can't alloc memory for udf function: '%.64s'", name.str);
       continue;
@@ -236,7 +252,7 @@ void udf_init()
       if (!(dl= dlopen(dlpath, RTLD_NOW)))
       {
 	/* Print warning to log */
-        sql_print_error(ER_THD(new_thd, ER_CANT_OPEN_LIBRARY),
+        sql_print_error(ER_DEFAULT(ER_CANT_OPEN_LIBRARY),
                         tmp->dl, errno, my_dlerror(dlpath));
 	/* Keep the udf in the hash so that we can remove it later */
 	continue;
@@ -249,7 +265,8 @@ void udf_init()
       const char *missing;
       if ((missing= init_syms(tmp, buf)))
       {
-        sql_print_error(ER_THD(new_thd, ER_CANT_FIND_DL_ENTRY), missing);
+        sql_print_error(ER_DEFAULT(ER_CANT_FIND_DL_ENTRY), missing,
+                        tmp->name.str);
         del_udf(tmp);
         if (new_dl)
           dlclose(dl);
@@ -589,7 +606,7 @@ int mysql_create_function(THD *thd,udf_func *udf)
     const char *missing;
     if ((missing= init_syms(udf, buf)))
     {
-      my_error(ER_CANT_FIND_DL_ENTRY, MYF(0), missing);
+      my_error(ER_CANT_FIND_DL_ENTRY, MYF(0), missing, udf->dl);
       goto err;
     }
   }

@@ -28,21 +28,21 @@ DROP FUNCTION test.f1;
 #########################################################################
 DESCRIBE          information_schema.USER_PRIVILEGES;
 Field	Type	Null	Key	Default	Extra
-GRANTEE	varchar(190)	NO		NULL	
+GRANTEE	varchar(385)	NO		NULL	
 TABLE_CATALOG	varchar(512)	NO		NULL	
 PRIVILEGE_TYPE	varchar(64)	NO		NULL	
 IS_GRANTABLE	varchar(3)	NO		NULL	
 SHOW CREATE TABLE information_schema.USER_PRIVILEGES;
 Table	Create Table
 USER_PRIVILEGES	CREATE TEMPORARY TABLE `USER_PRIVILEGES` (
-  `GRANTEE` varchar(190) NOT NULL,
+  `GRANTEE` varchar(385) NOT NULL,
   `TABLE_CATALOG` varchar(512) NOT NULL,
   `PRIVILEGE_TYPE` varchar(64) NOT NULL,
   `IS_GRANTABLE` varchar(3) NOT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.USER_PRIVILEGES;
 Field	Type	Null	Key	Default	Extra
-GRANTEE	varchar(190)	NO		NULL	
+GRANTEE	varchar(385)	NO		NULL	
 TABLE_CATALOG	varchar(512)	NO		NULL	
 PRIVILEGE_TYPE	varchar(64)	NO		NULL	
 IS_GRANTABLE	varchar(3)	NO		NULL	
@@ -90,6 +90,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -98,6 +99,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -106,6 +108,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -138,6 +141,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -146,6 +150,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -154,6 +159,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -172,6 +178,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -180,6 +187,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -188,6 +196,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -228,6 +237,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -236,6 +246,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -244,6 +255,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -276,6 +288,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1025,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -284,6 +297,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -292,6 +306,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -310,6 +325,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 1025,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -318,6 +334,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -326,6 +343,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -353,7 +371,7 @@ ERROR 42000: SELECT command denied to user 'testuser2'@'localhost' for table `my
 SHOW GRANTS;
 Grants for testuser2@localhost
 GRANT INSERT, UPDATE ON *.* TO `testuser2`@`localhost`
-connect  testuser3, localhost, testuser3, , test;
+connect  testuser3, localhost, testuser3, ,"*NO-ONE*";
 SELECT * FROM information_schema.user_privileges
 WHERE grantee LIKE '''testuser%'''
 ORDER BY grantee, table_catalog, privilege_type;
@@ -396,6 +414,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -404,6 +423,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -412,6 +432,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -477,6 +498,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -485,6 +507,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -493,6 +516,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -511,6 +535,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -519,6 +544,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -527,6 +553,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -552,6 +579,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -560,6 +588,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -568,6 +597,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -608,6 +638,7 @@ host	localhost
 user	testuser1
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -616,6 +647,7 @@ host	localhost
 user	testuser2
 json_detailed(priv)	{
     "access": 6,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #
@@ -624,6 +656,7 @@ host	localhost
 user	testuser3
 json_detailed(priv)	{
     "access": 0,
+    "version_id": VERSION_ID,
     "plugin": "mysql_native_password",
     "authentication_string": "",
     "password_last_changed": #

@@ -25,10 +25,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 /* The InnoDB handler: the interface between MySQL and InnoDB. */
 
-/** "GEN_CLUST_INDEX" is the name reserved for InnoDB default
-system clustered index when there is no primary key. */
-extern const char innobase_index_reserve_name[];
-
 /** Prebuilt structures in an InnoDB table handle used within MySQL */
 struct row_prebuilt_t;
 
@@ -53,17 +49,21 @@ struct ha_table_option_struct
 };
 
 /** The class defining a handle to an Innodb table */
-class ha_innobase final: public handler
+class ha_innobase final : public handler
 {
 public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
 	~ha_innobase() override;
 
+	/** @return the transaction that last modified the table definition
+	@see dict_table_t::def_trx_id */
+	ulonglong table_version() const override;
+
 	/** Get the row type from the storage engine.  If this method returns
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
         enum row_type get_row_type() const override;
 
-        const char* table_type() const;
+        const char* table_type() const override;
 
 	const char* index_type(uint key_number) override;
 
@@ -101,10 +101,10 @@ public:
 
 	int close(void) override;
 
-	double scan_time() override;
-
-	double read_time(uint index, uint ranges, ha_rows rows) override;
-
+#ifdef NOT_USED
+	IO_AND_CPU_COST scan_time() override;
+        double rnd_pos_time(ha_rows rows) override;
+#endif
 	int write_row(const uchar * buf) override;
 
 	int update_row(const uchar * old_data, const uchar * new_data) override;
@@ -177,50 +177,51 @@ public:
 	int start_stmt(THD *thd, thr_lock_type lock_type) override;
 
 	ha_rows records_in_range(
-		uint			inx,
-		key_range*		min_key,
-		key_range*		max_key) override;
+                uint                    inx,
+                const key_range*        min_key,
+                const key_range*        max_key,
+                page_range*             pages) override;
 
 	ha_rows estimate_rows_upper_bound() override;
 
 	void update_create_info(HA_CREATE_INFO* create_info) override;
 
-	inline int create(
+	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info,
 		bool			file_per_table,
-		trx_t*			trx = NULL);
+		trx_t*			trx);
 
 	int create(
 		const char*		name,
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
-	inline int delete_table(const char* name, enum_sql_command sqlcom);
-
 	int truncate() override;
 
 	int delete_table(const char *name) override;
 
 	int rename_table(const char* from, const char* to) override;
-	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
+	int check_for_upgrade(HA_CHECK_OPT* check_opt) override;
+
+	inline void reload_statistics();
 
 	char* get_foreign_key_create_info() override;
 
-        int get_foreign_key_list(THD *thd,
+        int get_foreign_key_list(const THD *thd,
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
-		THD*			thd,
+		const THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
 	bool can_switch_engines() override;
 
 	uint referenced_by_foreign_key() override;
 
-	void free_foreign_key_create_info(char* str) override;
+	void free_foreign_key_create_info(char* str) override { my_free(str); }
 
 	uint lock_count(void) const override;
 
@@ -253,8 +254,6 @@ public:
 		uint			key_length,
 		qc_engine_callback*	call_back,
 		ulonglong*		engine_data) override;
-
-	bool primary_key_is_clustered() override;
 
 	int cmp_ref(const uchar* ref1, const uchar* ref2) override;
 
@@ -380,6 +379,7 @@ public:
 		uint			n_ranges,
 		uint*			bufsz,
 		uint*			flags,
+                ha_rows                 limit,
 		Cost_estimate*		cost) override;
 
 	/** Initialize multi range read and get information.
@@ -455,6 +455,9 @@ protected:
 	@see build_template() */
 	void reset_template();
 
+	/** @return whether the table is read-only */
+	bool is_read_only(bool altering_to_supported= false) const;
+
 	inline void update_thd(THD* thd);
 	void update_thd();
 
@@ -515,6 +518,10 @@ protected:
 
         /** If mysql has locked with external_lock() */
         bool                    m_mysql_has_locked;
+
+	/** If true, disable the Rowid Filter. It is disabled when
+	the enigne is intialized for making rnd_pos() calls */
+	bool                    m_disable_rowid_filter;
 };
 
 
@@ -528,25 +535,11 @@ the definitions are bracketed with #ifdef INNODB_COMPATIBILITY_HOOKS */
 
 extern "C" {
 
-/** Check if a user thread is a replication slave thread
-@param thd user thread
-@retval 0 the user thread is not a replication slave thread
-@retval 1 the user thread is a replication slave thread */
-int thd_slave_thread(const MYSQL_THD thd);
-
 /** Check if a user thread is running a non-transactional update
 @param thd user thread
 @retval 0 the user thread is not running a non-transactional update
 @retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get high resolution timestamp for the current query start time.
-The timestamp is not anchored to any specific point in time,
-but can be used for comparison.
-@param thd user thread
-@retval timestamp in microseconds precision
-*/
-unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 /** Get the user thread's binary logging format
 @param thd user thread
@@ -633,8 +626,6 @@ public:
 		THD*		thd,
 		const TABLE*	form,
 		HA_CREATE_INFO*	create_info,
-		char*		table_name,
-		char*		remote_path,
 		bool		file_per_table,
 		trx_t*		trx = NULL);
 
@@ -644,12 +635,16 @@ public:
 	/** Set m_tablespace_type. */
 	void set_tablespace_type(bool table_being_altered_is_file_per_table);
 
+	/** Create InnoDB foreign keys from MySQL alter_info. */
+	dberr_t create_foreign_keys();
+
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
-	int create_table(bool create_fk = true);
+	int create_table(bool create_fk = true, bool strict= true);
 
-	/** Update the internal data dictionary. */
-	int create_table_update_dict();
+  static void create_table_update_dict(dict_table_t* table, THD* thd,
+                                       const HA_CREATE_INFO& info,
+                                       const TABLE& t);
 
 	/** Validates the create options. Checks that the options
 	KEY_BLOCK_SIZE, ROW_FORMAT, DATA DIRECTORY, TEMPORARY & TABLESPACE
@@ -705,33 +700,19 @@ public:
 	ulint flags2() const
 	{ return(m_flags2); }
 
+	bool creating_stub() const { return UNIV_UNLIKELY(m_creating_stub); }
+
 	/** Get trx. */
 	trx_t* trx() const
 	{ return(m_trx); }
 
-	/** Return table name. */
-	const char* table_name() const
-	{ return(m_table_name); }
+	/** @return table name */
+	const char* table_name() const { return(m_table_name); }
 
-	/** @return whether the table needs to be dropped on rollback */
-	bool drop_before_rollback() const { return m_drop_before_rollback; }
+	/** @return the created table */
+	dict_table_t *table() const { return m_table; }
 
-	THD* thd() const
-	{ return(m_thd); }
-
-	/** Normalizes a table name string.
-	A normalized name consists of the database name catenated to '/' and
-	table name. An example: test/mytable. On Windows normalization puts
-	both the database name and the table name always to lower case if
-	"set_lower_case" is set to true.
-	@param[in,out]	norm_name	Buffer to return the normalized name in.
-	@param[in]	name		Table name string.
-	@param[in]	set_lower_case	True if we want to set name to lower
-					case. */
-	static void normalize_table_name_low(
-		char*           norm_name,
-		const char*     name,
-		ibool           set_lower_case);
+	THD* thd() const { return(m_thd); }
 
 private:
 	/** Parses the table name into normal name and either temp path or
@@ -758,15 +739,13 @@ private:
 	/** Create options. */
 	HA_CREATE_INFO*	m_create_info;
 
-	/** Table name */
-	char*		m_table_name;
+	/** Table name: {database}/{tablename} */
+	char		m_table_name[FN_REFLEN];
 	/** Table */
 	dict_table_t*	m_table;
-	/** Whether the table needs to be dropped before rollback */
-	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
-	char*		m_remote_path;
+	char		m_remote_path[FN_REFLEN]; // Absolute path of the table
 
 	/** Local copy of srv_file_per_table. */
 	bool		m_innodb_file_per_table;
@@ -789,6 +768,9 @@ private:
 
 	/** Table flags2 */
 	ulint		m_flags2;
+
+	/** Whether we are creating a stub table for importing. */
+	const bool	m_creating_stub;
 };
 
 /**
@@ -810,7 +792,7 @@ enum fts_doc_id_index_enum {
 };
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column.
 @return the status of the FTS_DOC_ID index */
 fts_doc_id_index_enum
@@ -823,7 +805,7 @@ innobase_fts_check_doc_id_index(
 	MY_ATTRIBUTE((warn_unused_result));
 
 /**
-Check whether the table has a unique index with FTS_DOC_ID_INDEX_NAME
+Check whether the table has a unique index with name FTS_DOC_ID_INDEX
 on the Doc ID column in MySQL create index definition.
 @return FTS_EXIST_DOC_ID_INDEX if there exists the FTS_DOC_ID index,
 FTS_INCORRECT_DOC_ID_INDEX if the FTS_DOC_ID index is of wrong format */
@@ -866,15 +848,6 @@ innodb_base_col_setup_for_stored(
 /** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
 
-/** Always normalize table name to lower case on Windows */
-#ifdef _WIN32
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, TRUE)
-#else
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
-#endif /* _WIN32 */
-
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.
 @param[in]	find_flag	MySQL search mode flag.
@@ -910,15 +883,13 @@ innodb_rec_per_key(
 @param[in]	ib_table	InnoDB dict_table_t
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
-				add index call
-@param[in]	locked		true if innobase_share_mutex is held */
+				add index call */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
 	const dict_table_t*	ib_table,
 	dict_vcol_templ_t*	s_templ,
-	const dict_add_v_col_t*	add_v,
-	bool			locked);
+	const dict_add_v_col_t*	add_v = nullptr);
 
 /** callback used by MySQL server layer to initialized
 the table virtual columns' template
@@ -940,13 +911,17 @@ unsigned
 innodb_col_no(const Field* field)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
+/** Get the maximum integer value of a numeric column.
+@param field   column definition
+@return maximum allowed integer value */
+ulonglong innobase_get_int_col_max_value(const Field *field)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
-UNIV_INTERN
 void
 ib_push_frm_error(
-/*==============*/
 	THD*		thd,		/*!< in: MySQL thd */
 	dict_table_t*	ib_table,	/*!< in: InnoDB table */
 	TABLE*		table,		/*!< in: MySQL table */

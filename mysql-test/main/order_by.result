@@ -1,6 +1,6 @@
 call mtr.add_suppression("Sort aborted.*");
-drop table if exists t1,t2,t3;
 call mtr.add_suppression("Out of sort memory; increase server sort buffer size");
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 CREATE TABLE t1 (
 id int(6) DEFAULT '0' NOT NULL,
 idservice int(5),
@@ -982,13 +982,13 @@ ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
 UPDATE bug25126 SET val = MissingCol ORDER BY MissingCol;
 ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY val, MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'field list'
 UPDATE bug25126 SET MissingCol = 1 ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'field list'
 UPDATE bug25126 SET MissingCol = val ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'field list'
 UPDATE bug25126 SET MissingCol = MissingCol ORDER BY MissingCol;
-ERROR 42S22: Unknown column 'MissingCol' in 'order clause'
+ERROR 42S22: Unknown column 'MissingCol' in 'field list'
 DROP TABLE bug25126;
 CREATE TABLE t1 (a int);
 SELECT p.a AS val, q.a AS val1 FROM t1 p, t1 q ORDER BY val > 1;
@@ -1193,7 +1193,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	111	Using where
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ref	k2	k2	5	const	7341	Using where; Using filesort
+1	SIMPLE	t2	range	k2	k2	5	NULL	7341	Using index condition; Using filesort
+EXPLAIN SELECT id,c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 6000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	k2	NULL	NULL	NULL	40960	Using where; Using filesort
 EXPLAIN SELECT id,c3 FROM t2 WHERE c2 BETWEEN 10 AND 12 ORDER BY c3 LIMIT 20;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	k2	k3	5	NULL	73	Using where
@@ -1222,6 +1225,10 @@ id	c3
 176	14
 186	14
 196	14
+ALTER TABLE t2 DROP INDEX k3, ADD INDEX k3 (c3,c2);
+EXPLAIN SELECT c3 FROM t2 WHERE c2=11 ORDER BY c3 LIMIT 4000;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	k2	k3	10	NULL	22318	Using where; Using index
 DROP TABLE t1,t2;
 CREATE TABLE t1 (
 a INT,
@@ -1532,9 +1539,9 @@ INSERT INTO t1 (a) VALUES (1), (2);
 INSERT INTO t2 (a,b) VALUES (1,2), (2,3);
 INSERT INTO t3 (c) VALUES (1), (2);
 SELECT
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a) as exp
 FROM t3;
-(SELECT t1.a FROM t1, t2 WHERE t1.a = t2.b AND t2.a = t3.c ORDER BY t1.a)
+exp
 2
 NULL
 DROP TABLE t1, t2, t3;
@@ -1549,6 +1556,58 @@ UNIQUE KEY a_c (a,c),
 KEY (a));
 INSERT INTO t1 VALUES (1, 10), (2, NULL);
 # Must use ref-or-null on the a_c index
+ANALYZE FORMAT=JSON
+SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 1,
+          "filesort": {
+            "sort_key": "t1.c",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 1,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ref_or_null",
+              "possible_keys": ["a_c", "a"],
+              "key": "a_c",
+              "key_length": "10",
+              "used_key_parts": ["a", "c"],
+              "ref": ["const", "const"],
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 1,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 50,
+              "r_total_filtered": 100,
+              "attached_condition": "t1.c = 10 or t1.c is null",
+              "r_filtered": 100,
+              "using_index": true
+            }
+          }
+        }
+      }
+    ]
+  }
+}
 EXPLAIN
 SELECT 1 AS col FROM t1 WHERE a=2 AND (c=10 OR c IS NULL) ORDER BY c;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -2977,17 +3036,17 @@ EXPLAIN
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 8;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	4	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	6	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 EXPLAIN 
 SELECT t1.a FROM t1 LEFT JOIN t2 ON t1.a=t2.a ORDER BY t1.a LIMIT 100;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	PRIMARY	4	NULL	8	Using index
-1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	2	Using index
+1	SIMPLE	t2	ref	i_a	i_a	5	test.t1.a	1	Using index
 DROP TABLE t1,t2;
 #
 # MDEV-4974 memory leak in 5.5.32-MariaDB-1~wheezy-log
@@ -3066,7 +3125,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	1	100.00	
 1	PRIMARY	t2	ALL	NULL	NULL	NULL	NULL	2	100.00	
 1	PRIMARY	t3a	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where; Start temporary
-1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	100.00	Using where; End temporary
+1	PRIMARY	t3b	ref	f3_key	f3_key	6	test.t3a.f3	1	41.67	Using where; End temporary
 Warnings:
 Note	1003	select concat('foo',`test`.`t2`.`f2`) AS `field` from `test`.`t2` semi join ((`test`.`t3` `t3a` join `test`.`t3` `t3b`)) where `test`.`t3a`.`f3` < 'foo' or `test`.`t3b`.`f3` <> 'foo' order by concat('foo',`test`.`t2`.`f2`)
 DROP TABLE t1,t2,t3;
@@ -3189,13 +3248,13 @@ explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 explain
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t3.a limit 25;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	ALL	a	NULL	NULL	NULL	200	Using where; Using filesort
+1	SIMPLE	t2	index	a	a	5	NULL	25	Using where
 1	SIMPLE	t3	ref	a	a	5	test.t2.a	1	
 select t2.pk,t2.a,t2.b,t3.pk,t3.a,t3.b 
 from t2, t3 where t2.a=t3.a order by t2.a limit 25;
@@ -3397,33 +3456,45 @@ INSERT INTO t1 SELECT seq,seq from seq_1_to_100;
 ANALYZE FORMAT=JSON SELECT * FROM t1 ORDER BY a LIMIT 5;
 ANALYZE
 {
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
   "query_block": {
     "select_id": 1,
+    "cost": "REPLACED",
     "r_loops": 1,
     "r_total_time_ms": "REPLACED",
-    "read_sorted_file": {
-      "r_rows": 5,
-      "filesort": {
-        "sort_key": "t1.a",
-        "r_loops": 1,
-        "r_total_time_ms": "REPLACED",
-        "r_limit": 5,
-        "r_used_priority_queue": false,
-        "r_output_rows": 35,
-        "r_sort_passes": 1,
-        "r_buffer_size": "REPLACED",
-        "table": {
-          "table_name": "t1",
-          "access_type": "ALL",
-          "r_loops": 1,
-          "rows": 100,
-          "r_rows": 100,
-          "r_total_time_ms": "REPLACED",
-          "filtered": 100,
-          "r_filtered": 100
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_limit": 5,
+            "r_used_priority_queue": true,
+            "r_output_rows": 6,
+            "r_sort_mode": "sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
         }
       }
-    }
+    ]
   }
 }
 SELECT * FROM t1 ORDER BY a LIMIT 5;
@@ -3494,11 +3565,10 @@ WHERE books.library_id = 8663 AND
 books.scheduled_for_removal=0 )
 ORDER BY wings.id;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	PRIMARY	<subquery2>	ALL	distinct_key	NULL	NULL	NULL	2	100.00	Using temporary; Using filesort
-1	PRIMARY	wings	eq_ref	PRIMARY	PRIMARY	4	test.books.wings_id	1	100.00	
-2	MATERIALIZED	books	ref	library_idx	library_idx	4	const	2	100.00	Using where
+1	PRIMARY	wings	ALL	PRIMARY	NULL	NULL	NULL	2	100.00	Using filesort
+1	PRIMARY	books	ref	library_idx	library_idx	4	const	2	50.00	Using where; FirstMatch(wings)
 Warnings:
-Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`wings`.`id` = `test`.`books`.`wings_id` order by `test`.`wings`.`id`
+Note	1003	select `test`.`wings`.`id` AS `wing_id`,`test`.`wings`.`department_id` AS `department_id` from `test`.`wings` semi join (`test`.`books`) where `test`.`books`.`library_id` = 8663 and `test`.`books`.`scheduled_for_removal` = 0 and `test`.`books`.`wings_id` = `test`.`wings`.`id` order by `test`.`wings`.`id`
 set optimizer_switch= @save_optimizer_switch;
 DROP TABLE books, wings;
 #
@@ -3630,8 +3700,8 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
+LIMIT 1) as "con"
+           from t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	ALL	NULL	NULL	NULL	NULL	10	
 2	DEPENDENT SUBQUERY	t2	ref	key1	key1	5	test.t1.a	10	Using index condition; Using where; Using filesort
@@ -3642,25 +3712,19 @@ WHERE
 t2.key1 = t1.a and t2.key1 IS NOT NULL
 ORDER BY
 t2.key2 ASC
-LIMIT 1)
-from t1;
-(SELECT  concat(id, '-', key1, '-', col1)
-FROM t2
-WHERE
-t2.key1 = t1.a and t2.key1 IS NOT NULL
-ORDER BY
-t2.key2 ASC
-LIMIT 1)
-900-0-123456
-901-1-123456
-902-2-123456
-903-3-123456
-904-4-123456
-905-5-123456
-906-6-123456
-907-7-123456
-908-8-123456
-909-9-123456
+LIMIT 1) as "con"
+           from t1;
+con
+100-0-123456
+101-1-123456
+102-2-123456
+103-3-123456
+104-4-123456
+105-5-123456
+106-6-123456
+107-7-123456
+108-8-123456
+109-9-123456
 drop table t1,t2;
 # End of 10.3 tests
 #
@@ -3846,3 +3910,925 @@ Warnings:
 Note	1003	/* select#1 */ select `__3`.`b` AS `b`,`__3`.`a` AS `a`,`__3`.`c` AS `c` from (/* select#2 */ select `test`.`t1`.`b` AS `b`,`test`.`t2`.`a` AS `a`,`test`.`t2`.`c` AS `c` from `test`.`t1` join `test`.`t2` where `test`.`t2`.`a` = `test`.`t1`.`b` union /* select#3 */ select NULL AS `NULL`,NULL AS `NULL`,NULL AS `NULL` order by `a` limit 3) `__3` order by `__3`.`b` - `__3`.`a` - `__3`.`c` limit 1
 DROP TABLE t1, t2;
 # End of 10.4 tests
+#
+# MDEV-21655: Server crashes in my_qsort2 / Filesort_buffer::sort_buffer
+#
+set @save_sql_mode= @@sql_mode;
+set sql_mode= 'PAD_CHAR_TO_FULL_LENGTH';
+CREATE TABLE t1 ( a CHAR(255), b CHAR(255), c TEXT);
+INSERT INTO t1 VALUES
+('1','a', 'a'), ('2','b', 'b'), ('3','c', 'c'), ('4','d','d'),
+('5','e', 'e'), ('6','f', 'f'), ('7','g','g'), ('8','h','h'),
+('9','i', 'i'), ('10','j','j'), ('11','k','k'), ('12','l','l'),
+('13','m','m'), ('14','n','n'), ('15','o','o');
+set sort_buffer_size=524*15;
+select c from t1 order by a,b;
+c
+a
+j
+k
+l
+m
+n
+o
+b
+c
+d
+e
+f
+g
+h
+i
+set sort_buffer_size= default;
+set sql_mode= @save_sql_mode;
+drop table t1;
+#
+# MDEV-21580: Allow packed sort keys in sort buffer
+#
+#
+# This example should not pack sort keys
+# all fields are fixed-size fields in the ORDER BY clause
+#
+create table t1 (a bigint, b bigint, c bigint);
+insert into t1 select seq, seq, seq  from seq_1_to_100;
+# in r_sort_mode it should show sort_key and not packed_sort_key
+ANALYZE FORMAT=JSON select * from t1 order by a,b,c;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 100,
+          "filesort": {
+            "sort_key": "t1.a, t1.b, t1.c",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 100,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 100,
+              "r_rows": 100,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select * from t1 order by a,b,c;
+a	b	c
+1	1	1
+2	2	2
+3	3	3
+4	4	4
+5	5	5
+6	6	6
+7	7	7
+8	8	8
+9	9	9
+10	10	10
+11	11	11
+12	12	12
+13	13	13
+14	14	14
+15	15	15
+16	16	16
+17	17	17
+18	18	18
+19	19	19
+20	20	20
+21	21	21
+22	22	22
+23	23	23
+24	24	24
+25	25	25
+26	26	26
+27	27	27
+28	28	28
+29	29	29
+30	30	30
+31	31	31
+32	32	32
+33	33	33
+34	34	34
+35	35	35
+36	36	36
+37	37	37
+38	38	38
+39	39	39
+40	40	40
+41	41	41
+42	42	42
+43	43	43
+44	44	44
+45	45	45
+46	46	46
+47	47	47
+48	48	48
+49	49	49
+50	50	50
+51	51	51
+52	52	52
+53	53	53
+54	54	54
+55	55	55
+56	56	56
+57	57	57
+58	58	58
+59	59	59
+60	60	60
+61	61	61
+62	62	62
+63	63	63
+64	64	64
+65	65	65
+66	66	66
+67	67	67
+68	68	68
+69	69	69
+70	70	70
+71	71	71
+72	72	72
+73	73	73
+74	74	74
+75	75	75
+76	76	76
+77	77	77
+78	78	78
+79	79	79
+80	80	80
+81	81	81
+82	82	82
+83	83	83
+84	84	84
+85	85	85
+86	86	86
+87	87	87
+88	88	88
+89	89	89
+90	90	90
+91	91	91
+92	92	92
+93	93	93
+94	94	94
+95	95	95
+96	96	96
+97	97	97
+98	98	98
+99	99	99
+100	100	100
+drop table t1;
+#
+# Test with Binary columns (using suffix length to determine ordering)
+# Should show packed_sortkey in the r_sort_mode
+#
+create table t1 (a int,  b blob);
+set @save_max_sort_length= @@max_sort_length;
+insert into t1 select 1, CONCAT(repeat('a', @save_max_sort_length), 'A');
+insert into t1 select 2, CONCAT(repeat('a', @save_max_sort_length), 'AB');
+insert into t1 select 3, CONCAT(repeat('a', @save_max_sort_length), 'ABE');
+insert into t1 select 4, CONCAT(repeat('a', @save_max_sort_length), 'APBX');
+insert into t1 select 5, CONCAT(repeat('a', @save_max_sort_length), 'ABAAX');
+show variables like '%sort_buffer_size';
+Variable_name	Value
+aria_sort_buffer_size	268434432
+myisam_sort_buffer_size	134216704
+sort_buffer_size	262144
+select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
+a	substr(b, @save_max_sort_length+1)
+5	ABAAX
+4	APBX
+3	ABE
+2	AB
+1	A
+analyze format=json
+select a, substr(b, @save_max_sort_length+1) from t1 order by b desc;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 5,
+          "filesort": {
+            "sort_key": "t1.b desc",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 5,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 5,
+              "r_rows": 5,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1;
+#
+# Packing sort keys with complex collations
+#
+create table t1(a varchar(255) charset utf8, b int, c decimal);
+insert into t1 values ('abc', 1, 1) , ('bcd', 2, 2), ('cde',3, 3);
+insert into t1 values ('def', 4, 4) , ('efg', 5, 5), ('fgh', 6, 6);
+#
+#  Should show packed_sortkey in the r_sort_mode
+#
+ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 6,
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,rowid",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select a, b, c from t1 order by a, b;
+a	b	c
+abc	1	1
+bcd	2	2
+cde	3	3
+def	4	4
+efg	5	5
+fgh	6	6
+set @save_max_sort_length= @@max_sort_length;
+set max_sort_length=5;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '5'
+#
+# should show sortkey in r_sort_mode as the collation is complex and
+# truncation is not possible
+#
+ANALYZE FORMAT=JSON select a, b, c from t1 order by a, b;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 6,
+          "filesort": {
+            "sort_key": "t1.a, t1.b",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 6,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 6,
+              "r_rows": 6,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+select a, b, c from t1 order by a, b;
+a	b	c
+abc	1	1
+bcd	2	2
+cde	3	3
+def	4	4
+efg	5	5
+fgh	6	6
+set max_sort_length= @save_max_sort_length;
+drop table t1;
+#
+# MDEV-21922: Allow packing addon fields even if they don't honour max_length_for_sort_data
+#
+create table t1 (a varchar(200) character set utf8 collate utf8_general_ci, b int);
+insert into t1 select seq, seq from seq_1_to_10;
+select * from t1 order by a;
+a	b
+1	1
+10	10
+2	2
+3	3
+4	4
+5	5
+6	6
+7	7
+8	8
+9	9
+#
+# r_sort_mode should show both packed_sort_key and packed_addon_fields
+#
+analyze format=json select * from t1 order by a;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "r_rows": 10,
+          "filesort": {
+            "sort_key": "t1.a",
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "r_used_priority_queue": false,
+            "r_output_rows": 10,
+            "r_buffer_size": "REPLACED",
+            "r_sort_mode": "packed_sort_key,packed_addon_fields",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "loops": 1,
+              "r_loops": 1,
+              "rows": 10,
+              "r_rows": 10,
+              "cost": "REPLACED",
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "r_engine_stats": REPLACED,
+              "filtered": 100,
+              "r_total_filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+drop table t1;
+#
+# MDEV-21946: Server crash in store_length upon GROUP BY WITH ROLLUP with geometry field
+#
+create table t1 ( a longblob);
+insert into t1 select repeat('a', 256);
+insert into t1 select repeat('b', 256);
+insert into t1 select repeat('c', 256);
+insert into t1 select repeat('d', 256);
+SELECT IF( 0, NULL, a ) AS f FROM t1 GROUP BY f WITH ROLLUP;
+f
+aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+NULL
+DROP TABLE t1;
+#
+# MDEV-22303: Incorrect ordering with REGEXP_REPLACE and OFFSET/LIMIT
+#
+CREATE TABLE t1 (name VARCHAR(20) CHARACTER SET utf8 NOT NULL);
+INSERT INTO t1 (name) VALUES ('Charles Dickens'), ('Roald Dahl');
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC;
+name	surname_first
+Roald Dahl	Dahl, Roald
+Charles Dickens	Dickens, Charles
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1;
+name	surname_first
+Roald Dahl	Dahl, Roald
+SELECT name, REGEXP_REPLACE(name, '^(.*) (.*)$', '\\2, \\1') AS surname_first FROM t1
+ORDER BY surname_first ASC LIMIT 1 OFFSET 1;
+name	surname_first
+Charles Dickens	Dickens, Charles
+DROP TABLE t1;
+#
+# MDEV-22836: Server crashes in err_conv / ErrBuff::set_str
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0),(1);
+SELECT * FROM t1 ORDER BY CONVERT(AES_ENCRYPT(1,a), CHAR(4));
+a
+1
+0
+DROP TABLE t1;
+#
+# MDEV-22819:Wrong result or Assertion `ix > 0' failed in read_to_buffer upon select
+# with GROUP BY and GROUP_CONCAT
+#
+CREATE TABLE t1 (a VARCHAR(1000), b CHAR(1));
+INSERT INTO t1 VALUES
+(REPEAT('a',1000),'a'),(REPEAT('t',932),'t'),('x',NULL),('x',NULL),
+(REPEAT('z',298),'z'),(REPEAT('p',1000),'p'),(REPEAT('k',468),'k'),
+(REPEAT('c',1000),'c'),(REPEAT('o',648),'o'),('x',NULL),('x',NULL),
+(REPEAT('c',258),'c'),(REPEAT('t',414),'t'),(REPEAT('f',966),'f'),
+(REPEAT('y',746),'y'),(REPEAT('f',1000),'f');
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+INSERT INTO t1 SELECT * FROM t1;
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size= 16384;
+SELECT LEFT(a,1), GROUP_CONCAT(b) FROM t1 GROUP BY a;
+LEFT(a,1)	GROUP_CONCAT(b)
+a	a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a
+c	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c
+c	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c
+f	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f
+f	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f
+k	k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k
+o	o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o
+p	p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p
+t	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t
+t	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t
+x	NULL
+y	y,y,y,y,y,y,y,y,y,y,y,y,y,y,y,y
+z	z,z,z,z,z,z,z,z,z,z,z,z,z,z,z,z
+SELECT SUBSTR(a,1,1), LENGTH(a), GROUP_CONCAT(b), COUNT(*) FROM t1 GROUP BY a;
+SUBSTR(a,1,1)	LENGTH(a)	GROUP_CONCAT(b)	COUNT(*)
+a	1000	a,a,a,a,a,a,a,a,a,a,a,a,a,a,a,a	16
+c	258	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c	16
+c	1000	c,c,c,c,c,c,c,c,c,c,c,c,c,c,c,c	16
+f	966	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f	16
+f	1000	f,f,f,f,f,f,f,f,f,f,f,f,f,f,f,f	16
+k	468	k,k,k,k,k,k,k,k,k,k,k,k,k,k,k,k	16
+o	648	o,o,o,o,o,o,o,o,o,o,o,o,o,o,o,o	16
+p	1000	p,p,p,p,p,p,p,p,p,p,p,p,p,p,p,p	16
+t	414	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t	16
+t	932	t,t,t,t,t,t,t,t,t,t,t,t,t,t,t,t	16
+x	1	NULL	64
+y	746	y,y,y,y,y,y,y,y,y,y,y,y,y,y,y,y	16
+z	298	z,z,z,z,z,z,z,z,z,z,z,z,z,z,z,z	16
+SET @@sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1;
+CREATE TABLE t1(a VARCHAR(1027), b INT);
+INSERT INTO t1 SELECT seq, seq from seq_1_to_34;
+SET @save_tmp_memory_table_size= @@tmp_memory_table_size;
+SET tmp_memory_table_size= 1056*2;
+SELECT COUNT(DISTINCT a) FROM t1;
+COUNT(DISTINCT a)
+34
+SET @@tmp_memory_table_size= @save_tmp_memory_table_size;
+DROP TABLE t1;
+#
+# MDEV-23216: LONGTEXT column with collation doesn't sort
+#
+CREATE TABLE t1 (a LONGTEXT COLLATE utf8mb4_swedish_ci);
+INSERT INTO t1 VALUES ('A'),('Z'),('B'),('Y');
+SELECT * FROM t1 ORDER BY a;
+a
+A
+B
+Y
+Z
+SELECT * FROM t1 ORDER BY a DESC;
+a
+Z
+Y
+B
+A
+DROP TABLE t1;
+#
+# MDEV-23414 Assertion `res->charset() == item->collation.collation' failed in Type_handler_string_result::make_packed_sort_key_part
+#
+CREATE TABLE t1 (a CHAR(3), b BINARY(255));
+INSERT t1 VALUES ('foo','bar'),('baz','qux');
+SELECT COALESCE(a, b) AS f FROM t1 ORDER BY f;
+f
+baz
+foo
+DROP TABLE t1;
+#
+# MDEV-24015: SQL Error (1038): Out of sort memory when enough memory for the
+# sort buffer is provided
+#
+CREATE TABLE t1 (a VARCHAR(100), b INT);
+CREATE TABLE t2 (a VARCHAR(100), b INT);
+INSERT INTO t1 SELECT 'abc', seq FROM seq_1_to_50;
+INSERT INTO t2 SELECT seq, seq FROM seq_1_to_50;
+set @save_sort_buffer_size= @@sort_buffer_size;
+set sort_buffer_size=2000;
+ANALYZE FORMAT=JSON
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+ANALYZE
+{
+  "query_optimization": {
+    "r_total_time_ms": "REPLACED"
+  },
+  "query_block": {
+    "select_id": 1,
+    "cost": "REPLACED",
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "ALL",
+          "loops": 1,
+          "r_loops": 1,
+          "rows": 50,
+          "r_rows": 50,
+          "cost": "REPLACED",
+          "r_table_time_ms": "REPLACED",
+          "r_other_time_ms": "REPLACED",
+          "r_engine_stats": REPLACED,
+          "filtered": 100,
+          "r_total_filtered": 100,
+          "r_filtered": 100
+        }
+      }
+    ],
+    "subqueries": [
+      {
+        "expression_cache": {
+          "r_loops": 50,
+          "r_hit_ratio": 0,
+          "query_block": {
+            "select_id": 2,
+            "cost": "REPLACED",
+            "r_loops": 50,
+            "r_total_time_ms": "REPLACED",
+            "filesort": {
+              "sort_key": "t2.a",
+              "r_loops": 50,
+              "r_total_time_ms": "REPLACED",
+              "r_used_priority_queue": false,
+              "r_output_rows": 1,
+              "r_buffer_size": "REPLACED" across executions)",
+              "r_sort_mode": "sort_key,rowid",
+              "temporary_table": {
+                "nested_loop": [
+                  {
+                    "table": {
+                      "table_name": "t2",
+                      "access_type": "ALL",
+                      "loops": 1,
+                      "r_loops": 50,
+                      "rows": 50,
+                      "r_rows": 50,
+                      "cost": "REPLACED",
+                      "r_table_time_ms": "REPLACED",
+                      "r_other_time_ms": "REPLACED",
+                      "r_engine_stats": REPLACED,
+                      "filtered": 100,
+                      "r_total_filtered": 2,
+                      "attached_condition": "t1.b = t2.b",
+                      "r_filtered": 2
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT (SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a) FROM t1;
+(SELECT sum(t2.b) FROM t2 WHERE t1.b=t2.b GROUP BY t2.a)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23
+24
+25
+26
+27
+28
+29
+30
+31
+32
+33
+34
+35
+36
+37
+38
+39
+40
+41
+42
+43
+44
+45
+46
+47
+48
+49
+50
+set sort_buffer_size= @save_sort_buffer_size;
+DROP TABLE t1,t2;
+# End of 10.5 tests
+#
+# MDEV-13694: Wrong result upon GROUP BY with orderby_uses_equalities=on
+#
+CREATE TABLE t1 (a INT, b int, primary key(a));
+CREATE TABLE t2 (a INT, b INT);
+INSERT INTO t1 (a,b) VALUES (58,1),(96,2),(273,3),(23,4),(231,5),(525,6),
+(2354,7),(321421,3),(535,2),(4535,3);
+INSERT INTO t2 (a,b) VALUES (58,3),(96,3),(273,3),(1000,1000),(2000,2000),(3000,3000);
+INSERT INTO t2 select seq,seq from seq_10_to_100;
+# Join order should have the SJM scan table as the first table for both
+# the queries with GROUP BY and ORDER BY clause.
+EXPLAIN SELECT t1.a
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+ORDER BY t1.a DESC;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	PRIMARY	PRIMARY	4	NULL	10	Using index
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
+EXPLAIN FORMAT=JSON SELECT t1.a
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+ORDER BY t1.a DESC;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "table": {
+          "table_name": "t1",
+          "access_type": "index",
+          "possible_keys": ["PRIMARY"],
+          "key": "PRIMARY",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "loops": 1,
+          "rows": 10,
+          "cost": "COST_REPLACED",
+          "filtered": 100,
+          "using_index": true
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 97,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT t1.a
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+ORDER BY t1.a DESC;
+a
+273
+96
+58
+EXPLAIN SELECT t1.a, group_concat(t1.b)
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+GROUP BY t1.a DESC;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	ALL	PRIMARY	NULL	NULL	NULL	10	Using filesort
+1	PRIMARY	<subquery2>	eq_ref	distinct_key	distinct_key	4	func	1	
+2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	97	Using where
+EXPLAIN FORMAT=JSON SELECT t1.a, group_concat(t1.b)
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+GROUP BY t1.a DESC;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "cost": "COST_REPLACED",
+    "nested_loop": [
+      {
+        "read_sorted_file": {
+          "filesort": {
+            "sort_key": "t1.a desc",
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "possible_keys": ["PRIMARY"],
+              "loops": 1,
+              "rows": 10,
+              "cost": "COST_REPLACED",
+              "filtered": 100
+            }
+          }
+        }
+      },
+      {
+        "table": {
+          "table_name": "<subquery2>",
+          "access_type": "eq_ref",
+          "possible_keys": ["distinct_key"],
+          "key": "distinct_key",
+          "key_length": "4",
+          "used_key_parts": ["a"],
+          "ref": ["func"],
+          "rows": 1,
+          "filtered": 100,
+          "materialized": {
+            "unique": 1,
+            "query_block": {
+              "select_id": 2,
+              "nested_loop": [
+                {
+                  "table": {
+                    "table_name": "t2",
+                    "access_type": "ALL",
+                    "loops": 1,
+                    "rows": 97,
+                    "cost": "COST_REPLACED",
+                    "filtered": 100,
+                    "attached_condition": "t2.b = 3"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+SELECT t1.a, group_concat(t1.b)
+FROM t1
+WHERE t1.a IN (SELECT a FROM t2 WHERE b=3)
+GROUP BY t1.a DESC;
+a	group_concat(t1.b)
+273	3
+96	2
+58	1
+DROP TABLE t1, t2;
+# End of 10.6 tests
+#
+# MDEV-13756 Implement descending index: KEY (a DESC, b ASC)
+#
+create table t1 (a int, b int, c int, key r (a desc, b asc));
+insert t1 select seq % 10, seq div 10, seq from seq_1_to_55;
+insert t1 values (NULL, NULL, NULL), (9, NULL, NULL);
+explain select * from t1 force index(r) order by a,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	57	Using filesort
+explain select * from t1 force index(r) order by a desc,b limit 20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	r	10	NULL	20	
+select * from t1 force index(r) order by a desc,b limit 20;
+a	b	c
+9	NULL	NULL
+9	0	9
+9	1	19
+9	2	29
+9	3	39
+9	4	49
+8	0	8
+8	1	18
+8	2	28
+8	3	38
+8	4	48
+7	0	7
+7	1	17
+7	2	27
+7	3	37
+7	4	47
+6	0	6
+6	1	16
+6	2	26
+6	3	36
+drop table t1;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

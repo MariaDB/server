@@ -28,3 +28,39 @@ nextval(s)
 1997
 drop sequence s;
 set global auto_increment_increment= default, auto_increment_offset= default;
+#
+# MDEV-28152 Features for sequence
+#
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 42;
+create sequence s as bigint unsigned start with 9223372036854775800 increment 0;
+select next value for s;
+next value for s
+9223372036854775842
+select next value for s;
+next value for s
+9223372036854775942
+drop sequence s;
+set global auto_increment_increment= 100;
+set global auto_increment_offset= 5;
+create sequence s as bigint start with -9223372036854775805 minvalue -9223372036854775807 maxvalue -9223372036854775800 increment 0;
+drop sequence s;
+set global auto_increment_increment= default, auto_increment_offset= default;
+#
+# MDEV-33836 Assertion `(ulonglong) next_free_value % real_increment == (ulonglong) offset' failed in void sequence_definition::adjust_values(longlong)
+#
+CREATE SEQUENCE s AS BIGINT UNSIGNED START WITH 9223372036854775800 INCREMENT 0;
+set @old_AUTO_INCREMENT_INCREMENT=@@global.AUTO_INCREMENT_INCREMENT;
+set global AUTO_INCREMENT_INCREMENT=10;
+SELECT NEXTVAL (s);
+NEXTVAL (s)
+9223372036854775800
+FLUSH TABLES WITH READ LOCK;
+UPDATE s SET a=1;
+Got one of the listed errors
+unlock tables;
+set global AUTO_INCREMENT_INCREMENT=@old_AUTO_INCREMENT_INCREMENT;
+drop sequence s;
+#
+# End of 11.5 tests
+#

@@ -104,7 +104,7 @@ one should increment the control file version number.
    This LSN serves for the two-checkpoint rule, and also to find the
    checkpoint record when doing a recovery.
 */
-LSN    last_checkpoint_lsn= LSN_IMPOSSIBLE;
+volatile LSN  last_checkpoint_lsn= LSN_IMPOSSIBLE;
 uint32 last_logno=          FILENO_IMPOSSIBLE;
 /**
    The maximum transaction id given to a transaction. It is only updated at
@@ -215,7 +215,7 @@ static CONTROL_FILE_ERROR create_control_file(const char *name,
   file.
 */
 
-static int lock_control_file(const char *name)
+static int lock_control_file(const char *name, my_bool do_retry)
 {
   /*
     On Windows, my_lock() uses locking() which is mandatory locking and so
@@ -226,8 +226,10 @@ static int lock_control_file(const char *name)
     @todo BUG We should explore my_sopen(_SH_DENYWRD) to open or create the
     file under Windows.
   */
-#ifndef __WIN__
+#ifndef _WIN32
   uint retry= 0;
+  uint retry_count= do_retry ? MARIA_MAX_CONTROL_FILE_LOCK_RETRY : 0;
+
   /*
     We can't here use the automatic wait in my_lock() as the alarm thread
     may not yet exists.
@@ -239,8 +241,8 @@ static int lock_control_file(const char *name)
       my_printf_error(HA_ERR_INITIALIZATION,
                       "Can't lock aria control file '%s' for exclusive use, "
                       "error: %d. Will retry for %d seconds", 0,
-                      name, my_errno, MARIA_MAX_CONTROL_FILE_LOCK_RETRY);
-    if (retry++ > MARIA_MAX_CONTROL_FILE_LOCK_RETRY)
+                      name, my_errno, retry_count);
+    if (++retry > retry_count)
       return 1;
     sleep(1);
   }
@@ -269,7 +271,9 @@ static int lock_control_file(const char *name)
 */
 
 CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
-                                        my_bool print_error)
+                                        my_bool print_error,
+                                        my_bool wait_for_lock,
+                                        int open_flags)
 {
   uchar buffer[CF_MAX_SIZE];
   char name[FN_REFLEN], errmsg_buff[256];
@@ -277,7 +281,6 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     " file is probably in use by another process";
   uint new_cf_create_time_size, new_cf_changeable_size, new_block_size;
   my_off_t file_size;
-  int open_flags= O_BINARY | /*O_DIRECT |*/ O_RDWR | O_CLOEXEC;
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   DBUG_ENTER("ma_control_file_open");
 
@@ -311,8 +314,9 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       errmsg= "Can't create file";
       goto err;
     }
-    if (lock_control_file(name))
+    if (!aria_readonly && lock_control_file(name, wait_for_lock))
     {
+      error= CONTROL_FILE_LOCKED;
       errmsg= lock_failed_errmsg;
       goto err;
     }
@@ -320,7 +324,6 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   }
 
   /* Otherwise, file exists */
-
   if ((control_file_fd= mysql_file_open(key_file_control, name,
                                         open_flags, MYF(MY_WME))) < 0)
   {
@@ -328,8 +331,10 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
     goto err;
   }
 
-  if (lock_control_file(name)) /* lock it before reading content */
+  /* lock it before reading content */
+  if (!aria_readonly && lock_control_file(name, wait_for_lock))
   {
+    error= CONTROL_FILE_LOCKED;
     errmsg= lock_failed_errmsg;
     goto err;
   }
@@ -455,6 +460,15 @@ err:
   DBUG_RETURN(error);
 }
 
+/*
+  The most common way to open the control file when writing tests
+*/
+
+CONTROL_FILE_ERROR ma_control_file_open_or_create()
+{
+  return ma_control_file_open(TRUE, TRUE, TRUE,
+                              control_file_open_flags);
+}
 
 /*
   Write information durably to the control file; stores this information into
@@ -576,7 +590,7 @@ int ma_control_file_end(void)
   if (control_file_fd < 0) /* already closed */
     DBUG_RETURN(0);
 
-#ifndef __WIN__
+#ifndef _WIN32
   (void) my_lock(control_file_fd, F_UNLCK, 0L, F_TO_EOF,
                  MYF(MY_SEEK_NOT_DONE | MY_FORCE_LOCK));
 #endif
@@ -625,7 +639,7 @@ my_bool print_aria_log_control()
   int error= CONTROL_FILE_UNKNOWN_ERROR;
   uint recovery_fails;
   File file;
-  DBUG_ENTER("ma_control_file_open");
+  DBUG_ENTER("print_aria_log_control");
 
   if (fn_format(name, CONTROL_FILE_BASE_NAME,
                 maria_data_root, "", MYF(MY_WME)) == NullS)
@@ -635,7 +649,7 @@ my_bool print_aria_log_control()
                              open_flags, MYF(MY_WME))) < 0)
   {
     errmsg= "Can't open file";
-    goto err;
+    goto err2;
   }
 
   file_size= mysql_file_seek(file, 0, SEEK_END, MYF(MY_WME));
@@ -700,7 +714,7 @@ my_bool print_aria_log_control()
   checkpoint_lsn= lsn_korr(buffer + new_cf_create_time_size +
                            CF_LSN_OFFSET);
   logno= uint4korr(buffer + new_cf_create_time_size + CF_FILENO_OFFSET);
-  my_uuid2str(buffer + CF_UUID_OFFSET, uuid_str);
+  my_uuid2str(buffer + CF_UUID_OFFSET, uuid_str, 1);
   uuid_str[MY_UUID_STRING_LENGTH]= 0;
 
   printf("Block size:          %u\n", uint2korr(buffer + CF_BLOCKSIZE_OFFSET));
@@ -716,12 +730,14 @@ my_bool print_aria_log_control()
   {
     recovery_fails=
       (buffer + new_cf_create_time_size + CF_RECOV_FAIL_OFFSET)[0];
-    printf("recovery_failuers:   %u\n", recovery_fails);
+    printf("recovery_failures:   %u\n", recovery_fails);
   }
-
+  mysql_file_close(file, MYF(0));
   DBUG_RETURN(0);
 
 err:
+  mysql_file_close(file, MYF(0));
+err2:
   my_printf_error(HA_ERR_INITIALIZATION,
                   "Got error '%s' when trying to use aria control file "
                   "'%s'", 0, errmsg, name);

@@ -4,8 +4,11 @@
 
 --source include/innodb_prefix_index_cluster_optimization.inc
 --source include/no_valgrind_without_big.inc
+--source include/have_sequence.inc
 
-SET SESSION STORAGE_ENGINE='InnoDB';
+--source include/innodb_stable_estimates.inc
+
+SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
 set @innodb_stats_persistent_save= @@innodb_stats_persistent;
 set @innodb_stats_persistent_sample_pages_save=
@@ -32,7 +35,7 @@ explain
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
 flush status;
 select count(*) from lineitem where l_orderkey=130 and l_shipdate='1992-07-01';
-show status like 'handler_read%';
+show /*1*/ status like 'handler_read%';
 
 explain
 select count(*) from lineitem use index(primary)
@@ -40,7 +43,7 @@ select count(*) from lineitem use index(primary)
 flush status;
 select count(*) from lineitem use index(primary)
   where l_orderkey=130 and l_linenumber=2 and l_shipdate='1992-07-01';
-show status like 'handler_read%';
+show /*2*/ status like 'handler_read%';
 
 explain 
 select count(*) from lineitem
@@ -48,7 +51,7 @@ select count(*) from lineitem
 flush status;
 select count(*) from lineitem
   where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000;
-show status like 'handler_read%';
+show /*3*/ status like 'handler_read%';
 
 explain
 select l_orderkey, l_linenumber from lineitem
@@ -56,13 +59,13 @@ select l_orderkey, l_linenumber from lineitem
 flush status;
 select l_orderkey, l_linenumber from lineitem
   where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
-show status like 'handler_read%';
+show /*4*/ status like 'handler_read%';
 
 explain
 select min(l_orderkey) from lineitem where l_shipdate='1992-07-01';
 flush status;
 select min(l_orderkey) from lineitem where l_shipdate='1992-07-01';
-show status like 'handler_read%';
+show /*5*/ status like 'handler_read%';
 
 explain
 select min(l_orderkey) from lineitem 
@@ -70,7 +73,7 @@ select min(l_orderkey) from lineitem
 flush status;
 select min(l_orderkey) from lineitem 
   where l_shipdate='1992-07-01' and l_orderkey between 1001 and 2000;
-show status like 'handler_read%';
+show /*6*/ status like 'handler_read%';
 
 explain
 select max(l_linenumber) from lineitem 
@@ -78,7 +81,7 @@ select max(l_linenumber) from lineitem
 flush status;
 select max(l_linenumber) from lineitem 
   where l_shipdate='1992-07-01' and l_orderkey=130;
-show status like 'handler_read%';
+show /*7*/ status like 'handler_read%';
 
 explain
 select l_orderkey, l_linenumber 
@@ -90,7 +93,7 @@ select l_orderkey, l_linenumber
   from lineitem use index (i_l_shipdate, i_l_receiptdate)
   where l_shipdate='1992-07-01' and l_orderkey=130 
         or l_receiptdate='1992-07-01' and l_orderkey=5603;
-show status like 'handler_read%';
+show /*8*/ status like 'handler_read%';
 
 --replace_column 7 #
 explain
@@ -103,7 +106,7 @@ select l_orderkey, l_linenumber
   from lineitem use index (i_l_shipdate, i_l_receiptdate)
   where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000
          or l_receiptdate='1992-07-01' and l_orderkey between 5001 and 6000;
-show status like 'handler_read%';
+show /*9*/ status like 'handler_read%';
 
 --replace_column 7 # 9 # 10 Using
 explain
@@ -114,7 +117,7 @@ flush status;
 select l_orderkey, l_linenumber from lineitem 
   where l_shipdate='1992-07-01' and l_orderkey between 1 and 1000
         or l_receiptdate='1992-07-01' and l_orderkey between 5001 and 6000;
-show status like 'handler_read_next';
+show /*a*/ status like 'handler_read_next';
 
 --replace_column 9 #
 explain 
@@ -123,7 +126,7 @@ select max(l_orderkey) from lineitem
 flush status;
 select max(l_orderkey) from lineitem
   where l_partkey between 1 and 10 group by l_partkey;
-show status like 'handler_read%';
+show /*b*/ status like 'handler_read%';
 
 --replace_column 9 #
 explain 
@@ -132,7 +135,7 @@ select max(l_orderkey) from lineitem
 flush status;
 select max(l_orderkey) from lineitem
   where l_suppkey in (1,4) group by l_suppkey;
-show status like 'handler_read%';
+show /*c*/ status like 'handler_read%';
 
 create index i_p_retailprice on part(p_retailprice);
 
@@ -149,7 +152,7 @@ select o_orderkey, p_partkey
        lineitem use index (i_l_partkey), orders
   where p_retailprice > 1100 and o_orderdate='1997-01-01' 
         and o_orderkey=l_orderkey and p_partkey=l_partkey;
-show status like 'handler_read%';
+show /*d*/ status like 'handler_read%';
 --enable_ps2_protocol
 
 --echo #
@@ -158,14 +161,14 @@ show status like 'handler_read%';
 --echo #
 
 create table t0 (a int);
-insert into t0 values (1), (2), (3), (4), (5);
+insert into t0 select seq from seq_1_to_5;
 create index i_p_size on part(p_size);
 
 explain
-select * from t0, part ignore index (primary)
+select straight_join * from t0, part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
-select * from t0,  part ignore index (primary)
+select straight_join * from t0,  part ignore index (primary)
   where p_partkey=t0.a and p_size=1;
 
 drop table t0;
@@ -229,7 +232,7 @@ set optimizer_switch=@save_optimizer_switch;
 
 CREATE TABLE t1 (
   a int NOT NULL, b varchar(1) NOT NULL, KEY(a), KEY(b,a)
-) ENGINE=MyISAM;
+) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t1 VALUES
   (0,'j'), (8,'v'), (1,'c'), (8,'m'), (9,'d'), 
   (24,'d'), (6,'y'), (1,'t'), (6,'d'), (2,'s');
@@ -242,10 +245,11 @@ INSERT INTO t2 VALUES
   (15), (16), (17), (18), (19), (24);
 
 EXPLAIN
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
-SELECT a FROM t1 AS t, t2 
-  WHERE c = a AND b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+SELECT a FROM t1 AS t, t2 as t2_out 
+  WHERE t2_out.c = t.a AND t.b IN (SELECT b FROM t1, t2 WHERE b = t.b);
+--source include/last_query_cost.inc
 
 DROP TABLE t1,t2;
 
@@ -325,7 +329,7 @@ explain
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
 flush status;
 select * from t1, t2 where t2.a=t1.a and t2.b < 2;
-show status like 'handler_read%';
+show /*e*/ status like 'handler_read%';
 --enable_ps2_protocol
 
 drop table t1,t2;
@@ -423,6 +427,10 @@ INSERT INTO t2 VALUES
 (547118223,998,0,NULL,4,'','',0,0,NULL,NULL,''),(547119246,998,0,NULL,5,'','',0,0,NULL,NULL,''),
 (547115155,999,0,NULL,1,'','',0,0,NULL,NULL,''),(547116178,999,0,NULL,2,'','',0,0,NULL,NULL,''),
 (547117201,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547118224,999,0,NULL,4,'','',0,0,NULL,NULL,''),
+(547117213,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117217,999,0,NULL,4,'','',0,0,NULL,NULL,''),
+(547117214,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117218,999,0,NULL,4,'','',0,0,NULL,NULL,''),
+(547117215,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117219,999,0,NULL,4,'','',0,0,NULL,NULL,''),
+(547117216,999,0,NULL,3,'','',0,0,NULL,NULL,''),(547117220,999,0,NULL,4,'','',0,0,NULL,NULL,''),
 (547119271,38928081,0,NULL,10,'','',0,0,NULL,NULL,''),(547119272,38928081,0,NULL,11,'','',0,0,NULL,NULL,''),
 (547119273,38928081,0,NULL,12,'','',0,0,NULL,NULL,''),(547119274,38928081,0,NULL,13,'','',0,0,NULL,NULL,''),
 (547119275,38928081,0,NULL,14,'','',0,0,NULL,NULL,''),(547119276,38928081,0,NULL,15,'','',0,0,NULL,NULL,''),
@@ -461,6 +469,7 @@ INSERT INTO t3 VALUES
 (89,'text-8008',''),(90,'text-9008',''),(91,'text-9',''),(92,'text-1009',''),
 (93,'text-2009',''),(94,'text-3009',''),(95,'text-4009',''),(96,'text-5009',''),
 (97,'text-6009',''),(98,'text-7009',''),(99,'text-8009',''),(100,'text-9009','');
+ANALYZE TABLE t1,t2,t3;
 
 
 EXPLAIN 
@@ -611,7 +620,8 @@ CREATE TABLE t1 (
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(f2)  where pk1 <= 5 and pk2 <=5 and f2 = 'abc' and f1 <= '3';
 drop table t1;
 
@@ -624,7 +634,8 @@ PRIMARY KEY (pk1,pk2),
 KEY k1(pk1,f2)
 ) ENGINE=InnoDB CHARSET utf8 ROW_FORMAT= DYNAMIC;
 INSERT INTO t1 VALUES (1,2,'2','abc'),(2,3,'3','def');
-explain format= json
+--source include/explain-no-costs.inc
+explain format=json
 select * from t1 force index(k1)  where f2 <= 5 and pk2 <=5 and pk1 = 'abc' and f1 <= '3';
 drop table t1;
 
@@ -642,7 +653,7 @@ CREATE TABLE t2 (
   a VARCHAR(20),
   KEY k1(a),
   PRIMARY KEY(pk)
-)ENGINE=INNODB;
+)ENGINE=INNODB CHARSET=latin1;
 
 INSERT INTO t2 SELECT a,a FROM t1;
 --replace_column 9 #

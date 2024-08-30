@@ -18,21 +18,13 @@
 #define _my_sys_h
 
 #include <m_string.h>
+#include <mysql/psi/mysql_memory.h>
 
 C_MODE_START
 
-#ifdef HAVE_AIOWAIT
-#include <sys/asynch.h>			/* Used by record-cache */
-typedef struct my_aio_result {
-  aio_result_t result;
-  int	       pending;
-} my_aio_result;
-#endif
 
 #include <my_valgrind.h>
-
 #include <my_pthread.h>
-
 #include <m_ctype.h>                    /* for CHARSET_INFO */
 #include <stdarg.h>
 #include <typelib.h>
@@ -52,7 +44,7 @@ typedef struct my_aio_result {
   area, and we would like to avoid unexpected truncation.
 */
 #define MYSYS_ERRMSG_SIZE   (512)
-#define MYSYS_STRERROR_SIZE (128)
+#define MYSYS_STRERROR_SIZE (256)
 
 #define MY_FILE_ERROR	((size_t) -1)
 
@@ -64,6 +56,7 @@ typedef struct my_aio_result {
 #define MY_WME		16U	/* Write message on error */
 #define MY_WAIT_IF_FULL 32U	/* Wait and try again if disk full error */
 #define MY_IGNORE_BADFD 32U     /* my_sync(): ignore 'bad descriptor' errors */
+#define MY_IGNORE_ENOENT 32U    /* my_delete() ignores ENOENT (no such file) */
 #define MY_ENCRYPT      64U     /* Encrypt IO_CACHE temporary files */
 #define MY_TEMPORARY    64U     /* create_temp_file(): delete file at once */
 #define MY_NOSYMLINKS  512U     /* my_open(): don't follow symlinks */
@@ -79,6 +72,12 @@ typedef struct my_aio_result {
 #define MY_SHORT_WAIT	64U	/* my_lock() don't wait if can't lock */
 #define MY_FORCE_LOCK   128U    /* use my_lock() even if disable_locking */
 #define MY_NO_WAIT      256U	/* my_lock() don't wait at all */
+#define MY_NO_REGISTER  8196U   /* my_open(), no malloc for file name */
+/*
+  If old_mode is UTF8_IS_UTF8MB3, then pass this flag. It mean utf8 is
+  alias for utf8mb3. Otherwise utf8 is alias for utf8mb4.
+*/
+#define MY_UTF8_IS_UTF8MB3 1024U
 /*
   init_dynamic_array() has init buffer; Internal flag, not to be used by
   caller.
@@ -87,15 +86,16 @@ typedef struct my_aio_result {
 #define MY_ZEROFILL	32U	/* my_malloc(), fill array with zero */
 #define MY_ALLOW_ZERO_PTR 64U	/* my_realloc() ; zero ptr -> malloc */
 #define MY_FREE_ON_ERROR 128U	/* my_realloc() ; Free old ptr on error */
-#define MY_HOLD_ON_ERROR 256U	/* my_realloc() ; Return old ptr on error */
 #define MY_DONT_OVERWRITE_FILE 2048U /* my_copy: Don't overwrite file */
 #define MY_THREADSAFE 2048U     /* my_seek(): lock fd mutex */
 #define MY_SYNC       4096U     /* my_copy(): sync dst file */
 #define MY_SYNC_DIR   32768U    /* my_create/delete/rename: sync directory */
 #define MY_THREAD_SPECIFIC 0x10000U /* my_malloc(): thread specific */
-#define MY_THREAD_MOVE     0x20000U /* realloc(); Memory can move */
+#define MY_ROOT_USE_MPROTECT 0x20000U /* init_alloc_root: read only segments */
 /* Tree that should delete things automatically */
 #define MY_TREE_WITH_DELETE 0x40000U
+#define MY_TRACK 0x80000U             /* Track tmp usage */
+#define MY_TRACK_WITH_LIMIT 0x100000U /* Give error if over tmp_file_usage */
 
 #define MY_CHECK_ERROR	1U	/* Params to my_end; Check open-close */
 #define MY_GIVE_INFO	2U	/* Give time info about process*/
@@ -156,39 +156,52 @@ char *guess_malloc_library();
 void sf_report_leaked_memory(my_thread_id id);
 int sf_sanity();
 extern my_thread_id (*sf_malloc_dbug_id)(void);
-#define SAFEMALLOC_REPORT_MEMORY(X) sf_report_leaked_memory(X)
+#define SAFEMALLOC_REPORT_MEMORY(X) if (!sf_leaking_memory) sf_report_leaked_memory(X)
 #else
 #define SAFEMALLOC_REPORT_MEMORY(X) do {} while(0)
 #endif
 
 typedef void (*MALLOC_SIZE_CB) (long long size, my_bool is_thread_specific); 
 extern void set_malloc_size_cb(MALLOC_SIZE_CB func);
+extern MALLOC_SIZE_CB update_malloc_size;
 
 	/* defines when allocating data */
-extern void *my_malloc(size_t Size,myf MyFlags);
-extern void *my_multi_malloc(myf MyFlags, ...);
-extern void *my_multi_malloc_large(myf MyFlags, ...);
-extern void *my_realloc(void *oldpoint, size_t Size, myf MyFlags);
+extern void *my_malloc(PSI_memory_key key, size_t size, myf MyFlags);
+extern void *my_multi_malloc(PSI_memory_key key, myf MyFlags, ...);
+extern void *my_multi_malloc_large(PSI_memory_key key, myf MyFlags, ...);
+extern void *my_realloc(PSI_memory_key key, void *ptr, size_t size, myf MyFlags);
 extern void my_free(void *ptr);
-extern void *my_memdup(const void *from,size_t length,myf MyFlags);
-extern char *my_strdup(const char *from,myf MyFlags);
-extern char *my_strndup(const char *from, size_t length, myf MyFlags);
+extern void *my_memdup(PSI_memory_key key, const void *from,size_t length,myf MyFlags);
+extern char *my_strdup(PSI_memory_key key, const char *from,myf MyFlags);
+extern char *my_strndup(PSI_memory_key key, const char *from, size_t length, myf MyFlags);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern uint my_get_large_page_size(void);
-extern uchar * my_large_malloc(size_t size, myf my_flags);
-extern void my_large_free(uchar *ptr);
-#else
-#define my_get_large_page_size() (0)
-#define my_large_malloc(A,B) my_malloc_lock((A),(B))
-#define my_large_free(A) my_free_lock((A))
-#endif /* HAVE_LINUX_LARGE_PAGES */
+int my_init_large_pages(my_bool super_large_pages);
+uchar *my_large_malloc(size_t *size, myf my_flags);
+void my_large_free(void *ptr, size_t size);
+void my_large_page_truncate(size_t *size);
+
+/* Tracking tmp file usage */
+
+struct tmp_file_tracking
+{
+  ulonglong previous_file_size;
+  ulonglong file_size;
+};
+
+typedef int (*TMPFILE_SIZE_CB)(struct tmp_file_tracking *track, int no_error);
+extern TMPFILE_SIZE_CB update_tmp_file_size;
+
+#ifdef _WIN32
+extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
+#endif
 
 void my_init_atomic_write(void);
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);
+my_bool my_test_if_thinly_provisioned(File handle);
 #else
-#define my_test_if_atomic_write(A, B) 0
+# define my_test_if_atomic_write(A, B)      0
+# define my_test_if_thinly_provisioned(A)   0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 
@@ -198,11 +211,11 @@ extern my_bool my_may_have_atomic_write;
 #define MAX_ALLOCA_SZ 4096
 #define my_safe_alloca(size) (((size) <= MAX_ALLOCA_SZ) ? \
                                my_alloca(size) : \
-                               my_malloc((size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
+                               my_malloc(PSI_NOT_INSTRUMENTED, (size), MYF(MY_THREAD_SPECIFIC|MY_WME)))
 #define my_safe_afree(ptr, size) \
                   do { if ((size) > MAX_ALLOCA_SZ) my_free(ptr); } while(0)
 #else
-#define my_alloca(SZ) my_malloc(SZ,MYF(MY_FAE))
+#define my_alloca(SZ) my_malloc(PSI_NOT_INSTRUMENTED, SZ,MYF(MY_FAE))
 #define my_afree(PTR) my_free(PTR)
 #define my_safe_alloca(size) my_alloca(size)
 #define my_safe_afree(ptr, size) my_afree(ptr)
@@ -230,13 +243,8 @@ extern int sf_leaking_memory; /* set to 1 to disable memleak detection */
 extern void (*proc_info_hook)(void *, const PSI_stage_info *, PSI_stage_info *,
                               const char *, const char *, const unsigned int);
 
-#ifdef HAVE_LINUX_LARGE_PAGES
-extern my_bool my_use_large_pages;
-extern uint    my_large_page_size;
-#endif
-
 /* charsets */
-#define MY_ALL_CHARSETS_SIZE 2048
+#define MY_ALL_CHARSETS_SIZE 4096
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *default_charset_info;
 extern MYSQL_PLUGIN_IMPORT CHARSET_INFO *all_charsets[MY_ALL_CHARSETS_SIZE];
 extern struct charset_info_st compiled_charsets[];
@@ -252,7 +260,7 @@ extern ulong    my_file_total_opened;
 extern ulong    my_sync_count;
 extern uint	mysys_usage_id;
 extern int32    my_file_opened;
-extern my_bool	my_init_done, my_thr_key_mysys_exists;
+extern my_bool	my_init_done;
 extern my_bool my_assert;
 extern my_bool  my_assert_on_error;
 extern myf      my_global_flags;        /* Set to MY_WME for more error messages */
@@ -266,6 +274,10 @@ extern int my_umask_dir,
 	   my_recived_signals,	/* Signals we have got */
 	   my_safe_to_handle_signal, /* Set when allowed to SIGTSTP */
 	   my_dont_interrupt;	/* call remember_intr when set */
+#ifdef _WIN32
+extern SECURITY_ATTRIBUTES my_dir_security_attributes;
+LPSECURITY_ATTRIBUTES my_win_file_secattr();
+#endif
 extern MYSQL_PLUGIN_IMPORT my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
@@ -275,7 +287,7 @@ extern my_bool  my_disable_async_io,
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
 extern const char *charsets_dir;
-extern my_bool timed_mutexes;
+extern size_t my_system_page_size;
 
 enum cache_type
 {
@@ -308,10 +320,6 @@ typedef struct st_record_cache	/* Used when caching records */
   uint	rc_length,read_length,reclength;
   my_off_t rc_record_pos,end_of_file;
   uchar *rc_buff,*rc_buff2,*rc_pos,*rc_end,*rc_request_pos;
-#ifdef HAVE_AIOWAIT
-  int	use_async_io;
-  my_aio_result aio_result;
-#endif
   enum cache_type type;
 } RECORD_CACHE;
 
@@ -339,17 +347,26 @@ typedef void (*FREE_FUNC)(void *);
 typedef struct st_dynamic_array
 {
   uchar *buffer;
-  uint elements,max_element;
-  uint alloc_increment;
-  uint size_of_element;
+  size_t elements, max_element;
+  size_t alloc_increment;
+  size_t size_of_element;
+  PSI_memory_key m_psi_key;
   myf malloc_flags;
 } DYNAMIC_ARRAY;
+
+
+typedef struct st_dynamic_array_append
+{
+  DYNAMIC_ARRAY *array;
+  uchar *pos, *end;
+} DYNAMIC_ARRAY_APPEND;
+
 
 typedef struct st_my_tmpdir
 {
   DYNAMIC_ARRAY full_list;
   char **list;
-  uint cur, max;
+  size_t cur, max;
   mysql_mutex_t mutex;
 } MY_TMPDIR;
 
@@ -427,6 +444,8 @@ typedef struct st_io_cache		/* Used when caching files */
   */
   IO_CACHE_SHARE *share;
 
+  /* Track tmpfile usage. Done if (myflags & MY_TRACK) is true */
+  struct tmp_file_tracking tracking;
   /*
     A caller will use my_b_read() macro to read from the cache
     if the data is already in cache, it will be simply copied with
@@ -480,15 +499,6 @@ typedef struct st_io_cache		/* Used when caching files */
     somewhere else
   */
   size_t alloced_buffer;
-#ifdef HAVE_AIOWAIT
-  /*
-    As inidicated by ifdef, this is for async I/O, which is not currently
-    used (because it's not reliable on all systems)
-  */
-  uint inited;
-  my_off_t aio_read_pos;
-  my_aio_result aio_result;
-#endif
 } IO_CACHE;
 
 typedef int (*qsort2_cmp)(const void *, const void *, const void *);
@@ -498,9 +508,12 @@ typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
 
 extern my_error_reporter my_charset_error_reporter;
 
+extern PSI_file_key key_file_io_cache;
+
 /* inline functions for mf_iocache */
 
 extern int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock);
+extern void truncate_io_cache(IO_CACHE *info);
 extern int _my_b_get(IO_CACHE *info);
 extern int _my_b_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int _my_b_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
@@ -611,6 +624,8 @@ static inline size_t my_b_bytes_in_cache(const IO_CACHE *info)
 
 int my_b_copy_to_file    (IO_CACHE *cache, FILE *file, size_t count);
 int my_b_copy_all_to_file(IO_CACHE *cache, FILE *file);
+int my_b_copy_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache, size_t count);
+int my_b_copy_all_to_cache(IO_CACHE *from_cache, IO_CACHE *to_cache);
 
 my_off_t my_b_append_tell(IO_CACHE* info);
 my_off_t my_b_safe_tell(IO_CACHE* info); /* picks the correct tell() */
@@ -666,6 +681,7 @@ extern size_t my_fwrite(FILE *stream,const uchar *Buffer,size_t Count,
 		      myf MyFlags);
 extern my_off_t my_fseek(FILE *stream,my_off_t pos,int whence,myf MyFlags);
 extern my_off_t my_ftell(FILE *stream,myf MyFlags);
+extern void (*my_sleep_for_space)(unsigned int seconds);
 
 /* implemented in my_memmem.c */
 extern void *my_memmem(const void *haystack, size_t haystacklen,
@@ -685,16 +701,17 @@ int my_set_user(const char *user, struct passwd *user_info, myf MyFlags);
 extern int check_if_legal_filename(const char *path);
 extern int check_if_legal_tablename(const char *path);
 
-#ifdef __WIN__
+#ifdef _WIN32
 extern my_bool is_filename_allowed(const char *name, size_t length,
                    my_bool allow_current_dir);
-#else /* __WIN__ */
+#else /* _WIN32 */
 # define is_filename_allowed(name, length, allow_cwd) (TRUE)
-#endif /* __WIN__ */ 
+#endif /* _WIN32 */ 
 
 #ifdef _WIN32
 /* Windows-only functions (CRT equivalents)*/
 extern HANDLE   my_get_osfhandle(File fd);
+extern File     my_win_handle2File(HANDLE hFile);
 extern void     my_osmaperr(unsigned long last_error);
 #endif
 
@@ -780,7 +797,7 @@ extern int flush_write_cache(RECORD_CACHE *info);
 extern void handle_recived_signals(void);
 
 extern sig_handler my_set_alarm_variable(int signo);
-extern my_bool radixsort_is_appliccable(uint n_items, size_t size_of_element);
+extern my_bool radixsort_is_applicable(uint n_items, size_t size_of_element);
 extern void my_string_ptr_sort(uchar *base,uint items,size_t size);
 extern void radixsort_for_str_ptr(uchar* base[], uint number_of_elements,
 				  size_t size_of_element,uchar *buffer[]);
@@ -794,6 +811,10 @@ my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,
 			 enum cache_type type,my_off_t seek_offset,
 			 my_bool use_async_io, myf cache_myflags);
+extern int init_io_cache_ext(IO_CACHE *info, File file, size_t cachesize,
+                              enum cache_type type, my_off_t seek_offset,
+                              pbool use_async_io, myf cache_myflags,
+                              PSI_file_key file_key);
 extern my_bool reinit_io_cache(IO_CACHE *info,enum cache_type type,
 			       my_off_t seek_offset, my_bool use_async_io,
 			       my_bool clear_cache);
@@ -805,7 +826,6 @@ void end_slave_io_cache(IO_CACHE *cache);
 void seek_io_cache(IO_CACHE *cache, my_off_t needed_offset);
 
 extern void remove_io_thread(IO_CACHE *info);
-extern int _my_b_async_read(IO_CACHE *info,uchar *Buffer,size_t Count);
 extern int my_b_append(IO_CACHE *info,const uchar *Buffer,size_t Count);
 extern int my_b_safe_write(IO_CACHE *info,const uchar *Buffer,size_t Count);
 
@@ -827,30 +847,36 @@ extern my_bool open_cached_file(IO_CACHE *cache,const char *dir,
 				 myf cache_myflags);
 extern my_bool real_open_cached_file(IO_CACHE *cache);
 extern void close_cached_file(IO_CACHE *cache);
-File create_temp_file(char *to, const char *dir, const char *pfx,
-		      int mode, myf MyFlags);
-#define my_init_dynamic_array(A,B,C,D,E) init_dynamic_array2(A,B,NULL,C,D,E)
-#define my_init_dynamic_array2(A,B,C,D,E,F) init_dynamic_array2(A,B,C,D,E,F)
-extern my_bool init_dynamic_array2(DYNAMIC_ARRAY *array, uint element_size,
-                                   void *init_buffer, uint init_alloc,
-                                   uint alloc_increment, myf my_flags);
+extern File create_temp_file(char *to, const char *dir, const char *pfx,
+                             int mode, myf MyFlags);
+extern my_bool io_cache_tmp_file_track(IO_CACHE *info, ulonglong file_size);
+
+#define my_init_dynamic_array(A,B,C,D,E,F) init_dynamic_array2(A,B,C,NULL,D,E,F)
+#define my_init_dynamic_array2(A,B,C,D,E,F,G) init_dynamic_array2(A,B,C,D,E,F,G)
+extern my_bool init_dynamic_array2(PSI_memory_key psi_key, DYNAMIC_ARRAY *array,
+                                   size_t element_size, void *init_buffer,
+                                   size_t init_alloc, size_t alloc_increment,
+                                   myf my_flags);
 extern my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void* element);
 extern void *alloc_dynamic(DYNAMIC_ARRAY *array);
 extern void *pop_dynamic(DYNAMIC_ARRAY*);
 extern my_bool set_dynamic(DYNAMIC_ARRAY *array, const void *element,
-                           uint array_index);
-extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, uint max_elements);
-extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, uint array_index);
+                           size_t array_index);
+extern my_bool allocate_dynamic(DYNAMIC_ARRAY *array, size_t max_elements);
+extern void get_dynamic(DYNAMIC_ARRAY *array, void *element, size_t array_index);
 extern void delete_dynamic(DYNAMIC_ARRAY *array);
-extern void delete_dynamic_element(DYNAMIC_ARRAY *array, uint array_index);
+extern void delete_dynamic_element(DYNAMIC_ARRAY *array, size_t array_index);
 extern void delete_dynamic_with_callback(DYNAMIC_ARRAY *array, FREE_FUNC f);
 extern void freeze_size(DYNAMIC_ARRAY *array);
-extern int  get_index_dynamic(DYNAMIC_ARRAY *array, void *element);
 #define dynamic_array_ptr(array,array_index) ((array)->buffer+(array_index)*(array)->size_of_element)
 #define dynamic_element(array,array_index,type) ((type)((array)->buffer) +(array_index))
 #define push_dynamic(A,B) insert_dynamic((A),(B))
 #define reset_dynamic(array) ((array)->elements= 0)
 #define sort_dynamic(A,cmp) my_qsort((A)->buffer, (A)->elements, (A)->size_of_element, (cmp))
+extern void init_append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                                DYNAMIC_ARRAY *array);
+extern my_bool append_dynamic(DYNAMIC_ARRAY_APPEND *append,
+                              const void * element);
 
 extern my_bool init_dynamic_string(DYNAMIC_STRING *str, const char *init_str,
 				   size_t init_alloc,size_t alloc_increment);
@@ -880,13 +906,12 @@ extern uint32 copy_and_convert_extended(char *to, uint32 to_length,
 extern void *my_malloc_lock(size_t length,myf flags);
 extern void my_free_lock(void *ptr);
 #else
-#define my_malloc_lock(A,B) my_malloc((A),(B))
+#define my_malloc_lock(A,B) my_malloc(PSI_INSTRUMENT_ME, (A),(B))
 #define my_free_lock(A) my_free((A))
 #endif
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
-#define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
-extern void init_alloc_root(MEM_ROOT *mem_root, const char *name,
+extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
                             size_t block_size, size_t pre_alloc_size,
                             myf my_flags);
 extern void *alloc_root(MEM_ROOT *mem_root, size_t Size);
@@ -896,6 +921,9 @@ extern void move_root(MEM_ROOT *to, MEM_ROOT *from);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                 size_t prealloc_size);
+extern USED_MEM *get_last_memroot_block(MEM_ROOT* root);
+extern void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block);
+extern void protect_root(MEM_ROOT *root, int prot);
 extern char *strdup_root(MEM_ROOT *root,const char *str);
 static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 {
@@ -903,7 +931,22 @@ static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
 }
 extern char *strmake_root(MEM_ROOT *root,const char *str,size_t len);
 extern void *memdup_root(MEM_ROOT *root,const void *str, size_t len);
+
 extern LEX_CSTRING safe_lexcstrdup_root(MEM_ROOT *root, const LEX_CSTRING str);
+
+static inline LEX_STRING lex_string_strmake_root(MEM_ROOT *mem_root,
+                                                 const char *str, size_t length)
+{
+  LEX_STRING tmp;
+  tmp.str= strmake_root(mem_root, str, length);
+  tmp.length= tmp.str ? length : 0;
+  return tmp;
+}
+
+extern LEX_STRING lex_string_casedn_root(MEM_ROOT *root,
+                                        CHARSET_INFO *cs,
+                                        const char *str, size_t length);
+
 extern my_bool my_compress(uchar *, size_t *, size_t *);
 extern my_bool my_uncompress(uchar *, size_t , size_t *);
 extern uchar *my_compress_alloc(const uchar *packet, size_t *len,
@@ -915,8 +958,11 @@ extern int my_compress_buffer(uchar *dest, size_t *destLen,
 extern int packfrm(const uchar *, size_t, uchar **, size_t *);
 extern int unpackfrm(uchar **, size_t *, const uchar *);
 
-extern ha_checksum my_checksum(ha_checksum crc, const uchar *mem,
-                               size_t count);
+extern uint32 my_checksum(uint32, const void *, size_t);
+extern uint32 my_crc32c(uint32, const void *, size_t);
+
+extern const char *my_crc32c_implementation();
+
 #ifdef DBUG_ASSERT_EXISTS
 extern void my_debug_put_break_here(void);
 #else
@@ -924,7 +970,6 @@ extern void my_debug_put_break_here(void);
 #endif
 
 extern void my_sleep(ulong m_seconds);
-extern ulong crc32(ulong crc, const uchar *buf, uint len);
 extern uint my_set_max_open_files(uint files);
 void my_free_open_file_info(void);
 
@@ -946,7 +991,7 @@ extern ulonglong my_interval_timer(void);
 extern ulonglong my_getcputime(void);
 
 #define microsecond_interval_timer()    (my_interval_timer()/1000)
-#define hrtime_to_time(X)               ((X).val/HRTIME_RESOLUTION)
+#define hrtime_to_time(X)               ((time_t)((X).val/HRTIME_RESOLUTION))
 #define hrtime_from_time(X)             ((ulonglong)((X)*HRTIME_RESOLUTION))
 #define hrtime_to_double(X)             ((X).val/(double)HRTIME_RESOLUTION)
 #define hrtime_sec_part(X)              ((ulong)((X).val % HRTIME_RESOLUTION))
@@ -967,6 +1012,13 @@ static inline my_hrtime_t make_hr_time(my_time_t time, ulong time_sec_part)
 #define available_stack_size(CUR,END) (long) ((char*)(CUR) - (char*)(END))
 #else
 #define available_stack_size(CUR,END) (long) ((char*)(END) - (char*)(CUR))
+#endif
+
+#ifndef MAP_SYNC
+#define MAP_SYNC 0x80000
+#endif
+#ifndef MAP_SHARED_VALIDATE
+#define MAP_SHARED_VALIDATE 0x03
 #endif
 
 #ifdef HAVE_SYS_MMAN_H
@@ -1020,19 +1072,46 @@ int my_getpagesize(void);
 int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
-#define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
+#define MY_UUID_BARE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_SEPARATORS 4
+#define MY_UUID_STRING_LENGTH (MY_UUID_BARE_STRING_LENGTH + MY_UUID_SEPARATORS)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
-void my_uuid2str(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
+{
+  int i;
+  int mask= with_separators ? ((1 << 3) | (1 << 5) | (1 << 7) | (1 << 9)) : 0;
+  for (i=0; i < MY_UUID_SIZE; i++, mask >>= 1)
+  {
+    *s++= _dig_vec_lower[guid[i] >>4];
+    *s++= _dig_vec_lower[guid[i] & 15];
+    if (mask & 1)
+      *s++= '-';
+  }
+}
+
 
 const char *my_dlerror(const char *dlpath);
 
+
+/* System timezone handling*/
+void my_tzset();
+void my_tzname(char *sys_timezone, size_t size);
+
+struct my_tz
+{
+  long seconds_offset;
+  char abbreviation[64];
+};
+void my_tzinfo(time_t t, struct my_tz*);
+
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
-extern uint get_charset_number(const char *cs_name, uint cs_flags);
-extern uint get_collation_number(const char *name);
+extern uint get_charset_number(const char *cs_name, uint cs_flags, myf flags);
+extern uint get_collation_number(const char *name,myf flags);
 extern const char *get_charset_name(uint cs_number);
 
 extern CHARSET_INFO *get_charset(uint cs_number, myf flags);
@@ -1046,40 +1125,43 @@ extern CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
                                             uint cs_flags, myf my_flags);
 extern my_bool resolve_charset(const char *cs_name,
                                CHARSET_INFO *default_cs,
-                               CHARSET_INFO **cs);
+                               CHARSET_INFO **cs,
+                               myf flags);
 extern my_bool resolve_collation(const char *cl_name,
                                  CHARSET_INFO *default_cl,
-                                 CHARSET_INFO **cl);
+                                 CHARSET_INFO **cl,
+                                 myf my_flags);
 extern void free_charsets(void);
 extern char *get_charsets_dir(char *buf);
-extern my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2);
+static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
+{
+  return (cs1->cs_name.str == cs2->cs_name.str);
+}
 extern my_bool init_compiled_charsets(myf flags);
 extern void add_compiled_collation(struct charset_info_st *cs);
+extern void add_compiled_extra_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
-                                      const char *from, size_t length);
+                                      const char *from, size_t length,
+                                      my_bool *overflow);
 extern char *my_get_tty_password(const char *opt_message);
-#ifdef __WIN__
+#ifdef _WIN32
 #define BACKSLASH_MBTAIL
 /* File system character set */
 extern CHARSET_INFO *fs_character_set(void);
+extern int my_set_console_cp(const char *name);
+#else
+#define my_set_console_cp(A) do {} while (0)
 #endif
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
-                                      const char *from, size_t length);
+                                      const char *from, size_t length,
+                                      my_bool *overflow);
 
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);
 extern void thd_increment_net_big_packet_count(void *thd, size_t length);
-
-#ifdef __WIN__
-extern my_bool have_tcpip;		/* Is set if tcpip is used */
-
-/* implemented in my_conio.c */
-char* my_cgets(char *string, size_t clen, size_t* plen);
-
-#endif
 
 #include <mysql/psi/psi.h>
 
@@ -1092,4 +1174,135 @@ void my_init_mysys_psi_keys(void);
 struct st_mysql_file;
 extern struct st_mysql_file *mysql_stdin;
 C_MODE_END
+
+
+#ifdef __cplusplus
+
+class Charset_loader_mysys: public MY_CHARSET_LOADER
+{
+public:
+  Charset_loader_mysys()
+  {
+    my_charset_loader_init_mysys(this);
+  }
+
+  /**
+    Get a CHARSET_INFO by a character set name.
+
+    @param name      Collation name
+    @param cs_flags  e.g. MY_CS_PRIMARY, MY_CS_BINARY
+    @param my_flags  mysys flags (MY_WME, MY_UTF8_IS_UTF8MB3)
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_charset(const char *cs_name, uint cs_flags, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_charset_get_by_name(this, cs_name, cs_flags, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by an exact collation by name.
+
+    @param name      Collation name
+    @param my_flags  e.g. the utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_exact_collation(const char *name, myf my_flags)
+  {
+    error[0]= '\0'; // Need to clear in case of the second call
+    return my_collation_get_by_name(this, name, my_flags);
+  }
+
+  /**
+    Get a CHARSET_INFO by a context collation by name.
+    The returned pointer must be further resolved to a character set.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointter on success
+  */
+  CHARSET_INFO *get_context_collation(const char *name, myf my_flags)
+  {
+    return get_exact_collation_by_context_name(&my_charset_utf8mb4_general_ci,
+                                               name, my_flags);
+  }
+
+  /**
+    Get an exact CHARSET_INFO by a contextually typed collation name.
+
+    @param name      Collation name
+    @param utf8_flag The utf8 translation flag
+    @return
+    @retval          NULL on error (e.g. not found)
+    @retval          A CHARSET_INFO pointer on success
+  */
+  CHARSET_INFO *get_exact_collation_by_context_name(CHARSET_INFO *cs,
+                                                    const char *name,
+                                                    myf my_flags)
+  {
+    char tmp[MY_CS_COLLATION_NAME_SIZE];
+    my_snprintf(tmp, sizeof(tmp), "%s_%s", cs->cs_name.str, name);
+    return get_exact_collation(tmp, my_flags);
+  }
+
+  /*
+    Find a collation with binary comparison rules
+  */
+  CHARSET_INFO *get_bin_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    /*
+      We don't need to handle old_mode=UTF8_IS_UTF8MB3 here,
+      This method assumes that "cs" points to a real character set name.
+      It can be either "utf8mb3" or "utf8mb4". It cannot be "utf8".
+      No thd->get_utf8_flag() flag passed to get_charset_by_csname().
+    */
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) BINARY)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+      Nothing to do, we have the binary collation already.
+    */
+    if (cs->state & MY_CS_BINSORT)
+      return cs;
+
+    // CREATE TABLE t1 (a CHAR(10) BINARY) CHARACTER SET utf8mb4;/
+    error[0]= '\0'; // Need in case of the second execution
+    return get_charset(cs->cs_name.str, MY_CS_BINSORT, my_flags);
+  }
+
+  /*
+    Find the default collation in the given character set
+  */
+  CHARSET_INFO *get_default_collation(CHARSET_INFO *cs, myf my_flags)
+  {
+    // See comments in find_bin_collation_or_error()
+    DBUG_ASSERT(cs->cs_name.length !=4 || memcmp(cs->cs_name.str, "utf8", 4));
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT) CHARACTER SET utf8mb4;
+      Nothing to do, we have the default collation already.
+    */
+    if (cs->state & MY_CS_PRIMARY)
+      return cs;
+    /*
+      CREATE TABLE t1 (a CHAR(10) COLLATE DEFAULT)
+        CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
+
+      Don't need to handle old_mode=UTF8_IS_UTF8MB3 here.
+      See comments in find_bin_collation_or_error.
+    */
+    cs= get_charset(cs->cs_name.str, MY_CS_PRIMARY, my_flags);
+    DBUG_ASSERT(cs);
+    return cs;
+  }
+};
+
+#endif /*__cplusplus */
+
+
 #endif /* _my_sys_h */

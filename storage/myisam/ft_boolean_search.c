@@ -287,6 +287,8 @@ static int ftb_parse_query_internal(MYSQL_FTPARSER_PARAM *param,
   uchar *end= (uchar*) query + len;
   FT_WORD w;
 
+  w.pos= NULL;
+  w.len= 0;
   info.prev= ' ';
   info.quot= 0;
   while (ft_get_word(cs, start, end, &w, &info))
@@ -566,7 +568,7 @@ FT_INFO * ft_init_boolean_search(MI_INFO *info, uint keynr, uchar *query,
   FTB_EXPR  *ftbe;
   FTB_WORD  *ftbw;
 
-  if (!(ftb=(FTB *)my_malloc(sizeof(FTB), MYF(MY_WME))))
+  if (!(ftb=(FTB *)my_malloc(mi_key_memory_FTB, sizeof(FTB), MYF(MY_WME))))
     return 0;
   ftb->please= (struct _ft_vft *) & _ft_vft_boolean;
   ftb->state=UNINITIALIZED;
@@ -579,7 +581,7 @@ FT_INFO * ft_init_boolean_search(MI_INFO *info, uint keynr, uchar *query,
   bzero(& ftb->no_dupes, sizeof(TREE));
   ftb->last_word= 0;
 
-  init_alloc_root(&ftb->mem_root, "fulltext", 1024, 1024, MYF(0));
+  init_alloc_root(mi_key_memory_FTB, &ftb->mem_root, 1024, 1024, MYF(0));
   ftb->queue.max_elements= 0;
   if (!(ftbe=(FTB_EXPR *)alloc_root(&ftb->mem_root, sizeof(FTB_EXPR))))
     goto err;

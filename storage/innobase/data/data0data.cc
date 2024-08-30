@@ -79,40 +79,6 @@ void dtuple_t::trim(const dict_index_t& index)
 	n_fields = i;
 }
 
-/** Compare two data tuples.
-@param[in] tuple1 first data tuple
-@param[in] tuple2 second data tuple
-@return positive, 0, negative if tuple1 is greater, equal, less, than tuple2,
-respectively */
-int
-dtuple_coll_cmp(
-	const dtuple_t*	tuple1,
-	const dtuple_t*	tuple2)
-{
-	ulint	n_fields;
-	ulint	i;
-	int	cmp;
-
-	ut_ad(tuple1 != NULL);
-	ut_ad(tuple2 != NULL);
-	ut_ad(tuple1->magic_n == DATA_TUPLE_MAGIC_N);
-	ut_ad(tuple2->magic_n == DATA_TUPLE_MAGIC_N);
-	ut_ad(dtuple_check_typed(tuple1));
-	ut_ad(dtuple_check_typed(tuple2));
-
-	n_fields = dtuple_get_n_fields(tuple1);
-
-	cmp = (int) n_fields - (int) dtuple_get_n_fields(tuple2);
-
-	for (i = 0; cmp == 0 && i < n_fields; i++) {
-		const dfield_t*	field1	= dtuple_get_nth_field(tuple1, i);
-		const dfield_t*	field2	= dtuple_get_nth_field(tuple2, i);
-		cmp = cmp_dfield_dfield(field1, field2);
-	}
-
-	return(cmp);
-}
-
 /*********************************************************************//**
 Sets number of fields used in a tuple. Normally this is set in
 dtuple_create, but if you want later to set it smaller, you can use this. */
@@ -466,8 +432,10 @@ dfield_print_raw(
 		ulint	print_len = ut_min(len, static_cast<ulint>(1000));
 		ut_print_buf(f, dfield_get_data(dfield), print_len);
 		if (len != print_len) {
-			fprintf(f, "(total %lu bytes%s)",
-				(ulong) len,
+			std::ostringstream str_bytes;
+			str_bytes << ib::bytes_iec{len};
+			fprintf(f, "(total %s%s)",
+				str_bytes.str().c_str(),
 				dfield_is_ext(dfield) ? ", external" : "");
 		}
 	} else {
@@ -599,7 +567,7 @@ dtuple_convert_big_rec(
 	size = rec_get_converted_size(index, entry, *n_ext);
 
 	if (UNIV_UNLIKELY(size > 1000000000)) {
-		ib::warn() << "Tuple size is very big: " << size;
+		ib::warn() << "Tuple size is very big: " << ib::bytes_iec{size};
 		fputs("InnoDB: Tuple contents: ", stderr);
 		dtuple_print(stderr, entry);
 		putc('\n', stderr);
@@ -615,10 +583,11 @@ dtuple_convert_big_rec(
 	stored externally */
 
 	ut_d(ulint n_fields = 0);
-	ulint longest_i;
+	uint16_t longest_i;
+	ulint longest;
 
 	const bool mblob = entry->is_alter_metadata();
-	ut_ad(entry->n_fields >= index->first_user_field() + mblob);
+	ut_ad(entry->n_fields - mblob >= index->first_user_field());
 	ut_ad(entry->n_fields - mblob <= index->n_fields);
 
 	if (mblob) {
@@ -644,8 +613,9 @@ dtuple_convert_big_rec(
 				      dict_index_get_n_fields(index),
 				      zip_size)) {
 		longest_i = 0;
-		for (ulint i = index->first_user_field(), longest = 0;
-		     i + mblob < entry->n_fields; i++) {
+		longest = 0;
+		for (uint16_t i = index->first_user_field();
+		     i < entry->n_fields - mblob; i++) {
 			ulint	savings;
 			dfield = dtuple_get_nth_field(entry, i + mblob);
 
@@ -685,7 +655,7 @@ dtuple_convert_big_rec(
 				goto skip_field;
 			}
 
-			longest_i = i + mblob;
+			longest_i = uint16_t(i + mblob);
 			longest = savings;
 
 skip_field:
@@ -736,7 +706,7 @@ ext_write:
 			DEBUG_SYNC_C("ib_mv_nonupdated_column_offpage");
 
 			upd_field_t	upd_field;
-			upd_field.field_no = unsigned(longest_i);
+			upd_field.field_no = longest_i;
 			upd_field.orig_len = 0;
 			upd_field.exp = NULL;
 			upd_field.old_v_val = NULL;

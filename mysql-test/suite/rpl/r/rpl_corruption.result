@@ -1,5 +1,10 @@
 include/master-slave.inc
 [connection master]
+connection slave;
+include/stop_slave.inc
+CHANGE MASTER TO MASTER_USE_GTID=NO;
+include/start_slave.inc
+connection master;
 call mtr.add_suppression('Found invalid event in binary log');
 call mtr.add_suppression('Slave I/O: Relay log write failure: could not queue event from master');
 call mtr.add_suppression('event read from binlog did not pass crc check');

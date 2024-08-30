@@ -1,0 +1,31 @@
+CREATE TABLE t1(f1 int auto_increment primary key,
+f2 varchar(256),
+f3 text) engine = innodb stats_persistent=0;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+FOUND 500500 /unicycle|repairman/ in t1.ibd
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+NOT FOUND /unicycle|repairman/ in t1.ibd
+DROP TABLE t1;
+#
+# MDEV-30527 Assertion !m_freed_pages in mtr_t::start()
+# on DROP TEMPORARY TABLE
+#
+SET @scrub= @@GLOBAL.innodb_immediate_scrub_data_uncompressed;
+SET GLOBAL innodb_immediate_scrub_data_uncompressed= 1;
+SET @fpt=@@GLOBAL.innodb_file_per_table;
+SET GLOBAL innodb_file_per_table=0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TABLE t ENGINE=InnoDB AS SELECT 1;
+DROP TABLE t;
+SET GLOBAL innodb_file_per_table=@fpt;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+CREATE TEMPORARY TABLE tmp ENGINE=InnoDB AS SELECT 1;
+DROP TABLE tmp;
+SET GLOBAL INNODB_IMMEDIATE_SCRUB_DATA_UNCOMPRESSED= @scrub;
+# End of 10.6 tests

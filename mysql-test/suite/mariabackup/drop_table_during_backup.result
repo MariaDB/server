@@ -3,6 +3,7 @@ CREATE TABLE t2 (i int) ENGINE=INNODB;
 CREATE TABLE t3 (i int) ENGINE=INNODB;
 CREATE TABLE t4 (i int) ENGINE=INNODB;
 CREATE TABLE t5 (i int) ENGINE=INNODB;
+set global innodb_log_checkpoint_now=1;
 # xtrabackup prepare
 # shutdown server
 # remove datadir

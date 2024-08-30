@@ -1,0 +1,2 @@
+--query_cache_size=0
+--loose-performance_schema_accounts_size=0

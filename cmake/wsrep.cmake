@@ -17,7 +17,9 @@
 #
 # Galera library does not compile with windows
 #
-IF (NOT WITHOUT_SERVER)
+IF(WITHOUT_SERVER)
+  OPTION(WITH_WSREP "Galera server compatibility in build client utilities" ON)
+ELSE()
 IF(UNIX)
   SET(with_wsrep_default ON)
 ELSE()
@@ -67,4 +69,4 @@ ENDIF()
 IF (NOT WIN32)
   ADD_FEATURE_INFO(WSREP WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)")
 ENDIF()
-ENDIF(NOT WITHOUT_SERVER)
+ENDIF(WITHOUT_SERVER)

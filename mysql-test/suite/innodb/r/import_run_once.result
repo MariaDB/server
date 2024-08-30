@@ -1,0 +1,104 @@
+#
+# MDEV-26137 ALTER TABLE IMPORT enhancement
+#
+# drop t1 before importing t2
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE t1;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a
+42
+DROP TABLE t2;
+# created t2 but did not discard tablespace
+CREATE TABLE t1 (a int) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(42);
+CREATE TABLE t2 LIKE t1;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+DROP TABLE t1;
+call mtr.add_suppression("InnoDB: Unable to import tablespace");
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Tablespace for table 'test/t2' exists. Please DISCARD the tablespace before IMPORT
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a
+DROP TABLE t2;
+# attempt to import when there's no tablespace
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR 42S02: Table 'test.t2' doesn't exist
+# with index
+CREATE TABLE t1 (a int, b varchar(50)) ENGINE=InnoDB;
+CREATE UNIQUE INDEX ai ON t1 (a);
+INSERT INTO t1 VALUES(42, "hello");
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` varchar(50) DEFAULT NULL,
+  UNIQUE KEY `ai` (`a`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+42	hello
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	ai	1	a	A	1	NULL	NULL	YES	BTREE			NO
+SHOW INDEX FROM t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	0	ai	1	a	A	1	NULL	NULL	YES	BTREE			NO
+DROP TABLE t1, t2;
+# with virtual column index
+CREATE TABLE t1 (a int, b int as (a * a)) ENGINE=InnoDB;
+CREATE UNIQUE INDEX ai ON t1 (b);
+INSERT INTO t1 VALUES(42, default);
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) GENERATED ALWAYS AS (`a` * `a`) VIRTUAL,
+  UNIQUE KEY `ai` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+SELECT * FROM t2;
+a	b
+42	1764
+SELECT b FROM t2 USE INDEX (ai);
+b
+1764
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	ai	1	b	A	1	NULL	NULL	YES	BTREE			NO
+SHOW INDEX FROM t2;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t2	0	ai	1	b	A	1	NULL	NULL	YES	BTREE			NO
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t1, t2;
+# with auto_increment
+CREATE TABLE t1 (id INT PRIMARY KEY AUTO_INCREMENT, i2 INT, i1 INT)ENGINE=INNODB;
+INSERT INTO t1 (i2) SELECT 4 FROM seq_1_to_1024;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+CHECK TABLE t2 EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+DROP TABLE t2, t1;

@@ -136,6 +136,9 @@ SHOW FIELDS FROM  t1;
 # Check SET CHARACTER SET
 #
 
+SET @collation_database=@@collation_database;
+SET @@collation_database=latin1_swedish_ci;
+
 SET CHARACTER SET 'latin1';
 SHOW VARIABLES LIKE 'character_set_client';
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
@@ -144,6 +147,8 @@ explain extended SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
 SET CHARACTER SET koi8r;
 SHOW VARIABLES LIKE 'collation_client';
 SELECT charset('a'),collation('a'),coercibility('a'),'a'='A';
+
+SET @@collation_database=@collation_database;
 
 --error 1115
 SET CHARACTER SET 'DEFAULT';
@@ -176,6 +181,7 @@ DROP TABLE t1;
 #
 # BUG#48447, Delivering too few records with indexes using collate syntax
 #
+set names latin1;
 create table t1 (a varchar(1) character set latin1 collate latin1_general_ci);
 insert into t1 values ('A'),('a'),('B'),('b'),('C'),('c');
 select * from t1 where a > 'B' collate latin1_bin;
@@ -357,3 +363,18 @@ SELECT COLUMN_GET(COLUMN_CREATE(0, 'string'),0 AS CHAR CHARACTER SET latin1 COLL
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-33318 ORDER BY COLLATE improperly applied to non-character columns
+--echo #
+set names utf8;
+create table t1 (ts datetime);
+insert t1 values ('2024-01-26 21:37:54'), ('2024-01-26 21:37:54'),
+                 ('2024-01-26 21:37:54'), ('2024-01-26 21:37:54'),
+                 ('2024-01-26 21:37:58'), ('2024-01-26 21:37:58'),
+                 ('2024-01-26 21:37:58'), ('2024-01-26 21:38:02'),
+                 ('2024-01-26 21:38:02'), ('2024-01-26 21:38:02');
+select * from t1 order by ts collate utf8_bin;
+drop table t1;
+
+--echo # End of 10.6 tests

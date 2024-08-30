@@ -29,7 +29,7 @@ SET AUTOCOMMIT=1;
 # Test if locking autocommit selects end up in the trx_sys_t::trx_list.
 # We check this via the INFORMATION_SCHEMA.INNODB_TRX.
 # This should block and show up in the I_S.
-SET DEBUG_SYNC='lock_wait_suspend_thread_enter SIGNAL waiting1';
+SET DEBUG_SYNC='lock_wait_start SIGNAL waiting1';
 --send
 SELECT COUNT(*) FROM t1 LOCK IN SHARE MODE;
 
@@ -55,7 +55,7 @@ SET AUTOCOMMIT=0;
 # therefore this should block;
 SET SESSION TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 SET DEBUG_SYNC='now WAIT_FOR waiting1';
-SET DEBUG_SYNC='lock_wait_suspend_thread_enter SIGNAL waiting4';
+SET DEBUG_SYNC='lock_wait_start SIGNAL waiting4';
 --send
 SELECT COUNT(*) FROM t1 WHERE c1 >= 0;
 

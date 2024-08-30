@@ -6,8 +6,6 @@
 # MDEV-8845: Table disappear after modifying FK
 #
 
-set global innodb_file_per_table=1;
-
 CREATE TABLE ref_table1 (id int(11) NOT NULL, PRIMARY KEY(id)) ENGINE=InnoDB; 
 
 CREATE TABLE ref_table2 (id int(11) NOT NULL, PRIMARY KEY(id)) ENGINE=InnoDB;

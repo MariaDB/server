@@ -19,6 +19,7 @@
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 */
 
+#include <mrn.hpp>
 #include <mrn_mysql.h>
 #include <mrn_windows.hpp>
 #include <mrn_table.hpp>
@@ -29,6 +30,13 @@ MRN_BEGIN_DECLS
 
 MRN_API my_bool last_insert_grn_id_init(UDF_INIT *init, UDF_ARGS *args, char *message)
 {
+  if (!mrn_initialized)
+  {
+    snprintf(message,
+             MYSQL_ERRMSG_SIZE,
+             "last_insert_grn_id(): Mroonga isn't initialized");
+    return 1;
+  }
   if (args->arg_count != 0) {
     strcpy(message, "last_insert_grn_id must not have arguments");
     return 1;

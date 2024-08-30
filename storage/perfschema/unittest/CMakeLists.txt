@@ -1,4 +1,4 @@
-# Copyright (c) 2009, 2019, Oracle and/or its affiliates. All rights reserved.
+# Copyright (c) 2009, 2023, Oracle and/or its affiliates.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License, version 2.0,
@@ -22,7 +22,7 @@
 
 INCLUDE_DIRECTORIES(${CMAKE_SOURCE_DIR}/include
                     ${CMAKE_SOURCE_DIR}/include/mysql
-                    ${PCRE_INCLUDES}
+                    ${PCRE_INCLUDE_DIRS}
                     ${CMAKE_SOURCE_DIR}/sql
                     ${SSL_INCLUDE_DIRS}
                     ${CMAKE_SOURCE_DIR}/unittest/mytap
@@ -35,5 +35,6 @@ ADD_CONVENIENCE_LIBRARY(pfs_server_stubs pfs_server_stubs.cc)
 ADD_DEPENDENCIES(pfs_server_stubs GenError)
 
 MY_ADD_TESTS(pfs_instr_class pfs_instr_class-oom pfs_instr pfs_instr-oom
-             pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs pfs_misc
+             pfs_account-oom pfs_host-oom pfs_timer pfs_user-oom pfs_noop pfs
+             pfs_misc
   EXT "cc" LINK_LIBRARIES perfschema mysys pfs_server_stubs)

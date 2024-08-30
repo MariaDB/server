@@ -1,4 +1,5 @@
 /* Copyright (C) 2006 MySQL AB & MySQL Finland AB & TCX DataKonsult AB
+   Copyright (c) 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,27 +81,6 @@ FT_WORD * maria_ft_linearize(TREE *wtree, MEM_ROOT *mem_root)
   DBUG_RETURN(wlist);
 }
 
-my_bool maria_ft_boolean_check_syntax_string(const uchar *str)
-{
-  uint i, j;
-
-  if (!str ||
-      (strlen((const char *) str) + 1 != sizeof(ft_boolean_syntax)) ||
-      (str[0] != ' ' && str[1] != ' '))
-    return 1;
-  for (i=0; i<sizeof(ft_boolean_syntax); i++)
-  {
-    /* limiting to 7-bit ascii only */
-    if ((unsigned char)(str[i]) > 127 ||
-        my_isalnum(default_charset_info, str[i]))
-      return 1;
-    for (j=0; j<i; j++)
-      if (str[i] == str[j] && (i != 11 || j != 10))
-        return 1;
-  }
-  return 0;
-}
-
 /*
   RETURN VALUE
   0 - eof
@@ -126,7 +106,7 @@ uchar maria_ft_get_word(CHARSET_INFO *cs, const uchar **start,
   {
     for (; doc < end; doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= cs->cset->ctype(cs, &ctype, doc, end);
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         break;
       if (*doc == FTB_RQUOT && param->quot)
@@ -166,7 +146,7 @@ uchar maria_ft_get_word(CHARSET_INFO *cs, const uchar **start,
     for (word->pos= doc; doc < end; length++,
          doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= cs->cset->ctype(cs, &ctype, doc, end);
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         mwc=0;
       else if (!misc_word_char(*doc) || mwc)
@@ -219,7 +199,7 @@ uchar maria_ft_simple_get_word(CHARSET_INFO *cs, uchar **start,
     {
       if (doc >= end)
         DBUG_RETURN(0);
-      mbl= cs->cset->ctype(cs, &ctype, doc, end);
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         break;
     }
@@ -228,7 +208,7 @@ uchar maria_ft_simple_get_word(CHARSET_INFO *cs, uchar **start,
     for (word->pos= doc; doc < end; length++,
          doc+= (mbl > 0 ? mbl : (mbl < 0 ? -mbl : 1)))
     {
-      mbl= cs->cset->ctype(cs, &ctype, doc, end);
+      mbl= my_ci_ctype(cs, &ctype, doc, end);
       if (true_word_char(ctype, *doc))
         mwc= 0;
       else if (!misc_word_char(*doc) || mwc)
@@ -346,9 +326,9 @@ MYSQL_FTPARSER_PARAM* maria_ftparser_alloc_param(MARIA_HA *info)
       (ftb_check_phrase_internal, ftb_phrase_add_word). Thus MAX_PARAM_NR=2.
     */
     info->ftparser_param= (MYSQL_FTPARSER_PARAM *)
-      my_malloc(MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
+      my_malloc(PSI_INSTRUMENT_ME, MAX_PARAM_NR * sizeof(MYSQL_FTPARSER_PARAM) *
                 info->s->ftkeys, MYF(MY_WME | MY_ZEROFILL));
-    init_alloc_root(&info->ft_memroot, "fulltext_parser",
+    init_alloc_root(PSI_INSTRUMENT_ME, &info->ft_memroot,
                     FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(0));
   }
   return info->ftparser_param;

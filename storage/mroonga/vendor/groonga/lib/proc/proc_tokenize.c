@@ -39,7 +39,7 @@ parse_tokenize_flags(grn_ctx *ctx, grn_obj *flag_names)
     }
 
 #define CHECK_FLAG(name)\
-    if (((names_end - names) >= (sizeof(#name) - 1)) &&\
+    if (((unsigned long) (names_end - names) >= (unsigned long) (sizeof(#name) - 1)) &&\
         (!memcmp(names, #name, sizeof(#name) - 1))) {\
       flags |= GRN_TOKEN_CURSOR_ ## name;\
       names += sizeof(#name) - 1;\

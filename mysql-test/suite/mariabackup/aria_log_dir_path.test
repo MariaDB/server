@@ -48,7 +48,6 @@ SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
 --replace_regex /Size +[0-9]+ ; .+aria_log/aria_log/
 SHOW ENGINE aria logs;
 
-
 --echo # mariadb-backup --backup
 --disable_result_log
 --mkdir $targetdir
@@ -61,7 +60,6 @@ SHOW ENGINE aria logs;
 --exec $XTRABACKUP  --prepare --target-dir=$targetdir
 --enable_result_log
 
-
 --echo # shutdown server
 --disable_result_log
 --source include/shutdown_mysqld.inc
@@ -70,11 +68,13 @@ SHOW ENGINE aria logs;
 --echo # remove aria-log-dir-path
 --rmdir $ARIA_LOGDIR_FS
 
+
 --echo # mariadb-backup --copy-back
 --let $mariadb_backup_parameters=--defaults-file=$MYSQLTEST_VARDIR/my.cnf --copy-back --datadir=$datadir --target-dir=$targetdir --parallel=2 --throttle=1 --aria-log-dir-path=$ARIA_LOGDIR_MARIADB
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --exec echo "# with parameters: $mariadb_backup_parameters"
 --exec $XTRABACKUP $mariadb_backup_parameters
+
 
 --echo # starting server
 --let $restart_parameters=$server_parameters
@@ -91,7 +91,7 @@ DROP TABLE t1;
 --echo # Testing aria log files after --copy-back
 SET @@global.aria_checkpoint_interval=DEFAULT /*Force checkpoint*/;
 --file_exists $ARIA_LOGDIR_FS/aria_log_control
---file_exists $ARIA_LOGDIR_FS/aria_log.00000001
+#--file_exists $ARIA_LOGDIR_FS/aria_log.00000001
 --file_exists $ARIA_LOGDIR_FS/aria_log.00000002
 --error 1
 --file_exists $ARIA_LOGDIR_FS/aria_log.00000003

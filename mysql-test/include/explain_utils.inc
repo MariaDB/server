@@ -29,9 +29,11 @@
 --disable_ps2_protocol
 --disable_view_protocol
 if ($select) {
+--enable_prepare_warnings
 --disable_query_log
 --eval $select INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/before_explain.txt'
 --enable_query_log
+--disable_prepare_warnings
 }
 
 if ($innodb) {
@@ -123,7 +125,9 @@ if ($validation) {
 --disable_query_log
 
 if ($select) {
+--enable_prepare_warnings
 --eval $select INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/after_explain.txt'
+--disable_prepare_warnings
 --diff_files '$MYSQLTEST_VARDIR/tmp/before_explain.txt' '$MYSQLTEST_VARDIR/tmp/after_explain.txt'
 --remove_file '$MYSQLTEST_VARDIR/tmp/before_explain.txt'
 --remove_file '$MYSQLTEST_VARDIR/tmp/after_explain.txt'

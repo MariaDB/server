@@ -1,0 +1,11 @@
+#
+# MDEV-24422 Server crashes in GetTypeID / ha_connect::GetRealType upon
+# altering table engine
+#
+CREATE TABLE t1 (f INT) ENGINE=CONNECT;
+Warnings:
+Warning	1105	No table_type. Will be set to DOS
+Warning	1105	No file name. Table will use t1.dos
+ALTER TABLE t1 ENGINE InnoDB;
+ALTER TABLE t1 ENGINE CONNECT;
+DROP TABLE t1;

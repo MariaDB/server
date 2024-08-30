@@ -1,0 +1,13 @@
+CREATE TABLE t(i INT) ENGINE INNODB encrypted=yes encryption_key_id=1;
+INSERT INTO t VALUES(1);
+# mariabackup backup
+INSERT INTO t VALUES(2);
+# mariabackup prepare
+# shutdown server
+# remove datadir
+# mariabackup move back
+# restart
+SELECT * FROM t;
+i
+1
+DROP TABLE t;

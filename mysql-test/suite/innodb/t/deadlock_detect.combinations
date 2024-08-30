@@ -1,0 +1,7 @@
+[OFF]
+--innodb-deadlock-detect=OFF
+--innodb-lock-wait-timeout=1
+
+[ON]
+--innodb-deadlock-detect=ON
+--innodb-lock-wait-timeout=1

@@ -49,15 +49,15 @@ public:
   Materialized_cursor(select_result *result, TABLE *table);
 
   int send_result_set_metadata(THD *thd, List<Item> &send_result_set_metadata);
-  virtual bool is_open() const { return table != 0; }
-  virtual int open(JOIN *join __attribute__((unused)));
-  virtual void fetch(ulong num_rows);
-  virtual void close();
-  bool export_structure(THD *thd, Row_definition_list *defs)
+  bool is_open() const override { return table != 0; }
+  int open(JOIN *join __attribute__((unused))) override;
+  void fetch(ulong num_rows) override;
+  void close() override;
+  bool export_structure(THD *thd, Row_definition_list *defs) override
   {
     return table->export_structure(thd, defs);
   }
-  virtual ~Materialized_cursor();
+  ~Materialized_cursor() override;
 
   void on_table_fill_finished();
 };
@@ -79,9 +79,9 @@ public:
   Materialized_cursor *materialized_cursor;
   Select_materialize(THD *thd_arg, select_result *result_arg):
     select_unit(thd_arg), result(result_arg), materialized_cursor(0) {}
-  virtual bool send_result_set_metadata(List<Item> &list, uint flags);
-  bool send_eof() { return false; }
-  bool view_structure_only() const
+  bool send_result_set_metadata(List<Item> &list, uint flags) override;
+  bool send_eof() override { return false; }
+  bool view_structure_only() const override
   {
     return result->view_structure_only();
   }
@@ -185,7 +185,7 @@ int mysql_open_cursor(THD *thd, select_result *result,
     }
 
     *pcursor= materialized_cursor;
-    thd->stmt_arena->cleanup_stmt();
+    rc|= (thd->stmt_arena->cleanup_stmt(true)? 1 : 0);
   }
 
 end:
@@ -270,12 +270,12 @@ int Materialized_cursor::send_result_set_metadata(
   */
   while ((item_dst= it_dst++, item_org= it_org++))
   {
-    Send_field send_field;
     Item_ident *ident= static_cast<Item_ident *>(item_dst);
-    item_org->make_send_field(thd, &send_field);
+    Send_field send_field(thd, item_org);
 
-    ident->db_name=    thd->strdup(send_field.db_name);
-    ident->table_name= thd->strdup(send_field.table_name);
+    ident->db_name= Lex_ident_db(thd->strmake_lex_cstring(send_field.db_name));
+    ident->table_name= Lex_ident_table(thd->strmake_lex_cstring(
+                                              send_field.table_name));
   }
 
   /*

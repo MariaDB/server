@@ -143,8 +143,6 @@ SHOW WARNINGS;
 SELECT name FROM information_schema.innodb_sys_tables WHERE name LIKE '%long%';
 --replace_result @0023 #
 SELECT name FROM information_schema.innodb_sys_tablespaces WHERE name LIKE '%long%';
---replace_result $MYSQLD_DATADIR MYSQLD_DATADIR  @0023 #
-SELECT path FROM information_schema.innodb_sys_datafiles WHERE path LIKE '%long%';
 --vertical_results
 --replace_regex /innodb_file_per_table_[0-9]*/innodb_file_per_table_##/
 --replace_result $MYSQLD_DATADIR MYSQLD_DATADIR  @0023 #

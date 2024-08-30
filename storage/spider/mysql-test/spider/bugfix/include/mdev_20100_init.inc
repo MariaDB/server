@@ -43,4 +43,4 @@ let $CHILD2_1_SELECT_TABLES=
   SELECT a, b, c FROM ta_r3 ORDER BY a $STR_SEMICOLON
   SELECT a, b, c FROM ta_r4 ORDER BY a;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';

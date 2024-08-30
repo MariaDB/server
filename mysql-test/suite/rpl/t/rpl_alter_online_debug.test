@@ -1,0 +1,128 @@
+source include/have_debug_sync.inc;
+source include/have_innodb.inc;
+source include/master-slave.inc;
+
+--connection master
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+
+--connection slave
+call mtr.add_suppression("Unsafe statement written to the binary log using statement format");
+
+#
+# Single-phase alter
+#
+
+--echo # MDEV-31804 Assertion `thd->m_transaction_psi == __null' fails upon
+--echo # replicating online ALTER
+--connection master
+create table t (a char(8)) engine=myisam;
+insert into t values ('foo'),('bar');
+
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+set @old_slave_exec_mode= @@global.slave_exec_mode;
+set @@global.slave_exec_mode= idempotent;
+send alter table t force;
+
+--connection master1
+set debug_sync= 'now wait_for go_dml';
+insert into t (a) values ('qux');
+set debug_sync= 'now signal go_alter';
+
+--connection master
+--reap
+--sync_slave_with_master
+
+# Cleanup
+--connection master
+drop table t;
+set global slave_exec_mode= @old_slave_exec_mode;
+set debug_sync= reset;
+
+
+--echo #
+--echo # End of 11.2 tests (Single-phase alter)
+--echo #
+
+
+#
+# Two-phase alter
+#
+--connection slave
+source include/stop_slave.inc;
+--let $slave_parallel_threads=`select @@global.slave_parallel_threads`
+--let $slave_parallel_mode=   `select @@global.slave_parallel_mode`
+--let $binlog_row_image= `select @@global.binlog_row_image`
+set global slave_parallel_threads=3;
+set global slave_parallel_mode= optimistic;
+set global binlog_row_image=MINIMAL;
+--connection master
+
+
+--echo #
+--echo # MDEV-31755 Replica's DML event deadlocks wit online alter table
+--echo #
+--echo # Three threads for SA,U,CA
+
+create table t (id int, a int, primary key (id)) engine=innodb;
+insert into t values (1,10), (2,20);
+
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_downgraded signal ready wait_for go';
+send alter table t add c text default('qqq') after id, algorithm=copy, lock=none;
+
+--connection master1
+set debug_sync= 'now wait_for ready';
+
+update t set a = 1;
+
+set debug_sync= 'now signal go';
+
+--connection master
+--reap
+--source include/save_master_gtid.inc
+
+--connection slave
+source include/start_slave.inc;
+--source include/sync_with_master_gtid.inc
+select * from t;
+
+# Cleanup
+--connection master
+drop table t;
+
+--echo # MDEV-31838 Assertion fails on replica upon parallel
+--echo # replication with two-phase alter and MINIMAL row image
+create table t (id int, a int, primary key(id)) engine=aria;
+insert into t values (1,0);
+
+set @@session.binlog_alter_two_phase=1;
+set debug_sync= 'alter_table_online_progress signal go_dml wait_for go_alter';
+send alter table t force, algorithm=copy, lock=none;
+
+--connection master1
+set binlog_row_image=MINIMAL;
+set debug_sync= 'now wait_for go_dml';
+--disable_warnings
+update ignore t set a = 1;
+--enable_warnings
+set debug_sync= 'now signal go_alter';
+
+# Cleanup
+--connection master
+--reap
+drop table t;
+--sync_slave_with_master
+--connection master
+
+--echo #
+--echo # End of 11.2 tests (Two-phase alter)
+--echo #
+
+--connection slave
+source include/stop_slave.inc;
+--eval set global binlog_row_image=$binlog_row_image
+--eval set global slave_parallel_threads=$slave_parallel_threads
+--eval set global slave_parallel_mode=   $slave_parallel_mode
+source include/start_slave.inc;
+
+--source include/rpl_end.inc

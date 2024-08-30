@@ -88,7 +88,7 @@ static my_bool acquire_plugins(THD *thd, plugin_ref plugin, void *arg)
   if (unlikely(!thd->audit_class_plugins.buffer))
   {
     /* specify some reasonable initialization defaults */
-    my_init_dynamic_array(&thd->audit_class_plugins,
+    my_init_dynamic_array(PSI_INSTRUMENT_ME, &thd->audit_class_plugins,
                           sizeof(plugin_ref), 16, 16, MYF(0));
   }
   
@@ -348,14 +348,11 @@ static my_bool calc_class_mask(THD *thd, plugin_ref plugin, void *arg)
 */
 int finalize_audit_plugin(st_plugin_int *plugin)
 {
+  int deinit_status= 0;
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
   
-  if (plugin->plugin->deinit && plugin->plugin->deinit(NULL))
-  {
-    DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                            plugin->name.str));
-    DBUG_EXECUTE("finalize_audit_plugin", return 1; );
-  }
+  if (plugin->plugin->deinit)
+    deinit_status= plugin->plugin->deinit(NULL);
   
   plugin->data= NULL;
   bzero(&event_class_mask, sizeof(event_class_mask));
@@ -374,7 +371,7 @@ int finalize_audit_plugin(st_plugin_int *plugin)
   bmove(mysql_global_audit_mask, event_class_mask, sizeof(event_class_mask));
   mysql_mutex_unlock(&LOCK_audit_mask);
 
-  return 0;
+  return deinit_status;
 }
 
 

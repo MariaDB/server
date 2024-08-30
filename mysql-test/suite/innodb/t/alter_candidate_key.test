@@ -50,7 +50,7 @@ connection con1;
 SET DEBUG_SYNC='now WAIT_FOR dml';
 BEGIN;
 INSERT INTO t1 SET a=NULL;
-ROLLBACK;
+COMMIT;
 set DEBUG_SYNC='now SIGNAL dml_done';
 connection default;
 --error ER_INVALID_USE_OF_NULL

@@ -251,6 +251,7 @@ DROP TABLE t1;
 create or replace table t1 (a int, b int invisible);
 insert into t1 values (1),(2);
 
+--enable_prepare_warnings
 --disable_ps2_protocol
 select * from t1 into outfile 'f';
 --enable_ps2_protocol
@@ -281,6 +282,7 @@ drop table t1;
 --echo #
 create table t1 (a int, b int invisible);
 insert delayed into t1 values (1);
+--disable_prepare_warnings
 # cleanup
 drop table t1;
 

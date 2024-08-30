@@ -156,7 +156,7 @@ drop table t1;
 
 --enable_view_protocol
 
-create table t1 (v1 timestamp) select 'x';
+create table t1 (v1 timestamp not null default now() on update now()) select 'x';
 show create table t1;
 select default(v1) from (select v1 from t1) dt;
 select default(v1) from (select v1 from t1 group by v1) dt;

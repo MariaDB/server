@@ -1,0 +1,35 @@
+include/master-slave.inc
+[connection master]
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-4958 Adding datatype UUID
+#
+CREATE TABLE t1 (a UUID);
+connection slave;
+ALTER TABLE t1 MODIFY a BINARY(16);
+connection master;
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000000');
+INSERT INTO t1 VALUES ('00000000-0000-0000-0000-000000000001');
+INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-fffffffffffe');
+INSERT INTO t1 VALUES ('ffffffff-ffff-ffff-ffff-ffffffffffff');
+SELECT a FROM t1 ORDER BY a;
+a
+00000000-0000-0000-0000-000000000000
+00000000-0000-0000-0000-000000000001
+ffffffff-ffff-ffff-ffff-fffffffffffe
+ffffffff-ffff-ffff-ffff-ffffffffffff
+connection slave;
+SELECT HEX(a) FROM t1 ORDER BY a;
+HEX(a)
+00000000000000000000000000000000
+00000000000000000000000000000001
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE
+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+connection master;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#
+include/rpl_end.inc

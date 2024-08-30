@@ -65,11 +65,24 @@ namespace RDB_CFSTATS_FIELD {
 enum { CF_NAME = 0, STAT_TYPE, VALUE };
 }  // namespace RDB_CFSTATS_FIELD
 
+
+using Column = Show::Column;
+using CEnd = Show::CEnd;
+using Varchar = Show::Varchar;
+using SShort = Show::SShort;
+using SLong = Show::SLong;
+using SLonglong = Show::SLonglong;
+using ULonglong = Show::ULonglong;
+using Double = Show::Double;
+using STiny = Show::STiny;
+
+
 static ST_FIELD_INFO rdb_i_s_cfstats_fields_info[] = {
-    ROCKSDB_FIELD_INFO("CF_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("STAT_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", sizeof(uint64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("CF_NAME",   Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("STAT_TYPE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("VALUE",     SLonglong(),           NOT_NULL),
+    CEnd()
+};
 
 static int rdb_i_s_cfstats_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -142,9 +155,6 @@ static int rdb_i_s_cfstats_fill_table(
 static int rdb_i_s_cfstats_init(void *p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -165,9 +175,9 @@ enum { STAT_TYPE = 0, VALUE };
 }  // namespace RDB_DBSTATS_FIELD
 
 static ST_FIELD_INFO rdb_i_s_dbstats_fields_info[] = {
-    ROCKSDB_FIELD_INFO("STAT_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", sizeof(uint64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("STAT_TYPE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("VALUE",     SLonglong(),           NOT_NULL),
+    CEnd()};
 
 static int rdb_i_s_dbstats_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -238,9 +248,6 @@ static int rdb_i_s_dbstats_fill_table(
 static int rdb_i_s_dbstats_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -261,13 +268,12 @@ enum { TABLE_SCHEMA = 0, TABLE_NAME, PARTITION_NAME, STAT_TYPE, VALUE };
 }  // namespace RDB_PERF_CONTEXT_FIELD
 
 static ST_FIELD_INFO rdb_i_s_perf_context_fields_info[] = {
-    ROCKSDB_FIELD_INFO("TABLE_SCHEMA", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("TABLE_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("PARTITION_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING,
-                       MY_I_S_MAYBE_NULL),
-    ROCKSDB_FIELD_INFO("STAT_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", sizeof(uint64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("TABLE_SCHEMA",   Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("TABLE_NAME",     Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("PARTITION_NAME", Varchar(NAME_LEN + 1), NULLABLE),
+    Column("STAT_TYPE",      Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("VALUE",          SLonglong(),           NOT_NULL),
+    CEnd()};
 
 static int rdb_i_s_perf_context_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -342,8 +348,6 @@ static int rdb_i_s_perf_context_fill_table(
 static int rdb_i_s_perf_context_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -364,9 +368,9 @@ enum { STAT_TYPE = 0, VALUE };
 }  // namespace RDB_PERF_CONTEXT_GLOBAL_FIELD
 
 static ST_FIELD_INFO rdb_i_s_perf_context_global_fields_info[] = {
-    ROCKSDB_FIELD_INFO("STAT_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", sizeof(uint64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("STAT_TYPE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("VALUE",     SLonglong(),           NOT_NULL),
+    CEnd()};
 
 static int rdb_i_s_perf_context_global_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -411,9 +415,6 @@ static int rdb_i_s_perf_context_global_fill_table(
 static int rdb_i_s_perf_context_global_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -434,10 +435,10 @@ enum { CF_NAME = 0, OPTION_TYPE, VALUE };
 }  // namespace RDB_CFOPTIONS_FIELD
 
 static ST_FIELD_INFO rdb_i_s_cfoptions_fields_info[] = {
-    ROCKSDB_FIELD_INFO("CF_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("OPTION_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("CF_NAME",     Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("OPTION_TYPE", Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("VALUE",       Varchar(NAME_LEN + 1), NOT_NULL),
+    CEnd()};
 
 static int rdb_i_s_cfoptions_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -696,10 +697,10 @@ enum { TYPE = 0, NAME, VALUE };
 }
 
 static ST_FIELD_INFO rdb_i_s_global_info_fields_info[] = {
-    ROCKSDB_FIELD_INFO("TYPE", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("NAME", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("TYPE",  Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("NAME",  Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("VALUE", Varchar(FN_REFLEN + 1), NOT_NULL),
+    CEnd()};
 
 /*
  * helper function for rdb_i_s_global_info_fill_table
@@ -900,11 +901,11 @@ static int rdb_i_s_compact_stats_fill_table(
 }
 
 static ST_FIELD_INFO rdb_i_s_compact_stats_fields_info[] = {
-    ROCKSDB_FIELD_INFO("CF_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("LEVEL", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("TYPE", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("VALUE", sizeof(double), MYSQL_TYPE_DOUBLE, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("CF_NAME", Varchar(NAME_LEN + 1),               NOT_NULL),
+    Column("LEVEL",   Varchar(FN_REFLEN + 1),              NOT_NULL),
+    Column("TYPE",    Varchar(FN_REFLEN + 1),              NOT_NULL),
+    Column("VALUE",   Double(MY_INT64_NUM_DECIMAL_DIGITS), NOT_NULL),
+    CEnd()};
 
 namespace  // anonymous namespace = not visible outside this source file
 {
@@ -937,22 +938,19 @@ enum {
 }  // namespace RDB_DDL_FIELD
 
 static ST_FIELD_INFO rdb_i_s_ddl_fields_info[] = {
-    ROCKSDB_FIELD_INFO("TABLE_SCHEMA", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("TABLE_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("PARTITION_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING,
-                       MY_I_S_MAYBE_NULL),
-    ROCKSDB_FIELD_INFO("INDEX_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("COLUMN_FAMILY", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("INDEX_NUMBER", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("INDEX_TYPE", sizeof(uint16_t), MYSQL_TYPE_SHORT, 0),
-    ROCKSDB_FIELD_INFO("KV_FORMAT_VERSION", sizeof(uint16_t), MYSQL_TYPE_SHORT,
-                       0),
-    ROCKSDB_FIELD_INFO("TTL_DURATION", sizeof(uint64), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("INDEX_FLAGS", sizeof(uint64), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("CF", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("AUTO_INCREMENT", sizeof(uint64_t), MYSQL_TYPE_LONGLONG,
-                       MY_I_S_MAYBE_NULL | MY_I_S_UNSIGNED),
-    ROCKSDB_FIELD_INFO_END};
+    Column("TABLE_SCHEMA",      Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("TABLE_NAME",        Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("PARTITION_NAME",    Varchar(NAME_LEN + 1),  NULLABLE),
+    Column("INDEX_NAME",        Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("COLUMN_FAMILY",     SLong(),                NOT_NULL),
+    Column("INDEX_NUMBER",      SLong(),                NOT_NULL),
+    Column("INDEX_TYPE",        SShort(6),              NOT_NULL),
+    Column("KV_FORMAT_VERSION", SShort(6),              NOT_NULL),
+    Column("TTL_DURATION",      SLonglong(),            NOT_NULL),
+    Column("INDEX_FLAGS",       SLonglong(),            NOT_NULL),
+    Column("CF",                Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("AUTO_INCREMENT",    ULonglong(),            NULLABLE),
+    CEnd()};
 
 int Rdb_ddl_scanner::add_table(Rdb_tbl_def *tdef) {
   DBUG_ASSERT(tdef != nullptr);
@@ -1046,9 +1044,6 @@ static int rdb_i_s_ddl_fill_table(my_core::THD *const thd,
 static int rdb_i_s_ddl_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   my_core::ST_SCHEMA_TABLE *schema;
 
   DBUG_ASSERT(p != nullptr);
@@ -1064,9 +1059,6 @@ static int rdb_i_s_ddl_init(void *const p) {
 static int rdb_i_s_cfoptions_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1081,9 +1073,6 @@ static int rdb_i_s_cfoptions_init(void *const p) {
 
 static int rdb_i_s_global_info_init(void *const p) {
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1101,9 +1090,6 @@ static int rdb_i_s_compact_stats_init(void *p) {
   my_core::ST_SCHEMA_TABLE *schema;
 
   DBUG_ENTER_FUNC();
-
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
 
   DBUG_ASSERT(p != nullptr);
 
@@ -1155,34 +1141,24 @@ enum {
 }  // namespace RDB_SST_PROPS_FIELD
 
 static ST_FIELD_INFO rdb_i_s_sst_props_fields_info[] = {
-    ROCKSDB_FIELD_INFO("SST_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("COLUMN_FAMILY", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("DATA_BLOCKS", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("ENTRIES", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("RAW_KEY_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("RAW_VALUE_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("DATA_BLOCK_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("INDEX_BLOCK_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("INDEX_PARTITIONS", sizeof(uint32_t), MYSQL_TYPE_LONG,
-                       0),
-    ROCKSDB_FIELD_INFO("TOP_LEVEL_INDEX_SIZE", sizeof(int64_t),
-                       MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("FILTER_BLOCK_SIZE", sizeof(int64_t),
-                       MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("COMPRESSION_ALGO", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("CREATION_TIME", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("FILE_CREATION_TIME", sizeof(int64_t),
-                       MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("OLDEST_KEY_TIME", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("FILTER_POLICY", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("COMPRESSION_OPTIONS", NAME_LEN + 1, MYSQL_TYPE_STRING,
-                       0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("SST_NAME",             Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("COLUMN_FAMILY",        SLong(),               NOT_NULL),
+    Column("DATA_BLOCKS",          SLonglong(),           NOT_NULL),
+    Column("ENTRIES",              SLonglong(),           NOT_NULL),
+    Column("RAW_KEY_SIZE",         SLonglong(),           NOT_NULL),
+    Column("RAW_VALUE_SIZE",       SLonglong(),           NOT_NULL),
+    Column("DATA_BLOCK_SIZE",      SLonglong(),           NOT_NULL),
+    Column("INDEX_BLOCK_SIZE",     SLonglong(),           NOT_NULL),
+    Column("INDEX_PARTITIONS",     SLong(),               NOT_NULL),
+    Column("TOP_LEVEL_INDEX_SIZE", SLonglong(),           NOT_NULL),
+    Column("FILTER_BLOCK_SIZE",    SLonglong(),           NOT_NULL),
+    Column("COMPRESSION_ALGO",     Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("CREATION_TIME",        SLonglong(),           NOT_NULL),
+    Column("FILE_CREATION_TIME",   SLonglong(),           NOT_NULL),
+    Column("OLDEST_KEY_TIME",      SLonglong(),           NOT_NULL),
+    Column("FILTER_POLICY",        Varchar(NAME_LEN + 1), NOT_NULL),
+    Column("COMPRESSION_OPTIONS",  Varchar(NAME_LEN + 1), NOT_NULL),
+    CEnd()};
 
 static int rdb_i_s_sst_props_fill_table(
     my_core::THD *const thd, my_core::TABLE_LIST *const tables,
@@ -1328,20 +1304,17 @@ static ST_FIELD_INFO rdb_i_s_index_file_map_fields_info[] = {
      *   SST_NAME => the name of the SST file containing some indexes
      *   NUM_ROWS => the number of entries of this index id in this SST file
      *   DATA_SIZE => the data size stored in this SST file for this index id */
-    ROCKSDB_FIELD_INFO("COLUMN_FAMILY", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("INDEX_NUMBER", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("SST_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("NUM_ROWS", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("DATA_SIZE", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("ENTRY_DELETES", sizeof(int64_t), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("ENTRY_SINGLEDELETES", sizeof(int64_t),
-                       MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("ENTRY_MERGES", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("ENTRY_OTHERS", sizeof(int64_t), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("DISTINCT_KEYS_PREFIX", MAX_REF_PARTS * 25,
-                       MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("COLUMN_FAMILY",       SLong(),                     NOT_NULL),
+    Column("INDEX_NUMBER",        SLong(),                     NOT_NULL),
+    Column("SST_NAME",            Varchar(NAME_LEN + 1),       NOT_NULL),
+    Column("NUM_ROWS",            SLonglong(),                 NOT_NULL),
+    Column("DATA_SIZE",           SLonglong(),                 NOT_NULL),
+    Column("ENTRY_DELETES",       SLonglong(),                 NOT_NULL),
+    Column("ENTRY_SINGLEDELETES", SLonglong(),                 NOT_NULL),
+    Column("ENTRY_MERGES",        SLonglong(),                 NOT_NULL),
+    Column("ENTRY_OTHERS",        SLonglong(),                 NOT_NULL),
+    Column("DISTINCT_KEYS_PREFIX",Varchar(MAX_REF_PARTS * 25), NOT_NULL),
+    CEnd()};
 
 /* Fill the information_schema.rocksdb_index_file_map virtual table */
 static int rdb_i_s_index_file_map_fill_table(
@@ -1452,9 +1425,6 @@ static int rdb_i_s_index_file_map_fill_table(
 static int rdb_i_s_index_file_map_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1475,12 +1445,11 @@ enum { COLUMN_FAMILY_ID = 0, TRANSACTION_ID, KEY, MODE };
 }  // namespace RDB_LOCKS_FIELD
 
 static ST_FIELD_INFO rdb_i_s_lock_info_fields_info[] = {
-    ROCKSDB_FIELD_INFO("COLUMN_FAMILY_ID", sizeof(uint32_t), MYSQL_TYPE_LONG,
-                       0),
-    ROCKSDB_FIELD_INFO("TRANSACTION_ID", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("KEY", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("MODE", 32, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("COLUMN_FAMILY_ID", SLong(),                NOT_NULL),
+    Column("TRANSACTION_ID",   SLong(),                NOT_NULL),
+    Column("KEY",              Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("MODE",             Varchar(32),            NOT_NULL),
+    CEnd()};
 
 /* Fill the information_schema.rocksdb_locks virtual table */
 static int rdb_i_s_lock_info_fill_table(
@@ -1538,9 +1507,6 @@ static int rdb_i_s_lock_info_fill_table(
 static int rdb_i_s_lock_info_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1577,27 +1543,22 @@ enum {
 }  // namespace RDB_TRX_FIELD
 
 static ST_FIELD_INFO rdb_i_s_trx_info_fields_info[] = {
-    ROCKSDB_FIELD_INFO("TRANSACTION_ID", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("STATE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("WRITE_COUNT", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("LOCK_COUNT", sizeof(ulonglong), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("TIMEOUT_SEC", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("WAITING_KEY", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("WAITING_COLUMN_FAMILY_ID", sizeof(uint32_t),
-                       MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("IS_REPLICATION", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("SKIP_TRX_API", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("READ_ONLY", sizeof(uint32_t), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("HAS_DEADLOCK_DETECTION", sizeof(uint32_t),
-                       MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("NUM_ONGOING_BULKLOAD", sizeof(uint32_t),
-                       MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("THREAD_ID", sizeof(ulong), MYSQL_TYPE_LONG, 0),
-    ROCKSDB_FIELD_INFO("QUERY", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO_END};
+  Column("TRANSACTION_ID",         SLonglong(),            NOT_NULL),
+  Column("STATE",                  Varchar(NAME_LEN + 1),  NOT_NULL),
+  Column("NAME",                   Varchar(NAME_LEN + 1),  NOT_NULL),
+  Column("WRITE_COUNT",            SLonglong(),            NOT_NULL),
+  Column("LOCK_COUNT",             SLonglong(),            NOT_NULL),
+  Column("TIMEOUT_SEC",            SLong(),                NOT_NULL),
+  Column("WAITING_KEY",            Varchar(FN_REFLEN + 1), NOT_NULL),
+  Column("WAITING_COLUMN_FAMILY_ID",SLong(),               NOT_NULL),
+  Column("IS_REPLICATION",         SLong(),                NOT_NULL),
+  Column("SKIP_TRX_API",           SLong(),                NOT_NULL),
+  Column("READ_ONLY",              SLong(),                NOT_NULL),
+  Column("HAS_DEADLOCK_DETECTION", SLong(),                NOT_NULL),
+  Column("NUM_ONGOING_BULKLOAD",   SLong(),                NOT_NULL),
+  Column("THREAD_ID",              SLong(),                NOT_NULL),
+  Column("QUERY",                  Varchar(NAME_LEN + 1),  NOT_NULL),
+  CEnd()};
 
 /* Fill the information_schema.rocksdb_trx virtual table */
 static int rdb_i_s_trx_info_fill_table(
@@ -1671,9 +1632,6 @@ static int rdb_i_s_trx_info_fill_table(
 static int rdb_i_s_trx_info_init(void *const p) {
   DBUG_ENTER_FUNC();
 
-  if (prevent_myrocks_loading)
-    DBUG_RETURN(1);
-
   DBUG_ASSERT(p != nullptr);
 
   my_core::ST_SCHEMA_TABLE *schema;
@@ -1704,19 +1662,16 @@ enum {
 }  // namespace RDB_DEADLOCK_FIELD
 
 static ST_FIELD_INFO rdb_i_s_deadlock_info_fields_info[] = {
-    ROCKSDB_FIELD_INFO("DEADLOCK_ID", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("TIMESTAMP", sizeof(ulonglong), MYSQL_TYPE_LONGLONG, 0),
-    ROCKSDB_FIELD_INFO("TRANSACTION_ID", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO("CF_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("WAITING_KEY", FN_REFLEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("LOCK_TYPE", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("INDEX_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("TABLE_NAME", NAME_LEN + 1, MYSQL_TYPE_STRING, 0),
-    ROCKSDB_FIELD_INFO("ROLLED_BACK", sizeof(ulonglong), MYSQL_TYPE_LONGLONG,
-                       0),
-    ROCKSDB_FIELD_INFO_END};
+    Column("DEADLOCK_ID",    SLonglong(),            NOT_NULL),
+    Column("TIMESTAMP",      SLonglong(),            NOT_NULL),
+    Column("TRANSACTION_ID", SLonglong(),            NOT_NULL),
+    Column("CF_NAME",        Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("WAITING_KEY",    Varchar(FN_REFLEN + 1), NOT_NULL),
+    Column("LOCK_TYPE",      Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("INDEX_NAME",     Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("TABLE_NAME",     Varchar(NAME_LEN + 1),  NOT_NULL),
+    Column("ROLLED_BACK",    SLonglong(),            NOT_NULL),
+    CEnd()};
 
 /* Fill the information_schema.rocksdb_trx virtual table */
 static int rdb_i_s_deadlock_info_fill_table(
@@ -1804,7 +1759,8 @@ static int rdb_i_s_deadlock_info_init(void *const p) {
 
 static int rdb_i_s_deinit(void *p MY_ATTRIBUTE((__unused__))) {
   DBUG_ENTER_FUNC();
-  DBUG_RETURN(0);
+  /* see the comment at the end of rocksdb_done_func() */
+  DBUG_RETURN(1);
 }
 
 static struct st_mysql_information_schema rdb_i_s_info = {
@@ -1978,7 +1934,7 @@ struct st_maria_plugin rdb_i_s_lock_info = {
     "RocksDB lock information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_lock_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */
@@ -1994,7 +1950,7 @@ struct st_maria_plugin rdb_i_s_trx_info = {
     "RocksDB transaction information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_trx_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */
@@ -2010,7 +1966,7 @@ struct st_maria_plugin rdb_i_s_deadlock_info = {
     "RocksDB transaction information",
     PLUGIN_LICENSE_GPL,
     rdb_i_s_deadlock_info_init,
-    nullptr,
+    rdb_i_s_deinit,
     0x0001,  /* version number (0.1) */
     nullptr, /* status variables */
     nullptr, /* system variables */

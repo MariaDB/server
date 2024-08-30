@@ -1,0 +1,58 @@
+# MDEV-24248: my_print_defaults is not taking all the values when using
+# -e option which is called from mysql.server (extra_args).
+#
+# checking for mysql.server
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+--max_connections=1024
+--long_query_time=60
+--slow_query_log=1
+#
+# MDEV-25908: -e does not work for my_print_defaults
+#
+#Testing --defaults-extra-file
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+#
+# Testing other options
+#
+# Testing --defaults-file
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing --defaults-group-suffix
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+# Testing --no-defaults
+# End of 10.5 Test
+# Beginning of 10.7 test
+#
+# MDEV-26238: Remove inconsistent behaviour of --default-* options in
+# my_print_defaults
+#
+# checking that --defaults* option only works when mentioned at beginning
+# Testing --defaults-file at beginning only
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing --defaults-extra-file works at beginning only
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing --defaults-group-suffix works at beginning only
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+# End of 10.7 test

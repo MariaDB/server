@@ -4,9 +4,6 @@
 --echo #               USED.
 --echo #
 
-#remove this include in 10.6 version
---source include/no_view_protocol.inc
-
 SET @old_character_set_client= @@character_set_client;
 SET @old_character_set_connection= @@character_set_connection;
 SET @old_character_set_results= @@character_set_results;
@@ -49,4 +46,30 @@ let $coll_pad='cp932_bin';
 
 --echo #
 --echo # End of 10.2 tests
+--echo #
+
+
+--echo #
+--echo # General tests
+--echo #
+SET NAMES cp932;
+-- source include/ctype_ascii_order.inc
+SET NAMES cp932 COLLATE cp932_bin;
+-- source include/ctype_ascii_order.inc
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
+--echo #
+
+SET NAMES cp932;
+SET @seq=_cp932 0x81AD;
+--source include/ctype_ident_sys.inc
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

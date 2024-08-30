@@ -495,7 +495,7 @@ dump_record(grn_ctx *ctx, grn_dumper *dumper,
     }
   }
   GRN_TEXT_PUTC(ctx, dumper->output, ']');
-  if (GRN_TEXT_LEN(dumper->output) >= DUMP_FLUSH_THRESHOLD_SIZE) {
+  if ((size_t) GRN_TEXT_LEN(dumper->output) >= DUMP_FLUSH_THRESHOLD_SIZE) {
     grn_ctx_output_flush(ctx, 0);
   }
 }

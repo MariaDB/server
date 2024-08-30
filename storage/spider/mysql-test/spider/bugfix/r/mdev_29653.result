@@ -19,6 +19,8 @@ USE auto_test_local;
 CREATE TABLE ts (
 c INT
 ) ENGINE=Spider COMMENT='table "t", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT 1 FROM ts WHERE ROW(c, c) NOT IN ((0,0),(1,1));
 1
 connection master_1;

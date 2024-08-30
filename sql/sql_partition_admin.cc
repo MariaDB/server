@@ -32,6 +32,7 @@
 #include "ha_partition.h"                   // ha_partition
 #endif
 #include "sql_base.h"                       // open_and_lock_tables
+#include "ddl_log.h"
 #include "wsrep_mysqld.h"
 
 #ifndef WITH_PARTITION_STORAGE_ENGINE
@@ -46,6 +47,16 @@ bool Sql_cmd_partition_unsupported::execute(THD *)
 }
 
 #else
+
+static bool return_with_logging(THD *thd)
+{
+  if (thd->slave_thread &&
+      write_bin_log_with_if_exists(thd, true, false, true))
+    return(true);
+  my_ok(thd);
+  return(false);
+}
+
 
 bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
 {
@@ -64,7 +75,7 @@ bool Sql_cmd_alter_table_exchange_partition::execute(THD *thd)
   */
   IF_DBUG(HA_CREATE_INFO create_info(lex->create_info);,)
   Alter_info alter_info(lex->alter_info, thd->mem_root);
-  ulong priv_needed= ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL;
+  privilege_t priv_needed(ALTER_ACL | DROP_ACL | INSERT_ACL | CREATE_ACL);
 
   DBUG_ENTER("Sql_cmd_alter_table_exchange_partition::execute");
 
@@ -182,12 +193,11 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
   @param part_table Partitioned table.
   @param part_elem  Partition element to use for partition specific compare.
 */
-static bool compare_table_with_partition(THD *thd, TABLE *table,
-                                         TABLE *part_table,
-                                         partition_element *part_elem,
-                                         uint part_id)
+bool compare_table_with_partition(THD *thd, TABLE *table, TABLE *part_table,
+                                  partition_element *part_elem, uint part_id)
 {
-  HA_CREATE_INFO table_create_info, part_create_info;
+  HA_CREATE_INFO table_create_info;
+  Table_specification_st part_create_info;
   Alter_info part_alter_info;
   Alter_table_ctx part_alter_ctx; // Not used
   DBUG_ENTER("compare_table_with_partition");
@@ -287,7 +297,7 @@ static bool compare_table_with_partition(THD *thd, TABLE *table,
     The workaround is to use REORGANIZE PARTITION to rewrite
     the frm file and then use EXCHANGE PARTITION when they are the same.
   */
-  if (compare_partition_options(&table_create_info, part_elem))
+  if (part_elem && compare_partition_options(&table_create_info, part_elem))
     DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
@@ -350,13 +360,14 @@ static bool exchange_name_with_ddl_log(THD *thd,
     DBUG_RETURN(TRUE);
 
   /* prepare the action entry */
+  bzero(&exchange_entry, sizeof(exchange_entry));
   exchange_entry.entry_type=   DDL_LOG_ENTRY_CODE;
   exchange_entry.action_type=  DDL_LOG_EXCHANGE_ACTION;
-  exchange_entry.next_entry=   0;
-  exchange_entry.name=         name;
-  exchange_entry.from_name=    from_name;
-  exchange_entry.tmp_name=     tmp_name;
-  exchange_entry.handler_name= ha_resolve_storage_engine_name(ht);
+  lex_string_set(&exchange_entry.name,         name);
+  lex_string_set(&exchange_entry.from_name,    from_name);
+  lex_string_set(&exchange_entry.tmp_name,     tmp_name);
+  lex_string_set(&exchange_entry.handler_name,
+                 ha_resolve_storage_engine_name(ht));
   exchange_entry.phase=        EXCH_PHASE_NAME_TO_TEMP;
 
   mysql_mutex_lock(&LOCK_gdl);
@@ -367,13 +378,13 @@ static bool exchange_name_with_ddl_log(THD *thd,
   */
   DBUG_EXECUTE_IF("exchange_partition_fail_1", goto err_no_action_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_1", DBUG_SUICIDE(););
-  if (unlikely(write_ddl_log_entry(&exchange_entry, &log_entry)))
+  if (unlikely(ddl_log_write_entry(&exchange_entry, &log_entry)))
     goto err_no_action_written;
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(write_execute_ddl_log_entry(log_entry->entry_pos, FALSE,
-                                            &exec_log_entry)))
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+                                           &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
 
@@ -399,7 +410,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_4", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_4", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from partition to table */
@@ -416,7 +427,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_6", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_6", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from tmp-nam to partition */
@@ -433,7 +444,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_8", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_8", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* The exchange is complete and ddl_log is deactivated */
@@ -449,15 +460,15 @@ err_rename:
     will log to the error log about the failures...
   */
   /* execute the ddl log entry to revert the renames */
-  (void) execute_ddl_log_entry(current_thd, log_entry->entry_pos);
+  (void) ddl_log_execute_entry(current_thd, log_entry->entry_pos);
   mysql_mutex_lock(&LOCK_gdl);
   /* mark the execute log entry done */
-  (void) write_execute_ddl_log_entry(0, TRUE, &exec_log_entry);
+  (void) ddl_log_disable_execute_entry(&exec_log_entry);
   /* release the execute log entry */
-  (void) release_ddl_log_memory_entry(exec_log_entry);
+  (void) ddl_log_release_memory_entry(exec_log_entry);
 err_no_execute_written:
   /* release the action log entry */
-  (void) release_ddl_log_memory_entry(log_entry);
+  (void) ddl_log_release_memory_entry(log_entry);
 err_no_action_written:
   mysql_mutex_unlock(&LOCK_gdl);
   delete file;
@@ -496,18 +507,28 @@ bool Sql_cmd_alter_table_exchange_partition::
   TABLE_LIST *swap_table_list;
   handlerton *table_hton;
   partition_element *part_elem;
-  const char *partition_name;
   char temp_name[FN_REFLEN+1];
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
   char temp_file_name[FN_REFLEN+1];
+  char part_table_name[NAME_LEN + 1];
+  char part_db[NAME_LEN + 1];
+  char swap_table_name[NAME_LEN + 1];
+  char swap_db[NAME_LEN + 1];
+  uchar part_tabledef_version[MY_UUID_SIZE];
+  uchar swap_tabledef_version[MY_UUID_SIZE];
+
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+
   uint swap_part_id;
   uint part_file_name_len;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
   MDL_ticket *swap_table_mdl_ticket= NULL;
   MDL_ticket *part_table_mdl_ticket= NULL;
   uint table_counter;
-  bool error= TRUE;
+  bool error= TRUE, force_if_exists= 0;
+  ulonglong save_option_bits= thd->variables.option_bits;
   DBUG_ENTER("mysql_exchange_partition");
   DBUG_ASSERT(alter_info->partition_flags & ALTER_PARTITION_EXCHANGE);
 
@@ -535,7 +556,25 @@ bool Sql_cmd_alter_table_exchange_partition::
   table_list->mdl_request.set_type(MDL_SHARED_NO_WRITE);
   if (unlikely(open_tables(thd, &table_list, &table_counter, 0,
                            &alter_prelocking_strategy)))
+  {
+    if (thd->lex->if_exists() &&
+        thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+    {
+      /*
+        ALTER TABLE IF EXISTS was used on not existing table
+        We have to log the query on a slave as the table may be a shared one
+        from the master and we need to ensure that the next slave can see
+        the statement as this slave may not have the table shared
+      */
+      thd->clear_error();
+      if (thd->slave_thread &&
+          write_bin_log(thd, true, thd->query(), thd->query_length()))
+        DBUG_RETURN(true);
+      my_ok(thd);
+      DBUG_RETURN(false);
+    }
     DBUG_RETURN(true);
+  }
 
   part_table= table_list->table;
   swap_table= swap_table_list->table;
@@ -551,16 +590,52 @@ bool Sql_cmd_alter_table_exchange_partition::
   if (unlikely(check_exchange_partition(swap_table, part_table)))
     DBUG_RETURN(TRUE);
 
+  if (part_table->file->check_if_updates_are_ignored("ALTER"))
+    DBUG_RETURN(return_with_logging(thd));
+
+  /* Add IF EXISTS to binlog if shared table */
+  if (part_table->file->partition_ht()->flags &
+      HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
+    force_if_exists= 1;
+
+  ddl_log.org_table.str= part_table_name;
+  DBUG_ASSERT(part_table->s->table_name.length <= NAME_LEN);
+  ddl_log.org_table.length= part_table->s->table_name.length;
+  strmake(part_table_name, part_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.org_database.str= part_db;
+  DBUG_ASSERT(part_table->s->db.length <= NAME_LEN);
+  ddl_log.org_database.length= part_table->s->db.length;
+  strmake(part_db, part_table->s->db.str, NAME_LEN);
+
+  ddl_log.new_table.str= swap_table_name;
+  DBUG_ASSERT(swap_table->s->table_name.length <= NAME_LEN);
+  ddl_log.new_table.length= swap_table->s->table_name.length;
+  strmake(swap_table_name, swap_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.new_database.str= swap_db;
+  DBUG_ASSERT(swap_table->s->db.length <= NAME_LEN);
+  ddl_log.new_database.length= swap_table->s->db.length;
+  strmake(swap_db, swap_table->s->db.str, NAME_LEN);
+
+  memcpy(part_tabledef_version, part_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.org_table_id.str= part_tabledef_version;
+  ddl_log.org_table_id.length= MY_UUID_SIZE;
+  memcpy(swap_tabledef_version, swap_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.new_table_id.str= swap_tabledef_version;
+  ddl_log.new_table_id.length= MY_UUID_SIZE;
+
   /* set lock pruning on first table */
-  partition_name= alter_info->partition_names.head();
+  const Lex_cstring_strlen partition_name= alter_info->partition_names.head();
   if (unlikely(table_list->table->part_info->
-               set_named_partition_bitmap(partition_name,
-                                          strlen(partition_name))))
+               set_named_partition_bitmap(partition_name.str,
+                                          partition_name.length)))
     DBUG_RETURN(true);
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
     DBUG_RETURN(true);
-
 
   table_hton= swap_table->file->ht;
 
@@ -577,11 +652,14 @@ bool Sql_cmd_alter_table_exchange_partition::
                        swap_table_list->db.str,
                        swap_table_list->table_name.str,
                        "", 0);
-  /* create a unique temp name #sqlx-nnnn_nnnn, x for eXchange */
-  my_snprintf(temp_name, sizeof(temp_name), "%sx-%lx_%llx",
+  /* create a unique temp name */
+  my_snprintf(temp_name, sizeof(temp_name), "%s-exchange-%lx-%llx",
               tmp_file_prefix, current_pid, thd->thread_id);
   if (lower_case_table_names)
-    my_casedn_str(files_charset_info, temp_name);
+  {
+    // Ok to use latin1 as the file name is in the form '#sql-exchange-abc-def'
+    my_casedn_str_latin1(temp_name);
+  }
   build_table_filename(temp_file_name, sizeof(temp_file_name),
                        table_list->next_local->db.str,
                        temp_name, "", FN_IS_TMP);
@@ -652,6 +730,9 @@ bool Sql_cmd_alter_table_exchange_partition::
   */
   (void) thd->locked_tables_list.reopen_tables(thd, false);
 
+  if (force_if_exists)
+    thd->variables.option_bits|= OPTION_IF_EXISTS;
+
   if (unlikely((error= write_bin_log(thd, TRUE, thd->query(),
                                      thd->query_length()))))
   {
@@ -662,6 +743,16 @@ bool Sql_cmd_alter_table_exchange_partition::
     (void) exchange_name_with_ddl_log(thd, part_file_name, swap_file_name,
                                       temp_file_name, table_hton);
   }
+  else
+  {
+    ddl_log.query= { C_STRING_WITH_LEN("EXCHANGE_PARTITION") };
+    ddl_log.org_partitioned= true;
+    ddl_log.new_partitioned= false;
+    ddl_log.org_storage_engine_name= *hton_name(table_hton);
+    ddl_log.new_storage_engine_name= *hton_name(table_hton);
+    backup_log_ddl(&ddl_log);
+  }
+  thd->variables.option_bits= save_option_bits;
 
 err:
   if (thd->locked_tables_mode)
@@ -760,7 +851,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   Alter_info *alter_info= &thd->lex->alter_info;
   uint table_counter, i;
   List<String> partition_names_list;
-  bool binlog_stmt;
+  bool binlog_stmt, force_if_exists= 0;
   DBUG_ENTER("Sql_cmd_alter_table_truncate_partition::execute");
 
   /*
@@ -798,16 +889,41 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 #endif /* WITH_WSREP */
 
   if (open_tables(thd, &first_table, &table_counter, 0))
-    DBUG_RETURN(true);
+  {
+    if (thd->lex->if_exists() &&
+        thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+    {
+      /*
+        ALTER TABLE IF EXISTS was used on not existing table
+        We have to log the query on a slave as the table may be a shared one
+        from the master and we need to ensure that the next slave can see
+        the statement as this slave may not have the table shared
+      */
+      thd->clear_error();
+      DBUG_RETURN(return_with_logging(thd));
+    }
+    DBUG_RETURN(TRUE);
+  }
 
-  if (!first_table->table || first_table->view ||
-      first_table->table->s->db_type() != partition_hton)
+  if (!first_table->table || first_table->view)
   {
     my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
     DBUG_RETURN(TRUE);
   }
 
-  
+  if (first_table->table->file->check_if_updates_are_ignored("ALTER"))
+    DBUG_RETURN(return_with_logging(thd));
+
+  if (first_table->table->s->db_type() != partition_hton)
+  {
+    my_error(ER_PARTITION_MGMT_ON_NONPARTITIONED, MYF(0));
+    DBUG_RETURN(TRUE);
+  }
+
+  if (first_table->table->file->partition_ht()->flags &
+      HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
+    force_if_exists= 1;
+
   /*
     Prune all, but named partitions,
     to avoid excessive calls to external_lock().
@@ -818,7 +934,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   {
     const char *partition_name= partition_names_it++;
     String *str_partition_name= new (thd->mem_root)
-                                  String(partition_name, system_charset_info);
+      String(partition_name, strlen(partition_name), system_charset_info);
     if (!str_partition_name)
       DBUG_RETURN(true);
     partition_names_list.push_back(str_partition_name, thd->mem_root);
@@ -839,8 +955,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   if (thd->mdl_context.upgrade_shared_lock(ticket, MDL_EXCLUSIVE, timeout))
     DBUG_RETURN(TRUE);
 
-  tdc_remove_table(thd, TDC_RT_REMOVE_NOT_OWN, first_table->db.str,
-                   first_table->table_name.str, FALSE);
+  first_table->table->s->tdc->flush(thd, true);
 
   partition= (ha_partition*) first_table->table->file;
   /* Invoke the handler method responsible for truncating the partition. */
@@ -860,9 +975,14 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   */
   if (likely(error != HA_ERR_WRONG_COMMAND))
   {
+    ulonglong save_option_bits= thd->variables.option_bits;
+    if (force_if_exists)
+      thd->variables.option_bits|= OPTION_IF_EXISTS;
+
     query_cache_invalidate3(thd, first_table, FALSE);
     if (binlog_stmt)
       error|= write_bin_log(thd, !error, thd->query(), thd->query_length());
+    thd->variables.option_bits= save_option_bits;
   }
 
   /*
@@ -881,6 +1001,55 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   query_cache_invalidate3(thd, first_table, FALSE);
 
   DBUG_RETURN(error);
+}
+
+
+/**
+  Move a table specified in the CONVERT TABLE <table_name> TO PARTITION ...
+  to the new partition.
+
+  @param lpt  A structure containing parameters regarding to the statement
+              ALTER TABLE ... TO PARTITION ...
+  @param part_file_name  a file name of the partition being added
+
+  @return false on success, true on error
+*/
+
+bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  char part_file_name[2*FN_REFLEN+1];
+  THD *thd= lpt->thd;
+  const char *path= lpt->table_list->table->s->path.str;
+  TABLE_LIST *table_from= lpt->table_list->next_local;
+
+  const Lex_ident_partition &partition_name=
+    thd->lex->part_info->curr_part_elem->partition_name;
+
+  if (create_partition_name(part_file_name, sizeof(part_file_name), path,
+                            partition_name, NORMAL_PART_NAME, false))
+    return true;
+
+  char from_file_name[FN_REFLEN+1];
+
+  build_table_filename(from_file_name, sizeof(from_file_name),
+                       table_from->db.str, table_from->table_name.str, "", 0);
+
+  handler *file= get_new_handler(nullptr, thd->mem_root,
+                                 table_from->table->file->ht);
+  if (unlikely(!file))
+    return true;
+
+  close_all_tables_for_name(thd, table_from->table->s,
+                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
+
+  bool res= file->ha_rename_table(from_file_name, part_file_name);
+
+  if (res)
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
+             part_file_name, my_errno);
+
+  delete file;
+  return res;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */

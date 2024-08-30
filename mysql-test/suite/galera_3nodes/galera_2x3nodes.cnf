@@ -1,5 +1,5 @@
 # Use default setting for mysqld processes
-!include include/default_mysqld.cnf
+!include include/default_my.cnf
 
 [mysqld]
 loose-innodb
@@ -82,6 +82,9 @@ wsrep_provider_options='repl.causal_read_timeout=PT90S;base_port=@mysqld.6.#gale
 wsrep_node_address='127.0.0.1:@mysqld.6.#galera_port'
 wsrep_node_incoming_address=127.0.0.1:@mysqld.6.port
 wsrep_sst_receive_address='127.0.0.1:@mysqld.6.#sst_port'
+
+[sst]
+sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

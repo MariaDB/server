@@ -1,0 +1,42 @@
+The libmariadb3.symbols files is used to track the libmariadb3 ABI.
+
+If a symbol is removed or changed, the Debian build will fail unless the same change has also explicitly been made in the libmariadb3.symbols file.
+
+If a symbol is added, the Debian build will issue a warning like:
+
+   dh_makeshlibs -O--parallel
+	rm -f debian/libmariadb3/DEBIAN/shlibs
+	echo "libmariadb 3 libmariadb3" >> debian/libmariadb3/DEBIAN/shlibs
+	chmod 0644 -- debian/libmariadb3/DEBIAN/shlibs
+	chown 0:0 -- debian/libmariadb3/DEBIAN/shlibs
+	dpkg-gensymbols -plibmariadb3 -Idebian/libmariadb3.symbols -Pdebian/libmariadb3 -edebian/libmariadb3/usr/lib/x86_64-linux-gnu/libmariadb.so.3
+  dpkg-gensymbols: warning: some new symbols appeared in the symbols file: see diff output below
+  dpkg-gensymbols: warning: debian/libmariadb3/DEBIAN/symbols doesn't match completely debian/libmariadb3.symbols
+  --- debian/libmariadb3.symbols (libmariadb3_10.2.32+maria~sid_amd64)
+  +++ dpkg-gensymbolsUfTky5	2020-02-20 11:27:03.815551573 +0000
+  @@ -12,6 +12,7 @@
+    mariadb_get_charset_by_name@libmariadb_3 3.0.0
+    mariadb_get_charset_by_nr@libmariadb_3 3.0.0
+    mariadb_get_info@libmariadb_3 3.0.0
+  + mariadb_get_infov@libmariadb_3 10.2.32+maria~sid
+    mariadb_reconnect@libmariadb_3 3.0.0
+    mariadb_rpl_close@libmariadb_3 3.1.0
+    mariadb_rpl_fetch@libmariadb_3 3.1.0
+
+
+When this happens, please add the symbol to the libmariadb3.symbols file.
+Unlike the automatic diff above, don't use the server version for the symbols.
+
+Instead use the client library version, which can be viewed with:
+
+  $ grep 'SET(CPACK_PACKAGE_VERSION_' libmariadb/CMakeLists.txt 
+  SET(CPACK_PACKAGE_VERSION_MAJOR 3)
+  SET(CPACK_PACKAGE_VERSION_MINOR 1)
+  SET(CPACK_PACKAGE_VERSION_PATCH 7)
+
+In this example, the line to add would be:
+
+  mariadb_get_infov@libmariadb_3 3.1.7
+
+
+Remember to not break the ABI in a stable release!

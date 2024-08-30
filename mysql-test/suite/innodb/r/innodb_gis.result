@@ -1,4 +1,4 @@
-SET storage_engine=innodb;
+SET default_storage_engine=innodb;
 DROP TABLE IF EXISTS t1, gis_point, gis_line, gis_polygon, gis_multi_point, gis_multi_line, gis_multi_polygon, gis_geometrycollection, gis_geometry;
 CREATE TABLE gis_point  (fid INTEGER PRIMARY KEY AUTO_INCREMENT, g POINT);
 CREATE TABLE gis_line  (fid INTEGER PRIMARY KEY AUTO_INCREMENT, g LINESTRING);
@@ -14,7 +14,7 @@ gis_point	CREATE TABLE `gis_point` (
   `fid` int(11) NOT NULL AUTO_INCREMENT,
   `g` point DEFAULT NULL,
   PRIMARY KEY (`fid`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 SHOW FIELDS FROM gis_point;
 Field	Type	Null	Key	Default	Extra
 fid	int(11)	NO	PRI	NULL	auto_increment
@@ -452,9 +452,9 @@ ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 drop table t1;
 create table t1 (pk integer primary key auto_increment, fl geometry not null);
 insert into t1 (fl) values (1);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'int' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 (fl) values (1.11);
-ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+ERROR HY000: Cannot cast 'decimal' as 'geometry' in assignment of `test`.`t1`.`fl`
 insert into t1 (fl) values ("qwerty");
 ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 insert into t1 (fl) values (pointfromtext('point(1,1)'));

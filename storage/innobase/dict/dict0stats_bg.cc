@@ -27,66 +27,48 @@ Created Apr 25, 2012 Vasil Dimov
 #include "dict0dict.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
-#include "dict0defrag_bg.h"
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "fil0fil.h"
+#include "mysqld.h"
 #ifdef WITH_WSREP
 # include "trx0trx.h"
 # include "mysql/service_wsrep.h"
 # include "wsrep.h"
 # include "log.h"
-extern Atomic_relaxed<bool> wsrep_sst_disable_writes;
-#else
-constexpr bool wsrep_sst_disable_writes= false;
 #endif
 
 #include <vector>
 
 /** Minimum time interval between stats recalc for a given table */
 #define MIN_RECALC_INTERVAL	10 /* seconds */
+static void dict_stats_schedule(int ms);
 
-/** Event to wake up dict_stats_thread on dict_stats_recalc_pool_add()
-or shutdown. Not protected by any mutex. */
-os_event_t			dict_stats_event;
+/** Protects recalc_pool */
+static mysql_mutex_t recalc_pool_mutex;
 
-/** Variable to initiate shutdown the dict stats thread. Note we don't
-use 'srv_shutdown_state' because we want to shutdown dict stats thread
-before purge thread. */
-bool				dict_stats_start_shutdown;
+/** for signaling recalc::state */
+static pthread_cond_t recalc_pool_cond;
 
-/** Event to wait for shutdown of the dict stats thread */
-os_event_t			dict_stats_shutdown_event;
+/** Work item of the recalc_pool; protected by recalc_pool_mutex */
+struct recalc
+{
+  /** identifies a table with persistent statistics */
+  table_id_t id;
+  /** state of the entry */
+  enum { IDLE, IN_PROGRESS, IN_PROGRESS_DELETING, DELETING} state;
+};
 
-#ifdef UNIV_DEBUG
-/** Used by SET GLOBAL innodb_dict_stats_disabled_debug = 1; */
-my_bool				innodb_dict_stats_disabled_debug;
-
-static os_event_t		dict_stats_disabled_event;
-#endif /* UNIV_DEBUG */
-
-/** This mutex protects the "recalc_pool" variable. */
-static ib_mutex_t		recalc_pool_mutex;
-
-/** Allocator type, used by std::vector */
-typedef ut_allocator<table_id_t>
-	recalc_pool_allocator_t;
-
-/** The multitude of tables whose stats are to be automatically
-recalculated - an STL vector */
-typedef std::vector<table_id_t, recalc_pool_allocator_t>
-	recalc_pool_t;
-
-/** Iterator type for iterating over the elements of objects of type
-recalc_pool_t. */
-typedef recalc_pool_t::iterator
-	recalc_pool_iterator_t;
+/** The multitude of tables whose stats are to be automatically recalculated */
+typedef std::vector<recalc, ut_allocator<recalc>> recalc_pool_t;
 
 /** Pool where we store information on which tables are to be processed
 by background statistics gathering. */
 static recalc_pool_t		recalc_pool;
 /** Whether the global data structures have been initialized */
 static bool			stats_initialised;
+
+static THD *dict_stats_thd;
 
 /*****************************************************************//**
 Free the resources occupied by the recalc pool, called once during
@@ -96,7 +78,6 @@ static void dict_stats_recalc_pool_deinit()
 	ut_ad(!srv_read_only_mode);
 
 	recalc_pool.clear();
-	defrag_pool.clear();
         /*
           recalc_pool may still have its buffer allocated. It will free it when
           its destructor is called.
@@ -106,9 +87,10 @@ static void dict_stats_recalc_pool_deinit()
           to empty_pool object, which will free it when leaving this function:
         */
 	recalc_pool_t recalc_empty_pool;
-	defrag_pool_t defrag_empty_pool;
 	recalc_pool.swap(recalc_empty_pool);
-	defrag_pool.swap(defrag_empty_pool);
+
+	if (dict_stats_thd)
+		destroy_background_thd(dict_stats_thd);
 }
 
 /*****************************************************************//**
@@ -117,32 +99,23 @@ background stats gathering thread. Only the table id is added to the
 list, so the table can be closed after being enqueued and it will be
 opened when needed. If the table does not exist later (has been DROPped),
 then it will be removed from the pool and skipped. */
-static
-void
-dict_stats_recalc_pool_add(
-/*=======================*/
-	const dict_table_t*	table)	/*!< in: table to add */
+static void dict_stats_recalc_pool_add(table_id_t id)
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
+  ut_ad(id);
+  bool schedule = false;
+  mysql_mutex_lock(&recalc_pool_mutex);
 
-	mutex_enter(&recalc_pool_mutex);
+  const auto begin= recalc_pool.begin(), end= recalc_pool.end();
+  if (end == std::find_if(begin, end, [&](const recalc &r){return r.id == id;}))
+  {
+    recalc_pool.emplace_back(recalc{id, recalc::IDLE});
+    schedule = true;
+  }
 
-	/* quit if already in the list */
-	for (recalc_pool_iterator_t iter = recalc_pool.begin();
-	     iter != recalc_pool.end();
-	     ++iter) {
-
-		if (*iter == table->id) {
-			mutex_exit(&recalc_pool_mutex);
-			return;
-		}
-	}
-
-	recalc_pool.push_back(table->id);
-
-	mutex_exit(&recalc_pool_mutex);
-
-	os_event_set(dict_stats_event);
+  mysql_mutex_unlock(&recalc_pool_mutex);
+  if (schedule)
+    dict_stats_schedule_now();
 }
 
 #ifdef WITH_WSREP
@@ -158,8 +131,6 @@ schedule new estimates for table and index statistics to be calculated.
 void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
-	ut_ad(!mutex_own(&dict_sys.mutex));
-
 	if (UNIV_UNLIKELY(!table->stat_initialized)) {
 		/* The table may have been evicted from dict_sys
 		and reloaded internally by InnoDB for FOREIGN KEY
@@ -180,6 +151,9 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	ulonglong	n_rows = dict_table_get_n_rows(table);
 
 	if (dict_stats_is_persistent_enabled(table)) {
+		if (table->name.is_temporary()) {
+			return;
+		}
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
 
@@ -207,7 +181,7 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 			}
 #endif /* WITH_WSREP */
 
-			dict_stats_recalc_pool_add(table);
+			dict_stats_recalc_pool_add(table->id);
 			table->stat_modified_counter = 0;
 		}
 		return;
@@ -229,312 +203,217 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	}
 }
 
-/*****************************************************************//**
-Get a table from the auto recalc pool. The returned table id is removed
-from the pool.
-@return true if the pool was non-empty and "id" was set, false otherwise */
-static
-bool
-dict_stats_recalc_pool_get(
-/*=======================*/
-	table_id_t*	id)	/*!< out: table id, or unmodified if list is
-				empty */
+/** Delete a table from the auto recalc pool, and ensure that
+no statistics are being updated on it. */
+void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive)
 {
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
+  ut_ad(id);
 
-	mutex_enter(&recalc_pool_mutex);
+  mysql_mutex_lock(&recalc_pool_mutex);
 
-	if (recalc_pool.empty()) {
-		mutex_exit(&recalc_pool_mutex);
-		return(false);
-	}
+  auto end= recalc_pool.end();
+  auto i= std::find_if(recalc_pool.begin(), end,
+                       [&](const recalc &r){return r.id == id;});
+  if (i != end)
+  {
+    switch (i->state) {
+    case recalc::IN_PROGRESS:
+      if (!have_mdl_exclusive)
+      {
+        i->state= recalc::IN_PROGRESS_DELETING;
+        do
+        {
+          my_cond_wait(&recalc_pool_cond, &recalc_pool_mutex.m_mutex);
+          end= recalc_pool.end();
+          i= std::find_if(recalc_pool.begin(), end,
+                          [&](const recalc &r){return r.id == id;});
+          if (i == end)
+            goto done;
+        }
+        while (i->state == recalc::IN_PROGRESS_DELETING);
+      }
+      /* fall through */
+    case recalc::IDLE:
+      recalc_pool.erase(i);
+      break;
+    case recalc::IN_PROGRESS_DELETING:
+    case recalc::DELETING:
+      /* another thread will delete the entry in dict_stats_recalc_pool_del() */
+      break;
+    }
+  }
 
-	*id = recalc_pool.at(0);
-
-	recalc_pool.erase(recalc_pool.begin());
-
-	mutex_exit(&recalc_pool_mutex);
-
-	return(true);
-}
-
-/*****************************************************************//**
-Delete a given table from the auto recalc pool.
-dict_stats_recalc_pool_del() */
-void
-dict_stats_recalc_pool_del(
-/*=======================*/
-	const dict_table_t*	table)	/*!< in: table to remove */
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(mutex_own(&dict_sys.mutex));
-
-	mutex_enter(&recalc_pool_mutex);
-
-	ut_ad(table->id > 0);
-
-	for (recalc_pool_iterator_t iter = recalc_pool.begin();
-	     iter != recalc_pool.end();
-	     ++iter) {
-
-		if (*iter == table->id) {
-			/* erase() invalidates the iterator */
-			recalc_pool.erase(iter);
-			break;
-		}
-	}
-
-	mutex_exit(&recalc_pool_mutex);
-}
-
-/*****************************************************************//**
-Wait until background stats thread has stopped using the specified table.
-The caller must have locked the data dictionary using
-row_mysql_lock_data_dictionary() and this function may unlock it temporarily
-and restore the lock before it exits.
-The background stats thread is guaranteed not to start using the specified
-table after this function returns and before the caller unlocks the data
-dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys.mutex. */
-void
-dict_stats_wait_bg_to_stop_using_table(
-/*===================================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx)	/*!< in/out: transaction to use for
-				unlocking/locking the data dict */
-{
-	while (!dict_stats_stop_bg(table)) {
-		DICT_BG_YIELD(trx);
-	}
+done:
+  mysql_mutex_unlock(&recalc_pool_mutex);
 }
 
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread()
 Must be called before dict_stats_thread() is started. */
-void
-dict_stats_thread_init()
+void dict_stats_init()
 {
-	ut_a(!srv_read_only_mode);
-
-	dict_stats_event = os_event_create(0);
-	dict_stats_shutdown_event = os_event_create(0);
-	ut_d(dict_stats_disabled_event = os_event_create(0));
-
-	/* The recalc_pool_mutex is acquired from:
-	1) the background stats gathering thread before any other latch
-	   and released without latching anything else in between (thus
-	   any level would do here)
-	2) from dict_stats_update_if_needed()
-	   and released without latching anything else in between. We know
-	   that dict_sys.mutex (SYNC_DICT) is not acquired when
-	   dict_stats_update_if_needed() is called and it may be acquired
-	   inside that function (thus a level <=SYNC_DICT would do).
-	3) from row_drop_table_for_mysql() after dict_sys.mutex (SYNC_DICT)
-	   and dict_sys.latch (SYNC_DICT_OPERATION) have been locked
-	   (thus a level <SYNC_DICT && <SYNC_DICT_OPERATION would do)
-	So we choose SYNC_STATS_AUTO_RECALC to be about below SYNC_DICT. */
-
-	mutex_create(LATCH_ID_RECALC_POOL, &recalc_pool_mutex);
-
-	dict_defrag_pool_init();
-	stats_initialised = true;
+  ut_ad(!srv_read_only_mode);
+  mysql_mutex_init(recalc_pool_mutex_key, &recalc_pool_mutex, nullptr);
+  pthread_cond_init(&recalc_pool_cond, nullptr);
+  stats_initialised= true;
 }
 
 /*****************************************************************//**
-Free resources allocated by dict_stats_thread_init(), must be called
-after dict_stats_thread() has exited. */
-void
-dict_stats_thread_deinit()
-/*======================*/
+Free resources allocated by dict_stats_init(), must be called
+after dict_stats task has exited. */
+void dict_stats_deinit()
 {
-	ut_a(!srv_read_only_mode);
-	ut_ad(!srv_dict_stats_thread_active);
-
 	if (!stats_initialised) {
 		return;
 	}
 
+	ut_ad(!srv_read_only_mode);
 	stats_initialised = false;
 
 	dict_stats_recalc_pool_deinit();
-	dict_defrag_pool_deinit();
 
-	mutex_free(&recalc_pool_mutex);
-
-	ut_d(os_event_destroy(dict_stats_disabled_event));
-	os_event_destroy(dict_stats_event);
-	os_event_destroy(dict_stats_shutdown_event);
-	dict_stats_start_shutdown = false;
+	mysql_mutex_destroy(&recalc_pool_mutex);
+	pthread_cond_destroy(&recalc_pool_cond);
 }
 
-/*****************************************************************//**
+/**
 Get the first table that has been added for auto recalc and eventually
-update its stats. */
-static
-void
-dict_stats_process_entry_from_recalc_pool()
-/*=======================================*/
+update its stats.
+@return whether the first entry can be processed immediately */
+static bool dict_stats_process_entry_from_recalc_pool(THD *thd)
 {
-	table_id_t	table_id;
+  ut_ad(!srv_read_only_mode);
+  table_id_t table_id;
+  mysql_mutex_lock(&recalc_pool_mutex);
+next_table_id_with_mutex:
+  for (auto &r : recalc_pool)
+  {
+    if ((table_id= r.id) && r.state == recalc::IDLE)
+    {
+      r.state= recalc::IN_PROGRESS;
+      mysql_mutex_unlock(&recalc_pool_mutex);
+      goto process;
+    }
+  }
+  mysql_mutex_unlock(&recalc_pool_mutex);
+  return false;
 
-	ut_ad(!srv_read_only_mode);
+process:
+  MDL_ticket *mdl= nullptr;
+  dict_table_t *table= dict_table_open_on_id(table_id, false,
+                                             DICT_TABLE_OP_NORMAL, thd, &mdl);
+  if (!table)
+  {
+invalid_table_id:
+    mysql_mutex_lock(&recalc_pool_mutex);
+    auto i= std::find_if(recalc_pool.begin(), recalc_pool.end(),
+                         [&](const recalc &r){return r.id == table_id;});
+    if (i == recalc_pool.end());
+    else if (UNIV_LIKELY(i->state == recalc::IN_PROGRESS))
+      recalc_pool.erase(i);
+    else
+    {
+      ut_ad(i->state == recalc::IN_PROGRESS_DELETING);
+      i->state= recalc::DELETING;
+      pthread_cond_broadcast(&recalc_pool_cond);
+    }
+    goto next_table_id_with_mutex;
+  }
 
-	/* pop the first table from the auto recalc pool */
-	if (!dict_stats_recalc_pool_get(&table_id)) {
-		/* no tables for auto recalc */
-		return;
-	}
+  ut_ad(!table->is_temporary());
 
-	dict_table_t*	table;
+  if (!mdl || !table->is_accessible())
+  {
+    dict_table_close(table, false, thd, mdl);
+    goto invalid_table_id;
+  }
 
-	mutex_enter(&dict_sys.mutex);
+  /* time() could be expensive, the current function
+  is called once every time a table has been changed more than 10% and
+  on a system with lots of small tables, this could become hot. If we
+  find out that this is a problem, then the check below could eventually
+  be replaced with something else, though a time interval is the natural
+  approach. */
+  const bool update_now=
+    difftime(time(nullptr), table->stats_last_recalc) >= MIN_RECALC_INTERVAL;
 
-	table = dict_table_open_on_id(table_id, TRUE, DICT_TABLE_OP_NORMAL);
+  const dberr_t err= update_now
+    ? dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT)
+    : DB_SUCCESS_LOCKED_REC;
 
-	if (table == NULL) {
-		/* table does not exist, must have been DROPped
-		after its id was enqueued */
-		mutex_exit(&dict_sys.mutex);
-		return;
-	}
+  dict_table_close(table, false, thd, mdl);
 
-	ut_ad(!table->is_temporary());
+  mysql_mutex_lock(&recalc_pool_mutex);
+  auto i= std::find_if(recalc_pool.begin(), recalc_pool.end(),
+                       [&](const recalc &r){return r.id == table_id;});
+  if (i == recalc_pool.end())
+    goto done;
+  else if (i->state == recalc::IN_PROGRESS_DELETING)
+  {
+    i->state= recalc::DELETING;
+    pthread_cond_broadcast(&recalc_pool_cond);
+done:
+    mysql_mutex_unlock(&recalc_pool_mutex);
+  }
+  else
+  {
+    ut_ad(i->state == recalc::IN_PROGRESS);
+    recalc_pool.erase(i);
+    if (err == DB_SUCCESS_LOCKED_REC)
+      recalc_pool.emplace_back(recalc{table_id, recalc::IDLE});
+    mysql_mutex_unlock(&recalc_pool_mutex);
+  }
 
-	if (!fil_table_accessible(table)) {
-		dict_table_close(table, TRUE, FALSE);
-		mutex_exit(&dict_sys.mutex);
-		return;
-	}
-
-	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
-
-	mutex_exit(&dict_sys.mutex);
-
-	/* time() could be expensive, the current function
-	is called once every time a table has been changed more than 10% and
-	on a system with lots of small tables, this could become hot. If we
-	find out that this is a problem, then the check below could eventually
-	be replaced with something else, though a time interval is the natural
-	approach. */
-
-	if (difftime(time(NULL), table->stats_last_recalc)
-	    < MIN_RECALC_INTERVAL) {
-
-		/* Stats were (re)calculated not long ago. To avoid
-		too frequent stats updates we put back the table on
-		the auto recalc list and do nothing. */
-
-		dict_stats_recalc_pool_add(table);
-
-	} else {
-
-		dict_stats_update(table, DICT_STATS_RECALC_PERSISTENT);
-	}
-
-	mutex_enter(&dict_sys.mutex);
-
-	table->stats_bg_flag = BG_STAT_NONE;
-
-	dict_table_close(table, TRUE, FALSE);
-
-	mutex_exit(&dict_sys.mutex);
+  return update_now;
 }
 
-#ifdef UNIV_DEBUG
-/** Disables dict stats thread. It's used by:
-	SET GLOBAL innodb_dict_stats_disabled_debug = 1 (0).
-@param[in]	save		immediate result from check function */
-void dict_stats_disabled_debug_update(THD*, st_mysql_sys_var*, void*,
-				      const void* save)
+/** Check if the recalc pool is empty. */
+static bool is_recalc_pool_empty()
 {
-	/* This method is protected by mutex, as every SET GLOBAL .. */
-	ut_ad(dict_stats_disabled_event != NULL);
-
-	const bool disable = *static_cast<const my_bool*>(save);
-
-	const int64_t sig_count = os_event_reset(dict_stats_disabled_event);
-
-	innodb_dict_stats_disabled_debug = disable;
-
-	if (disable) {
-		os_event_set(dict_stats_event);
-		os_event_wait_low(dict_stats_disabled_event, sig_count);
-	}
+  mysql_mutex_lock(&recalc_pool_mutex);
+  bool empty= recalc_pool.empty();
+  mysql_mutex_unlock(&recalc_pool_mutex);
+  return empty;
 }
-#endif /* UNIV_DEBUG */
 
-
-/*****************************************************************//**
-This is the thread for background stats gathering. It pops tables, from
-the auto recalc list and proceeds them, eventually recalculating their
-statistics.
-@return this function does not return, it calls os_thread_exit() */
-extern "C"
-os_thread_ret_t
-DECLARE_THREAD(dict_stats_thread)(void*)
+static tpool::timer* dict_stats_timer;
+static void dict_stats_func(void*)
 {
-	my_thread_init();
-	ut_a(!srv_read_only_mode);
+  if (!dict_stats_thd)
+    dict_stats_thd= innobase_create_background_thd("InnoDB statistics");
+  set_current_thd(dict_stats_thd);
 
-#ifdef UNIV_PFS_THREAD
-	/* JAN: TODO: MySQL 5.7 PSI
-	pfs_register_thread(dict_stats_thread_key);
-	*/
-#endif /* UNIV_PFS_THREAD */
+  while (dict_stats_process_entry_from_recalc_pool(dict_stats_thd)) {}
 
-	while (!dict_stats_start_shutdown) {
+  innobase_reset_background_thd(dict_stats_thd);
+  set_current_thd(nullptr);
+  if (!is_recalc_pool_empty())
+    dict_stats_schedule(MIN_RECALC_INTERVAL * 1000);
+}
 
-		/* Wake up periodically even if not signaled. This is
-		because we may lose an event - if the below call to
-		dict_stats_process_entry_from_recalc_pool() puts the entry back
-		in the list, the os_event_set() will be lost by the subsequent
-		os_event_reset(). */
-		os_event_wait_time(
-			dict_stats_event, MIN_RECALC_INTERVAL * 1000000);
 
-		if (wsrep_sst_disable_writes) {
-			os_thread_sleep(1000000);
-			continue;
-		}
+void dict_stats_start()
+{
+  DBUG_ASSERT(!dict_stats_timer);
+  dict_stats_timer= srv_thread_pool->create_timer(dict_stats_func);
+}
 
-#ifdef UNIV_DEBUG
-		while (innodb_dict_stats_disabled_debug) {
-			os_event_set(dict_stats_disabled_event);
-			if (dict_stats_start_shutdown) {
-				break;
-			}
-			os_event_wait_time(
-				dict_stats_event, 100000);
-		}
-#endif /* UNIV_DEBUG */
 
-		if (dict_stats_start_shutdown) {
-			break;
-		}
+static void dict_stats_schedule(int ms)
+{
+  if(dict_stats_timer)
+    dict_stats_timer->set_time(ms,0);
+}
 
-		dict_stats_process_entry_from_recalc_pool();
-		dict_defrag_process_entries_from_defrag_pool();
-
-		os_event_reset(dict_stats_event);
-	}
-
-	srv_dict_stats_thread_active = false;
-
-	os_event_set(dict_stats_shutdown_event);
-	my_thread_end();
-
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit instead of return(). */
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+void dict_stats_schedule_now()
+{
+  dict_stats_schedule(0);
 }
 
 /** Shut down the dict_stats_thread. */
-void
-dict_stats_shutdown()
+void dict_stats_shutdown()
 {
-	dict_stats_start_shutdown = true;
-	os_event_set(dict_stats_event);
-	os_event_wait(dict_stats_shutdown_event);
+  delete dict_stats_timer;
+  dict_stats_timer= 0;
 }

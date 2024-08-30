@@ -8,6 +8,9 @@ show grants;
 create user 'pfs_user_1'@localhost;
 create user 'pfs_user_2'@localhost;
 create user 'pfs_user_3'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_1'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_2'@localhost;
+grant SELECT,INSERT,UPDATE,DELETE,DROP,CREATE on test.* to 'pfs_user_3'@localhost;
 grant ALL on *.* to 'pfs_user_1'@localhost with GRANT OPTION;
 
 # Test denied privileges on performance_schema.*
@@ -228,7 +231,7 @@ flush privileges;
 --echo # Setup user
 
 CREATE user pfs_user_4;
---connect (pfs_user_4, localhost, pfs_user_4, , )
+--connect (pfs_user_4, localhost, pfs_user_4, ,"*NO-ONE*")
 
 --echo #
 --echo # WL#4818, NFS4: Normal user does not have access to view data
@@ -336,3 +339,15 @@ UPDATE performance_schema.setup_consumers SET enabled = 'YES';
 UPDATE performance_schema.setup_timers SET timer_name = 'MICROSECOND' where name="idle";
 UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="stage";
 UPDATE performance_schema.setup_timers SET timer_name = 'NANOSECOND'  where name="statement";
+
+--echo #
+--echo # WL#2284: Increase the length of a user name
+--echo #
+
+CREATE USER 'user_name_len_22_01234'@localhost;
+
+--error ER_DBACCESS_DENIED_ERROR
+GRANT ALL ON performance_schema.* TO 'user_name_len_22_01234'@localhost with GRANT OPTION;
+
+REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'user_name_len_22_01234'@localhost;
+DROP USER 'user_name_len_22_01234'@localhost;

@@ -98,12 +98,14 @@ eval CREATE TABLE ta_l (
   PRIMARY KEY(a)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
 --enable_query_log
+--disable_ps_protocol
 INSERT INTO ta_l (a, b, c) VALUES
   (1, 'a', '2008-08-01 10:21:39'),
   (2, 'b', '2000-01-01 00:00:00'),
   (3, 'e', '2007-06-04 20:03:11'),
   (4, 'd', '2003-11-30 05:01:03'),
   (5, 'c', '2001-12-31 23:59:59');
+--enable_ps_protocol
 
 --echo
 --echo direct_aggregating test
@@ -139,6 +141,16 @@ eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
 SELECT MIN(a) FROM ta_l WHERE a > 1;
 eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
 --enable_ps2_protocol
+
+SET spider_direct_aggregate=0;
+SELECT COUNT(*) FROM ta_l;
+SELECT MAX(a) FROM ta_l;
+SELECT MIN(a) FROM ta_l;
+SELECT MAX(a) FROM ta_l WHERE a < 5;
+SELECT MIN(a) FROM ta_l WHERE a > 1;
+eval $MASTER_1_CHECK_DIRECT_AGGREGATE_STATUS;
+SET spider_direct_aggregate=1;
+
 if ($USE_CHILD_GROUP2)
 {
   if (!$OUTPUT_CHILD_GROUP2)
@@ -149,7 +161,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%handler %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%handler %';
   }
   eval $CHILD2_1_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)

@@ -14,7 +14,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
-IF(MYSQL_MAINTAINER_MODE STREQUAL "NO")
+IF(MSVC OR MYSQL_MAINTAINER_MODE STREQUAL "NO")
+  # Windows support is in cmake/os/Windows.cmake, not here
   RETURN()
 ENDIF()
 
@@ -26,14 +27,16 @@ SET(MY_WARNING_FLAGS
   -Wenum-conversion
   -Wextra
   -Wformat-security
+  -Winconsistent-missing-override
+  -Wmissing-braces
   -Wno-format-truncation
   -Wno-init-self
   -Wno-nonnull-compare
   -Wno-null-conversion
   -Wno-unused-parameter
   -Wno-unused-private-field
-  -Woverloaded-virtual
   -Wnon-virtual-dtor
+  -Woverloaded-virtual
   -Wvla
   -Wwrite-strings
   )
@@ -42,10 +45,11 @@ FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
-SET(MY_ERROR_FLAGS -Werror)
+SET(MY_ERROR_FLAGS -Werror -fno-operator-names -Wsuggest-override)
 
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
+  SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=non-virtual-dtor) # gcc bug 7302
 ENDIF()
 
 IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")

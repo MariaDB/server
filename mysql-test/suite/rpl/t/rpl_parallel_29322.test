@@ -1,0 +1,64 @@
+--echo #
+--echo # MDEV-29322 ASAN use-after-free options_written_to_bin_log
+--echo #
+
+# The tests verify that at query execution slave parallel workers successfully
+# find a correct options_written_to_bin_log value associated with the query.
+# There are three test branches, A and B take care of different server version
+# binlogs. The homogeneous binlog case of C. branch is also for how-to-reproduce
+# the bug, may need few --repeat :s though.
+
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo # A. set the master and slave explicit_defaults_for_timestamp values crisscross to (1,0)
+--let $same_version_binlogs=0
+
+--connection master
+# Configure master and slave with different values of the following variable:
+set @sav.explicit_defaults_for_timestamp      = @@session.explicit_defaults_for_timestamp;
+set @@session.explicit_defaults_for_timestamp = 1;
+--connection slave
+# slave must produce the master version of the table definition and its data
+set @sav.explicit_defaults_for_timestamp   = @@global.explicit_defaults_for_timestamp;
+set global explicit_defaults_for_timestamp = 0;
+# the global var gets changed in the included file
+set @sav.slave_parallel_workers     = @@global.slave_parallel_workers;
+--source include/stop_slave.inc
+set @@global.slave_parallel_workers = 1;
+--source include/start_slave.inc
+
+--source suite/rpl/include/rpl_parallel_29322.inc
+
+--echo # B. alternate the master and slave vars' values to (0,1)
+
+--connection master
+# Configure master and slave with different values of the following variable:
+set @@session.explicit_defaults_for_timestamp = 0;
+--connection slave
+# slave must produce the master version of the table definition and its data
+set @@global.explicit_defaults_for_timestamp = 1;
+
+--source suite/rpl/include/rpl_parallel_29322.inc
+
+
+--echo # C. the bug case on the same version binlogs also to demo on the patch's base
+--let $same_version_binlogs=1
+# with more workers the bug shows more likeky on the patch's base slave.
+--source include/stop_slave.inc
+set @@global.slave_parallel_workers = 4;
+--source include/start_slave.inc
+
+--source suite/rpl/include/rpl_parallel_29322.inc
+
+# cleanup
+--connection master
+set @@session.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+--connection slave
+set @@global.explicit_defaults_for_timestamp = @sav.explicit_defaults_for_timestamp;
+--source include/stop_slave.inc
+set @@global.slave_parallel_workers          = @sav.slave_parallel_workers;
+--source include/start_slave.inc
+
+
+--source include/rpl_end.inc

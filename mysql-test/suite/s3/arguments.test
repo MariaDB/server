@@ -1,0 +1,54 @@
+--source include/have_s3.inc
+--source include/have_sequence.inc
+
+#
+# Create unique database for running the tests
+#
+--source create_database.inc
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+--echo #
+--echo # Test options
+--echo #
+
+create or replace table t1 (a int, b int, key(a)) engine=aria;
+insert into t1 select seq,seq+10 from seq_1_to_10;
+alter table t1 engine=s3, s3_block_size=819200, compression_algorithm="zlib";
+show create table t1;
+--error ER_BAD_OPTION_VALUE
+alter table t1 engine=s3, s3_block_size=8192;
+alter table t1 engine=s3, s3_block_size=65536;
+show create table t1;
+--error ER_BAD_OPTION_VALUE
+alter table t1 engine=s3, s3_block_size=100000;
+show create table t1;
+--error ER_BAD_OPTION_VALUE
+alter table t1 engine=s3, compression_algorithm="wss";
+drop table t1;
+
+--echo # Check that key variables are not shown to the end user
+
+show variables like "s3%key";
+
+--echo # Show some "static" s3 variables
+set @tmp= @@global.s3_block_size;
+show variables like "s3_block_size";
+set @@global.s3_block_size=65536;
+show variables like "s3_block_size";
+set @@global.s3_block_size= @tmp;
+--error ER_GLOBAL_VARIABLE
+set @@s3_block_size=65536;
+
+--echo # Check s3 variables that can't be changed by end user
+
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@s3_access_key="abc";
+--error ER_INCORRECT_GLOBAL_LOCAL_VAR
+set @@s3_secret_key="abc";
+
+#
+# clean up
+#
+--source drop_database.inc

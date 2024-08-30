@@ -1,0 +1,20 @@
+--- suite/innodb/r/table_flags.result
++++ suite/innodb/r/table_flags.reject
+@@ -6,6 +6,8 @@
+ SET innodb_strict_mode=OFF;
+ CREATE TABLE tz(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=COMPRESSED
+ KEY_BLOCK_SIZE=1;
++Warnings:
++Warning	1478	InnoDB: Cannot create a COMPRESSED table when innodb_page_size > 16k. Assuming ROW_FORMAT=DYNAMIC.
+ SET innodb_strict_mode=ON;
+ CREATE TABLE tp(a INT PRIMARY KEY)ENGINE=InnoDB ROW_FORMAT=DYNAMIC
+ PAGE_COMPRESSED=1 PAGE_COMPRESSION_LEVEL=9;
+@@ -87,7 +89,7 @@
+  DB_ROLL_PTR=0x80000000000000,
+  ID=0x0000000000000011,
+  N_COLS=0x80000001,
+- TYPE=0x00000023,
++ TYPE=0x00000021,
+  MIX_ID=0x0000000000000000,
+  MIX_LEN=0x00000050,
+  CLUSTER_NAME=NULL(0 bytes),

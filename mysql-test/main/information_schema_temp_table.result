@@ -1,0 +1,321 @@
+#
+# MDEV-12459: The information_schema tables for getting temporary tables
+#             info is missing, at least for innodb, there is no
+#             INNODB_TEMP_TABLE_INFO
+#
+# -------------------------------
+# Test shadowing of a base table
+# -------------------------------
+create database some_db;
+use some_db;
+# Creating temporary table with the same name shadows the base table
+# in `show create` and by design, should not raise any warning
+create table t(t int);
+create temporary table t(t int);
+show create table t;
+Table	Create Table
+t	CREATE TEMPORARY TABLE `t` (
+  `t` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select table_schema, table_name, temporary from information_schema.tables where table_name='t';
+table_schema	table_name	temporary
+some_db	t	Y
+some_db	t	N
+drop table t;
+drop table t;
+use test;
+# ------------------------
+# IS.tables tests
+# ------------------------
+# Create first temporary table
+create temporary table test.t_temp(t int);
+insert into t_temp values (1),(2), (3);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	table_name	temporary
+test	t_temp	Y
+# Create the base table with the same name (both should be visible)
+create table test.t_temp(t int);
+insert into t_temp values (-1),(-2);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary';
+table_schema	table_name	temporary
+test	t_temp	Y
+create database my_db;
+# Create the temporary table with the same name in new DB
+create temporary table my_db.t_temp (t int);
+insert into my_db.t_temp values (-2),(-1);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+table_schema	table_name	temporary
+test	t_temp	Y
+my_db	t_temp	Y
+connect  con1,localhost,root,,my_db,,;
+# Create the temporary table with the same name in new connection
+create temporary table t_temp(t int);
+insert into t_temp values (4),(5),(6), (7);
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+   order by table_schema desc, table_name desc, table_type desc;
+table_schema	table_name	temporary
+my_db	t_temp	Y
+connection default;
+# Show results in default connection
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+table_schema	table_name	temporary
+test	t_temp	Y
+my_db	t_temp	Y
+# Check shadowing and (no)warning with explicit referencing database
+create table some_db.my_t (t int);
+show warnings;
+Level	Code	Message
+create temporary table some_db.my_t (t int);
+show warnings;
+Level	Code	Message
+# Show results
+select table_schema, table_name, temporary from  information_schema.tables where table_type='temporary'
+  order by table_schema desc, table_name desc, table_type desc;
+table_schema	table_name	temporary
+test	t_temp	Y
+some_db	my_t	Y
+my_db	t_temp	Y
+use test;
+create table t1 (a int);
+create sequence s1;
+create temporary table t1 (b int);
+create temporary sequence s1;
+create temporary sequence s2;
+select table_schema, table_name, table_type, temporary from information_schema.tables where table_schema = 'test'
+  order by table_schema desc, table_name desc, table_type desc;
+table_schema	table_name	table_type	temporary
+test	t_temp	TEMPORARY	Y
+test	t_temp	BASE TABLE	N
+test	t1	TEMPORARY	Y
+test	t1	BASE TABLE	N
+test	s2	TEMPORARY SEQUENCE	Y
+test	s1	TEMPORARY SEQUENCE	Y
+test	s1	SEQUENCE	N
+drop table t1;
+drop table t1;
+drop table s1;
+drop table s1;
+drop table s2;
+drop table some_db.my_t;
+drop table some_db.my_t;
+disconnect con1;
+drop table test.t_temp;
+drop table test.t_temp;
+drop database my_db;
+drop database some_db;
+#
+# MDEV-28332: Alter on temporary table causes ER_TABLE_EXISTS_ERROR note
+#
+create table t (a int);
+create temporary table t (b int);
+alter table t add c int;
+drop temporary table t;
+drop table t;
+#
+# MDEV-28334: SHOW TABLE STATUS shows all temporary tables
+#             ignoring database and conditions
+#
+create temporary table test.tmp_in_test (a int);
+create table test.base_in_test (t int);
+create table test.tmp_in_test (t int);
+create temporary table test.tmp_innodb_in_test (a int) engine=InnoDB;
+create database mysqltest;
+use mysqltest;
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show table status in mysqltest;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+show table status in test;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+show table status from test;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+tmp_innodb_in_test	InnoDB	10	Dynamic	0	0	16384	0	0	6291456	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			0	Y
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+base_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+tmp_in_test	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+# check that InnoDB temporary table
+# has a NULL value for `Create time` column (MDEV-28333)
+select create_time from information_schema.tables where table_name='tmp_innodb_in_test';
+create_time
+NULL
+show table status like 'nonexisting';
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+drop database mysqltest;
+drop table test.base_in_test;
+drop table test.tmp_in_test;
+drop table test.tmp_in_test;
+#
+# MDEV-28453: SHOW commands are inconsistent for temporary tables
+#
+create database mysqltest;
+use mysqltest;
+create table t (a int, key(a)) engine=Aria;
+create temporary table t (b int, key(b)) engine=MyISAM;
+create table base_table(t int);
+create temporary table tmp_table (b int, key(b));
+create sequence s1;
+create temporary sequence s1;
+create temporary sequence s2;
+show tables;
+Tables_in_mysqltest
+s2
+s1
+tmp_table
+t
+base_table
+s1
+t
+show full tables;
+Tables_in_mysqltest	Table_type
+s2	TEMPORARY SEQUENCE
+s1	TEMPORARY SEQUENCE
+tmp_table	TEMPORARY TABLE
+t	TEMPORARY TABLE
+base_table	BASE TABLE
+s1	SEQUENCE
+t	BASE TABLE
+show table status;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+s2	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	Y
+tmp_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			288230376151710720	Y
+t	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			288230376151710720	Y
+base_table	MyISAM	10	Fixed	0	0	0	1970324836974591	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+s1	MyISAM	10	Fixed	1	58	58	16325548649218047	1024	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL			17179868160	N
+t	Aria	10	Page	0	0	8192	17592186011648	8192	0	NULL	#	#	#	utf8mb4_uca1400_ai_ci	NULL	transactional=1		9007199254732800	N
+show columns in t;
+Field	Type	Null	Key	Default	Extra
+b	int(11)	YES	MUL	NULL	
+show index in t;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			NO
+drop database mysqltest;
+use test;
+show full tables;
+Tables_in_test	Table_type
+tmp_innodb_in_test	TEMPORARY TABLE
+select * from tmp_innodb_in_test, tmp_innodb_in_test x;
+a	a
+show full tables;
+Tables_in_test	Table_type
+tmp_innodb_in_test	TEMPORARY TABLE
+drop temporary tables tmp_innodb_in_test;
+create temporary table foo.t1 (a int);
+select table_schema, table_name from information_schema.tables where table_type='temporary';
+table_schema	table_name
+foo	t1
+mysqltest	tmp_table
+mysqltest	t
+my_db	t_temp
+drop temporary table foo.t1;
+#
+# MDEV-28351 Assertion `this->file->children_attached' failed in ha_myisammrg::info
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+insert into t1 values (1);
+CREATE TEMPORARY TABLE t2 (a INT) ENGINE=MERGE UNION=(t1);
+CREATE TABLE t3 (a INT) ENGINE=MERGE UNION=(t1);
+SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test';
+TABLE_CATALOG	TABLE_SCHEMA	TABLE_NAME	TABLE_TYPE	ENGINE	VERSION	ROW_FORMAT	TABLE_ROWS	AVG_ROW_LENGTH	DATA_LENGTH	MAX_DATA_LENGTH	INDEX_LENGTH	DATA_FREE	AUTO_INCREMENT	CREATE_TIME	UPDATE_TIME	CHECK_TIME	TABLE_COLLATION	CHECKSUM	CREATE_OPTIONS	TABLE_COMMENT	MAX_INDEX_LENGTH	TEMPORARY
+def	test	t1	BASE TABLE	MyISAM	10	Fixed	1	7	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	N
+def	test	t2	TEMPORARY	MRG_MyISAM	10	Fixed	0	0	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	Y
+def	test	t3	BASE TABLE	MRG_MyISAM	10	Fixed	1	5	X	X	X	X	NULL	X	X	NULL	utf8mb4_uca1400_ai_ci	NULL			X	N
+DROP TABLE t1,t2,t3;
+#
+# MDEV-31618: Server crashes in
+#             process_i_s_table_temporary_tables/get_all_tables
+#
+CREATE TEMPORARY SEQUENCE seq1;
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int;
+ERROR HY000: Sequence 'test.seq1' table structure is invalid (cache_size)
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+CREATE OR REPLACE TEMPORARY SEQUENCE seq1;
+SHOW FULL TABLES;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+SELECT table_schema, table_name FROM  INFORMATION_SCHEMA.TABLES WHERE table_type='temporary sequence';
+table_schema	table_name
+test	seq1
+mysqltest	s2
+mysqltest	s1
+DROP TABLE seq1;
+DROP TABLE mysqltest.s1;
+DROP TABLE mysqltest.s2;
+#
+# MDEV-31618: Server crashes in
+#             process_i_s_table_temporary_tables/get_all_tables after alter in rename
+#
+CREATE  table seq1 (a bigint, b int);
+CREATE  TEMPORARY TABLE tmp LIKE seq1;
+INSERT  tmp SELECT * FROM seq1;
+ALTER  TABLE tmp RENAME TO seq1;
+ALTER TABLE seq1 CHANGE a b int ;
+Got one of the listed errors
+RENAME  TABLE seq1 TO seq1;
+ERROR 42S01: Table 'seq1' already exists
+show  full tables;
+Tables_in_test	Table_type
+seq1	TEMPORARY TABLE
+seq1	BASE TABLE
+drop table seq1;
+drop table seq1;
+CREATE  SEQUENCE seq2;
+CREATE  TEMPORARY sequence tmp;
+show  full tables;
+Tables_in_test	Table_type
+tmp	TEMPORARY SEQUENCE
+seq2	SEQUENCE
+ALTER  table `tmp` RENAME TO seq1;
+show  full tables;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+seq2	SEQUENCE
+ALTER TABLE `seq1` CHANGE `cache_size` cache_size int ;
+ERROR HY000: Sequence 'test.seq1' table structure is invalid (cache_size)
+show  full tables;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+seq2	SEQUENCE
+RENAME  TABLE seq1 TO seq1;
+ERROR 42S01: Table 'seq1' already exists
+show  full tables;
+Tables_in_test	Table_type
+seq1	TEMPORARY SEQUENCE
+seq2	SEQUENCE
+RENAME  TABLE seq1 TO seq3;
+show  full tables;
+Tables_in_test	Table_type
+seq3	TEMPORARY SEQUENCE
+seq2	SEQUENCE
+drop table seq2;
+show  full tables;
+Tables_in_test	Table_type
+seq3	TEMPORARY SEQUENCE
+drop table seq3;
+show  full tables;
+Tables_in_test	Table_type

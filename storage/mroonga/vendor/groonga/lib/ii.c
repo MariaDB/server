@@ -227,10 +227,9 @@ segment_get(grn_ctx *ctx, grn_ii *ii)
     pseg = ii->header->pnext;
 #ifndef CUT_OFF_COMPATIBILITY
     if (!pseg) {
-      int i;
       uint32_t pmax = 0;
       char *used;
-      uint32_t max_segment = ii->seg->header->max_segment;
+      uint32_t i, max_segment = ii->seg->header->max_segment;
       used = GRN_CALLOC(max_segment);
       if (!used) { return max_segment; }
       for (i = 0; i < GRN_II_MAX_LSEG && i < max_segment; i++) {
@@ -457,8 +456,8 @@ chunk_new(grn_ctx *ctx, grn_ii *ii, uint32_t *res, uint32_t size)
   }
   */
   if (size > S_CHUNK) {
-    int i, j;
-    uint32_t n = (size + S_CHUNK - 1) >> GRN_II_W_CHUNK;
+    int j;
+    uint32_t n = (size + S_CHUNK - 1) >> GRN_II_W_CHUNK, i;
     for (i = 0, j = -1; i < n_chunks; i++) {
       if (HEADER_CHUNK_AT(ii, i)) {
         j = i;
@@ -466,7 +465,7 @@ chunk_new(grn_ctx *ctx, grn_ii *ii, uint32_t *res, uint32_t size)
         if (i == j + n) {
           j++;
           *res = j << GRN_II_N_CHUNK_VARIATION;
-          for (; j <= i; j++) { HEADER_CHUNK_ON(ii, j); }
+          for (; j <= (int) i; j++) { HEADER_CHUNK_ON(ii, j); }
           return GRN_SUCCESS;
         }
       }
@@ -538,7 +537,7 @@ chunk_new(grn_ctx *ctx, grn_ii *ii, uint32_t *res, uint32_t size)
     if (*vp == GRN_II_PSEG_NOT_ASSIGNED) {
       int i = 0;
       while (HEADER_CHUNK_AT(ii, i)) {
-        if (++i >= n_chunks) {
+        if (++i >= (int) n_chunks) {
           DEFINE_NAME(ii);
           MERR("[ii][chunk][new] failed to find a free chunk: "
                "<%.*s>: "
@@ -1757,7 +1756,7 @@ static grn_rc
 datavec_reset(grn_ctx *ctx, datavec *dv, uint32_t dvlen,
               size_t unitsize, size_t totalsize)
 {
-  int i;
+  uint32_t i;
   if (!dv[0].data || dv[dvlen].data < dv[0].data + totalsize) {
     if (dv[0].data) { GRN_FREE(dv[0].data); }
     if (!(dv[0].data = GRN_MALLOC(totalsize * sizeof(uint32_t)))) {
@@ -1782,7 +1781,7 @@ static grn_rc
 datavec_init(grn_ctx *ctx, datavec *dv, uint32_t dvlen,
              size_t unitsize, size_t totalsize)
 {
-  int i;
+  uint32_t i;
   if (!totalsize) {
     memset(dv, 0, sizeof(datavec) * (dvlen + 1));
     return GRN_SUCCESS;
@@ -2951,14 +2950,14 @@ buffer_merge_dump_datavec(grn_ctx *ctx,
   grn_obj buffer;
 
   GRN_TEXT_INIT(&buffer, 0);
-  for (i = 0; i < ii->n_elements; i++) {
+  for (i = 0; (uint) i < ii->n_elements; i++) {
     GRN_LOG(ctx, GRN_LOG_DEBUG, "rdv[%d] data_size=%d, flags=%d",
             i, rdv[i].data_size, rdv[i].flags);
     GRN_BULK_REWIND(&buffer);
-    for (j = 0; j < rdv[i].data_size;) {
+    for (j = 0; (uint) j < rdv[i].data_size;) {
       grn_text_printf(ctx, &buffer, " %d", rdv[i].data[j]);
       j++;
-      if (!(j % 32) || j == rdv[i].data_size) {
+      if (!(j % 32) || (uint) j == rdv[i].data_size) {
         GRN_LOG(ctx, GRN_LOG_DEBUG,
                 "rdv[%d].data[%d]%.*s",
                 i, j,
@@ -2969,14 +2968,14 @@ buffer_merge_dump_datavec(grn_ctx *ctx,
     }
   }
 
-  for (i = 0; i < ii->n_elements; i++) {
+  for (i = 0; (uint) i < ii->n_elements; i++) {
     GRN_LOG(ctx, GRN_LOG_DEBUG, "dv[%d] data_size=%d, flags=%d",
             i, dv[i].data_size, dv[i].flags);
     GRN_BULK_REWIND(&buffer);
-    for (j = 0; j < dv[i].data_size;) {
+    for (j = 0; (uint) j < dv[i].data_size;) {
       grn_text_printf(ctx, &buffer, " %d", dv[i].data[j]);
       j++;
-      if (!(j % 32) || j == dv[i].data_size) {
+      if (!(j % 32) || (uint) j == dv[i].data_size) {
         GRN_LOG(ctx, GRN_LOG_DEBUG,
                 "dv[%d].data[%d]%.*s",
                 i, j,
@@ -3031,7 +3030,7 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
     uint32_t nvchunks = 0;
     chunk_info *cinfo = NULL;
     grn_id crid = GRN_ID_NIL;
-    docinfo cid = {0, 0, 0, 0, 0}, lid = {0, 0, 0, 0, 0}, bid = {0, 0};
+    docinfo cid = {0, 0, 0, 0, 0}, lid = {0, 0, 0, 0, 0}, bid = {0, 0, 0, 0, 0};
     uint32_t sdf = 0, snn = 0, ndf;
     uint32_t *srp = NULL, *ssp = NULL, *stp = NULL, *sop = NULL, *snp = NULL;
     if (!bt->tid) {
@@ -3075,7 +3074,7 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
           }
           return ctx->rc;
         }
-        for (i = 0; i < nchunks; i++) {
+        for (i = 0; (uint) i < nchunks; i++) {
           GRN_B_DEC(cinfo[i].segno, scp);
           GRN_B_DEC(cinfo[i].size, scp);
           GRN_B_DEC(cinfo[i].dgap, scp);
@@ -3247,7 +3246,7 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
           if (nvchunks) {
             int i;
             GRN_B_ENC(nvchunks, dcp);
-            for (i = 0; i < nchunks; i++) {
+            for (i = 0; (uint) i < nchunks; i++) {
               if (cinfo[i].size) {
                 GRN_B_ENC(cinfo[i].segno, dcp);
                 GRN_B_ENC(cinfo[i].size, dcp);
@@ -3281,7 +3280,7 @@ buffer_merge(grn_ctx *ctx, grn_ii *ii, uint32_t seg, grn_hash *h,
             nvchunks++;
             dcp = dcp0;
             GRN_B_ENC(nvchunks, dcp);
-            for (i = 0; i <= nchunks; i++) {
+            for (i = 0; (uint) i <= nchunks; i++) {
               if (cinfo[i].size) {
                 GRN_B_ENC(cinfo[i].segno, dcp);
                 GRN_B_ENC(cinfo[i].size, dcp);
@@ -3522,7 +3521,7 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
     uint32_t nchunks = 0;
     chunk_info *cinfo = NULL;
     grn_id crid = GRN_ID_NIL;
-    docinfo bid = {0, 0};
+    docinfo bid = {0, 0, 0, 0, 0};
     uint32_t sdf = 0, snn = 0;
     uint32_t *srp = NULL, *ssp = NULL, *stp = NULL, *sop = NULL, *snp = NULL;
     if (!bt->tid && !bt->pos_in_buffer && !bt->size_in_buffer) {
@@ -3558,7 +3557,7 @@ grn_ii_buffer_check(grn_ctx *ctx, grn_ii *ii, uint32_t seg)
           GRN_OBJ_FIN(ctx, &buf);
           return;
         }
-        for (i = 0; i < nchunks; i++) {
+        for (i = 0; (uint) i < nchunks; i++) {
           GRN_B_DEC(cinfo[i].segno, scp);
           GRN_B_DEC(cinfo[i].size, scp);
           GRN_B_DEC(cinfo[i].dgap, scp);
@@ -5070,7 +5069,7 @@ grn_ii_cursor_open(grn_ctx *ctx, grn_ii *ii, grn_id tid,
             c = NULL;
             goto exit;
           }
-          for (i = 0, crid = GRN_ID_NIL; i < c->nchunks; i++) {
+          for (i = 0, crid = GRN_ID_NIL; (uint) i < c->nchunks; i++) {
             GRN_B_DEC(c->cinfo[i].segno, c->cp);
             GRN_B_DEC(c->cinfo[i].size, c->cp);
             GRN_B_DEC(c->cinfo[i].dgap, c->cp);
@@ -5471,7 +5470,7 @@ grn_ii_cursor_next_pos(grn_ctx *ctx, grn_ii_cursor *c)
 {
   uint32_t gap;
   if ((c->ii->header->flags & GRN_OBJ_WITH_POSITION)) {
-    if (c->nelements == c->ii->n_elements) {
+    if (c->nelements == (int) c->ii->n_elements) {
       if (c->buf) {
         if (c->post == &c->pc) {
           if (c->pc.rest) {
@@ -6465,7 +6464,7 @@ grn_ii_column_update(grn_ctx *ctx, grn_ii *ii, grn_id rid, unsigned int section,
     grn_id tid_ = 0, gap, tid, *tpe;
     grn_table_sort_optarg arg = {GRN_TABLE_SORT_ASC|
                                  GRN_TABLE_SORT_AS_NUMBER|
-                                 GRN_TABLE_SORT_AS_UNSIGNED, NULL, NULL,0 };
+                                 GRN_TABLE_SORT_AS_UNSIGNED, NULL, NULL, 0, 0};
     grn_array *sorted = grn_array_create(ctx, NULL, sizeof(grn_id), 0);
     grn_hash_sort(ctx, (grn_hash *)new, -1, sorted, &arg);
     GRN_TEXT_PUT(ctx, posting, ((grn_hash *)new)->n_entries, sizeof(uint32_t));
@@ -7599,7 +7598,7 @@ grn_ii_similar_search(grn_ctx *ctx, grn_ii *ii,
     grn_hash_cursor_close(ctx, c);
   }
   limit = optarg->similarity_threshold
-    ? (optarg->similarity_threshold > GRN_HASH_SIZE(h)
+    ? (optarg->similarity_threshold > (int) GRN_HASH_SIZE(h)
        ? GRN_HASH_SIZE(h)
        : optarg->similarity_threshold)
     : (GRN_HASH_SIZE(h) >> 3) + 1;
@@ -7613,7 +7612,7 @@ grn_ii_similar_search(grn_ctx *ctx, grn_ii *ii,
       GRN_TABLE_SORT_DESC|GRN_TABLE_SORT_BY_VALUE|GRN_TABLE_SORT_AS_NUMBER,
       NULL,
       NULL,
-      0
+      0, 0
     };
     grn_array *sorted = grn_array_create(ctx, NULL, sizeof(grn_id), 0);
     if (!sorted) {
@@ -7632,7 +7631,7 @@ grn_ii_similar_search(grn_ctx *ctx, grn_ii *ii,
     } else if (optarg->vector_size) {
       wvm = optarg->weight_vector ? grn_wv_static : grn_wv_constant;
     }
-    for (j = 1; j <= limit; j++) {
+    for (j = 1; j <= (uint) limit; j++) {
       grn_array_get_value(ctx, sorted, j, &id);
       _grn_hash_get_key_value(ctx, h, id, (void **) &tp, (void **) &w1);
       if (!*tp || !(c = grn_ii_cursor_open(ctx, ii, *tp, GRN_ID_NIL, GRN_ID_MAX,
@@ -8056,7 +8055,7 @@ grn_ii_select_cursor_next(grn_ctx *ctx,
           if (ti->pos == pos) {
             score += ti->p->weight + ti->cursors->bins[0]->weight;
             count++;
-            if (ti->p->pos > end_pos) {
+            if ((int) ti->p->pos > end_pos) {
               end_pos = ti->p->pos;
             }
           } else {
@@ -8065,9 +8064,9 @@ grn_ii_select_cursor_next(grn_ctx *ctx,
             start_pos = pos = ti->pos;
             end_pos = ti->p->pos;
           }
-          if (count == n_tis) {
+          if (count == (int) n_tis) {
             pos++;
-            if (ti->p->pos > end_pos) {
+            if ((int) ti->p->pos > end_pos) {
               end_pos = ti->p->pos;
             }
             tf = 1;
@@ -8224,7 +8223,7 @@ grn_ii_select_regexp(grn_ctx *ctx, grn_ii *ii,
     grn_bool have_error = GRN_FALSE;
 
     cursors = GRN_CALLOC(sizeof(grn_ii_select_cursor *) * n_parsed_strings);
-    for (i = 0; i < n_parsed_strings; i++) {
+    for (i = 0; (uint) i < n_parsed_strings; i++) {
       const char *parsed_string;
       unsigned int parsed_string_len;
       parsed_string_len = grn_vector_get_element(ctx,
@@ -8254,7 +8253,7 @@ grn_ii_select_regexp(grn_ctx *ctx, grn_ii *ii,
       }
 
       pos = posting->end_pos;
-      for (i = 1; i < n_parsed_strings; i++) {
+      for (i = 1; (uint) i < n_parsed_strings; i++) {
         grn_ii_select_cursor_posting *posting_i;
 
         for (;;) {
@@ -8286,14 +8285,14 @@ grn_ii_select_regexp(grn_ctx *ctx, grn_ii *ii,
         pos = posting_i->end_pos;
       }
 
-      if (i == n_parsed_strings) {
+      if ((uint) i == n_parsed_strings) {
         grn_rset_posinfo pi = {posting->rid, posting->sid, pos};
         double record_score = 1.0;
         res_add(ctx, s, &pi, record_score, op);
       }
     }
 
-    for (i = 0; i < n_parsed_strings; i++) {
+    for (i = 0; (uint) i < n_parsed_strings; i++) {
       if (cursors[i]) {
         grn_ii_select_cursor_close(ctx, cursors[i]);
       }
@@ -8768,7 +8767,7 @@ grn_ii_select(grn_ctx *ctx, grn_ii *ii,
               record.n_candidates += ti->size;
               record.n_tokens += ti->ntoken;
             }
-            if (count == n) {
+            if ((uint) count == n) {
               if (rep) {
                 pi.pos = pos; res_add(ctx, s, &pi, (score + 1) * weight, op);
               }
@@ -9556,7 +9555,7 @@ grn_ii_buffer_flush(grn_ctx *ctx, grn_ii_buffer *ii_buffer)
   encode_last_tf(ctx, ii_buffer, outbuf);
   {
     ssize_t r = grn_write(ii_buffer->tmpfd, outbuf, encsize);
-    if (r != encsize) {
+    if (r != (ssize_t) encsize) {
       ERR(GRN_INPUT_OUTPUT_ERROR,
           "write returned %" GRN_FMT_LLD " != %" GRN_FMT_LLU,
           (long long int)r, (unsigned long long int)encsize);
@@ -12218,7 +12217,7 @@ grn_ii_builder_set_sid_bits(grn_ctx *ctx, grn_ii_builder *builder)
       if (!grn_obj_get_value(ctx, builder->srcs[0], rid, &obj)) {
         continue;
       }
-      if (obj.u.v.n_sections > max_elems) {
+      if (obj.u.v.n_sections > (int) max_elems) {
         max_elems = obj.u.v.n_sections;
       }
     }
@@ -12610,7 +12609,7 @@ grn_ii_builder_read_to_chunk(grn_ctx *ctx, grn_ii_builder *builder,
 
     /* Read positions or a frequency. */
     if (ii_flags & GRN_OBJ_WITH_POSITION) {
-      uint32_t pos = -1;
+      uint32_t pos = (uint32_t) -1;
       freq = 0;
       for (;;) {
         rc = grn_ii_builder_read_from_block(ctx, builder, block_id, &value);
@@ -12626,7 +12625,7 @@ grn_ii_builder_read_to_chunk(grn_ctx *ctx, grn_ii_builder *builder,
             return rc;
           }
         }
-        if (pos == -1) {
+        if (pos == (uint32_t) -1) {
           chunk->pos_buf[chunk->pos_offset] = value - 1;
           chunk->pos_sum += value - 1;
         } else {

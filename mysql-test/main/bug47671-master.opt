@@ -1,1 +1,1 @@
---character-set-server=utf8 --skip-character-set-client-handshake
+--character-set-server=utf8 --collation-server=utf8_general_ci --skip-character-set-client-handshake

@@ -6,9 +6,6 @@
 --source include/innodb_row_format.inc
 --source include/count_sessions.inc
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
 connect (control_purge,localhost,root,,);
 connection default;
 
@@ -20,7 +17,7 @@ CREATE TABLE t1 (
   p	INT NOT NULL AUTO_INCREMENT,
   g	LINESTRING NOT NULL,
   PRIMARY KEY(p)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 if ($index == 3) {
   eval ALTER TABLE t1 ADD INDEX prefix_idx (g($prefix_size));
@@ -91,7 +88,7 @@ CREATE TABLE t2 (
   SPATIAL KEY (g4),
   SPATIAL KEY (g5),
   SPATIAL KEY (g6)
-) ENGINE=InnoDB;
+) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 DROP TABLE t1,t2;
 
@@ -100,5 +97,3 @@ dec $index;
 
 disconnect control_purge;
 --source include/wait_until_count_sessions.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

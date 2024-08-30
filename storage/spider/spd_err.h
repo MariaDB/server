@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2017 Kentoku Shiba
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -69,6 +70,10 @@
 #define ER_SPIDER_INVALID_CONNECT_INFO_START_WITH_NUM_STR "The connect info '%-.64s' for %s cannot start with number"
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_NUM 12527
 #define ER_SPIDER_INVALID_CONNECT_INFO_SAME_STR "The connect info '%-.64s' for %s cannot use same name in same table"
+#define ER_SPIDER_INVALID_TABLE_OPTION_NUM 12528
+#define ER_SPIDER_INVALID_TABLE_OPTION_STR "The table option %s=%s is invalid"
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_NUM 12529
+#define ER_SPIDER_COMMENT_CONNECTION_IGNORED_BY_TABLE_OPTIONS_STR "The table or partition COMMENT or CONNECTION string '%s' is not used as connection info because spider_ignore_comment is 1 or at least one table option has been specified"
 
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_NUM 12601
 #define ER_SPIDER_CANT_USE_BOTH_INNER_XA_AND_SNAPSHOT_STR "Can't use both spider_use_consistent_snapshot = 1 and spider_internal_xa = 1"
@@ -79,13 +84,13 @@
 #define ER_SPIDER_XA_PREPARED_NUM 12604
 #define ER_SPIDER_XA_PREPARED_STR "This xid is prepared"
 #define ER_SPIDER_XA_EXISTS_NUM 12605
-#define ER_SPIDER_XA_EXISTS_STR "This xid is already exist"
+#define ER_SPIDER_XA_EXISTS_STR "This xid already exists"
 #define ER_SPIDER_XA_MEMBER_EXISTS_NUM 12606
-#define ER_SPIDER_XA_MEMBER_EXISTS_STR "This xid member is already exist"
+#define ER_SPIDER_XA_MEMBER_EXISTS_STR "This xid member already exists"
 #define ER_SPIDER_XA_NOT_EXISTS_NUM 12607
-#define ER_SPIDER_XA_NOT_EXISTS_STR "This xid is not exist"
+#define ER_SPIDER_XA_NOT_EXISTS_STR "This xid does not exist"
 #define ER_SPIDER_XA_MEMBER_NOT_EXISTS_NUM 12608
-#define ER_SPIDER_XA_MEMBER_NOT_EXISTS_STR "This xid member is not exist"
+#define ER_SPIDER_XA_MEMBER_NOT_EXISTS_STR "This xid member does not exist"
 #define ER_SPIDER_SYS_TABLE_VERSION_NUM 12609
 #define ER_SPIDER_SYS_TABLE_VERSION_STR "System table %s is different version"
 #define ER_SPIDER_WRONG_CHARACTER_IN_NAME_NUM 12611
@@ -95,7 +100,7 @@
 #define ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM 12622
 #define ER_SPIDER_ALTER_BEFORE_UNLOCK_STR "Can't use this operation before executing 'unlock tables'"
 #define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM 12701
-#define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR "Remote MySQL server has gone away"
+#define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR "Remote MariaDB server has gone away"
 #define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_LEN (sizeof(ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR) - 1)
 #define ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM 12702
 #define ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR "Remote table '%s.%s' is not found"
@@ -120,15 +125,21 @@
 #define ER_SPIDER_ORACLE_STR "Error from Oracle %d %d %s"
 #define ER_SPIDER_ORACLE_NUM 12712
 #define ER_SPIDER_ORACLE_ERR "Oracle error"
+#define ER_SPIDER_DATASOURCE_STR "Error from %s %d %s %s"
+#define ER_SPIDER_DATASOURCE_NUM 12712
 #define ER_SPIDER_CON_COUNT_ERROR 12713
 #define ER_SPIDER_CON_COUNT_ERROR_STR "Too many connections between spider and remote"
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_NUM 12714
 #define ER_SPIDER_TABLE_OPEN_TIMEOUT_STR "Table %s.%s open timeout"
+#define ER_SPIDER_INFINITE_LOOP_NUM 12719
+#define ER_SPIDER_INFINITE_LOOP_STR "An infinite loop is detected when opening table %s.%s"
 #define ER_SPIDER_SAME_SERVER_LINK_NUM 12720
 #define ER_SPIDER_SAME_SERVER_LINK_STR1 "Host:%s and Socket:%s aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_SAME_SERVER_LINK_STR2 "Host:%s and Port:%ld aim self server. Please change spider_same_server_link parameter if this link is required."
 #define ER_SPIDER_CANT_NUM 12721
 #define ER_SPIDER_CANT_STR1 "Can't %s%d"
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_NUM 12722
+#define ER_SPIDER_TABLE_OPEN_LOCK_WAIT_TIMEOUT_STR "Table %s.%s open lock wait timeout. Please check for self-reference."
 #define ER_SPIDER_COND_SKIP_NUM 12801
 
 #define ER_SPIDER_UNKNOWN_NUM 12500

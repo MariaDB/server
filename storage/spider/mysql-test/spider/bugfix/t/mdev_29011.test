@@ -25,7 +25,9 @@ eval CREATE TABLE tbl_a (
     b INT
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 
+--disable_ps_protocol
 SELECT a XOR b AS f FROM tbl_a;
+--enable_ps_protocol
 
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;

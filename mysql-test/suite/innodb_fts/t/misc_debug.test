@@ -61,12 +61,13 @@ CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
 		 FULLTEXT KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
 --error ER_ROW_IS_REFERENCED_2
-DROP TABLE t1;
+DROP TABLE/*foo*/ t1;
 SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 # Cleanup
 DROP TABLE t2, t1;
+SET SESSION debug_dbug=@saved_debug_dbug;
 
 if ($MTR_COMBINATION_ORIG) {
 --echo #
@@ -100,12 +101,33 @@ DROP TABLE t1;
 --echo # MDEV-25663 Double free of transaction during TRUNCATE
 --echo #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET @save_dbug= @@debug_dbug;
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Too many concurrent transactions");
+SET @saved_debug_dbug= @@debug_dbug;
 
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
---error ER_GET_ERRNO,ER_VERS_NOT_SUPPORTED
+if ($MTR_COMBINATION_ORIG)
+{
 TRUNCATE t1;
-SET debug_dbug=@save_dbug;
+}
+if (!$MTR_COMBINATION_ORIG)
+{
+--echo TRUNCATE t1;
+}
+SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 --echo # End of 10.3 tests
+
+if ($MTR_COMBINATION_ORIG) {
+# Fulltext fails in commit phase
+
+CREATE TABLE t1(f1 INT NOT NULL, f2 CHAR(100))ENGINE=InnoDB;
+SET DEBUG_DBUG="+d,stats_lock_fail";
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 ADD FULLTEXT(f2);
+SET debug_dbug=@saved_debug_dbug;
+ALTER TABLE t1 DISCARD TABLESPACE;
+--error ER_TABLESPACE_DISCARDED
+ALTER TABLE t1 ADD FULLTEXT(f2);
+DROP TABLE t1;
+}

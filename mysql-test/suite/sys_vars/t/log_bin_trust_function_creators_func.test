@@ -36,6 +36,7 @@ SET @start_value= @@global.log_bin_trust_function_creators;
 
 --echo ## Creating new user tt ##
 CREATE USER tt@localhost;
+GRANT ALL ON test.* TO tt@localhost;
 
 --echo ## Setting value of variable to 0 ##
 SET @@global.log_bin_trust_function_creators = 0;

@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2014, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -48,27 +49,20 @@ lock_queue_iterator_reset(
 	ulint			bit_no)	/*!< in: record number in the
 					heap */
 {
-	ut_ad(lock_mutex_own());
+  lock_sys.assert_locked(*lock);
 
-	iter->current_lock = lock;
+  iter->current_lock = lock;
 
-	if (bit_no != ULINT_UNDEFINED) {
+  if (bit_no != ULINT_UNDEFINED);
+  else if (lock->is_table())
+    bit_no= ULINT_UNDEFINED;
+  else
+  {
+    bit_no= lock_rec_find_set_bit(lock);
+    ut_ad(bit_no != ULINT_UNDEFINED);
+  }
 
-		iter->bit_no = bit_no;
-	} else {
-
-		switch (lock_get_type_low(lock)) {
-		case LOCK_TABLE:
-			iter->bit_no = ULINT_UNDEFINED;
-			break;
-		case LOCK_REC:
-			iter->bit_no = lock_rec_find_set_bit(lock);
-			ut_a(iter->bit_no != ULINT_UNDEFINED);
-			break;
-		default:
-			ut_error;
-		}
-	}
+  iter->bit_no= bit_no;
 }
 
 /*******************************************************************//**
@@ -81,27 +75,14 @@ lock_queue_iterator_get_prev(
 /*=========================*/
 	lock_queue_iterator_t*	iter)	/*!< in/out: iterator */
 {
-	const lock_t*	prev_lock;
+  lock_sys.assert_locked(*iter->current_lock);
 
-	ut_ad(lock_mutex_own());
+  const lock_t *prev_lock= !iter->current_lock->is_table()
+    ? lock_rec_get_prev(iter->current_lock, iter->bit_no)
+    : UT_LIST_GET_PREV(un_member.tab_lock.locks, iter->current_lock);
 
-	switch (lock_get_type_low(iter->current_lock)) {
-	case LOCK_REC:
-		prev_lock = lock_rec_get_prev(
-			iter->current_lock, iter->bit_no);
-		break;
-	case LOCK_TABLE:
-		prev_lock = UT_LIST_GET_PREV(
-			un_member.tab_lock.locks, iter->current_lock);
-		break;
-	default:
-		ut_error;
-	}
+  if (prev_lock)
+    iter->current_lock= prev_lock;
 
-	if (prev_lock != NULL) {
-
-		iter->current_lock = prev_lock;
-	}
-
-	return(prev_lock);
+  return prev_lock;
 }

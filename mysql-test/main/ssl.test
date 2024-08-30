@@ -10,8 +10,11 @@
 --source include/count_sessions.inc
 
 --source include/default_charset.inc
+--source include/have_perfschema.inc
 
 connect (ssl_con,localhost,root,,,,,SSL);
+
+select variable_name from performance_schema.status_by_thread where VARIABLE_NAME LIKE 'Ssl%';
 
 # Check ssl turned on
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
@@ -27,7 +30,7 @@ SHOW STATUS LIKE 'Ssl_server_not_after';
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 #
-# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to MySQL server during query) while executing AES* functions under SSL
+# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to server during query) while executing AES* functions under SSL
 #
 select aes_decrypt('MySQL','adf');
 select 'still connected?';

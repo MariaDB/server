@@ -37,6 +37,7 @@ typedef struct st_mysql_show_var SHOW_VAR;
 #include "wsrep/provider.hpp"
 #include "wsrep/streaming_context.hpp"
 #include "wsrep_api.h"
+#include <map>
 
 #define WSREP_UNDEFINED_TRX_ID ULONGLONG_MAX
 
@@ -66,12 +67,13 @@ extern const char* wsrep_start_position;
 extern ulong       wsrep_max_ws_size;
 extern ulong       wsrep_max_ws_rows;
 extern const char* wsrep_notify_cmd;
+extern const char* wsrep_status_file;
+extern const char* wsrep_allowlist;
 extern my_bool     wsrep_certify_nonPK;
 extern long int    wsrep_protocol_version;
 extern my_bool     wsrep_desync;
 extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_recovery;
-extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
@@ -89,6 +91,7 @@ extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint32      wsrep_gtid_domain_id;
 extern std::atomic <bool > wsrep_thread_create_failed;
+extern ulonglong   wsrep_mode;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
@@ -118,6 +121,17 @@ enum enum_wsrep_ignore_apply_error {
     WSREP_IGNORE_ERRORS_ON_RECONCILING_DML= 0x2,
     WSREP_IGNORE_ERRORS_ON_DDL= 0x4,
     WSREP_IGNORE_ERRORS_MAX= 0x7
+};
+
+/* wsrep_mode features */
+enum enum_wsrep_mode {
+  WSREP_MODE_STRICT_REPLICATION= (1ULL << 0),
+  WSREP_MODE_BINLOG_ROW_FORMAT_ONLY= (1ULL << 1),
+  WSREP_MODE_REQUIRED_PRIMARY_KEY= (1ULL << 2),
+  WSREP_MODE_REPLICATE_MYISAM= (1ULL << 3),
+  WSREP_MODE_REPLICATE_ARIA= (1ULL << 4),
+  WSREP_MODE_DISALLOW_LOCAL_GTID= (1ULL << 5),
+  WSREP_MODE_BF_MARIABACKUP= (1ULL << 6)
 };
 
 // Streaming Replication
@@ -177,6 +191,7 @@ void wsrep_recover_sr_from_storage(THD *);
 
 // Other wsrep global variables
 extern my_bool     wsrep_inited; // whether wsrep is initialized ?
+extern bool        wsrep_service_started;
 
 extern "C" void wsrep_fire_rollbacker(THD *thd);
 extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd);
@@ -196,6 +211,10 @@ extern void wsrep_close_applier_threads(int count);
 extern void wsrep_stop_replication(THD *thd);
 extern bool wsrep_start_replication(const char *wsrep_cluster_address);
 extern void wsrep_shutdown_replication();
+extern bool wsrep_check_mode (enum_wsrep_mode mask);
+extern bool wsrep_check_mode_after_open_table (THD *thd, const handlerton *hton,
+                                               TABLE_LIST *tables);
+extern bool wsrep_check_mode_before_cmd_execute (THD *thd);
 extern bool wsrep_must_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, uint mask= WSREP_SYNC_WAIT_BEFORE_READ);
 extern bool wsrep_sync_wait (THD* thd, enum enum_sql_command command);
@@ -205,6 +224,7 @@ extern int  wsrep_check_opts();
 extern void wsrep_prepend_PATH (const char* path);
 extern bool wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* table, wsrep::key_array* keys);
 extern bool wsrep_reload_ssl();
+extern bool wsrep_split_allowlist(std::vector<std::string>& allowlist);
 
 /* Other global variables */
 extern wsrep_seqno_t wsrep_locked_seqno;
@@ -223,10 +243,16 @@ void WSREP_LOG(void (*fun)(const char* fmt, ...), const char* fmt, ...);
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
     goto wsrep_error_label;
 
-#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_) \
+#define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)	\
+  if (WSREP_ON && WSREP(thd) &&                                         \
+      wsrep_to_isolation_begin(thd, db_, table_,                        \
+                               table_list_, nullptr, nullptr, create_info_))\
+    goto wsrep_error_label;
+
+#define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_, create_info_) \
   if (WSREP(thd) && wsrep_thd_is_local(thd) &&                          \
       wsrep_to_isolation_begin(thd, db_, table_,                        \
-                               table_list_, alter_info_, fk_tables_))
+                               table_list_, alter_info_, fk_tables_, create_info_))
 
 #define WSREP_TO_ISOLATION_END                                          \
   if ((WSREP(thd) && wsrep_thd_is_local_toi(thd)) ||                    \
@@ -266,6 +292,7 @@ extern mysql_mutex_t LOCK_wsrep_replaying;
 extern mysql_cond_t  COND_wsrep_replaying;
 extern mysql_mutex_t LOCK_wsrep_slave_threads;
 extern mysql_cond_t  COND_wsrep_slave_threads;
+extern mysql_mutex_t LOCK_wsrep_gtid_wait_upto;
 extern mysql_mutex_t LOCK_wsrep_cluster_config;
 extern mysql_mutex_t LOCK_wsrep_desync;
 extern mysql_mutex_t LOCK_wsrep_SR_pool;
@@ -299,6 +326,8 @@ extern PSI_mutex_key key_LOCK_wsrep_replaying;
 extern PSI_cond_key  key_COND_wsrep_replaying;
 extern PSI_mutex_key key_LOCK_wsrep_slave_threads;
 extern PSI_cond_key  key_COND_wsrep_slave_threads;
+extern PSI_mutex_key key_LOCK_wsrep_gtid_wait_upto;
+extern PSI_cond_key  key_COND_wsrep_gtid_wait_upto;
 extern PSI_mutex_key key_LOCK_wsrep_cluster_config;
 extern PSI_mutex_key key_LOCK_wsrep_desync;
 extern PSI_mutex_key key_LOCK_wsrep_SR_pool;
@@ -324,7 +353,12 @@ struct TABLE_LIST;
 class Alter_info;
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
-                             Alter_info* alter_info= NULL, wsrep::key_array *fk_tables=NULL);
+                             const Alter_info* alter_info= nullptr,
+                             const wsrep::key_array *fk_tables= nullptr,
+                             const HA_CREATE_INFO* create_info= nullptr);
+
+bool wsrep_should_replicate_ddl(THD* thd, const handlerton *db_type);
+bool wsrep_should_replicate_ddl_iterate(THD* thd, const TABLE_LIST* table_list);
 
 void wsrep_to_isolation_end(THD *thd);
 
@@ -346,7 +380,129 @@ class Log_event;
 int wsrep_ignored_error_code(Log_event* ev, int error);
 int wsrep_must_ignore_error(THD* thd);
 
-bool wsrep_replicate_GTID(THD* thd);
+struct wsrep_server_gtid_t
+{
+  uint32 domain_id;
+  uint32 server_id;
+  uint64 seqno;
+};
+class Wsrep_gtid_server
+{
+public:
+  uint32 domain_id;
+  uint32 server_id;
+  Wsrep_gtid_server()
+    : m_force_signal(false)
+    , m_seqno(0)
+    , m_committed_seqno(0)
+  { }
+  void gtid(const wsrep_server_gtid_t& gtid)
+  {
+    domain_id=  gtid.domain_id;
+    server_id=  gtid.server_id;
+    m_seqno=    gtid.seqno;
+  }
+  wsrep_server_gtid_t gtid()
+  {
+    wsrep_server_gtid_t gtid;
+    gtid.domain_id= domain_id;
+    gtid.server_id= server_id;
+    gtid.seqno=     m_seqno;
+    return gtid;
+  }
+  void seqno(const uint64 seqno) { m_seqno= seqno; }
+  uint64 seqno() const { return m_seqno; }
+  uint64 seqno_committed() const { return m_committed_seqno; }
+  uint64 seqno_inc()
+  {
+    m_seqno++;
+    return m_seqno;
+  }
+  const wsrep_server_gtid_t& undefined()
+  {
+    return m_undefined;
+  }
+  int wait_gtid_upto(const uint64_t seqno, uint timeout)
+  {
+    int wait_result= 0;
+    struct timespec wait_time;
+    int ret= 0;
+    mysql_cond_t wait_cond;
+    mysql_cond_init(key_COND_wsrep_gtid_wait_upto, &wait_cond, NULL);
+    set_timespec(wait_time, timeout);
+    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
+    std::multimap<uint64, mysql_cond_t*>::iterator it;
+    if (seqno > m_seqno)
+    {
+      try
+      {
+        it= m_wait_map.insert(std::make_pair(seqno, &wait_cond));
+      } 
+      catch (std::bad_alloc& e)
+      {
+         ret= ENOMEM;
+      }
+      while (!ret && (m_committed_seqno < seqno) && !m_force_signal)
+      {
+        wait_result= mysql_cond_timedwait(&wait_cond,
+                                          &LOCK_wsrep_gtid_wait_upto,
+                                          &wait_time);
+        if (wait_result == ETIMEDOUT || wait_result == ETIME)
+        {
+          ret= wait_result;
+          break;
+        }
+      }
+      if (ret != ENOMEM)
+      {
+        m_wait_map.erase(it);
+      }
+    }
+    mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
+    mysql_cond_destroy(&wait_cond);
+    return ret;
+  }
+  void signal_waiters(uint64 seqno, bool signal_all)
+  {
+    mysql_mutex_lock(&LOCK_wsrep_gtid_wait_upto);
+    if (!signal_all && (m_committed_seqno >= seqno))
+    {
+      mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
+      return;
+    }
+    m_force_signal= true;
+    std::multimap<uint64, mysql_cond_t*>::iterator it_end;
+    std::multimap<uint64, mysql_cond_t*>::iterator it_begin;
+    if (signal_all)
+    {
+      it_end= m_wait_map.end();
+    }
+    else
+    {
+      it_end= m_wait_map.upper_bound(seqno);
+    }
+    if (m_committed_seqno < seqno)
+    {
+      m_committed_seqno= seqno;
+    }
+    for (it_begin = m_wait_map.begin(); it_begin != it_end; ++it_begin)
+    {
+      mysql_cond_signal(it_begin->second);
+    }
+    m_force_signal= false;
+    mysql_mutex_unlock(&LOCK_wsrep_gtid_wait_upto);
+  }
+private:
+  const wsrep_server_gtid_t m_undefined= {0,0,0};
+  std::multimap<uint64, mysql_cond_t*> m_wait_map;
+  bool m_force_signal;
+  Atomic_counter<uint64_t> m_seqno;
+  Atomic_counter<uint64_t> m_committed_seqno;
+};
+extern Wsrep_gtid_server wsrep_gtid_server;
+void wsrep_init_gtid();
+bool wsrep_check_gtid_seqno(const uint32&, const uint32&, uint64&);
+bool wsrep_get_binlog_gtid_seqno(wsrep_server_gtid_t&);
 
 int wsrep_append_table_keys(THD* thd,
                             TABLE_LIST* first_table,
@@ -355,7 +511,7 @@ int wsrep_append_table_keys(THD* thd,
 
 extern void
 wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
-                          MDL_ticket *ticket,
+                          const MDL_ticket *ticket,
                           const MDL_key *key);
 
 enum wsrep_thread_type {
@@ -453,6 +609,7 @@ void wsrep_ready_set(bool ready_value);
 #define wsrep_thr_deinit() do {} while(0)
 #define wsrep_init_globals() do {} while(0)
 #define wsrep_create_appliers(X) do {} while(0)
+#define wsrep_should_replicate_ddl(X,Y) (1)
 #define wsrep_cluster_address_exists() (false)
 #define WSREP_MYSQL_DB (0)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)

@@ -8,10 +8,10 @@
 --echo # column create
 --echo #
 select hex(COLUMN_CREATE(1, NULL AS char character set utf8)) as exp;
-select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 1212 AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8)) as ex;
-select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8)) as ex;
+select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 1212 AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 12.12 AS char character set utf8 collate utf8_general_ci)) as ex;
+select hex(COLUMN_CREATE(1, 99999999999999999999999999999 AS char character set utf8 collate utf8_general_ci)) as ex;
 select hex(COLUMN_CREATE(1, NULL AS unsigned int));
 select hex(COLUMN_CREATE(1, 1212 AS unsigned int));
 select hex(COLUMN_CREATE(1, 7 AS unsigned int));
@@ -47,8 +47,8 @@ select hex(COLUMN_CREATE(1, "2011-04-05" AS date));
 select hex(COLUMN_CREATE(1, NULL AS time));
 select hex(COLUMN_CREATE(1, "0:45:49.000001" AS time)); 
 select hex(COLUMN_CREATE(1, NULL AS datetime));
-select hex(COLUMN_CREATE(1, "2011-04-05 0:45:49.000001" AS datetime)) as ex; 
-select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8,
+select hex(COLUMN_CREATE(1, "2011-04-05 0:45:49.000001" AS datetime)) as ex;
+select hex(COLUMN_CREATE(1, "afaf" AS char character set utf8 collate utf8_general_ci,
 			 2, 1212 AS unsigned int,
 			 3, 1212 AS int,
 			 4, 12.12 AS double,
@@ -693,7 +693,7 @@ select column_get(column_create("1212", 2, "адын", 1, 3, 3), 4 as int) as ex
 select column_get(column_create("1212", 2, "адын", 1, 3, 3), "4" as int) as ex;
 set names latin1;
 
---echo # column existance test (names)
+--echo # column existence test (names)
 set names utf8;
 select column_exists(column_create("адын", 1212), "адын") as ex;
 select column_exists(column_create("адын", 1212), "aады") as ex;
@@ -1000,3 +1000,29 @@ SELECT HEX(COLUMN_ADD(COLUMN_CREATE(1,10),2,NULL,1,NULL)) as ex;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-33788 HEX(COLUMN_CREATE(.. AS CHAR ...)) fails with --view-protocol
+--echo #
+
+SELECT hex(column_create(1,'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin)) AS ex;
+SELECT hex(column_add(column_create(
+                      1, 'a' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_bin),
+                      2, 'b' AS CHAR CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci)) AS ex;
+
+--echo #
+--echo # MDEV-31566 Fix buffer overrun of column_json function
+--echo #
+
+
+create table t1 (
+  c1 varchar(32) primary key,
+  d1  blob
+);
+insert into t1 values ('var', 0x0402000A0000000300030023076A736E7375626A6563742E0005006C0027000200290002002B0002002D0002002F0002000C31000C3B000C4B000C51000F62006631663266336634663509E5A79AE8BF9CE6B48B0FE8819AE9809AE98791E6A1A5E5BA970537343530301031313634332F393634352F31313630300C080000000000EFBFBDEFBFBD192E), ('zzz', 0x0402000900000003000300740C6A736E766F6C756D652E000900EFBFBD004300020045000200470003004A0004004E00050053000500580005005D000500620005000C67000C6A000C6D000C7000052C00051B00052C000CEFBFBD0007EFBFBD006638663966313070696332626F785F63626F785F67626F785F6B626F785F7666355F696402343402343402333241687474703A2F2F6F73732E68646238382E636F6D2F302F70686F746F2F30373865653765376336343634616236386130343833373333323636613532612E67696608302E303532323732244F1E00030180C106);
+
+select c1,column_json(d1) as not_crashing from t1 order by c1;
+
+drop table t1;
+
+--echo # End of 10.5 tests

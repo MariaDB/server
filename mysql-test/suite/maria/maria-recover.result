@@ -17,6 +17,8 @@ drop database if exists mysqltest;
 create database mysqltest;
 use mysqltest;
 create table t1 (a varchar(1000), index(a)) engine=aria;
+Warnings:
+Note	1071	Specified key was too long; max key length is 2300 bytes
 insert into t1 values("ThursdayMorningsMarket");
 flush table t1;
 insert into t1 select concat(a,'b') from t1 limit 1;
@@ -26,9 +28,10 @@ a
 ThursdayMorningsMarket
 ThursdayMorningsMarketb
 Warnings:
-Error	145	t_corrupted2' is marked as crashed and should be repaired
+Error	145	Got error '145 "Table was marked as crashed and should be repaired"' for 't_corrupted2'
 Warning	1034	1 client is using or hasn't closed the table properly
-Error	1034	Wrong base information on indexpage at page: 1
+Error	176	Got error '176 "Read page with wrong checksum"' for 't_corrupted2.MAI'
+Error	1034	Can't read indexpage from page: 1, error: 176
 select * from t_corrupted2;
 a
 ThursdayMorningsMarket

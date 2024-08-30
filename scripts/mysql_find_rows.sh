@@ -18,6 +18,9 @@ $version="1.02";
 
 use Getopt::Long;
 
+warn "$0: Deprecated program name. It will be removed in a future release, use 'mariadb-find-rows' instead\n"
+  if $0 =~ m/mysql_find_rows$/;
+
 $opt_help=$opt_Information=$opt_skip_use_db=0;
 $opt_regexp=$opt_dbregexp=".*";
 $opt_start_row=1; $opt_rows=9999999999;

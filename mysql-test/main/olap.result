@@ -1,3 +1,4 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
 set @sav_dpi= @@div_precision_increment;
 set div_precision_increment= 5;
 show variables like 'div_precision_increment';
@@ -787,18 +788,12 @@ DROP TABLE t1;
 #
 # MDEV-17830 Server crashes in Item_null_result::field_type upon SELECT with CHARSET(date) and ROLLUP
 #
-# Note, different MariaDB versions can return different results
-# in the two rows (such as "latin1" vs "binary"). This is wrong.
-# Both lines should return equal values.
-# The point in this test is to make sure it does not crash.
-# As this is a minor issue, bad result will be fixed
-# in a later version, presumably in 10.4.
 CREATE TABLE t (d DATE) ENGINE=MyISAM;
 INSERT INTO t VALUES ('2018-12-12');
 SELECT CHARSET(d) AS f FROM t GROUP BY d WITH ROLLUP;
 f
 binary
-latin1
+binary
 DROP TABLE t;
 #
 # MDEV-14041 Server crashes in String::length on queries with functions and ROLLUP
@@ -911,3 +906,4 @@ NULL
 NULL
 DROP TABLE t1;
 # End of 10.3 Tests
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

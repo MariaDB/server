@@ -45,7 +45,7 @@ DROP TABLE t1;
 # Create same table with older format to test compatibility
 #
 
-set session debug= '+d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
+set session debug_dbug= '+d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
 CREATE TABLE t1 (
   id INT,
   fake_id INT,
@@ -54,7 +54,7 @@ CREATE TABLE t1 (
   KEY bf (bigfield(32)),
   KEY fid (fake_id, bigfield(32))
 ) ENGINE=rocksdb;
-set session debug= '-d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
+set session debug_dbug= '-d,MYROCKS_NO_COVERED_BITMAP_FORMAT';
 
 INSERT INTO t1 VALUES (1, 1001, REPEAT('a', 1)),
                       (8, 1008, REPEAT('b', 8)),

@@ -1,4 +1,5 @@
 CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) ENGINE=innodb;
+INSERT INTO t1 VALUES("default");
 SELECT variable_value INTO @commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_commits';
 SELECT variable_value INTO @group_commits FROM information_schema.global_status
@@ -32,12 +33,14 @@ SET DEBUG_SYNC= "now WAIT_FOR group2_con4";
 SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED;
 SELECT * FROM t1 ORDER BY a;
 a
+default
 SET DEBUG_SYNC= "now SIGNAL group2_queued";
 connection con1;
 connection default;
 SELECT * FROM t1 ORDER BY a;
 a
 con1
+default
 connection con5;
 SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL group3_con5";
 SET DEBUG_SYNC= "commit_after_get_LOCK_log SIGNAL con5_leader WAIT_FOR con6_queued";
@@ -52,6 +55,7 @@ SET DEBUG_SYNC= "now WAIT_FOR group3_con5";
 SELECT * FROM t1 ORDER BY a;
 a
 con1
+default
 SET DEBUG_SYNC= "now SIGNAL group3_committed";
 SET DEBUG_SYNC= "now WAIT_FOR group2_visible";
 SELECT * FROM t1 ORDER BY a;
@@ -60,6 +64,7 @@ con1
 con2
 con3
 con4
+default
 SET DEBUG_SYNC= "now SIGNAL group2_checked";
 connection con2;
 connection con3;
@@ -75,6 +80,7 @@ con3
 con4
 con5
 con6
+default
 SELECT variable_value - @commits FROM information_schema.global_status
 WHERE variable_name = 'binlog_commits';
 variable_value - @commits

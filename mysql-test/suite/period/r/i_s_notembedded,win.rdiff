@@ -1,0 +1,20 @@
+--- suite/period/r/i_s_notembedded.result	2024-01-01 19:50:37.000000000 +0100
++++ suite/period/r/i_s_notembedded,win.reject	2024-01-01 19:57:18.888306500 +0100
+@@ -69,13 +69,17 @@
+ set names latin1 collate latin1_general_cs;
+ select table_name from information_schema.periods where table_schema = 'TEST';
+ table_name
++t
+ select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+ table_name
++t
+ set names latin1 collate latin1_general_ci;
+ select table_name from information_schema.periods where table_schema = 'TEST';
+ table_name
++t
+ select table_name from information_schema.key_period_usage where table_schema = 'TEST';
+ table_name
++t
+ # [DUPLICATE] MDEV-32504 Search by I_S.KEY_PERIOD_USAGE.CONSTRAINT_NAME
+ # does not work
+ select constraint_name from information_schema.key_period_usage where table_name = 't';

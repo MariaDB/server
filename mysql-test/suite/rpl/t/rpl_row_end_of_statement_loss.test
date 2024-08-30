@@ -7,7 +7,7 @@
 call mtr.add_suppression("Slave IO thread did not receive an expected Rows-log end-of-statement");
 call mtr.add_suppression("Relay log write failure: could not queue event from master");
 
-SET @save_debug= @@global.debug;
+SET @save_debug= @@global.debug_dbug;
 SET GLOBAL debug_dbug="+d,simulate_stmt_end_rows_event_loss";
 --source include/stop_slave.inc
 --replace_result $MASTER_MYPORT MASTER_PORT

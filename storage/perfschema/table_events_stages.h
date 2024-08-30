@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -66,6 +66,11 @@ struct row_events_stages
   char m_source[COL_SOURCE_SIZE];
   /** Length in bytes of @c m_source. */
   uint m_source_length;
+  bool m_progress;
+  /** Column WORK_COMPLETED. */
+  ulonglong m_work_completed;
+  /** Column WORK_ESTIMATED. */
+  ulonglong m_work_estimated;
 };
 
 /** Position of a cursor on PERFORMANCE_SCHEMA.EVENTS_STAGES_HISTORY. */
@@ -95,10 +100,10 @@ struct pos_events_stages_history : public PFS_double_index
 class table_events_stages_common : public PFS_engine_table
 {
 protected:
-  virtual int read_row_values(TABLE *table,
-                              unsigned char *buf,
-                              Field **fields,
-                              bool read_all);
+  int read_row_values(TABLE *table,
+                      unsigned char *buf,
+                      Field **fields,
+                      bool read_all) override;
 
   table_events_stages_common(const PFS_engine_table_share *share, void *pos);
 
@@ -116,15 +121,17 @@ protected:
 class table_events_stages_current : public table_events_stages_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_init(bool scan);
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_init(bool scan) override;
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_stages_current();
@@ -149,15 +156,17 @@ private:
 class table_events_stages_history : public table_events_stages_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_init(bool scan);
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_init(bool scan) override;
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_stages_history();
@@ -179,15 +188,17 @@ private:
 class table_events_stages_history_long : public table_events_stages_common
 {
 public:
+  static PFS_engine_table_share_state m_share_state;
   /** Table share */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
-  virtual int rnd_init(bool scan);
-  virtual int rnd_next();
-  virtual int rnd_pos(const void *pos);
-  virtual void reset_position(void);
+  int rnd_init(bool scan) override;
+  int rnd_next() override;
+  int rnd_pos(const void *pos) override;
+  void reset_position(void) override;
 
 protected:
   table_events_stages_history_long();

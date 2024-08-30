@@ -29,10 +29,10 @@ sub get_dbi_connection {
     = ($conf{dbname}, $conf{host}, $conf{myport}, $conf{ssps},
       $conf{user}, $conf{pass});
   my $mycnf = "binary_my.cnf";
-  my $dsn = "DBI:mysql:database=;host=$host;port=$myport"
-    . ";mysql_server_prepare=$ssps"
-    . ";mysql_read_default_group=perl"
-    . ";mysql_read_default_file=../common/$mycnf";
+  my $dsn = "DBI:MariaDB:database=;host=$host;port=$myport"
+    . ";mariadb_server_prepare=$ssps"
+    . ";mariadb_read_default_group=perl"
+    . ";mariadb_read_default_file=../common/$mycnf";
   my $dbh = DBI->connect($dsn, $user, $pass, { RaiseError => 1 });
   return $dbh;
 }

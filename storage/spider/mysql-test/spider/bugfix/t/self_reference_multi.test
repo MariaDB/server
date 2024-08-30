@@ -1,0 +1,36 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo
+--echo MDEV-6268 SPIDER table with no COMMENT clause causes queries to wait forever
+--echo
+
+set spider_same_server_link=1;
+set @old_spider_same_server_link=@@global.spider_same_server_link;
+set global spider_same_server_link=1;
+--let $srv=srv_self_reference_multi
+evalp CREATE SERVER $srv FOREIGN DATA WRAPPER MYSQL OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+create table t2 (c int);
+eval create table t1 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t2"';
+eval create table t0 (c int) ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t1"';
+eval alter table t2 ENGINE=Spider COMMENT='WRAPPER "mysql", srv "$srv",TABLE "t0"';
+--error 12719
+select * from t0;
+--replace_result test.t1 test.t0 test.t2 test.t0
+--error 12719
+select * from t1;
+--replace_result test.t1 test.t0 test.t2 test.t0
+--error 12719
+select * from t2;
+drop table t0, t1, t2;
+eval drop server $srv;
+set global spider_same_server_link=@old_spider_same_server_link;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

@@ -30,6 +30,8 @@ class THD;
 class Time_zone;
 struct TABLE;
 
+void init_scheduler_psi_keys(void);
+
 class Event_queue_element_for_exec
 {
 public:
@@ -37,7 +39,7 @@ public:
   ~Event_queue_element_for_exec();
 
   bool
-  init(const LEX_CSTRING *dbname, const LEX_CSTRING *name);
+  init(const LEX_CSTRING &dbname, const LEX_CSTRING &name);
 
   LEX_CSTRING dbname;
   LEX_CSTRING name;
@@ -48,6 +50,15 @@ private:
   /* Prevent use of these */
   Event_queue_element_for_exec(const Event_queue_element_for_exec &);
   void operator=(Event_queue_element_for_exec &);
+#ifdef HAVE_PSI_INTERFACE
+public:
+  PSI_statement_info* get_psi_info()
+  {
+    return & psi_info;
+  }
+
+  static PSI_statement_info psi_info;
+#endif
 };
 
 
@@ -106,7 +117,7 @@ public:
   virtual ~Event_queue_element();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   bool
   compute_next_execution_time();
@@ -144,7 +155,7 @@ public:
   init();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   int
   get_create_event(THD *thd, String *buf);
@@ -165,7 +176,7 @@ public:
   Event_job_data();
 
   virtual bool
-  load_from_row(THD *thd, TABLE *table);
+  load_from_row(THD *thd, TABLE *table) override;
 
   bool
   execute(THD *thd, bool drop);

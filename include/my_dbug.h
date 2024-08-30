@@ -17,9 +17,9 @@
 #ifndef _my_dbug_h
 #define _my_dbug_h
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <signal.h>
-#endif  /* not __WIN__ */
+#endif
 
 #ifdef  __cplusplus
 extern "C" {
@@ -52,7 +52,10 @@ extern void _db_enter_(const char *_func_, const char *_file_, uint _line_,
 extern  void _db_return_(struct _db_stack_frame_ *_stack_frame_);
 extern  int _db_pargs_(uint _line_,const char *keyword);
 extern  void _db_doprnt_(const char *format,...)
-  ATTRIBUTE_FORMAT(printf, 1, 2);
+#ifdef WAITING_FOR_BUGFIX_TO_VSPRINTF
+  ATTRIBUTE_FORMAT(printf, 1, 2)
+#endif
+  ;
 extern  void _db_dump_(uint _line_,const char *keyword,
                        const unsigned char *memory, size_t length);
 extern  void _db_end_(void);
@@ -101,10 +104,11 @@ extern int (*dbug_sanity)(void);
         do {if (_db_keyword_(0, (keyword), 0)) { a1 }} while(0)
 #define DBUG_EXECUTE_IF(keyword,a1) \
         do {if (_db_keyword_(0, (keyword), 1)) { a1 }} while(0)
-#define DBUG_EVALUATE(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 0) ? (a1) : (a2))
-#define DBUG_EVALUATE_IF(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 1) ? (a1) : (a2))
+
+#define DBUG_IF(keyword) _db_keyword_(0, (keyword), 1)
+
+#define DBUG_PUSH_EMPTY if (_dbug_on_) { DBUG_PUSH(""); }
+#define DBUG_POP_EMPTY  if (_dbug_on_) { DBUG_POP(); }
 #define DBUG_PUSH(a1) _db_push_ (a1)
 #define DBUG_POP() _db_pop_ ()
 #define DBUG_SET(a1) _db_set_ (a1)
@@ -130,7 +134,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_FREE_CODE_STATE(arg) dbug_free_code_state(arg)
 #undef DBUG_ASSERT_AS_PRINTF
 
-#ifndef __WIN__
+#ifndef _WIN32
 #define DBUG_ABORT()                    (_db_flush_(), abort())
 #else
 /*
@@ -141,7 +145,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_ABORT() (_db_flush_(),\
                      (void)_CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_FILE),\
                      (void)_CrtSetReportFile(_CRT_ERROR, _CRTDBG_FILE_STDERR),\
-                     _exit(3))
+                     TerminateProcess(GetCurrentProcess(),3))
 #endif
 
 /*
@@ -152,12 +156,12 @@ extern int (*dbug_sanity)(void);
   An alternative would be to use _exit(EXIT_FAILURE),
   but then valgrind would report lots of memory leaks.
  */
-#ifdef __WIN__
+#ifdef _WIN32
 #define DBUG_SUICIDE() DBUG_ABORT()
 #else
 extern void _db_suicide_(void);
 #define DBUG_SUICIDE() (_db_flush_(), _db_suicide_())
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 #else                                           /* No debugger */
 
@@ -169,9 +173,10 @@ extern void _db_suicide_(void);
 #define DBUG_PRINT(keyword, arglist)    do { } while(0)
 #define DBUG_EXECUTE(keyword,a1)        do { } while(0)
 #define DBUG_EXECUTE_IF(keyword,a1)     do { } while(0)
-#define DBUG_EVALUATE(keyword,a1,a2) (a2)
-#define DBUG_EVALUATE_IF(keyword,a1,a2) (a2)
+#define DBUG_IF(keyword) 0
 #define DBUG_PRINT(keyword,arglist)     do { } while(0)
+#define DBUG_PUSH_EMPTY                 do { } while(0)
+#define DBUG_POP_EMPTY                  do { } while(0)
 #define DBUG_PUSH(a1)                   do { } while(0)
 #define DBUG_SET(a1)                    do { } while(0)
 #define DBUG_SET_INITIAL(a1)            do { } while(0)
@@ -194,7 +199,7 @@ extern void _db_suicide_(void);
 #define DBUG_CRASH_ENTER(func)
 #define DBUG_CRASH_RETURN(val)          do { return(val); } while(0)
 #define DBUG_CRASH_VOID_RETURN          do { return; } while(0)
-#define DBUG_SUICIDE()                  do { } while(0)
+#define DBUG_SUICIDE()                  ((void) 0)
 
 #ifdef DBUG_ASSERT_AS_PRINTF
 extern void (*my_dbug_assert_failed)(const char *assert_expr, const char* file, unsigned long line);

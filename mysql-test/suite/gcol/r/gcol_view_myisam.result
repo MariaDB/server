@@ -20,7 +20,7 @@ is_updatable
 NO
 explain select d,e from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	X
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	X	
 create algorithm=temptable view v2 (d,e) as select abs(b), abs(c) from t1;
 show create view v2;
 View	Create View	character_set_client	collation_connection
@@ -34,8 +34,8 @@ d	e
 3	3
 explain select d,e from v2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	X
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	X
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	X	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	X	
 create view v3 (d,e) as select d*2, e*2 from v1;
 select * from v3;
 d	e
@@ -46,7 +46,7 @@ d	e
 6	6
 explain select * from v3;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	X
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	X	
 drop view v1,v2,v3;
 drop table t1;
 create table t1 (a int not null,
@@ -61,8 +61,8 @@ b
 -3
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	X
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	X
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	X	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	X	Using temporary
 select * from t1;
 a	b	c
 1	-1	-1
@@ -80,8 +80,8 @@ c
 -3
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	6	X
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	6	X
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	X	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	X	Using temporary
 select * from t1;
 a	b	c
 1	-1	-1
@@ -103,8 +103,8 @@ b+1
 -1
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	X
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	X
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	X	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	X	Using filesort
 drop view v1;
 create view v1 as select c+1 from t1 order by 1 desc limit 2;
 select * from v1;
@@ -113,8 +113,8 @@ c+1
 0
 explain select * from v1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	X
-2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	4	X
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	X	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	X	Using filesort
 drop view v1;
 drop table t1;
 create table t1 (a int,

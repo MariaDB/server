@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -144,8 +144,8 @@ eval_cmp_like(
 	switch (op) {
 	case IB_LIKE_PREFIX:
 		arg4 = que_node_get_next(arg3);
-		return(!cmp_dfield_dfield_like_prefix(que_node_get_val(arg1),
-						      que_node_get_val(arg4)));
+		return(cmp_dfield_dfield_eq_prefix(que_node_get_val(arg1),
+						   que_node_get_val(arg4)));
 	case IB_LIKE_EXACT:
 		return(!cmp_dfield_dfield(que_node_get_val(arg1),
 					  que_node_get_val(arg2)));
@@ -337,10 +337,8 @@ eval_notfound(
 	ut_ad(que_node_get_type(cursor) == QUE_NODE_SYMBOL);
 
 	if (cursor->token_type == SYM_LIT) {
-
-		ut_ad(ut_memcmp(dfield_get_data(que_node_get_val(cursor)),
-				"SQL", 3) == 0);
-
+		ut_ad(!memcmp(dfield_get_data(que_node_get_val(cursor)),
+			      "SQL", 3));
 		sel_node = cursor->sym_table->query_graph->last_sel_node;
 	} else {
 		sel_node = cursor->alias->cursor_def;
@@ -380,12 +378,23 @@ eval_substr(
 
 	str1 = static_cast<byte*>(dfield_get_data(que_node_get_val(arg1)));
 
+	const ulint str1_len = dfield_get_len(que_node_get_val(arg1));
+
 	len1 = (ulint) eval_node_get_int_val(arg2);
 	len2 = (ulint) eval_node_get_int_val(arg3);
 
 	dfield = que_node_get_val(func_node);
 
-	dfield_set_data(dfield, str1 + len1, len2);
+	if (len1 > str1_len) {
+		len2 = 0;
+	} else {
+		str1 += len1;
+		if (len2 > str1_len - len1) {
+			len2 = str1_len - len1;
+		}
+	}
+
+	dfield_set_data(dfield, str1, len2);
 }
 
 /*****************************************************************//**
@@ -494,7 +503,7 @@ eval_concat(
 		dfield = que_node_get_val(arg);
 		len1 = dfield_get_len(dfield);
 
-		ut_memcpy(data + len, dfield_get_data(dfield), len1);
+		memcpy(data + len, dfield_get_data(dfield), len1);
 
 		len += len1;
 

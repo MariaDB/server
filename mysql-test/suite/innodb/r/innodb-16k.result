@@ -1,3 +1,6 @@
+ALTER DATABASE test CHARACTER SET latin1 COLLATE latin1_swedish_ci;
+SET @save_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = 0;
 call mtr.add_suppression("InnoDB: Cannot add field .* in table");
 # Test 1) Show the page size from Information Schema
 SELECT variable_value FROM information_schema.global_status
@@ -9,9 +12,7 @@ variable_value
 #         Each row format has its own amount of overhead that
 #         varies depending on number of fields and other overhead.
 SET SESSION innodb_strict_mode = ON;
-SET @save_frequency=@@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET @save_level=@@GLOBAL.innodb_compression_level;
-SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 SET GLOBAL innodb_compression_level=1;
 CREATE TABLE t1 (
 c01 char(200), c02 char(200), c03 char(200), c04 char(200), c05 char(200),
@@ -167,13 +168,15 @@ INSERT INTO t2 VALUES ('jejdkrun87'),('adfd72nh9k'),
 CREATE TABLE t1(a int, b blob, c text, d text NOT NULL)
 ENGINE=innodb DEFAULT CHARSET=utf8;
 INSERT INTO t1
-SELECT a,LEFT(REPEAT(d,100*a),65535),REPEAT(d,20*a),d FROM t2,t3;
+SELECT a,LEFT(REPEAT(d,100*a),65535),REPEAT(d,20*a),d FROM t2,t3
+ORDER BY a,d;
 DROP TABLE t2, t3;
 SELECT COUNT(*) FROM t1 WHERE a=44;
 COUNT(*)
 5
 SELECT a,
-LENGTH(b),b=LEFT(REPEAT(d,100*a),65535),LENGTH(c),c=REPEAT(d,20*a),d FROM t1;
+LENGTH(b),b=LEFT(REPEAT(d,100*a),65535),LENGTH(c),c=REPEAT(d,20*a),d FROM t1
+ORDER BY a,d;
 a	LENGTH(b)	b=LEFT(REPEAT(d,100*a),65535)	LENGTH(c)	c=REPEAT(d,20*a)	d
 22	22000	1	4400	1	adfd72nh9k
 22	35200	1	7040	1	adfdijn0loKNHJik
@@ -214,7 +217,8 @@ SELECT COUNT(*) FROM t1 WHERE a=44;
 COUNT(*)
 5
 SELECT a,
-LENGTH(b), b=LEFT(REPEAT(d,100*a), 65535),LENGTH(c), c=REPEAT(d,20*a), d FROM t1;
+LENGTH(b), b=LEFT(REPEAT(d,100*a), 65535),LENGTH(c), c=REPEAT(d,20*a), d FROM t1
+ORDER BY a,d;
 a	LENGTH(b)	b=LEFT(REPEAT(d,100*a), 65535)	LENGTH(c)	c=REPEAT(d,20*a)	d
 22	22000	1	4400	1	adfd72nh9k
 22	35200	1	7040	1	adfdijn0loKNHJik
@@ -240,7 +244,7 @@ t1	CREATE TABLE `t1` (
   `d` text NOT NULL,
   PRIMARY KEY (`a`,`b`(255),`c`(255)),
   KEY `b` (`b`(767))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_uca1400_ai_ci
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -503,8 +507,9 @@ ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 DROP TABLE t1;
 InnoDB		0 transactions not purged
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SET GLOBAL innodb_compression_level=@save_level;
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;
 DROP TABLE tlong2;
+ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

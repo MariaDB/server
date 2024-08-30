@@ -1,0 +1,56 @@
+--echo #
+--echo # MDEV-19162: anonymous derived tables part
+--echo #
+
+set @save_sql_mode=@@sql_mode;
+set session sql_mode=ORACLE;
+
+--disable_ps_protocol
+--enable_metadata
+SELECT * FROM (SELECT 1 FROM DUAL), (SELECT 2 FROM DUAL);
+--disable_metadata
+--enable_ps_protocol
+create table t1 (a int);
+insert into t1 values (2),(3);
+create table t2 (a int);
+insert into t2 values (2),(3);
+--disable_ps_protocol
+--enable_metadata
+select t1.a from t1, (select * from t2 where t2.a<= 2);
+select t1.a, b from t1, (select a as b from t2 where t2.a<= 2);
+select t1.a, b from t1, (select max(a) as b from t2);
+--disable_metadata
+--enable_ps_protocol
+explain extended
+select t1.a, b from t1, (select max(a) as b from t2);
+--error ER_BAD_FIELD_ERROR
+select * from (select tt.* from (select * from t1) as tt) where tt.a > 0;
+select * from (select tt.* from (select * from t1) as tt) where a > 0;
+
+create view v1 as select t1.a, b from t1, (select max(a) as b from t2);
+
+select * from v1;
+
+
+DELIMITER /;
+create procedure p1
+as
+begin
+  select t1.a, b from t1, (select max(a) as b from t2);
+end/
+DELIMITER ;/
+
+call p1;
+
+SET sql_mode=default;
+
+select * from v1;
+show create view v1;
+
+call p1;
+show create procedure p1;
+
+drop view v1;
+drop procedure p1;
+drop table t1,t2;
+set session sql_mode=@save_sql_mode;

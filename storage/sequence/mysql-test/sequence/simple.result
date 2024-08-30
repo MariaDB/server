@@ -11,7 +11,7 @@ Table	Create Table
 seq_1_to_15_step_2	CREATE TABLE seq_1_to_15_step_2 (
   seq bigint(20) unsigned NOT NULL,
   PRIMARY KEY (seq)
-) ENGINE=SEQUENCE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table seq_1_to_15_step;
 ERROR 42S02: Table 'test.seq_1_to_15_step' doesn't exist
 show create table seq_1_to_15_st;
@@ -21,13 +21,13 @@ Table	Create Table
 seq_1_to_15	CREATE TABLE seq_1_to_15 (
   seq bigint(20) unsigned NOT NULL,
   PRIMARY KEY (seq)
-) ENGINE=SEQUENCE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table seq_1_to_1;
 Table	Create Table
 seq_1_to_1	CREATE TABLE seq_1_to_1 (
   seq bigint(20) unsigned NOT NULL,
   PRIMARY KEY (seq)
-) ENGINE=SEQUENCE DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=SEQUENCE DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 show create table seq_1_to_;
 ERROR 42S02: Table 'test.seq_1_to_' doesn't exist
 show create table seq_1_t;

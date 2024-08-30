@@ -1,0 +1,22 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connection node_1
+create table t1(a int);
+set @@wsrep_gtid_seq_no=22;
+insert into t1 values(1);
+insert into t1 values(2);
+select @@gtid_binlog_state;
+select wsrep_last_seen_gtid();
+select wsrep_last_written_gtid();
+
+--connection node_2
+select @@gtid_binlog_state;
+select wsrep_last_seen_gtid();
+select wsrep_last_written_gtid();
+
+--connection node_1
+drop table t1;
+
+--connection node_2
+CALL mtr.add_suppression("Ignoring server id for non bootstrap node");

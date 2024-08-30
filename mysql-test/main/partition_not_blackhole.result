@@ -11,6 +11,6 @@ t1
 SHOW CREATE TABLE t1;
 ERROR HY000: Incorrect information in file: './test/t1.frm'
 DROP TABLE t1;
-ERROR HY000: Got error 1 "Operation not permitted" from storage engine partition
+ERROR HY000: Got error 175 "File too short; Expected more data in file" from storage engine partition
 t1.frm
 t1.par

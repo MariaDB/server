@@ -1,0 +1,149 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic create table with crashes in a lot of different places
+#
+# This is very similar to the alter_table.test, but includes testing of
+# triggers in with ALTER TABLE .. RENAME.
+#
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+--enable_query_log
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $engine_count=1;
+let $engines='myisam','innodb';
+
+let $crash_count=3;
+let $crash_points='ddl_log_alter_before_rename_triggers', 'ddl_log_alter_after_rename_triggers', 'ddl_log_alter_after_drop_original_table';
+
+let $statement_count=3;
+let $statements='ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2',
+                'ALTER TABLE t1 COMMENT "new", rename t2',
+                'ALTER TABLE t1 change column b c int, COMMENT "new", rename t2';
+
+# If there is a need of testing one specific state (crash point and query),
+# one can remove the comments below and modify them.
+#let $crash_count=1;
+#let $crash_points='ddl_log_alter_before_rename_triggers';
+#let $statement_count= 1;
+#let $statements='ALTER TABLE t1 change column b c int, COMMENT "new", rename t2';
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=ALTER;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+
+  --echo
+  --echo engine: $engine
+  --echo
+
+  let $r=0;
+  while ($r < $statement_count)
+  {
+    inc $r;
+    let $statement=`select ELT($r, $statements)`;
+    --echo
+    --echo query: $statement
+    --echo
+    let $c=0;
+    while ($c < $crash_count)
+    {
+      inc $c;
+      let $crash=`select ELT($c, $crash_points)`;
+
+      --eval create table t1 (a int, b int) engine=$engine
+      insert into t1 (a) values (1),(2);
+      flush tables;
+      delimiter |;
+      create trigger t1_trg before insert on t1 for each row
+      begin
+        if isnull(new.a) then
+          set new.a:= 1000;
+        end if;
+      end|
+      delimiter ;|
+
+       FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      --echo crash point: $crash
+      if ($crash_count != 1)
+      {
+         --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      }
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+      let $errno=0;
+      --error 0,2013
+      --eval $statement;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      if ($error != 0)
+      {
+        --list_files $MYSQLD_DATADIR/test t*
+        --list_files $MYSQLD_DATADIR/test *sql*
+        # Check which tables still exists
+        --error 0,1
+        --file_exists $MYSQLD_DATADIR/test/t1.frm
+        let $error2=$errno;
+        if ($error2 == 0)
+        {
+          show create table t1;
+          # Ensure that triggers work
+          insert into t1 (a) values(null);
+          select sum(a) from t1;
+        }
+        if ($error2 == 1)
+        {
+          show create table t2;
+          select count(*) from t2;
+          # Ensure that triggers work
+          insert into t2 (a) values(null);
+          select sum(a) from t2;
+        }
+
+        --let $binlog_file=$start_binlog_file
+        --let $binlog_output_name=master-bin.000001
+        if ($error)
+        {
+          --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+          --let $binlog_output_name=master-bin.000002
+          if ($binlog_file != $start_binlog_file)
+          {
+            --source include/show_binlog_events.inc
+          }
+        }
+      }
+      --disable_warnings
+      drop table if exists t1,t2;
+      --enable_warnings
+    }
+  }
+}
+
+--enable_query_log

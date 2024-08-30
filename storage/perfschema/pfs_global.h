@@ -1,4 +1,5 @@
-/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
+  Copyright (c) 2022, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -23,6 +24,8 @@
 #ifndef PFS_GLOBAL_H
 #define PFS_GLOBAL_H
 
+#include <atomic>
+
 #include "my_compiler.h"
 
 /**
@@ -32,39 +35,73 @@
 
 /** True when the performance schema is initialized. */
 extern bool pfs_initialized;
-
 /** Total memory allocated by the performance schema, in bytes. */
 extern size_t pfs_allocated_memory;
 
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_MEMALIGN) || defined(HAVE_ALIGNED_MALLOC)
-#define PFS_ALIGNEMENT CPU_LEVEL1_DCACHE_LINESIZE
-#define PFS_ALIGNED MY_ALIGNED(PFS_ALIGNEMENT)
-#else
-/*
-  Known platforms that do not provide aligned memory:
-  - MacOSX Darwin (osx10.5)
-  For these platforms, compile without the alignment optimization.
-*/
-#define PFS_ALIGNED
-#endif /* HAVE_POSIX_MEMALIGN || HAVE_MEMALIGN || HAVE_ALIGNED_MALLOC */
+#define PFS_ALIGNED alignas(CPU_LEVEL1_DCACHE_LINESIZE)
 
-void *pfs_malloc(size_t size, myf flags);
+/**
+  A uint32 variable, guaranteed to be alone in a CPU cache line.
+  This is for performance, for variables accessed very frequently.
+*/
+struct PFS_cacheline_uint32
+{
+  std::atomic<uint32> m_u32;
+  char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint32)];
+
+  PFS_cacheline_uint32()
+  : m_u32(0)
+  {}
+};
+
+/**
+  A uint64 variable, guaranteed to be alone in a CPU cache line.
+  This is for performance, for variables accessed very frequently.
+*/
+struct PFS_cacheline_uint64
+{
+  std::atomic<uint64> m_u64;
+  char m_full_cache_line[CPU_LEVEL1_DCACHE_LINESIZE - sizeof(uint64)];
+
+  PFS_cacheline_uint64()
+  : m_u64(0)
+  {}
+};
+
+struct PFS_builtin_memory_class;
+
+/** Memory allocation for the performance schema. */
+void *pfs_malloc(PFS_builtin_memory_class *klass, size_t size, myf flags);
 
 /** Allocate an array of structures with overflow check. */
-void *pfs_malloc_array(size_t n, size_t size, myf flags);
+void *pfs_malloc_array(PFS_builtin_memory_class *klass, size_t n, size_t size, myf flags);
 
 /**
   Helper, to allocate an array of structures.
+  @param k memory class
   @param n number of elements in the array
   @param s size of array element
   @param T type of an element
   @param f flags to use when allocating memory
 */
-#define PFS_MALLOC_ARRAY(n, s, T, f) \
-  reinterpret_cast<T*>(pfs_malloc_array((n), (s), (f)))
+#define PFS_MALLOC_ARRAY(k, n, s, T, f) \
+  reinterpret_cast<T*>(pfs_malloc_array((k), (n), (s), (f)))
 
 /** Free memory allocated with @sa pfs_malloc. */
-void pfs_free(void *ptr);
+void pfs_free(PFS_builtin_memory_class *klass, size_t size, void *ptr);
+
+/** Free memory allocated with @sa pfs_malloc_array. */
+void pfs_free_array(PFS_builtin_memory_class *klass, size_t n, size_t size, void *ptr);
+
+/**
+  Helper, to free an array of structures.
+  @param k memory class
+  @param n number of elements in the array
+  @param s size of array element
+  @param p the array to free
+*/
+#define PFS_FREE_ARRAY(k, n, s, p) \
+  pfs_free_array((k), (n), (s), (p))
 
 /** Detect multiplication overflow. */
 bool is_overflow(size_t product, size_t n1, size_t n2);
@@ -125,7 +162,7 @@ inline uint randomized_index(const void *ptr, uint max_size)
   seed2= seed1*seed1;
   seed1= result;
 
-  DBUG_ASSERT(result < max_size);
+  assert(result < max_size);
   return result;
 }
 

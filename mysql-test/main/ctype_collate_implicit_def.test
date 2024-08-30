@@ -1,0 +1,73 @@
+--source include/have_utf8.inc
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # MDEV-30164 System variable for default collations
+--echo #
+
+SELECT @@global.character_set_collations;
+SELECT @@session.character_set_collations;
+--disable_view_protocol
+SELECT COLLATION('literal');
+--enable_view_protocol
+CREATE TABLE t1 AS SELECT 'literal' AS c1;
+SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+DROP TABLE t1;
+
+SET NAMES utf8mb3;
+--disable_view_protocol
+SELECT COLLATION('literal');
+--enable_view_protocol
+CREATE TABLE t1 AS SELECT 'literal' AS c1;
+SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+DROP TABLE t1;
+
+SET @@session.character_set_collations='latin1=latin1_german2_ci';
+SELECT @@session.character_set_collations;
+
+SET @@session.character_set_collations=DEFAULT;
+SELECT @@session.character_set_collations;
+
+SET @@global.character_set_collations='utf8mb3=uca1400_as_ci,latin1=latin1_danish_ci';
+
+--connect (con1,localhost,root,,)
+--connection con1
+SELECT @@session.character_set_collations;
+--disable_view_protocol
+SELECT COLLATION('literal');
+--enable_view_protocol
+CREATE TABLE t1 AS SELECT 'literal' AS c1;
+SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+DROP TABLE t1;
+--disconnect con1
+--connection default
+
+SET @@global.character_set_collations=DEFAULT;
+SELECT @@global.character_set_collations;
+
+--connect (con2,localhost,root,,)
+--connection con2
+SELECT @@session.character_set_collations;
+--disable_view_protocol
+SELECT COLLATION('literal');
+--enable_view_protocol
+CREATE TABLE t1 AS SELECT 'literal' AS c1;
+SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+DROP TABLE t1;
+--disconnect con2
+--connection default
+
+# Set back to the command line value, to avoid mtr internal check failure.
+SET @@global.character_set_collations='utf8mb3=uca1400_ai_ci,latin1=latin1_bin';
+
+--connect (con3,localhost,root,,)
+--connection con3
+SELECT @@session.character_set_collations;
+--disable_view_protocol
+SELECT COLLATION('literal');
+--enable_view_protocol
+CREATE TABLE t1 AS SELECT 'literal' AS c1;
+SELECT COLLATION_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE table_name='t1';
+DROP TABLE t1;
+--disconnect con3
+--connection default

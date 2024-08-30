@@ -2,23 +2,23 @@ connect con1,localhost,root,,test,,;
 connect con2,localhost,root,,test,,;
 connection con1;
 set session debug_dbug="t";
-show session variables like 'debug';
+show session variables like 'debug_dbug';
 Variable_name	Value
-debug	t
+debug_dbug	t
 connection con2;
 set session debug_dbug="t";
-show session variables like 'debug';
+show session variables like 'debug_dbug';
 Variable_name	Value
-debug	t
+debug_dbug	t
 connection con1;
 set session debug_dbug="d:t";
-show session variables like 'debug';
+show session variables like 'debug_dbug';
 Variable_name	Value
-debug	d:t
+debug_dbug	d:t
 connection con2;
-show session variables like 'debug';
+show session variables like 'debug_dbug';
 Variable_name	Value
-debug	t
+debug_dbug	t
 disconnect con1;
 disconnect con2;
 connection default;

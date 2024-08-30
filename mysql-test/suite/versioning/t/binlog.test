@@ -1,0 +1,18 @@
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-29741 SHOW BINLOG EVENTS shows garbage with system_versioning_insert_history=on
+--echo # MDEV-29732 mysqlbinlog produces syntactically incorrect output with system_versioning_insert_history
+--echo #
+reset master;
+set timestamp=1000000000;
+create table t (a int) with system versioning;
+set system_versioning_insert_history= on;
+insert into t (a) values (1);
+set system_versioning_insert_history= off;
+drop table t;
+source include/show_binlog_events.inc;
+flush binary logs;
+--let $datadir=`select @@datadir`
+--exec $MYSQL_BINLOG -s $datadir/master-bin.000001
+set timestamp=default;

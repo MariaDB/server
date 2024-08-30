@@ -349,7 +349,7 @@ static grn_ja *
 _grn_ja_create(grn_ctx *ctx, grn_ja *ja, const char *path,
                unsigned int max_element_size, uint32_t flags)
 {
-  int i;
+  unsigned int i;
   grn_io *io;
   struct grn_ja_header *header;
   struct grn_ja_header_v2 *header_v2;
@@ -689,7 +689,7 @@ grn_ja_replace(grn_ctx *ctx, grn_ja *ja, grn_id id,
     return ctx->rc;
   }
   if (*pseg == JA_ESEG_VOID) {
-    int i = 0;
+    unsigned int i = 0;
     while (SEGMENTS_AT(ja, i)) {
       if (++i >= JA_N_DSEGMENTS) {
         ERR(GRN_NOT_ENOUGH_SPACE, "grn_ja file (%s) is full", ja->io->path);
@@ -750,12 +750,13 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
   iw->tiny_p = 0;
   if (grn_io_lock(ctx, ja->io, grn_lock_timeout)) { return ctx->rc; }
   if (element_size + sizeof(grn_id) > JA_SEGMENT_SIZE) {
-    int i, j, n = (element_size + JA_SEGMENT_SIZE - 1) >> GRN_JA_W_SEGMENT;
-    for (i = 0, j = -1; i < JA_N_DSEGMENTS; i++) {
+    uint i;
+    int j, n = (element_size + JA_SEGMENT_SIZE - 1) >> GRN_JA_W_SEGMENT;
+    for (i = 0, j = -1;  i < JA_N_DSEGMENTS; i++) {
       if (SEGMENTS_AT(ja, i)) {
         j = i;
       } else {
-        if (i == j + n) {
+        if (i == (uint) (j + n)) {
           j++;
           addr = grn_io_win_map(ja->io, ctx, iw, j, 0, element_size, grn_io_wronly);
           if (!addr) {
@@ -763,7 +764,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
             return GRN_NO_MEMORY_AVAILABLE;
           }
           EHUGE_ENC(einfo, j, element_size);
-          for (; j <= i; j++) { SEGMENTS_HUGE_ON(ja, j); }
+          for (; j <= (int) i; j++) { SEGMENTS_HUGE_ON(ja, j); }
           grn_io_unlock(ja->io);
           return GRN_SUCCESS;
         }
@@ -861,7 +862,7 @@ grn_ja_alloc(grn_ctx *ctx, grn_ja *ja, grn_id id,
       }
       vp = &ja->header->free_elements[m - JA_W_EINFO];
       if (!vp->seg) {
-        int i = 0;
+        uint i = 0;
         while (SEGMENTS_AT(ja, i)) {
           if (++i >= JA_N_DSEGMENTS) {
             grn_io_unlock(ja->io);

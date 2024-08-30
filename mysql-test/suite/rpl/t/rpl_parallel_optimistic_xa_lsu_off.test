@@ -1,0 +1,2 @@
+# --log-slave-updates OFF version of rpl_parallel_optimistic_xa
+--source rpl_parallel_optimistic_xa.test

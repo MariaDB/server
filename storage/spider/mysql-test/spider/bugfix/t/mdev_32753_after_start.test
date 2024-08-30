@@ -4,6 +4,7 @@
 
 # This test tests spider init after startup under global ORACLE mode
 install soname 'ha_spider';
+--replace_regex /\.dll/.so/
 select * from mysql.plugin;
 create table t (c int) Engine=SPIDER;
 drop table t;

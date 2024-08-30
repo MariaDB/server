@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "common.h"
 #include "write_filt.h"
 #include "fil_cur.h"
-#include <os0proc.h>
+#include "xtrabackup.h"
 
 /************************************************************************
 Write-through page write filter. */
@@ -78,7 +78,7 @@ wf_incremental_init(ds_ctxt *ds_meta,
 
 	/* allocate buffer for incremental backup (4096 pages) */
 	cp->delta_buf_size = (cursor->page_size / 4) * cursor->page_size;
-	cp->delta_buf = (unsigned char *)os_mem_alloc_large(&cp->delta_buf_size);
+	cp->delta_buf = (unsigned char *)my_large_malloc(&cp->delta_buf_size, MYF(0));
 
 	if (!cp->delta_buf) {
 		msg(cursor->thread_n,"Can't allocate %zu bytes",
@@ -117,7 +117,7 @@ Run the next batch of pages through incremental page write filter.
 static my_bool
 wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 {
-	ulint				i;
+	unsigned				i;
 	xb_fil_cur_t			*cursor = ctxt->cursor;
 	byte				*page;
 	const ulint			page_size = cursor->page_size;
@@ -127,10 +127,34 @@ wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 	     i++, page += page_size) {
 
 		if ((!cp->corrupted_pages ||
-				!cp->corrupted_pages->contains(cursor->node->space->id,
-					cursor->buf_page_no + i)) &&
+		     !cp->corrupted_pages->contains({cursor->node->space->id,
+			 cursor->buf_page_no + i})) &&
 				incremental_lsn >= mach_read_from_8(page + FIL_PAGE_LSN))
 			continue;
+
+		/* Check whether TRX_SYS page has been changed */
+		if (mach_read_from_4(page + FIL_PAGE_SPACE_ID)
+				== TRX_SYS_SPACE
+		    && mach_read_from_4(page + FIL_PAGE_OFFSET)
+				== TRX_SYS_PAGE_NO) {
+			msg(cursor->thread_n,
+			    "--incremental backup is impossible if "
+			    "the server had been restarted with "
+			    "different innodb_undo_tablespaces.");
+			return false;
+		}
+
+		/* Check whether TRX_SYS page has been changed */
+		if (mach_read_from_4(page + FIL_PAGE_SPACE_ID)
+				== TRX_SYS_SPACE
+		    && mach_read_from_4(page + FIL_PAGE_OFFSET)
+				== TRX_SYS_PAGE_NO) {
+			msg(cursor->thread_n,
+			    "--incremental backup is impossible if "
+			    "the server had been restarted with "
+			    "different innodb_undo_tablespaces.");
+			return false;
+		}
 
 		/* updated page */
 		if (cp->npages == page_size / 4) {
@@ -190,7 +214,7 @@ static void
 wf_incremental_deinit(xb_write_filt_ctxt_t *ctxt)
 {
 	xb_wf_incremental_ctxt_t	*cp = &(ctxt->wf_incremental_ctxt);
-	os_mem_free_large(cp->delta_buf, cp->delta_buf_size);
+	my_large_free(cp->delta_buf, cp->delta_buf_size);
 }
 
 /************************************************************************

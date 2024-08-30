@@ -1,0 +1,99 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
+connection node_1;
+CREATE TABLE tab(a int not null primary key) engine=InnoDB;
+CREATE TABLE tab1(a int not null primary key) engine=MyISAM;
+CREATE TABLE tab2(a int not null primary key) engine=Aria;
+CREATE TABLE tab3(a int not null primary key) engine=MEMORY;
+SET GLOBAL wsrep_mode = DISALLOW_LOCAL_GTID;
+SET SESSION wsrep_OSU_method='RSU';
+ALTER TABLE tab FORCE;
+ERROR HY000: Galera replication not supported
+SET SESSiON sql_log_bin=0;
+ALTER TABLE tab FORCE;
+SET SESSION wsrep_OSU_method='TOI';
+SET SESSION sql_log_bin=1;
+SET SESSION wsrep_on=OFF;
+INSERT INTO tab VALUES (1);
+ERROR HY000: Galera replication not supported
+SET SESSiON sql_log_bin=0;
+INSERT INTO tab VALUES (1);
+SET SESSiON sql_log_bin=1;
+SET SESSION wsrep_on=ON;
+INSERT INTO tab VALUES (2);
+SELECT * FROM tab;
+a
+1
+2
+connection node_2;
+SELECT * FROM tab;
+a
+2
+connection node_1;
+INSERT INTO tab1 VALUES(1);
+ERROR HY000: Galera replication not supported
+INSERT INTO tab2 VALUES(1);
+ERROR HY000: Galera replication not supported
+INSERT INTO tab3 VALUES(1);
+ERROR HY000: Galera replication not supported
+SET GLOBAL wsrep_mode = "DISALLOW_LOCAL_GTID,REPLICATE_MYISAM,REPLICATE_ARIA";
+INSERT INTO tab1 VALUES(2);
+INSERT INTO tab2 VALUES(2);
+INSERT INTO tab3 VALUES(2);
+ERROR HY000: Galera replication not supported
+SET SESSiON sql_log_bin=0;
+INSERT INTO tab1 VALUES(3);
+INSERT INTO tab2 VALUES(3);
+INSERT INTO tab3 VALUES(3);
+SET SESSION sql_log_bin=1;
+SET SESSION wsrep_on=OFF;
+INSERT INTO tab1 VALUES(4);
+ERROR HY000: Galera replication not supported
+INSERT INTO tab2 VALUES(4);
+ERROR HY000: Galera replication not supported
+INSERT INTO tab3 VALUES(4);
+ERROR HY000: Galera replication not supported
+SET SESSiON sql_log_bin=0;
+INSERT INTO tab1 VALUES(5);
+INSERT INTO tab2 VALUES(5);
+INSERT INTO tab3 VALUES(5);
+SET SESSION wsrep_on=ON;
+INSERT INTO tab1 VALUES(6);
+INSERT INTO tab2 VALUES(6);
+INSERT INTO tab3 VALUES(6);
+SELECT * FROM tab1;
+a
+2
+3
+5
+6
+SELECT * FROM tab2;
+a
+2
+3
+5
+6
+SELECT * FROM tab3;
+a
+3
+5
+6
+connection node_2;
+SELECT * FROM tab1;
+a
+2
+3
+6
+SELECT * FROM tab2;
+a
+2
+3
+6
+SELECT * FROM tab3;
+a
+connection node_1;
+DROP TABLE tab;
+DROP TABLE tab1;
+DROP TABLE tab2;
+DROP TABLE tab3;

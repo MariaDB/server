@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, 2013, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2012, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -59,6 +59,7 @@ struct row_session_connect_attrs
   ulong m_ordinal_position;
 };
 
+/** Abstract table PERFORMANCE_SCHEMA.SESSION_CONNECT_ATTRS. */
 class table_session_connect : public cursor_by_thread_connect_attr
 {
 protected:
@@ -68,10 +69,10 @@ public:
   ~table_session_connect();
 
 protected:
-  virtual void make_row(PFS_thread *pfs, uint ordinal);
+  void make_row(PFS_thread *pfs, uint ordinal) override;
   virtual bool thread_fits(PFS_thread *thread);
-  virtual int read_row_values(TABLE *table, unsigned char *buf,
-                              Field **fields, bool read_all);
+  int read_row_values(TABLE *table, unsigned char *buf,
+                      Field **fields, bool read_all) override;
 protected:
   /** Current row. */
   row_session_connect_attrs m_row;

@@ -75,10 +75,10 @@ INSERT INTO fts_test (title,body) VALUES
 ('1001 MySQL Tricks','1. Never run mysqld as root. 2. ...'),
 ('MySQL vs. YourSQL','In the following database comparison ...'),
 ('MySQL Security','When configured properly, MySQL ...');
-CREATE FULLTEXT INDEX idx on fts_test (title, body) LOCK=NONE;
+ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE fts_test ADD FULLTEXT `idx` (title, body), ALGORITHM=NOCOPY;
-ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, LOCK=NONE;
+ALTER TABLE fts_test ROW_FORMAT=REDUNDANT, ALGORITHM=INPLACE, LOCK=NONE;
 ERROR 0A000: LOCK=NONE is not supported. Reason: Fulltext index creation requires a lock. Try LOCK=SHARED
 ALTER TABLE fts_test ROW_FORMAT=REDUNDANT;
 SELECT * FROM fts_test WHERE MATCH (title, body)
@@ -238,14 +238,17 @@ DROP TABLE t1;
 SET NAMES utf8;
 CREATE TABLE t1(f1 INT NOT NULL)ENGINE=InnoDB;
 ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
-ALTER TABLE t1 DROP COLUMN FTS_DOC_ıD;
+ERROR 42000: Incorrect column name 'FTS_DOC_ıD'
 ALTER TABLE t1 ADD FTS_DOC_ıD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
+ERROR 42000: Incorrect column name 'FTS_DOC_ıD'
 DROP TABLE t1;
 CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
 ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=INPLACE;
-ERROR 42000: Incorrect column name 'FTS_DOC_İD'
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
 ALTER TABLE t1 ADD FTS_DOC_İD BIGINT UNSIGNED NOT NULL, ALGORITHM=COPY;
-ERROR 42000: Incorrect column name 'FTS_DOC_İD'
+DROP TABLE t1;
+CREATE TABLE t1 (f1 INT NOT NULL)ENGINE=InnoDB;
 ALTER TABLE t1 ADD fts_doc_id INT, ALGORITHM=COPY;
 ERROR 42000: Incorrect column name 'fts_doc_id'
 ALTER TABLE t1 ADD fts_doc_id INT, ALGORITHM=INPLACE;
@@ -262,7 +265,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 DROP TABLE t1;
 #
 # MDEV-25271 Double free of table when inplace alter

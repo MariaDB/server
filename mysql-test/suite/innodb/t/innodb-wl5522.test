@@ -7,6 +7,8 @@
 
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
 call mtr.add_suppression("Index for table 't2' is corrupt; try to repair it");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
+
 FLUSH TABLES;
 
 let $MYSQLD_DATADIR = `SELECT @@datadir`;
@@ -95,7 +97,6 @@ if ($checksum_algorithm == "strict_full_crc32") {
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
 
-SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;
@@ -111,7 +112,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 SELECT * FROM t1;
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT) ENGINE=InnoDB;
@@ -155,7 +156,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore
 CREATE TABLE t1(
@@ -201,7 +202,7 @@ SELECT COUNT(*) FROM t1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 CREATE TABLE t1(
@@ -242,7 +243,7 @@ SELECT COUNT(*) FROM t1 WHERE c2 = 1;
 
 DROP TABLE t1;
 
-# Export/import on the same instance, with --innodb-file-per-table=1
+# Export/import on the same instance
 # Insert some more records to move the LSN forward and then drop the
 # table and restore, this time the table has a secondary index too.
 # Rename the index on the create so that the IMPORT fails, drop index
@@ -280,8 +281,11 @@ EOF
 # This is really a name mismatch error, need better error codes.
 -- error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t1 IMPORT TABLESPACE;
-
+--error ER_TABLESPACE_DISCARDED
+select count(*) from t1;
 ALTER TABLE t1 DROP INDEX x;
+--error ER_CANT_DROP_FIELD_OR_KEY
+ALTER TABLE t1 DROP INDEX x, ALGORITHM=copy;
 ALTER TABLE t1 ADD INDEX idx(c2);
 
 perl;
@@ -548,7 +552,10 @@ ib_unlink_tablespace("test", "t1");
 EOF
 
 DROP TABLE t1;
-
+--disable_query_log
+SET @save_innodb_read_only_compressed=@@GLOBAL.innodb_read_only_compressed;
+SET GLOBAL innodb_read_only_compressed=OFF;
+--enable_query_log
 CREATE TABLE t1(
 	c1 INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
 	c2 INT, INDEX idx(c2)) ENGINE=InnoDB ROW_FORMAT=COMPRESSED;
@@ -1067,6 +1074,9 @@ SHOW CREATE TABLE t1;
 SELECT * FROM t1;
 
 DROP TABLE t1;
+--disable_query_log
+SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
+--enable_query_log
 
 
 CREATE TABLE t1 ( id INT NOT NULL, i1 INT, i2 INT, i3 INT, PRIMARY KEY (id)) engine=innodb;
@@ -1097,18 +1107,9 @@ FLUSH TABLES t1 FOR EXPORT;
 UNLOCK TABLES;
 --error ER_TABLE_SCHEMA_MISMATCH
 ALTER TABLE t2 IMPORT TABLESPACE;
-
---remove_file $MYSQLD_DATADIR/test/t2.ibd
---remove_file $MYSQLD_DATADIR/test/t2.cfg
-
-
 DROP TABLE t1, t2;
 
 
 call mtr.add_suppression("Got error -1 when reading table '.*'");
 call mtr.add_suppression("InnoDB: Error: tablespace id and flags in file '.*'");
 call mtr.add_suppression("InnoDB: The table .* doesn't have a corresponding tablespace, it was discarded");
-
-# cleanup
---remove_file $MYSQLTEST_VARDIR/tmp/t1.cfg
---remove_file $MYSQLTEST_VARDIR/tmp/t1.ibd

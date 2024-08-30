@@ -1,0 +1,45 @@
+*** MDEV-8725: Assertion on ROLLBACK statement in the binary log ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t1 (a int PRIMARY KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+connection server_2;
+connection server_1;
+BEGIN;
+INSERT INTO t2 VALUES (2000);
+INSERT INTO t1 VALUES (2000);
+INSERT INTO t2 VALUES (2001);
+ROLLBACK;
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+connection server_1;
+INSERT INTO t2 VALUES (2020);
+include/save_master_gtid.inc
+connection server_2;
+include/sync_with_master_gtid.inc
+SELECT * FROM t2 WHERE a>=2000 ORDER BY a;
+a
+2020
+SELECT * FROM t1 WHERE a>=2000 ORDER BY a;
+a
+2000
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t1,t2;
+include/rpl_end.inc

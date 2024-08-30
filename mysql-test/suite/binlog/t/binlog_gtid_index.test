@@ -1,0 +1,229 @@
+--source include/have_binlog_format_mixed.inc
+
+SET GLOBAL binlog_gtid_index= 0;
+SET GLOBAL binlog_gtid_index= 1;
+
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $pos1= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid1= @@gtid_binlog_pos;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+--let $pos2= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid2= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (1);
+--let $pos3= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid3= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+--let $pos4= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid4= @@gtid_binlog_pos;
+INSERT INTO t1 VALUES (5);
+--let $pos5= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid5= @@gtid_binlog_pos;
+
+--disable_query_log
+--let $i=0
+while ($i < 100) {
+  eval INSERT INTO t1 VALUES (6 + $i);
+  inc $i;
+}
+--enable_query_log
+--let $pos6= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid6= @@gtid_binlog_pos;
+
+INSERT INTO t1 VALUES (106);
+INSERT INTO t1 VALUES (107);
+
+# Test first the hot and then the cold index.
+--let $i= 0
+while ($i < 2) {
+  --disable_query_log
+  eval SELECT BINLOG_GTID_POS('$file', $pos1) = @gtid1 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos2) = @gtid2 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos3) = @gtid3 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos4) = @gtid4 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos5) = @gtid5 AS Ok;
+  eval SELECT BINLOG_GTID_POS('$file', $pos6) = @gtid6 AS Ok;
+  --enable_query_log
+
+  inc $i;
+  if ($i == 1) {
+    FLUSH BINARY LOGS;
+  }
+}
+
+--echo *** Test that purge deletes the gtid index files. ***
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (200);
+--let $file2= query_get_value(SHOW MASTER STATUS, File, 1)
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (201);
+--let $file3= query_get_value(SHOW MASTER STATUS, File, 1)
+FLUSH BINARY LOGS;
+INSERT INTO t1 VALUES (202);
+--let $file4= query_get_value(SHOW MASTER STATUS, File, 1)
+
+--replace_result $file3 FILE
+eval PURGE BINARY LOGS TO '$file3';
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--error 1
+--file_exists $MYSQLD_DATADIR/$file.idx
+--error 1
+--file_exists $MYSQLD_DATADIR/$file2.idx
+--file_exists $MYSQLD_DATADIR/$file3.idx
+--file_exists $MYSQLD_DATADIR/$file4.idx
+
+--echo *** Test missed index lookup due to missing or corrupt index file.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO t1 VALUES (301);
+INSERT INTO t1 VALUES (302);
+INSERT INTO t1 VALUES (303);
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (304);
+INSERT INTO t1 VALUES (305);
+
+# BINLOG_GTID_POS() has a side effect: it increments binlog_gtid_index_hit
+--disable_ps2_protocol
+FLUSH NO_WRITE_TO_BINLOG GLOBAL STATUS;
+--echo +++ Initial status:
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+--echo +++ GTID Lookup in good index.
+--disable_query_log
+eval SELECT BINLOG_GTID_POS('$file', $pos) = @gtid_pos AS Gtid_Lookup_Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+--remove_file $MYSQLD_DATADIR/$file.idx
+--echo +++ GTID Lookup, index file is missing.
+--disable_query_log
+eval SELECT BINLOG_GTID_POS('$file', $pos) = @gtid_pos AS Gtid_Lookup_Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO t1 VALUES (306);
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (307);
+INSERT INTO t1 VALUES (308);
+# Rotate again so we hit an on-disk index file, not the "hot" index.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+
+# Corrupt the flag byte of the first page with an unused bit.
+--let FILE_TO_CORRUPT= $MYSQLD_DATADIR/$file.idx
+--perl
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+sysopen F, $ENV{FILE_TO_CORRUPT}, O_RDWR
+  or die "Cannot open file $ENV{FILE_TO_CORRUPT}: $!\n";
+# Corrupt the flag byte with an unused flag.
+sysseek(F, 16, SEEK_SET)
+  or die "Cannot seek file: $!\n";
+my $buf;
+sysread(F, $buf, 1)
+  or die "Cannot read file: $!\n";
+$buf= chr(ord($buf) | 0x80);
+sysseek(F, 16, SEEK_SET)
+  or die "Cannot seek file: $!\n";
+syswrite(F, $buf, 1) == 1
+  or die "Cannot write file: $!\n";
+close F;
+EOF
+
+--echo +++ GTID Lookup, first page of index is corrupt.
+--disable_query_log
+eval SELECT BINLOG_GTID_POS('$file', $pos) = @gtid_pos AS Gtid_Lookup_Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+
+# Corrupt the last byte of the root page.
+# Set a small page-size so we test corruption in something not the header page.
+SET @old_page_size= @@GLOBAL.binlog_gtid_index_page_size;
+SET @old_span_min= @@GLOBAL.binlog_gtid_index_span_min;
+SET GLOBAL binlog_gtid_index_page_size= 64;
+SET GLOBAL binlog_gtid_index_span_min= 1;
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO t1 VALUES (310);
+INSERT INTO t1 VALUES (311);
+INSERT INTO t1 VALUES (312);
+--let $pos= query_get_value(SHOW MASTER STATUS, Position, 1)
+SET @gtid_pos= @@GLOBAL.gtid_binlog_pos;
+INSERT INTO t1 VALUES (313);
+INSERT INTO t1 VALUES (314);
+INSERT INTO t1 VALUES (315);
+INSERT INTO t1 VALUES (316);
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+SET GLOBAL binlog_gtid_index_page_size= @old_page_size;
+SET GLOBAL binlog_gtid_index_span_min= @old_span_min;
+
+--let FILE_TO_CORRUPT= $MYSQLD_DATADIR/$file.idx
+--perl
+use strict;
+use warnings;
+use Fcntl qw(:DEFAULT :seek);
+sysopen F, $ENV{FILE_TO_CORRUPT}, O_RDWR
+  or die "Cannot open file $ENV{FILE_TO_CORRUPT}: $!\n";
+# Tricky: The index is written asynchroneously, it may still be incomplete.
+# So wait for the file to be written completely with a root node at the end.
+my $count= 0;
+for (;;) {
+  my $end= sysseek(F, 0, SEEK_END);
+  if ($end > 0 && ($end % 64) == 0) {
+    # The index file is non-empty with a full page at the end, test if the
+    # root page has been fully written. This is seen as bit 2 (PAGE_FLAG_LAST)
+    # and bit 3 (PAGE_FLAG_ROOT) being set (0xc).
+    my $flag;
+    if (sysseek(F, -64, SEEK_CUR) &&
+        sysread(F, $flag, 1) &&
+	(ord($flag) & 0xc) == 0xc) {
+      last;
+    }
+  }
+  die "Timeout waiting for GTID index to be non-empty\n"
+    if ++$count >= 500;
+  # Simple way to do sub-second sleep.
+  select(undef, undef, undef, 0.050);
+}
+# Corrupt the flag byte with an unused flag.
+sysseek(F, -2, SEEK_END)
+  or die "Cannot seek file: $!\n";
+my $buf;
+sysread(F, $buf, 1)
+  or die "Cannot read file: $!\n";
+$buf= chr(ord($buf) ^ 0x4);
+sysseek(F, -2, SEEK_END)
+  or die "Cannot seek file: $!\n";
+syswrite(F, $buf, 1) == 1
+  or die "Cannot write file: $!\n";
+close F;
+EOF
+
+--echo +++ GTID Lookup, root page of index is corrupt.
+--disable_query_log
+eval SELECT BINLOG_GTID_POS('$file', $pos) = @gtid_pos AS Gtid_Lookup_Ok;
+--enable_query_log
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+
+--echo *** Test BINLOG_GTID_POS() with too-large offset.
+# New binlog to skip the now corrupted one.
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--let $file= query_get_value(SHOW MASTER STATUS, File, 1)
+INSERT INTO t1 VALUES (401);
+INSERT INTO t1 VALUES (402);
+--echo +++ Test the hot index.
+--replace_result $file FILE
+eval SELECT BINLOG_GTID_POS('$file', 100000000);
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+FLUSH NO_WRITE_TO_BINLOG BINARY LOGS;
+--echo +++ Test the cold index.
+--replace_result $file FILE
+eval SELECT BINLOG_GTID_POS('$file', 100000000);
+SHOW STATUS LIKE 'binlog_gtid_index_%';
+--enable_ps2_protocol
+
+DROP TABLE t1;

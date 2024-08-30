@@ -259,8 +259,6 @@ connection server_2;
 *** Restart the slave server to prove 'gtid_slave_pos_innodb' autodiscovery ***
 connection server_2;
 SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 connection server_1;
 INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;
 include/save_master_gtid.inc

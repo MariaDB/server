@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -30,7 +30,8 @@
 
 #define HAVE_PSI_1
 
-#include <my_pthread.h>
+#include <my_global.h>
+#include "my_thread.h"
 #include <mysql/psi/psi.h>
 
 /**
@@ -39,9 +40,23 @@
 */
 extern struct PSI_bootstrap PFS_bootstrap;
 /** Performance schema Thread Local Storage key.  */
-extern pthread_key(PFS_thread*, THR_PFS);
-/** True when @c THR_PFS is initialized. */
-extern bool THR_PFS_initialized;
+struct PFS_thread;
+
+extern MY_THREAD_LOCAL PFS_thread* THR_PFS;
+extern MY_THREAD_LOCAL void* THR_PFS_VG;  // global_variables
+extern MY_THREAD_LOCAL void* THR_PFS_SV;  // session_variables
+extern MY_THREAD_LOCAL void* THR_PFS_VBT; // variables_by_thread
+extern MY_THREAD_LOCAL void* THR_PFS_SG;  // global_status
+extern MY_THREAD_LOCAL void* THR_PFS_SS;  // session_status
+extern MY_THREAD_LOCAL void* THR_PFS_SBT; // status_by_thread
+extern MY_THREAD_LOCAL void* THR_PFS_SBU; // status_by_user
+extern MY_THREAD_LOCAL void* THR_PFS_SBA; // status_by_host
+extern MY_THREAD_LOCAL void* THR_PFS_SBH; // status_by_account
+
+#define PSI_VOLATILITY_UNKNOWN 0
+#define PSI_VOLATILITY_SESSION 1
+
+#define PSI_COUNT_VOLATILITY 2
 
 #endif
 

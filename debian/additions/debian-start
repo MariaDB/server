@@ -1,25 +1,32 @@
 #!/bin/bash
 #
-# This script is executed by "/etc/init.d/mysql" on every (re)start.
+# This script is executed by both SysV init /etc/init.d/mariadb and
+# systemd mariadb.service on every (re)start.
 #
 # Changes to this file will be preserved when updating the Debian package.
 #
-# NOTE: This file is read only by the traditional SysV init script, not systemd.
-#
 
-source /usr/share/mysql/debian-start.inc.sh
+# shellcheck source=debian/additions/debian-start.inc.sh
+source /usr/share/mariadb/debian-start.inc.sh
 
-if [ -f /etc/default/mysql ]; then
+# Read default/mysql first and then default/mariadb just like the init.d file does
+if [ -f /etc/default/mysql ]
+then
+  # shellcheck source=/dev/null
   . /etc/default/mysql
 fi
 
-MYSQL="/usr/bin/mysql --defaults-file=/etc/mysql/debian.cnf"
-MYADMIN="/usr/bin/mysqladmin --defaults-file=/etc/mysql/debian.cnf"
-# Don't run full mysql_upgrade on every server restart, use --version-check to do it only once
-MYUPGRADE="/usr/bin/mysql_upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
-MYCHECK="/usr/bin/mysqlcheck --defaults-file=/etc/mysql/debian.cnf"
-MYCHECK_SUBJECT="WARNING: mysqlcheck has found corrupt tables"
-MYCHECK_PARAMS="--all-databases --fast --silent"
+if [ -f /etc/default/mariadb ]
+then
+  # shellcheck source=/dev/null
+  . /etc/default/mariadb
+fi
+
+MARIADB="/usr/bin/mariadb --defaults-file=/etc/mysql/debian.cnf"
+MYADMIN="/usr/bin/mariadb-admin --defaults-file=/etc/mysql/debian.cnf"
+# Don't run full mariadb-upgrade on every server restart, use --version-check to do it only once
+MYUPGRADE="/usr/bin/mariadb-upgrade --defaults-extra-file=/etc/mysql/debian.cnf --version-check --silent"
+MYCHECK_SUBJECT="WARNING: mariadb-check has found corrupt tables"
 MYCHECK_RCPT="${MYCHECK_RCPT:-root}"
 
 ## Checking for corrupt, not cleanly closed (only for MyISAM and Aria engines) and upgrade needing tables.

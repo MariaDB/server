@@ -1,6 +1,5 @@
 # Use default setting for mysqld processes
-!include include/default_mysqld.cnf
-!include include/default_client.cnf
+!include include/default_my.cnf
 
 [mysqld.1]
 

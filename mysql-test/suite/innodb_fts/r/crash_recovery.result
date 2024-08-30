@@ -17,14 +17,29 @@ BEGIN;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 # Make durable the AUTO_INCREMENT in the above incomplete transaction.
-connect  flush_redo_log,localhost,root,,;
-SET GLOBAL innodb_flush_log_at_trx_commit=1;
-BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
-disconnect flush_redo_log;
+connect ddl1, localhost, root,,;
+CREATE TABLE t1(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT INDEX(b);
+connection default;
+connect ddl2, localhost, root,,;
+CREATE TABLE t2(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t2 DROP INDEX a, ADD FULLTEXT INDEX(b), FORCE;
+connection default;
+connect ddl3, localhost, root,,;
+CREATE TABLE t3(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t3 DROP INDEX a, ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
 connection default;
 # restart
+disconnect ddl1;
+disconnect ddl2;
+disconnect ddl3;
+SET GLOBAL innodb_max_purge_lag_wait=0;
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 CREATE FULLTEXT INDEX idx ON articles (title,body);
@@ -50,9 +65,11 @@ connection default;
 # Make durable the AUTO_INCREMENT in the above incomplete transaction.
 connect  flush_redo_log,localhost,root,,;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
+SET SQL_MODE = NO_AUTO_VALUE_ON_ZERO;
 BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
+UPDATE articles SET id=0 WHERE id=1;
+UPDATE articles SET id=1 WHERE id=0;
+COMMIT;
 disconnect flush_redo_log;
 connection default;
 # restart
@@ -141,6 +158,8 @@ DROP TABLE mdev19073, mdev19073_2;
 # MDEV-28706  Redundant InnoDB table fails during alter
 #
 SET @@global.innodb_file_per_table = 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
 CREATE TABLE t1 (
 col_int INTEGER, col_text TEXT,
 col_text_1 TEXT
@@ -150,3 +169,5 @@ INSERT INTO t1 VALUES ( 1255, "mariadb", "InnoDB");
 # restart
 ALTER TABLE t1 ADD FULLTEXT(col_text_1);
 DROP TABLE t1;
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE

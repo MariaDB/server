@@ -1,5 +1,5 @@
 /* Copyright (c) 2015, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2016, MariaDB
+   Copyright (c) 2016, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
 
 
 #include "sql_plugin.h"
-#include "hash.h"
 #include "table.h"
 #include "rpl_gtid.h"
 #include "sql_class.h"
@@ -24,7 +23,7 @@
 #include "sql_plugin.h"
 #include "set_var.h"
 
-void State_tracker::mark_as_changed(THD *thd, LEX_CSTRING *tracked_item_name)
+void State_tracker::set_changed(THD *thd)
 {
   m_changed= true;
   thd->lex->safe_to_cache_query= 0;
@@ -61,6 +60,16 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
   from->init();
 }
 
+Session_sysvars_tracker::
+sysvar_node_st *Session_sysvars_tracker::vars_list::search(const sys_var *svar)
+{
+  return reinterpret_cast<sysvar_node_st*>(
+           my_hash_search(&m_registered_sysvars,
+                         reinterpret_cast<const uchar*>(&svar->offset),
+                         sizeof(svar->offset)));
+}
+
+
 /**
   Inserts the variable to be tracked into m_registered_sysvars hash.
 
@@ -73,7 +82,8 @@ void Session_sysvars_tracker::vars_list::copy(vars_list* from, THD *thd)
 bool Session_sysvars_tracker::vars_list::insert(const sys_var *svar)
 {
   sysvar_node_st *node;
-  if (!(node= (sysvar_node_st *) my_malloc(sizeof(sysvar_node_st),
+  if (!(node= (sysvar_node_st *) my_malloc(PSI_INSTRUMENT_ME,
+                                           sizeof(sysvar_node_st),
                                            MYF(MY_WME |
                                                (mysqld_server_initialized ?
                                                 MY_THREAD_SPECIFIC : 0)))))
@@ -332,7 +342,8 @@ void Session_sysvars_tracker::init(THD *thd)
   DBUG_ASSERT(thd->variables.session_track_system_variables ==
               global_system_variables.session_track_system_variables);
   thd->variables.session_track_system_variables=
-    my_strdup(safe_str(global_system_variables.session_track_system_variables),
+    my_strdup(PSI_INSTRUMENT_ME,
+              safe_str(global_system_variables.session_track_system_variables),
               MYF(MY_WME | MY_THREAD_SPECIFIC));
 }
 
@@ -386,11 +397,13 @@ bool Session_sysvars_tracker::update(THD *thd, set_var *var)
 {
   vars_list tool_list;
   size_t length= 1;
+
   void *copy= var->save_result.string_value.str ?
-              my_memdup(var->save_result.string_value.str,
+              my_memdup(PSI_INSTRUMENT_ME, var->save_result.string_value.str,
                         (length= var->save_result.string_value.length + 1),
                         MYF(MY_WME | MY_THREAD_SPECIFIC)) :
-              my_strdup("", MYF(MY_WME | MY_THREAD_SPECIFIC));
+              my_strdup(PSI_INSTRUMENT_ME, "",
+                        MYF(MY_WME | MY_THREAD_SPECIFIC));
   if (!copy)
     return true;
 
@@ -503,19 +516,9 @@ bool Session_sysvars_tracker::store(THD *thd, String *buf)
   return false;
 }
 
-
-/**
-  Mark the system variable as changed.
-
-  @param               [IN] pointer on a variable
-*/
-
-void Session_sysvars_tracker::mark_as_changed(THD *thd,
-                                              LEX_CSTRING *var)
+/* Parse all session track system variables if not parsed yet. */
+void Session_sysvars_tracker::maybe_parse_all(THD *thd)
 {
-  sysvar_node_st *node;
-  sys_var *svar= (sys_var *)var;
-
   if (!m_parsed)
   {
     DBUG_ASSERT(thd->variables.session_track_system_variables);
@@ -528,15 +531,48 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd,
     }
     m_parsed= true;
   }
+}
+
+/**
+  Mark the system variable as changed.
+
+  @param               [IN] pointer on a variable
+*/
+
+void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
+{
+  sysvar_node_st *node;
+
+  if (!is_enabled())
+    return;
+
+  maybe_parse_all(thd);
 
   /*
     Check if the specified system variable is being tracked, if so
     mark it as changed and also set the class's m_changed flag.
   */
-  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(svar)))
+  if (orig_list.is_enabled() && (node= orig_list.insert_or_search(var)))
   {
     node->m_changed= true;
-    State_tracker::mark_as_changed(thd, var);
+    set_changed(thd);
+  }
+}
+
+/**
+  Mark all session tracking system variables as changed.
+*/
+void Session_sysvars_tracker::mark_all_as_changed(THD *thd)
+{
+  if (!is_enabled())
+    return;
+
+  maybe_parse_all(thd);
+
+  for (ulong i= 0; i < orig_list.size(); i++)
+  {
+    orig_list.at(i)->m_changed= true;
+    set_changed(thd);
   }
 }
 
@@ -555,8 +591,9 @@ uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
                                                 size_t *length,
                                                 my_bool not_used __attribute__((unused)))
 {
-  *length= sizeof(sys_var *);
-  return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
+  auto key=&(((sysvar_node_st *) entry)->m_svar->offset);
+  *length= sizeof(*key);
+  return (uchar *) key;
 }
 
 
@@ -689,7 +726,7 @@ bool Transaction_state_tracker::update(THD *thd, set_var *)
     }
     if (thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS)
       tx_changed       |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
   else
     m_enabled= false;
@@ -749,7 +786,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
   if ((thd->variables.session_track_transaction_info == TX_TRACK_CHISTICS) &&
       (tx_changed & TX_CHG_CHISTICS))
   {
-    bool is_xa= thd->transaction.xid_state.is_explicit_XA();
+    bool is_xa= thd->transaction->xid_state.is_explicit_XA();
     size_t start;
 
     /* 2 length by 1 byte and code */
@@ -926,7 +963,7 @@ bool Transaction_state_tracker::store(THD *thd, String *buf)
 
       if ((tx_curr_state & TX_EXPLICIT) && is_xa)
       {
-        XID *xid= thd->transaction.xid_state.get_xid();
+        XID *xid= thd->transaction->xid_state.get_xid();
         long glen, blen;
 
         buf->append(STRING_WITH_LEN("XA START"));
@@ -997,7 +1034,7 @@ enum_tx_state Transaction_state_tracker::calc_trx_state(THD *thd,
                                                         bool has_trx)
 {
   enum_tx_state      s;
-  bool               read= (l <= TL_READ_NO_INSERT);
+  bool               read= (l < TL_FIRST_WRITE);
 
   if (read)
     s= has_trx ? TX_READ_TRX  : TX_READ_UNSAFE;
@@ -1122,7 +1159,7 @@ void Transaction_state_tracker::set_read_flags(THD *thd,
   {
     tx_read_flags = flags;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
@@ -1141,7 +1178,7 @@ void Transaction_state_tracker::set_isol_level(THD *thd,
   {
     tx_isol_level = level;
     tx_changed   |= TX_CHG_CHISTICS;
-    mark_as_changed(thd, NULL);
+    set_changed(thd);
   }
 }
 
@@ -1190,6 +1227,53 @@ bool Session_state_change_tracker::store(THD *thd, String *buf)
 
   return false;
 }
+
+#ifdef USER_VAR_TRACKING
+
+bool User_variables_tracker::update(THD *thd, set_var *)
+{
+  m_enabled= thd->variables.session_track_user_variables;
+  return false;
+}
+
+
+bool User_variables_tracker::store(THD *thd, String *buf)
+{
+  for (ulong i= 0; i < m_changed_user_variables.size(); i++)
+  {
+    const user_var_entry *var= m_changed_user_variables.at(i);
+    String value_str;
+    bool null_value;
+    size_t length;
+
+    var->val_str(&null_value, &value_str, DECIMAL_MAX_SCALE);
+    length= net_length_size(var->name.length) + var->name.length;
+    if (!null_value)
+      length+= net_length_size(value_str.length()) + value_str.length();
+    else
+      length+= 1;
+
+    if (buf->reserve(sizeof(char) + length + net_length_size(length)))
+      return true;
+
+    // TODO: check max packet length MDEV-22709
+    buf->q_append(static_cast<char>(SESSION_TRACK_USER_VARIABLES));
+    buf->q_net_store_length(length);
+    buf->q_net_store_data(reinterpret_cast<const uchar*>(var->name.str),
+                          var->name.length);
+    if (!null_value)
+      buf->q_net_store_data(reinterpret_cast<const uchar*>(value_str.ptr()),
+                            value_str.length());
+    else
+    {
+      char nullbuff[1]= { (char)251 };
+      buf->q_append(nullbuff, sizeof(nullbuff));
+    }
+  }
+  m_changed_user_variables.clear();
+  return false;
+}
+#endif // USER_VAR_TRACKING
 
 ///////////////////////////////////////////////////////////////////////////////
 

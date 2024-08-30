@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2022, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,11 +57,7 @@ public:
 		/**
 		Gets the number of used bytes in a block.
 		@return	number of bytes used */
-		ulint used() const
-			MY_ATTRIBUTE((warn_unused_result))
-		{
-			return m_used;
-		}
+		uint32_t used() const { return m_used; }
 
 		/**
 		Gets pointer to the start of data.
@@ -316,63 +312,9 @@ public:
 	Iterate over each block and call the functor.
 	@return	false if iteration was terminated. */
 	template <typename Functor>
-	bool for_each_block(Functor& functor) const
-	{
-		for (list_t::iterator it = m_list.begin(), end = m_list.end();
-		     it != end; ++it) {
-
-			if (!functor(&*it)) {
-				return false;
-			}
-		}
-
-		return(true);
-	}
-
-	/**
-	Iterate over each block and call the functor.
-	@return	false if iteration was terminated. */
-	template <typename Functor>
 	bool for_each_block(const Functor& functor) const
 	{
-		for (typename list_t::iterator it = m_list.begin(),
-					       end = m_list.end();
-		     it != end; ++it) {
-
-			if (!functor(&*it)) {
-				return false;
-			}
-		}
-
-		return(true);
-	}
-
-	/**
-	Iterate over all the blocks in reverse and call the iterator
-	@return	false if iteration was terminated. */
-	template <typename Functor>
-	bool for_each_block_in_reverse(Functor& functor) const
-	{
-		for (list_t::reverse_iterator it = m_list.rbegin(),
-					      end = m_list.rend();
-		     it != end; ++it) {
-
-			if (!functor(&*it)) {
-				return false;
-			}
-		}
-
-		return(true);
-	}
-
-	/**
-	Iterate over all the blocks in reverse and call the iterator
-	@return	false if iteration was terminated. */
-	template <typename Functor>
-	bool for_each_block_in_reverse(const Functor& functor) const
-	{
-		for (list_t::reverse_iterator it = m_list.rbegin(),
-					      end = m_list.rend();
+		for (list_t::iterator it = m_list.begin(), end = m_list.end();
 		     it != end; ++it) {
 
 			if (!functor(&*it)) {
@@ -398,6 +340,9 @@ public:
 	{
 		return(m_heap == NULL);
 	}
+
+	/** @return whether the buffer is empty */
+	bool empty() const { return !back()->m_used; }
 
 private:
 	// Disable copying
@@ -487,22 +432,6 @@ private:
 	is for backwards compatibility and to avoid an extra heap allocation
 	for small REDO log records */
 	block_t			m_first_block;
-};
-
-/** mtr_buf_t copier */
-struct mtr_buf_copy_t {
-	/** The copied buffer */
-	mtr_buf_t	m_buf;
-
-	/** Append a block to the redo log buffer.
-	@return whether the appending should continue (always true here) */
-	bool operator()(const mtr_buf_t::block_t* block)
-	{
-		byte*	buf = m_buf.open(block->used());
-		memcpy(buf, block->begin(), block->used());
-		m_buf.close(buf + block->used());
-		return(true);
-	}
 };
 
 #endif /* dyn0buf_h */

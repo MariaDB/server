@@ -75,7 +75,7 @@ truncate table performance_schema.hosts;
 
 # Start from a known clean state, to avoid noise from previous tests
 flush tables;
-flush status;
+flush global status;
 
 --disable_warnings
 drop procedure if exists dump_all;

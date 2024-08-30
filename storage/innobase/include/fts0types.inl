@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -47,50 +47,22 @@ fts_string_dup(
 }
 
 /******************************************************************//**
-Compare two fts_trx_row_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
+Duplicate a string with lower case conversion */
 UNIV_INLINE
-int
-fts_trx_row_doc_id_cmp(
-/*===================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
+fts_string_t
+fts_string_dup_casedn(
+/*===========*/
+	CHARSET_INFO *cs,			/*!< in: the character set */
+	const fts_string_t&	src,		/*!< in: src string */
+	mem_heap_t*		heap)		/*!< in: heap to use */
 {
-	const fts_trx_row_t*	tr1 = (const fts_trx_row_t*) p1;
-	const fts_trx_row_t*	tr2 = (const fts_trx_row_t*) p2;
-
-	return((int)(tr1->doc_id - tr2->doc_id));
-}
-
-/******************************************************************//**
-Compare two fts_ranking_t doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int
-fts_ranking_doc_id_cmp(
-/*===================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const fts_ranking_t*	rk1 = (const fts_ranking_t*) p1;
-	const fts_ranking_t*	rk2 = (const fts_ranking_t*) p2;
-
-	return((int)(rk1->doc_id - rk2->doc_id));
-}
-
-/******************************************************************//**
-Compare two doc_ids.
-@return < 0 if n1 < n2, 0 if n1 == n2, > 0 if n1 > n2 */
-UNIV_INLINE
-int fts_doc_id_cmp(
-/*==================*/
-	const void*	p1,			/*!< in: id1 */
-	const void*	p2)			/*!< in: id2 */
-{
-	const doc_id_t*	up1 = static_cast<const doc_id_t*>(p1);
-	const doc_id_t*	up2 = static_cast<const doc_id_t*>(p2);
-
-	return static_cast<int>(*up1 - *up2);
+	size_t dst_nbytes = src.f_len * cs->casedn_multiply() + 1;
+	fts_string_t dst;
+	dst.f_str = (byte*)mem_heap_alloc(heap, dst_nbytes);
+	dst.f_len = cs->casedn_z((const char *) src.f_str, src.f_len,
+				(char *) dst.f_str, dst_nbytes);
+	dst.f_n_char = src.f_n_char;
+	return dst;
 }
 
 /******************************************************************//**
@@ -184,12 +156,12 @@ fts_select_index_by_hash(
 	char_len = my_mbcharlen_ptr(cs, reinterpret_cast<const char*>(str),
 				    reinterpret_cast<const char*>(str + len));
 	*/
-	size_t char_len = size_t(cs->cset->charlen(cs, str, str + len));
+	size_t char_len = size_t(cs->charlen(str, str + len));
 
 	ut_ad(char_len <= len);
 
 	/* Get collation hash code */
-	cs->coll->hash_sort(cs, str, char_len, &nr1, &nr2);
+	my_ci_hash_sort(cs, str, char_len, &nr1, &nr2);
 
 	return(nr1 % FTS_NUM_AUX_INDEX);
 }

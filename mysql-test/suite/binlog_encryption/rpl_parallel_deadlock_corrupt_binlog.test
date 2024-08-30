@@ -1,0 +1,1 @@
+--source suite/rpl/t/rpl_parallel_deadlock_corrupt_binlog.test

@@ -40,12 +40,8 @@ create sql security invoker view i_locks as select * from information_schema.inn
 create sql security definer view d_locks as select * from information_schema.innodb_locks;
 create sql security invoker view i_metrics as select * from information_schema.innodb_metrics;
 create sql security definer view d_metrics as select * from information_schema.innodb_metrics;
-create sql security invoker view i_mutexes as select * from information_schema.innodb_mutexes;
-create sql security definer view d_mutexes as select * from information_schema.innodb_mutexes;
 create sql security invoker view i_sys_columns as select * from information_schema.innodb_sys_columns;
 create sql security definer view d_sys_columns as select * from information_schema.innodb_sys_columns;
-create sql security invoker view i_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
-create sql security definer view d_sys_datafiles as select * from information_schema.innodb_sys_datafiles;
 create sql security invoker view i_sys_fields as select * from information_schema.innodb_sys_fields;
 create sql security definer view d_sys_fields as select * from information_schema.innodb_sys_fields;
 create sql security invoker view i_sys_foreign as select * from information_schema.innodb_sys_foreign;
@@ -54,8 +50,6 @@ create sql security invoker view i_sys_foreign_cols as select * from information
 create sql security definer view d_sys_foreign_cols as select * from information_schema.innodb_sys_foreign_cols;
 create sql security invoker view i_sys_indexes as select * from information_schema.innodb_sys_indexes;
 create sql security definer view d_sys_indexes as select * from information_schema.innodb_sys_indexes;
-create sql security invoker view i_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
-create sql security definer view d_sys_semaphore_waits as select * from information_schema.innodb_sys_semaphore_waits;
 create sql security invoker view i_sys_tables as select * from information_schema.innodb_sys_tables;
 create sql security definer view d_sys_tables as select * from information_schema.innodb_sys_tables;
 create sql security invoker view i_sys_tablespaces as select * from information_schema.innodb_sys_tablespaces;
@@ -66,8 +60,6 @@ create sql security invoker view i_sys_virtual as select * from information_sche
 create sql security definer view d_sys_virtual as select * from information_schema.innodb_sys_virtual;
 create sql security invoker view i_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
 create sql security definer view d_tablespaces_encryption as select * from information_schema.innodb_tablespaces_encryption;
-create sql security invoker view i_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
-create sql security definer view d_tablespaces_scrubbing as select * from information_schema.innodb_tablespaces_scrubbing;
 create sql security invoker view i_trx as select * from information_schema.innodb_trx;
 create sql security definer view d_trx as select * from information_schema.innodb_trx;
 connection select_only;
@@ -193,25 +185,11 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from d_metrics;
 count(*) > -1
 1
-select count(*) > -1 from information_schema.innodb_mutexes;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_mutexes;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_mutexes;
-count(*) > -1
-1
 select count(*) > -1 from information_schema.innodb_sys_columns;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from i_sys_columns;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_sys_columns;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_sys_datafiles;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_sys_datafiles;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_sys_datafiles;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_sys_fields;
@@ -240,13 +218,6 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_sys_indexes;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_sys_indexes;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_sys_semaphore_waits;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from i_sys_semaphore_waits;
-ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
-select count(*) > -1 from d_sys_semaphore_waits;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_sys_tables;
@@ -282,13 +253,6 @@ ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) 
 select count(*) > -1 from i_tablespaces_encryption;
 ERROR 42000: Access denied; you need (at least one of) the PROCESS privilege(s) for this operation
 select count(*) > -1 from d_tablespaces_encryption;
-count(*) > -1
-1
-select count(*) > -1 from information_schema.innodb_tablespaces_scrubbing;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-select count(*) > -1 from i_tablespaces_scrubbing;
-ERROR 42000: Access denied; you need (at least one of) the SUPER privilege(s) for this operation
-select count(*) > -1 from d_tablespaces_scrubbing;
 count(*) > -1
 1
 select count(*) > -1 from information_schema.innodb_trx;

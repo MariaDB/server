@@ -1,5 +1,6 @@
 # Needed for mysqldump
 --source include/have_utf8mb4.inc
+--source include/not_asan.inc
 
 # Tests for SSL connections, only run if mysqld is compiled
 # with support for SSL.
@@ -67,11 +68,11 @@ drop table t1;
 # Test that we can't open connection to server if we are using
 # a different cacert
 #
---exec echo "this query should not execute;" > $MYSQLTEST_VARDIR/tmp/test.sql
+--write_line "this query should not execute;" $MYSQLTEST_VARDIR/tmp/test.sql
 # Handle that openssl gives different error messages from YaSSL.
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=$MYSQL_TEST_DIR/std_data/untrusted-cacert.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -80,7 +81,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca= --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -89,7 +90,7 @@ drop table t1;
 #
 --replace_regex /2026 TLS\/SSL error.*/2026 TLS\/SSL error: xxxx/
 --error 1
---exec $MYSQL_TEST --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
+--exec $MYSQL_TEST --ssl-verify-server-cert --ssl-ca=nonexisting_file.pem --max-connect-retries=1 < $MYSQLTEST_VARDIR/tmp/test.sql 2>&1
 --echo
 
 #
@@ -173,7 +174,7 @@ INSERT INTO t1 VALUES (1), (2);
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-ca=$MYSQL_TEST_DIR/std_data/cacert.pem --ssl-key=$MYSQL_TEST_DIR/std_data/client-key.pem --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test
 
 # With wrong parameters
---replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR mysqldump.exe mysqldump
+--replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR $MYSQL_DUMP mariadb-dump .\exe ''
 --replace_regex /TLS\/SSL error.*/TLS\/SSL error: xxxx/
 --error 2
 --exec $MYSQL_DUMP --default-character-set=utf8mb4 --skip-create-options --skip-comments --ssl --ssl-cert=$MYSQL_TEST_DIR/std_data/client-cert.pem test 2>&1
@@ -202,7 +203,7 @@ set global sql_mode=default;
 
 --replace_regex /TLS\/SSL error:.*/TLS\/SSL error/
 --error 1
---exec $MYSQL_BINLOG --read-from-remote-server --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
+--exec $MYSQL_BINLOG --read-from-remote-server --ssl-verify-server-cert --ssl-ca --user=root --host=localhost nobinlog.111111 2>&1
 
 # Wait till we reached the initial number of concurrent sessions
 --source include/wait_until_count_sessions.inc

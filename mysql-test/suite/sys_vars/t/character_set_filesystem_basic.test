@@ -151,15 +151,21 @@ SELECT @@character_set_filesystem;
 ##############################################################
 SET @@character_set_filesystem = 1;
 SELECT @@character_set_filesystem;
+
+--echo # latin2_czech_cs is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_filesystem = 2;
-SELECT @@character_set_filesystem;
+
 SET @@character_set_filesystem = 3;
 SELECT @@character_set_filesystem;
 SET @@character_set_filesystem = 36;
 SELECT @@character_set_filesystem;
-SET @@character_set_filesystem = 99;
-SELECT @@character_set_filesystem;
 
+--echo # cp1250_polish_ci is not a default collation
+--error ER_UNKNOWN_CHARACTER_SET
+SET @@character_set_filesystem = 99;
+
+--echo # Collation ID 100 does not exist
 --Error ER_UNKNOWN_CHARACTER_SET
 SET @@character_set_filesystem = 100;
 

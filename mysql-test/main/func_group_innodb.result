@@ -5,8 +5,8 @@ set global innodb_stats_persistent= 1;
 set global innodb_stats_persistent_sample_pages=100;
 create table t1 (USR_ID integer not null, MAX_REQ integer not null, constraint PK_SEA_USER primary key (USR_ID)) engine=InnoDB;
 insert into t1 values (1, 3);
-select count(*) + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ from t1 group by MAX_REQ;
-count(*) + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ
+select count(*) + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ + MAX_REQ - MAX_REQ  as exp from t1 group by MAX_REQ;
+exp
 1
 select Case When Count(*) < MAX_REQ Then 1 Else 0 End from t1 where t1.USR_ID = 1 group by MAX_REQ;
 Case When Count(*) < MAX_REQ Then 1 Else 0 End
@@ -225,8 +225,8 @@ DROP TABLE t1;
 #
 # MDEV-4269: crash when grouping by values()
 #
-SELECT @@storage_engine INTO @old_engine;
-set storage_engine=innodb;
+SELECT @@default_storage_engine INTO @old_engine;
+set default_storage_engine=innodb;
 create table y select 1 b;
 select 1 from y group by b;
 1
@@ -235,7 +235,7 @@ select 1 from y group by value(b);
 1
 1
 drop table y;
-SET storage_engine=@old_engine;
+SET default_storage_engine=@old_engine;
 #
 # Bug#13723054 CRASH WITH MIN/MAX AFTER QUICK_GROUP_MIN_MAX_SELECT::NEXT_MIN
 #
@@ -246,12 +246,12 @@ INSERT INTO t1(a, b, c) VALUES
 ('', 'a', 1), ('', 'a', 1), ('', 'a', 2), ('', 'a', 2), ('', 'a', 3),
 ('', 'a', 3), ('', 'a', 4), ('', 'a', 4), ('', 'a', 5), ('', 'a', 5);
 ANALYZE TABLE t1;
-SELECT MIN(c) FROM t1 GROUP BY b;
-MIN(c)
-0
 EXPLAIN SELECT MIN(c) FROM t1 GROUP BY b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	b	263	NULL	2	Using index for group-by
+SELECT MIN(c) FROM t1 GROUP BY b;
+MIN(c)
+0
 DROP TABLE t1;
 #
 # MDEV-17589: Stack-buffer-overflow with indexed varchar (utf8) field

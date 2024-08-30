@@ -48,8 +48,6 @@ int spider_udf_copy_tables_create_table_list(
   uint dst_link_idx_list_length
 );
 
-#ifndef WITHOUT_SPIDER_BG_SEARCH
 int spider_udf_bg_copy_exec_sql(
   SPIDER_COPY_TABLE_CONN *table_conn
 );
-#endif

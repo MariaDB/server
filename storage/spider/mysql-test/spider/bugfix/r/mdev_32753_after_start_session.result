@@ -8,6 +8,7 @@ select * from mysql.plugin;
 name	dl
 SPIDER	ha_spider.so
 SPIDER_ALLOC_MEM	ha_spider.so
+SPIDER_WRAPPER_PROTOCOLS	ha_spider.so
 create table t (c int) Engine=SPIDER;
 drop table t;
 set sql_mode=@old_sql_mode;

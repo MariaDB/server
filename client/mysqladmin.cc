@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2024, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,7 @@
 
 /* maintenance of mysql databases */
 
+#define VER "10.0"
 #include "client_priv.h"
 #include <signal.h>
 #include <my_pthread.h>				/* because of signal()	*/
@@ -28,24 +29,19 @@
 #include <password.h>
 #include <my_sys.h>
 
-#define ADMIN_VERSION "9.1"
 #define MAX_MYSQL_VAR 512
 #define SHUTDOWN_DEF_TIMEOUT 3600		/* Wait for shutdown */
-#define MAX_TRUNC_LENGTH 3
 
 char *host= NULL, *user= 0, *opt_password= 0,
      *default_charset= (char*) MYSQL_AUTODETECT_CHARSET_NAME;
-char truncated_var_names[MAX_MYSQL_VAR+100][MAX_TRUNC_LENGTH];
-char ex_var_names[MAX_MYSQL_VAR+100][FN_REFLEN];
 ulonglong last_values[MAX_MYSQL_VAR+100];
 static int interval=0;
-static my_bool option_force=0,interrupted=0,new_line=0,
-               opt_compress= 0, opt_local= 0, opt_relative= 0, opt_verbose= 0,
-               opt_vertical= 0, tty_password= 0, opt_nobeep,
-               opt_shutdown_wait_for_slaves= 0;
+static my_bool option_force=0,interrupted=0,new_line=0, opt_compress= 0,
+               opt_local= 0, opt_relative= 0, tty_password= 0, opt_nobeep,
+               opt_shutdown_wait_for_slaves= 0, opt_not_used;
 static my_bool debug_info_flag= 0, debug_check_flag= 0;
-static uint tcp_port = 0, option_wait = 0, option_silent=0, nr_iterations;
-static uint opt_count_iterations= 0, my_end_arg;
+static uint opt_mysql_port = 0, option_wait = 0, option_silent=0, nr_iterations;
+static uint opt_count_iterations= 0, my_end_arg, opt_verbose= 0;
 static ulong opt_connect_timeout, opt_shutdown_timeout;
 static char * unix_port=0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
@@ -54,22 +50,14 @@ static bool sql_log_bin_off= false;
 static uint opt_protocol=0;
 static myf error_flags; /* flags to pass to my_printf_error, like ME_BELL */
 
-/*
-  When using extended-status relatively, ex_val_max_len is the estimated
-  maximum length for any relative value printed by extended-status. The
-  idea is to try to keep the length of output as short as possible.
-*/
-
-static uint ex_val_max_len[MAX_MYSQL_VAR];
 static my_bool ex_status_printed = 0; /* First output is not relative. */
-static uint ex_var_count, max_var_length, max_val_length;
 
 #include <sslopt-vars.h>
 
 static void print_version(void);
 static void usage(void);
 extern "C" my_bool get_one_option(int optid, const struct my_option *opt,
-                                  char *argument);
+                                  const char *argument);
 static my_bool sql_connect(MYSQL *mysql, uint wait);
 static int execute_commands(MYSQL *mysql,int argc, char **argv);
 static char **mask_password(int argc, char ***argv);
@@ -80,14 +68,9 @@ static void print_header(MYSQL_RES *result);
 static void print_top(MYSQL_RES *result);
 static void print_row(MYSQL_RES *result,MYSQL_ROW cur, uint row);
 static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row);
-static void print_relative_row_vert(MYSQL_RES *result, MYSQL_ROW cur, uint row);
-static void print_relative_header();
-static void print_relative_line();
-static void truncate_names();
 static my_bool get_pidfile(MYSQL *mysql, char *pidfile);
 static my_bool wait_pidfile(char *pidfile, time_t last_modified,
 			    struct stat *pidfile_status);
-static void store_values(MYSQL_RES *result);
 
 /*
   The order of commands must be the same as command_names,
@@ -109,7 +92,7 @@ enum commands {
   ADMIN_FLUSH_TABLE_STATISTICS, ADMIN_FLUSH_INDEX_STATISTICS,
   ADMIN_FLUSH_USER_STATISTICS, ADMIN_FLUSH_CLIENT_STATISTICS,
   ADMIN_FLUSH_USER_RESOURCES,
-  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS
+  ADMIN_FLUSH_ALL_STATUS, ADMIN_FLUSH_ALL_STATISTICS, ADMIN_FLUSH_SSL
 };
 static const char *command_names[]= {
   "create",               "drop",                "shutdown",
@@ -124,7 +107,7 @@ static const char *command_names[]= {
   "flush-error-log", "flush-general-log", "flush-relay-log", "flush-slow-log",
   "flush-table-statistics", "flush-index-statistics",
   "flush-user-statistics", "flush-client-statistics", "flush-user-resources",
-  "flush-all-status", "flush-all-statistics",
+  "flush-all-status", "flush-all-statistics", "flush-ssl",
   NullS
 };
 
@@ -141,10 +124,10 @@ static struct my_option my_long_options[] =
   {"debug", '#', "Output debug log. Often this is 'd:t:o,filename'.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"debug-check", OPT_DEBUG_CHECK, "Check memory and open file usage at exit.",
+  {"debug-check", 0, "Check memory and open file usage at exit.",
    &debug_check_flag, &debug_check_flag, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"debug-info", OPT_DEBUG_INFO, "Print some debug info at exit.",
+  {"debug-info", 0, "Print some debug info at exit.",
    &debug_info_flag, &debug_info_flag,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f',
@@ -158,7 +141,7 @@ static struct my_option my_long_options[] =
   {"character-sets-dir", OPT_CHARSETS_DIR,
    "Directory for character set files.", &charsets_dir,
    &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default-character-set", OPT_DEFAULT_CHARSET,
+  {"default-character-set", 0,
    "Set the default character set.", &default_charset,
    &default_charset, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"help", '?', "Display this help and exit.", 0, 0, 0, GET_NO_ARG,
@@ -173,7 +156,7 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's asked from the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -183,7 +166,7 @@ static struct my_option my_long_options[] =
    "/etc/services, "
 #endif
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
-   &tcp_port, &tcp_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+   &opt_mysql_port, &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL, "The protocol to use for connection (tcp, socket, pipe).",
     0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"relative", 'r',
@@ -204,31 +187,29 @@ static struct my_option my_long_options[] =
   {"user", 'u', "User for login if not current user.", &user,
    &user, 0, GET_STR_ALLOC, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #endif
-  {"verbose", 'v', "Write more information.", &opt_verbose,
-   &opt_verbose, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"verbose", 'v', "Write more information."
+  "Using it will print more information for 'processlist."
+  "Using it 2 times will print even more information for 'processlist'.",
+   &opt_not_used, &opt_not_used, 0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0},
   {"version", 'V', "Output version information and exit.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"vertical", 'E',
-   "Print output vertically. Is similar to --relative, but prints output vertically.",
-   &opt_vertical, &opt_vertical, 0, GET_BOOL, NO_ARG, 0, 0, 0,
-   0, 0, 0},
   {"wait", 'w', "Wait and retry if connection is down.", 0, 0, 0, GET_UINT,
    OPT_ARG, 0, 0, 0, 0, 0, 0},
-  {"connect_timeout", OPT_CONNECT_TIMEOUT, "", &opt_connect_timeout,
+  {"connect_timeout", 0, "", &opt_connect_timeout,
    &opt_connect_timeout, 0, GET_ULONG, REQUIRED_ARG, 3600*12, 0,
    3600*12, 0, 1, 0},
-  {"shutdown_timeout", OPT_SHUTDOWN_TIMEOUT, "", &opt_shutdown_timeout,
+  {"shutdown_timeout", 0, "", &opt_shutdown_timeout,
    &opt_shutdown_timeout, 0, GET_ULONG, REQUIRED_ARG,
    SHUTDOWN_DEF_TIMEOUT, 0, 3600*12, 0, 1, 0},
-  {"wait_for_all_slaves", OPT_SHUTDOWN_WAIT_FOR_SLAVES,
+  {"wait_for_all_slaves", 0,
    "Defers shutdown until after all binlogged events have been sent to "
    "all connected slaves", &opt_shutdown_wait_for_slaves,
    &opt_shutdown_wait_for_slaves, 0, GET_BOOL, NO_ARG, 0, 0, 0,
    0, 0, 0},
-  {"plugin_dir", OPT_PLUGIN_DIR, "Directory for client-side plugins.",
+  {"plugin_dir", 0, "Directory for client-side plugins.",
     &opt_plugin_dir, &opt_plugin_dir, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-  {"default_auth", OPT_DEFAULT_AUTH,
+  {"default_auth", 0,
    "Default authentication client-side plugin to use.",
    &opt_default_auth, &opt_default_auth, 0,
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -241,10 +222,10 @@ static const char *load_default_groups[]=
   0 };
 
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, const char *argument,
+               const char *filename)
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'c':
     opt_count_iterations= 1;
     break;
@@ -253,10 +234,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       argument= (char*) "";			// Don't require password
     if (argument)
     {
-      char *start=argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
-      opt_password=my_strdup(argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1]=0;				/* Cut length of argument */
       tty_password= 0;
@@ -268,7 +254,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     option_silent++;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
 #endif
     break;
@@ -293,6 +279,11 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case 'I':					/* Info */
     usage();
     exit(0);
+  case 'v':                                     /* --verbose   */
+    opt_verbose++;
+    if (argument == disabled_my_option)
+      opt_verbose= 0;
+    break;
   case OPT_CHARSETS_DIR:
 #if MYSQL_VERSION_ID > 32300
     charsets_dir = argument;
@@ -304,6 +295,27 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
+    }
+    break;
+  case 'P':
+    if (filename[0] == '\0')
+    {
+      /* Port given on command line, switch protocol to use TCP */
+      opt_protocol= MYSQL_PROTOCOL_TCP;
+    }
+    break;
+  case 'S':
+    if (filename[0] == '\0')
+    {
+      /*
+        Socket given on command line, switch protocol to use SOCKETSt
+        Except on Windows if 'protocol= pipe' has been provided in
+        the config file or command line.
+      */
+      if (opt_protocol != MYSQL_PROTOCOL_PIPE)
+      {
+        opt_protocol= MYSQL_PROTOCOL_SOCKET;
+      }
     }
     break;
   }
@@ -319,6 +331,10 @@ int main(int argc,char *argv[])
 
   MY_INIT(argv[0]);
   sf_leaking_memory=1; /* don't report memory leaks on early exits */
+
+  /* We need to know if protocol-related options originate from CLI args */
+  my_defaults_mark_files = TRUE;
+
   load_defaults_or_exit("my", load_default_groups, &argc, &argv);
   save_argv = argv;				/* Save for free_defaults */
 
@@ -354,22 +370,14 @@ int main(int argc,char *argv[])
     uint tmp=opt_connect_timeout;
     mysql_options(&mysql,MYSQL_OPT_CONNECT_TIMEOUT, (char*) &tmp);
   }
-#ifdef HAVE_OPENSSL
-  if (opt_use_ssl)
-  {
-    mysql_ssl_set(&mysql, opt_ssl_key, opt_ssl_cert, opt_ssl_ca,
-		  opt_ssl_capath, opt_ssl_cipher);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRL, opt_ssl_crl);
-    mysql_options(&mysql, MYSQL_OPT_SSL_CRLPATH, opt_ssl_crlpath);
-    mysql_options(&mysql, MARIADB_OPT_TLS_VERSION, opt_tls_version);
-  }
-  mysql_options(&mysql,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
-                (char*)&opt_ssl_verify_server_cert);
-#endif
+
+  SET_SSL_OPTS_WITH_CHECK(&mysql);
+
   if (opt_protocol)
     mysql_options(&mysql,MYSQL_OPT_PROTOCOL,(char*)&opt_protocol);
   if (!strcmp(default_charset,MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
+  my_set_console_cp(default_charset);
   mysql_options(&mysql, MYSQL_SET_CHARSET_NAME, default_charset);
   error_flags= (myf)(opt_nobeep ? 0 : ME_BELL);
 
@@ -413,7 +421,7 @@ int main(int argc,char *argv[])
       is given a t!=0, we get an endless loop, or n iterations if --count=n
       was given an n!=0. If --sleep wasn't given, we get one iteration.
 
-      To wit, --wait loops the connection-attempts, while --sleep loops
+      To wait, --wait loops the connection-attempts, while --sleep loops
       the command execution (endlessly if no --count is given).
     */
 
@@ -525,7 +533,7 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 
   for (;;)
   {
-    if (mysql_real_connect(mysql,host,user,opt_password,NullS,tcp_port,
+    if (mysql_real_connect(mysql,host,user,opt_password,NullS,opt_mysql_port,
 			   unix_port, CLIENT_REMEMBER_OPTIONS))
     {
       my_bool reconnect= 1;
@@ -549,17 +557,17 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 	if (mysql_errno(mysql) == CR_CONNECTION_ERROR)
 	{
 	  fprintf(stderr,
-		  "Check that mysqld is running and that the socket: '%s' exists!\n",
+		  "Check that mariadbd is running and that the socket: '%s' exists!\n",
 		  unix_port ? unix_port : mysql_unix_port);
 	}
 	else if (mysql_errno(mysql) == CR_CONN_HOST_ERROR ||
 		 mysql_errno(mysql) == CR_UNKNOWN_HOST)
 	{
-	  fprintf(stderr,"Check that mysqld is running on %s",host);
+	  fprintf(stderr,"Check that mariadbd is running on %s",host);
 	  fprintf(stderr," and that the port is %d.\n",
-		  tcp_port ? tcp_port: mysql_port);
+		  opt_mysql_port ? opt_mysql_port: mysql_port);
 	  fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
-		  host, tcp_port ? tcp_port: mysql_port);
+		  host, opt_mysql_port ? opt_mysql_port: mysql_port);
 	}
       }
       return 1;
@@ -620,7 +628,14 @@ int flush(MYSQL *mysql, const char *what)
   char buf[FN_REFLEN];
   my_snprintf(buf, sizeof(buf), "flush %s%s",
               (opt_local && !sql_log_bin_off ? "local " : ""), what);
-  return mysql_query(mysql, buf);
+
+  if (mysql_query(mysql, buf))
+  {
+    my_printf_error(0, "flush %s failed; error: '%s'", error_flags, what,
+                    mysql_error(mysql));
+    return -1;
+  }
+  return 0;
 }
 
 
@@ -736,11 +751,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_FLUSH_PRIVILEGES:
     case ADMIN_RELOAD:
       if (flush(mysql, "privileges"))
-      {
-	my_printf_error(0, "reload failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     case ADMIN_REFRESH:
       if (mysql_refresh(mysql,
@@ -794,10 +805,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     {
       MYSQL_RES *result;
       MYSQL_ROW row;
+      const char *query;
 
-      if (mysql_query(mysql, (opt_verbose ? "show full processlist" :
-			      "show processlist")) ||
-	  !(result = mysql_store_result(mysql)))
+      if (!opt_verbose)
+        query= "show processlist";
+      else if (opt_verbose == 1)
+        query= "show full processlist";
+      else
+        query= "select * from information_schema.processlist where id != connection_id()";
+
+      if (mysql_query(mysql, query) ||
+          !(result = mysql_store_result(mysql)))
       {
 	my_printf_error(0, "process list failed; error: '%s'", error_flags,
 			mysql_error(mysql));
@@ -895,43 +913,17 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 
       DBUG_ASSERT(mysql_num_rows(res) < MAX_MYSQL_VAR+100);
 
-      if (!opt_vertical)
-	print_header(res);
-      else
-      {
-	if (!ex_status_printed)
-	{
-	  store_values(res);
-	  truncate_names();   /* Does some printing also */
-	}
-	else
-	{
-	  print_relative_line();
-	  print_relative_header();
-	  print_relative_line();
-	}
-      }
+      print_header(res);
 
       /*      void (*func) (MYSQL_RES*, MYSQL_ROW, uint); */
-      if (opt_relative && !opt_vertical)
-	func = print_relative_row;
-      else if (opt_vertical)
-	func = print_relative_row_vert;
+      if (opt_relative)
+        func = print_relative_row;
       else
-	func = print_row;
+        func = print_row;
 
       while ((row = mysql_fetch_row(res)))
-	(*func)(res, row, rownr++);
-      if (opt_vertical)
-      {
-	if (ex_status_printed)
-	{
-	  putchar('\n');
-	  print_relative_line();
-	}
-      }
-      else
-	print_top(res);
+        (*func)(res, row, rownr++);
+      print_top(res);
 
       ex_status_printed = 1; /* From now on the output will be relative */
       mysql_free_result(res);
@@ -940,173 +932,112 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
     case ADMIN_FLUSH_LOGS:
     {
       if (flush(mysql, "logs"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_BINARY_LOG:
     {
       if (flush(mysql, "binary logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ENGINE_LOG:
     {
       if (flush(mysql, "engine logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ERROR_LOG:
     {
       if (flush(mysql, "error logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_GENERAL_LOG:
     {
       if (flush(mysql, "general logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_RELAY_LOG:
     {
       if (flush(mysql, "relay logs"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_SLOW_LOG:
     {
       if (flush(mysql, "slow logs"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_HOSTS:
     {
       if (flush(mysql, "hosts"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_TABLES:
     {
       if (flush(mysql, "tables"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_STATUS:
     {
-      if (flush(mysql, "status"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
+      if (flush(mysql, "/*!110500 global */ status"))
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_TABLE_STATISTICS:
     {
       if (flush(mysql, "table_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_INDEX_STATISTICS:
     {
       if (flush(mysql, "index_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
+      break;
+    }
+    case ADMIN_FLUSH_SSL:
+    {
+      if (flush(mysql, "ssl"))
+	return -1;
       break;
     }
     case ADMIN_FLUSH_USER_STATISTICS:
     {
       if (flush(mysql, "user_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_USER_RESOURCES:
     {
       if (flush(mysql, "user_resources"))
-      {
-        my_printf_error(0, "flush failed; error: '%s'", error_flags,
-                        mysql_error(mysql));
         return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_CLIENT_STATISTICS:
     {
       if (flush(mysql, "client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ALL_STATISTICS:
     {
       if (flush(mysql, "table_statistics,index_statistics,"
                        "user_statistics,client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
 	return -1;
-      }
       break;
     }
     case ADMIN_FLUSH_ALL_STATUS:
     {
-      if (flush(mysql, "status,table_statistics,index_statistics,"
-                       "user_statistics,client_statistics"))
-      {
-	my_printf_error(0, "flush failed; error: '%s'", error_flags,
-			mysql_error(mysql));
+      if (flush(mysql,
+                "/*!110500 global */ status,table_statistics,"
+                "index_statistics, user_statistics,client_statistics"))
 	return -1;
-      }
       break;
     }
     case ADMIN_OLD_PASSWORD:
@@ -1145,7 +1076,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       {
         bool old= (find_type(argv[0], &command_typelib, FIND_TYPE_BASIC) ==
                    ADMIN_OLD_PASSWORD);
-#ifdef __WIN__
+#ifdef _WIN32
         size_t pw_len= strlen(typed_password);
         if (pw_len > 1 && typed_password[0] == '\'' &&
             typed_password[pw_len-1] == '\'')
@@ -1302,7 +1233,7 @@ password_done:
 	}
 	else
 	{
-	  my_printf_error(0,"mysqld doesn't answer to ping, error: '%s'",
+	  my_printf_error(0,"mariadbd doesn't answer to ping, error: '%s'",
 			  error_flags, mysql_error(mysql));
 	  return -1;
 	}
@@ -1343,11 +1274,11 @@ static char **mask_password(int argc, char ***argv)
   if (!argc)
     return NULL;
 
-  temp_argv= (char **)(my_malloc(sizeof(char *) * argc, MYF(MY_WME)));
+  temp_argv= (char **)(my_malloc(PSI_NOT_INSTRUMENTED, sizeof(char *) * argc, MYF(MY_WME)));
   argc--;
   while (argc > 0)
   {
-    temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+    temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
     if (find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_PASSWORD ||
         find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_OLD_PASSWORD)
     {
@@ -1360,16 +1291,9 @@ static char **mask_password(int argc, char ***argv)
      }
     argc--;
   }
-  temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+  temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
   return(temp_argv);
 }
-
-static void print_version(void)
-{
-  printf("%s  Ver %s Distrib %s, for %s on %s\n",my_progname,ADMIN_VERSION,
-	 MYSQL_SERVER_VERSION,SYSTEM_TYPE,MACHINE_TYPE);
-}
-
 
 static void usage(void)
 {
@@ -1399,6 +1323,7 @@ static void usage(void)
   flush-general-log       Flush general log\n\
   flush-relay-log         Flush relay log\n\
   flush-slow-log          Flush slow query log\n\
+  flush-ssl               Flush SSL certificates\n\
   flush-status            Clear status variables\n\
   flush-table-statistics  Clear table statistics\n\
   flush-tables            Flush all tables\n\
@@ -1557,114 +1482,6 @@ static void print_relative_row(MYSQL_RES *result, MYSQL_ROW cur, uint row)
   printf(" %-*s|\n", (int) field->max_length + 1,
 	 llstr((tmp - last_values[row]), buff));
   last_values[row] = tmp;
-}
-
-
-static void print_relative_row_vert(MYSQL_RES *result __attribute__((unused)),
-				    MYSQL_ROW cur,
-				    uint row __attribute__((unused)))
-{
-  uint length;
-  ulonglong tmp;
-  char buff[22];
-
-  if (!row)
-    putchar('|');
-
-  tmp = cur[1] ? strtoull(cur[1], NULL, 10) : (ulonglong) 0;
-  printf(" %-*s|", ex_val_max_len[row] + 1,
-	 llstr((tmp - last_values[row]), buff));
-
-  /* Find the minimum row length needed to output the relative value */
-  length=(uint) strlen(buff);
-  if (length > ex_val_max_len[row] && ex_status_printed)
-    ex_val_max_len[row] = length;
-  last_values[row] = tmp;
-}
-
-
-static void store_values(MYSQL_RES *result)
-{
-  uint i;
-  MYSQL_ROW row;
-  MYSQL_FIELD *field;
-
-  field = mysql_fetch_field(result);
-  max_var_length = field->max_length;
-  field = mysql_fetch_field(result);
-  max_val_length = field->max_length;
-
-  for (i = 0; (row = mysql_fetch_row(result)); i++)
-  {
-    strmov(ex_var_names[i], row[0]);
-    last_values[i]=strtoull(row[1],NULL,10);
-    ex_val_max_len[i]=2;		/* Default print width for values */
-  }
-  ex_var_count = i;
-  return;
-}
-
-
-static void print_relative_header()
-{
-  uint i;
-
-  putchar('|');
-  for (i = 0; i < ex_var_count; i++)
-    printf(" %-*s|", ex_val_max_len[i] + 1, truncated_var_names[i]);
-  putchar('\n');
-}
-
-
-static void print_relative_line()
-{
-  uint i;
-
-  putchar('+');
-  for (i = 0; i < ex_var_count; i++)
-  {
-    uint j;
-    for (j = 0; j < ex_val_max_len[i] + 2; j++)
-      putchar('-');
-    putchar('+');
-  }
-  putchar('\n');
-}
-
-
-static void truncate_names()
-{
-  uint i;
-  char *ptr,top_line[MAX_TRUNC_LENGTH+4+NAME_LEN+22+1],buff[22];
-
-  ptr=top_line;
-  *ptr++='+';
-  ptr=strfill(ptr,max_var_length+2,'-');
-  *ptr++='+';
-  ptr=strfill(ptr,MAX_TRUNC_LENGTH+2,'-');
-  *ptr++='+';
-  ptr=strfill(ptr,max_val_length+2,'-');
-  *ptr++='+';
-  *ptr=0;
-  puts(top_line);
-
-  for (i = 0 ; i < ex_var_count; i++)
-  {
-    uint sfx=1,j;
-    printf("| %-*s|", max_var_length + 1, ex_var_names[i]);
-    ptr = ex_var_names[i];
-    /* Make sure no two same truncated names will become */
-    for (j = 0; j < i; j++)
-      if (*truncated_var_names[j] == *ptr)
-	sfx++;
-
-    truncated_var_names[i][0]= *ptr;		/* Copy first var char */
-    int10_to_str(sfx, truncated_var_names[i]+1,10);
-    printf(" %-*s|", MAX_TRUNC_LENGTH + 1, truncated_var_names[i]);
-    printf(" %-*s|\n", max_val_length + 1, llstr(last_values[i],buff));
-  }
-  puts(top_line);
-  return;
 }
 
 

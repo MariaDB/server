@@ -7,8 +7,8 @@ b SET('test1','test2','test3','test4','test5'),
 c SET('01','22','23','33','34','39','40','44','50','63','64') PRIMARY KEY
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	c	A	1000	NULL	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	c	A	1000	NULL	NULL		LSMTREE			NO
 INSERT INTO t1 (a,b,c) VALUES 
 ('','test2,test3','01,34,44,23'),
 ('',5,2),
@@ -56,9 +56,9 @@ pk SET('1','2','3','4','5','6','7','8','9') PRIMARY KEY,
 INDEX(a)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	a	1	a	A	500	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	a	1	a	A	500	NULL	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (a,b,c,pk) VALUES
 ('','test2,test3','01,34,44,23',1),
 ('',5,2,2),
@@ -85,10 +85,10 @@ pk SET('1','2','3','4','5','6','7','8','9') PRIMARY KEY,
 UNIQUE INDEX b_a (b,a)
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	0	b_a	1	b	A	500	NULL	NULL	YES	LSMTREE		
-t1	0	b_a	2	a	A	1000	NULL	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	0	b_a	1	b	A	500	NULL	NULL	YES	LSMTREE			NO
+t1	0	b_a	2	a	A	1000	NULL	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (a,b,c,pk) VALUES
 ('','test2,test3','01,34,44,23',1),
 ('',5,2,2),

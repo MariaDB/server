@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2023, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -26,7 +26,7 @@ Created 2012-02-08 by Sunny Bains.
 
 #include "row0quiesce.h"
 #include "row0mysql.h"
-#include "ibuf0ibuf.h"
+#include "buf0flu.h"
 #include "srv0start.h"
 #include "trx0purge.h"
 
@@ -278,12 +278,10 @@ row_quiesce_write_table(
 		/* Write out the column name as [len, byte array]. The len
 		includes the NUL byte. */
 		ib_uint32_t	len;
-		const char*	col_name;
-
-		col_name = dict_table_get_col_name(table, dict_col_get_no(col));
+		const Lex_ident_column col_name = dict_table_get_col_name(table, dict_col_get_no(col));
 
 		/* Include the NUL byte in the length. */
-		len = static_cast<ib_uint32_t>(strlen(col_name) + 1);
+		len = static_cast<ib_uint32_t>(col_name.length + 1);
 		ut_a(len > 1);
 
 		mach_write_to_4(row, len);
@@ -292,7 +290,7 @@ row_quiesce_write_table(
 				close(fileno(file)););
 
 		if (fwrite(row, 1,  sizeof(len), file) != sizeof(len)
-		    || fwrite(col_name, 1, len, file) != len) {
+		    || fwrite(col_name.str, 1, len, file) != len) {
 
 			ib_senderrf(
 				thd, IB_LOG_LEVEL_WARN, ER_IO_WRITE_ERROR,
@@ -430,6 +428,10 @@ row_quiesce_write_header(
 /*********************************************************************//**
 Write the table meta data after quiesce.
 @return DB_SUCCESS or error code */
+
+/* Stack size 20904 with clang */
+PRAGMA_DISABLE_CHECK_STACK_FRAME
+
 static	MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
 row_quiesce_write_cfg(
@@ -487,6 +489,7 @@ row_quiesce_write_cfg(
 
 	return(err);
 }
+PRAGMA_REENABLE_CHECK_STACK_FRAME
 
 /*********************************************************************//**
 Check whether a table has an FTS index defined on it.
@@ -499,8 +502,6 @@ row_quiesce_table_has_fts_index(
 {
 	bool			exists = false;
 
-	dict_mutex_enter_for_mysql();
-
 	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 	     index != 0;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -510,8 +511,6 @@ row_quiesce_table_has_fts_index(
 			break;
 		}
 	}
-
-	dict_mutex_exit_for_mysql();
 
 	return(exists);
 }
@@ -537,30 +536,19 @@ row_quiesce_table_start(
 		purge_sys.stop();
 	}
 
-	for (ulint count = 0;
-	     ibuf_merge_space(table->space_id) != 0
-	     && !trx_is_interrupted(trx);
-	     ++count) {
-		if (!(count % 20)) {
-			ib::info() << "Merging change buffer entries for "
-				<< table->name;
+	while (buf_flush_list_space(table->space)) {
+		if (trx_is_interrupted(trx)) {
+			goto aborted;
 		}
 	}
 
 	if (!trx_is_interrupted(trx)) {
-		{
-			FlushObserver observer(table->space, trx, NULL);
-			buf_LRU_flush_or_remove_pages(table->space_id,
-						      &observer);
-		}
+		/* Ensure that all asynchronous IO is completed. */
+		os_aio_wait_until_no_pending_writes(true);
+		table->space->flush<false>();
 
-		if (trx_is_interrupted(trx)) {
-
-			ib::warn() << "Quiesce aborted!";
-
-		} else if (row_quiesce_write_cfg(table, trx->mysql_thd)
-			   != DB_SUCCESS) {
-
+		if (row_quiesce_write_cfg(table, trx->mysql_thd)
+		    != DB_SUCCESS) {
 			ib::warn() << "There was an error writing to the"
 				" meta data file";
 		} else {
@@ -568,6 +556,7 @@ row_quiesce_table_start(
 				<< " flushed to disk";
 		}
 	} else {
+aborted:
 		ib::warn() << "Quiesce aborted!";
 	}
 
@@ -598,8 +587,7 @@ row_quiesce_table_complete(
 				<< " to complete";
 		}
 
-		/* Sleep for a second. */
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 
 		++count;
 	}
@@ -683,15 +671,13 @@ row_quiesce_set_state(
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
-	row_mysql_lock_data_dictionary(trx);
-
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_lock(&index->lock);
+		index->lock.x_lock(SRW_LOCK_CALL);
 	}
 
-	rw_lock_x_lock(&clust_index->lock);
+	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	switch (state) {
 	case QUIESCE_START:
@@ -711,10 +697,8 @@ row_quiesce_set_state(
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
-		rw_lock_x_unlock(&index->lock);
+		index->lock.x_unlock();
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	return(DB_SUCCESS);
 }

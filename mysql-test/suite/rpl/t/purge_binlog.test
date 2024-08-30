@@ -1,0 +1,51 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/master-slave.inc
+--source include/have_binlog_format_row.inc
+
+--echo #
+--echo # MDEV-34504 PURGE BINARY LOGS not working anymore
+--echo #
+
+select @@slave_connections_needed_for_purge;
+set @old_dbug= @@global.debug_dbug;
+
+create table t1 (a int, b varchar(32768) charset latin1);
+insert into t1 values(1,repeat("a",32768));
+--sync_slave_with_master
+select a from t1;
+set @@global.debug_dbug= "+d,pause_before_io_read_event";
+--connection master
+insert into t1 values(2,repeat("b",32768));
+insert into t1 values(3,repeat("c",32768));
+--connection slave
+set debug_sync='now wait_for io_thread_at_read_event';
+select a from t1;
+--connection master
+--disable_query_log
+let $i=150;
+while ($i)
+{
+--eval insert into t1 values($i+4,repeat(char(64+$i),32768));
+--dec $i
+}
+--enable_query_log
+
+FLUSH BINARY LOGS;
+--source include/show_binary_logs.inc
+--let $purge_to_binlog= query_get_value(SHOW MASTER STATUS, File, 1)
+--replace_regex /Binary log.*is not/Binary log XXX is not/
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--source include/show_binary_logs.inc
+--connection slave
+set @@global.debug_dbug= @old_dbug;
+set debug_sync='now signal io_thread_continue_read_event';
+--connection master
+--sync_slave_with_master
+select count(*) from t1;
+--connection master
+--eval PURGE BINARY LOGS TO '$purge_to_binlog'
+--source include/show_binary_logs.inc
+drop table t1;
+
+--source include/rpl_end.inc

@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2023, Oracle and/or its affiliates.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,22 +26,28 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_host_cache.h"
 #include "hostname.h"
+#include "field.h"
+#include "sql_class.h"
 
 THR_LOCK table_host_cache::m_table_lock;
+
+PFS_engine_table_share_state
+table_host_cache::m_share_state = {
+  false /* m_checked */
+};
 
 PFS_engine_table_share
 table_host_cache::m_share=
 {
   { C_STRING_WITH_LEN("host_cache") },
   &pfs_truncatable_acl,
-  &table_host_cache::create,
+  table_host_cache::create,
   NULL, /* write_row */
   table_host_cache::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_host_cache::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE host_cache("
@@ -73,7 +79,10 @@ table_host_cache::m_share=
                       "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the first connection attempt by the IP.',"
                       "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the most recent connection attempt by the IP.',"
                       "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the first error seen from the IP.',"
-                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the most recent error seen from the IP.')") }
+                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the most recent error seen from the IP.')") },
+  false, /* m_perpetual */
+  false, /* m_optional */
+  &m_share_state
 };
 
 PFS_engine_table* table_host_cache::create(void)
@@ -82,7 +91,7 @@ PFS_engine_table* table_host_cache::create(void)
   if (t != NULL)
   {
     THD *thd= current_thd;
-    DBUG_ASSERT(thd != NULL);
+    assert(thd != NULL);
     t->materialize(thd);
   }
   return t;
@@ -100,6 +109,16 @@ table_host_cache::delete_all_rows(void)
   return 0;
 }
 
+ha_rows
+table_host_cache::get_row_count(void)
+{
+  ha_rows count;
+  hostname_cache_lock();
+  count= hostname_cache_size();
+  hostname_cache_unlock();
+  return count;
+}
+
 table_host_cache::table_host_cache()
   : PFS_engine_table(&m_share, &m_pos),
     m_all_rows(NULL), m_row_count(0),
@@ -115,8 +134,8 @@ void table_host_cache::materialize(THD *thd)
   row_host_cache *rows;
   row_host_cache *row;
 
-  DBUG_ASSERT(m_all_rows == NULL);
-  DBUG_ASSERT(m_row_count == 0);
+  assert(m_all_rows == NULL);
+  assert(m_row_count == 0);
 
   hostname_cache_lock();
 
@@ -229,7 +248,7 @@ int table_host_cache::rnd_next(void)
 int table_host_cache::rnd_pos(const void *pos)
 {
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < m_row_count);
+  assert(m_pos.m_index < m_row_count);
   m_row= &m_all_rows[m_pos.m_index];
   return 0;
 }
@@ -241,10 +260,10 @@ int table_host_cache::read_row_values(TABLE *table,
 {
   Field *f;
 
-  DBUG_ASSERT(m_row);
+  assert(m_row);
 
   /* Set the null bits */
-  DBUG_ASSERT(table->s->null_bytes == 1);
+  assert(table->s->null_bytes == 1);
   buf[0]= 0;
 
   for (; (f= *fields) ; fields++)
@@ -350,7 +369,7 @@ int table_host_cache::read_row_values(TABLE *table,
           f->set_null();
         break;
       default:
-        DBUG_ASSERT(false);
+        assert(false);
       }
     }
   }

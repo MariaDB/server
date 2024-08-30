@@ -1,0 +1,11 @@
+@@ -16,7 +16,10 @@
+ connection default;
+ SELECT * FROM t1 WHERE id = 2 FOR UPDATE;
+ connection con2;
++connection con1;
++COMMIT;
+ disconnect con1;
++connection con2;
+ ROLLBACK;
+ disconnect con2;
+ connection default;

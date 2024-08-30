@@ -393,6 +393,12 @@ connect(con1, localhost, root,,);
 connection default;
 eval CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
   ENGINE = $engine;
+if ($engine == "'InnoDB'")
+{
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1(c1) VALUES(100);
+}
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);
@@ -434,6 +440,13 @@ eval CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
   ENGINE = $engine
   PARTITION BY HASH(c1)
   PARTITIONS 2;
+IF ($engine == "'InnoDB'")
+{
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 (c1) VALUES (100);
+INSERT INTO t1 (c1) VALUES (101);
+}
 START TRANSACTION;
 INSERT INTO t1 (c1) VALUES (2);
 INSERT INTO t1 (c1) VALUES (4);

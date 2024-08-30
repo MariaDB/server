@@ -32,14 +32,14 @@ EXECUTE stmt;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
-let $master_host= query_get_value(SHOW SLAVE STATUS, Master_Host, 1);
-let $master_user= query_get_value(SHOW SLAVE STATUS, Master_User, 1);
+let $master_host= `select Master_Host from information_schema.slave_status`;
+let $master_user= `select Master_user from information_schema.slave_status`;
 
 --echo # Master_Host : $master_host
 --echo # Master_User : $master_user
 
 
 # Reset
-CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root';
+CHANGE MASTER TO MASTER_HOST='127.0.0.1', MASTER_USER='root', MASTER_SSL_VERIFY_SERVER_CERT=0;
 
 --echo # End of test

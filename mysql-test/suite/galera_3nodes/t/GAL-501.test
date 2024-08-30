@@ -4,6 +4,7 @@
 # wsrep_node_address=[::1]
 # ist.recv_addr=[::1]
 
+--let galera_connection_address=::1
 --source include/galera_cluster.inc
 --source include/check_ipv6.inc
 --source include/force_restart.inc

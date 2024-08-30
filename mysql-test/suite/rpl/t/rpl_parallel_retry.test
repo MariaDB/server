@@ -1,4 +1,5 @@
 --source include/have_innodb.inc
+--source include/have_perfschema.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
 --let $rpl_topology=1->2
@@ -68,9 +69,13 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
+
 
 SELECT * FROM t1 ORDER BY a;
 
@@ -100,9 +105,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 ORDER BY a;
 
@@ -142,6 +150,12 @@ let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --disable_query_log
 eval SELECT $new_retry - $old_retry AS retries;
 --enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 ORDER BY a;
 STOP SLAVE IO_THREAD;
@@ -187,9 +201,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 SELECT a, LENGTH(b) FROM t2 ORDER BY a;
@@ -235,9 +252,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 # Stop the SQL thread. When the bug was there to give the incorrect relay log
@@ -266,6 +286,9 @@ SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 CREATE TABLE t3 (a INT PRIMARY KEY, b INT, KEY b_idx(b)) ENGINE=InnoDB;
 INSERT INTO t3 VALUES (1,NULL), (2,2), (3,NULL), (4,4), (5, NULL), (6, 6);
 CREATE TABLE t4 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t4 VALUES(100, 100);
 
 # We need statement binlog format to be able to inject debug_sync statements
 # on the slave with calls to foo().
@@ -362,9 +385,12 @@ SET debug_sync='now SIGNAL t1_start';
 SET GLOBAL debug_dbug=@old_dbug;
 SET debug_sync='RESET';
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry >= 1 AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 SELECT * FROM t3 ORDER BY a;
 
 
@@ -385,12 +411,52 @@ DROP function foo;
 --sync_slave_with_master server_2
 
 #
+# MDEV-33303: slave_parallel_mode=optimistic should not report the mode's
+# specific temporary errors.
+#
+
+--connection server_2
+--source include/stop_slave.inc
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=4;
+
+--connection server_1
+# The problem occurred in the code path for row-based updates in tables
+# with no primary/unique key, where a scan is needed.
+CREATE TABLE t1 (a INT, b VARCHAR(123)) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, 'asdf');
+UPDATE t1 SET b='zxf1' WHERE a=1;
+UPDATE t1 SET b='\n' WHERE a=1;
+
+--connection server_2
+# Inject a small sleep in the code that makes the race easier to hit.
+SET @old_dbug=@@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug="+d,write_row_inject_sleep_before_ha_write_row";
+--source include/start_slave.inc
+
+--connection server_1
+# Here, we would get errors in the slave's error log:
+# [ERROR] mariadbd: Can't find record in 't1'
+--sync_slave_with_master server_2
+
+--connection server_1
+DROP TABLE t1;
+--sync_slave_with_master server_2
+--source include/stop_slave.inc
+SET GLOBAL debug_dbug=@old_dbug;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+--source include/start_slave.inc
+
+
+#
 # MDEV-12746 rpl.rpl_parallel_optimistic_nobinlog fails committing out of order at retry
 #
 
 --connection server_1
 CREATE TABLE t1 (a int PRIMARY KEY, b INT) ENGINE=InnoDB;
-
+# MDEV-515 takes X-lock on the table for the first insert.
+# So concurrent insert won't happen on the table
+INSERT INTO t1 VALUES(100, 100);
 
 # Replicate create-t1 and prepare to re-start slave in optimistic mode
 --sync_slave_with_master server_2

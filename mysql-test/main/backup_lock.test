@@ -12,19 +12,21 @@
 --echo # Testing which locks we get from all stages
 --echo #
 
-SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+let $mdl= LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info
+WHERE TABLE_NAME NOT LIKE 'innodb_%_stats';
+
 --source ../suite/innodb/include/wait_all_purged.inc
+
 BACKUP STAGE START;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE FLUSH;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE BLOCK_DDL;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE BLOCK_COMMIT;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 BACKUP STAGE END;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 
 --echo #
 --echo # testing BACKUP STAGE LOCK's
@@ -41,22 +43,26 @@ connection default;
 
 create table t1 (a int) stats_persistent= 0, engine=innodb;
 --source ../suite/innodb/include/wait_all_purged.inc
+
+connection con2;
+backup stage start;
+connection default;
+
 start transaction;
 # Acquires MDL lock
 insert into t1 values (1);
 
 connection con1;
 # Waits on MDL
---send alter table t1 add column (j int), algorithm copy
+--send alter table t1 add column (j int), algorithm copy, lock shared
 
 connection con2;
 let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
-backup stage start;
 backup stage flush;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 #
 # Do first test with max_statement_time, other tests later are done with
 # lock_wait_timeout. This is mostly to ensure that both methods works
@@ -105,7 +111,7 @@ let $wait_condition=
 --source include/wait_condition.inc
 backup stage start;
 backup stage flush;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 backup stage block_ddl;
 backup stage block_commit;
 connection default;
@@ -149,7 +155,7 @@ let $wait_condition=
 SET STATEMENT lock_wait_timeout=0 FOR SELECT * FROM t1;
 
 backup stage block_ddl;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 backup stage end;
 
 connection default;
@@ -174,7 +180,7 @@ let $wait_condition=
     where state = "Waiting for backup lock";
 --source include/wait_condition.inc
 connection con2;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+eval SELECT $mdl;
 # Check that select's are not blocked
 SELECT * FROM t1;
 connection default;
@@ -234,6 +240,28 @@ connection default;
 select * from t1;
 drop table t1;
 
+--echo #
+--echo # Check if BACKUP STAGE BLOCK_DDL blocks create view
+--echo #
+
+create table t1 (a int) engine=innodb;
+connection con1;
+backup stage start;
+backup stage block_ddl;
+connection default;
+--send create view v1 as select * from t1;
+connection con1;
+--sleep 2
+select count(*) = 1 from information_schema.processlist;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+backup stage end;
+connection default;
+--reap # create
+drop table t1;
+drop view v1;
+
 #
 # End of tests using con1 and con2
 #
@@ -258,14 +286,17 @@ BACKUP STAGE END;
 SET GLOBAL lock_wait_timeout=0;
 CREATE TABLE t_permanent_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_permanent_myisam (col1 INT) ENGINE = MyISAM;
+CREATE TABLE t_permanent_aria  (col1 INT) ENGINE = Aria transactional=1;
+CREATE TABLE t_permanent_aria2  (col1 INT) ENGINE = Aria transactional=0;
 INSERT INTO t_permanent_innodb SET col1 = 1;
-
 INSERT INTO t_permanent_myisam SET col1 = 1;
+INSERT INTO t_permanent_aria SET col1 = 1;
+INSERT INTO t_permanent_aria2 SET col1 = 1;
+
 CREATE TABLE t_con1_innodb (col1 INT) ENGINE = InnoDB;
 CREATE TABLE t_con1_myisam (col1 INT) ENGINE = MyISAM;
 
 --connect(con1,localhost,root,,)
-SET AUTOCOMMIT = 0;
 
 --connection default
 BACKUP STAGE START;
@@ -274,9 +305,35 @@ BACKUP STAGE BLOCK_DDL;
 BACKUP STAGE BLOCK_COMMIT;
 
 --connection con1
+SET AUTOCOMMIT = 1;
+
+# These should work as values are not changed
+UPDATE t_permanent_aria SET col1 = 1;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_innodb SET col1 = 1;
+
+--error ER_LOCK_WAIT_TIMEOUT
 UPDATE t_permanent_innodb SET col1 = 8;
 --error ER_LOCK_WAIT_TIMEOUT
 UPDATE t_permanent_myisam SET col1 = 8;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_aria SET col1 = 8;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_aria2 SET col1 = 8;
+
+select * from t_permanent_innodb;
+select * from t_permanent_myisam;
+select * from t_permanent_aria;
+select * from t_permanent_aria2;
+
+SET AUTOCOMMIT = 0;
+UPDATE t_permanent_innodb SET col1 = 9;
+UPDATE t_permanent_aria SET col1 = 9;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_myisam SET col1 = 9;
+--error ER_LOCK_WAIT_TIMEOUT
+UPDATE t_permanent_aria2 SET col1 = 9;
+
 --error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE t_con1_innodb;
 
@@ -285,8 +342,13 @@ DROP TABLE t_con1_myisam;
 
 --connection default
 BACKUP STAGE END;
-DROP TABLE t_permanent_myisam, t_permanent_innodb;
+
+select * from t_permanent_innodb;
+select * from t_permanent_myisam;
+select * from t_permanent_aria;
+select * from t_permanent_aria2;
+
+DROP TABLE t_permanent_myisam, t_permanent_innodb, t_permanent_aria, t_permanent_aria2;
 DROP TABLE t_con1_innodb, t_con1_myisam;
 --disconnect con1
 set global lock_wait_timeout=default;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

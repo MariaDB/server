@@ -16,7 +16,7 @@ CREATE TABLE t1 (
   c20 CHAR(20) PRIMARY KEY,
   v16 VARCHAR(16),
   v128 VARCHAR(128)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 SHOW INDEX IN t1;
 
@@ -41,7 +41,7 @@ CREATE TABLE t1 (
   v128 VARCHAR(128),
   pk CHAR(64) PRIMARY KEY,
   UNIQUE INDEX c_v (c,v128)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 
 SHOW INDEX IN t1;
@@ -63,13 +63,6 @@ EXPLAIN SELECT v128, COUNT(*) FROM t1 USE INDEX FOR GROUP BY (c_v) GROUP BY v128
 --sorted_result
 SELECT v128, COUNT(*) FROM t1 USE INDEX FOR GROUP BY (c_v) GROUP BY v128;
 
-SET SESSION optimizer_switch = 'engine_condition_pushdown=on';
---replace_column 9 #
-EXPLAIN SELECT c,c20,v16,v128 FROM t1 WHERE c > 'a';
---sorted_result
-SELECT c,c20,v16,v128 FROM t1 WHERE c > 'a';
-SET SESSION optimizer_switch = @@global.optimizer_switch;
-
 DROP TABLE t1;
 
 --enable_parsing
@@ -81,7 +74,7 @@ CREATE TABLE t1 (
   v128 VARCHAR(128),
   pk VARCHAR(64) PRIMARY KEY,
   INDEX (v16)
-) ENGINE=rocksdb;
+) ENGINE=rocksdb CHARSET=latin1;
 
 SHOW INDEX IN t1;
 

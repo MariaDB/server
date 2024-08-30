@@ -207,13 +207,13 @@ CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
-CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a), UNIQUE KEY (a(1))) engine=rocksdb;
+CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a), UNIQUE KEY (a(1))) engine=rocksdb CHARSET=latin1;
 INSERT INTO t VALUES('a');
 CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
-CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a(2)), UNIQUE KEY (a(1))) engine=rocksdb;
+CREATE TABLE t (a VARCHAR(255), PRIMARY KEY(a(2)), UNIQUE KEY (a(1))) engine=rocksdb CHARSET=latin1;
 INSERT INTO t VALUES('a');
 CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text

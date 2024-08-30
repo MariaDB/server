@@ -9,9 +9,10 @@
 /*********************************************************************************/
 #include <my_global.h>
 #include <mysqld.h>
+#include <mysqld_error.h>
 #include <mysql.h>
 #include <sql_error.h>
-#include <stdio.h>
+#include <m_string.h>
 
 #include "jsonudf.h"
 
@@ -21,7 +22,7 @@
 
 #define MEMFIX  4096
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_ERROR, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -1475,16 +1476,16 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 
 		if ((bsnp->Filename = (char*)args->args[0])) {
 			bsnp->Filename = MakePSZ(g, args, 0);
-			strncpy(bsnp->Msg, bsnp->Filename, BMX);
+			strmake(bsnp->Msg, bsnp->Filename, BMX-1);
 		} else
-			strncpy(bsnp->Msg, "null filename", BMX);
+			strmake(bsnp->Msg, "null filename", BMX-1);
 
 	} else if (IsJson(args, 0) == 3) {
 		PBSON bsp = (PBSON)args->args[0];
 
 		if (bsp->Filename) {
 			bsnp->Filename = bsp->Filename;
-			strncpy(bsnp->Msg, bsp->Filename, BMX);
+			strmake(bsnp->Msg, bsp->Filename, BMX-1);
 			bsnp->Pretty = bsp->Pretty;
 		} else
 			strcpy(bsnp->Msg, "Json Binary item");
@@ -4767,7 +4768,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bsp = NULL;
 
 		if (!bsp && (bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-			strncpy(bsp->Msg, g->Message, BMX);
+			strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -4838,7 +4839,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5060,7 +5061,7 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5116,7 +5117,7 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5175,7 +5176,7 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5313,7 +5314,7 @@ char *jbin_object_delete(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		PCSZ  key;
 		PJOB  jobp;
 		PJVAL jvp = MakeValue(g, args, 0, &top);
-		PJSON jsp __attribute__((unused)) = jvp->GetJson();
+		(void) jvp->GetJson();          // XXX Should be removed?
 
 		if (CheckPath(g, args, top, jvp, 2))
 			PUSH_WARNING(g->Message);
@@ -5954,7 +5955,7 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -6082,7 +6083,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (*g->Message)
+		if (g->Message[0] != '\0')
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

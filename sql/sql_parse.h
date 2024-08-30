@@ -41,7 +41,7 @@ bool multi_update_precheck(THD *thd, TABLE_LIST *tables);
 bool multi_delete_precheck(THD *thd, TABLE_LIST *tables);
 int mysql_multi_update_prepare(THD *thd);
 int mysql_multi_delete_prepare(THD *thd);
-bool mysql_insert_select_prepare(THD *thd);
+int mysql_insert_select_prepare(THD *thd,select_result *sel_res);
 bool update_precheck(THD *thd, TABLE_LIST *tables);
 bool delete_precheck(THD *thd, TABLE_LIST *tables);
 bool insert_precheck(THD *thd, TABLE_LIST *tables);
@@ -50,7 +50,7 @@ bool create_table_precheck(THD *thd, TABLE_LIST *tables,
 bool check_fk_parent_table_access(THD *thd,
                                   HA_CREATE_INFO *create_info,
                                   Alter_info *alter_info,
-                                  const char* create_db);
+                                  const LEX_CSTRING &create_db);
 
 bool parse_sql(THD *thd, Parser_state *parser_state,
                Object_creation_ctx *creation_ctx, bool do_pfs_digest=false);
@@ -78,8 +78,6 @@ bool check_string_char_length(const LEX_CSTRING *str, uint err_msg,
                               size_t max_char_length, CHARSET_INFO *cs,
                               bool no_error);
 bool check_ident_length(const LEX_CSTRING *ident);
-CHARSET_INFO* merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl);
-CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs);
 bool check_host_name(LEX_CSTRING *str);
 bool check_identifier_name(LEX_CSTRING *str, uint max_char_length,
                            uint err_code, const char *param_for_err_msg);
@@ -89,23 +87,28 @@ bool stmt_causes_implicit_commit(THD *thd, uint mask);
 bool is_update_query(enum enum_sql_command command);
 bool is_log_table_write_query(enum enum_sql_command command);
 bool alloc_query(THD *thd, const char *packet, size_t packet_length);
-void mysql_init_select(LEX *lex);
 void mysql_parse(THD *thd, char *rawbuf, uint length,
-                 Parser_state *parser_state, bool is_com_multi,
-                 bool is_next_command);
+                 Parser_state *parser_state);
 bool mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *sel);
 void create_select_for_variable(THD *thd, LEX_CSTRING *var_name);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
+void mysql_init_delete(LEX *lex);
 void mysql_init_multi_delete(LEX *lex);
 bool multi_delete_set_locks_and_link_aux_tables(LEX *lex);
 void create_table_set_open_action_and_adjust_tables(LEX *lex);
 int bootstrap(MYSQL_FILE *file);
 bool run_set_statement_if_requested(THD *thd, LEX *lex);
-int mysql_execute_command(THD *thd);
-bool do_command(THD *thd);
-bool dispatch_command(enum enum_server_command command, THD *thd,
-		      char* packet, uint packet_length,
-                      bool is_com_multi, bool is_next_command);
+int mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt=false);
+enum dispatch_command_return
+{
+  DISPATCH_COMMAND_SUCCESS=0,
+  DISPATCH_COMMAND_CLOSE_CONNECTION= 1,
+  DISPATCH_COMMAND_WOULDBLOCK= 2
+};
+
+dispatch_command_return do_command(THD *thd, bool blocking = true);
+dispatch_command_return dispatch_command(enum enum_server_command command, THD *thd,
+                                         char* packet, uint packet_length, bool blocking = true);
 void log_slow_statement(THD *thd);
 bool append_file_to_dir(THD *thd, const char **filename_ptr,
                         const LEX_CSTRING *table_name);
@@ -126,7 +129,7 @@ bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 
 /* Variables */
 
-extern const char* any_db;
+extern const Lex_ident_db_normalized any_db;
 extern uint sql_command_flags[];
 extern uint server_command_flags[];
 extern const LEX_CSTRING command_name[];
@@ -144,32 +147,32 @@ inline bool check_identifier_name(LEX_CSTRING *str)
 }
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables);
-bool check_single_table_access(THD *thd, ulong privilege,
-			   TABLE_LIST *tables, bool no_errors);
-bool check_routine_access(THD *thd,ulong want_access,
+bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables);
+bool check_single_table_access(THD *thd, privilege_t privilege,
+                               TABLE_LIST *tables, bool no_errors);
+bool check_routine_access(THD *thd, privilege_t want_access,
                           const LEX_CSTRING *db,
                           const LEX_CSTRING *name,
                           const Sp_handler *sph, bool no_errors);
-bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table);
+bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table);
 bool check_some_routine_access(THD *thd, const char *db, const char *name,
                                const Sp_handler *sph);
-bool check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
+bool check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                         bool any_combination_of_privileges_will_do,
                         uint number,
                         bool no_errors);
 #else
-inline bool check_one_table_access(THD *thd, ulong privilege, TABLE_LIST *tables)
+inline bool check_one_table_access(THD *thd, privilege_t privilege, TABLE_LIST *tables)
 { return false; }
-inline bool check_single_table_access(THD *thd, ulong privilege,
-			   TABLE_LIST *tables, bool no_errors)
+inline bool check_single_table_access(THD *thd, privilege_t privilege,
+                                      TABLE_LIST *tables, bool no_errors)
 { return false; }
-inline bool check_routine_access(THD *thd,ulong want_access,
+inline bool check_routine_access(THD *thd, privilege_t want_access,
                                  const LEX_CSTRING *db,
                                  const LEX_CSTRING *name,
                                  const Sp_handler *sph, bool no_errors)
 { return false; }
-inline bool check_some_access(THD *thd, ulong want_access, TABLE_LIST *table)
+inline bool check_some_access(THD *thd, privilege_t want_access, TABLE_LIST *table)
 {
   table->grant.privilege= want_access;
   return false;
@@ -179,11 +182,27 @@ inline bool check_some_routine_access(THD *thd, const char *db,
                                       const Sp_handler *sph)
 { return false; }
 inline bool
-check_table_access(THD *thd, ulong requirements,TABLE_LIST *tables,
+check_table_access(THD *thd, privilege_t requirements,TABLE_LIST *tables,
                    bool any_combination_of_privileges_will_do,
                    uint number,
                    bool no_errors)
 { return false; }
 #endif /*NO_EMBEDDED_ACCESS_CHECKS*/
+
+
+/*
+  Allocating memory and *also* using it (reading and
+  writing from it) because some build instructions cause
+  compiler to optimize out stack_used_up. Since alloca()
+  here depends on stack_used_up, it doesnt get executed
+  correctly and causes json_debug_nonembedded to fail
+  ( --error ER_STACK_OVERRUN_NEED_MORE does not occur).
+*/
+#define ALLOCATE_MEM_ON_STACK(A) do \
+                              { \
+                                uchar *array= (uchar*)alloca(A); \
+                                bzero(array, A); \
+                                my_checksum(0, array, A); \
+                              } while(0)
 
 #endif /* SQL_PARSE_INCLUDED */

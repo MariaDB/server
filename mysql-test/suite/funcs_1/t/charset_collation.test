@@ -72,7 +72,7 @@ connect (con,localhost,dbdict_test,,);
 #
 ################################################################################
 
-let $char_set_condition= character_set_name IN ('utf8','latin1','binary');
+let $char_set_condition= character_set_name IN ('utf8mb3','latin1','binary');
 let $collation_condition=
    (collation_name LIKE CONCAT(character_set_name,'_general_ci')
     OR

@@ -81,6 +81,7 @@ select * from t1 where id=1;
 
 --echo ** Creating new user with out super privilege**
 CREATE user sameea;
+grant all on test.* to sameea;
 CONNECT (connn,localhost,sameea,,);
 
 --Error ER_SPECIFIC_ACCESS_DENIED_ERROR

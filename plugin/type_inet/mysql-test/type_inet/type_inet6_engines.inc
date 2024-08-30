@@ -1,0 +1,38 @@
+--echo #
+--echo # Range optimizer
+--echo #
+
+CREATE TABLE t1 (a INET6, INDEX(a));
+SHOW CREATE TABLE t1;
+
+DELIMITER $$;
+FOR i IN 0..255
+DO
+  INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));
+END FOR
+$$
+DELIMITER ;$$
+SELECT * FROM t1 WHERE a='::ff';
+EXPLAIN SELECT * FROM t1 WHERE a='::ff';
+SELECT * FROM t1 WHERE a='garbage';
+EXPLAIN SELECT * FROM t1 WHERE a='garbage';
+
+SELECT * FROM t1 WHERE a>='::fe';
+EXPLAIN SELECT * FROM t1 WHERE a>='::fe';
+SELECT * FROM t1 WHERE a>='garbage';
+EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
+
+SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
+EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
+SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
+EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
+
+SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
+SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
+
+SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
+
+DROP TABLE t1;

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -41,8 +41,6 @@ Created Nov 12, 2014 Vasil Dimov
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 
-typedef void PSI_stage_progress;
-
 /** Class used to report ALTER TABLE progress via performance_schema.
 The only user of this class is the ALTER TABLE code and it calls the methods
 in the following order
@@ -62,9 +60,6 @@ if any new indexes are being added, for each one:
   being_phase_log_index()
     multiple times:
       inc() // once per log-block applied
-begin_phase_flush()
-    multiple times:
-      inc() // once per page flushed
 begin_phase_log_table()
     multiple times:
       inc() // once per log-block applied
@@ -86,7 +81,6 @@ public:
 		m_n_pk_recs(0),
 		m_n_pk_pages(0),
 		m_n_recs_processed(0),
-		m_n_flush_pages(0),
 		m_cur_phase(NOT_STARTED)
 	{
 	}
@@ -134,13 +128,6 @@ public:
 	void
 	begin_phase_insert();
 
-	/** Flag the beginning of the flush phase.
-	@param[in]	n_flush_pages	this many pages are going to be
-	flushed */
-	void
-	begin_phase_flush(
-		ulint	n_flush_pages);
-
 	/** Flag the beginning of the log index phase. */
 	void
 	begin_phase_log_index();
@@ -166,7 +153,6 @@ private:
 		const PSI_stage_info*	new_stage);
 
 	/** Performance schema accounting object. */
-	/* TODO: MySQL 5.7 PSI */
 	PSI_stage_progress*	m_progress;
 
 	/** Old table PK. Used for calculating the estimate. */
@@ -195,16 +181,12 @@ private:
 	recs-per-page records. */
 	ulint			m_n_recs_processed;
 
-	/** Number of pages to flush. */
-	ulint			m_n_flush_pages;
-
 	/** Current phase. */
 	enum {
 		NOT_STARTED = 0,
 		READ_PK = 1,
 		SORT = 2,
 		INSERT = 3,
-		FLUSH = 4,
 		/* JAN: TODO: MySQL 5.7 vrs. MariaDB sql/log.h
 		LOG_INDEX = 5,
 		LOG_TABLE = 6, */
@@ -222,13 +204,12 @@ ut_stage_alter_t::~ut_stage_alter_t()
 		return;
 	}
 
-	/* TODO: MySQL 5.7 PSI: Set completed = estimated before we quit.
+	/* Set completed = estimated before we quit. */
 	mysql_stage_set_work_completed(
 		m_progress,
 		mysql_stage_get_work_estimated(m_progress));
 
 	mysql_end_stage();
-	*/
 }
 
 /** Flag an ALTER TABLE start (read primary key phase).
@@ -243,12 +224,10 @@ ut_stage_alter_t::begin_phase_read_pk(
 
 	m_cur_phase = READ_PK;
 
-	/* TODO: MySQL 5.7 PSI
 	m_progress = mysql_set_stage(
 		srv_stage_alter_table_read_pk_internal_sort.m_key);
 
 	mysql_stage_set_work_completed(m_progress, 0);
-	*/
 	reestimate();
 }
 
@@ -268,7 +247,7 @@ ut_stage_alter_t::n_pk_recs_inc()
 current phase. */
 inline
 void
-ut_stage_alter_t::inc(ulint)
+ut_stage_alter_t::inc(ulint inc_val)
 {
 	if (m_progress == NULL) {
 		return;
@@ -282,14 +261,12 @@ ut_stage_alter_t::inc(ulint)
 		ut_error;
 	case READ_PK:
 		m_n_pk_pages++;
-#if 0 /* TODO: MySQL 5.7 PSI */
 		ut_ad(inc_val == 1);
 		/* Overall the read pk phase will read all the pages from the
 		PK and will do work, proportional to the number of added
 		indexes, thus when this is called once per read page we
 		increment with 1 + m_n_sort_indexes */
 		inc_val = 1 + m_n_sort_indexes;
-#endif
 		break;
 	case SORT:
 		multi_factor = m_sort_multi_factor;
@@ -303,13 +280,15 @@ ut_stage_alter_t::inc(ulint)
 		(double) N records per page, then the work_completed
 	        should be incremented on the inc() calls round(k*N),
 		for k=1,2,3... */
-		const double	every_nth = m_n_recs_per_page * multi_factor;
+		const double	every_nth = m_n_recs_per_page *
+			static_cast<double>(multi_factor);
 
 		const ulint	k = static_cast<ulint>(
-			round(m_n_recs_processed / every_nth));
+			round(static_cast<double>(m_n_recs_processed) /
+			      every_nth));
 
 		const ulint	nth = static_cast<ulint>(
-			round(k * every_nth));
+			round(static_cast<double>(k) * every_nth));
 
 		should_proceed = m_n_recs_processed == nth;
 
@@ -317,8 +296,6 @@ ut_stage_alter_t::inc(ulint)
 
 		break;
 	}
-	case FLUSH:
-		break;
 	/* JAN: TODO: MySQL 5.7
 	case LOG_INDEX:
 		break;
@@ -332,9 +309,7 @@ ut_stage_alter_t::inc(ulint)
 	}
 
 	if (should_proceed) {
-		/* TODO: MySQL 5.7 PSI
 		mysql_stage_inc_work_completed(m_progress, inc_val);
-		*/
 		reestimate();
 	}
 }
@@ -355,7 +330,8 @@ ut_stage_alter_t::end_phase_read_pk()
 		m_n_recs_per_page = 1.0;
 	} else {
 		m_n_recs_per_page = std::max(
-			static_cast<double>(m_n_pk_recs) / m_n_pk_pages,
+			static_cast<double>(m_n_pk_recs)
+			/ static_cast<double>(m_n_pk_pages),
 			1.0);
 	}
 }
@@ -385,21 +361,6 @@ void
 ut_stage_alter_t::begin_phase_insert()
 {
 	change_phase(&srv_stage_alter_table_insert);
-}
-
-/** Flag the beginning of the flush phase.
-@param[in]	n_flush_pages	this many pages are going to be
-flushed */
-inline
-void
-ut_stage_alter_t::begin_phase_flush(
-	ulint	n_flush_pages)
-{
-	m_n_flush_pages = n_flush_pages;
-
-	reestimate();
-
-	change_phase(&srv_stage_alter_table_flush);
 }
 
 /** Flag the beginning of the log index phase. */
@@ -438,12 +399,10 @@ ut_stage_alter_t::reestimate()
 	/* During the log table phase we calculate the estimate as
 	work done so far + log size remaining. */
 	if (m_cur_phase == LOG_INNODB_TABLE) {
-		/* TODO: MySQL 5.7 PSI
 		mysql_stage_set_work_estimated(
 			m_progress,
 			mysql_stage_get_work_completed(m_progress)
 			+ row_log_estimate_work(m_pk));
-		*/
 		return;
 	}
 
@@ -458,29 +417,19 @@ ut_stage_alter_t::reestimate()
 		? m_n_pk_pages
 		: m_pk->stat_n_leaf_pages;
 
-	/* If flush phase has not started yet and we do not know how
-	many pages are to be flushed, then use a wild guess - the
-	number of pages in the PK / 2. */
-	if (m_n_flush_pages == 0) {
-		m_n_flush_pages = n_pk_pages / 2;
-	}
-
 	ulonglong	estimate __attribute__((unused))
 		= n_pk_pages
 		* (1 /* read PK */
 		   + m_n_sort_indexes /* row_merge_buf_sort() inside the
 				      read PK per created index */
 		   + m_n_sort_indexes * 2 /* sort & insert per created index */)
-		+ m_n_flush_pages
 		+ row_log_estimate_work(m_pk);
 
 	/* Prevent estimate < completed */
-	/* TODO: MySQL 5.7 PSI
 	estimate = std::max(estimate,
 			    mysql_stage_get_work_completed(m_progress));
 
 	mysql_stage_set_work_estimated(m_progress, estimate);
-	*/
 }
 
 /** Change the current phase.
@@ -500,8 +449,6 @@ ut_stage_alter_t::change_phase(
 		m_cur_phase = SORT;
 	} else if (new_stage == &srv_stage_alter_table_insert) {
 		m_cur_phase = INSERT;
-	} else if (new_stage == &srv_stage_alter_table_flush) {
-		m_cur_phase = FLUSH;
 	/* JAN: TODO: MySQL 5.7 used LOG_INDEX and LOG_TABLE */
 	} else if (new_stage == &srv_stage_alter_table_log_index) {
 		m_cur_phase = LOG_INNODB_INDEX;
@@ -513,7 +460,6 @@ ut_stage_alter_t::change_phase(
 		ut_error;
 	}
 
-	/* TODO: MySQL 5.7 PSI
 	const ulonglong	c = mysql_stage_get_work_completed(m_progress);
 	const ulonglong	e = mysql_stage_get_work_estimated(m_progress);
 
@@ -521,7 +467,6 @@ ut_stage_alter_t::change_phase(
 
 	mysql_stage_set_work_completed(m_progress, c);
 	mysql_stage_set_work_estimated(m_progress, e);
-	*/
 }
 #else /* HAVE_PSI_STAGE_INTERFACE */
 
@@ -541,8 +486,6 @@ public:
 	void begin_phase_sort(double) {}
 
 	void begin_phase_insert() {}
-
-	void begin_phase_flush(ulint) {}
 
 	void begin_phase_log_index() {}
 

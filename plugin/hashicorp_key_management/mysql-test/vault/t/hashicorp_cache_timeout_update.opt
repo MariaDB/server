@@ -1,0 +1,2 @@
+--loose-hashicorp-key-management-cache-timeout=180000
+--loose-hashicorp-key-management-cache-version-timeout=0

@@ -115,7 +115,7 @@ int my_decimal::to_string_native(String *str, uint fixed_prec, uint fixed_dec,
                ? (fixed_prec + ((fixed_prec == fixed_dec) ? 1 : 0) + 1)
                : my_decimal_string_length(this));
   int result;
-  if (str->alloc(length))
+  if (str->alloc(length+1))                     // Alloc also space for \0
     return check_result(mask, E_DEC_OOM);
   result= decimal2string(this, (char*) str->ptr(),
                          &length, (int)fixed_prec, fixed_dec,
@@ -198,7 +198,8 @@ str_set_decimal(uint mask, const my_decimal *val,
     E_DEC_OVERFLOW
 */
 
-int my_decimal::to_binary(uchar *bin, int prec, int scale, uint mask) const
+int my_decimal::to_binary(uchar *bin, int prec, decimal_digits_t scale,
+                          uint mask) const
 {
   int err1= E_DEC_OK, err2;
   my_decimal rounded;
@@ -329,7 +330,7 @@ my_decimal *date2my_decimal(const MYSQL_TIME *ltime, my_decimal *dec)
 }
 
 
-void my_decimal_trim(ulonglong *precision, uint *scale)
+void my_decimal_trim(ulonglong *precision, decimal_digits_t *scale)
 {
   if (!(*precision) && !(*scale))
   {

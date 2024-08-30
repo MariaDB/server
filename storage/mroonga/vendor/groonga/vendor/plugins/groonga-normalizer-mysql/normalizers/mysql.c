@@ -439,7 +439,7 @@ normalize(grn_ctx *ctx, grn_obj *string,
   normalized[normalized_length_in_bytes] = '\0';
 
   if (rest_length > 0) {
-    char buffer[SNIPPET_BUFFER_SIZE];
+    char buffer[SNIPPET_BUFFER_SIZE+1];
     GRN_PLUGIN_LOG(ctx, GRN_LOG_DEBUG,
                    "[normalizer][%s] failed to normalize at %u byte: %s",
                    normalizer_type_label,

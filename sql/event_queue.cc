@@ -24,6 +24,7 @@
 #include "tztime.h"     // my_tz_find, my_tz_OFFSET0, struct Time_zone
 #include "log.h"        // sql_print_error
 #include "sql_class.h"  // struct THD
+#include "mysql/psi/mysql_sp.h"
 
 /**
   @addtogroup Event_Scheduler
@@ -351,6 +352,9 @@ Event_queue::drop_matching_events(THD *thd, const LEX_CSTRING *pattern,
         is ok.
       */
       queue_remove(&queue, i);
+      /* Drop statistics for this stored program from performance schema. */
+      MYSQL_DROP_SP(SP_TYPE_EVENT, et->dbname.str, static_cast<uint>(et->dbname.length),
+                                   et->name.str, static_cast<uint>(et->name.length));
       delete et;
     }
     else
@@ -512,8 +516,10 @@ Event_queue::empty_queue()
   uint i;
   DBUG_ENTER("Event_queue::empty_queue");
   DBUG_PRINT("enter", ("Purging the queue. %u element(s)", queue.elements));
-  sql_print_information("Event Scheduler: Purging the queue. %u events",
-                        queue.elements);
+
+  if (queue.elements)
+    sql_print_information("Event Scheduler: Purging the queue. %u events",
+                          queue.elements);
   /* empty the queue */
   for (i= queue_first_element(&queue);
        i <= queue_last_element(&queue);
@@ -626,7 +632,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
         Not yet time for top event, wait on condition with
         time or until signaled. Release LOCK_queue while waiting.
       */
-      struct timespec top_time= { next_activation_at, 0 };
+      struct timespec top_time= { (time_t) next_activation_at, 0 };
 
       /* Release any held audit resources before waiting */
       mysql_audit_release(thd);
@@ -637,7 +643,7 @@ Event_queue::get_top_for_execution_if_time(THD *thd,
     }
 
     if (!(*event_name= new Event_queue_element_for_exec()) ||
-        (*event_name)->init(&top->dbname, &top->name))
+        (*event_name)->init(top->dbname, top->name))
     {
       delete *event_name;
       ret= TRUE;

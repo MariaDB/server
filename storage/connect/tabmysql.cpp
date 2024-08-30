@@ -247,7 +247,7 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
       // Found that if the string is:
       // user:@hostname:port/db/table
       // Then password is a null string, so set to NULL
-			if ((pwd[0] == 0))
+			if (pwd[0] == 0)
 				Password = NULL;
 			else
 				Password = pwd;
@@ -683,15 +683,21 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
 
 
     // Make a lower case copy of the originale query
-    qrystr = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 5);
-    strlwr(strcpy(qrystr, Qrystr));
+    size_t qrystr_sz = strlen(Qrystr) + 5;
+    qrystr = (char*)PlugSubAlloc(g, NULL, qrystr_sz);
+    snprintf(qrystr, qrystr_sz, "%s", Qrystr);
+    strlwr(qrystr);
 
     // Check whether the table name is equal to a keyword
     // If so, it must be quoted in the original query
-    strlwr(strcat(strcat(strcpy(name, "`"), Name), "`"));
+    snprintf(name, sizeof(name), "`%s`", Name);
+    strlwr(name);
 
     if (!strstr("`update`delete`low_priority`ignore`quick`from`", name))
-      strlwr(strcpy(name, Name));     // Not a keyword
+    {
+      snprintf(name, sizeof(name), "%s", Name);
+      strlwr(name);
+    }
 
     if ((p = strstr(qrystr, name))) {
       Query->Set(Qrystr, (uint)(p - qrystr));
@@ -709,7 +715,10 @@ bool TDBMYSQL::MakeCommand(PGLOBAL g)
         snprintf(g->Message, sizeof(g->Message), "MakeCommand: Out of memory");
         return true;
       } else
-        strlwr(strcpy(qrystr, Query->GetStr()));
+      {
+        snprintf(qrystr, qrystr_sz,  "%s", Query->GetStr());
+        strlwr(qrystr);
+      }
 
     } else {
       snprintf(g->Message, sizeof(g->Message), "Cannot use this %s command",
@@ -732,7 +741,8 @@ int TDBMYSQL::MakeUpdate(PGLOBAL g)
   {
   char *qc, cmd[8], tab[96], end[1024];
 
-  Query = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  size_t Query_sz = strlen(Qrystr) + 64;
+  Query = (char*)PlugSubAlloc(g, NULL, Query_sz);
   memset(end, 0, sizeof(end));
 
   if (sscanf(Qrystr, "%s `%[^`]`%1023c", cmd, tab, end) > 2 ||
@@ -747,8 +757,7 @@ int TDBMYSQL::MakeUpdate(PGLOBAL g)
   } // endif sscanf
 
   assert(!stricmp(cmd, "update"));
-  strcat(strcat(strcat(strcpy(Query, "UPDATE "), qc), TableName), qc);
-  strcat(Query, end);
+  snprintf(Query, Query_sz, "UPDATE %s%s%s%s", qc, TableName, qc, end);
   return RC_OK;
   } // end of MakeUpdate
 
@@ -760,7 +769,8 @@ int TDBMYSQL::MakeDelete(PGLOBAL g)
   {
   char *qc, cmd[8], from[8], tab[96], end[512];
 
-  Query = (char*)PlugSubAlloc(g, NULL, strlen(Qrystr) + 64);
+  size_t Query_sz = strlen(Qrystr) + 64;
+  Query = (char*)PlugSubAlloc(g, NULL, Query_sz);
   memset(end, 0, sizeof(end));
 
   if (sscanf(Qrystr, "%s %s `%[^`]`%511c", cmd, from, tab, end) > 2 ||
@@ -774,10 +784,10 @@ int TDBMYSQL::MakeDelete(PGLOBAL g)
   } // endif sscanf
 
   assert(!stricmp(cmd, "delete") && !stricmp(from, "from"));
-  strcat(strcat(strcat(strcpy(Query, "DELETE FROM "), qc), TableName), qc);
+  snprintf(Query, Query_sz, "DELETE FROM %s%s%s", qc, TableName, qc);
 
   if (*end)
-    strcat(Query, end);
+    safe_strcat(Query, Query_sz, end);
 
   return RC_OK;
   } // end of MakeDelete
@@ -799,12 +809,16 @@ int TDBMYSQL::Cardinality(PGLOBAL g)
     if (myc.Open(g, Host, Schema, User, Pwd, Port, csname))
       return -1;
 
-    strcpy(query, "SELECT COUNT(*) FROM ");
+    snprintf(query, sizeof(query), "SELECT COUNT(*) FROM ");
 
     if (Quoted > 0)
-      strcat(strcat(strcat(query, "`"), TableName), "`");
+    {
+      safe_strcat(query, sizeof(query), "`");
+      safe_strcat(query, sizeof(query),TableName);
+      safe_strcat(query, sizeof(query), "`");
+    }
     else
-      strcat(query, TableName);
+     safe_strcat(query, sizeof(query), TableName);
 
     Cardinal = myc.GetTableSize(g, query);
     myc.Close();
@@ -1266,7 +1280,7 @@ MYSQLCOL::MYSQLCOL(MYSQL_FIELD *fld, PTDB tdbp, int i, PCSZ am)
   Opt = 0;
   Precision = Long = fld->length;
   Buf_Type = MYSQLtoPLG(fld->type, &v);
-  strcpy(Format.Type, GetFormatType(Buf_Type));
+  snprintf(Format.Type, sizeof(Format.Type), "%s", GetFormatType(Buf_Type));
   Format.Length = Long;
   Format.Prec = fld->decimals;
   ColUse = U_P;
@@ -1414,8 +1428,11 @@ void MYSQLCOL::ReadColumn(PGLOBAL g)
 
     // TODO: have a true way to differenciate temporal values
     if (Buf_Type == TYPE_DATE && strlen(buf) == 8)
+    {
       // This is a TIME value
-      p = strcat(strcpy(tim, "1970-01-01 "), buf);
+      snprintf(tim, sizeof(tim), "1970-01-01 %s", buf);
+      p = tim;
+    }
     else
       p = buf;
 

@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21973 Bind REPLICATION {MASTER|SLAVE} ADMIN to gtid_* GLOBAL-only system variables
+--echo #
+
+--let var = gtid_cleanup_batch_size
+--let grant = REPLICATION SLAVE ADMIN
+--let value = 1
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc

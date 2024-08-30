@@ -20,6 +20,5 @@ FOUND 1 /The slave is applying a ROW event on behalf of an UPDATE statement on t
 FOUND 1 /The slave is applying a ROW event on behalf of a DELETE statement on table t1 and is currently taking a considerable amount/ in mysqld.2.err
 include/stop_slave.inc
 SET @@GLOBAL.debug_dbug = @saved_dbug;
-SET GLOBAL log_warnings = 2;
 include/start_slave.inc
 include/rpl_end.inc

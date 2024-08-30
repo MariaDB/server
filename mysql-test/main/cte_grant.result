@@ -2,7 +2,7 @@ connect  root,localhost,root,,test;
 connection root;
 create database mysqltest;
 create user mysqltest_1@localhost;
-connect  user1,localhost,mysqltest_1,,test;
+connect  user1,localhost,mysqltest_1,,"*NO-ONE*";
 connection user1;
 connection root;
 create table mysqltest.t1 (a int, b int);
@@ -77,8 +77,7 @@ values (3,10), (7,11), (1,17), (4,15), (2,11), (3,10), (1,15);
 create user foo@localhost;
 grant SELECT on db.t1 to foo@localhost;
 grant SELECT(a) on db.t2 to foo@localhost;
-connect  con1,localhost,foo,,;
-use db;
+connect  con1,localhost,foo,,db;
 with cte as (select * from t1 where i < 4)
 select * from cte;
 i

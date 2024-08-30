@@ -45,6 +45,10 @@ CREATE TABLE tbl_b (
 pkey int NOT NULL,
 PRIMARY KEY (pkey)
 ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_2
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 INSERT INTO tbl_a (pkey) VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 INSERT INTO tbl_a (pkey) VALUES (10),(11),(12),(13),(14),(15),(16),(17),(18),(19);
 INSERT INTO tbl_a (pkey) VALUES (20),(21),(22),(23),(24),(25),(26),(27),(28),(29);
@@ -91,10 +95,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -128,7 +132,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -160,7 +164,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0
@@ -235,10 +239,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -272,7 +276,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -304,7 +308,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0
@@ -379,10 +383,10 @@ pkey
 28
 29
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0
@@ -416,7 +420,7 @@ pkey
 28
 29
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 0
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 1
@@ -448,7 +452,7 @@ select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 26
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 27
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 28
 select `pkey` from `auto_test_remote2`.`tbl_b` where `pkey` = 29
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
 0

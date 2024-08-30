@@ -55,7 +55,7 @@ KEY_COLUMN_USAGE	CREATE TEMPORARY TABLE `KEY_COLUMN_USAGE` (
   `REFERENCED_TABLE_SCHEMA` varchar(64),
   `REFERENCED_TABLE_NAME` varchar(64),
   `REFERENCED_COLUMN_NAME` varchar(64)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 SHOW COLUMNS FROM information_schema.KEY_COLUMN_USAGE;
 Field	Type	Null	Key	Default	Extra
 CONSTRAINT_CATALOG	varchar(512)	NO		NULL	
@@ -144,6 +144,7 @@ def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Time_zone_id
 def	mysql	PRIMARY	def	mysql	time_zone_transition_type	Transition_type_id
 def	mysql	commit_id	def	mysql	transaction_registry	commit_id
 def	mysql	PRIMARY	def	mysql	transaction_registry	transaction_id
+def	sys	PRIMARY	def	sys	sys_config	variable
 ########################################################################################
 # Testcase 3.2.7.2 + 3.2.7.3: INFORMATION_SCHEMA.KEY_COLUMN_USAGE accessible information
 ########################################################################################

@@ -1,0 +1,48 @@
+include/rpl_init.inc [topology=1->2,1->3]
+connection server_1;
+set @old_enabled= @@global.rpl_semi_sync_master_enabled;
+set @old_timeout= @@global.rpl_semi_sync_master_timeout;
+set global rpl_semi_sync_master_enabled= 1;
+set global rpl_semi_sync_master_timeout= 500;
+connection server_2;
+include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set @old_dbug= @@global.debug_dbug;
+set global rpl_semi_sync_slave_enabled= 1;
+set global debug_dbug="+d,simulate_delay_semisync_slave_reply";
+include/start_slave.inc
+connection server_3;
+include/stop_slave.inc
+set @old_enabled= @@global.rpl_semi_sync_slave_enabled;
+set global rpl_semi_sync_slave_enabled= 1;
+include/start_slave.inc
+# Ensure primary recognizes both replicas are semi-sync
+connection server_1;
+connection server_1;
+create table t1 (a int);
+connection server_2;
+# Verifying server_2 did not send ACK
+connection server_3;
+# Verifying server_3 did send ACK
+connection server_1;
+# Verifying master's semi-sync status is still ON (This failed pre-MDEV-32960 fixes)
+# Verifying rpl_semi_sync_master_yes_tx incremented
+#
+# Cleanup
+connection server_2;
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+set global debug_dbug= @old_dbug;
+include/stop_slave.inc
+connection server_3;
+set global rpl_semi_sync_slave_enabled= @old_enabled;
+include/stop_slave.inc
+connection server_1;
+set global rpl_semi_sync_master_enabled= @old_enabled;
+set global rpl_semi_sync_master_timeout= @old_timeout;
+drop table t1;
+connection server_2;
+include/start_slave.inc
+connection server_3;
+include/start_slave.inc
+include/rpl_end.inc
+# End of rpl_semi_sync_no_missed_ack_after_add_slave.test

@@ -47,6 +47,12 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <stdlib.h>
 #include <string.h>
 #include <limits>
+#ifdef HAVE_PWD_H
+#ifdef HAVE_SYS_TYPES_H
+#include <sys/types.h>
+#endif
+#include <pwd.h>
+#endif
 #include "common.h"
 #include "xtrabackup.h"
 #include "srv0srv.h"
@@ -58,28 +64,25 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <sstream>
 #include <sql_error.h>
 #include "page0zip.h"
+#include "backup_debug.h"
 
 char *tool_name;
-char tool_args[2048];
+char tool_args[8192];
 
-/* mysql flavor and version */
-mysql_flavor_t server_flavor = FLAVOR_UNKNOWN;
-unsigned long mysql_server_version = 0;
+ulong mysql_server_version;
 
 /* server capabilities */
 bool have_changed_page_bitmaps = false;
-bool have_backup_locks = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
-bool have_flush_engine_logs = false;
 bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
 /* Kill long selects */
-os_thread_id_t	kill_query_thread_id;
-os_event_t	kill_query_thread_started;
-os_event_t	kill_query_thread_stopped;
-os_event_t	kill_query_thread_stop;
+static mysql_mutex_t kill_query_thread_mutex;
+static bool kill_query_thread_running, kill_query_thread_stopping;
+static mysql_cond_t kill_query_thread_stopped;
+static mysql_cond_t kill_query_thread_stop;
 
 bool sql_thread_started = false;
 char *mysql_slave_position = NULL;
@@ -95,22 +98,65 @@ MYSQL *mysql_connection;
 
 extern my_bool opt_ssl_verify_server_cert, opt_use_ssl;
 
+
+/*
+  get_os_user()
+  Ressemles read_user_name() from libmariadb/libmariadb/mariadb_lib.c.
+*/
+
+#if !defined(_WIN32)
+
+#if defined(HAVE_GETPWUID) && defined(NO_GETPWUID_DECL)
+struct passwd *getpwuid(uid_t);
+char* getlogin(void);
+#endif
+
+static const char *get_os_user() // Posix
+{
+  if (!geteuid())
+    return "root";
+#ifdef HAVE_GETPWUID
+  struct passwd *pw;
+  const char *str;
+  if ((pw= getpwuid(geteuid())) != NULL)
+    return pw->pw_name;
+  if ((str= getlogin()) != NULL)
+    return str;
+#endif
+  if ((str= getenv("USER")) ||
+      (str= getenv("LOGNAME")) ||
+      (str= getenv("LOGIN")))
+    return str;
+  return NULL;
+}
+
+#else
+
+static const char *get_os_user() // Windows
+{
+  return getenv("USERNAME");
+}
+
+#endif // _WIN32
+
+
 MYSQL *
 xb_mysql_connect()
 {
 	MYSQL *connection = mysql_init(NULL);
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
+	const char *user= opt_user ? opt_user : get_os_user();
 
 	sprintf(mysql_port_str, "%d", opt_port);
 
 	if (connection == NULL) {
-		msg("Failed to init MySQL struct: %s.",
+		msg("Failed to init MariaDB struct: %s.",
 			mysql_error(connection));
 		return(NULL);
 	}
 
 #if !defined(DONT_USE_MYSQL_PWD)
-	if (!opt_password)
+	if (!opt_password || !strlen(opt_password))
 	{
 		opt_password=getenv("MYSQL_PWD");
 	}
@@ -127,9 +173,9 @@ xb_mysql_connect()
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
 	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
 
-	msg("Connecting to MySQL server host: %s, user: %s, password: %s, "
+	msg("Connecting to MariaDB server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
-	       opt_user ? opt_user : "not set",
+	       user ? user : "not set",
 	       opt_password ? "set" : "not set",
 	       opt_port != 0 ? mysql_port_str : "not set",
 	       opt_socket ? opt_socket : "not set");
@@ -144,17 +190,19 @@ xb_mysql_connect()
 		mysql_options(connection, MYSQL_OPT_SSL_CRLPATH,
 			      opt_ssl_crlpath);
 	}
+        else
+          opt_ssl_verify_server_cert= 0;
 	mysql_options(connection,MYSQL_OPT_SSL_VERIFY_SERVER_CERT,
 		      (char*)&opt_ssl_verify_server_cert);
 #endif
 
 	if (!mysql_real_connect(connection,
 				opt_host ? opt_host : "localhost",
-				opt_user,
+				user,
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
-		msg("Failed to connect to MySQL server: %s.", mysql_error(connection));
+		msg("Failed to connect to MariaDB server: %s.", mysql_error(connection));
 		mysql_close(connection);
 		return(NULL);
 	}
@@ -206,13 +254,14 @@ struct mysql_variable {
 
 
 static
-void
+uint
 read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 	bool vertical_result)
 {
 	MYSQL_RES *mysql_result;
 	MYSQL_ROW row;
 	mysql_variable *var;
+	uint n_values=0;
 
 	mysql_result = xb_mysql_query(connection, query, true);
 
@@ -226,6 +275,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 				if (strcmp(var->name, name) == 0
 				    && value != NULL) {
 					*(var->value) = strdup(value);
+					n_values++;
 				}
 			}
 		}
@@ -242,6 +292,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 					if (strcmp(var->name, name) == 0
 					    && value != NULL) {
 						*(var->value) = strdup(value);
+						n_values++;
 					}
 				}
 				++i;
@@ -250,6 +301,7 @@ read_mysql_variables(MYSQL *connection, const char *query, mysql_variable *vars,
 	}
 
 	mysql_free_result(mysql_result);
+	return n_values;
 }
 
 
@@ -298,60 +350,22 @@ read_mysql_one_value(MYSQL *mysql, const char *query)
 
 static
 bool
-check_server_version(unsigned long version_number,
-		     const char *version_string,
-		     const char *version_comment,
-		     const char *innodb_version)
+check_server_version(ulong version_number, const char *version_string)
 {
-	bool version_supported = false;
-	bool mysql51 = false;
+  if (strstr(version_string, "MariaDB") && version_number >= 100800)
+    return true;
 
-	mysql_server_version = version_number;
-
-	server_flavor = FLAVOR_UNKNOWN;
-	if (strstr(version_comment, "Percona") != NULL) {
-		server_flavor = FLAVOR_PERCONA_SERVER;
-	} else if (strstr(version_comment, "MariaDB") != NULL ||
-		   strstr(version_string, "MariaDB") != NULL) {
-		server_flavor = FLAVOR_MARIADB;
-	} else if (strstr(version_comment, "MySQL") != NULL) {
-		server_flavor = FLAVOR_MYSQL;
-	}
-
-	mysql51 = version_number > 50100 && version_number < 50500;
-	version_supported = version_supported
-		|| (mysql51 && innodb_version != NULL);
-	version_supported = version_supported
-		|| (version_number > 50500 && version_number < 50700);
-	version_supported = version_supported
-		|| ((version_number > 100000)
-		    && server_flavor == FLAVOR_MARIADB);
-
-	if (mysql51 && innodb_version == NULL) {
-		msg("Error: Built-in InnoDB in MySQL 5.1 is not "
-		    "supported in this release. You can either use "
-		    "Percona XtraBackup 2.0, or upgrade to InnoDB "
-		    "plugin.");
-	} else if (!version_supported) {
-		msg("Error: Unsupported server version: '%s'. Please "
-		    "report a bug at "
-		    "https://bugs.launchpad.net/percona-xtrabackup",
-		    version_string);
-	}
-
-	return(version_supported);
+  msg("Error: Unsupported server version: '%s'.", version_string);
+  return false;
 }
 
 /*********************************************************************//**
-Receive options important for XtraBackup from MySQL server.
+Receive options important for XtraBackup from server.
 @return	true on success. */
 bool get_mysql_vars(MYSQL *connection)
 {
   char *gtid_mode_var= NULL;
   char *version_var= NULL;
-  char *version_comment_var= NULL;
-  char *innodb_version_var= NULL;
-  char *have_backup_locks_var= NULL;
   char *log_bin_var= NULL;
   char *lock_wait_timeout_var= NULL;
   char *wsrep_on_var= NULL;
@@ -371,18 +385,15 @@ bool get_mysql_vars(MYSQL *connection)
   char *page_zip_level_var= NULL;
   char *ignore_db_dirs= NULL;
   char *endptr;
-  unsigned long server_version= mysql_get_server_version(connection);
+  ulong server_version= mysql_get_server_version(connection);
 
   bool ret= true;
 
   mysql_variable mysql_vars[]= {
-      {"have_backup_locks", &have_backup_locks_var},
       {"log_bin", &log_bin_var},
       {"lock_wait_timeout", &lock_wait_timeout_var},
       {"gtid_mode", &gtid_mode_var},
       {"version", &version_var},
-      {"version_comment", &version_comment_var},
-      {"innodb_version", &innodb_version_var},
       {"wsrep_on", &wsrep_on_var},
       {"slave_parallel_workers", &slave_parallel_workers_var},
       {"gtid_slave_pos", &gtid_slave_pos_var},
@@ -403,11 +414,6 @@ bool get_mysql_vars(MYSQL *connection)
 
   read_mysql_variables(connection, "SHOW VARIABLES", mysql_vars, true);
 
-  if (have_backup_locks_var != NULL && !opt_no_backup_locks)
-  {
-    have_backup_locks= true;
-  }
-
   if (opt_binlog_info == BINLOG_INFO_AUTO)
   {
     if (log_bin_var != NULL && !strcmp(log_bin_var, "ON"))
@@ -426,18 +432,13 @@ bool get_mysql_vars(MYSQL *connection)
     have_galera_enabled= true;
   }
 
-  /* Check server version compatibility and detect server flavor */
-
-  if (!(ret= check_server_version(server_version, version_var,
-                                  version_comment_var, innodb_version_var)))
+  /* Check server version compatibility */
+  if (!(ret= check_server_version(server_version, version_var)))
   {
     goto out;
   }
 
-  if (server_version > 50500)
-  {
-    have_flush_engine_logs= true;
-  }
+  mysql_server_version= server_version;
 
   if (slave_parallel_workers_var != NULL &&
       atoi(slave_parallel_workers_var) > 0)
@@ -474,7 +475,7 @@ bool get_mysql_vars(MYSQL *connection)
     }
     if (!directory_exists(datadir_var, false))
     {
-      msg("Warning: MySQL variable 'datadir' points to "
+      msg("Warning: MariaDB variable 'datadir' points to "
           "nonexistent directory '%s'",
           datadir_var);
     }
@@ -496,31 +497,21 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (innodb_data_file_path_var && *innodb_data_file_path_var)
-  {
-    innobase_data_file_path= my_strdup(innodb_data_file_path_var, MYF(MY_FAE));
-  }
+    innobase_data_file_path= my_strdup(PSI_NOT_INSTRUMENTED,
+                                       innodb_data_file_path_var, MYF(MY_FAE));
 
   if (innodb_data_home_dir_var)
-  {
-    innobase_data_home_dir= my_strdup(innodb_data_home_dir_var, MYF(MY_FAE));
-  }
+    innobase_data_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
+                                      innodb_data_home_dir_var, MYF(MY_FAE));
 
   if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
-  {
-    srv_log_group_home_dir=
-        my_strdup(innodb_log_group_home_dir_var, MYF(MY_FAE));
-  }
+    srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
+                                      innodb_log_group_home_dir_var,
+                                      MYF(MY_FAE));
 
   if (innodb_undo_directory_var && *innodb_undo_directory_var)
-  {
-    srv_undo_dir= my_strdup(innodb_undo_directory_var, MYF(MY_FAE));
-  }
-
-  if (innodb_log_files_in_group_var)
-  {
-    srv_n_log_files= strtol(innodb_log_files_in_group_var, &endptr, 10);
-    ut_ad(*endptr == 0);
-  }
+    srv_undo_dir= my_strdup(PSI_NOT_INSTRUMENTED, innodb_undo_directory_var,
+                            MYF(MY_FAE));
 
   if (innodb_log_file_size_var)
   {
@@ -536,18 +527,21 @@ bool get_mysql_vars(MYSQL *connection)
 
   if (innodb_undo_tablespaces_var)
   {
-    srv_undo_tablespaces= strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+    srv_undo_tablespaces= static_cast<uint32_t>
+      (strtoul(innodb_undo_tablespaces_var, &endptr, 10));
     ut_ad(*endptr == 0);
   }
 
   if (aria_log_dir_path_var)
   {
-    aria_log_dir_path= my_strdup(aria_log_dir_path_var, MYF(MY_FAE));
+    aria_log_dir_path= my_strdup(PSI_NOT_INSTRUMENTED,
+                                 aria_log_dir_path_var, MYF(MY_FAE));
   }
 
   if (page_zip_level_var != NULL)
   {
-    page_zip_level= strtoul(page_zip_level_var, &endptr, 10);
+    page_zip_level= static_cast<uint>(strtoul(page_zip_level_var, &endptr,
+                                              10));
     ut_ad(*endptr == 0);
   }
 
@@ -566,34 +560,6 @@ Query the server to find out what backup capabilities it supports.
 bool
 detect_mysql_capabilities_for_backup()
 {
-	const char *query = "SELECT 'INNODB_CHANGED_PAGES', COUNT(*) FROM "
-				"INFORMATION_SCHEMA.PLUGINS "
-			    "WHERE PLUGIN_NAME LIKE 'INNODB_CHANGED_PAGES'";
-	char *innodb_changed_pages = NULL;
-	mysql_variable vars[] = {
-		{"INNODB_CHANGED_PAGES", &innodb_changed_pages}, {NULL, NULL}};
-
-	if (xtrabackup_incremental) {
-
-		read_mysql_variables(mysql_connection, query, vars, true);
-
-		ut_ad(innodb_changed_pages != NULL);
-
-		have_changed_page_bitmaps = (atoi(innodb_changed_pages) == 1);
-
-		/* INNODB_CHANGED_PAGES are listed in
-		INFORMATION_SCHEMA.PLUGINS in MariaDB, but
-		FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS
-		is not supported for versions below 10.1.6
-		(see MDEV-7472) */
-		if (server_flavor == FLAVOR_MARIADB &&
-		    mysql_server_version < 100106) {
-			have_changed_page_bitmaps = false;
-		}
-
-		free_mysql_variables(vars);
-	}
-
 	/* do some sanity checks */
 	if (opt_galera_info && !have_galera_enabled) {
 		msg("--galera-info is specified on the command "
@@ -626,7 +592,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 				(unsigned long)strlen(opt_incremental_history_name));
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
-			"FROM PERCONA_SCHEMA.xtrabackup_history "
+			"FROM " XB_HISTORY_TABLE " "
 			"WHERE name = '%s' "
 			"AND innodb_to_lsn IS NOT NULL "
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
@@ -639,7 +605,7 @@ select_incremental_lsn_from_history(lsn_t *incremental_lsn)
 				(unsigned long)strlen(opt_incremental_history_uuid));
 		snprintf(query, sizeof(query),
 			"SELECT innodb_to_lsn "
-			"FROM PERCONA_SCHEMA.xtrabackup_history "
+			"FROM " XB_HISTORY_TABLE " "
 			"WHERE uuid = '%s' "
 			"AND innodb_to_lsn IS NOT NULL "
 			"ORDER BY innodb_to_lsn DESC LIMIT 1",
@@ -825,7 +791,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 		if (!have_queries_to_wait_for(connection, threshold)) {
 			return(true);
 		}
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
 	msg("Unable to obtain lock. Please try again later.");
@@ -833,83 +799,79 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 	return(false);
 }
 
-static
-os_thread_ret_t
-DECLARE_THREAD(kill_query_thread)(
-/*===============*/
-	void *arg __attribute__((unused)))
+static void kill_query_thread()
 {
-	MYSQL	*mysql;
-	time_t	start_time;
+  mysql_mutex_lock(&kill_query_thread_mutex);
 
-	start_time = time(NULL);
+  msg("Kill query timeout %d seconds.", opt_kill_long_queries_timeout);
 
-	os_event_set(kill_query_thread_started);
+  time_t start_time= time(nullptr);
+  timespec abstime;
+  set_timespec(abstime, opt_kill_long_queries_timeout);
 
-	msg("Kill query timeout %d seconds.",
-	       opt_kill_long_queries_timeout);
+  while (!kill_query_thread_stopping)
+    if (!mysql_cond_timedwait(&kill_query_thread_stop,
+                              &kill_query_thread_mutex, &abstime))
+      goto func_exit;
 
-	while (time(NULL) - start_time <
-				(time_t)opt_kill_long_queries_timeout) {
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			goto stop_thread;
-		}
-	}
+  if (MYSQL *mysql= xb_mysql_connect())
+  {
+    do
+    {
+      kill_long_queries(mysql, time(nullptr) - start_time);
+      set_timespec(abstime, 1);
+    }
+    while (mysql_cond_timedwait(&kill_query_thread_stop,
+                                &kill_query_thread_mutex, &abstime) &&
+	   !kill_query_thread_stopping);
+    mysql_close(mysql);
+  }
+  else
+    msg("Error: kill query thread failed");
 
-	if ((mysql = xb_mysql_connect()) == NULL) {
-		msg("Error: kill query thread failed");
-		goto stop_thread;
-	}
+func_exit:
+  msg("Kill query thread stopped");
 
-	while (true) {
-		kill_long_queries(mysql, time(NULL) - start_time);
-		if (os_event_wait_time(kill_query_thread_stop, 1000) !=
-		    OS_SYNC_TIME_EXCEEDED) {
-			break;
-		}
-	}
-
-	mysql_close(mysql);
-
-stop_thread:
-	msg("Kill query thread stopped");
-
-	os_event_set(kill_query_thread_stopped);
-
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
+  kill_query_thread_running= false;
+  mysql_cond_signal(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
 }
 
 
-static
-void
-start_query_killer()
+static void start_query_killer()
 {
-	kill_query_thread_stop		= os_event_create(0);
-	kill_query_thread_started	= os_event_create(0);
-	kill_query_thread_stopped	= os_event_create(0);
-
-	os_thread_create(kill_query_thread, NULL, &kill_query_thread_id);
-
-	os_event_wait(kill_query_thread_started);
+  ut_ad(!kill_query_thread_running);
+  kill_query_thread_running= true;
+  kill_query_thread_stopping= false;
+  mysql_mutex_init(0, &kill_query_thread_mutex, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stop, nullptr);
+  mysql_cond_init(0, &kill_query_thread_stopped, nullptr);
+  std::thread(kill_query_thread).detach();
 }
 
-static
-void
-stop_query_killer()
+static void stop_query_killer()
 {
-	os_event_set(kill_query_thread_stop);
-	os_event_wait_time(kill_query_thread_stopped, 60000);
+  mysql_mutex_lock(&kill_query_thread_mutex);
+  kill_query_thread_stopping= true;
+  mysql_cond_signal(&kill_query_thread_stop);
+
+  do
+    mysql_cond_wait(&kill_query_thread_stopped, &kill_query_thread_mutex);
+  while (kill_query_thread_running);
+
+  mysql_cond_destroy(&kill_query_thread_stop);
+  mysql_cond_destroy(&kill_query_thread_stopped);
+  mysql_mutex_unlock(&kill_query_thread_mutex);
+  mysql_mutex_destroy(&kill_query_thread_mutex);
 }
 
 
 /*********************************************************************//**
-Function acquires either a backup tables lock, if supported
-by the server, or a global read lock (FLUSH TABLES WITH READ LOCK)
-otherwise.
+Function acquires backup locks
 @returns true if lock acquired */
-bool lock_tables(MYSQL *connection)
+
+bool
+lock_for_backup_stage_start(MYSQL *connection)
 {
   if (have_lock_wait_timeout || opt_lock_wait_timeout)
   {
@@ -922,12 +884,6 @@ bool lock_tables(MYSQL *connection)
     xb_mysql_query(connection, buf, false);
   }
 
-  if (have_backup_locks)
-  {
-    msg("Executing LOCK TABLES FOR BACKUP...");
-    xb_mysql_query(connection, "LOCK TABLES FOR BACKUP", false);
-    return (true);
-  }
 
   if (opt_lock_wait_timeout)
   {
@@ -951,7 +907,7 @@ bool lock_tables(MYSQL *connection)
   }
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
-  xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+  DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
   /* Set the maximum supported session value for
   lock_wait_timeout to prevent unnecessary timeouts when the
   global value is changed from the default */
@@ -967,24 +923,68 @@ bool lock_tables(MYSQL *connection)
   return (true);
 }
 
-/*********************************************************************//**
-If backup locks are used, execute LOCK BINLOG FOR BACKUP provided that we are
-not in the --no-lock mode and the lock has not been acquired already.
-@returns true if lock acquired */
 bool
-lock_binlog_maybe(MYSQL *connection)
-{
-	if (have_backup_locks && !opt_no_lock && !binlog_locked) {
-		msg("Executing LOCK BINLOG FOR BACKUP...");
-		xb_mysql_query(connection, "LOCK BINLOG FOR BACKUP", false);
-		binlog_locked = true;
-
-		return(true);
+lock_for_backup_stage_flush(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
 	}
-
-	return(false);
+	xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
 }
 
+bool
+lock_for_backup_stage_block_ddl(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
+	}
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
+	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_ddl", {});
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
+}
+
+bool
+lock_for_backup_stage_commit(MYSQL *connection) {
+	if (opt_kill_long_queries_timeout) {
+		start_query_killer();
+	}
+	xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
+	DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
+	if (opt_kill_long_queries_timeout) {
+		stop_query_killer();
+	}
+	return true;
+}
+
+bool backup_lock(MYSQL *con, const char *table_name) {
+	static const std::string backup_lock_prefix("BACKUP LOCK ");
+	std::string backup_lock_query = backup_lock_prefix + table_name;
+	xb_mysql_query(con, backup_lock_query.c_str(), true);
+	return true;
+}
+
+bool backup_unlock(MYSQL *con) {
+	xb_mysql_query(con, "BACKUP UNLOCK", true);
+	return true;
+}
+
+std::unordered_set<std::string>
+get_tables_in_use(MYSQL *con) {
+	std::unordered_set<std::string> result;
+	MYSQL_RES *q_res =
+		xb_mysql_query(con, "SHOW OPEN TABLES WHERE In_use = 1", true);
+	while (MYSQL_ROW row = mysql_fetch_row(q_res)) {
+		auto tk = table_key(row[0], row[1]);
+		msg("Table %s is in use", tk.c_str());
+		result.insert(std::move(tk));
+	}
+	return result;
+}
 
 /*********************************************************************//**
 Releases either global read lock acquired with FTWRL and the binlog
@@ -996,8 +996,9 @@ unlock_all(MYSQL *connection)
 	if (opt_debug_sleep_before_unlock) {
 		msg("Debug sleep for %u seconds",
 		       opt_debug_sleep_before_unlock);
-		os_thread_sleep(opt_debug_sleep_before_unlock * 1000);
-	}
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(opt_debug_sleep_before_unlock));
+        }
 
 	msg("Executing BACKUP STAGE END");
 	xb_mysql_query(connection, "BACKUP STAGE END", false);
@@ -1075,7 +1076,7 @@ wait_for_safe_slave(MYSQL *connection)
 		       "remaining)...", sleep_time, n_attempts);
 
 		xb_mysql_query(connection, "START SLAVE SQL_THREAD", false);
-		os_thread_sleep(sleep_time * 1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(sleep_time));
 		xb_mysql_query(connection, "STOP SLAVE SQL_THREAD", false);
 
 		open_temp_tables = get_open_temp_tables(connection);
@@ -1168,22 +1169,23 @@ public:
   bool print(String *to) const
   {
     ut_ad(m_value);
-    return to->append(m_value);
+    return to->append(m_value, strlen(m_value));
   }
   bool print_quoted(String *to) const
   {
     ut_ad(m_value);
-    return to->append("'") || to->append(m_value) || to->append("'");
+    return to->append('\'') || to->append(m_value, strlen(m_value)) ||
+           to->append('\'');
   }
   bool print_set_global(String *to) const
   {
     ut_ad(m_value);
     return
-      to->append("SET GLOBAL ") ||
-      to->append(m_name) ||
-      to->append(" = '") ||
-      to->append(m_value) ||
-      to->append("';\n");
+      to->append(STRING_WITH_LEN("SET GLOBAL ")) ||
+      to->append(m_name, strlen(m_name)) ||
+      to->append(STRING_WITH_LEN(" = '")) ||
+      to->append(m_value, strlen(m_value)) ||
+      to->append(STRING_WITH_LEN("';\n"));
   }
 };
 
@@ -1236,7 +1238,7 @@ public:
 
   static bool start_comment_chunk(String *to)
   {
-    return to->length() ? to->append("; ") : false;
+    return to->length() ? to->append(STRING_WITH_LEN("; ")) : false;
   }
 
   bool print_connection_name_if_set(String *to) const
@@ -1248,24 +1250,28 @@ public:
 
   bool print_comment_master_identity(String *comment) const
   {
-    if (comment->append("master "))
+    if (comment->append(STRING_WITH_LEN("master ")))
       return true;
     if (!m_mariadb_connection_name.is_null_or_empty())
       return m_mariadb_connection_name.print_quoted(comment);
-    return comment->append("''"); // Default not named master
+    return comment->append(STRING_WITH_LEN("''")); // Default not named master
   }
 
   bool print_using_master_log_pos(String *sql, String *comment) const
   {
     return
-      sql->append("CHANGE MASTER ") ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER ")) ||
       print_connection_name_if_set(sql) ||
-      sql->append("TO MASTER_LOG_FILE=") || m_filename.print_quoted(sql) ||
-      sql->append(", MASTER_LOG_POS=")   || m_position.print(sql) ||
-      sql->append(";\n") ||
+      sql->append(STRING_WITH_LEN("TO MASTER_LOG_FILE=")) ||
+      m_filename.print_quoted(sql) ||
+      sql->append(STRING_WITH_LEN(", MASTER_LOG_POS=")) ||
+      m_position.print(sql) ||
+      sql->append(STRING_WITH_LEN(";\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" filename ")  || m_filename.print_quoted(comment) ||
-      comment->append(" position ")  || m_position.print_quoted(comment);
+      comment->append(STRING_WITH_LEN(" filename ")) ||
+      m_filename.print_quoted(comment) ||
+      comment->append(STRING_WITH_LEN(" position ")) ||
+      m_position.print_quoted(comment);
   }
 
   bool print_mysql56(String *sql, String *comment) const
@@ -1276,23 +1282,23 @@ public:
       CHANGE MASTER TO MASTER_AUTO_POSITION=1;
     */
     return
-      sql->append("SET GLOBAL gtid_purged=") ||
+      sql->append(STRING_WITH_LEN("SET GLOBAL gtid_purged=")) ||
       m_mysql_gtid_executed.print_quoted(sql) ||
-      sql->append(";\n") ||
-      sql->append("CHANGE MASTER TO MASTER_AUTO_POSITION=1;\n") ||
+      sql->append(STRING_WITH_LEN(";\n")) ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER TO MASTER_AUTO_POSITION=1;\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" purge list ") ||
+      comment->append(STRING_WITH_LEN(" purge list ")) ||
       m_mysql_gtid_executed.print_quoted(comment);
   }
 
   bool print_mariadb10_using_gtid(String *sql, String *comment) const
   {
     return
-      sql->append("CHANGE MASTER ") ||
+      sql->append(STRING_WITH_LEN("CHANGE MASTER ")) ||
       print_connection_name_if_set(sql) ||
-      sql->append("TO master_use_gtid = slave_pos;\n") ||
+      sql->append(STRING_WITH_LEN("TO master_use_gtid = slave_pos;\n")) ||
       print_comment_master_identity(comment) ||
-      comment->append(" master_use_gtid = slave_pos");
+      comment->append(STRING_WITH_LEN(" master_use_gtid = slave_pos"));
   }
 
   bool print(String *sql, String *comment, const Var &gtid_slave_pos) const
@@ -1331,7 +1337,7 @@ public:
         if (status.is_mariadb_using_gtid())
         {
           if (gtid_slave_pos.print_set_global(sql) ||
-              comment->append("gtid_slave_pos ") ||
+              comment->append(STRING_WITH_LEN("gtid_slave_pos ")) ||
               gtid_slave_pos.print_quoted(comment))
             return true; // Error
           break;
@@ -1393,21 +1399,8 @@ bool
 write_slave_info(ds_ctxt *datasink, MYSQL *connection)
 {
   String sql, comment;
-  bool show_all_slaves_status= false;
 
-  switch (server_flavor)
-  {
-  case FLAVOR_MARIADB:
-    show_all_slaves_status= mysql_server_version >= 100000;
-    break;
-  case FLAVOR_UNKNOWN:
-  case FLAVOR_MYSQL:
-  case FLAVOR_PERCONA_SERVER:
-    break;
-  }
-
-  if (Show_slave_status::get_slave_info(connection, show_all_slaves_status,
-                                        &sql, &comment))
+  if (Show_slave_status::get_slave_info(connection, true, &sql, &comment))
     return false; // Error
 
   if (!sql.length())
@@ -1420,59 +1413,109 @@ write_slave_info(ds_ctxt *datasink, MYSQL *connection)
   }
 
   mysql_slave_position= strdup(comment.c_ptr());
-  return datasink->backup_file_print_buf(XTRABACKUP_SLAVE_INFO,
+  return datasink->backup_file_print_buf(MB_SLAVE_INFO,
                                sql.ptr(), sql.length());
 }
 
 
 /*********************************************************************//**
-Retrieves MySQL Galera and
-saves it in a file. It also prints it to stdout. */
+Retrieves MySQL Galera and saves it in a file. It also prints it to stdout.
+
+We should create xtrabackup_galelera_info file even when backup locks
+are used because donor's wsrep_gtid_domain_id is needed later in joiner.
+Note that at this stage wsrep_local_state_uuid and wsrep_last_committed
+are inconsistent but they are not used in joiner. Joiner will rewrite this file
+at mariabackup --prepare phase and thus there is extra file donor_galera_info.
+Information is needed to maitain wsrep_gtid_domain_id and gtid_binlog_pos
+same across the cluster. If joiner node have different wsrep_gtid_domain_id
+we should still receive effective domain id from the donor node,
+and use it.
+*/
 bool
 write_galera_info(ds_ctxt *datasink, MYSQL *connection)
 {
-	char *state_uuid = NULL, *state_uuid55 = NULL;
-	char *last_committed = NULL, *last_committed55 = NULL;
-	bool result;
+  char *state_uuid = NULL, *state_uuid55 = NULL;
+  char *last_committed = NULL, *last_committed55 = NULL;
+  char *domain_id = NULL, *domain_id55 = NULL;
+  bool result=true;
+  uint n_values=0;
+  char *wsrep_on = NULL, *wsrep_on55 = NULL;
 
-	mysql_variable status[] = {
-		{"Wsrep_local_state_uuid", &state_uuid},
-		{"wsrep_local_state_uuid", &state_uuid55},
-		{"Wsrep_last_committed", &last_committed},
-		{"wsrep_last_committed", &last_committed55},
-		{NULL, NULL}
-	};
+  mysql_variable vars[] = {
+    {"Wsrep_on", &wsrep_on},
+    {"wsrep_on", &wsrep_on55},
+    {NULL, NULL}
+  };
 
-	/* When backup locks are supported by the server, we should skip
-	creating xtrabackup_galera_info file on the backup stage, because
-	wsrep_local_state_uuid and wsrep_last_committed will be inconsistent
-	without blocking commits. The state file will be created on the prepare
-	stage using the WSREP recovery procedure. */
-	if (have_backup_locks) {
-		return(true);
-	}
+  mysql_variable status[] = {
+    {"Wsrep_local_state_uuid", &state_uuid},
+    {"wsrep_local_state_uuid", &state_uuid55},
+    {"Wsrep_last_committed", &last_committed},
+    {"wsrep_last_committed", &last_committed55},
+    {NULL, NULL}
+  };
 
-	read_mysql_variables(connection, "SHOW STATUS", status, true);
+  mysql_variable value[] = {
+    {"Wsrep_gtid_domain_id", &domain_id},
+    {"wsrep_gtid_domain_id", &domain_id55},
+    {NULL, NULL}
+  };
 
-	if ((state_uuid == NULL && state_uuid55 == NULL)
-		|| (last_committed == NULL && last_committed55 == NULL)) {
-		msg("Warning: failed to get master wsrep state from SHOW STATUS.");
-		result = true;
-		goto cleanup;
-	}
+  n_values= read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
 
-	result = datasink->backup_file_printf(XTRABACKUP_GALERA_INFO,
-		"%s:%s\n", state_uuid ? state_uuid : state_uuid55,
-			last_committed ? last_committed : last_committed55);
-	if (result)
-	{
-		write_current_binlog_file(datasink, connection);
-	}
+  if (n_values == 0 || (wsrep_on == NULL && wsrep_on55 == NULL))
+  {
+    msg("Server is not Galera node thus --galera-info does not "
+	"have any effect.");
+    result = true;
+    goto cleanup;
+  }
+
+  read_mysql_variables(connection, "SHOW STATUS", status, true);
+
+  if ((state_uuid == NULL && state_uuid55 == NULL)
+      || (last_committed == NULL && last_committed55 == NULL))
+  {
+    msg("Warning: failed to get master wsrep state from SHOW STATUS.");
+    result = true;
+    goto cleanup;
+  }
+
+  n_values= read_mysql_variables(connection, "SHOW VARIABLES LIKE 'wsrep%'", value, true);
+
+  if (n_values == 0 || (domain_id == NULL && domain_id55 == NULL))
+  {
+    msg("Warning: failed to get master wsrep state from SHOW VARIABLES.");
+    result = true;
+    goto cleanup;
+  }
+
+  result= datasink->backup_file_printf(MB_GALERA_INFO,
+    "%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+    last_committed ? last_committed : last_committed55,
+    domain_id ? domain_id : domain_id55);
+
+  if (result)
+  {
+    result= datasink->backup_file_printf(XTRABACKUP_DONOR_GALERA_INFO,
+      "%s:%s %s\n", state_uuid ? state_uuid : state_uuid55,
+      last_committed ? last_committed : last_committed55,
+      domain_id ? domain_id : domain_id55);
+  }
+
+  if (result)
+    write_current_binlog_file(datasink, connection);
+
+  if (result)
+    msg("Writing Galera info succeeded with %s:%s %s",
+      state_uuid ? state_uuid : state_uuid55,
+      last_committed ? last_committed : last_committed55,
+      domain_id ? domain_id : domain_id55);
 
 cleanup:
-	free_mysql_variables(status);
+  free_mysql_variables(status);
 
-	return(result);
+  return(result);
 }
 
 
@@ -1514,8 +1557,6 @@ write_current_binlog_file(ds_ctxt *datasink, MYSQL *connection)
 
 	if (gtid_exists) {
 		size_t log_bin_dir_length;
-
-		lock_binlog_maybe(connection);
 
 		xb_mysql_query(connection, "FLUSH BINARY LOGS", false);
 
@@ -1595,7 +1636,7 @@ write_binlog_info(ds_ctxt *datasink, MYSQL *connection)
 	read_mysql_variables(connection, "SHOW VARIABLES", vars, true);
 
 	if (filename == NULL || position == NULL) {
-		/* Do not create xtrabackup_binlog_info if binary
+		/* Do not create MB_BINLOG_INFO if binary
 		log is disabled */
 		result = true;
 		goto cleanup;
@@ -1611,14 +1652,14 @@ write_binlog_info(ds_ctxt *datasink, MYSQL *connection)
 			"filename '%s', position '%s', "
 			"GTID of the last change '%s'",
 			filename, position, gtid) != -1);
-		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = datasink->backup_file_printf(MB_BINLOG_INFO,
 					    "%s\t%s\t%s\n", filename, position,
 					    gtid);
 	} else {
 		ut_a(asprintf(&mysql_binlog_position,
 			"filename '%s', position '%s'",
 			filename, position) != -1);
-		result = datasink->backup_file_printf(XTRABACKUP_BINLOG_INFO,
+		result = datasink->backup_file_printf(MB_BINLOG_INFO,
 					    "%s\t%s\n", filename, position);
 	}
 
@@ -1653,8 +1694,8 @@ operator<<(std::ostream& s, const escape_and_quote& eq)
 }
 
 /*********************************************************************//**
-Writes xtrabackup_info file and if backup_history is enable creates
-PERCONA_SCHEMA.xtrabackup_history and writes a new history record to the
+Writes MB_INFO file and if backup_history is enable creates
+mysql.mariabackup_history and writes a new history record to the
 table containing all the history info particular to the just completed
 backup. */
 bool
@@ -1730,7 +1771,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 		xb_stream_name[xtrabackup_stream_fmt], /* format */
 		xtrabackup_compress ? "compressed" : "N"); /* compressed */
 	if (buf_len < 0) {
-		msg("Error: cannot generate xtrabackup_info");
+		msg("Error: cannot generate " MB_INFO);
 		result = false;
 		goto cleanup;
 	}
@@ -1755,9 +1796,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 	}
 
 	xb_mysql_query(connection,
-		"CREATE DATABASE IF NOT EXISTS PERCONA_SCHEMA", false);
-	xb_mysql_query(connection,
-		"CREATE TABLE IF NOT EXISTS PERCONA_SCHEMA.xtrabackup_history("
+		"CREATE TABLE IF NOT EXISTS " XB_HISTORY_TABLE "("
 		"uuid VARCHAR(40) NOT NULL PRIMARY KEY,"
 		"name VARCHAR(255) DEFAULT NULL,"
 		"tool_name VARCHAR(255) DEFAULT NULL,"
@@ -1780,7 +1819,7 @@ write_xtrabackup_info(ds_ctxt *datasink,
 
 #define ESCAPE_BOOL(expr) ((expr)?"'Y'":"'N'")
 
-	oss << "insert into PERCONA_SCHEMA.xtrabackup_history("
+	oss << "insert into " XB_HISTORY_TABLE "("
 		<< "uuid, name, tool_name, tool_command, tool_version,"
 		<< "ibbackup_version, server_version, start_time, end_time,"
 		<< "lock_time, binlog_pos, innodb_from_lsn, innodb_to_lsn,"
@@ -1860,26 +1899,24 @@ static std::string make_local_paths(const char *data_file_path)
 bool write_backup_config_file(ds_ctxt *datasink)
 {
 	int rc= datasink->backup_file_printf("backup-my.cnf",
-		"# This MySQL options file was generated by innobackupex.\n\n"
-		"# The MySQL server\n"
+		"# This options file was generated by innobackupex.\n\n"
+		"# The server\n"
 		"[mysqld]\n"
 		"innodb_checksum_algorithm=%s\n"
 		"innodb_data_file_path=%s\n"
-		"innodb_log_files_in_group=%lu\n"
 		"innodb_log_file_size=%llu\n"
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
-		"innodb_undo_tablespaces=%lu\n"
+		"innodb_undo_tablespaces=%u\n"
 		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
 		make_local_paths(innobase_data_file_path).c_str(),
-		srv_n_log_files,
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,
-		srv_undo_tablespaces,
+                (uint) srv_undo_tablespaces,
 		page_zip_level,
 		innobase_buffer_pool_filename ?
 			"innodb_buffer_pool_filename=" : "",
@@ -1901,12 +1938,22 @@ char *make_argv(char *buf, size_t len, int argc, char **argv)
 	while (argc > 0 && left > 0)
 	{
 		arg = *argv;
-		if (strncmp(*argv, "--password", strlen("--password")) == 0) {
+		if (strncmp(*argv, STRING_WITH_LEN("--password=")) == 0) {
 			arg = "--password=...";
+		} else
+		if (strcmp(*argv, "--password") == 0) {
+			arg = "--password ...";
+                        ++argv; --argc;
+                } else
+                if (strncmp(*argv, STRING_WITH_LEN("-p")) == 0) {
+			arg = "-p...";
 		}
-		left-= snprintf(buf + len - left, left,
+
+		uint l= snprintf(buf + len - left, left,
 				"%s%c", arg, argc > 1 ? ' ' : 0);
 		++argv; --argc;
+                if (l < left)
+                  left-= l;
 	}
 
 	return buf;
@@ -1935,20 +1982,8 @@ select_history()
 	return(true);
 }
 
-bool
-flush_changed_page_bitmaps()
-{
-	if (xtrabackup_incremental && have_changed_page_bitmaps &&
-	    !xtrabackup_incremental_force_scan) {
-		xb_mysql_query(mysql_connection,
-			"FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS", false);
-	}
-	return(true);
-}
-
-
 /*********************************************************************//**
-Deallocate memory, disconnect from MySQL server, etc.
+Deallocate memory, disconnect from server, etc.
 @return	true on success. */
 void
 backup_cleanup()
@@ -2021,4 +2056,24 @@ mdl_unlock_all()
   xb_mysql_query(mdl_con, "COMMIT", false, true);
   mysql_close(mdl_con);
   spaceid_to_tablename.clear();
+}
+
+ulonglong get_current_lsn(MYSQL *connection)
+{
+	static const char lsn_prefix[] = "\nLog sequence number ";
+	ulonglong lsn = 0;
+	if (MYSQL_RES *res = xb_mysql_query(connection,
+					    "SHOW ENGINE INNODB STATUS",
+					    true, false)) {
+		if (MYSQL_ROW row = mysql_fetch_row(res)) {
+			const char *p= strstr(row[2], lsn_prefix);
+			DBUG_ASSERT(p);
+			if (p) {
+				p += sizeof lsn_prefix - 1;
+				lsn = lsn_t(strtoll(p, NULL, 10));
+			}
+		}
+		mysql_free_result(res);
+	}
+	return lsn;
 }

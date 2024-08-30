@@ -129,9 +129,11 @@ eval CREATE TABLE tbl_c (
     KEY idx2(c)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT4_2_1;
 --enable_query_log
+--disable_ps_protocol
 insert into tbl_a values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_b values (1,'a','2000/01/01'),(2,'b','2000/01/02'),(3,'c','2000/01/03'),(4,'d','2000/01/04'),(5,'e','2000/01/05');
 insert into tbl_c values (1,10,100),(2,20,200),(3,30,300),(4,40,400),(5,50,500);
+--enable_ps_protocol
 
 --echo
 --echo select test

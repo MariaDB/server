@@ -8,7 +8,7 @@
 # Steps:
 #    0 - Have LOG_WARNINGS=2
 #    1 - On a fresh slave server which has not replicated any GTIDs execute
-#        "CHANGE MASTER TO MASTER_USE_GTID=current_pos;" command. Start the
+#        "CHANGE MASTER TO MASTER_USE_GTID=slave_pos;" command. Start the
 #        slave.
 #    2 - In Master error log verify that pattern "using_gtid(1), gtid('')" is
 #        present.
@@ -39,11 +39,12 @@
 --source include/master-slave.inc
 
 --connection master
+SET @org_log_warnings=@@GLOBAL.LOG_WARNINGS;
 SET GLOBAL LOG_WARNINGS=2;
 
 --connection slave
 --source include/stop_slave.inc
-CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 --source include/start_slave.inc
 
 --connection master
@@ -59,7 +60,7 @@ if(!$log_error_)
 --let SEARCH_FILE=$log_error_
 --let SEARCH_RANGE=-50000
 --let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'\'\).*
---source include/search_pattern_in_file.inc
+--source include/wait_for_pattern_in_file.inc
 
 --connection slave
 --source include/stop_slave.inc
@@ -71,7 +72,7 @@ CHANGE MASTER TO MASTER_USE_GTID=no;
 --let SEARCH_FILE=$log_error_
 --let SEARCH_RANGE=-50000
 --let SEARCH_PATTERN=using_gtid\(0\), gtid\(\'\'\).*
---source include/search_pattern_in_file.inc
+--source include/wait_for_pattern_in_file.inc
 CREATE TABLE t (f INT) ENGINE=INNODB;
 INSERT INTO t VALUES(10);
 save_master_pos;
@@ -89,7 +90,7 @@ CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 --let SEARCH_FILE=$log_error_
 --let SEARCH_RANGE=-50000
 --let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'0-1-2\'\).*
---source include/search_pattern_in_file.inc
+--source include/wait_for_pattern_in_file.inc
 SET @@SESSION.gtid_domain_id=10;
 INSERT INTO t VALUES(20);
 save_master_pos;
@@ -107,9 +108,10 @@ CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
 --let SEARCH_FILE=$log_error_
 --let SEARCH_RANGE=-50000
 --let SEARCH_PATTERN=using_gtid\(1\), gtid\(\'0-1-2,10-1-1\'\).*
---source include/search_pattern_in_file.inc
+--source include/wait_for_pattern_in_file.inc
 
 --echo "===== Clean up ====="
+SET GLOBAL LOG_WARNINGS=@org_log_warnings;
 --connection slave
 --source include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=no;
@@ -117,5 +119,4 @@ CHANGE MASTER TO MASTER_USE_GTID=no;
 
 --connection master
 DROP TABLE t;
-SET GLOBAL LOG_WARNINGS=default;
 --source include/rpl_end.inc

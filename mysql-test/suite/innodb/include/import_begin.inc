@@ -1,0 +1,32 @@
+--source include/innodb_row_format.inc
+--source include/innodb_row_format_2.inc
+--source include/innodb_checksum_algorithm.inc
+
+--echo #
+--echo # MDEV-26137 ALTER TABLE IMPORT enhancement
+--echo #
+
+let $MYSQLD_DATADIR = `SELECT @@datadir`;
+
+--disable_query_log
+let $ROW_FORMAT_OPTION=;
+if($MTR_COMBINATION_R_REDUNDANT) {
+  let $ROW_FORMAT_OPTION= ROW_FORMAT=REDUNDANT;
+}
+if($MTR_COMBINATION_R_COMPACT) {
+  let $ROW_FORMAT_OPTION= ROW_FORMAT=COMPACT;
+}
+if($MTR_COMBINATION_R_DYNAMIC) {
+  let $ROW_FORMAT_OPTION= ROW_FORMAT=DYNAMIC;
+}
+if($MTR_COMBINATION_R_COMPRESSED) {
+  let $ROW_FORMAT_OPTION= ROW_FORMAT=COMPRESSED;
+}
+let $CREATE_OPTIONS_REGEX= /ENGINE=InnoDB.*$ROW_FORMAT_OPTION/CREATE_OPTIONS/;
+--enable_query_log
+
+--replace_regex $CREATE_OPTIONS_REGEX
+eval
+CREATE TABLE t1(a INT PRIMARY KEY DEFAULT 42) ENGINE=InnoDB $ROW_FORMAT_OPTION;
+INSERT INTO t1() VALUES();
+FLUSH TABLES t1 FOR EXPORT;

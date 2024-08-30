@@ -1,0 +1,16 @@
+--source include/have_utf8.inc
+--source include/have_utf32.inc
+
+--echo #
+--echo # MDEV-30164 System variable for default collations
+--echo #
+
+SET @@character_set_collations= CONVERT('latin1=latin1_bin,utf8mb3=utf8mb3_bin' USING utf32);
+SELECT @@character_set_collations;
+SET @@character_set_collations=_utf32'';
+SELECT @@character_set_collations;
+
+SET @@character_set_collations= CONVERT('utf32=utf32_bin' USING utf32);
+SELECT @@character_set_collations;
+SET @@character_set_collations='';
+SELECT @@character_set_collations;

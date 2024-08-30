@@ -55,6 +55,7 @@
 #define  NO_FUNC
 #include "plgcnx.h"                       // For DB types
 #include "resource.h"
+#include "m_string.h"                     // For strmake
 
 /****************************************************************************/
 /*  Definitions.                                                            */
@@ -642,7 +643,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
   {
   char c;
   int  rc;
-  int len;
+  int len= 0;
   MODE mode = Tdbp->GetMode();
 
   Buflen = Blksize;
@@ -732,7 +733,7 @@ bool DBFFAM::AllocateBuffer(PGLOBAL g)
               return true;
             } // endswitch c
       
-          strncpy(descp->Name, cdp->GetName(), 11);
+          strmake(descp->Name, cdp->GetName(), sizeof(descp->Name)-1);
           descp->Type = c;
           descp->Length = (uchar)cdp->GetLong();
           } // endif Flags
@@ -953,7 +954,7 @@ int DBFFAM::DeleteRecords(PGLOBAL g, int irc)
     }
     *Tdbp->GetLine() = '*';
     Modif++;                         // Modified line in Delete mode
-    } // endif irc
+  } // endif irc
 
   return RC_OK;
   } // end of DeleteRecords

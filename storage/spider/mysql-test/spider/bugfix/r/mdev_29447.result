@@ -19,6 +19,8 @@ USE auto_test_local;
 CREATE TABLE tbl_a (
 a INT
 ) ENGINE=Spider DEFAULT CHARSET=utf8 COMMENT='table "tbl_a", srv "s_2_1"';
+Warnings:
+Warning	138	Spider table params in COMMENT or CONNECTION strings have been deprecated and will be removed in a future release. Please use table options instead.
 SELECT TRIM(LEADING 'c' FROM a) FROM tbl_a;
 TRIM(LEADING 'c' FROM a)
 connection child2_1;

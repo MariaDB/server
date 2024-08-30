@@ -32,11 +32,7 @@
   GSSAPI authentication plugin, server side
 */
 
-#ifdef _WIN32
-typedef unsigned __int64 my_ulonglong;
-#else
 typedef unsigned long long my_ulonglong;
-#endif
 
 #include <stdlib.h>
 #include <mysqld_error.h>
@@ -90,6 +86,7 @@ static int deinitialize_plugin(void *unused)
   return plugin_deinit();
 }
 
+#ifdef PLUGIN_GSSAPI
 /* system variable */
 static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
@@ -97,9 +94,11 @@ static MYSQL_SYSVAR_STR(keytab_path, srv_keytab_path,
                         NULL,
                         NULL,
                         "");
+#endif
+
 static MYSQL_SYSVAR_STR(principal_name, srv_principal_name,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
-                        "GSSAPI target name - service principal name for Kerberos authentication.",
+                        "GSSAPI target name - service principal name for Kerberos authentication",
                         NULL,
                         NULL,
                         "");
@@ -142,7 +141,7 @@ static struct st_mysql_auth server_handler= {
   gssapi_auth, NULL, NULL
 };
 
-maria_declare_plugin(gssapi_server)
+maria_declare_plugin(auth_gssapi)
 {
   MYSQL_AUTHENTICATION_PLUGIN,
   &server_handler,

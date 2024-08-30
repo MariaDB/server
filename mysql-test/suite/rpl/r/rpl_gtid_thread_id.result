@@ -1,0 +1,73 @@
+include/master-slave.inc
+[connection master]
+connection master;
+create table t1(a int);
+insert into t1 values(1);
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+connection slave;
+connection master;
+# MYSQL_BINLOG primary_local_binlog > primary_outfile
+include/assert_grep.inc [Ensure only 3 GTID events exist (Primary)]
+include/assert_grep.inc [Ensure each GTID event has the thread id (Primary)]
+#
+# GTID event's thread_id should use pseudo_thread_id
+connection master;
+set @@pseudo_thread_id=99999;
+insert into t1 values(2);
+# MYSQL_BINLOG primary_local_binlog > primary_outfile
+include/assert_grep.inc [GTID event's thread_id should use pseudo_thread_id]
+#
+# Test the serial replica
+connection slave;
+# MYSQL_BINLOG replica_local_binlog > replica_outfile
+include/assert_grep.inc [Ensure the same number of GTID events on the replica as the primary]
+include/assert_grep.inc [Ensure GTID events logged with primary's thread id maintain that value]
+include/assert_grep.inc [Ensure GTID event logged with pseudo_thread_id on primary maintains that value]
+#
+# Test the parallel replica
+connection slave;
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=1;
+include/start_slave.inc
+connection master;
+insert into t1 values(3);
+insert into t1 values(4);
+connection slave;
+connection slave;
+# MYSQL_BINLOG replica_local_binlog > replica_outfile
+include/assert_grep.inc [Ensure the same number of GTID events on the replica as the primary]
+include/assert_grep.inc [Ensure GTID the new events are logged on the replica with the thread_id of the master primary thread id]
+include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=0;
+include/start_slave.inc
+#
+# MDEV-33924: If pseudo_thread_id is set to 0, thread_id should still be
+# written and propagated to slaves
+connection master;
+set @@pseudo_thread_id=0;
+insert into t1 values(33924);
+# MYSQL_BINLOG primary_local_binlog > primary_outfile
+include/assert_grep.inc [GTID event's thread_id should write pseudo_thread_id value of 0]
+connection slave;
+connection slave;
+# MYSQL_BINLOG replica_local_binlog > replica_outfile
+include/assert_grep.inc [A 0 value for GTID event's thread_id should be propagated on replicas]
+# If pseudo_thread_id is set to a value greater than 4 bytes, thread_id
+# should be truncated to a 32-bit value in the binary log (see
+# MDEV-15089 for details)
+connection master;
+set @@pseudo_thread_id=99999999999999999999;
+insert into t1 values(15089);
+# MYSQL_BINLOG primary_local_binlog > primary_outfile
+include/assert_grep.inc [GTID event's thread_id should truncate values higher than 32 bit]
+connection slave;
+connection slave;
+# MYSQL_BINLOG replica_local_binlog > replica_outfile
+include/assert_grep.inc [The truncated thread_id should be preserved on the replica]
+#
+# Cleanup
+connection master;
+drop table t1;
+include/rpl_end.inc

@@ -58,7 +58,7 @@ grn_scanner_close(grn_ctx *ctx, grn_scanner *scanner)
   }
 
   if (scanner->sis) {
-    int i;
+    uint i;
     for (i = 0; i < scanner->n_sis; i++) {
       grn_scan_info_close(ctx, scanner->sis[i]);
     }

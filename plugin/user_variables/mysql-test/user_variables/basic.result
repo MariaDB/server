@@ -15,7 +15,7 @@ user_variables	CREATE TEMPORARY TABLE `user_variables` (
   `VARIABLE_VALUE` varchar(2048),
   `VARIABLE_TYPE` varchar(64) NOT NULL,
   `CHARACTER_SET_NAME` varchar(32)
-) ENGINE=MEMORY DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_ci
 FLUSH USER_VARIABLES;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
 COUNT(*)
@@ -29,13 +29,13 @@ SET @dec_var=CAST(1 AS DECIMAL(20, 10));
 SET @time_var=CAST('2016-02-25' AS DATE);
 SET @' @#^%'='Value of variable with odd name';
 SET @''='Value of variable with empty name';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '='Value of variable with empty name'' at line 1
 SET @null_var=NULL;
 SELECT COUNT(*) FROM INFORMATION_SCHEMA.USER_VARIABLES;
 COUNT(*)
-10
+9
 SELECT * FROM INFORMATION_SCHEMA.USER_VARIABLES ORDER BY VARIABLE_NAME;
 VARIABLE_NAME	VARIABLE_VALUE	VARIABLE_TYPE	CHARACTER_SET_NAME
-	Value of variable with empty name	VARCHAR	latin1
  @#^%	Value of variable with odd name	VARCHAR	latin1
 dec_var	1.0000000000	DECIMAL	latin1
 double_var	1	DOUBLE	latin1
@@ -44,10 +44,9 @@ null_var	NULL	VARCHAR	binary
 str_var	Value of string variable	VARCHAR	latin1
 time_var	2016-02-25	VARCHAR	latin1
 uint_var	2	INT UNSIGNED	latin1
-utf8str_var	UTF8 string value	VARCHAR	utf8
+utf8str_var	UTF8 string value	VARCHAR	utf8mb3
 SHOW USER_VARIABLES;
 Variable_name	Value
-	Value of variable with empty name
  @#^%	Value of variable with odd name
 dec_var	1.0000000000
 double_var	1

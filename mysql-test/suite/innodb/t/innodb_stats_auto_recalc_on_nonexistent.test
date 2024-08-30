@@ -17,7 +17,8 @@ CREATE TABLE t (a INT, PRIMARY KEY (a)) ENGINE=INNODB;
 -- eval $check_stats1
 -- eval $check_stats2
 
-# close the table
+# open and close the table
+SELECT * FROM t;
 FLUSH TABLE t;
 
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';
@@ -42,7 +43,8 @@ CREATE TABLE t (a INT, PRIMARY KEY (a)) ENGINE=INNODB STATS_AUTO_RECALC=1;
 -- eval $check_stats1
 -- eval $check_stats2
 
-# close the table
+# open and close the table
+SELECT * FROM t;
 FLUSH TABLE t;
 
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';
@@ -67,7 +69,8 @@ CREATE TABLE t (a INT, PRIMARY KEY (a)) ENGINE=INNODB STATS_AUTO_RECALC=0;
 -- eval $check_stats1
 -- eval $check_stats2
 
-# close the table
+# open and close the table
+SELECT * FROM t;
 FLUSH TABLE t;
 
 DELETE FROM mysql.innodb_index_stats WHERE table_name = 't';

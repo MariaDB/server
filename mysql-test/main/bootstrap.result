@@ -70,7 +70,13 @@ truncate table mysql.plugin;
 #
 # MDEV-30818 invalid ssl prevents bootstrap
 #
-# restart
 #
 # End of 10.3 tests
 #
+#
+# MDEV-28782 mariadb-tzinfo-to-sql to work in bootstrap mode
+#
+#
+# End of 10.6 tests
+#
+# restart

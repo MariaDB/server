@@ -27,6 +27,7 @@ Created 12/18/1995 Heikki Tuuri
 #ifndef fsp0fsp_h
 #define fsp0fsp_h
 
+#include "assume_aligned.h"
 #include "fsp0types.h"
 #include "fut0lst.h"
 #include "ut0byte.h"
@@ -101,7 +102,6 @@ see the table in fsp0types.h @{ */
 #define FSP_HEADER_OFFSET	FIL_PAGE_DATA
 
 /* The data structures in files are defined just as byte strings in C */
-typedef	byte	fsp_header_t;
 typedef	byte	xdes_t;
 
 /*			SPACE HEADER
@@ -207,24 +207,7 @@ typedef	byte	fseg_inode_t;
 	(16 + 3 * FLST_BASE_NODE_SIZE			\
 	 + FSEG_FRAG_ARR_N_SLOTS * FSEG_FRAG_SLOT_SIZE)
 
-#define FSEG_MAGIC_N_VALUE	97937874
-
-#define	FSEG_FILLFACTOR		8	/* If this value is x, then if
-					the number of unused but reserved
-					pages in a segment is less than
-					reserved pages * 1/x, and there are
-					at least FSEG_FRAG_LIMIT used pages,
-					then we allow a new empty extent to
-					be added to the segment in
-					fseg_alloc_free_page. Otherwise, we
-					use unused pages of the segment. */
-
-#define FSEG_FRAG_LIMIT		FSEG_FRAG_ARR_N_SLOTS
-					/* If the segment has >= this many
-					used pages, it may be expanded by
-					allocating extents to the segment;
-					until that only individual fragment
-					pages are allocated from the space */
+static constexpr byte FSEG_MAGIC_N_BYTES[4]={0x05,0xd6,0x69,0xd2};
 
 #define	FSEG_FREE_LIST_LIMIT	40	/* If the reserved size of a segment
 					is at least this many extents, we
@@ -288,36 +271,37 @@ the extent are free and which contain old tuple version to clean. */
 /** Offset of the descriptor array on a descriptor page */
 #define	XDES_ARR_OFFSET		(FSP_HEADER_OFFSET + FSP_HEADER_SIZE)
 
+/**
+Determine if a page is marked free.
+@param[in]	descr	extent descriptor
+@param[in]	offset	page offset within extent
+@return whether the page is free */
+inline bool xdes_is_free(const xdes_t *descr, uint32_t offset)
+{
+  ut_ad(offset < FSP_EXTENT_SIZE);
+  ulint index= XDES_FREE_BIT + XDES_BITS_PER_PAGE * offset;
+  return ut_bit_get_nth(descr[XDES_BITMAP + (index >> 3)], index & 7);
+}
+
 #ifndef UNIV_INNOCHECKSUM
 /* @} */
-
-/**********************************************************************//**
-Reads the space id from the first page of a tablespace.
-@return space id, ULINT UNDEFINED if error */
-ulint
-fsp_header_get_space_id(
-/*====================*/
-	const page_t*	page);	/*!< in: first page of a tablespace */
 
 /** Read a tablespace header field.
 @param[in]	page	first page of a tablespace
 @param[in]	field	the header field
 @return the contents of the header field */
-inline
-ulint
-fsp_header_get_field(const page_t* page, ulint field)
+inline uint32_t fsp_header_get_field(const page_t* page, ulint field)
 {
-	return(mach_read_from_4(FSP_HEADER_OFFSET + field + page));
+  return mach_read_from_4(FSP_HEADER_OFFSET + field +
+			  my_assume_aligned<UNIV_ZIP_SIZE_MIN>(page));
 }
 
 /** Read the flags from the tablespace header page.
 @param[in]	page	first page of a tablespace
 @return the contents of FSP_SPACE_FLAGS */
-inline
-ulint
-fsp_header_get_flags(const page_t* page)
+inline uint32_t fsp_header_get_flags(const page_t *page)
 {
-	return(fsp_header_get_field(page, FSP_SPACE_FLAGS));
+  return fsp_header_get_field(page, FSP_SPACE_FLAGS);
 }
 
 /** Get the byte offset of encryption information in page 0.
@@ -341,92 +325,65 @@ fsp_header_check_encryption_key(
 	ulint			fsp_flags,
 	page_t*			page);
 
-/**********************************************************************//**
-Writes the space id and flags to a tablespace header.  The flags contain
-row type, physical/compressed page size, and logical/uncompressed page
-size of the tablespace. */
-void
-fsp_header_init_fields(
-/*===================*/
-	page_t*	page,		/*!< in/out: first page in the space */
-	ulint	space_id,	/*!< in: space id */
-	ulint	flags);		/*!< in: tablespace flags (FSP_SPACE_FLAGS):
-				0, or table->flags if newer than COMPACT */
 /** Initialize a tablespace header.
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
-@param[in,out]	mtr	mini-transaction */
-void fsp_header_init(fil_space_t* space, ulint size, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+@param[in,out]	mtr	mini-transaction
+@return error code */
+dberr_t fsp_header_init(fil_space_t *space, uint32_t size, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /** Create a new segment.
 @param space                tablespace
 @param byte_offset          byte offset of the created segment header
 @param mtr                  mini-transaction
+@param err                  error code
 @param has_done_reservation whether fsp_reserve_free_extents() was invoked
 @param block                block where segment header is placed,
                             or NULL to allocate an additional page for that
 @return the block where the segment header is placed, x-latched
-@retval NULL if could not create segment because of lack of space */
+@retval nullptr if could not create segment */
 buf_block_t*
-fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
-            bool has_done_reservation= false, buf_block_t *block= NULL);
+fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr, dberr_t *err,
+            bool has_done_reservation= false, buf_block_t *block= nullptr)
+  MY_ATTRIBUTE((nonnull(1,3,4), warn_unused_result));
 
-/**********************************************************************//**
-Calculates the number of pages reserved by a segment, and how many pages are
-currently used.
+/** Calculate the number of pages reserved by a segment,
+and how many pages are currently used.
+@param[in]      block   buffer block containing the file segment header
+@param[in]      header  file segment header
+@param[out]     used    number of pages that are used (not more than reserved)
+@param[in,out]  mtr     mini-transaction
 @return number of reserved pages */
-ulint
-fseg_n_reserved_pages(
-/*==================*/
-	fseg_header_t*	header,	/*!< in: segment header */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr);	/*!< in/out: mini-transaction */
-/**********************************************************************//**
-Allocates a single free page from a segment. This function implements
-the intelligent allocation strategy which tries to minimize
-file space fragmentation.
-@param[in,out] seg_header segment header
-@param[in] hint hint of which page would be desirable
-@param[in] direction if the new page is needed because
-				of an index page split, and records are
-				inserted there in order, into which
-				direction they go alphabetically: FSP_DOWN,
-				FSP_UP, FSP_NO_DIR
-@param[in,out] mtr mini-transaction
-@return X-latched block, or NULL if no page could be allocated */
-#define fseg_alloc_free_page(seg_header, hint, direction, mtr)		\
-	fseg_alloc_free_page_general(seg_header, hint, direction,	\
-				     FALSE, mtr, mtr)
+ulint fseg_n_reserved_pages(const buf_block_t &block,
+                            const fseg_header_t *header, ulint *used,
+                            mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull));
 /**********************************************************************//**
 Allocates a single free page from a segment. This function implements
 the intelligent allocation strategy which tries to minimize file space
 fragmentation.
-@retval NULL if no page could be allocated
-@retval block, rw_lock_x_lock_count(&block->lock) == 1 if allocation succeeded
-(init_mtr == mtr, or the page was not previously freed in mtr)
-@retval block (not allocated or initialized) otherwise */
+@retval NULL if no page could be allocated */
 buf_block_t*
 fseg_alloc_free_page_general(
 /*=========================*/
 	fseg_header_t*	seg_header,/*!< in/out: segment header */
-	ulint		hint,	/*!< in: hint of which page would be
+	uint32_t	hint,	/*!< in: hint of which page would be
 				desirable */
 	byte		direction,/*!< in: if the new page is needed because
 				of an index page split, and records are
 				inserted there in order, into which
 				direction they go alphabetically: FSP_DOWN,
 				FSP_UP, FSP_NO_DIR */
-	ibool		has_done_reservation, /*!< in: TRUE if the caller has
+	bool		has_done_reservation, /*!< in: true if the caller has
 				already done the reservation for the page
 				with fsp_reserve_free_extents, then there
 				is no need to do the check for this individual
 				page */
 	mtr_t*		mtr,	/*!< in/out: mini-transaction */
-	mtr_t*		init_mtr)/*!< in/out: mtr or another mini-transaction
-				in which the page should be initialized.
-				If init_mtr!=mtr, but the page is already
-				latched in mtr, do not initialize the page. */
+	mtr_t*		init_mtr,/*!< in/out: mtr or another mini-transaction
+				in which the page should be initialized. */
+	dberr_t*	err)	/*!< out: error code */
 	MY_ATTRIBUTE((warn_unused_result, nonnull));
 
 /** Reserves free pages from a tablespace. All mini-transactions which may
@@ -455,70 +412,89 @@ if the table only occupies < FSP_EXTENT_SIZE pages. That is why we apply
 different rules in that special case, just ensuring that there are n_pages
 free pages available.
 
-@param[out]	n_reserved	number of extents actually reserved; if we
-				return true and the tablespace size is <
-				FSP_EXTENT_SIZE pages, then this can be 0,
-				otherwise it is n_ext
-@param[in,out]	space		tablespace
-@param[in]	n_ext		number of extents to reserve
-@param[in]	alloc_type	page reservation type (FSP_BLOB, etc)
-@param[in,out]	mtr		the mini transaction
-@param[in]	n_pages		for small tablespaces (tablespace size is
-				less than FSP_EXTENT_SIZE), number of free
-				pages to reserve.
-@return true if we were able to make the reservation */
-bool
+@param[out]     n_reserved      number of extents actually reserved; if we
+                                return true and the tablespace size is <
+                                FSP_EXTENT_SIZE pages, then this can be 0,
+                                otherwise it is n_ext
+@param[in,out]  space           tablespace
+@param[in]      n_ext           number of extents to reserve
+@param[in]      alloc_type      page reservation type (FSP_BLOB, etc)
+@param[in,out]  mtr             the mini transaction
+@param[out]     err             error code
+@param[in]      n_pages         for small tablespaces (tablespace size is
+                                less than FSP_EXTENT_SIZE), number of free
+                                pages to reserve.
+@return error code
+@retval DB_SUCCESS if we were able to make the reservation */
+dberr_t
 fsp_reserve_free_extents(
-	ulint*		n_reserved,
+	uint32_t*	n_reserved,
 	fil_space_t*	space,
-	ulint		n_ext,
+	uint32_t	n_ext,
 	fsp_reserve_t	alloc_type,
 	mtr_t*		mtr,
-	ulint		n_pages = 2);
+	uint32_t	n_pages = 2);
 
 /** Free a page in a file segment.
 @param[in,out]	seg_header	file segment header
 @param[in,out]	space		tablespace
 @param[in]	offset		page number
-@param[in]	log		whether to write MLOG_INIT_FREE_PAGE record
-@param[in,out]	mtr		mini-transaction */
-void
+@param[in,out]	mtr		mini-transaction
+@param[in]	have_latch	whether space->x_lock() was already called
+@return error code */
+dberr_t
 fseg_free_page(
 	fseg_header_t*	seg_header,
 	fil_space_t*	space,
-	ulint		offset,
-	bool		log,
-	mtr_t*		mtr);
-/** Determine whether a page is free.
-@param[in,out]	space	tablespace
-@param[in]	page	page number
-@return whether the page is marked as free */
-bool
-fseg_page_is_free(fil_space_t* space, unsigned page)
+	uint32_t	offset,
+	mtr_t*		mtr,
+	bool		have_latch = false)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Frees part of a segment. This function can be used to free a segment
-by repeatedly calling this function in different mini-transactions.
-Doing the freeing in a single mini-transaction might result in
-too big a mini-transaction.
+
+/** Determine whether a page is allocated.
+@param space   tablespace
+@param page    page number
+@return error code
+@retval DB_SUCCESS             if the page is marked as free
+@retval DB_SUCCESS_LOCKED_REC  if the page is marked as allocated */
+dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Frees part of a segment. This function can be used to free
+a segment by repeatedly calling this function in different
+mini-transactions. Doing the freeing in a single mini-transaction
+might result in too big a mini-transaction.
+@param	header	segment header; NOTE: if the header resides on first
+		page of the frag list of the segment, this pointer
+		becomes obsolete after the last freeing step
+@param	mtr	mini-transaction
+@param	ahi	Drop the adaptive hash index
 @return whether the freeing was completed */
 bool
 fseg_free_step(
-	fseg_header_t*	header,	/*!< in, own: segment header; NOTE: if the header
-				resides on the first page of the frag list
-				of the segment, this pointer becomes obsolete
-				after the last freeing step */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	fseg_header_t*	header,
+	mtr_t*		mtr
+#ifdef BTR_CUR_HASH_ADAPT
+	,bool		ahi=false
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************************//**
-Frees part of a segment. Differs from fseg_free_step because this function
-leaves the header page unfreed.
+
+/** Frees part of a segment. Differs from fseg_free_step because
+this function leaves the header page unfreed.
+@param	header	segment header which must reside on the first
+		fragment page of the segment
+@param	mtr	mini-transaction
+@param	ahi	drop the adaptive hash index
 @return whether the freeing was completed, except for the header page */
 bool
 fseg_free_step_not_header(
-	fseg_header_t*	header,	/*!< in: segment header which must reside on
-				the first fragment page of the segment */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
+	fseg_header_t*	header,
+	mtr_t*		mtr
+#ifdef BTR_CUR_HASH_ADAPT
+	,bool		ahi=false
+#endif /* BTR_CUR_HASH_ADAPT */
+	)
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Reset the page type.
@@ -530,14 +506,6 @@ Any other pages were written with uninitialized bytes in FIL_PAGE_TYPE.
 @param[in,out]	mtr	mini-transaction */
 ATTRIBUTE_COLD
 void fil_block_reset_type(const buf_block_t& block, ulint type, mtr_t* mtr);
-
-/** Get the file page type.
-@param[in]	page	file page
-@return page type */
-inline uint16_t fil_page_get_type(const byte* page)
-{
-	return mach_read_from_2(page + FIL_PAGE_TYPE);
-}
 
 /** Check (and if needed, reset) the page type.
 Data files created before MySQL 5.1.48 may contain
@@ -554,9 +522,8 @@ fil_block_check_type(
 	ulint			type,
 	mtr_t*			mtr)
 {
-	if (UNIV_UNLIKELY(type != fil_page_get_type(block.frame))) {
-		fil_block_reset_type(block, type, mtr);
-	}
+  if (UNIV_UNLIKELY(type != fil_page_get_type(block.page.frame)))
+    fil_block_reset_type(block, type, mtr);
 }
 
 /** Checks if a page address is an extent descriptor page address.
@@ -570,7 +537,7 @@ inline bool fsp_descr_page(const page_id_t page_id, ulint physical_size)
 
 /** Initialize a file page whose prior contents should be ignored.
 @param[in,out]	block	buffer pool block */
-void fsp_apply_init_file_page(buf_block_t* block);
+void fsp_apply_init_file_page(buf_block_t *block);
 
 /** Initialize a file page.
 @param[in]	space	tablespace
@@ -583,10 +550,16 @@ inline void fsp_init_file_page(
 	buf_block_t* block, mtr_t* mtr)
 {
 	ut_d(space->modify_check(*mtr));
-	ut_ad(space->id == block->page.id.space());
+	ut_ad(space->id == block->page.id().space());
 	fsp_apply_init_file_page(block);
-	mlog_write_initial_log_record(block->frame, MLOG_INIT_FILE_PAGE2, mtr);
+	mtr->init(block);
 }
+
+/** Truncate the system tablespace */
+void fsp_system_tablespace_truncate();
+
+/** Truncate the temporary tablespace */
+void fsp_shrink_temp_space();
 
 #ifndef UNIV_DEBUG
 # define fsp_init_file_page(space, block, mtr) fsp_init_file_page(block, mtr)
@@ -605,14 +578,11 @@ fseg_print(
 /** Convert FSP_SPACE_FLAGS from the buggy MariaDB 10.1.0..10.1.20 format.
 @param[in]	flags	the contents of FSP_SPACE_FLAGS
 @return	the flags corrected from the buggy MariaDB 10.1 format
-@retval	ULINT_UNDEFINED	if the flags are not in the buggy 10.1 format */
+@retval	UINT32_MAX  if the flags are not in the buggy 10.1 format */
 MY_ATTRIBUTE((warn_unused_result, const))
-UNIV_INLINE
-ulint
-fsp_flags_convert_from_101(ulint flags)
+inline uint32_t fsp_flags_convert_from_101(uint32_t flags)
 {
-	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure",
-			return(ULINT_UNDEFINED););
+	DBUG_EXECUTE_IF("fsp_flags_is_valid_failure", return UINT32_MAX;);
 	if (flags == 0 || fil_space_t::full_crc32(flags)) {
 		return(flags);
 	}
@@ -621,7 +591,7 @@ fsp_flags_convert_from_101(ulint flags)
 		/* The most significant FSP_SPACE_FLAGS bit that was ever set
 		by MariaDB 10.1.0 to 10.1.20 was bit 17 (misplaced DATA_DIR flag).
 		The flags must be less than 1<<18 in order to be valid. */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
 
 	if ((flags & (FSP_FLAGS_MASK_POST_ANTELOPE | FSP_FLAGS_MASK_ATOMIC_BLOBS))
@@ -630,7 +600,7 @@ fsp_flags_convert_from_101(ulint flags)
 		ROW_FORMAT=DYNAMIC or ROW_FORMAT=COMPRESSED) flag
 		is set, then the "post Antelope" (ROW_FORMAT!=REDUNDANT) flag
 		must also be set. */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
 
 	/* Bits 6..10 denote compression in MariaDB 10.1.0 to 10.1.20.
@@ -659,19 +629,19 @@ fsp_flags_convert_from_101(ulint flags)
 	invalid (COMPRESSION_LEVEL=3 but COMPRESSION=0)
 	+0b00000: innodb_page_size=16k (looks like COMPRESSION=0)
 	???	Could actually be compressed; see PAGE_SSIZE below */
-	const ulint level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL_MARIADB101(
+	const uint32_t level = FSP_FLAGS_GET_PAGE_COMPRESSION_LEVEL_MARIADB101(
 		flags);
 	if (FSP_FLAGS_GET_PAGE_COMPRESSION_MARIADB101(flags) != (level != 0)
 	    || level > 9) {
 		/* The compression flags are not in the buggy MariaDB
 		10.1 format. */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
 	if (!(~flags & FSP_FLAGS_MASK_ATOMIC_WRITES_MARIADB101)) {
 		/* The ATOMIC_WRITES flags cannot be 0b11.
 		(The bits 11..12 should actually never be 0b11,
 		because in MySQL they would be SHARED|TEMPORARY.) */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
 
 	/* Bits 13..16 are the wrong position for PAGE_SSIZE, and they
@@ -686,23 +656,23 @@ fsp_flags_convert_from_101(ulint flags)
 	will be properly rejected by older MariaDB 10.1.x because they
 	would read as PAGE_SSIZE>=8 which is not valid. */
 
-	const ulint	ssize = FSP_FLAGS_GET_PAGE_SSIZE_MARIADB101(flags);
+	const uint32_t ssize = FSP_FLAGS_GET_PAGE_SSIZE_MARIADB101(flags);
 	if (ssize == 1 || ssize == 2 || ssize == 5 || ssize & 8) {
 		/* the page_size is not between 4k and 64k;
 		16k should be encoded as 0, not 5 */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
-	const ulint	zssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
+	const uint32_t zssize = FSP_FLAGS_GET_ZIP_SSIZE(flags);
 	if (zssize == 0) {
 		/* not ROW_FORMAT=COMPRESSED */
 	} else if (zssize > (ssize ? ssize : 5)) {
 		/* invalid KEY_BLOCK_SIZE */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	} else if (~flags & (FSP_FLAGS_MASK_POST_ANTELOPE
 			     | FSP_FLAGS_MASK_ATOMIC_BLOBS)) {
 		/* both these flags should be set for
 		ROW_FORMAT=COMPRESSED */
-		return(ULINT_UNDEFINED);
+		return UINT32_MAX;
 	}
 
 	flags = ((flags & 0x3f) | ssize << FSP_FLAGS_POS_PAGE_SSIZE
@@ -717,19 +687,11 @@ fsp_flags_convert_from_101(ulint flags)
 @param[in]	actual		flags read from FSP_SPACE_FLAGS
 @return whether the flags match */
 MY_ATTRIBUTE((warn_unused_result))
-UNIV_INLINE
-bool
-fsp_flags_match(ulint expected, ulint actual)
+inline bool fsp_flags_match(uint32_t expected, uint32_t actual)
 {
-	expected &= ~FSP_FLAGS_MEM_MASK;
-	ut_ad(fil_space_t::is_valid_flags(expected, false));
-
-	if (actual == expected) {
-		return(true);
-	}
-
-	actual = fsp_flags_convert_from_101(actual);
-	return(actual == expected);
+  expected&= ~FSP_FLAGS_MEM_MASK;
+  ut_ad(fil_space_t::is_valid_flags(expected, false));
+  return actual == expected || fsp_flags_convert_from_101(actual) == expected;
 }
 
 /** Determine if FSP_SPACE_FLAGS are from an incompatible MySQL format.
@@ -737,7 +699,7 @@ fsp_flags_match(ulint expected, ulint actual)
 @return	MySQL flags shifted.
 @retval	0, if not a MySQL incompatible format. */
 MY_ATTRIBUTE((warn_unused_result, const))
-inline ulint fsp_flags_is_incompatible_mysql(ulint flags)
+inline uint32_t fsp_flags_is_incompatible_mysql(uint32_t flags)
 {
   /*
     MySQL-8.0 SDI flag (bit 14),
@@ -745,18 +707,6 @@ inline ulint fsp_flags_is_incompatible_mysql(ulint flags)
   */
   return flags >> 13 & 3;
 }
-
-/**********************************************************************//**
-Gets a descriptor bit of a page.
-@return TRUE if free */
-UNIV_INLINE
-ibool
-xdes_get_bit(
-/*=========*/
-	const xdes_t*	descr,	/*!< in: descriptor */
-	ulint		bit,	/*!< in: XDES_FREE_BIT or XDES_CLEAN_BIT */
-	ulint		offset);/*!< in: page offset within extent:
-				0 ... FSP_EXTENT_SIZE - 1 */
 
 /** Determine the descriptor index within a descriptor page.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -773,7 +723,7 @@ inline ulint xdes_calc_descriptor_index(ulint zip_size, ulint offset)
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	offset		page offset
 @return descriptor page offset */
-inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
+inline uint32_t xdes_calc_descriptor_page(ulint zip_size, uint32_t offset)
 {
 	compile_time_assert(UNIV_PAGE_SIZE_MAX > XDES_ARR_OFFSET
 			    + (UNIV_PAGE_SIZE_MAX / FSP_EXTENT_SIZE_MAX)
@@ -791,12 +741,10 @@ inline ulint xdes_calc_descriptor_page(ulint zip_size, ulint offset)
 	ut_ad(!zip_size
 	      || zip_size > XDES_ARR_OFFSET
 	      + (zip_size / FSP_EXTENT_SIZE) * XDES_SIZE);
-	return ut_2pow_round<ulint>(offset,
-				    zip_size ? zip_size : srv_page_size);
+	return ut_2pow_round(offset,
+			     uint32_t(zip_size ? zip_size : srv_page_size));
 }
 
 #endif /* UNIV_INNOCHECKSUM */
-
-#include "fsp0fsp.inl"
 
 #endif

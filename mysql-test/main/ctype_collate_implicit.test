@@ -1,0 +1,237 @@
+--source include/have_utf8.inc
+--source include/have_utf8mb4.inc
+
+--echo #
+--echo # MDEV-30164 System variable for default collations
+--echo #
+
+SET @@character_set_collations= ' utf8mb3 = utf8mb3_bin ,  LATIN1 = LATIN1_BIN ';
+SELECT @@character_set_collations;
+SET @@character_set_collations='';
+SELECT @@character_set_collations;
+
+# Relaxed redundant comma parsing
+SET @@character_set_collations= ',,, utf8mb3 = utf8mb3_bin , ,  LATIN1 = LATIN1_BIN ,,';
+SELECT @@character_set_collations;
+SET @@character_set_collations='';
+SELECT @@character_set_collations;
+
+# But at least one comma must be between pairs
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@character_set_collations= 'utf8mb3 = utf8mb3_bin LATIN1 = LATIN1_BIN ';
+SELECT @@character_set_collations;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@character_set_collations= ' 123 ';
+SELECT @@character_set_collations;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@character_set_collations= ' utf8mb3 ';
+SELECT @@character_set_collations;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@character_set_collations= ' utf8mb3 = ';
+SELECT @@character_set_collations;
+
+--error ER_WRONG_VALUE_FOR_VAR
+SET @@character_set_collations= ' utf8mb3 = 123 ';
+SELECT @@character_set_collations;
+
+
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+SELECT @@character_set_collations;
+SET @@character_set_collations='';
+
+--error ER_COLLATION_CHARSET_MISMATCH
+SET @@character_set_collations='utf8mb3=utf8mb4_general_ci';
+SELECT @@character_set_collations;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+SET @@character_set_collations='utf8mb4=utf8mb3_general_ci';
+SELECT @@character_set_collations;
+
+SET @@character_set_collations='utf8mb3=utf8mb3_general_ci';
+SELECT @@character_set_collations;
+
+SET @@character_set_collations='utf8mb4=utf8mb4_general_ci,latin1=latin1_bin';
+SELECT @@character_set_collations;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+SET @@character_set_collations='utf8mb4=uca1400_ai_ci,latin1=uca1400_ai_ci';
+
+# All or nothing is set. "Nothing" in this case because of the error on latin1.
+# The "uca1400_ai_ci FOR utf8mb4" part was ignored.
+SELECT @@character_set_collations;
+SELECT @@character_set_collations RLIKE 'utf8mb4=utf8mb4_general_ci' AS expect_true;
+
+
+SET @@character_set_collations='utf8mb4=uca1400_ai_ci';
+SELECT @@character_set_collations;
+
+SET NAMES utf8mb4;
+SELECT @@collation_connection;
+
+# We have to disable --view-protocol for the following statement.
+# 'mtr --view-protocol' creates a separate connection for these statements:
+#   CREATE VIEW mysqltest_tmp_sp AS ...;
+#   DROP VIEW mysqltest_tmp_sp;
+# The current @@character_set_collations does not affect this connection.
+# So --view-protocol would return the hard-coded character set collation here,
+# instead of utf8mb4_uca1400_ai_ci
+
+--disable_view_protocol
+SELECT collation('literal');
+--enable_view_protocol
+EXECUTE IMMEDIATE 'SELECT COLLATION(?)' USING 'literal';
+
+CREATE VIEW v1 AS SELECT 'literal', collation('literal') as cl;
+SHOW CREATE VIEW v1;
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+# Override @@collation_connection to utf8mb4_general_ci.
+# Make sure that CREATE statements does not use @@collation_connection.
+# to detect implicit collations.
+# Implicit collations are detected using @@character_set_collations!
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT CHARACTER SET utf8mb4 COLLATE DEFAULT);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT COLLATE DEFAULT) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a TEXT) CHARACTER SET utf8mb4;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE DATABASE db1 CHARACTER SET utf8mb4;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+
+# Test how @@character_set_collations affects various expressions
+# with implicit collations.
+
+
+let query=SELECT
+  @@collation_connection AS conn,
+  COLLATION('a') AS lit,
+  COLLATION(CONCAT(1)) AS num,
+  COLLATION(CAST(123 AS CHAR)) AS casti,
+  COLLATION(_utf8mb4'a') AS litu,
+  COLLATION(_utf8mb4 0x62) AS lituh,
+  COLLATION(_utf8mb4 X'63') AS lituhs,
+  COLLATION(CAST(123 AS CHAR CHARACTER SET utf8mb4)) AS castic,
+  COLLATION(CHAR(0x61 USING utf8mb4)) AS chr,
+  COLLATION(CONVERT('a' USING utf8mb4)) AS conv;
+
+# The below SET NAMES sets @@collation_connection to utf8mb4_general_ci.
+# But @@character_set_collations still contains utf8mb4=uca1400_ai_ci.
+
+SET NAMES utf8mb4 COLLATE utf8mb4_general_ci;
+
+# Columns expected to print utf8mb4_general_ci
+# because they use @@collation_connection:
+# - String literals without introducers
+# - Automatic number-to-string conversions
+# - CAST(AS CHAR) - without USING
+#
+# Columns expected to print utf8mb4_uca1400_ai_ci
+# because they use the current session default collation
+# for the character set (as specified in @@collation_connection)
+# - String literals with introducers
+# - CAST(AS CHAR USING cs)
+# - CHAR()
+# - CONVERT()
+
+--vertical_results
+--eval $query;
+--horizontal_results
+
+# This sets collation_connection to utf8mb4_uca1400_ai_ci
+# according to @@character_set_collations.
+SET NAMES utf8mb4;
+
+# Now all columns are expected to print utf8mb4_uca1400_ai_ci:
+# - Some columns because @@collation_connection says so
+# - Some columns because @@character_set_collations says so.
+
+--vertical_results
+--eval $query;
+--horizontal_results
+
+
+#
+# INFORMATION_SCHEMA
+#
+
+SET character_set_collations='latin1=latin1_bin,utf8mb4=uca1400_ai_ci';
+SHOW CHARACTER SET LIKE 'latin1';
+SELECT * FROM INFORMATION_SCHEMA.CHARACTER_SETS
+WHERE CHARACTER_SET_NAME='latin1';
+
+SHOW COLLATION LIKE 'latin1%';
+SELECT COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATIONS
+WHERE CHARACTER_SET_NAME LIKE 'latin1%';
+SELECT COLLATION_NAME, FULL_COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE COLLATION_NAME LIKE 'latin1%';
+
+SHOW CHARACTER SET LIKE 'utf8mb4';
+SELECT * FROM INFORMATION_SCHEMA.CHARACTER_SETS
+WHERE CHARACTER_SET_NAME='utf8mb4';
+
+SHOW COLLATION LIKE '%uca1400_ai_ci%';
+SELECT COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATIONS
+WHERE COLLATION_NAME LIKE '%uca1400_ai_ci%';
+SELECT COLLATION_NAME, FULL_COLLATION_NAME, IS_DEFAULT
+FROM INFORMATION_SCHEMA.COLLATION_CHARACTER_SET_APPLICABILITY
+WHERE COLLATION_NAME LIKE '%uca1400_ai_ci%';
+
+#
+# Prepared statements: reprepare on @@character_set_collations change.
+#
+
+SET @@character_set_collations='';
+PREPARE stmt FROM 'SELECT '
+                  'COLLATION(CAST("x" AS CHAR CHARACTER SET utf8mb3)) AS a, '
+                  'COLLATION(_utf8mb3"x") AS b';
+EXECUTE stmt;
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+EXECUTE stmt;
+
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+PREPARE stmt FROM 'SELECT '
+                  'COLLATION(CAST("x" AS CHAR CHARACTER SET utf8mb3)) AS a, '
+                  'COLLATION(_utf8mb3"x") AS b';
+EXECUTE stmt;
+SET @@character_set_collations=DEFAULT;
+EXECUTE stmt;
+
+SET NAMES utf8mb3;
+SET @@character_set_collations='';
+PREPARE stmt FROM 'CREATE TABLE t1 '
+    '(a TEXT CHARACTER SET utf8mb3 COLLATE DEFAULT COLLATE utf8mb3_general_ci)';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+SET @@character_set_collations='utf8mb3=utf8mb3_bin';
+--error ER_CONFLICTING_DECLARATIONS
+EXECUTE stmt;
+
+SET @@character_set_collations='';
+EXECUTE stmt;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;

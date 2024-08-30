@@ -49,7 +49,7 @@ let $CHILD2_1_SELECT_TABLE=
 let $CHILD2_1_SELECT_TABLE_F=
   SELECT col_d, col_t FROM tbl_f;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 let $CHILD2_1_DROP_INDEX=
   DROP INDEX i_ts ON tbl_a;
 let $CHILD2_1_SHOW_CREATE_TABLE=

@@ -1,0 +1,51 @@
+*** MDEV-7888: ANALYZE TABLE does wakeup_subsequent_commits(), causing wrong binlog order and parallel replication hang ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_mode='conservative';
+SET GLOBAL slave_parallel_threads=10;
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t2 (a int PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
+include/stop_slave.inc
+SET @old_dbug= @@GLOBAL.debug_dbug;
+SET GLOBAL debug_dbug= '+d,inject_analyze_table_sleep';
+connection server_1;
+SET @old_dbug= @@SESSION.debug_dbug;
+SET SESSION debug_dbug="+d,binlog_force_commit_id";
+SET @commit_id= 10000;
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+INSERT INTO t3 VALUES (120, 0);
+SET @commit_id= 10001;
+INSERT INTO t3 VALUES (121, 0);
+SET SESSION debug_dbug=@old_dbug;
+SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
+a	b
+120	0
+121	0
+include/save_master_gtid.inc
+connection server_2;
+include/start_slave.inc
+include/sync_with_master_gtid.inc
+SELECT * FROM t3 WHERE a >= 120 ORDER BY a;
+a	b
+120	0
+121	0
+include/stop_slave.inc
+SET GLOBAL debug_dbug= @old_dbug;
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t2,t3;
+include/rpl_end.inc

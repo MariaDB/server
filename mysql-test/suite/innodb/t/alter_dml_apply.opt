@@ -1,0 +1,2 @@
+--innodb_online_alter_log_max_size=64k
+--innodb_sort_buffer_size=64k

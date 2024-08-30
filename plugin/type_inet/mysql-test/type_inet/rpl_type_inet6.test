@@ -1,0 +1,16 @@
+--source include/master-slave.inc
+
+--echo #
+--echo # MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+--echo #
+
+connection master;
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::'),('ffff::ffff');
+sync_slave_with_master;
+SELECT HEX(a), a FROM t1;
+connection master;
+DROP TABLE t1;
+sync_slave_with_master;
+
+--source include/rpl_end.inc

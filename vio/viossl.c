@@ -21,8 +21,6 @@
 */
 
 #include "vio_priv.h"
-#include "my_context.h"
-#include <mysql_async.h>
 
 #ifdef HAVE_OPENSSL
 
@@ -147,7 +145,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   @param[in] ret return from the failed IO operation
 
   @return  0 - should retry last read/write operation
-           1 - some error has occured
+           1 - some error has occurred
 */
 static int handle_ssl_io_error(Vio *vio, int ret)
 {
@@ -175,18 +173,14 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 		       (int)mysql_socket_getfd(vio->mysql_socket), buf, size,
                        vio->ssl_arg));
 
-  if (vio->async_context && vio->async_context->active)
-    ret= my_ssl_read_async(vio->async_context, (SSL *)vio->ssl_arg, buf, (int)size);
-  else
+
+  while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
   {
-    while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
-    {
-      if (handle_ssl_io_error(vio,ret))
-        break;
-    }
+    if (handle_ssl_io_error(vio, ret))
+      break;
   }
 
-  DBUG_PRINT("exit", ("%d", (int) ret));
+  DBUG_PRINT("exit", ("%d", ret));
   DBUG_RETURN(ret < 0 ? -1 : ret);
 
 }
@@ -200,17 +194,10 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
   DBUG_PRINT("enter", ("sd: %d  buf: %p  size: %zu",
                        (int)mysql_socket_getfd(vio->mysql_socket),
                        buf, size));
-
-  if (vio->async_context && vio->async_context->active)
-    ret= my_ssl_write_async(vio->async_context, (SSL *)vio->ssl_arg, buf,
-                            (int)size);
-  else
+  while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
   {
-    while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
-    {
-      if (handle_ssl_io_error(vio,ret))
-        break;
-    }
+    if (handle_ssl_io_error(vio,ret))
+      break;
   }
 
   DBUG_RETURN(ret < 0 ? -1 : ret);

@@ -11,12 +11,12 @@
 
    You should have received a copy of the GNU General Public License
    along with this program; if not, write to the Free Software
-   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1335 USA */
+   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
 #define MYSQL_SERVER
 #include <my_global.h>
 #include <sql_class.h>
-#include <table.h>
+#include <sql_i_s.h>
 #include <sql_show.h>
 
 
@@ -42,16 +42,18 @@ static const LEX_CSTRING unsigned_result_types[]=
 };
 
 
+namespace Show {
+
 static ST_FIELD_INFO user_variables_fields_info[] =
 {
-  { "VARIABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, "Variable_name", 0 },
-  { "VARIABLE_VALUE", 2048, MYSQL_TYPE_STRING, 0, MY_I_S_MAYBE_NULL, "Value", 0 },
-  { "VARIABLE_TYPE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0 },
-  { "CHARACTER_SET_NAME", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0,
-    MY_I_S_MAYBE_NULL, 0, 0 },
-  { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
+  Column("VARIABLE_NAME",      Name(),        NOT_NULL, "Variable_name"),
+  Column("VARIABLE_VALUE",     Varchar(2048), NULLABLE, "Value"),
+  Column("VARIABLE_TYPE",      Name(),        NOT_NULL),
+  Column("CHARACTER_SET_NAME", CSName(),      NULLABLE),
+  CEnd()
 };
 
+} // namespace Show
 
 static int user_variables_fill(THD *thd, TABLE_LIST *tables, COND *cond)
 {
@@ -77,15 +79,14 @@ static int user_variables_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     else
       return 1;
 
-    const LEX_CSTRING *tmp= var->unsigned_flag ?
-                            &unsigned_result_types[var->type] :
-                            &result_types[var->type];
+    const LEX_CSTRING *tmp= var->type_handler()->is_unsigned() ?
+            &unsigned_result_types[var->type_handler()->result_type()] :
+            &result_types[var->type_handler()->result_type()];
     field[2]->store(tmp->str, tmp->length, system_charset_info);
 
     if (var->charset())
     {
-      field[3]->store(var->charset()->csname, strlen(var->charset()->csname),
-                      system_charset_info);
+      field[3]->store(&var->charset()->cs_name, system_charset_info);
       field[3]->set_notnull();
     }
     else
@@ -110,7 +111,7 @@ int user_variables_reset(void)
 static int user_variables_init(void *p)
 {
   ST_SCHEMA_TABLE *is= (ST_SCHEMA_TABLE *) p;
-  is->fields_info= user_variables_fields_info;
+  is->fields_info= Show::user_variables_fields_info;
   is->fill_table= user_variables_fill;
   is->reset_table= user_variables_reset;
   return 0;

@@ -54,11 +54,15 @@ eval CREATE TABLE t3 (
   primary key (a31, a32)
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='srv "s_2_1", table "t3"';
 
+--disable_ps_protocol
 SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 WHERE a11 IN (1);
+--enable_ps_protocol
 SELECT a22 FROM t1 LEFT JOIN t2 ON a11 = a21 - a21 WHERE a11 IN (1);
 SELECT a22 FROM t2 RIGHT JOIN t1 ON a21 = a11 WHERE a11 IN (1);
 SELECT a22 FROM t2 RIGHT JOIN t1 ON a21 = a11 WHERE a11 IN (1,2);
+--disable_ps_protocol
 SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 RIGHT JOIN t3 on a21 = a31 WHERE a11 IN (1);
+--enable_ps_protocol
 SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 - a21 RIGHT JOIN t3 on a21 = a31 - a31 WHERE a11 IN (1);
 SELECT a22, a32 FROM t1 LEFT JOIN t2 ON a11 = a21 RIGHT JOIN t3 on a21 = a31 WHERE a11 IN (1,2);
 SELECT a22 FROM t2 LEFT JOIN t1 ON a11 = a21 WHERE a11 IN (1);

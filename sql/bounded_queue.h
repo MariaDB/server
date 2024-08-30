@@ -57,9 +57,10 @@ public:
      @param to    Where to put the key.
      @param from  The input data.
   */
-  typedef void (*keymaker_function)(Sort_param *param,
+  typedef uint (*keymaker_function)(Sort_param *param,
                                     Key_type *to,
-                                    Element_type *from);
+                                    Element_type *from,
+                                    bool packing_keys);
 
   /**
      Function for comparing two keys.
@@ -181,11 +182,12 @@ void Bounded_queue<Element_type, Key_type>::push(Element_type *element)
   {
     // Replace top element with new key, and re-order the queue.
     Key_type **pq_top= reinterpret_cast<Key_type **>(queue_top(&m_queue));
-    (*m_keymaker)(m_sort_param, *pq_top, element);
+    (void)(*m_keymaker)(m_sort_param, *pq_top, element, false);
     queue_replace_top(&m_queue);
   } else {
     // Insert new key into the queue.
-    (*m_keymaker)(m_sort_param, m_sort_keys[m_queue.elements], element);
+    (*m_keymaker)(m_sort_param, m_sort_keys[m_queue.elements],
+                  element, false);
     queue_insert(&m_queue,
                  reinterpret_cast<uchar*>(&m_sort_keys[m_queue.elements]));
   }

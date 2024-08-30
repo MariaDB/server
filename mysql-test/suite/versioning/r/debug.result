@@ -3,7 +3,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create temporary table tt1 (a int) with system versioning;
 ERROR HY000: System-versioned tables do not support CREATE TEMPORARY TABLE
 set @old_dbug=@@global.debug_dbug;
@@ -13,26 +13,26 @@ show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create temporary table tt2 (a int) with system versioning;
 show create table tt2;
 Table	Create Table
 tt2	CREATE TEMPORARY TABLE `tt2` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 connect con1, localhost, root;
 create table t3 (a int);
 show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create temporary table tt3 (a int) with system versioning;
 show create table tt3;
 Table	Create Table
 tt3	CREATE TEMPORARY TABLE `tt3` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 disconnect con1;
 connection default;
 set debug_dbug='+d,sysvers_show';
@@ -40,7 +40,7 @@ show create table t3;
 Table	Create Table
 t3	CREATE TABLE `t3` (
   `a` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 create table t4 (a int);
 show create table t4;
 Table	Create Table
@@ -49,8 +49,10 @@ t4	CREATE TABLE `t4` (
   `row_start` timestamp(6) GENERATED ALWAYS AS ROW START,
   `row_end` timestamp(6) GENERATED ALWAYS AS ROW END,
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
-) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci WITH SYSTEM VERSIONING
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING
 drop table t1, t2, t3, t4;
+set debug_dbug= @old_dbug;
+set global debug_dbug= @old_dbug;
 #
 # MDEV-19525 remove ER_VERS_FIELD_WRONG_TYPE from init_from_binary_frm_image()
 #
@@ -63,4 +65,42 @@ Level	Code	Message
 Warning	4110	`row_start` must be of type TIMESTAMP(6) for system-versioned table `t1`
 Error	1033	Incorrect information in file: './test/t1.frm'
 drop table t1;
-set global debug_dbug=@old_dbug;
+set debug_dbug= @old_dbug;
+#
+# MDEV-17554 Auto-create new partition for system versioned tables
+#            with history partitioned by INTERVAL/LIMIT
+#
+call mtr.add_suppression("need more HISTORY partitions");
+create or replace table t1 (x int) with system versioning
+partition by system_time limit 1 auto partitions 2;
+insert into t1 values (1);
+update t1 set x= x + 1;
+connect con2, localhost, root;
+connect con1, localhost, root;
+# Both threads create partition simultaneously
+connection con1;
+set debug_sync= 'add_history_partition signal s1 wait_for s2';
+update t1 set x= x + 10;
+connection con2;
+set debug_sync= 'now wait_for s1';
+flush tables t1;
+set debug_sync= 'add_history_partition signal s2';
+update t1 set x= x + 20;
+connection con1;
+connection default;
+update t1 set x= x + 2;
+# Second thread skips to reopen 3 times until first thread creates partition
+connection con1;
+set debug_sync= 'add_history_partition SIGNAL s1 WAIT_FOR s2';
+update t1 set x= x + 30;
+connection con2;
+set debug_sync= 'now WAIT_FOR s1';
+set debug_sync= 'reopen_history_partition SIGNAL s2 EXECUTE 3';
+update t1 set x= x + 40;
+connection con1;
+connection default;
+disconnect con1;
+disconnect con2;
+set @@timestamp= default;
+drop tables t1;
+set debug_sync= 'reset';

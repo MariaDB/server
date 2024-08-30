@@ -5,11 +5,11 @@
 #include <mysqld.h>
 #include <string.h>
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define DllExport  __declspec( dllexport )
-#else   // !__WIN__
+#else   // !_WIN32
 #define DllExport
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 extern "C" {
 	DllExport my_bool noconst_init(UDF_INIT*, UDF_ARGS*, char*);

@@ -5,8 +5,12 @@ SET SESSION debug_dbug="+d,warn_during_ha_commit_trans";
 INSERT INTO t1 VALUES (1);
 Warnings:
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 SHOW WARNINGS;
 Level	Code	Message
 Warning	1196	Some non-transactional changed tables couldn't be rolled back
-drop table t1;
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
 SET debug_dbug= @saved_dbug;
+drop table t1;

@@ -43,26 +43,55 @@ extern PSI_mutex_key key_LOCK_localtime_r;
 #endif /* !defined(HAVE_LOCALTIME_R) || !defined(HAVE_GMTIME_R) */
 
 extern PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
-  key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock, key_LOCK_alarm,
+  key_IO_CACHE_SHARE_mutex, key_KEY_CACHE_cache_lock,
   key_my_thread_var_mutex, key_THR_LOCK_charset, key_THR_LOCK_heap,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads, key_LOCK_uuid_generator,
   key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_timer;
 
-extern PSI_cond_key key_COND_alarm, key_COND_timer, key_IO_CACHE_SHARE_cond,
+extern PSI_cond_key key_COND_timer, key_IO_CACHE_SHARE_cond,
   key_IO_CACHE_SHARE_cond_writer, key_my_thread_var_suspend,
   key_THR_COND_threads;
 
-#ifdef USE_ALARM_THREAD
-extern PSI_thread_key key_thread_alarm;
-#endif /* USE_ALARM_THREAD */
 extern PSI_thread_key key_thread_timer;
 extern PSI_rwlock_key key_SAFEHASH_mutex;
 
 #endif /* HAVE_PSI_INTERFACE */
 
 extern PSI_stage_info stage_waiting_for_table_level_lock;
+
+/* These keys are always defined. */
+
+extern PSI_memory_key key_memory_DYNAMIC_STRING;
+extern PSI_memory_key key_memory_IO_CACHE;
+extern PSI_memory_key key_memory_KEY_CACHE;
+extern PSI_memory_key key_memory_LIST;
+extern PSI_memory_key key_memory_MY_BITMAP_bitmap;
+extern PSI_memory_key key_memory_MY_DIR;
+extern PSI_memory_key key_memory_MY_STAT;
+extern PSI_memory_key key_memory_MY_TMPDIR_full_list;
+extern PSI_memory_key key_memory_QUEUE;
+extern PSI_memory_key key_memory_SAFE_HASH_ENTRY;
+extern PSI_memory_key key_memory_TREE;
+extern PSI_memory_key key_memory_charset_file;
+extern PSI_memory_key key_memory_charset_loader;
+extern PSI_memory_key key_memory_defaults;
+extern PSI_memory_key key_memory_lf_dynarray;
+extern PSI_memory_key key_memory_lf_node;
+extern PSI_memory_key key_memory_lf_slist;
+extern PSI_memory_key key_memory_my_compress_alloc;
+extern PSI_memory_key key_memory_my_err_head;
+extern PSI_memory_key key_memory_my_file_info;
+extern PSI_memory_key key_memory_pack_frm;
+extern PSI_memory_key key_memory_charsets;
+extern PSI_memory_key key_memory_new;
+
+#ifdef _WIN32
+extern PSI_memory_key key_memory_win_SECURITY_ATTRIBUTES;
+extern PSI_memory_key key_memory_win_PACL;
+extern PSI_memory_key key_memory_win_IP_ADAPTER_ADDRESSES;
+#endif
 
 extern mysql_mutex_t THR_LOCK_malloc, THR_LOCK_open, THR_LOCK_keycache;
 extern mysql_mutex_t THR_LOCK_lock, THR_LOCK_net;
@@ -71,9 +100,6 @@ extern mysql_mutex_t THR_LOCK_charset;
 #include <mysql/psi/mysql_file.h>
 
 #ifdef HAVE_PSI_INTERFACE
-#ifdef HUGETLB_USE_PROC_MEMINFO
-extern PSI_file_key key_file_proc_meminfo;
-#endif /* HUGETLB_USE_PROC_MEMINFO */
 extern PSI_file_key key_file_charset, key_file_cnf;
 #endif /* HAVE_PSI_INTERFACE */
 

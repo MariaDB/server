@@ -1,9 +1,10 @@
+call mtr.add_suppression("InnoDB: In RENAME TABLE table `test`.`t4` is referenced in foreign key constraints which are not compatible with the new table definition.");
 CREATE DATABASE test_jfg;
 CREATE DATABASE test_jfg2;
 CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
 RENAME TABLE test_jfg.test TO test_jfg2.test;
-SELECT REPLACE(path,'\\','/') path
-FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+SELECT REPLACE(filename,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE filename LIKE '%test%';
 path
 ./test_jfg2/test.ibd
 DROP DATABASE test_jfg;
@@ -13,16 +14,35 @@ CREATE DATABASE abc_def;
 CREATE DATABASE abc_def2;
 CREATE TABLE abc_def.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
 RENAME TABLE abc_def.test TO abc_def2.test1;
-SELECT REPLACE(path,'\\','/') path
-FROM INFORMATION_SCHEMA.INNODB_SYS_DATAFILES WHERE PATH LIKE '%test%';
+SELECT REPLACE(filename,'\\','/') path
+FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES WHERE filename LIKE '%test%';
 path
 ./abc_def2/test1.ibd
 DROP DATABASE abc_def;
 # restart
 DROP DATABASE abc_def2;
-call mtr.add_suppression("InnoDB: (Operating system error|The error means|Cannot rename file)");
+call mtr.add_suppression("InnoDB: Cannot rename '.*t1.ibd' to '.*non_existing_db.*' because the target schema directory doesn't exist");
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(100);
 RENAME TABLE t1 TO non_existing_db.t1;
 ERROR HY000: Error on rename of './test/t1' to './non_existing_db/t1' (errno: 168 "Unknown (generic) error from engine")
-FOUND 1 /\[ERROR\] InnoDB: Cannot rename file '.*t1\.ibd' to '.*non_existing_db/ in mysqld.1.err
+FOUND 1 /\[ERROR\] InnoDB: Cannot rename '.*t1\.ibd' to '.*non_existing_db/ in mysqld.1.err
+SET GLOBAL innodb_fast_shutdown=2;
+# restart
+SELECT * FROM t1;
+a
+100
 DROP TABLE t1;
+#
+# MDEV-25509 Atomic DDL: Assertion `err != DB_DUPLICATE_KEY'
+#	fails after previous error upon multi-RENAME
+#
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f INT, FOREIGN KEY (f) REFERENCES t4 (x)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP KEY f;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+RENAME TABLE t1 TO t3, t3 TO t4;
+ERROR HY000: Error on rename of './test/t3' to './test/t4' (errno: 150 "Foreign key constraint is incorrectly formed")
+RENAME TABLE t2 TO t3;
+DROP TABLE t3, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;

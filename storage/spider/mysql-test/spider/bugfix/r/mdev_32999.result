@@ -1,0 +1,18 @@
+#
+# MDEV-32999 ERROR 138 instead of warning, and potential error masking
+#
+for master_1
+for child2
+for child3
+set spider_same_server_link=on;
+CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+CREATE TABLE t ENGINE=Spider COMMENT='srv "srv",table "t1"';
+ERROR HY000: Remote table 'test.t1' is not found
+drop server srv;
+for master_1
+for child2
+for child3
+#
+# end of test mdev_32999
+#

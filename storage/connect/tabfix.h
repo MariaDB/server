@@ -28,30 +28,30 @@ class DllExport TDBFIX : public TDBDOS {
   TDBFIX(PGLOBAL g, PTDBFIX tdbp);
 
   // Implementation
-  virtual AMT  GetAmType(void) {return TYPE_AM_FIX;}
-  virtual void RestoreNrec(void);
-  virtual PTDB Duplicate(PGLOBAL g)
+  AMT  GetAmType(void) override {return TYPE_AM_FIX;}
+  void RestoreNrec(void) override;
+  PTDB Duplicate(PGLOBAL g) override
                 {return (PTDB)new(g) TDBFIX(g, this);}
 
   // Methods
-  virtual PTDB Clone(PTABS t);
-  virtual void ResetDB(void);
-  virtual bool IsUsingTemp(PGLOBAL g);
-  virtual int  RowNumber(PGLOBAL g, bool b = false);
-  virtual int  ResetTableOpt(PGLOBAL g, bool dop, bool dox);
-  virtual void ResetSize(void);
-  virtual int  GetBadLines(void) {return Txfp->GetNerr();}
+  PTDB Clone(PTABS t) override;
+  void ResetDB(void) override;
+  bool IsUsingTemp(PGLOBAL g) override;
+  int  RowNumber(PGLOBAL g, bool b = false) override;
+  int  ResetTableOpt(PGLOBAL g, bool dop, bool dox) override;
+  void ResetSize(void) override;
+  int  GetBadLines(void) override {return Txfp->GetNerr();}
 
   // Database routines
-  virtual PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n);
-  virtual int  GetProgMax(PGLOBAL g);
-  virtual int  Cardinality(PGLOBAL g);
-  virtual int  GetMaxSize(PGLOBAL g);
-  virtual bool OpenDB(PGLOBAL g);
-  virtual int  WriteDB(PGLOBAL g);
+  PCOL MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n) override;
+  int  GetProgMax(PGLOBAL g) override;
+  int  Cardinality(PGLOBAL g) override;
+  int  GetMaxSize(PGLOBAL g) override;
+  bool OpenDB(PGLOBAL g) override;
+  int  WriteDB(PGLOBAL g) override;
 
  protected:
-  virtual bool PrepareWriting(PGLOBAL g) {return false;}
+  bool PrepareWriting(PGLOBAL g) override {return false;}
 
   // Members
   char Teds;                  /* Binary table default endian setting   */
@@ -69,14 +69,14 @@ class DllExport BINCOL : public DOSCOL {
   BINCOL(BINCOL *colp, PTDB tdbp);  // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return TYPE_AM_BIN;}
+  int  GetAmType(void) override {return TYPE_AM_BIN;}
           int  GetDeplac(void) {return Deplac;}
           int  GetFileSize(void) 
                {return N ? N : GetTypeSize(Buf_Type, Long);}
 
   // Methods
-  virtual void ReadColumn(PGLOBAL g);
-  virtual void WriteColumn(PGLOBAL g);
+  void ReadColumn(PGLOBAL g) override;
+  void WriteColumn(PGLOBAL g) override;
 
   // Static
   static  void SetEndian(void); 
@@ -105,7 +105,7 @@ public:
 
 protected:
 	// Specific routines
-	virtual PQRYRES GetResult(PGLOBAL g)
+	PQRYRES GetResult(PGLOBAL g) override
 	  {return DBFColumns(g, ((PTABDEF)To_Def)->GetPath(), Fn, Topt, false);}
 
 	// Members

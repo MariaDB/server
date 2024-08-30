@@ -102,7 +102,7 @@ ma_crypt_create(MARIA_SHARE* share)
 {
   uint key_version;
   MARIA_CRYPT_DATA *crypt_data=
-    (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+    (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
   crypt_data->scheme.type= CRYPT_SCHEME_1;
   crypt_data->scheme.locker= crypt_data_scheme_locker;
   mysql_mutex_init(key_CRYPT_DATA_lock, &crypt_data->lock, MY_MUTEX_INIT_FAST);
@@ -176,7 +176,7 @@ ma_crypt_read(MARIA_SHARE* share, uchar *buff, my_bool silent)
   {
     /* opening a table */
     MARIA_CRYPT_DATA *crypt_data=
-      (MARIA_CRYPT_DATA*)my_malloc(sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
+      (MARIA_CRYPT_DATA*)my_malloc(PSI_INSTRUMENT_ME, sizeof(MARIA_CRYPT_DATA), MYF(MY_ZEROFILL));
     uint key_version;
 
     crypt_data->scheme.type= type;
@@ -212,7 +212,7 @@ static int ma_decrypt(MARIA_SHARE *, MARIA_CRYPT_DATA *, const uchar *,
 static my_bool ma_crypt_pre_read_hook(PAGECACHE_IO_HOOK_ARGS *args)
 {
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
-  uchar *crypt_buf= my_malloc(share->block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, share->block_size, MYF(0));
   if (crypt_buf == NULL)
   {
     args->crypt_buf= NULL; /* for post-hook */
@@ -283,7 +283,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
   MARIA_SHARE *share= (MARIA_SHARE*) args->data;
   const uint size= share->block_size;
   uint key_version;
-  uchar *crypt_buf= my_malloc(share->block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, share->block_size, MYF(0));
 
   if (crypt_buf == NULL)
   {
@@ -415,7 +415,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
   const uint block_size= share->block_size;
   const uint page_used= _ma_get_page_used(share, args->page);
   uint key_version;
-  uchar *crypt_buf= my_malloc(block_size, MYF(0));
+  uchar *crypt_buf= my_malloc(PSI_INSTRUMENT_ME, block_size, MYF(0));
   if (crypt_buf == NULL)
   {
     args->crypt_buf= NULL; /* for post-hook */
@@ -482,7 +482,7 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
                       uint *key_version)
 {
   int rc;
-  uint32 dstlen= 0;              /* Must be set because of error message */
+  uint32 dstlen= size;
 
   *key_version = encryption_key_get_latest_version(crypt_data->scheme.key_id);
   if (unlikely(*key_version == ENCRYPTION_KEY_VERSION_INVALID))
@@ -493,9 +493,10 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
     */
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
-                    "Unknown encryption key id %u. Can't continue!",
+                    "Unknown encryption key id %u  for %s. Can't continue!",
                     MYF(ME_FATAL|ME_ERROR_LOG),
-                    crypt_data->scheme.key_id);
+                    crypt_data->scheme.key_id,
+                    share->open_file_name.str);
     return 1;
   }
 
@@ -508,6 +509,9 @@ static int ma_encrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
+    if (rc != MY_AES_OK)
+      dstlen= 0; /* reset dstlen if failed, to match expected message */
+
     my_errno= HA_ERR_DECRYPTION_FAILED;
     my_printf_error(HA_ERR_DECRYPTION_FAILED,
                     "failed to encrypt '%s'  rc: %d  dstlen: %u  size: %u\n",
@@ -525,7 +529,7 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
                       uint key_version)
 {
   int rc;
-  uint32 dstlen= 0;              /* Must be set because of error message */
+  uint32 dstlen= size;
 
   rc= encryption_scheme_decrypt(src, size, dst, &dstlen,
                                 &crypt_data->scheme, key_version,
@@ -535,6 +539,8 @@ static int ma_decrypt(MARIA_SHARE *share, MARIA_CRYPT_DATA *crypt_data,
   DBUG_ASSERT(!my_assert_on_error || dstlen == size);
   if (! (rc == MY_AES_OK && dstlen == size))
   {
+    if (rc != MY_AES_OK)
+      dstlen= 0; /* reset dstlen if failed, to match expected message */
     my_errno= HA_ERR_DECRYPTION_FAILED;
     if (!share->silence_encryption_errors)
       my_printf_error(HA_ERR_DECRYPTION_FAILED,

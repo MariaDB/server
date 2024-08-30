@@ -37,9 +37,9 @@ GetOptions("host=s","db=s","user=s", "password=s", "table=s", "rows=i",
 print "Connection to database $test_db\n";
 
 $extra_options="";
-$extra_options.=":mysql_compression=1" if ($opt_compress);
+$extra_options.=":mariadb_compression=1" if ($opt_compress);
 
-$dbh = DBI->connect("DBI:mysql:$opt_db:$host$extra_options",$opt_user,$opt_password) || die "Can't connect: $DBI::errstr\n";
+$dbh = DBI->connect("DBI:MariaDB:$opt_db:$host$extra_options",$opt_user,$opt_password) || die "Can't connect: $DBI::errstr\n";
 
 $dbh->do("drop table if exists $opt_table");
 
@@ -65,7 +65,7 @@ for ($i=0 ; $i < $opt_rows ; $i++)
 
 print "\nReading records\n";
 
-$sth=$dbh->prepare("select * from $opt_table", { "mysql_use_result" => 1}) or die $dbh->errstr;
+$sth=$dbh->prepare("select * from $opt_table", { "mariadb_use_result" => 1}) or die $dbh->errstr;
 
 $sth->execute() or die $sth->errstr;
 

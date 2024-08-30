@@ -227,7 +227,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -513,7 +513,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -799,7 +799,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -1085,7 +1085,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -2515,7 +2515,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -2801,7 +2801,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -3087,7 +3087,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -3373,7 +3373,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -4803,7 +4803,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -5089,7 +5089,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -5375,7 +5375,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -5661,7 +5661,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -7091,7 +7091,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -7377,7 +7377,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -7663,7 +7663,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -7949,7 +7949,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -9379,7 +9379,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -9665,7 +9665,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -9951,7 +9951,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -10237,7 +10237,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -11667,7 +11667,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -11953,7 +11953,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -12239,7 +12239,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -12525,7 +12525,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -13956,7 +13956,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -14243,7 +14243,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -14530,7 +14530,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -14817,7 +14817,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -16252,7 +16252,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -16539,7 +16539,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -16826,7 +16826,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 
@@ -17113,7 +17113,7 @@ SELECT hex(c1),hex(c2) FROM t5;
 
 # Update using eq_ref
 # EXPLAIN SELECT * FROM t5,t6 WHERE t5.c1=t6.c1 AND t5.c2=t6.c2;
-UPDATE IGNORE t5,t6 SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
+UPDATE IGNORE t6 straight_join t5 force index(PRIMARY) SET t5.c2=t6.c1+t6.c2 WHERE  t5.c1=t6.c1 AND t5.c2=t6.c2;
 
 ############# DELETE ###########
 

@@ -11,9 +11,8 @@
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
+  Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 class spider_group_by_handler: public group_by_handler
 {
   Query query;
@@ -32,13 +31,12 @@ public:
     spider_fields *fields_arg
   );
   ~spider_group_by_handler();
-  int init_scan();
-  int next_row();
-  int end_scan();
+  int init_scan() override;
+  int next_row() override;
+  int end_scan() override;
 };
 
 group_by_handler *spider_create_group_by_handler(
   THD *thd,
   Query *query
 );
-#endif
