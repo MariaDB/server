@@ -10684,7 +10684,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
     return true;
 
   // fix "main" select
-  resolve_optimizer_hints();
+  resolve_optimizer_hints_in_last_select();
   SELECT_LEX *blt __attribute__((unused))= pop_select();
   DBUG_ASSERT(blt == &builtin_select);
   push_select(first_select);
@@ -12453,7 +12453,7 @@ LEX::parse_optimizer_hints(const Lex_comment_st &hints_str)
 }
 
 
-void LEX::resolve_optimizer_hints()
+void LEX::resolve_optimizer_hints_in_last_select()
 {
   SELECT_LEX *select_lex;
   if (likely(select_stack_top))

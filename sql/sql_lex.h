@@ -3725,7 +3725,7 @@ public:
     DBUG_RETURN(select_lex);
   }
 
-  void resolve_optimizer_hints();
+  void resolve_optimizer_hints_in_last_select();
 
   SELECT_LEX *current_select_or_default()
   {

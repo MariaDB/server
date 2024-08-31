@@ -52,7 +52,8 @@ const LEX_CSTRING sys_qb_prefix=  {"select#", 7};
 
 static const Lex_ident_sys null_ident_sys;
 
-static void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
+static
+void print_warn(THD *thd, uint err_code, opt_hints_enum hint_type,
                 bool hint_state,
                 const Lex_ident_sys *qb_name_arg,
                 const Lex_ident_sys *table_name_arg,
@@ -221,7 +222,7 @@ static Opt_hints_table *get_table_hints(Parse_context *pc,
 bool Opt_hints::get_switch(opt_hints_enum type_arg) const
 {
   if (is_specified(type_arg))
-    return hints_map.switch_on(type_arg);
+    return hints_map.is_switched_on(type_arg);
 
   if (opt_hint_info[type_arg].check_upper_lvl)
     return parent->get_switch(type_arg);
@@ -263,7 +264,7 @@ void Opt_hints::print(THD *thd, String *str)
 
 void Opt_hints::append_hint_type(String *str, opt_hints_enum type)
 {
-  if(!hints_map.switch_on(type))
+  if (!hints_map.is_switched_on(type))
     str->append(STRING_WITH_LEN("NO_"));
   str->append(opt_hint_info[type].hint_name);
 }
@@ -330,6 +331,11 @@ Opt_hints_table *Opt_hints_qb::adjust_table_hints(TABLE *table,
 }
 
 
+/*
+  @brief
+    For each index IDX, put its hints into keyinfo_array[IDX]
+
+*/
 void Opt_hints_table::adjust_key_hints(TABLE *table)
 {
   set_resolved();
@@ -339,7 +345,7 @@ void Opt_hints_table::adjust_key_hints(TABLE *table)
     return;
   }
 
-  /* Make sure that adjustement is called only once. */
+  /* Make sure that adjustment is called only once. */
   DBUG_ASSERT(keyinfo_array.size() == 0);
   keyinfo_array.resize(table->s->keys, NULL);
 
@@ -413,6 +419,14 @@ static bool get_hint_state(Opt_hints *hint,
   return false;
 }
 
+
+/* 
+  @brief
+    Check whether a given optimization is enabled for table.keyno.
+  
+  @detail
+    First check if a hint is present, then check optimizer_switch
+*/
 
 bool hint_key_state(const THD *thd, const TABLE *table,
                     uint keyno, opt_hints_enum type_arg,
@@ -690,7 +704,7 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
   while(Optimizer_hint_parser::Hint *hint= li++)
   {
     if (const Table_level_hint &table_hint=
-        static_cast<const Table_level_hint &>(*hint))
+        /*static_cast<const Table_level_hint &>*/(*hint))
     {
       if (table_hint.resolve(pc))
         return true;

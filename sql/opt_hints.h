@@ -112,7 +112,7 @@ public:
 
      @return switch value.
   */
-  bool switch_on(opt_hints_enum type_arg) const
+  bool is_switched_on(opt_hints_enum type_arg) const
   {
     return hints.is_set(type_arg);
   }
@@ -128,10 +128,10 @@ class Opt_hints_key;
 
   Opt_hints_global class is hierarchical structure.
   It contains information about global hints and also
-  conains array of QUERY BLOCK level objects (Opt_hints_qb class).
+  contains array of QUERY BLOCK level objects (Opt_hints_qb class).
   Each QUERY BLOCK level object contains array of TABLE level hints
   (class Opt_hints_table). Each TABLE level hint contains array of
-  KEY lelev hints (Opt_hints_key class).
+  KEY level hints (Opt_hints_key class).
   Hint information(specified, on|off state) is stored in hints_map object.
 */
 
