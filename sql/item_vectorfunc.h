@@ -61,16 +61,7 @@ public:
 
 class Item_func_vec_distance_euclidean: public Item_func_vec_distance_common
 {
-  double calc_distance(float *v1, float *v2, size_t v_len) override
-  {
-    double d= 0;
-    for (size_t i= 0; i < v_len; i++, v1++, v2++)
-    {
-      float dist= *v1 - *v2;
-      d+= dist * dist;
-    }
-    return sqrt(d);
-  }
+  double calc_distance(float *v1, float *v2, size_t v_len) override;
 
 public:
   Item_func_vec_distance_euclidean(THD *thd, Item *a, Item *b)
@@ -87,17 +78,7 @@ public:
 
 class Item_func_vec_distance_cosine: public Item_func_vec_distance_common
 {
-  double calc_distance(float *v1, float *v2, size_t v_len) override
-  {
-    double dotp=0, abs1=0, abs2=0;
-    for (size_t i= 0; i < v_len; i++, v1++, v2++)
-    {
-      abs1+= *v1 * *v1;
-      abs2+= *v2 * *v2;
-      dotp+= *v1 * *v2;
-    }
-    return 1 - dotp/sqrt(abs1*abs2);
-  }
+  double calc_distance(float *v1, float *v2, size_t v_len) override;
 
 public:
   Item_func_vec_distance_cosine(THD *thd, Item *a, Item *b)
