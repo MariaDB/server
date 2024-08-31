@@ -1513,7 +1513,6 @@ public:
     Used only in the MODE_NO_AUTO_VALUE_ON_ZERO mode.
   */
   bool auto_increment_field_not_null;
-  bool insert_or_update;             /* Can be used by the handler */
   /*
      NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
      condition. On other cases it is FALSE even if table_name is alias.
@@ -1534,12 +1533,11 @@ public:
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
-  /**
-     Initialized in Item_func_group_concat::setup for appropriate
-     temporary table if GROUP_CONCAT is used with ORDER BY | DISTINCT
-     and BLOB field count > 0.
-   */
-  Blob_mem_storage *blob_storage;
+  /* this is for temporary tables created inside Item_func_group_concat */
+  union {
+    bool group_concat;                  /* used during create_tmp_table() */
+    Blob_mem_storage *blob_storage;     /* used after create_tmp_table()  */
+  };
   GRANT_INFO grant;
   /*
     The arena which the items for expressions from the table definition

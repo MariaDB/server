@@ -4509,12 +4509,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   bool save_table_creation_was_logged;
   DBUG_ENTER("select_create::create_table_from_items");
 
+  tmp_table.reset();
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
-
-  tmp_table.s->db_create_options=0;
-  tmp_table.null_row= 0;
-  tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
