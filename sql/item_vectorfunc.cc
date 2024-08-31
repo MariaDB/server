@@ -215,3 +215,23 @@ error:
   null_value= true;
   return nullptr;
 }
+
+#include <eigen3/Eigen/Dense>
+using namespace Eigen;
+
+double Item_func_vec_distance_euclidean::
+calc_distance(float *data1, float *data2, size_t d_len)
+{
+  Map<VectorXf> v1(data1, d_len);
+  Map<VectorXf> v2(data2, d_len);
+  return (v1-v2).norm();
+}
+
+
+double  Item_func_vec_distance_cosine::
+calc_distance(float *data1, float *data2, size_t d_len)
+{
+  Map<VectorXf> v1(data1, d_len);
+  Map<VectorXf> v2(data2, d_len);
+  return 1.0f - v1.dot(v2)/v1.norm()/v2.norm();
+}
