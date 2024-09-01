@@ -66,16 +66,18 @@ enum enum_explain_filename_mode
 static const uint FN_FROM_IS_TMP=  1 << 0;
 static const uint FN_TO_IS_TMP=    1 << 1;
 static const uint FN_IS_TMP=       FN_FROM_IS_TMP | FN_TO_IS_TMP;
-static const uint NO_FRM_RENAME=   1 << 2;
-static const uint FRM_ONLY=        1 << 3;
-/** Don't remove table in engine. Remove only .FRM and maybe .PAR files. */
-static const uint NO_HA_TABLE=     1 << 4;
+/* Remove .frm table metadata. */
+static constexpr uint QRMT_FRM=       1 << 2;
+/* Remove .par partitioning metadata. */
+static constexpr uint QRMT_PAR=       1 << 3;
+/* Remove handler files and high-level indexes. */
+static constexpr uint QRMT_HANDLER=   1 << 4;
+/* Default behaviour is to drop .FRM and handler, but not .par. */
+static constexpr uint QRMT_DEFAULT=   QRMT_FRM | QRMT_HANDLER;
 /** Don't resolve MySQL's fake "foo.sym" symbolic directory names. */
 static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
 static const uint NO_FK_CHECKS=    1 << 6;
-/* Don't delete .par table in quick_rm_table() */
-static const uint NO_PAR_TABLE=   1 << 7;
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);

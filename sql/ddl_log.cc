@@ -1985,7 +1985,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         the original name failed. Now we have to delete the temporary table
         and restore the backup.
       */
-      quick_rm_table(thd, hton, &db, &table, FN_IS_TMP);
+      quick_rm_table(thd, hton, &db, &table, QRMT_DEFAULT | FN_IS_TMP);
       if (!is_renamed)
       {
         execute_rename_table(ddl_log_entry, file,
