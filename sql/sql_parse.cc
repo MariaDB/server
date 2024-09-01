@@ -4705,29 +4705,36 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
-
-        // For consistency check inserted table needs to be InnoDB
-        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        // For InnoDB we don't need to worry about anything here:
+        if (db_type != DB_TYPE_INNODB)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              HA_ERR_UNSUPPORTED,
-                              "Galera cluster does support consistency check only"
-                              " for InnoDB tables.");
-          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
-        }
-
-        // For !InnoDB we start TOI if it is not yet started and hope for the best
-        if (!is_innodb && !wsrep_toi)
-        {
-          const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
-
-          /* Currently we support TOI for MyISAM only. */
-          if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
-            WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          // For consistency check inserted table needs to be InnoDB
+          if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+          {
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                HA_ERR_UNSUPPORTED,
+                                "Galera cluster does support consistency check only"
+                                " for InnoDB tables.");
+            thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+          }
+          /* Only TOI allowed to !InnoDB tables */
+          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+          // For !InnoDB we start TOI if it is not yet started and hope for the best
+          if (!wsrep_toi)
+          {
+            /* Currently we support TOI for MyISAM only. */
+            if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
+              WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          }
         }
       }
 #endif /* WITH_WSREP */
+
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
