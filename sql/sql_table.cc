@@ -2124,18 +2124,25 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   int error= 0;
   DBUG_ENTER("quick_rm_table");
 
+  DBUG_ASSERT(flags & (QRMT_FRM | QRMT_PAR | QRMT_HANDLER));
   size_t path_length= table_path ?
     (strxnmov(path, pathmax, table_path, NullS) - path) :
     build_table_filename(path, pathmax, db->str, table_name->str, "", flags);
-  if ((flags & (NO_HA_TABLE | NO_PAR_TABLE)) == NO_HA_TABLE)
+  if (flags & QRMT_PAR)
   {
+    /*
+      Normally .par is removed by QRMT_HANDLER. Caller may want to remove it
+      explicitly along with .FRM in some cases.
+    */
+    DBUG_ASSERT(flags & QRMT_FRM);
+    DBUG_ASSERT(!(flags & QRMT_HANDLER));
     handler *file= get_new_handler((TABLE_SHARE*) 0, thd->mem_root, base);
     if (!file)
       DBUG_RETURN(true);
     (void) file->ha_create_partitioning_metadata(path, NULL, CHF_DELETE_FLAG);
     delete file;
   }
-  if (!(flags & (FRM_ONLY|NO_HA_TABLE)))
+  if (flags & QRMT_HANDLER)
   {
     uint keys, total_keys;
     int hlindex_error= get_hlindex_keys(thd, db, table_name, path, &keys,
@@ -2156,7 +2163,7 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
       error= 1;
   }
 
-  if (!(flags & NO_FRM_RENAME))
+  if (flags & QRMT_FRM)
   {
     memcpy(path + path_length, reg_ext, reg_ext_length + 1);
     if (mysql_file_delete(key_file_frm, path, MYF(0)))
@@ -5327,9 +5334,6 @@ bool operator!=(const MYSQL_TIME &lhs, const MYSQL_TIME &rhs)
   @param flags     flags
                    FN_FROM_IS_TMP old_name is temporary.
                    FN_TO_IS_TMP   new_name is temporary.
-                   NO_FRM_RENAME  Don't rename the FRM file
-                                  but only the table in the storage engine.
-                   NO_HA_TABLE    Don't rename table in engine.
                    NO_FK_CHECKS   Don't check FK constraints during rename.
   @return false    OK
   @return true     Error
@@ -5350,6 +5354,7 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
   bool log_query= 0;
   DBUG_ENTER("mysql_rename_table");
   DBUG_ASSERT(base);
+  DBUG_ASSERT(flags & (QRMT_FRM | QRMT_PAR | QRMT_HANDLER));
   DBUG_PRINT("enter", ("old: '%s'.'%s'  new: '%s'.'%s'",
                        old_db->str, old_name->str, new_db->str,
                        new_name->str));
@@ -5381,17 +5386,22 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
     to_base=   lc_to;
   }
 
-  if (flags & NO_HA_TABLE)
+  if (!(flags & QRMT_HANDLER))
   {
+    /*
+      This code expects callers to set QRMT_FRM if QRMT_HANDLER is omitted.
+      Otherwise this invariant is not strictly required.
+    */
+    DBUG_ASSERT(flags & QRMT_FRM);
     if (rename_file_ext(from,to,reg_ext))
       error= my_errno;
     log_query= true;
-    if (file && !(flags & NO_PAR_TABLE))
+    if (file && (flags & QRMT_PAR))
       (void) file->ha_create_partitioning_metadata(to, from, CHF_RENAME_FLAG);
   }
   else if (!file || likely(!(error=file->ha_rename_table(from_base, to_base))))
   {
-    if (!(flags & NO_FRM_RENAME) && unlikely(rename_file_ext(from,to,reg_ext)))
+    if ((flags & QRMT_FRM) && unlikely(rename_file_ext(from, to, reg_ext)))
     {
       error=my_errno;
       if (file)
@@ -8118,7 +8128,7 @@ static bool mysql_inplace_alter_table(THD *thd,
   if (mysql_rename_table(db_type, &alter_ctx->new_db, &alter_ctx->tmp_name,
                          &alter_ctx->db, &alter_ctx->alias,
                          &alter_ctx->tmp_id,
-                         FN_FROM_IS_TMP | NO_HA_TABLE) ||
+                         QRMT_FRM | QRMT_PAR | FN_FROM_IS_TMP) ||
                          thd->is_error())
   {
     // Since changes were done in-place, we can't revert them.
@@ -8133,7 +8143,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                      alter_ctx->table_name.str));
     if (mysql_rename_table(db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias,
-                           &alter_ctx->tmp_id, 0))
+                           &alter_ctx->tmp_id, QRMT_DEFAULT))
     {
       /*
         If the rename fails we will still have a working table
@@ -8157,7 +8167,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
                                 &alter_ctx->db, &alter_ctx->alias,
                                 &alter_ctx->id,
-                                NO_FK_CHECKS);
+                                QRMT_DEFAULT | NO_FK_CHECKS);
       ddl_log_disable_entry(ddl_log_state);
       DBUG_RETURN(true);
     }
@@ -9889,7 +9899,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                 &alter_ctx->new_db, &alter_ctx->new_alias);
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias,
-                           &table_version, 0))
+                           &table_version, QRMT_DEFAULT))
       error= -1;
     if (!error)
       ddl_log_update_phase(&ddl_log_state, DDL_RENAME_PHASE_TRIGGER);
@@ -9906,7 +9916,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
                                 &alter_ctx->db, &alter_ctx->table_name,
                                 &table_version,
-                                NO_FK_CHECKS);
+                                QRMT_DEFAULT | NO_FK_CHECKS);
       ddl_log_disable_entry(&ddl_log_state);
       error= -1;
     }
@@ -10601,8 +10611,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                                              thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
     quick_rm_table(thd, table->file->ht, &table_list->db,
-                   &table_list->table_name,
-                   NO_HA_TABLE, 0);
+                   &table_list->table_name, QRMT_FRM | QRMT_PAR);
     goto end_inplace;
   }
   if (!if_exists &&
@@ -11759,11 +11768,11 @@ alter_copy:
     if (mysql_rename_table(old_db_type, &alter_ctx.db, &alter_ctx.table_name,
                            &alter_ctx.db, &backup_name, &alter_ctx.id,
                            FN_TO_IS_TMP |
-                           (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE : 0)))
+                           (engine_changed ? QRMT_FRM : QRMT_DEFAULT)))
     {
       // Rename to temporary name failed, delete the new table, abort ALTER.
       (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
-                            &alter_ctx.tmp_name, FN_IS_TMP);
+                            &alter_ctx.tmp_name, QRMT_DEFAULT | FN_IS_TMP);
       goto err_with_mdl;
     }
   }
@@ -11791,12 +11800,12 @@ alter_copy:
   if (mysql_rename_table(new_db_type, &alter_ctx.new_db, &alter_ctx.tmp_name,
                          &alter_ctx.new_db, &alter_ctx.new_alias,
                          &alter_ctx.tmp_id,
-                         FN_FROM_IS_TMP))
+                         QRMT_DEFAULT | FN_FROM_IS_TMP))
   {
     // Rename failed, delete the temporary table.
     ddl_log_update_phase(&ddl_log_state, DDL_ALTER_TABLE_PHASE_RENAME_FAILED);
     (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
-                          &alter_ctx.tmp_name, FN_IS_TMP);
+                          &alter_ctx.tmp_name, QRMT_DEFAULT | FN_IS_TMP);
 
     if (!alter_ctx.is_table_renamed() || alter_ctx.fk_error_if_delete_row)
     {
@@ -11804,8 +11813,7 @@ alter_copy:
       (void) mysql_rename_table(old_db_type, &alter_ctx.db, &backup_name,
                                 &alter_ctx.db, &alter_ctx.alias, &alter_ctx.id,
                                 FN_FROM_IS_TMP | NO_FK_CHECKS |
-                                (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE :
-                                 0));
+                                (engine_changed ? QRMT_FRM : QRMT_DEFAULT));
     }
     goto err_with_mdl;
   }
@@ -11823,14 +11831,13 @@ alter_copy:
                                                &alter_ctx.new_alias))
     {
       // Rename succeeded, delete the new table.
-      (void) quick_rm_table(thd, new_db_type,
-                            &alter_ctx.new_db, &alter_ctx.new_alias, 0);
+      (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
+                            &alter_ctx.new_alias, QRMT_DEFAULT);
       // Restore the backup of the original table to the old name.
       (void) mysql_rename_table(old_db_type, &alter_ctx.db, &backup_name,
                                 &alter_ctx.db, &alter_ctx.alias, &alter_ctx.id,
                                 FN_FROM_IS_TMP | NO_FK_CHECKS |
-                                (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE :
-                                 0));
+                                (engine_changed ? QRMT_FRM : QRMT_DEFAULT));
       goto err_with_mdl;
     }
     rename_table_in_stat_tables(thd, &alter_ctx.db, &alter_ctx.alias,
@@ -11847,13 +11854,13 @@ alter_copy:
   {
     /* the .frm file was removed but not the original table */
     quick_rm_table(thd, old_db_type, &alter_ctx.db, &alter_ctx.table_name,
-                           NO_FRM_RENAME | (engine_changed ? 0 : FN_IS_TMP));
+                   QRMT_HANDLER | (engine_changed ? 0 : FN_IS_TMP));
   }
 
   debug_crash_here("ddl_log_alter_after_delete_backup");
 
   quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
-                        FN_IS_TMP | (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
+                 FN_IS_TMP | (engine_changed ? QRMT_FRM : QRMT_DEFAULT));
 
   debug_crash_here("ddl_log_alter_after_drop_original_table");
   if (binlog_as_create_select)
@@ -11992,7 +11999,8 @@ err_new_table_cleanup:
   else
     (void) quick_rm_table(thd, new_db_type,
                           &alter_ctx.new_db, &alter_ctx.tmp_name,
-                          (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
+                          FN_IS_TMP | (no_ha_table ?
+                                       QRMT_FRM | QRMT_PAR : QRMT_DEFAULT),
                           alter_ctx.get_tmp_path());
   DEBUG_SYNC(thd, "alter_table_after_temp_table_drop");
 err_cleanup:
