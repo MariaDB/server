@@ -1461,7 +1461,7 @@ void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
     table->s->tdc->flush(thd, true);
     close_thread_table(thd, &thd->open_tables);
     /* Remove the table from the storage engine and rm the .frm. */
-    quick_rm_table(thd, table_type, db_name, table_name, 0);
+    quick_rm_table(thd, table_type, db_name, table_name, QRMT_DEFAULT);
  }
   DBUG_VOID_RETURN;
 }
