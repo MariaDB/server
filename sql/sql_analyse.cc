@@ -38,41 +38,37 @@
 #define MAX_TREEMEM	  8192
 #define MAX_TREE_ELEMENTS 256
 
-int sortcmp2(void* cmp_arg __attribute__((unused)),
-	     const void *_a, const void *_b)
+int sortcmp2(const void *, const void *_a, const void *_b)
 {
   const String *a= static_cast<const String*>(_a);
   const String *b= static_cast<const String*>(_b);
   return sortcmp(a,b,a->charset());
 }
 
-int compare_double2(void* cmp_arg __attribute__((unused)),
-		    const void *_s, const void *_t)
+int compare_double2(const void *, const void *_s, const void *_t)
 {
   const double *s= static_cast<const double*>(_s);
   const double *t= static_cast<const double*>(_t);
   return compare_double(s,t);
 }
 
-int compare_longlong2(void* cmp_arg __attribute__((unused)),
-		      const void *_s, const void *_t)
+int compare_longlong2(const void *, const void *_s, const void *_t)
 {
   const longlong *s= static_cast<const longlong*>(_s);
   const longlong *t= static_cast<const longlong*>(_t);
   return compare_longlong(s,t);
 }
 
-int compare_ulonglong2(void* cmp_arg __attribute__((unused)),
-		       const void *_s, const void *_t)
+int compare_ulonglong2(const void *, const void *_s, const void *_t)
 {
   const ulonglong *s= static_cast<const ulonglong*>(_s);
   const ulonglong *t= static_cast<const ulonglong*>(_t);
   return compare_ulonglong(s,t);
 }
 
-int compare_decimal2(void* _len, const void *_s, const void *_t)
+int compare_decimal2(const void *_len, const void *_s, const void *_t)
 {
-  int* len     = static_cast<int*>(_len);
+  const int *len= static_cast<const int *>(_len);
   const char *s= static_cast<const char *>(_s);
   const char *t= static_cast<const char *>(_t);
   return memcmp(s, t, *len);
