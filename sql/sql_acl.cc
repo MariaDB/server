@@ -538,16 +538,20 @@ public:
 };
 
 
-static uchar* acl_entry_get_key(acl_entry *entry, size_t *length,
+static uchar* acl_entry_get_key(const uchar *_entry, size_t *length,
                                 my_bool not_used __attribute__((unused)))
 {
+  const acl_entry *entry=
+      static_cast<const acl_entry *>(static_cast<const void *>(_entry));
   *length=(uint) entry->length;
   return (uchar*) entry->key;
 }
 
-static uchar* acl_role_get_key(ACL_ROLE *entry, size_t *length,
+static uchar* acl_role_get_key(const uchar *_entry, size_t *length,
                                my_bool not_used __attribute__((unused)))
 {
+  const ACL_ROLE *entry=
+      static_cast<const ACL_ROLE *>(static_cast<const void *>(_entry));
   *length=(uint) entry->user.length;
   return (uchar*) entry->user.str;
 }
@@ -564,9 +568,11 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
             const char *rolename, bool with_admin_option);
 };
 
-static uchar* acl_role_map_get_key(ROLE_GRANT_PAIR *entry, size_t *length,
+static uchar* acl_role_map_get_key(const uchar *_entry, size_t *length,
                                   my_bool not_used __attribute__((unused)))
 {
+  const ROLE_GRANT_PAIR *entry=
+      static_cast<const ROLE_GRANT_PAIR *>(static_cast<const void *>(_entry));
   *length=(uint) entry->hashkey.length;
   return (uchar*) entry->hashkey.str;
 }
@@ -657,7 +663,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0U, 50U);
-typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -695,9 +700,9 @@ static bool add_role_user_mapping(const char *uname, const char *hname, const ch
 static bool get_YN_as_bool(Field *field);
 
 #define ROLE_CYCLE_FOUND 2
-static int traverse_role_graph_up(ACL_ROLE *, void *,
-                                  int (*) (ACL_ROLE *, void *),
-                                  int (*) (ACL_ROLE *, ACL_ROLE *, void *));
+static int
+traverse_role_graph_up(ACL_ROLE *, void *, int (*)(ACL_USER_BASE *, void *),
+                       int (*)(ACL_USER_BASE *, ACL_ROLE *, void *));
 
 static int traverse_role_graph_down(ACL_USER_BASE *, void *,
                              int (*) (ACL_USER_BASE *, void *),
@@ -2203,13 +2208,15 @@ static bool is_invalid_role_name(const char *str)
 }
 
 
-static void free_acl_user(ACL_USER *user)
+static void free_acl_user(void *_user)
 {
+  ACL_USER *user= static_cast<ACL_USER *>(_user);
   delete_dynamic(&(user->role_grants));
 }
 
-static void free_acl_role(ACL_ROLE *role)
+static void free_acl_role(void *_role)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(_role);
   delete_dynamic(&(role->role_grants));
   delete_dynamic(&(role->parent_grantee));
 }
@@ -3034,8 +3041,10 @@ static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
   return -strcmp(a->host.hostname, b->host.hostname);
 }
 
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b)
+static int acl_db_compare(const void *_a, const void *_b)
 {
+  const ACL_DB *a= static_cast<const ACL_DB *>(_a);
+  const ACL_DB *b= static_cast<const ACL_DB *>(_b);
   int res= strcmp(a->user, b->user);
   if (res)
     return res;
@@ -3424,9 +3433,11 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static uchar* check_get_key(ACL_USER *buff, size_t *length,
+static uchar* check_get_key(const uchar *_buff, size_t *length,
                             my_bool not_used __attribute__((unused)))
 {
+  const ACL_USER *buff=
+      static_cast<const ACL_USER *>(static_cast<const void *>(_buff));
   *length=buff->hostname_length;
   return (uchar*) buff->host.hostname;
 }
@@ -5337,9 +5348,11 @@ public:
 };
 
 
-static uchar* get_key_column(GRANT_COLUMN *buff, size_t *length,
+static uchar* get_key_column(const uchar *_buff, size_t *length,
 			    my_bool not_used __attribute__((unused)))
 {
+  const GRANT_COLUMN *buff=
+      static_cast<const GRANT_COLUMN *>(static_cast<const void *>(_buff));
   *length=buff->key_length;
   return (uchar*) buff->column;
 }
@@ -5568,16 +5581,20 @@ GRANT_TABLE::~GRANT_TABLE()
 }
 
 
-static uchar* get_grant_table(GRANT_NAME *buff, size_t *length,
+static uchar* get_grant_table(const uchar *_buff, size_t *length,
 			     my_bool not_used __attribute__((unused)))
 {
+  const GRANT_NAME *buff=
+      static_cast<const GRANT_NAME *>(static_cast<const void *>(_buff));
   *length=buff->key_length;
   return (uchar*) buff->hash_key;
 }
 
 
-static void free_grant_table(GRANT_TABLE *grant_table)
+static void free_grant_table(void *_grant_table)
 {
+  GRANT_TABLE *grant_table=
+      static_cast<GRANT_TABLE *>(static_cast<void *>(_grant_table));
   grant_table->~GRANT_TABLE();
 }
 
@@ -6212,19 +6229,20 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
 }
 
 
-static int init_role_for_merging(ACL_ROLE *role, void *context)
+static int init_role_for_merging(ACL_USER_BASE *_role, void *context)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(_role);
   role->counter= 0;
   return 0;
 }
 
-static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+static int count_subgraph_nodes(ACL_USER_BASE *, ACL_ROLE *grantee, void *context)
 {
   grantee->counter++;
   return 0;
 }
 
-static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static int merge_role_privileges(ACL_USER_BASE *, ACL_ROLE *, void *);
 static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
@@ -6464,13 +6482,11 @@ end:
 */
 
 static int traverse_role_graph_up(ACL_ROLE *role, void *context,
-       int (*on_node) (ACL_ROLE *role, void *context),
-       int (*on_edge) (ACL_ROLE *current, ACL_ROLE *neighbour, void *context))
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
-  return traverse_role_graph_impl(role, context,
-                    my_offsetof(ACL_ROLE, parent_grantee),
-                    (int (*)(ACL_USER_BASE *, void *))on_node,
-                    (int (*)(ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+  return traverse_role_graph_impl(
+      role, context, my_offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
 }
 
 /**
@@ -6523,8 +6539,10 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(const int *db1, const int *db2)
+static int db_name_sort(const void *_db1, const void *_db2)
 {
+  const int *db1= static_cast<const int *>(_db1);
+  const int *db2= static_cast<const int *>(_db2);
   return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
@@ -6677,8 +6695,10 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   return update_flags;
 }
 
-static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
+static int table_name_sort(const void *_tbl1, const void *_tbl2)
 {
+  const GRANT_TABLE *const *tbl1= (const GRANT_TABLE *const *) _tbl1;
+  const GRANT_TABLE *const *tbl2= (const GRANT_TABLE *const *) _tbl2;
   int res = strcmp((*tbl1)->db, (*tbl2)->db);
   if (res) return res;
   return strcmp((*tbl1)->tname, (*tbl2)->tname);
@@ -6879,8 +6899,10 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   return update_flags;
 }
 
-static int routine_name_sort(GRANT_NAME * const *r1, GRANT_NAME * const *r2)
+static int routine_name_sort(const void *_r1,  const void *_r2)
 {
+  const GRANT_NAME *const *r1= (const GRANT_NAME *const *) _r1;
+  const GRANT_NAME *const *r2= (const GRANT_NAME *const *) _r2;
   int res= strcmp((*r1)->db, (*r2)->db);
   if (res) return res;
   return strcmp((*r1)->tname, (*r2)->tname);
@@ -7003,7 +7025,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
-static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
+static int merge_role_privileges(ACL_USER_BASE *,
                                  ACL_ROLE *grantee, void *context)
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
