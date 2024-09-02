@@ -16,7 +16,7 @@
 
 #include "heapdef.h"
 
-static int keys_compare(void *param, const void *key1, const void *key2);
+static int keys_compare(const void *param, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block,uint reclength,ulong min_records,
 		       ulong max_records);
 
@@ -254,12 +254,12 @@ err:
   DBUG_RETURN(1);
 } /* heap_create */
 
-
-static int keys_compare(void *_param, const void *_key1, const void *_key2)
+static int keys_compare(const void *_param, const void *_key1,
+                        const void *_key2)
 {
-  heap_rb_param *param= (heap_rb_param*) _param;
-  uchar *key1= (uchar*) _key1;
-  uchar *key2= (uchar*) _key2;
+  const heap_rb_param *param= (const heap_rb_param*) _param;
+  const uchar *key1= (const uchar*) _key1;
+  const uchar *key2= (const uchar*) _key2;
   uint not_used[2];
   return ha_key_cmp(param->keyseg, key1, key2, param->key_length, 
 		    param->search_flag, not_used);
