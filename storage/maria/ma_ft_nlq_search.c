@@ -51,10 +51,9 @@ typedef struct st_ft_superdoc
     double   tmp_weight;
 } FT_SUPERDOC;
 
-
-static int FT_SUPERDOC_cmp(void* cmp_arg __attribute__((unused)),
-                          const void *_p1, const void *_p2)
- {
+static int FT_SUPERDOC_cmp(const void *cmp_arg __attribute__((unused)),
+                           const void *_p1, const void *_p2)
+{
   const FT_SUPERDOC *p1= (const FT_SUPERDOC*) _p1;
   const FT_SUPERDOC *p2= (const FT_SUPERDOC*) _p2;
 

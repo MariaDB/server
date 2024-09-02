@@ -135,8 +135,8 @@ static void free_counts_and_tree_and_queue(HUFF_TREE *huff_trees,
 					   uint trees,
 					   HUFF_COUNTS *huff_counts,
 					   uint fields);
-static int compare_tree(void *cmp_arg __attribute__((unused)), const void *s,
-                        const void *t);
+static int compare_tree(const void *cmp_arg __attribute__((unused)),
+                        const void *s, const void *t);
 static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts);
 static void check_counts(HUFF_COUNTS *huff_counts,uint trees,
 			 my_off_t records);
@@ -1770,8 +1770,8 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
   return 0;
 }
 
-static int compare_tree(void *cmp_arg __attribute__((unused)), const void *_s,
-                        const void *_t)
+static int compare_tree(const void *cmp_arg __attribute__((unused)),
+                        const void *_s, const void *_t)
 {
   register const uchar *s= (const uchar*) _s;
   register const uchar *t= (const uchar*) _t;

@@ -30,7 +30,7 @@ typedef struct st_ft_stopwords
 
 static TREE *stopwords3=NULL;
 
-static int FT_STOPWORD_cmp(void *cmp_arg __attribute__((unused)),
+static int FT_STOPWORD_cmp(const void *cmp_arg __attribute__((unused)),
                            const void *_w1, const void *_w2)
 {
   FT_STOPWORD *w1= (FT_STOPWORD *) _w1,

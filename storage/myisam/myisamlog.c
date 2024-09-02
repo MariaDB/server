@@ -57,7 +57,8 @@ extern int main(int argc,char * *argv);
 static void get_options(int *argc,char ***argv);
 static int examine_log(char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
-static int file_info_compare(void *cmp_arg, const void *a, const void *b);
+static int file_info_compare(const void *cmp_arg, const void *a,
+                             const void *b);
 static int test_if_open(void *key, element_count count, void *param);
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
 static int test_when_accessed(void *key, element_count count,
@@ -694,9 +695,8 @@ static int read_string(IO_CACHE *file, register uchar* *to, register uint length
   DBUG_RETURN (0);
 }				/* read_string */
 
-
-static int file_info_compare(void* cmp_arg __attribute__((unused)),
-			     const void *a, const void *b)
+static int file_info_compare(const void *cmp_arg __attribute__((unused)),
+                             const void *a, const void *b)
 {
   long lint;
 
