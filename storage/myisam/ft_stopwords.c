@@ -30,17 +30,20 @@ typedef struct st_ft_stopwords
 
 static TREE *stopwords3=NULL;
 
-static int FT_STOPWORD_cmp(void* cmp_arg __attribute__((unused)),
-			   FT_STOPWORD *w1, FT_STOPWORD *w2)
+static int FT_STOPWORD_cmp(void *cmp_arg __attribute__((unused)),
+                           const void *_w1, const void *_w2)
 {
+  FT_STOPWORD *w1= (FT_STOPWORD *) _w1,
+              *w2= (FT_STOPWORD *) _w2;
   return ha_compare_word(ft_stopword_cs,
                          (uchar *) w1->pos, w1->len,
                          (uchar *) w2->pos, w2->len);
 }
 
-static int FT_STOPWORD_free(FT_STOPWORD *w, TREE_FREE action,
+static int FT_STOPWORD_free(void *_w, TREE_FREE action,
                             void *arg __attribute__((unused)))
 {
+  FT_STOPWORD *w= (FT_STOPWORD *) _w;
   if (action == free_free)
     my_free((void*)w->pos);
   return 0;
