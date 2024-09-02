@@ -1817,7 +1817,8 @@ static struct my_option my_long_options[] =
    "if the output is suspended. Doesn't use history file.",
    &quick, &quick, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"quick-max-column-width", 0,
-   "Maximal field length limit in case of --qick", &quick_max_column_width,
+   "Maximum number of characters displayed in a column header"
+   " when using --quick", &quick_max_column_width,
    &quick_max_column_width, 0, GET_ULONG, REQUIRED_ARG, LONG_MAX, 0, ULONG_MAX,
    0, 1, 0},
   {"raw", 'r', "Write fields without conversion. Used with --batch.",
