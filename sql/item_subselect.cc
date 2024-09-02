@@ -6600,7 +6600,7 @@ subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
 /*
 */
 
-int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(const void *arg,
+int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(const void *,
                                                          const void *k1,
                                                          const void *k2)
 {

@@ -82,10 +82,6 @@
 
 static const char *ha_par_ext= PAR_EXT;
 
-static_assert(std::is_same<queue_compare, qsort2_cmp>::value,
-              "queue_compare and qsort2_cmp compare functions should have the "
-              "same signature");
-
 /****************************************************************************
                 MODULE create/delete handler object
 ****************************************************************************/

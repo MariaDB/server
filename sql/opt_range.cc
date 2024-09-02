@@ -1753,10 +1753,10 @@ static int QUICK_ROR_UNION_SELECT_queue_cmp(const void *arg, const void *_val1,
                                             const void *_val2)
 {
   const QUICK_ROR_UNION_SELECT *self= (const QUICK_ROR_UNION_SELECT*)arg;
-  const uchar *val1= (const uchar *) _val1;
-  const uchar *val2= (const uchar *) _val2;
-  return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
-                                   ((QUICK_SELECT_I*)val2)->last_rowid);
+  const QUICK_SELECT_I *val1= (const QUICK_SELECT_I *) _val1;
+  const QUICK_SELECT_I *val2= (const QUICK_SELECT_I *) _val2;
+  return self->head->file->cmp_ref(val1->last_rowid,
+                                   val2->last_rowid);
 }
 
 C_MODE_END
