@@ -74,7 +74,7 @@ R"===(PROCEDURE RENAME_CONSTRAINT_IDS () IS
       IF (:old_is_tmp > 0 AND offset > 0) THEN
         foreign_id := CONCAT(SUBSTR(foreign_id2, 0, offset - 1),
                              SUBSTR(foreign_id2, offset2, id_len - offset2));
-        id_len := id_len - 1;
+        id_len := LENGTH(foreign_id);
       END IF;
       IF (INSTR(foreign_id, '/') > 0) THEN
         IF (INSTR(foreign_id,
