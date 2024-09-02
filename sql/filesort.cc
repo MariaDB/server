@@ -283,7 +283,6 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
     sort->init_record_pointers();
     if (pq.init(param.max_rows,
                 true,                           // max_at_top
-                NULL,                           // compare_function
                 compare_length,
                 &make_sortkey, &param, sort->get_sort_keys()))
     {
