@@ -77,6 +77,14 @@ disable_libfmt()
   sed '/libfmt-dev/d' -i debian/control
 }
 
+change_compat_level()
+{
+  echo "${1}" > debian/compat
+  sed -e 's/ --fail-missing//' \
+      -e 's/#override_dh_missing/override_dh_missing/' \
+      -e 's/#\tdh_missing/\tdh_missing/' -i debian/rules
+}
+
 architecture=$(dpkg-architecture -q DEB_BUILD_ARCH)
 uname_machine=$(uname -m)
 
@@ -111,9 +119,10 @@ in
   "buster")
     disable_libfmt
     replace_uring_with_aio
-    ;&
+    ;;
   "bullseye")
     add_lsb_base_depends
+    change_compat_level 12
     ;&
   "bookworm")
     # mariadb-plugin-rocksdb in control is 4 arches covered by the distro rocksdb-tools
@@ -122,10 +131,12 @@ in
     then
       replace_uring_with_aio
     fi
+    change_compat_level 12
     ;&
   "trixie"|"sid")
     # The default packaging should always target Debian Sid, so in this case
     # there is intentionally no customizations whatsoever.
+    change_compat_level 12
     ;;
   # Ubuntu
   "focal")
@@ -134,12 +145,13 @@ in
     ;&
   "jammy"|"kinetic")
     add_lsb_base_depends
-    ;&
+    ;;
   "lunar"|"mantic")
     if [[ ! "$architecture" =~ amd64|arm64|armhf|ppc64el|s390x ]]
     then
       replace_uring_with_aio
     fi
+    change_compat_level 12
     ;&
   "noble")
     # mariadb-plugin-rocksdb s390x not supported by us (yet)
@@ -149,6 +161,7 @@ in
     then
       remove_rocksdb_tools
     fi
+    change_compat_level 12
     ;;
   *)
     echo "Error: Unknown release '$LSBNAME'" >&2
