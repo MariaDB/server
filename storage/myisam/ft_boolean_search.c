@@ -330,7 +330,7 @@ static int _ftb_parse_query(FTB *ftb, uchar *query, uint len,
 }
 
 
-static int _ftb_no_dupes_cmp(void* not_used __attribute__((unused)),
+static int _ftb_no_dupes_cmp(const void *not_used __attribute__((unused)),
                              const void *a,const void *b)
 {
   return CMP_NUM((*((my_off_t*)a)), (*((my_off_t*)b)));
