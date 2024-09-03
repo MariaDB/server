@@ -594,9 +594,9 @@ public:
     Inet6_null tmp(arg);
     return m_null_value || tmp.is_null() ? UNKNOWN : m_native.cmp(tmp) != 0;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
-    cmp_item_inet6 *tmp= static_cast<cmp_item_inet6*>(ci);
+    const cmp_item_inet6 *tmp= static_cast<const cmp_item_inet6*>(ci);
     DBUG_ASSERT(!m_null_value);
     DBUG_ASSERT(!tmp->m_null_value);
     return m_native.cmp(tmp->m_native);

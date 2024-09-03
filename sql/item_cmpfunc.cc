@@ -3694,8 +3694,10 @@ static int cmp_row(const void *, const void *_a, const void *_b)
 }
 
 
-static int cmp_decimal(void *cmp_arg, my_decimal *a, my_decimal *b)
+static int cmp_decimal(const void *, const void *_a, const void *_b)
 {
+  my_decimal *a= const_cast<my_decimal *>(static_cast<const my_decimal *>(_a));
+  my_decimal *b= const_cast<my_decimal *>(static_cast<const my_decimal *>(_b));
   /*
     We need call of fixing buffer pointer, because fast sort just copy
     decimal buffers in memory and pointers left pointing on old buffer place
@@ -4252,7 +4254,7 @@ int cmp_item_decimal::cmp(Item *arg)
 }
 
 
-int cmp_item_decimal::compare(cmp_item *arg)
+int cmp_item_decimal::compare(const cmp_item *arg) const
 {
   cmp_item_decimal *l_cmp= (cmp_item_decimal*) arg;
   return my_decimal_cmp(&value, &l_cmp->value);
@@ -4295,7 +4297,7 @@ int cmp_item_time::cmp(Item *arg)
 }
 
 
-int cmp_item_temporal::compare(cmp_item *ci)
+int cmp_item_temporal::compare(const cmp_item *ci) const
 {
   cmp_item_temporal *l_cmp= (cmp_item_temporal *)ci;
   return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -4343,9 +4345,9 @@ int cmp_item_timestamp::cmp(Item *arg)
 }
 
 
-int cmp_item_timestamp::compare(cmp_item *arg)
+int cmp_item_timestamp::compare(const cmp_item *arg) const
 {
-  cmp_item_timestamp *tmp= static_cast<cmp_item_timestamp*>(arg);
+  const cmp_item_timestamp *tmp= static_cast<const cmp_item_timestamp*>(arg);
   return type_handler_timestamp2.cmp_native(m_native, tmp->m_native);
 }
 
