@@ -548,9 +548,7 @@ btr_pcur_move_to_next_page(
 	const auto s = mtr->get_savepoint();
 	mtr->rollback_to_savepoint(s - 2, s - 1);
 	if (first_access) {
-		buf_read_ahead_linear(next_block->page.id(),
-				      next_block->zip_size(),
-				      ibuf_inside(mtr));
+		buf_read_ahead_linear(next_block->page.id(), ibuf_inside(mtr));
 	}
 	return DB_SUCCESS;
 }

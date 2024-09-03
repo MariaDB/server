@@ -929,10 +929,12 @@ ibuf_page_low(
 	ut_ad(fil_system.sys_space->purpose == FIL_TYPE_TABLESPACE);
 
 #ifdef UNIV_DEBUG
-	if (!x_latch) {
-		mtr_start(&local_mtr);
-
-		/* Get the bitmap page without a page latch, so that
+	if (x_latch) {
+	} else if (buf_block_t* block = buf_pool.page_fix(
+			   ibuf_bitmap_page_no_calc(page_id, zip_size))) {
+		local_mtr.start();
+		local_mtr.memo_push(block, MTR_MEMO_BUF_FIX);
+		/* We got the bitmap page without a page latch, so that
 		we will not be violating the latching order when
 		another bitmap page has already been latched by this
 		thread. The page will be buffer-fixed, and thus it
@@ -942,16 +944,10 @@ ibuf_page_low(
 		not be modified by any other thread. Nobody should be
 		calling ibuf_add_free_page() or ibuf_remove_free_page()
 		while the page is linked to the insert buffer b-tree. */
-		buf_block_t* block = buf_page_get_gen(
-			ibuf_bitmap_page_no_calc(page_id, zip_size),
-			zip_size, RW_NO_LATCH, nullptr, BUF_GET, &local_mtr);
-
-		ret = block
-			&& ibuf_bitmap_page_get_bits_low(
+		ret = ibuf_bitmap_page_get_bits_low(
 			block->page.frame, page_id, zip_size,
 			MTR_MEMO_BUF_FIX, &local_mtr, IBUF_BITMAP_IBUF);
-
-		mtr_commit(&local_mtr);
+		local_mtr.commit();
 		return(ret);
 	}
 #endif /* UNIV_DEBUG */
