@@ -22,8 +22,10 @@
 #include "ma_checkpoint.h"
 #include <hash.h>
 
-void history_state_free(MARIA_STATE_HISTORY_CLOSED *closed_history)
+void history_state_free(void *_closed_history)
 {
+  MARIA_STATE_HISTORY_CLOSED *closed_history=
+      (MARIA_STATE_HISTORY_CLOSED *) _closed_history;
   MARIA_STATE_HISTORY *history, *next;
 
   /*

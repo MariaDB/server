@@ -430,9 +430,11 @@ static handler *federated_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *federated_get_key(FEDERATED_SHARE *share, size_t *length,
+static uchar *federated_get_key(const uchar *_share, size_t *length,
                                 my_bool not_used __attribute__ ((unused)))
 {
+  const FEDERATED_SHARE *share=
+      reinterpret_cast<const FEDERATED_SHARE *>(_share);
   *length= share->share_key_length;
   return (uchar*) share->share_key;
 }

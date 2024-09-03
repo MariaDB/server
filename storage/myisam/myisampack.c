@@ -131,8 +131,8 @@ static void free_counts_and_tree_and_queue(HUFF_TREE *huff_trees,
 					   uint trees,
 					   HUFF_COUNTS *huff_counts,
 					   uint fields);
-static int compare_tree(void* cmp_arg __attribute__((unused)),
-			const uchar *s,const uchar *t);
+static int compare_tree(const void *cmp_arg __attribute__((unused)),
+                        const void *s, const void *t);
 static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts);
 static void check_counts(HUFF_COUNTS *huff_counts,uint trees,
 			 my_off_t records);
@@ -143,8 +143,8 @@ static int test_space_compress(HUFF_COUNTS *huff_counts,my_off_t records,
 static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_tree(HUFF_TREE *tree,HUFF_COUNTS *huff_counts);
 static int compare_huff_elements(const void *not_used, const void *a, const void *b);
-static int save_counts_in_queue(uchar *key,element_count count,
-				    HUFF_TREE *tree);
+static int save_counts_in_queue(void *key, element_count count,
+				    void *tree);
 static my_off_t calc_packed_length(HUFF_COUNTS *huff_counts,uint flag);
 static uint join_same_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_decode_table(HUFF_TREE *huff_tree,uint trees);
@@ -176,7 +176,7 @@ static int mrg_rrnd(PACK_MRG_INFO *info,uchar *buf);
 static void mrg_reset(PACK_MRG_INFO *mrg);
 #if !defined(DBUG_OFF)
 static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count);
-static int fakecmp(my_off_t **count1, my_off_t **count2);
+static int fakecmp(const void *count1, const void *count2);
 #endif
 
 
@@ -1694,9 +1694,11 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
   return 0;
 }
 
-static int compare_tree(void* cmp_arg __attribute__((unused)),
-			register const uchar *s, register const uchar *t)
+static int compare_tree(const void *cmp_arg __attribute__((unused)),
+                        const void *_s, const void *_t)
 {
+  register const uchar *s= (const uchar*) _s;
+  register const uchar *t= (const uchar*) _t;
   uint length;
   for (length=global_count->field_length; length-- ;)
     if (*s++ != *t++)
@@ -1725,9 +1727,10 @@ static int compare_tree(void* cmp_arg __attribute__((unused)),
     0
  */
 
-static int save_counts_in_queue(uchar *key, element_count count,
-				HUFF_TREE *tree)
+static int save_counts_in_queue(void *_key, element_count count, void *_tree)
 {
+  uchar *key= (uchar*) _key;
+  HUFF_TREE *tree= (HUFF_TREE*) _tree;
   HUFF_ELEMENT *new_huff_el;
 
   new_huff_el=tree->element_buffer+(tree->elements++);
@@ -3227,8 +3230,10 @@ static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count)
     -1                  count1 >  count2
 */
 
-static int fakecmp(my_off_t **count1, my_off_t **count2)
+static int fakecmp(const void *_count1, const void *_count2)
 {
+my_off_t **count1= (my_off_t**) _count1;
+my_off_t **count2= (my_off_t**) _count2;
   return ((**count1 < **count2) ? 1 :
           (**count1 > **count2) ? -1 : 0);
 }

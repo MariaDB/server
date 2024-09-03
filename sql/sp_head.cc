@@ -996,10 +996,12 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
   DBUG_RETURN(field);
 }
 
-
-int cmp_rqp_locations(Rewritable_query_parameter * const *a,
-                      Rewritable_query_parameter * const *b)
+int cmp_rqp_locations(const void *_a, const void *_b)
 {
+  const Rewritable_query_parameter *const *a=
+      (const Rewritable_query_parameter *const *) _a;
+  const Rewritable_query_parameter *const *b=
+      (const Rewritable_query_parameter *const *) _b;
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
 

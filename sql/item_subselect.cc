@@ -6017,7 +6017,7 @@ bool Ordered_key::alloc_keys_buffers()
 */
 
 int
-Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
+Ordered_key::cmp_keys_by_row_data(const ha_rows a, const ha_rows b) const
 {
   uchar *rowid_a, *rowid_b;
   int error;
@@ -6058,11 +6058,13 @@ Ordered_key::cmp_keys_by_row_data(ha_rows a, ha_rows b)
   return 0;
 }
 
-
-int
-Ordered_key::cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b)
+int Ordered_key::cmp_keys_by_row_data_and_rownum(const void *_key,
+                                                 const void *_a,
+                                                 const void *_b)
 {
+  const Ordered_key *key= static_cast<const Ordered_key *>(_key);
+  const rownum_t *a= static_cast<const rownum_t *>(_a);
+  const rownum_t *b= static_cast<const rownum_t *>(_b);
   /* The result of comparing the two keys according to their row data. */
   int cmp_row_res= key->cmp_keys_by_row_data(*a, *b);
   if (cmp_row_res)
@@ -6583,10 +6585,11 @@ void subselect_rowid_merge_engine::cleanup()
   @retval -1  if k1 is more selective than k2
 */
 
-int
-subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(Ordered_key **k1,
-                                                           Ordered_key **k2)
+int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *_k1,
+                                                               const void *_k2)
 {
+  Ordered_key **k1= static_cast<Ordered_key **>(const_cast<void *>(_k1));
+  Ordered_key **k2= static_cast<Ordered_key **>(const_cast<void *>(_k2));
   double k1_sel= (*k1)->null_selectivity();
   double k2_sel= (*k2)->null_selectivity();
   if (k1_sel < k2_sel)
