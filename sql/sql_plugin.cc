@@ -1445,17 +1445,20 @@ static int plugin_do_initialize(struct st_plugin_int *plugin, uint &state)
   DBUG_ENTER("plugin_do_initialize");
   mysql_mutex_assert_not_owner(&LOCK_plugin);
   plugin_type_init init= plugin_type_initialize[plugin->plugin->type];
-  if (!init)
-    init= (plugin_type_init) plugin->plugin->init;
+  int ret= 0;
   if (init)
-    if (int ret= init(plugin))
-    {
-      /* Plugin init failed and did not requested a retry */
-      if (ret != HA_ERR_RETRY_INIT)
-        print_init_failed_error(plugin);
-      DBUG_RETURN(ret);
-    }
-  state= PLUGIN_IS_READY; // plugin->init() succeeded
+    ret= init(plugin);
+  else if (plugin->plugin->init)
+    ret= plugin->plugin->init(plugin);
+
+  if (ret)
+  {
+    if (ret != HA_ERR_RETRY_INIT)
+      print_init_failed_error(plugin);
+    DBUG_RETURN(ret);
+  }
+
+  state= PLUGIN_IS_READY; // plugin initialization succeeded
 
   if (plugin->plugin->status_vars)
   {

@@ -1749,11 +1749,14 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, uchar *val1, uchar *val2)
+static int QUICK_ROR_UNION_SELECT_queue_cmp(const void *arg, const void *_val1,
+                                            const void *_val2)
 {
-  QUICK_ROR_UNION_SELECT *self= (QUICK_ROR_UNION_SELECT*)arg;
-  return self->head->file->cmp_ref(((QUICK_SELECT_I*)val1)->last_rowid,
-                                   ((QUICK_SELECT_I*)val2)->last_rowid);
+  const QUICK_ROR_UNION_SELECT *self= (const QUICK_ROR_UNION_SELECT*)arg;
+  const QUICK_SELECT_I *val1= (const QUICK_SELECT_I *) _val1;
+  const QUICK_SELECT_I *val2= (const QUICK_SELECT_I *) _val2;
+  return self->head->file->cmp_ref(val1->last_rowid,
+                                   val2->last_rowid);
 }
 
 C_MODE_END
@@ -3346,8 +3349,11 @@ double records_in_column_ranges(PARAM *param, uint idx,
 */
 
 static
-int cmp_quick_ranges(TABLE *table, uint *a, uint *b)
+int cmp_quick_ranges(const void *_table, const void *_a, const void *_b)
 {
+  const TABLE *table= static_cast<const TABLE *>(_table);
+  const uint *a= static_cast<const uint *>(_a);
+  const uint *b= static_cast<const uint *>(_b);
   int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
   if (tmp)
     return tmp;
@@ -5725,8 +5731,10 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 /* Compare two indexes scans for sort before search for the best intersection */
 
 static
-int cmp_intersect_index_scan(INDEX_SCAN_INFO **a, INDEX_SCAN_INFO **b)
+int cmp_intersect_index_scan(const void *_a, const void *_b)
 {
+  INDEX_SCAN_INFO **a= static_cast<INDEX_SCAN_INFO **>(const_cast<void *>(_a));
+  INDEX_SCAN_INFO **b= static_cast<INDEX_SCAN_INFO **>(const_cast<void *>(_b));
   return (*a)->records < (*b)->records ?
           -1 : (*a)->records == (*b)->records ? 0 : 1;
 }
@@ -6659,8 +6667,11 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     1 a > b
 */
 
-static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info(const void *_a, const void *_b)
 {
+
+  ROR_SCAN_INFO **a= static_cast<ROR_SCAN_INFO **>(const_cast<void *>(_a));
+  ROR_SCAN_INFO **b= static_cast<ROR_SCAN_INFO **>(const_cast<void *>(_b));
   double val1= rows2double((*a)->records) * (*a)->key_rec_length;
   double val2= rows2double((*b)->records) * (*b)->key_rec_length;
   return (val1 < val2)? -1: (val1 == val2)? 0 : 1;
@@ -6683,8 +6694,10 @@ static int cmp_ror_scan_info(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
     1 a > b
 */
 
-static int cmp_ror_scan_info_covering(ROR_SCAN_INFO** a, ROR_SCAN_INFO** b)
+static int cmp_ror_scan_info_covering(const void *_a, const void *_b)
 {
+  ROR_SCAN_INFO **a= static_cast<ROR_SCAN_INFO **>(const_cast<void *>(_a));
+  ROR_SCAN_INFO **b= static_cast<ROR_SCAN_INFO **>(const_cast<void *>(_b));
   if ((*a)->used_fields_covered > (*b)->used_fields_covered)
     return -1;
   if ((*a)->used_fields_covered < (*b)->used_fields_covered)

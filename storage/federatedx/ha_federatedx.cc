@@ -364,18 +364,22 @@ static handler *federatedx_create_handler(handlerton *hton,
 /* Function we use in the creation of our hash to get key */
 
 static uchar *
-federatedx_share_get_key(FEDERATEDX_SHARE *share, size_t *length,
+federatedx_share_get_key(const uchar *_share, size_t *length,
                          my_bool not_used __attribute__ ((unused)))
 {
+  const FEDERATEDX_SHARE *share=
+      reinterpret_cast<const FEDERATEDX_SHARE *>(_share);
   *length= share->share_key_length;
   return (uchar*) share->share_key;
 }
 
 
 static uchar *
-federatedx_server_get_key(FEDERATEDX_SERVER *server, size_t *length,
+federatedx_server_get_key(const uchar *_server, size_t *length,
                           my_bool not_used __attribute__ ((unused)))
 {
+  const FEDERATEDX_SERVER *server=
+      reinterpret_cast<const FEDERATEDX_SERVER *>(_server);
   *length= server->key_length;
   return server->key;
 }

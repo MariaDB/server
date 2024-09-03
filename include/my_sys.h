@@ -29,6 +29,7 @@ C_MODE_START
 #include <stdarg.h>
 #include <typelib.h>
 #include <my_alloca.h>
+#include <my_global.h>
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
 
@@ -462,7 +463,7 @@ typedef struct st_io_cache		/* Used when caching files */
   size_t alloced_buffer;
 } IO_CACHE;
 
-typedef int (*qsort2_cmp)(const void *, const void *, const void *);
+typedef qsort_cmp2 qsort2_cmp;
 
 typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);

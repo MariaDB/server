@@ -144,9 +144,12 @@ typedef struct st_ft_info
   enum { UNINITIALIZED, READY, INDEX_SEARCH, INDEX_DONE } state;
 } FTB;
 
-static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
+static int FTB_WORD_cmp(const void *_v, const void *_a, const void *_b)
 {
   int i;
+  const my_off_t *v= (const my_off_t *) _v;
+  const FTB_WORD *a= (const FTB_WORD *) _a;
+  const FTB_WORD *b= (const FTB_WORD *) _b;
 
   /* if a==curdoc, take it as  a < b */
   if (v && a->docid[0] == *v)
@@ -159,8 +162,12 @@ static int FTB_WORD_cmp(my_off_t *v, FTB_WORD *a, FTB_WORD *b)
   return i;
 }
 
-static int FTB_WORD_cmp_list(CHARSET_INFO *cs, FTB_WORD **a, FTB_WORD **b)
+static int FTB_WORD_cmp_list(const void *_cs, const void *_a, const void *_b)
 {
+  CHARSET_INFO *cs= (CHARSET_INFO*) _cs;
+  const FTB_WORD **a= (const FTB_WORD**) _a;
+  const FTB_WORD **b= (const FTB_WORD**) _b;
+
   /* ORDER BY word, ndepth */
   int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
                              (uchar*) (*b)->word + 1, (*b)->len - 1);
@@ -327,7 +334,7 @@ static int _ftb_parse_query(FTB *ftb, uchar *query, uint len,
 }
 
 
-static int _ftb_no_dupes_cmp(void* not_used __attribute__((unused)),
+static int _ftb_no_dupes_cmp(const void *not_used __attribute__((unused)),
                              const void *a,const void *b)
 {
   return CMP_NUM((*((my_off_t*)a)), (*((my_off_t*)b)));
@@ -607,7 +614,7 @@ FT_INFO * ft_init_boolean_search(MI_INFO *info, uint keynr, uchar *query,
                                               sizeof(void *))))
     goto err;
   reinit_queue(&ftb->queue, ftb->queue.max_elements, 0, 0,
-               (int (*)(void*, uchar*, uchar*))FTB_WORD_cmp, 0, 0, 0);
+               FTB_WORD_cmp, 0, 0, 0);
   for (ftbw= ftb->last_word; ftbw; ftbw= ftbw->prev)
     queue_insert(&ftb->queue, (uchar *)ftbw);
   ftb->list=(FTB_WORD **)alloc_root(&ftb->mem_root,

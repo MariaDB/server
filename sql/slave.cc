@@ -3383,9 +3383,11 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
 
 /* Used to sort connections by name */
 
-static int cmp_mi_by_name(const Master_info **arg1,
-                          const Master_info **arg2)
+static int cmp_mi_by_name(const void *_arg1,
+                          const void *_arg2)
 {
+  const Master_info **arg1= (const Master_info **) _arg1;
+  const Master_info **arg2= (const Master_info **) _arg2;
   return my_strcasecmp(system_charset_info, (*arg1)->connection_name.str,
                        (*arg2)->connection_name.str);
 }
