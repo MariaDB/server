@@ -6503,8 +6503,10 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static uchar* role_key(const ACL_ROLE *role, size_t *klen, my_bool)
+static uchar* role_key(const uchar *_role, size_t *klen, my_bool)
 {
+  const ACL_ROLE *role=
+      static_cast<const ACL_ROLE *>(static_cast<const void *>(_role));
   *klen= role->user.length;
   return (uchar*) role->user.str;
 }
