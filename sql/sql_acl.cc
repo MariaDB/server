@@ -683,7 +683,7 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
 static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
 static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
 static void rebuild_acl_users();
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
+static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
 static void rebuild_check_host(void);

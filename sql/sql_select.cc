@@ -100,7 +100,7 @@ static bool update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,
                                 uint tables, COND *conds,
                                 table_map table_map, SELECT_LEX *select_lex,
                                 SARGABLE_PARAM **sargables);
-static int sort_keyuse(KEYUSE *a,KEYUSE *b);
+static int sort_keyuse(const void *a, const void *b);
 static bool are_tables_local(JOIN_TAB *jtab, table_map used_tables);
 static bool create_ref_for_key(JOIN *join, JOIN_TAB *j, KEYUSE *org_keyuse,
 			       bool allow_full_scan, table_map used_tables);
@@ -6834,8 +6834,10 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
 
 
 static int
-sort_keyuse(KEYUSE *a,KEYUSE *b)
+sort_keyuse(const void *_a, const void *_b)
 {
+  const KEYUSE *a= static_cast<const KEYUSE *>(_a);
+  const KEYUSE *b= static_cast<const KEYUSE *>(_b);
   int res;
   if (a->table->tablenr != b->table->tablenr)
     return (int) (a->table->tablenr - b->table->tablenr);
