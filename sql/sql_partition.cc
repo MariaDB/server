@@ -3274,6 +3274,7 @@ notfound:
     DBUG_RETURN(0);
   }
   *part_id= 0;
+  part_info->err_value= part_func_value;
   DBUG_RETURN(HA_ERR_NO_PARTITION_FOUND);
 }
 
