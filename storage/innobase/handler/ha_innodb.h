@@ -438,7 +438,8 @@ public:
 		build_template(true);
 		m_prebuilt->index = dict_table_get_first_index(table);
 		return m_prebuilt;
-}
+	}
+	int update_prebuilt_upd_buf();
 
 protected:
 	bool
@@ -500,13 +501,13 @@ protected:
 	/** Thread handle of the user currently using the handler;
 	this is set in external_lock function */
 	THD*			m_user_thd;
-
+public:
 	/** buffer used in updates */
 	uchar*			m_upd_buf;
 
 	/** the size of upd_buf in bytes */
 	ulint			m_upd_buf_size;
-
+protected:
 	/** Flags that specificy the handler instance (table) capability. */
 	Table_flags		m_int_table_flags;
 

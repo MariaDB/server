@@ -1993,6 +1993,7 @@ row_update_cascade_for_mysql(
 		{
 			TABLE *mysql_table = thr->prebuilt->m_mysql_table;
 			thr->prebuilt->m_mysql_table = NULL;
+			innodb_execute_triggers(node, false, false);
 			row_upd_step(thr);
 			innodb_execute_triggers(node, false, true);
 			thr->prebuilt->m_mysql_table = mysql_table;
