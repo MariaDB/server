@@ -252,19 +252,19 @@ void cleanup_instruments(void)
 
 C_MODE_START
 /** Get hash table key for instrumented files. */
-static uchar *filename_hash_get_key(const uchar *entry, size_t *length,
-                                    my_bool)
+static const uchar *filename_hash_get_key(const void *entry, size_t *length,
+                                          my_bool)
 {
   const PFS_file * const *typed_entry;
   const PFS_file *file;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_file* const *> (entry);
+  typed_entry= static_cast<const PFS_file* const *> (entry);
   assert(typed_entry != NULL);
   file= *typed_entry;
   assert(file != NULL);
   *length= file->m_filename_length;
   result= file->m_filename;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 
