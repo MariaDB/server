@@ -31,7 +31,7 @@ public:
     Constructs an empty hash. Does not allocate memory, it is done upon
     the first insert. Thus does not cause or return errors.
   */
-  Hash_set(PSI_memory_key psi_key, uchar *(*K)(const T *, size_t *, my_bool),
+  Hash_set(PSI_memory_key psi_key, uchar *(*K)(const uchar *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
     my_hash_clear(&m_hash);

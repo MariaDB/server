@@ -216,7 +216,7 @@ public:
   void mark_as_changed(THD *thd, const sys_var *var);
   void deinit() { orig_list.deinit(); }
   /* callback */
-  static uchar *sysvars_get_key(const char *entry, size_t *length,
+  static uchar *sysvars_get_key(const uchar *entry, size_t *length,
                                 my_bool not_used __attribute__((unused)));
 
   friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);

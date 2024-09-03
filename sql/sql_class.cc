@@ -89,15 +89,18 @@ const char * const THD::DEFAULT_WHERE= "field list";
 ** User variables
 ****************************************************************************/
 
-extern "C" uchar *get_var_key(user_var_entry *entry, size_t *length,
+extern "C" uchar *get_var_key(const uchar *_entry, size_t *length,
                               my_bool not_used __attribute__((unused)))
 {
+  const user_var_entry *entry=
+      static_cast<const user_var_entry *>(static_cast<const void *>(_entry));
   *length= entry->name.length;
   return (uchar*) entry->name.str;
 }
 
-extern "C" void free_user_var(user_var_entry *entry)
+extern "C" void free_user_var(void *_entry)
 {
+  user_var_entry *entry= static_cast<user_var_entry *>(_entry);
   char *pos= (char*) entry+ALIGN_SIZE(sizeof(*entry));
   if (entry->value && entry->value != pos)
     my_free(entry->value);
@@ -106,18 +109,20 @@ extern "C" void free_user_var(user_var_entry *entry)
 
 /* Functions for last-value-from-sequence hash */
 
-extern "C" uchar *get_sequence_last_key(SEQUENCE_LAST_VALUE *entry,
+extern "C" uchar *get_sequence_last_key(const uchar *_entry,
                                         size_t *length,
                                         my_bool not_used
                                         __attribute__((unused)))
 {
+  const SEQUENCE_LAST_VALUE *entry= static_cast<const SEQUENCE_LAST_VALUE *>(
+      static_cast<const void *>(_entry));
   *length= entry->length;
   return (uchar*) entry->key;
 }
 
-extern "C" void free_sequence_last(SEQUENCE_LAST_VALUE *entry)
+extern "C" void free_sequence_last(void *entry)
 {
-  delete entry;
+  delete static_cast<SEQUENCE_LAST_VALUE *>(entry);
 }
 
 
@@ -621,8 +626,9 @@ handle_condition(THD *thd,
    timeouts at end of query (and thus before THD is destroyed)
 */
 
-extern "C" void thd_kill_timeout(THD* thd)
+extern "C" void thd_kill_timeout(void *_thd)
 {
+  THD *thd= static_cast<THD *>(_thd);
   thd->status_var.max_statement_time_exceeded++;
   /* Kill queries that can't cause data corruptions */
   thd->awake(KILL_TIMEOUT);
@@ -4110,9 +4116,11 @@ static void delete_statement_as_hash_key(void *key)
   delete (Statement *) key;
 }
 
-static uchar *get_stmt_name_hash_key(Statement *entry, size_t *length,
-                                    my_bool not_used __attribute__((unused)))
+static uchar *get_stmt_name_hash_key(const uchar *_entry, size_t *length,
+                                     my_bool not_used __attribute__((unused)))
 {
+  const Statement *entry=
+      static_cast<const Statement *>(static_cast<const void *>(_entry));
   *length= entry->name.length;
   return (uchar*) entry->name.str;
 }

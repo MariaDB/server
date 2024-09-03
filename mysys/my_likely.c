@@ -35,9 +35,10 @@ typedef struct st_likely_entry
   ulonglong ok,fail;
 } LIKELY_ENTRY;
 
-static uchar *get_likely_key(LIKELY_ENTRY *part, size_t *length,
+static uchar *get_likely_key(const uchar *_part, size_t *length,
                              my_bool not_used __attribute__((unused)))
 {
+  LIKELY_ENTRY *part= (LIKELY_ENTRY*) _part;
   *length= part->key_length;
   return (uchar*) part->key;
 }
@@ -55,8 +56,10 @@ void init_my_likely()
   pthread_mutex_init(&likely_mutex, MY_MUTEX_INIT_FAST);
 }
 
-static int likely_cmp(LIKELY_ENTRY **a, LIKELY_ENTRY **b)
+static int likely_cmp(const void  *_a, const void *_b)
 {
+  LIKELY_ENTRY **a= (LIKELY_ENTRY**) _a;
+  LIKELY_ENTRY **b= (LIKELY_ENTRY**) _b;
   int cmp;
   if ((cmp= strcmp((*a)->key, (*b)->key)))
     return cmp;

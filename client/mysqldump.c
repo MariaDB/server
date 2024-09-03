@@ -857,10 +857,10 @@ static void write_footer(FILE *sql_file)
 } /* write_footer */
 
 
-uchar* get_table_key(const char *entry, size_t *length,
+uchar* get_table_key(const uchar *entry, size_t *length,
                      my_bool not_used __attribute__((unused)))
 {
-  *length= strlen(entry);
+  *length= strlen((const char*) entry);
   return (uchar*) entry;
 }
 

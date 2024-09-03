@@ -1291,9 +1291,9 @@ protected:
     Quick sort comparison function that compares two rows of the same table
     indentfied with their row numbers.
   */
-  int cmp_keys_by_row_data(rownum_t a, rownum_t b);
-  static int cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b);
+  int cmp_keys_by_row_data(const rownum_t a, const rownum_t b) const;
+  static int cmp_keys_by_row_data_and_rownum(const void *key, const void *a,
+                                             const void *b);
 
   int cmp_key_with_search_key(rownum_t row_num);
 
@@ -1510,7 +1510,7 @@ protected:
     Comparison function to compare keys in order of decreasing bitmap
     selectivity.
   */
-  static int cmp_keys_by_null_selectivity(Ordered_key **k1, Ordered_key **k2);
+  static int cmp_keys_by_null_selectivity(const void *k1, const void *k2);
   /*
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.

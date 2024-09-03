@@ -40,8 +40,10 @@
 #include "uniques.h"	                        // Unique
 #include "sql_sort.h"
 
-int unique_write_to_file(uchar* key, element_count count, Unique *unique)
+int unique_write_to_file(void* _key, element_count count, void *_unique)
 {
+  uchar *key= static_cast<uchar *>(_key);
+  Unique *unique= static_cast<Unique *>(_unique);
   /*
     Use unique->size (size of element stored in the tree) and not
     unique->tree.size_of_element. The latter is different from unique->size
@@ -51,21 +53,27 @@ int unique_write_to_file(uchar* key, element_count count, Unique *unique)
   return my_b_write(&unique->file, key, unique->size) ? 1 : 0;
 }
 
-int unique_write_to_file_with_count(uchar* key, element_count count, Unique *unique)
+int unique_write_to_file_with_count(void* _key, element_count count, void *_unique)
 {
+  uchar *key= static_cast<uchar *>(_key);
+  Unique *unique= static_cast<Unique *>(_unique);
   return my_b_write(&unique->file, key, unique->size) ||
          my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
-int unique_write_to_ptrs(uchar* key, element_count count, Unique *unique)
+int unique_write_to_ptrs(void* _key, element_count count, void *_unique)
 {
+  uchar *key= static_cast<uchar *>(_key);
+  Unique *unique= static_cast<Unique *>(_unique);
   memcpy(unique->sort.record_pointers, key, unique->size);
   unique->sort.record_pointers+=unique->size;
   return 0;
 }
 
-int unique_intersect_write_to_ptrs(uchar* key, element_count count, Unique *unique)
+int unique_intersect_write_to_ptrs(void* _key, element_count count, void *_unique)
 {
+  uchar *key= static_cast<uchar *>(_key);
+  Unique *unique= static_cast<Unique *>(_unique);
   if (count >= unique->min_dupl_count)
   {
     memcpy(unique->sort.record_pointers, key, unique->size);

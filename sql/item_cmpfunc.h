@@ -1476,7 +1476,7 @@ public:
   }
   const Type_handler *type_handler() const override { return &type_handler_slonglong; }
 
-  friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+  friend int cmp_longlong(const void *cmp_arg, const void *a, const void *b);
 };
 
 
@@ -1510,7 +1510,7 @@ public:
     Item_datetime *dt= static_cast<Item_datetime*>(item);
     dt->set(val->val, type_handler()->mysql_timestamp_type());
   }
-  friend int cmp_longlong(void *cmp_arg, packed_longlong *a,packed_longlong *b);
+  friend int cmp_longlong(const void *cmp_arg, const void *a, const void *b);
 };
 
 
@@ -1590,7 +1590,7 @@ public:
   virtual int cmp(Item *item)= 0;
   virtual int cmp_not_null(const Value *value)= 0;
   // for optimized IN with row
-  virtual int compare(cmp_item *item)= 0;
+  virtual int compare(const cmp_item *item) const = 0;
   virtual cmp_item *make_same()= 0;
   /*
     Store a scalar or a ROW value into "this".
@@ -1668,7 +1668,7 @@ public:
     else
       return TRUE;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
@@ -1702,7 +1702,7 @@ public:
     const bool rc= value != arg->val_int();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_int *l_cmp= (cmp_item_int *)ci;
     return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -1719,7 +1719,7 @@ protected:
   longlong value;
 public:
   cmp_item_temporal() = default;
-  int compare(cmp_item *ci) override;
+  int compare(const cmp_item *ci) const override;
 };
 
 
@@ -1765,7 +1765,7 @@ public:
   void store_value(Item *item) override;
   int cmp_not_null(const Value *val) override;
   int cmp(Item *arg) override;
-  int compare(cmp_item *ci) override;
+  int compare(const cmp_item *ci) const override;
   cmp_item *make_same() override;
 };
 
@@ -1791,7 +1791,7 @@ public:
     const bool rc= value != arg->val_real();
     return (m_null_value || arg->null_value) ? UNKNOWN : rc;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_real *l_cmp= (cmp_item_real *) ci;
     return (value < l_cmp->value)? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -1808,7 +1808,7 @@ public:
   void store_value(Item *item) override;
   int cmp(Item *arg) override;
   int cmp_not_null(const Value *val) override;
-  int compare(cmp_item *c) override;
+  int compare(const cmp_item *c) const override;
   cmp_item *make_same() override;
 };
 
@@ -1841,7 +1841,7 @@ public:
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *ci) override
+  int compare(const cmp_item *ci) const override
   {
     cmp_item_string *l_cmp= (cmp_item_string *) ci;
     return sortcmp(value_res, l_cmp->value_res, cmp_charset);
@@ -2557,7 +2557,7 @@ public:
     DBUG_ASSERT(false);
     return TRUE;
   }
-  int compare(cmp_item *arg) override;
+  int compare(const cmp_item *arg) const override;
   cmp_item *make_same() override;
   bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *) override;
   friend class Item_func_in;

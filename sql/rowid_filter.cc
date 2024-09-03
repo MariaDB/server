@@ -171,12 +171,13 @@ Rowid_filter_container *Range_rowid_filter_cost_info::create_container()
   return res;
 }
 
-
-static
-int compare_range_rowid_filter_cost_info_by_a(
-                        Range_rowid_filter_cost_info **filter_ptr_1,
-                        Range_rowid_filter_cost_info **filter_ptr_2)
+static int compare_range_rowid_filter_cost_info_by_a(const void *_filter_ptr_1,
+                                                     const void *_filter_ptr_2)
 {
+  Range_rowid_filter_cost_info **filter_ptr_1=
+      (Range_rowid_filter_cost_info **) _filter_ptr_1;
+  Range_rowid_filter_cost_info **filter_ptr_2=
+      (Range_rowid_filter_cost_info **) _filter_ptr_2;
   double diff= (*filter_ptr_2)->get_a() - (*filter_ptr_1)->get_a();
   return (diff < 0 ? -1 : (diff > 0 ? 1 : 0));
 }

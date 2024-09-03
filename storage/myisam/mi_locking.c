@@ -452,8 +452,10 @@ my_bool mi_check_status(void *param)
           structure.
 */
 
-void mi_fix_status(MI_INFO *org_table, MI_INFO *new_table)
+void mi_fix_status(void *_org_table, void *_new_table)
 {
+  MI_INFO *org_table= (MI_INFO*) _org_table;
+  MI_INFO *new_table= (MI_INFO*) _new_table;
   DBUG_ENTER("mi_fix_status");
   if (!new_table)
   {

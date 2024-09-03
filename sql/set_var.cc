@@ -48,9 +48,10 @@ static ulonglong system_variable_hash_version= 0;
   Return variable name and length for hashing of variables.
 */
 
-static uchar *get_sys_var_length(const sys_var *var, size_t *length,
+static uchar *get_sys_var_length(const uchar *_var, size_t *length,
                                  my_bool first)
 {
+  const sys_var *var= reinterpret_cast<const sys_var *>(_var);
   *length= var->name.length;
   return (uchar*) var->name.str;
 }
@@ -614,8 +615,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 }
 
 
-static int show_cmp(SHOW_VAR *a, SHOW_VAR *b)
+static int show_cmp(const void *_a, const void *_b)
 {
+  const SHOW_VAR *a= static_cast<const SHOW_VAR *>(_a);
+  const SHOW_VAR *b= static_cast<const SHOW_VAR *>(_b);
   return strcmp(a->name, b->name);
 }
 

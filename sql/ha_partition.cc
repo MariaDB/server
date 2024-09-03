@@ -3368,9 +3368,10 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
   @return Partition name
 */
 
-static uchar *get_part_name(PART_NAME_DEF *part, size_t *length,
+static uchar *get_part_name(const uchar *_part, size_t *length,
                             my_bool not_used __attribute__((unused)))
 {
+  const PART_NAME_DEF *part= reinterpret_cast<const PART_NAME_DEF*>(_part);
   *length= part->length;
   return part->partition_name;
 }
@@ -8376,10 +8377,13 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   Helper function for sorting according to number of rows in descending order.
 */
 
-int ha_partition::compare_number_of_records(ha_partition *me,
-                                            const uint32 *a,
-                                            const uint32 *b)
+int ha_partition::compare_number_of_records(const void *_me,
+                                            const void *_a,
+                                            const void *_b)
 {
+  const ha_partition *me= static_cast<const ha_partition*>(_me);
+  const uint32 *a= static_cast<const uint32*>(_a);
+  const uint32 *b= static_cast<const uint32*>(_b);
   handler **file= me->m_file;
   /* Note: sorting in descending order! */
   if (file[*a]->stats.records > file[*b]->stats.records)

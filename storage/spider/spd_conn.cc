@@ -105,10 +105,11 @@ pthread_mutex_t spider_conn_mutex;
 
 /* for spider_open_connections and trx_conn_hash */
 uchar *spider_conn_get_key(
-  SPIDER_CONN *conn,
+  const uchar *_conn,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  const SPIDER_CONN *conn= reinterpret_cast<const SPIDER_CONN *>(_conn);
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
   DBUG_PRINT("info",("spider conn_kind=%u", conn->conn_kind));
@@ -119,31 +120,37 @@ uchar *spider_conn_get_key(
 }
 
 uchar *spider_ipport_conn_get_key(
-   SPIDER_IP_PORT_CONN *ip_port,
+   const uchar *_ip_port,
    size_t *length,
    my_bool not_used __attribute__ ((unused))
 )
 {
+  const SPIDER_IP_PORT_CONN *ip_port=
+      reinterpret_cast<const SPIDER_IP_PORT_CONN *>(_ip_port);
   DBUG_ENTER("spider_ipport_conn_get_key");
   *length = ip_port->key_len;
   DBUG_RETURN((uchar*) ip_port->key);
 }
 
 static uchar *spider_loop_check_full_get_key(
-  SPIDER_CONN_LOOP_CHECK *ptr,
+  const uchar *_ptr,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  const SPIDER_CONN_LOOP_CHECK *ptr=
+      reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(_ptr);
   DBUG_ENTER("spider_loop_check_full_get_key");
   *length = ptr->full_name.length;
   DBUG_RETURN((uchar*) ptr->full_name.str);
 }
 
 static uchar *spider_loop_check_to_get_key(
-  SPIDER_CONN_LOOP_CHECK *ptr,
+  const uchar *_ptr,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  const SPIDER_CONN_LOOP_CHECK *ptr=
+      reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(_ptr);
   DBUG_ENTER("spider_loop_check_to_get_key");
   *length = ptr->to_name.length;
   DBUG_RETURN((uchar*) ptr->to_name.str);

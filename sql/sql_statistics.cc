@@ -1732,10 +1732,10 @@ public:
 
 
 static
-int simple_ulonglong_key_cmp(void* arg, uchar* key1, uchar* key2)
+int simple_ulonglong_key_cmp(const void*, const void* key1, const void* key2)
 {
-  ulonglong *val1= (ulonglong *) key1;
-  ulonglong *val2= (ulonglong *) key2;
+  const ulonglong *val1= static_cast<const ulonglong *>(key1);
+  const ulonglong *val2= static_cast<const ulonglong *>(key2);
   return *val1 > *val2 ? 1 : *val1 == *val2 ? 0 : -1; 
 }
   

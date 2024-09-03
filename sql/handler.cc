@@ -6144,15 +6144,19 @@ static int cmp_file_names(const void *a, const void *b)
   return cs->strnncoll(aa, strlen(aa), bb, strlen(bb));
 }
 
-static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names(const void *_a, const void *_b)
 {
+  LEX_CSTRING *const *a= static_cast<LEX_CSTRING *const *>(_a);
+  LEX_CSTRING *const *b= static_cast<LEX_CSTRING *const *>(_b);
   return my_charset_bin.strnncoll((*a)->str, (*a)->length,
                                   (*b)->str, (*b)->length);
 }
 
 #ifndef DBUG_OFF
-static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names_desc(const void *_a, const void *_b)
 {
+  LEX_CSTRING *const *a= static_cast<LEX_CSTRING *const *>(_a);
+  LEX_CSTRING *const *b= static_cast<LEX_CSTRING *const *>(_b);
   return -cmp_table_names(a, b);
 }
 #endif

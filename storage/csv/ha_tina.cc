@@ -96,8 +96,10 @@ static handler *tina_create_handler(handlerton *hton,
 /*
   Used for sorting chains with qsort().
 */
-int sort_set (tina_set *a, tina_set *b)
+int sort_set (const void *_a, const void *_b)
 {
+  const tina_set *a= static_cast<const tina_set*>(_a);
+  const tina_set *b= static_cast<const tina_set*>(_b);
   /*
     We assume that intervals do not intersect. So, it is enought to compare
     any two points. Here we take start of intervals for comparison.
@@ -105,9 +107,10 @@ int sort_set (tina_set *a, tina_set *b)
   return ( a->begin > b->begin ? 1 : ( a->begin < b->begin ? -1 : 0 ) );
 }
 
-static uchar* tina_get_key(TINA_SHARE *share, size_t *length,
+static uchar* tina_get_key(const uchar *_share, size_t *length,
                           my_bool not_used __attribute__((unused)))
 {
+  const TINA_SHARE *share= reinterpret_cast<const TINA_SHARE*>(_share);
   *length=share->table_name_length;
   return (uchar*) share->table_name;
 }

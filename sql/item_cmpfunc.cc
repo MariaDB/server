@@ -3650,10 +3650,14 @@ static inline int cmp_ulongs (ulonglong a_val, ulonglong b_val)
     0           left argument is equal to the right argument.
     1           left argument is greater than the right argument.
 */
-int cmp_longlong(void *cmp_arg, 
-                 in_longlong::packed_longlong *a,
-                 in_longlong::packed_longlong *b)
+int cmp_longlong(const void *cmp_arg,
+                 const void *_a,
+                 const void *_b)
 {
+  const in_longlong::packed_longlong *a=
+      static_cast<const in_longlong::packed_longlong *>(_a);
+  const in_longlong::packed_longlong *b=
+      static_cast<const in_longlong::packed_longlong *>(_b);
   if (a->unsigned_flag != b->unsigned_flag)
   { 
     /* 
@@ -3675,19 +3679,25 @@ int cmp_longlong(void *cmp_arg,
   return cmp_longs(a->val, b->val);
 }
 
-static int cmp_double(void *cmp_arg, double *a,double *b)
+static int cmp_double(const void *, const void *_a, const void *_b)
 {
+  const double *a= static_cast<const double *>(_a);
+  const double *b= static_cast<const double *>(_b);
   return *a < *b ? -1 : *a == *b ? 0 : 1;
 }
 
-static int cmp_row(void *cmp_arg, cmp_item_row *a, cmp_item_row *b)
+static int cmp_row(const void *, const void *_a, const void *_b)
 {
+  const cmp_item_row *a= static_cast<const cmp_item_row *>(_a);
+  const cmp_item_row *b= static_cast<const cmp_item_row *>(_b);
   return a->compare(b);
 }
 
 
-static int cmp_decimal(void *cmp_arg, my_decimal *a, my_decimal *b)
+static int cmp_decimal(const void *, const void *_a, const void *_b)
 {
+  my_decimal *a= const_cast<my_decimal *>(static_cast<const my_decimal *>(_a));
+  my_decimal *b= const_cast<my_decimal *>(static_cast<const my_decimal *>(_b));
   /*
     We need call of fixing buffer pointer, because fast sort just copy
     decimal buffers in memory and pointers left pointing on old buffer place
@@ -3839,10 +3849,15 @@ Item *in_longlong::create_item(THD *thd)
 }
 
 
-static int cmp_timestamp(void *cmp_arg,
-                         Timestamp_or_zero_datetime *a,
-                         Timestamp_or_zero_datetime *b)
+static int cmp_timestamp(const void *,
+                         const void *_a,
+                         const void *_b)
 {
+
+  const Timestamp_or_zero_datetime *a=
+      static_cast<const Timestamp_or_zero_datetime *>(_a);
+  const Timestamp_or_zero_datetime *b=
+      static_cast<const Timestamp_or_zero_datetime *>(_b);
   return a->cmp(*b);
 }
 
@@ -4201,7 +4216,7 @@ int cmp_item_row::cmp(Item *arg)
 }
 
 
-int cmp_item_row::compare(cmp_item *c)
+int cmp_item_row::compare(const cmp_item *c) const
 {
   cmp_item_row *l_cmp= (cmp_item_row *) c;
   for (uint i=0; i < n; i++)
@@ -4239,7 +4254,7 @@ int cmp_item_decimal::cmp(Item *arg)
 }
 
 
-int cmp_item_decimal::compare(cmp_item *arg)
+int cmp_item_decimal::compare(const cmp_item *arg) const
 {
   cmp_item_decimal *l_cmp= (cmp_item_decimal*) arg;
   return my_decimal_cmp(&value, &l_cmp->value);
@@ -4282,7 +4297,7 @@ int cmp_item_time::cmp(Item *arg)
 }
 
 
-int cmp_item_temporal::compare(cmp_item *ci)
+int cmp_item_temporal::compare(const cmp_item *ci) const
 {
   cmp_item_temporal *l_cmp= (cmp_item_temporal *)ci;
   return (value < l_cmp->value) ? -1 : ((value == l_cmp->value) ? 0 : 1);
@@ -4330,9 +4345,9 @@ int cmp_item_timestamp::cmp(Item *arg)
 }
 
 
-int cmp_item_timestamp::compare(cmp_item *arg)
+int cmp_item_timestamp::compare(const cmp_item *arg) const
 {
-  cmp_item_timestamp *tmp= static_cast<cmp_item_timestamp*>(arg);
+  const cmp_item_timestamp *tmp= static_cast<const cmp_item_timestamp*>(arg);
   return type_handler_timestamp2.cmp_native(m_native, tmp->m_native);
 }
 
