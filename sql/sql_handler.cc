@@ -112,11 +112,13 @@ SQL_HANDLER::~SQL_HANDLER()
     Pointer to the TABLE_LIST struct.
 */
 
-static char *mysql_ha_hash_get_key(SQL_HANDLER *table, size_t *key_len,
-                                   my_bool first __attribute__((unused)))
+static uchar *mysql_ha_hash_get_key(const uchar *_table, size_t *key_len,
+                                    my_bool first __attribute__((unused)))
 {
+  const SQL_HANDLER *table=
+      static_cast<const SQL_HANDLER *>(static_cast<const void *>(_table));
   *key_len= table->handler_name.length + 1 ; /* include '\0' in comparisons */
-  return (char*) table->handler_name.str;
+  return (uchar*) table->handler_name.str;
 }
 
 
@@ -134,8 +136,9 @@ static char *mysql_ha_hash_get_key(SQL_HANDLER *table, size_t *key_len,
     Nothing
 */
 
-static void mysql_ha_hash_free(SQL_HANDLER *table)
+static void mysql_ha_hash_free(void *_table)
 {
+  SQL_HANDLER *table= static_cast<SQL_HANDLER *>(_table);
   delete table;
 }
 

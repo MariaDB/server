@@ -48,25 +48,25 @@ typedef struct st_spider_param_string_parse
 } SPIDER_PARAM_STRING_PARSE;
 
 uchar *spider_tbl_get_key(
-  SPIDER_SHARE *share,
+  const uchar *share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
 
 uchar *spider_wide_share_get_key(
-  SPIDER_WIDE_SHARE *share,
+  const uchar *share,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
 
 uchar *spider_link_get_key(
-  SPIDER_LINK_FOR_HASH *link_for_hash,
+  const uchar *link_for_hash,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
 
 uchar *spider_ha_get_key(
-  ha_spider *spider,
+  const uchar *spider,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 );
@@ -451,8 +451,8 @@ bool spider_check_index_merge(
 );
 
 int spider_compare_for_sort(
-  SPIDER_SORT *a,
-  SPIDER_SORT *b
+  const void *a,
+  const void *b
 );
 
 ulong spider_calc_for_sort(

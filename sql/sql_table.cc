@@ -2958,8 +2958,10 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   PRIMARY keys are prioritized.
 */
 
-static int sort_keys(KEY *a, KEY *b)
+static int sort_keys(const void *_a, const void *_b)
 {
+  const KEY *a= static_cast<const KEY *>(_a);
+  const KEY *b= static_cast<const KEY *>(_b);
   ulong a_flags= a->flags, b_flags= b->flags;
   
   /*
@@ -7137,8 +7139,10 @@ static bool fix_constraints_names(THD *thd, List<Virtual_column_info>
 }
 
 
-static int compare_uint(const uint *s, const uint *t)
+static int compare_uint(const void *_s, const void *_t)
 {
+  const uint *s= static_cast<const uint *>(_s);
+  const uint *t= static_cast<const uint *>(_t);
   return (*s < *t) ? -1 : ((*s > *t) ? 1 : 0);
 }
 

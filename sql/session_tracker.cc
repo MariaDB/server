@@ -556,7 +556,7 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
   @return Pointer to the key buffer.
 */
 
-uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
+uchar *Session_sysvars_tracker::sysvars_get_key(const uchar *entry,
                                                 size_t *length,
                                                 my_bool not_used __attribute__((unused)))
 {

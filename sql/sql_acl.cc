@@ -683,7 +683,7 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
 static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
 static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
 static void rebuild_acl_users();
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
+static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
 static void rebuild_check_host(void);
@@ -6517,8 +6517,10 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static uchar* role_key(const ACL_ROLE *role, size_t *klen, my_bool)
+static uchar* role_key(const uchar *_role, size_t *klen, my_bool)
 {
+  const ACL_ROLE *role=
+      static_cast<const ACL_ROLE *>(static_cast<const void *>(_role));
   *klen= role->user.length;
   return (uchar*) role->user.str;
 }
