@@ -64,10 +64,12 @@ extern pthread_mutex_t spider_allocated_thds_mutex;
 
 // for spider_alter_tables
 uchar *spider_alter_tbl_get_key(
-  SPIDER_ALTER_TABLE *alter_table,
+  const uchar *_alter_table,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  const SPIDER_ALTER_TABLE *alter_table=
+      reinterpret_cast<const SPIDER_ALTER_TABLE *>(_alter_table);
   DBUG_ENTER("spider_alter_tbl_get_key");
   *length = alter_table->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
@@ -77,10 +79,12 @@ uchar *spider_alter_tbl_get_key(
 
 // for SPIDER_TRX_HA
 uchar *spider_trx_ha_get_key(
-  SPIDER_TRX_HA *trx_ha,
+  const uchar *_trx_ha,
   size_t *length,
   my_bool not_used __attribute__ ((unused))
 ) {
+  const SPIDER_TRX_HA *trx_ha=
+      reinterpret_cast<const SPIDER_TRX_HA *>(_trx_ha);
   DBUG_ENTER("spider_trx_ha_get_key");
   *length = trx_ha->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));

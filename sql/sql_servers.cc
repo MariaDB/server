@@ -81,9 +81,11 @@ static int update_server_record_in_cache(FOREIGN_SERVER *existing,
 /* utility functions */
 static void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to);
 
-static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
-			       my_bool not_used __attribute__((unused)))
+static uchar *servers_cache_get_key(const uchar *_server, size_t *length,
+                                    my_bool not_used __attribute__((unused)))
 {
+  const FOREIGN_SERVER *server=
+      static_cast<const FOREIGN_SERVER *>(static_cast<const void *>(_server));
   DBUG_ENTER("servers_cache_get_key");
   DBUG_PRINT("info", ("server_name_length %zd server_name %s",
                       server->server_name_length,

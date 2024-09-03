@@ -57,12 +57,12 @@ extern int main(int argc,char * *argv);
 static void get_options(int *argc,char ***argv);
 static int examine_log(char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
-static int file_info_compare(void *cmp_arg, void *a,void *b);
-static int test_if_open(struct file_info *key,element_count count,
-			struct test_if_open_param *param);
+static int file_info_compare(const void *cmp_arg, const void *a,
+                             const void *b);
+static int test_if_open(void *key, element_count count, void *param);
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
-static int test_when_accessed(struct file_info *key,element_count count,
-			      struct st_access_param *access_param);
+static int test_when_accessed(void *key, element_count count,
+                              void *access_param);
 static int file_info_free(void*, TREE_FREE, void *);
 static int close_some_file(TREE *tree);
 static int reopen_closed_file(TREE *tree,struct file_info *file_info);
@@ -695,9 +695,8 @@ static int read_string(IO_CACHE *file, register uchar* *to, register uint length
   DBUG_RETURN (0);
 }				/* read_string */
 
-
-static int file_info_compare(void* cmp_arg __attribute__((unused)),
-			     void *a, void *b)
+static int file_info_compare(const void *cmp_arg __attribute__((unused)),
+                             const void *a, const void *b)
 {
   long lint;
 
@@ -709,10 +708,12 @@ static int file_info_compare(void* cmp_arg __attribute__((unused)),
 
 	/* ARGSUSED */
 
-static int test_if_open (struct file_info *key,
+static int test_if_open (void *_key,
 			 element_count count __attribute__((unused)),
-			 struct test_if_open_param *param)
+			 void *_param)
 {
+  struct file_info *key= (struct file_info*) _key;
+  struct test_if_open_param *param= (struct test_if_open_param*) _param;
   if (!strcmp(key->name,param->name) && key->id > param->max_id)
     param->max_id=key->id;
   return 0;
@@ -737,10 +738,12 @@ static void fix_blob_pointers(MI_INFO *info, uchar *record)
 	/* close the file with hasn't been accessed for the longest time */
 	/* ARGSUSED */
 
-static int test_when_accessed (struct file_info *key,
+static int test_when_accessed (void *_key,
 			       element_count count __attribute__((unused)),
-			       struct st_access_param *access_param)
+			       void *_access_param)
 {
+  struct file_info *key= (struct file_info*) _key;
+  struct st_access_param *access_param= (struct st_access_param*) _access_param;
   if (key->accessed < access_param->min_accessed && ! key->closed)
   {
     access_param->min_accessed=key->accessed;

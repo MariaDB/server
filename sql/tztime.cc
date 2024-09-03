@@ -1499,18 +1499,22 @@ public:
 */
 
 extern "C" uchar *
-my_tz_names_get_key(Tz_names_entry *entry, size_t *length,
+my_tz_names_get_key(const uchar *_entry, size_t *length,
                     my_bool not_used __attribute__((unused)))
 {
+  const Tz_names_entry *entry=
+      static_cast<const Tz_names_entry *>(static_cast<const void *>(_entry));
   *length= entry->name.length();
   return (uchar*) entry->name.ptr();
 }
 
 extern "C" uchar *
-my_offset_tzs_get_key(Time_zone_offset *entry,
+my_offset_tzs_get_key(const uchar *_entry,
                       size_t *length,
                       my_bool not_used __attribute__((unused)))
 {
+  const Time_zone_offset *entry=
+      static_cast<const Time_zone_offset *>(static_cast<const void *>(_entry));
   *length= sizeof(long);
   return (uchar*) &entry->offset;
 }
