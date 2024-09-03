@@ -7732,6 +7732,10 @@ Compare_keys handler::compare_key_parts(const Field &old_field,
 int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
 {
   DBUG_ENTER("ha_abort_transaction");
+
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+
   if (!WSREP(bf_thd) &&
       !(bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU &&
         wsrep_thd_is_toi(bf_thd))) {
@@ -7751,6 +7755,9 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
+
+  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
 
   DBUG_RETURN(0);
 }

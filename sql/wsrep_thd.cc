@@ -395,6 +395,9 @@ void wsrep_abort_thd(THD *bf_thd,
     mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
   }
 
+  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
+
   DBUG_VOID_RETURN;
 }
 
