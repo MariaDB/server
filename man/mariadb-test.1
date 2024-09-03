@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-TEST\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-TEST\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,34 +11,34 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqltest
-.\" mysqltest_embedded
+.\" mariadb-test
+.\" mariadb-test-embedded
 .SH "NAME"
-mariadb-test \- program to run test cases (mysqltest is now a symlink to mariadb-test)
+mariadb-test \- program to run test cases (mariadb-test is now a symlink to mariadb-test)
 .br
-mysqltest_embedded \- program to run embedded test cases
+mariadb-test-embedded \- program to run embedded test cases
 .SH "SYNOPSIS"
-.HP \w'\fBmysqltest\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB]\fR\ 'u
-\fBmysqltest [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB]\fR
-.HP \w'\fBmysqltest_embedded\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB]\fR\ 'u
-\fBmysqltest_embedded [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB]\fR
+.HP \w'\fBmariadb-test\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB]\fR\ 'u
+\fBmariadb-test [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB]\fR
+.HP \w'\fBmariadb-test-embedded\ [\fR\fB\fIoptions\fR\fR\fB]\ [\fR\fB\fIdb_name\fR\fR\fB]\fR\ 'u
+\fBmariadb-test-embedded [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysqltest\fR
+\fBmariadb-test\fR
 program runs a test case against a MariaDB server and optionally compares the output with a result file\&. This program reads input written in a special test language\&. Typically, you invoke
-\fBmysqltest\fR
+\fBmariadb-test\fR
 via
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 rather than invoking it directly\&.
 .PP
-\fBmysqltest_embedded\fR
+\fBmariadb-test-embedded\fR
 is similar but is built with support for the
-libmysqld
+libmariadbd
 embedded server\&.
 .PP
 Features of
-\fBmysqltest\fR:
+\fBmariadb-test\fR:
 .sp
 .RS 4
 .ie n \{\
@@ -82,7 +82,7 @@ Can test whether the result from an SQL statement or shell command is as expecte
 .IP \(bu 2.3
 .\}
 Can connect to one or more standalone
-\fBmysqld\fR
+\fBmariadbd\fR
 servers and switch between connections
 .RE
 .sp
@@ -94,24 +94,24 @@ servers and switch between connections
 .sp -1
 .IP \(bu 2.3
 .\}
-Can connect to an embedded server (libmysqld), if MariaDB is compiled with support for
-libmysqld\&. (In this case, the executable is named
-\fBmysqltest_embedded\fR
+Can connect to an embedded server (libmariadbd), if MariaDB is compiled with support for
+libmariadbd\&. (In this case, the executable is named
+\fBmariadb-test-embedded\fR
 rather than
-\fBmysqltest\fR\&.)
+\fBmariadb-test\fR\&.)
 .RE
 .PP
 By default,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 reads the test case on the standard input\&. To run
-\fBmysqltest\fR
+\fBmariadb-test\fR
 this way, you normally invoke it like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqltest [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB] < \fR\fB\fItest_file\fR\fR
+shell> \fBmariadb-test [\fR\fB\fIoptions\fR\fR\fB] [\fR\fB\fIdb_name\fR\fR\fB] < \fR\fB\fItest_file\fR\fR
 .fi
 .if n \{\
 .RE
@@ -122,10 +122,10 @@ You can also name the test case file with a
 option\&.
 .PP
 The exit value from
-\fBmysqltest\fR
+\fBmariadb-test\fR
 is 0 for success, 1 for failure, and 62 if it skips the test case (for example, if after checking some preconditions it decides not to run the test)\&.
 .PP
-\fBmysqltest\fR
+\fBmariadb-test\fR
 supports the following options:
 .sp
 .RS 4
@@ -136,8 +136,8 @@ supports the following options:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: help option
-.\" help option: mysqltest
+.\" mariadb-test: help option
+.\" help option: mariadb-test
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -152,8 +152,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: basedir option
-.\" basedir option: mysqltest
+.\" mariadb-test: basedir option
+.\" basedir option: mariadb-test
 \fB\-\-basedir=\fR\fB\fIdir_name\fR\fR,
 \fB\-b \fR\fB\fIdir_name\fR\fR
 .sp
@@ -168,8 +168,8 @@ The base directory for tests\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: character-sets-dir option
-.\" character-sets-dir option: mysqltest
+.\" mariadb-test: character-sets-dir option
+.\" character-sets-dir option: mariadb-test
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -183,8 +183,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: compress option
-.\" compress option: mysqltest
+.\" mariadb-test: compress option
+.\" compress option: mariadb-test
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -199,8 +199,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: connect-timeout option
-.\" connect-timeout option: mysqltest
+.\" mariadb-test: connect-timeout option
+.\" connect-timeout option: mariadb-test
 \fB\-\-connect\-timeout=\fInum\fR
 .sp
 This can be used to set the MYSQL_OPT_CONNECT_TIMEOUT parameter of mysql_options to change the number of seconds before an unsuccessful connection attempt times out\&.
@@ -214,8 +214,8 @@ This can be used to set the MYSQL_OPT_CONNECT_TIMEOUT parameter of mysql_options
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: continue-on-error option
-.\" continue-on-error option: mysqltest
+.\" mariadb-test: continue-on-error option
+.\" continue-on-error option: mariadb-test
 \fB\-\-continue\-on\-error\fR
 .sp
 Continue test even if we got an error\&. This is mostly
@@ -232,8 +232,8 @@ a newly created big test file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: cursor-protocol option
-.\" cursor-protocol option: mysqltest
+.\" mariadb-test: cursor-protocol option
+.\" cursor-protocol option: mariadb-test
 \fB\-\-cursor\-protocol\fR
 .sp
 Use cursors for prepared statements\&.
@@ -247,8 +247,8 @@ Use cursors for prepared statements\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: database option
-.\" database option: mysqltest
+.\" mariadb-test: database option
+.\" database option: mariadb-test
 \fB\-\-database=\fR\fB\fIdb_name\fR\fR,
 \fB\-D \fR\fB\fIdb_name\fR\fR
 .sp
@@ -263,14 +263,14 @@ The default database to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: debug option
-.\" debug option: mysqltest
+.\" mariadb-test: debug option
+.\" debug option: mariadb-test
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-#[\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log if MariaDB is built with debugging support\&. The default
 \fIdebug_options\fR
-value is 'd:t:S:i:O,/tmp/mysqltest.trace'.
+value is 'd:t:S:i:O,/tmp/mariadb-test.trace'.
 .RE
 .sp
 .RS 4
@@ -281,8 +281,8 @@ value is 'd:t:S:i:O,/tmp/mysqltest.trace'.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: debug-check option
-.\" debug-check option: mysqltest
+.\" mariadb-test: debug-check option
+.\" debug-check option: mariadb-test
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -296,8 +296,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: debug-info option
-.\" debug-info option: mysqltest
+.\" mariadb-test: debug-info option
+.\" debug-info option: mariadb-test
 \fB\-\-debug\-info\fR
 .sp
 Print debugging information and memory and CPU usage statistics when the program exits\&.
@@ -311,8 +311,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: host option
-.\" host option: mysqltest
+.\" mariadb-test: host option
+.\" host option: mariadb-test
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -327,8 +327,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: logdir option
-.\" logdir option: mysqltest
+.\" mariadb-test: logdir option
+.\" logdir option: mariadb-test
 \fB\-\-logdir=\fR\fB\fIdir_name\fR\fR
 .sp
 The directory to use for log files\&.
@@ -342,8 +342,8 @@ The directory to use for log files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: mark-progress option
-.\" mark-progress option: mysqltest
+.\" mariadb-test: mark-progress option
+.\" mark-progress option: mariadb-test
 \fB\-\-mark\-progress\fR
 .sp
 Write the line number and elapsed time to
@@ -358,8 +358,8 @@ Write the line number and elapsed time to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: max-connect-retries option
-.\" max-connect-retries option: mysqltest
+.\" mariadb-test: max-connect-retries option
+.\" max-connect-retries option: mariadb-test
 \fB\-\-max\-connect\-retries=\fR\fB\fInum\fR\fR
 .sp
 The maximum number of connection attempts when connecting to server\&.
@@ -373,8 +373,8 @@ The maximum number of connection attempts when connecting to server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: max-connections option
-.\" max-connections option: mysqltest
+.\" mariadb-test: max-connections option
+.\" max-connections option: mariadb-test
 \fB\-\-max\-connections=\fR\fB\fInum\fR\fR
 .sp
 The maximum number of simultaneous server connections per client (that is, per test)\&. If not set, the maximum is 128\&. Minimum allowed limit is 8, maximum is 5120\&.
@@ -388,8 +388,8 @@ The maximum number of simultaneous server connections per client (that is, per t
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: no-defaults option
-.\" no-defaults option: mysqltest
+.\" mariadb-test: no-defaults option
+.\" no-defaults option: mariadb-test
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option files\&. If used, this must be the first option\&.
@@ -403,8 +403,8 @@ Do not read default options from any option files\&. If used, this must be the f
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: non-blocking-api option
-.\" non-blocking-api option: mysqltest
+.\" mariadb-test: non-blocking-api option
+.\" non-blocking-api option: mariadb-test
 \fB\-\-non\-blocking\-api\fR
 .sp
 Use the non-blocking client API for communication\&.
@@ -418,8 +418,8 @@ Use the non-blocking client API for communication\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: overlay-dir option
-.\" overlay-dir option: mysqltest
+.\" mariadb-test: overlay-dir option
+.\" overlay-dir option: mariadb-test
 \fB\-\-overlay\-dir=\fIdir_name\fR
 .sp
 Overlay directory\&.
@@ -433,8 +433,8 @@ Overlay directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: password option
-.\" password option: mysqltest
+.\" mariadb-test: password option
+.\" password option: mariadb-test
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -457,8 +457,8 @@ option on the command line, you are prompted for one\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: plugin-dir option
-.\" plugin-dir option: mysqltest
+.\" mariadb-test: plugin-dir option
+.\" plugin-dir option: mariadb-test
 \fB\-\-plugin\-dir=\fIdir_name\fR
 .sp
 Directory for client-side plugins\&.
@@ -472,8 +472,8 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: port option
-.\" port option: mysqltest
+.\" mariadb-test: port option
+.\" port option: mariadb-test
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -489,12 +489,12 @@ my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: prologue option
-.\" prologue option: mysqltest
+.\" mariadb-test: prologue option
+.\" prologue option: mariadb-test
 \fB\-\-prologue=\fR\fB\fIname\fR\fR
 .sp
 Include the contents of the given file before processing the contents of the test file\&. The included file should have the same format as other
-\fBmysqltest\fR
+\fBmariadb-test\fR
 test files\&. This option has the same effect as putting a
 \-\-source \fIfile_name\fR
 command as the first line of the test file\&.
@@ -508,8 +508,8 @@ command as the first line of the test file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: protocol option
-.\" protocol option: mysqltest
+.\" mariadb-test: protocol option
+.\" protocol option: mariadb-test
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -523,8 +523,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: ps-protocol option
-.\" ps-protocol option: mysqltest
+.\" mariadb-test: ps-protocol option
+.\" ps-protocol option: mariadb-test
 \fB\-\-ps\-protocol\fR
 .sp
 Use the prepared\-statement protocol for communication\&.
@@ -538,13 +538,13 @@ Use the prepared\-statement protocol for communication\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: quiet option
-.\" quiet option: mysqltest
+.\" mariadb-test: quiet option
+.\" quiet option: mariadb-test
 \fB\-\-quiet\fR
 .sp
 Suppress all normal output\&. This is a synonym for
-.\" mysqltest: silent option
-.\" silent option: mysqltest
+.\" mariadb-test: silent option
+.\" silent option: mariadb-test
 \fB\-\-silent\fR\&.
 .RE
 .sp
@@ -556,8 +556,8 @@ Suppress all normal output\&. This is a synonym for
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: record option
-.\" record option: mysqltest
+.\" mariadb-test: record option
+.\" record option: mariadb-test
 \fB\-\-record\fR,
 \fB\-r\fR
 .sp
@@ -575,15 +575,15 @@ option, if that option is given\&. It is an error to use this option without als
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: result-file option
-.\" result-file option: mysqltest
+.\" mariadb-test: result-file option
+.\" result-file option: mariadb-test
 \fB\-\-result\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-R \fR\fB\fIfile_name\fR\fR
 .sp
 This option specifies the file for test case expected results\&.
 \fB\-\-result\-file\fR, together with
 \fB\-\-record\fR, determines how
-\fBmysqltest\fR
+\fBmariadb-test\fR
 treats the test actual and expected results for a test case:
 .sp
 .RS 4
@@ -595,7 +595,7 @@ treats the test actual and expected results for a test case:
 .IP \(bu 2.3
 .\}
 If the test produces no results,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 exits with an error message to that effect, unless
 \fB\-\-result\-file\fR
 is given and the named file is an empty file\&.
@@ -612,7 +612,7 @@ is given and the named file is an empty file\&.
 Otherwise, if
 \fB\-\-result\-file\fR
 is not given,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 sends test results to the standard output\&.
 .RE
 .sp
@@ -628,9 +628,9 @@ With
 \fB\-\-result\-file\fR
 but not
 \fB\-\-record\fR,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 reads the expected results from the given file and compares them with the actual results\&. If the results do not match,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 writes a
 \&.reject
 file in the same directory as the result file, outputs a diff of the two files, and exits with an error\&.
@@ -648,7 +648,7 @@ With both
 \fB\-\-result\-file\fR
 and
 \fB\-\-record\fR,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 updates the given file by writing the actual test results to it\&.
 .RE
 .RE
@@ -661,8 +661,8 @@ updates the given file by writing the actual test results to it\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: result-format-version option
-.\" result-format-version option: mysqltest
+.\" mariadb-test: result-format-version option
+.\" result-format-version option: mariadb-test
 \fB\-\-result\-format\-version=\fI#\fR
 .sp
 Version of the result file format to use\&.
@@ -676,8 +676,8 @@ Version of the result file format to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: server-arg option
-.\" server-arg option: mysqltest
+.\" mariadb-test: server-arg option
+.\" server-arg option: mariadb-test
 \fB\-\-server\-arg=\fR\fB\fIvalue\fR\fR,
 \fB\-A \fR\fB\fIvalue\fR\fR
 .sp
@@ -695,8 +695,8 @@ or
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: server-file option
-.\" server-file option: mysqltest
+.\" mariadb-test: server-file option
+.\" server-file option: mariadb-test
 \fB\-\-server\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-F \fR\fB\fIfile_name\fR\fR
 .sp
@@ -711,8 +711,8 @@ Read arguments for the embedded server from the given file\&. The file should co
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: silent option
-.\" silent option: mysqltest
+.\" mariadb-test: silent option
+.\" silent option: mariadb-test
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -727,8 +727,8 @@ Suppress all normal output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: sleep option
-.\" sleep option: mysqltest
+.\" mariadb-test: sleep option
+.\" sleep option: mariadb-test
 \fB\-\-sleep=\fR\fB\fInum\fR\fR,
 \fB\-T \fR\fB\fInum\fR\fR
 .sp
@@ -752,8 +752,8 @@ commands in the test case\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: socket option
-.\" socket option: mysqltest
+.\" mariadb-test: socket option
+.\" socket option: mariadb-test
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -770,12 +770,12 @@ localhost
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: sp-protocol option
-.\" sp-protocol option: mysqltest
+.\" mariadb-test: sp-protocol option
+.\" sp-protocol option: mariadb-test
 \fB\-\-sp\-protocol\fR
 .sp
 Execute DML statements within a stored procedure\&. For every DML statement,
-\fBmysqltest\fR
+\fBmariadb-test\fR
 creates and invokes a stored procedure that executes the statement rather than executing the statement directly\&.
 .RE
 .sp
@@ -787,8 +787,8 @@ creates and invokes a stored procedure that executes the statement rather than e
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL options
-.\" SSL options: mysqltest
+.\" mariadb-test: SSL options
+.\" SSL options: mariadb-test
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -803,8 +803,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL CA option
-.\" SSL CA option: mysqltest
+.\" mariadb-test: SSL CA option
+.\" SSL CA option: mariadb-test
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -819,8 +819,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL CA Path option
-.\" SSL CA Path option: mysqltest
+.\" mariadb-test: SSL CA Path option
+.\" SSL CA Path option: mariadb-test
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -835,8 +835,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Cert option
-.\" SSL Cert option: mysqltest
+.\" mariadb-test: SSL Cert option
+.\" SSL Cert option: mariadb-test
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -851,8 +851,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Cipher option
-.\" SSL Cipher option: mysqltest
+.\" mariadb-test: SSL Cipher option
+.\" SSL Cipher option: mariadb-test
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -867,8 +867,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Key option
-.\" SSL Key option: mysqltest
+.\" mariadb-test: SSL Key option
+.\" SSL Key option: mariadb-test
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -883,8 +883,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Crl option
-.\" SSL CRL option: mysqltest
+.\" mariadb-test: SSL Crl option
+.\" SSL CRL option: mariadb-test
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -899,8 +899,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Crlpath option
-.\" SSL Crlpath option: mysqltest
+.\" mariadb-test: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-test
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -915,8 +915,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysqltest
+.\" mariadb-test: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-test
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -930,8 +930,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: suite-dir option
-.\" suite-dir option: mysqltest
+.\" mariadb-test: suite-dir option
+.\" suite-dir option: mariadb-test
 \fB\-\-suite\-dir=\fIdir_name\fR
 .sp
 Suite directory\&.
@@ -945,8 +945,8 @@ Suite directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: tail-lines option
-.\" tail-lines option: mysqltest
+.\" mariadb-test: tail-lines option
+.\" tail-lines option: mariadb-test
 \fB\-\-tail\-lines=\fR\fB\fInn\fR\fR
 .sp
 Specify how many lines of the result to include in the output if the test fails because an SQL statement fails\&. The default is 0, meaning no lines of result printed\&.
@@ -960,8 +960,8 @@ Specify how many lines of the result to include in the output if the test fails 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: test-file option
-.\" test-file option: mysqltest
+.\" mariadb-test: test-file option
+.\" test-file option: mariadb-test
 \fB\-\-test\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-x \fR\fB\fIfile_name\fR\fR
 .sp
@@ -976,13 +976,13 @@ Read test input from this file\&. The default is to read from the standard input
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: timer-file option
-.\" timer-file option: mysqltest
+.\" mariadb-test: timer-file option
+.\" timer-file option: mariadb-test
 \fB\-\-timer\-file=\fR\fB\fIfile_name\fR\fR,
 \fB\-m \fR\fB\fIfile_name\fR\fR
 .sp
 If given, the number of microseconds spent running the test will be written to this file\&. This is used by
-\fBmysql\-test\-run\&.pl\fR
+\fBmariadb\-test\-run\&.pl\fR
 for its reporting\&.
 .RE
 .sp
@@ -994,8 +994,8 @@ for its reporting\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: tmpdir option
-.\" tmpdir option: mysqltest
+.\" mariadb-test: tmpdir option
+.\" tmpdir option: mariadb-test
 \fB\-\-tmpdir=\fR\fB\fIdir_name\fR\fR,
 \fB\-t \fR\fB\fIdir_name\fR\fR
 .sp
@@ -1010,8 +1010,8 @@ The temporary directory where socket files are created\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: user option
-.\" user option: mysqltest
+.\" mariadb-test: user option
+.\" user option: mariadb-test
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -1026,8 +1026,8 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: verbose option
-.\" verbose option: mysqltest
+.\" mariadb-test: verbose option
+.\" verbose option: mariadb-test
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -1042,8 +1042,8 @@ Verbose mode\&. Print out more information about what the program does\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: version option
-.\" version option: mysqltest
+.\" mariadb-test: version option
+.\" version option: mariadb-test
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -1058,8 +1058,8 @@ Display version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqltest: view-protocol option
-.\" view-protocol option: mysqltest
+.\" mariadb-test: view-protocol option
+.\" view-protocol option: mariadb-test
 \fB\-\-view\-protocol\fR
 .sp
 Every
@@ -1069,7 +1069,7 @@ statement is wrapped inside a view\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2020 MariaDB Foundation
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP
