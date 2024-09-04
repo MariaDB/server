@@ -610,7 +610,7 @@ public:
 
   bool avg_frequency_is_inited() { return avg_frequency != NULL; }
 
-  double get_avg_frequency(uint i)
+  double get_avg_frequency(uint i) const
   {
     return (double) avg_frequency[i] / Scale_factor_avg_frequency;
   }

@@ -25,7 +25,7 @@ select sec_to_time(90011e-1), sec_to_time(1234567890123e30);
 select sec_to_time(1234567890123), sec_to_time('99999999999999999999999999999');
 select now()-curdate()*1000000-curtime();
 select strcmp(current_timestamp(),concat(current_date()," ",current_time())) as exp;
-select strcmp(localtime(),concat(current_date()," ",current_time())) as exp;
+select strcmp(localtime(),current_time()) as exp;
 select strcmp(localtimestamp(),concat(current_date()," ",current_time())) as exp;
 select date_format("1997-01-02 03:04:05", "%M %W %D %Y %y %m %d %h %i %s %w") as exp;
 select date_format("1997-01-02", concat("%M %W %D ","%Y %y %m %d %h %i %s %w")) as exp;
@@ -3248,4 +3248,25 @@ SET @@timestamp= DEFAULT;
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34829 LOCALTIME returns a wrong data type
+--echo #
+
+SET timestamp=UNIX_TIMESTAMP('2024-08-28 14:47:00');
+SELECT LOCALTIME;
+EXPLAIN EXTENDED SELECT LOCALTIME;
+CREATE TABLE t1 AS SELECT LOCALTIME;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET timestamp=DEFAULT;
+
+--echo #
+--echo # End of 11.6 tests
 --echo #

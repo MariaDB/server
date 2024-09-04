@@ -4531,7 +4531,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 	ut_ad(recv_sys.pages.empty());
 
 	if (log_sys.format == log_t::FORMAT_3_23) {
-early_exit:
+func_exit:
 		log_sys.latch.wr_unlock();
 		return err;
 	}
@@ -4547,7 +4547,7 @@ read_only_recovery:
 			sql_print_warning("InnoDB: innodb_read_only"
 					  " prevents crash recovery");
 			err = DB_READ_ONLY;
-			goto early_exit;
+			goto func_exit;
 		}
 		if (recv_sys.is_corrupt_log()) {
 			sql_print_error("InnoDB: Log scan aborted at LSN "
@@ -4585,7 +4585,7 @@ read_only_recovery:
 			rescan, missing_tablespace);
 
 		if (err != DB_SUCCESS) {
-			goto early_exit;
+			goto func_exit;
 		}
 
 		if (missing_tablespace) {
@@ -4607,7 +4607,7 @@ read_only_recovery:
 					rescan, missing_tablespace);
 
 				if (err != DB_SUCCESS) {
-					goto early_exit;
+					goto func_exit;
 				}
 			} while (missing_tablespace);
 
@@ -4666,7 +4666,7 @@ read_only_recovery:
 	if (recv_sys.lsn < log_sys.next_checkpoint_lsn) {
 err_exit:
 		err = DB_ERROR;
-		goto early_exit;
+		goto func_exit;
 	}
 
 	if (!srv_read_only_mode && log_sys.is_latest()) {
@@ -4690,7 +4690,7 @@ err_exit:
 		ut_ad("log parsing error" == 0);
 		mysql_mutex_unlock(&recv_sys.mutex);
 		err = DB_CORRUPTION;
-		goto early_exit;
+		goto func_exit;
 	}
 	recv_sys.apply_log_recs = true;
 	ut_d(recv_no_log_write = srv_operation == SRV_OPERATION_RESTORE
@@ -4698,9 +4698,9 @@ err_exit:
 	if (srv_operation == SRV_OPERATION_NORMAL) {
 		err = recv_rename_files();
 	}
-	mysql_mutex_unlock(&recv_sys.mutex);
 
 	recv_lsn_checks_on = true;
+	mysql_mutex_unlock(&recv_sys.mutex);
 
 	/* The database is now ready to start almost normal processing of user
 	transactions: transaction rollbacks and the application of the log
@@ -4710,8 +4710,7 @@ err_exit:
 		err = DB_CORRUPTION;
 	}
 
-	log_sys.latch.wr_unlock();
-	return err;
+	goto func_exit;
 }
 
 bool recv_dblwr_t::validate_page(const page_id_t page_id,

@@ -2573,6 +2573,51 @@ err_exit:
 	return(FALSE);
 }
 
+buf_block_t* buf_pool_t::page_fix(const page_id_t id)
+{
+  ha_handler_stats *const stats= mariadb_stats;
+  buf_inc_get(stats);
+  auto& chain= page_hash.cell_get(id.fold());
+  page_hash_latch &hash_lock= page_hash.lock_get(chain);
+  for (;;)
+  {
+    hash_lock.lock_shared();
+    buf_page_t *b= page_hash.get(id, chain);
+    if (b)
+    {
+      uint32_t state= b->fix();
+      hash_lock.unlock_shared();
+      ut_ad(!b->in_zip_hash);
+      ut_ad(b->frame);
+      ut_ad(state >= buf_page_t::FREED);
+      if (state >= buf_page_t::READ_FIX && state < buf_page_t::WRITE_FIX)
+      {
+        b->lock.s_lock();
+        state= b->state();
+        ut_ad(state < buf_page_t::READ_FIX || state >= buf_page_t::WRITE_FIX);
+        b->lock.s_unlock();
+      }
+      if (UNIV_UNLIKELY(state < buf_page_t::UNFIXED))
+      {
+        /* The page was marked as freed or corrupted. */
+        b->unfix();
+        b= nullptr;
+      }
+      return reinterpret_cast<buf_block_t*>(b);
+    }
+
+    hash_lock.unlock_shared();
+    switch (buf_read_page(id, 0, chain)) {
+    default:
+      return nullptr;
+    case DB_SUCCESS:
+    case DB_SUCCESS_LOCKED_REC:
+      mariadb_increment_pages_read(stats);
+      buf_read_ahead_random(id, 0);
+    }
+  }
+}
+
 /** Low level function used to get access to a database page.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0

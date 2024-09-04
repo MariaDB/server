@@ -7624,8 +7624,8 @@ int spider_mbase_share::convert_key_hint_str()
       roop_count < (int) table_share->keys; roop_count++, tmp_key_hint++)
     {
       tmp_key_hint->length(0);
-      if (tmp_key_hint->append(spider_share->key_hint->ptr(),
-        spider_share->key_hint->length(), system_charset_info))
+      if (tmp_key_hint->append(spider_share->key_hint[roop_count].ptr(),
+        spider_share->key_hint[roop_count].length(), system_charset_info))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     }
   } else {

@@ -550,6 +550,15 @@ void srv_monitor_task(void*);
 void srv_master_callback(void*);
 
 
+/**
+ Fetches and executes tasks from the purge work queue,
+ until this queue is empty.
+ This is main part of purge worker task, but also
+ executed in coordinator.
+ @note needs current_thd to be set beforehand.
+*/
+void srv_purge_worker_task_low();
+
 } /* extern "C" */
 
 #ifdef UNIV_DEBUG
