@@ -2669,6 +2669,8 @@ row_rename_table_for_mysql(
 	}
 
 	if (fk == RENAME_IGNORE_FK || do_rename_fk || !new_is_tmp) {
+// (fk == RENAME_ALTER_COPY && new_is_tmp) is rename to backup for non-FK alter.
+// We must not change FK refs (referencing this table) in that case.
 		const bool rename_refs= !(fk == RENAME_ALTER_COPY && new_is_tmp);
 		/* Rename all constraints. */
 		char	new_table_name[MAX_TABLE_NAME_LEN + 1];
