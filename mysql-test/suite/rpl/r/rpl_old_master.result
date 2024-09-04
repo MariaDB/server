@@ -9,10 +9,7 @@ connection slave;
 SET @old_parallel= @@GLOBAL.slave_parallel_threads;
 SET GLOBAL slave_parallel_threads=10;
 CHANGE MASTER TO master_host='127.0.0.1', master_port=SERVER_MYPORT_1, master_user='root', master_log_file='master-bin.000001', master_log_pos=4, master_use_gtid=no;
-FLUSH TABLES WITH READ LOCK;
 include/start_slave.inc
-include/wait_for_slave_param.inc [Seconds_Behind_Master]
-UNLOCK TABLES;
 connection master;
 CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1);

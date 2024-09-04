@@ -224,7 +224,7 @@ public:
   /** exclusive latch for checkpoint, shared for mtr_t::commit() to buf */
   alignas(CPU_LEVEL1_DCACHE_LINESIZE) log_rwlock latch;
 
-  /** number of std::swap(buf, flush_buf) and writes from buf to log;
+  /** number of writes from buf or flush_buf to log;
   protected by latch.wr_lock() */
   ulint write_to_log;
 
@@ -232,8 +232,9 @@ public:
   lsn_t write_lsn;
 
   /** buffer for writing data to ib_logfile0, or nullptr if is_pmem()
-  In write_buf(), buf and flush_buf are swapped */
+  In write_buf(), buf and flush_buf may be swapped */
   byte *flush_buf;
+
   /** set when there may be need to initiate a log checkpoint.
   This must hold if lsn - last_checkpoint_lsn > max_checkpoint_age. */
   std::atomic<bool> need_checkpoint;
@@ -372,9 +373,10 @@ public:
 
 private:
   /** Write resize_buf to resize_log.
-  @param length  the used length of resize_buf */
+  @param b       resize_buf or resize_flush_buf
+  @param length  the used length of b */
   ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
-  void resize_write_buf(size_t length) noexcept;
+  void resize_write_buf(const byte *b, size_t length) noexcept;
 public:
 
   /** Rename a log file after resizing.
@@ -506,13 +508,7 @@ public:
   @param d     destination
   @param s     string of bytes
   @param size  length of str, in bytes */
-  void append(byte *&d, const void *s, size_t size) noexcept
-  {
-    ut_ad(latch_have_any());
-    ut_ad(d + size <= buf + (is_pmem() ? file_size : buf_size));
-    memcpy(d, s, size);
-    d+= size;
-  }
+  static inline void append(byte *&d, const void *s, size_t size) noexcept;
 
   /** Set the log file format. */
   void set_latest_format(bool encrypted) noexcept

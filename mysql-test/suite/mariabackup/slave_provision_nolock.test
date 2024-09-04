@@ -1,5 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_log_bin.inc
+# Test does a lot of queries that take a lot of CPU under Valgrind.
+--source include/not_valgrind.inc
 
 call mtr.add_suppression("Can't init tc log");
 call mtr.add_suppression("Aborting");

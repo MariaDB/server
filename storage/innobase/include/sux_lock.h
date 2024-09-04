@@ -198,6 +198,30 @@ public:
   /** Upgrade an update lock */
   inline void u_x_upgrade();
   inline void u_x_upgrade(const char *file, unsigned line);
+  /** @return whether a shared lock was upgraded to exclusive */
+  bool s_x_upgrade_try()
+  {
+    ut_ad(have_s());
+    ut_ad(!have_u_or_x());
+    if (!lock.rd_u_upgrade_try())
+      return false;
+    claim_ownership();
+    s_unlock();
+    lock.u_wr_upgrade();
+    recursive= RECURSIVE_X;
+    return true;
+  }
+  __attribute__((warn_unused_result))
+  /** @return whether the operation succeeded without waiting */
+  bool s_x_upgrade()
+  {
+    if (s_x_upgrade_try())
+      return true;
+    s_unlock();
+    x_lock();
+    return false;
+  }
+
   /** Downgrade a single exclusive lock to an update lock */
   void x_u_downgrade()
   {
@@ -205,6 +229,16 @@ public:
     ut_ad(recursive <= RECURSIVE_MAX);
     recursive*= RECURSIVE_U;
     lock.wr_u_downgrade();
+  }
+  /** Downgrade a single update lock to a shared lock */
+  void u_s_downgrade()
+  {
+    ut_ad(have_u_or_x());
+    ut_ad(recursive == RECURSIVE_U);
+    recursive= 0;
+    set_new_owner(0);
+    lock.u_rd_downgrade();
+    ut_d(s_lock_register());
   }
 
   /** Acquire an exclusive lock or upgrade an update lock

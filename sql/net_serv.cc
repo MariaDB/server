@@ -713,7 +713,6 @@ net_real_write(NET *net,const uchar *packet, size_t len)
       {
         sql_print_warning("Could not write packet: fd: %lld  state: %d  "
                           "errno: %d  vio_errno: %d  length: %ld",
-                          MYF(ME_ERROR_LOG | ME_WARNING),
                           (longlong) vio_fd(net->vio), (int) net->vio->state,
                           vio_errno(net->vio), net->last_errno,
                           (ulong) (end-pos));

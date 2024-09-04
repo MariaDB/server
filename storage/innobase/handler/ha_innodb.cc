@@ -18501,6 +18501,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
       break;
     case log_t::RESIZE_STARTED:
+      const lsn_t start{log_sys.resize_in_progress()};
       for (timespec abstime;;)
       {
         if (thd_kill_level(thd))
@@ -18511,13 +18512,30 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
 
         set_timespec(abstime, 5);
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        const bool in_progress(buf_pool.get_oldest_modification(LSN_MAX) <
-                               log_sys.resize_in_progress());
-        if (in_progress)
+        lsn_t resizing= log_sys.resize_in_progress();
+        if (resizing > buf_pool.get_oldest_modification(0))
+        {
+          buf_pool.page_cleaner_wakeup(true);
           my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
+          resizing= log_sys.resize_in_progress();
+        }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (!log_sys.resize_in_progress())
+        if (start > log_sys.get_lsn())
+        {
+          ut_ad(!log_sys.is_pmem());
+          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+          to ensure that the log resizing will complete. */
+          log_sys.latch.wr_lock(SRW_LOCK_CALL);
+          while (start > log_sys.get_lsn())
+          {
+            mtr_t mtr;
+            mtr.start();
+            mtr.commit_files(log_sys.last_checkpoint_lsn);
+          }
+          log_sys.latch.wr_unlock();
+        }
+        if (!resizing || resizing > start /* only wait for our resize */)
           break;
       }
     }
@@ -18904,7 +18922,7 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
   "Number of UNDO log pages to purge in one batch from the history list",
   NULL, NULL,
-  1000,			/* Default setting */
+  127,			/* Default setting */
   1,			/* Minimum value */
   innodb_purge_batch_size_MAX, 0);
 
@@ -19166,11 +19184,6 @@ static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   PLUGIN_VAR_RQCMDARG,
   "How deep to scan LRU to keep it clean",
   NULL, NULL, 1536, 100, ~0UL, 0);
-
-static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
-  PLUGIN_VAR_RQCMDARG,
-  "How many pages to flush on LRU eviction",
-  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
 
 static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
@@ -19435,13 +19448,20 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
-static ulong innodb_purge_rseg_truncate_frequency;
+static ulong innodb_purge_rseg_truncate_frequency= 128;
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   innodb_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
   "Unused",
   NULL, NULL, 128, 1, 128, 0);
+
+static size_t innodb_lru_flush_size;
+
+static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
+  "Unused",
+  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
                                             void*, const void *save)

@@ -1138,10 +1138,9 @@ bool purge_sys_t::running()
 
 void purge_sys_t::stop_FTS()
 {
-  latch.rd_lock(SRW_LOCK_CALL);
-  m_FTS_paused++;
-  latch.rd_unlock();
-  while (m_active)
+  ut_d(const auto paused=) m_FTS_paused.fetch_add(1);
+  ut_ad((paused + 1) & ~PAUSED_SYS);
+  while (m_active.load(std::memory_order_acquire))
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
@@ -1175,8 +1174,8 @@ void purge_sys_t::stop()
 /** Resume purge in data dictionary tables */
 void purge_sys_t::resume_SYS(void *)
 {
-  ut_d(auto paused=) purge_sys.m_SYS_paused--;
-  ut_ad(paused);
+  ut_d(auto paused=) purge_sys.m_FTS_paused.fetch_sub(PAUSED_SYS);
+  ut_ad(paused >= PAUSED_SYS);
 }
 
 /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
@@ -1346,7 +1345,6 @@ static bool srv_purge_should_exit(size_t old_history_size)
 
 /*********************************************************************//**
 Fetch and execute a task from the work queue.
-@param [in,out]	slot	purge worker thread slot
 @return true if a task was executed */
 static bool srv_task_execute()
 {
@@ -1487,6 +1485,13 @@ static void release_thd(THD *thd, void *ctx)
 	set_current_thd(0);
 }
 
+void srv_purge_worker_task_low()
+{
+  ut_ad(current_thd);
+  while (srv_task_execute())
+    ut_ad(purge_sys.running());
+}
+
 static void purge_worker_callback(void*)
 {
   ut_ad(!current_thd);
@@ -1494,8 +1499,7 @@ static void purge_worker_callback(void*)
   ut_ad(srv_force_recovery < SRV_FORCE_NO_BACKGROUND);
   void *ctx;
   THD *thd= acquire_thd(&ctx);
-  while (srv_task_execute())
-    ut_ad(purge_sys.running());
+  srv_purge_worker_task_low();
   release_thd(thd,ctx);
 }
 
