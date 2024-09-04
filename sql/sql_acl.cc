@@ -2402,7 +2402,8 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
     res= ER_NOT_VALID_PASSWORD;
     goto end;
   }
-  if (pwtext.length)
+
+  if (!auth->auth_string.length)
   {
     if (info->hash_password)
     {
@@ -2417,7 +2418,7 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
       auth->auth_string.str= (char*)memdup_root(&acl_memroot, buf, len+1);
       auth->auth_string.length= len;
     }
-    else
+    else if (pwtext.length)
     {
       res= ER_SET_PASSWORD_AUTH_PLUGIN;
       goto end;
