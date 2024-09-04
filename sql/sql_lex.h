@@ -463,11 +463,13 @@ typedef struct st_lex_server_options
 {
   long port;
   LEX_CSTRING server_name, host, db, username, password, scheme, socket, owner;
+  engine_option_value *option_list;
   void reset(LEX_CSTRING name)
   {
     server_name= name;
     host= db= username= password= scheme= socket= owner= null_clex_str;
     port= -1;
+    option_list= NULL;
   }
 } LEX_SERVER_OPTIONS;
 
