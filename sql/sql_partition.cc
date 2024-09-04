@@ -4895,6 +4895,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
 {
   DBUG_ENTER("prep_alter_part_table");
 
+// Allow partitioning for ALTER
+
   /* Remove partitioning on a not partitioned table is not possible */
   if (!table->part_info && (alter_info->partition_flags &
                             ALTER_PARTITION_REMOVE))

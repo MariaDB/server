@@ -1855,6 +1855,7 @@ public:
     return s->versioned == type;
   }
 
+// Interface for CREATE/ALTER to create FKs only in current partition
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   /* These are for InnoDB, so they cannot be inline */
   bool vers_system_time_partitioned() const;
