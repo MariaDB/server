@@ -1795,7 +1795,8 @@ static Sys_var_on_access_global<Sys_var_ulong,
 Sys_max_binlog_size(
        "max_binlog_size",
        "Binary log will be rotated automatically when the size exceeds this "
-       "value",
+       "value, unless `binlog_large_commit_threshold` causes rotation "
+       "prematurely",
        GLOBAL_VAR(max_binlog_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(IO_SIZE, 1024*1024L*1024L), DEFAULT(1024*1024L*1024L),
        BLOCK_SIZE(IO_SIZE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
@@ -3267,7 +3268,10 @@ static Sys_var_ulonglong Sys_thread_stack(
        BLOCK_SIZE(1024));
 
 static Sys_var_charptr_fscs Sys_tmpdir(
-       "tmpdir", "Path for temporary files. Several paths may "
+       "tmpdir",
+       "Path for temporary files. Files that are created in background for "
+       "binlogging by user threads are placed in a separate location "
+       "(see `binlog_large_commit_threshold` option). Several paths may "
        "be specified, separated by a "
 #if defined(_WIN32)
        "semicolon (;)"
@@ -7408,3 +7412,18 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+extern ulonglong opt_binlog_commit_by_rotate_threshold;
+static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
+  "binlog_large_commit_threshold",
+  "Increases transaction concurrency for large transactions (i.e. "
+  "those with sizes larger than this value) by using the large "
+  "transaction's cache file as a new binary log, and rotating the "
+  "active binary log to the large transaction's cache file at commit "
+  "time. This avoids the default commit logic that copies the "
+  "transaction cache data to the end of the active binary log file "
+  "while holding a lock that prevents other transactions from "
+  "binlogging",
+  GLOBAL_VAR(opt_binlog_commit_by_rotate_threshold),
+  CMD_LINE(REQUIRED_ARG), VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
+  DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));

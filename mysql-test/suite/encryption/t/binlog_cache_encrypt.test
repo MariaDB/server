@@ -1,0 +1,19 @@
+--source include/have_file_key_management_plugin.inc
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+RESET MASTER;
+CREATE TABLE t1 (c1 LONGTEXT) ENGINE = InnoDB;
+INSERT INTO t1 values(repeat("1", 5242880));
+INSERT INTO t1 values(repeat("1", 5242880));
+FLUSH BINARY LOGS;
+
+SET @saved_threshold= @@GLOBAL.binlog_large_commit_threshold;
+SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
+UPDATE t1 SET c1 = repeat('2', 5242880);
+
+--let $binlog_file= LAST
+--let $skip_checkpoint_events=1
+--source include/show_binlog_events.inc
+
+SET GLOBAL binlog_large_commit_threshold = @saved_threshold;
+DROP TABLE t1;
