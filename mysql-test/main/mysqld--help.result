@@ -109,6 +109,16 @@ The following specify which files/extra groups are read (specified before remain
  --binlog-ignore-db=name 
  Tells the master that updates to the given database
  should not be logged to the binary log
+ --binlog-large-commit-threshold=# 
+ Increases transaction concurrency for large transactions
+ (i.e. those with sizes larger than this value) by using
+ the large transaction's cache file as a new binary log,
+ and rotating the active binary log to the large
+ transaction's cache file at commit time. This avoids the
+ default commit logic that copies the transaction cache
+ data to the end of the active binary log file while
+ holding a lock that prevents other transactions from
+ binlogging
  --binlog-legacy-event-pos 
  Fill in the end_log_pos field of _all_ events in the
  binlog, even when doing so costs performance. Can be used
@@ -614,7 +624,9 @@ The following specify which files/extra groups are read (specified before remain
  --max-binlog-cache-size=# 
  Sets the total size of the transactional cache
  --max-binlog-size=# Binary log will be rotated automatically when the size
- exceeds this value
+ exceeds this value, unless
+ `binlog_large_commit_threshold` causes rotation
+ prematurely
  --max-binlog-stmt-cache-size=# 
  Sets the total size of the statement cache
  --max-binlog-total-size=# 
@@ -1579,9 +1591,12 @@ The following specify which files/extra groups are read (specified before remain
  temporary table exceeds this size, MariaDB will
  automatically convert it to an on-disk MyISAM or Aria
  table
- -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
- separated by a colon (:), in this case they are used in a
- round-robin fashion
+ -t, --tmpdir=name   Path for temporary files. Files that are created in
+ background for binlogging by user threads are placed in a
+ separate location (see `binlog_large_commit_threshold`
+ option). Several paths may be specified, separated by a
+ colon (:), in this case they are used in a round-robin
+ fashion
  --transaction-alloc-block-size=# 
  Allocation block size for transactions to be stored in
  binary log
@@ -1640,6 +1655,7 @@ binlog-format MIXED
 binlog-gtid-index TRUE
 binlog-gtid-index-page-size 4096
 binlog-gtid-index-span-min 65536
+binlog-large-commit-threshold 134217728
 binlog-legacy-event-pos FALSE
 binlog-optimize-thread-scheduling TRUE
 binlog-row-event-max-size 8192

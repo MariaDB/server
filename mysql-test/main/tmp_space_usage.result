@@ -160,16 +160,17 @@ ERROR HY000: Global temporary space limit reached
 #
 set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
 set @@global.max_tmp_total_space_usage=64*1024*1024;
-set @@max_tmp_session_space_usage=1179648;
+set @@max_tmp_session_space_usage=1179648+65536;
 select @@max_tmp_session_space_usage;
 @@max_tmp_session_space_usage
-1179648
+1245184
 set @save_aria_repair_threads=@@aria_repair_threads;
 set @@aria_repair_threads=2;
 set @save_max_heap_table_size=@@max_heap_table_size;
 set @@max_heap_table_size=16777216;
 CREATE TABLE t1 (a CHAR(255),b INT,INDEX (b));
 INSERT INTO t1 SELECT SEQ,SEQ FROM seq_1_to_100000;
+set @@max_tmp_session_space_usage=1179648;
 SELECT * FROM t1 UNION SELECT * FROM t1;
 ERROR HY000: Local temporary space limit reached
 DROP TABLE t1;
@@ -205,11 +206,13 @@ ERROR HY000: Local temporary space limit reached
 #
 connect c1, localhost, root,,;
 set @@binlog_format=row;
-CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=MyISAM;
+CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=InnoDB;
+BEGIN;
 INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
 SET max_tmp_session_space_usage = 64*1024;
 SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
 ERROR HY000: Local temporary space limit reached
+ROLLBACK;
 drop table t1;
 connection default;
 disconnect c1;

@@ -215,7 +215,8 @@ select count(distinct concat(seq,repeat('x',1000))) from seq_1_to_1000;
 
 set @save_max_tmp_total_space_usage=@@global.max_tmp_total_space_usage;
 set @@global.max_tmp_total_space_usage=64*1024*1024;
-set @@max_tmp_session_space_usage=1179648;
+# Binlog cache reserve 4096 bytes at the begin of the temporary file.
+set @@max_tmp_session_space_usage=1179648+65536;
 select @@max_tmp_session_space_usage;
 set @save_aria_repair_threads=@@aria_repair_threads;
 set @@aria_repair_threads=2;
@@ -224,6 +225,7 @@ set @@max_heap_table_size=16777216;
 
 CREATE TABLE t1 (a CHAR(255),b INT,INDEX (b));
 INSERT INTO t1 SELECT SEQ,SEQ FROM seq_1_to_100000;
+set @@max_tmp_session_space_usage=1179648;
 --error 200
 SELECT * FROM t1 UNION SELECT * FROM t1;
 DROP TABLE t1;
@@ -266,11 +268,16 @@ SELECT MIN(VARIABLE_VALUE) OVER (), NTILE(1) OVER (), MAX(VARIABLE_NAME) OVER ()
 
 connect(c1, localhost, root,,);
 set @@binlog_format=row;
-CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=MyISAM;
+CREATE OR REPLACE TABLE t1 (a DATETIME) ENGINE=InnoDB;
+# Binlog cache file will be truncated at commit, thus keep the the transaction
+# to keep binlog cache temporary file large enough
+BEGIN;
 INSERT INTO t1 SELECT NOW() FROM seq_1_to_6000;
+
 SET max_tmp_session_space_usage = 64*1024;
 --error 200
 SELECT * FROM information_schema.ALL_PLUGINS LIMIT 2;
+ROLLBACK;
 drop table t1;
 connection default;
 disconnect c1;
