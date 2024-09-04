@@ -163,6 +163,128 @@ static SHOW_VAR binlog_status_vars_detail[]=
   {NullS, NullS, SHOW_LONG}
 };
 
+/**
+  This class implementes the feature to rename a binlog cache temporary file to
+  a binlog file. It is used to avoid holding LOCK_log long time when writting a
+  huge binlog cache to binlog file.
+
+  With this feature, temporary files of binlog caches will be created in
+  BINLOG_CACHE_DIR which is created in the same directory to binlog files
+  at server startup.
+*/
+class Binlog_commit_by_rotate
+{
+public:
+  Binlog_commit_by_rotate() {}
+
+  /**
+    Check whether rename to binlog should be executed on the cache_data.
+
+    @param group_commit_entry object of current transaction
+
+    @retval true    it should do rename
+    @retval false   it should do normal commit.
+  */
+  bool should_commit_by_rotate(
+      const MYSQL_BIN_LOG::group_commit_entry *entry) const;
+
+  /**
+    This function is the entry function to rename a binlog cache to a binlog
+    file. It first, rotate the binlog, then rename the temporary file of the
+    binlog cache to new binlog file, after that it commits the transaction.
+
+    @param entry, group_commit_entry object of current transaction.
+
+    @retval true    Succeeds to rename binlog cache and commit the transaction
+    @retval false   Fails if error happens or the cache cannot be renamed
+  */
+  bool commit(MYSQL_BIN_LOG::group_commit_entry *entry);
+
+  /**
+    During binlog rotate, after creating the new binlog file and writing the
+    events that describe its state (e.g. Format description event)}, copy
+    them into the the binlog cache, delete the binlog file and then rename
+    the binlog cache to the new binlog file.
+
+    @retval true    Succeeds to replace the binlog file.
+    @retval false   Failed to replace the binlog file. It only return
+                    true if some error happened after the new binlog file
+                    is deleted. In this situation rotate process will fail.
+  */
+  bool replace_binlog_file();
+
+  /**
+    The space left is more than a gtid event required, thus the extra
+    space is padded into the gtid event as 0. This function is used
+    to calculate the real gtid size with pad.
+  */
+  size_t get_gtid_event_pad_data_size();
+
+  /**
+    The space required for session binlog caches to reserve. It is calculated
+    from the length of current binlog file when it is generated and aligned
+    to IO_SIZE;
+
+    @param header_len  header length of current binlog file.
+  */
+  void set_reserved_bytes(uint32 header_len)
+  {
+    // Add reserved space for gtid event
+    header_len+= LOG_EVENT_HEADER_LEN + Gtid_log_event::max_data_length +
+                 BINLOG_CHECKSUM_LEN;
+
+    // reserved size is aligned to IO_SIZE.
+    header_len= (header_len + (IO_SIZE - 1)) & ~(IO_SIZE - 1);
+    if (header_len != m_reserved_bytes)
+      m_reserved_bytes= header_len;
+  }
+
+  /**
+    Return reserved space required for binlog cache. It is NOT defined as
+    an atomic variable, while it is get and set in parallel. Synchronizing
+    between set and get is not really necessary, m_reserved_bytes doesnot
+    be updated often. It may read an old value, but it just effects
+    current transaction. Next transaction will get the fresh value.
+    And reserving space is a transaction level action, so there alway
+    are some transactions reserving space with the old value.
+  */
+  uint32 get_reserved_size()
+  {
+    return m_reserved_bytes;
+  }
+private:
+  /* Singleton object, disable the constructors to prevent copying by mistake */
+  Binlog_commit_by_rotate &operator=(const Binlog_commit_by_rotate &);
+  Binlog_commit_by_rotate(const Binlog_commit_by_rotate &);
+
+  /**
+    The commit entry of current transaction which is committed by renaming
+    it binlog cache to binlog file.
+  */
+  MYSQL_BIN_LOG::group_commit_entry *m_entry{nullptr};
+
+  /**
+    The cache_data which will be renamed to binlog, it is used with
+    LOCK_log acquired.
+  */
+  binlog_cache_data *m_cache_data{nullptr};
+
+  /**
+    It will be set to true if rename operation succeeds,
+    it is used with LOCK_log acquired.
+  */
+  bool m_replaced{false};
+
+  uint32 m_reserved_bytes {IO_SIZE};
+};
+static Binlog_commit_by_rotate binlog_commit_by_rotate;
+ulonglong opt_binlog_commit_by_rotate_threshold= 128 * 1024 * 1024;
+
+uint32 binlog_cache_reserved_size()
+{
+  return binlog_commit_by_rotate.get_reserved_size();
+}
+
 /*
   Variables for the binlog background thread.
   Protected by the MYSQL_BIN_LOG::LOCK_binlog_background_thread mutex.
@@ -3761,7 +3883,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                          enum cache_type io_cache_type_arg,
                          ulong max_size_arg,
                          bool null_created_arg,
-                         bool need_mutex)
+                         bool need_mutex,
+                         bool commit_by_rotate)
 {
   xid_count_per_binlog *new_xid_list_entry= NULL, *b;
   DBUG_ENTER("MYSQL_BIN_LOG::open");
@@ -4027,14 +4150,23 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         goto err;
       bytes_written+= description_event_for_queue->data_written;
     }
+
+    /*
+      Offset must be saved before replace_binlog_file(), it will update the
+      file position
+    */
+    my_off_t offset= my_b_tell(&log_file);
+
+    if (commit_by_rotate && binlog_commit_by_rotate.replace_binlog_file())
+      goto err;
+
     if (flush_io_cache(&log_file) ||
         mysql_file_sync(log_file.file, MYF(MY_WME)))
       goto err;
 
-    my_off_t offset= my_b_tell(&log_file);
-
     if (!is_relay_log)
     {
+      binlog_commit_by_rotate.set_reserved_bytes((uint32)offset);
       /* update binlog_end_pos so that it can be read by after sync hook */
       reset_binlog_end_pos(log_file_name, offset);
 
@@ -4126,8 +4258,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   /* Notify the io thread that binlog is rotated to a new file */
   if (is_relay_log)
     signal_relay_log_update();
-  else
-    update_binlog_end_pos();
+
   DBUG_RETURN(0);
 
 err:
@@ -5708,7 +5839,7 @@ int MYSQL_BIN_LOG::new_file()
 {
   int res;
   mysql_mutex_lock(&LOCK_log);
-  res= new_file_impl();
+  res= new_file_impl(false);
   mysql_mutex_unlock(&LOCK_log);
   return res;
 }
@@ -5717,9 +5848,9 @@ int MYSQL_BIN_LOG::new_file()
   @retval
     nonzero - error
  */
-int MYSQL_BIN_LOG::new_file_without_locking()
+int MYSQL_BIN_LOG::new_file_without_locking(bool commit_by_rotate)
 {
-  return new_file_impl();
+  return new_file_impl(commit_by_rotate);
 }
 
 
@@ -5734,7 +5865,7 @@ int MYSQL_BIN_LOG::new_file_without_locking()
     binlog_space_total will be updated if binlog_space_limit is set
 */
 
-int MYSQL_BIN_LOG::new_file_impl()
+int MYSQL_BIN_LOG::new_file_impl(bool commit_by_rotate)
 {
   int error= 0, close_on_error= FALSE;
   char new_name[FN_REFLEN], *new_name_ptr, *old_name, *file_to_open;
@@ -5856,7 +5987,8 @@ int MYSQL_BIN_LOG::new_file_impl()
   {
     /* reopen the binary log file. */
     file_to_open= new_name_ptr;
-    error= open(old_name, new_name_ptr, 0, io_cache_type, max_size, 1, FALSE);
+    error= open(old_name, new_name_ptr, 0, io_cache_type, max_size, 1, FALSE,
+                commit_by_rotate);
   }
 
   /* handle reopening errors */
@@ -5959,7 +6091,7 @@ bool MYSQL_BIN_LOG::append_no_lock(Log_event* ev,
   if (flush_and_sync(0))
     goto err;
   if (my_b_append_tell(&log_file) > max_size)
-    error= new_file_without_locking();
+    error= new_file_without_locking(false);
 err:
   update_binlog_end_pos();
   DBUG_RETURN(error);
@@ -6018,7 +6150,7 @@ bool MYSQL_BIN_LOG::write_event_buffer(uchar* buf, uint len)
   if (flush_and_sync(0))
     goto err;
   if (my_b_append_tell(&log_file) > max_size)
-    error= new_file_without_locking();
+    error= new_file_without_locking(false);
 err:
   my_safe_afree(ebuf, len);
   if (likely(!error))
@@ -6207,11 +6339,11 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
                                   sizeof(binlog_cache_mngr),
                                                    MYF(MY_ZEROFILL));
   if (!cache_mngr ||
-      open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size,
+      open_cached_file(&cache_mngr->stmt_cache.cache_log, binlog_cache_dir,
+                       LOG_PREFIX, (size_t) binlog_stmt_cache_size,
                        MYF(MY_WME | MY_TRACK_WITH_LIMIT)) ||
-      open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size,
+      open_cached_file(&cache_mngr->trx_cache.cache_log, binlog_cache_dir,
+                       LOG_PREFIX, (size_t) binlog_cache_size,
                        MYF(MY_WME | MY_TRACK_WITH_LIMIT)))
   {
     my_free(cache_mngr);
@@ -6866,6 +6998,7 @@ Event_log::prepare_pending_rows_event(THD *thd, TABLE* table,
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id,
+                                bool commit_by_rotate,
                                 bool has_xid, bool is_ro_1pc)
 {
   rpl_gtid gtid;
@@ -6933,6 +7066,9 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     thd->variables.server_id= global_system_variables.server_id;
   }
 #endif
+
+  if (unlikely(commit_by_rotate))
+    gtid_event.pad_to_size= binlog_commit_by_rotate.get_gtid_event_pad_data_size();
 
   if (write_event(&gtid_event))
     DBUG_RETURN(true);
@@ -7262,7 +7398,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
                                              commit_name.length);
           commit_id= entry->val_int(&null_value);
         });
-      res= write_gtid_event(thd, true, using_trans, commit_id);
+      res= write_gtid_event(thd, true, using_trans, commit_id, false);
       if (mdl_request.ticket)
         thd->mdl_context.release_lock(mdl_request.ticket);
       thd->backup_commit_lock= 0;
@@ -7623,7 +7759,8 @@ MYSQL_BIN_LOG::do_checkpoint_request(ulong binlog_id)
   @retval
     nonzero - error in rotating routine.
 */
-int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
+int MYSQL_BIN_LOG::rotate(bool force_rotate, bool *check_purge,
+                          bool commit_by_rotate)
 {
   int error= 0;
   ulonglong binlog_pos;
@@ -7664,7 +7801,7 @@ int MYSQL_BIN_LOG::rotate(bool force_rotate, bool* check_purge)
     */
     mark_xids_active(binlog_id, 1);
 
-    if (unlikely((error= new_file_without_locking())))
+    if (unlikely((error= new_file_without_locking(commit_by_rotate))))
     {
       /** 
          Be conservative... There are possible lost events (eg, 
@@ -7965,11 +8102,13 @@ int Event_log::write_cache_raw(THD *thd, IO_CACHE *cache)
 
 int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
 {
-  int res;
   IO_CACHE *cache= &cache_data->cache_log;
   DBUG_ENTER("Event_log::write_cache");
 
   mysql_mutex_assert_owner(&LOCK_log);
+
+  if (cache_data->init_for_read())
+    DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   /*
     If possible, just copy the cache over byte-by-byte with pre-computed
@@ -7979,13 +8118,12 @@ int Event_log::write_cache(THD *thd, binlog_cache_data *cache_data)
       likely(!crypto.scheme) &&
       likely(!opt_binlog_legacy_event_pos))
   {
-    int res= my_b_copy_all_to_cache(cache, &log_file);
-    status_var_add(thd->status_var.binlog_bytes_written, my_b_tell(cache));
+    int res=
+        my_b_copy_to_cache(cache, &log_file, cache_data->length_for_read());
+    status_var_add(thd->status_var.binlog_bytes_written,
+                   cache_data->length_for_read());
     DBUG_RETURN(res ? ER_ERROR_ON_WRITE : 0);
   }
-
-  if ((res= reinit_io_cache(cache, READ_CACHE, 0, 0, 0)))
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   /* Amount of remaining bytes in the IO_CACHE read buffer. */
   size_t log_file_pos;
@@ -8700,10 +8838,29 @@ end:
   DBUG_RETURN(result);
 }
 
-bool
+inline bool
 MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
+  if (unlikely(binlog_commit_by_rotate.should_commit_by_rotate(entry)))
+  {
+    if (binlog_commit_by_rotate.commit(entry))
+      return true;
+  }
+  else if (write_transaction_with_group_commit(entry))
+    return true;
+
+  if (likely(!entry->error))
+    return false;
+
+  write_transaction_handle_error(entry);
+  return true;
+}
+
+bool
+MYSQL_BIN_LOG::write_transaction_with_group_commit(group_commit_entry *entry)
+{
   int is_leader= queue_for_group_commit(entry);
+
 #ifdef WITH_WSREP
   /* commit order was released in queue_for_group_commit() call,
      here we check if wsrep_commit_ordered() failed or if we are leader */
@@ -8808,7 +8965,13 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 
   if (likely(!entry->error))
     return entry->thd->wait_for_prior_commit();
+  else
+    write_transaction_handle_error(entry);
+  return true;
+}
 
+void MYSQL_BIN_LOG::write_transaction_handle_error(group_commit_entry *entry)
+{
   switch (entry->error)
   {
   case ER_ERROR_ON_WRITE:
@@ -8837,8 +9000,6 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
   if (entry->cache_mngr->using_xa && entry->cache_mngr->xa_xid &&
       entry->cache_mngr->need_unlog)
     mark_xid_done(entry->cache_mngr->binlog_id, true);
-
-  return 1;
 }
 
 /*
@@ -8854,65 +9015,74 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 void
 MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 {
-  uint xid_count= 0;
-  my_off_t UNINIT_VAR(commit_offset);
   group_commit_entry *current, *last_in_queue;
   group_commit_entry *queue= NULL;
-  bool check_purge= false;
-  ulong UNINIT_VAR(binlog_id);
-  uint64 commit_id;
   DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_leader");
 
-  {
 #ifdef ENABLED_DEBUG_SYNC
-    DBUG_EXECUTE_IF("inject_binlog_commit_before_get_LOCK_log",
-      DBUG_ASSERT(!debug_sync_set_action(leader->thd, STRING_WITH_LEN
-        ("commit_before_get_LOCK_log SIGNAL waiting WAIT_FOR cont TIMEOUT 1")));
-    );
+  DBUG_EXECUTE_IF("inject_binlog_commit_before_get_LOCK_log",
+    DBUG_ASSERT(!debug_sync_set_action(leader->thd, STRING_WITH_LEN
+      ("commit_before_get_LOCK_log SIGNAL waiting WAIT_FOR cont TIMEOUT 1")));
+  );
 #endif
-    /*
-      Lock the LOCK_log(), and once we get it, collect any additional writes
-      that queued up while we were waiting.
-    */
-    DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_log");
-    mysql_mutex_lock(&LOCK_log);
-    DEBUG_SYNC(leader->thd, "commit_after_get_LOCK_log");
+  /*
+    Lock the LOCK_log(), and once we get it, collect any additional writes
+    that queued up while we were waiting.
+  */
+  DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_log");
+  mysql_mutex_lock(&LOCK_log);
+  DEBUG_SYNC(leader->thd, "commit_after_get_LOCK_log");
 
-    mysql_mutex_lock(&LOCK_prepare_ordered);
-    if (opt_binlog_commit_wait_count)
-      wait_for_sufficient_commits();
-    /*
-      Note that wait_for_sufficient_commits() may have released and
-      re-acquired the LOCK_log and LOCK_prepare_ordered if it needed to wait.
-    */
-    current= group_commit_queue;
-    group_commit_queue= NULL;
-    mysql_mutex_unlock(&LOCK_prepare_ordered);
-    binlog_id= current_binlog_id;
+  mysql_mutex_lock(&LOCK_prepare_ordered);
+  if (opt_binlog_commit_wait_count)
+    wait_for_sufficient_commits();
+  /*
+    Note that wait_for_sufficient_commits() may have released and
+    re-acquired the LOCK_log and LOCK_prepare_ordered if it needed to wait.
+  */
+  current= group_commit_queue;
+  group_commit_queue= NULL;
+  mysql_mutex_unlock(&LOCK_prepare_ordered);
 
-    /* As the queue is in reverse order of entering, reverse it. */
-    last_in_queue= current;
-    while (current)
-    {
-      group_commit_entry *next= current->next;
-      /*
-        Now that group commit is started, we can clear the flag; there is no
-        longer any use in waiters on this commit trying to trigger it early.
-      */
-      current->thd->waiting_on_group_commit= false;
-      current->next= queue;
-      queue= current;
-      current= next;
-    }
-    DBUG_ASSERT(leader == queue /* the leader should be first in queue */);
-
-    /* Now we have in queue the list of transactions to be committed in order. */
-  }
-    
-  DBUG_ASSERT(is_open());
-  if (likely(is_open()))                       // Should always be true
+  /* As the queue is in reverse order of entering, reverse it. */
+  last_in_queue= current;
+  while (current)
   {
-    commit_id= (last_in_queue == leader ? 0 : (uint64)leader->thd->query_id);
+    group_commit_entry *next= current->next;
+    /*
+      Now that group commit is started, we can clear the flag; there is no
+      longer any use in waiters on this commit trying to trigger it early.
+    */
+    current->thd->waiting_on_group_commit= false;
+    current->next= queue;
+    queue= current;
+    current= next;
+  }
+  DBUG_ASSERT(leader == queue /* the leader should be first in queue */);
+  /* Now we have in queue the list of transactions to be committed in order. */
+
+  trx_group_commit_with_engines(leader, last_in_queue, false);
+  DBUG_VOID_RETURN;
+}
+
+void MYSQL_BIN_LOG::trx_group_commit_with_engines(group_commit_entry *leader,
+                                                  group_commit_entry *tail,
+                                                  bool commit_by_rotate)
+{
+  uint xid_count= 0;
+  bool check_purge= false;
+  ulong UNINIT_VAR(binlog_id);
+  my_off_t UNINIT_VAR(commit_offset);
+  group_commit_entry *current;
+
+  DBUG_ENTER("MYSQL_BIN_LOG::trx_group_commit_with_engines");
+  mysql_mutex_assert_owner(&LOCK_log);
+  binlog_id= current_binlog_id;
+
+  if (likely(is_open())) // Binlog could be closed if rotation fails
+  {
+    uint64 commit_id= (leader == tail ? 0 : (uint64) leader->thd->query_id);
+
     DBUG_EXECUTE_IF("binlog_force_commit_id",
       {
         const LEX_CSTRING commit_name= { STRING_WITH_LEN("commit_id") };
@@ -8933,7 +9103,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       current->error and let the thread do the error reporting itself once
       we wake it up.
     */
-    for (current= queue; current != NULL; current= current->next)
+    for (current= leader; current != NULL; current= current->next)
     {
       set_current_thd(current->thd);
       binlog_cache_mngr *cache_mngr= current->cache_mngr;
@@ -8944,10 +9114,11 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       */
       DBUG_ASSERT(!cache_mngr->stmt_cache.empty() ||
                   !cache_mngr->trx_cache.empty()  ||
-                  current->thd->transaction->xid_state.is_explicit_XA());
+                  current->thd->transaction->xid_state.is_explicit_XA() ||
+                  commit_by_rotate);
 
-      if (unlikely((current->error= write_transaction_or_stmt(current,
-                                                              commit_id))))
+      if (unlikely((current->error= write_transaction_or_stmt(
+                        current, commit_id, commit_by_rotate))))
         current->commit_errno= errno;
 
       strmake_buf(cache_mngr->last_commit_pos_file, log_file_name);
@@ -8980,7 +9151,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     bool synced= 0;
     if (unlikely(flush_and_sync(&synced)))
     {
-      for (current= queue; current != NULL; current= current->next)
+      for (current= leader; current != NULL; current= current->next)
       {
         if (!current->error)
         {
@@ -9000,7 +9171,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       mysql_mutex_assert_not_owner(&LOCK_after_binlog_sync);
       mysql_mutex_assert_not_owner(&LOCK_commit_ordered);
 
-      for (current= queue; current != NULL; current= current->next)
+      for (current= leader; current != NULL; current= current->next)
       {
 #ifdef HAVE_REPLICATION
         /*
@@ -9098,7 +9269,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 
     bool first __attribute__((unused))= true;
     bool last __attribute__((unused));
-    for (current= queue; current != NULL; current= current->next)
+    for (current= leader; current != NULL; current= current->next)
     {
       last= current->next == NULL;
 #ifdef HAVE_REPLICATION
@@ -9151,8 +9322,8 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
       in this function, so parent does not need to and we need not set these
       values).
     */
-    last_in_queue->check_purge= check_purge;
-    last_in_queue->binlog_id= binlog_id;
+    tail->check_purge= check_purge;
+    tail->binlog_id= binlog_id;
 
     /* Note that we return with LOCK_commit_ordered locked! */
     DBUG_VOID_RETURN;
@@ -9162,7 +9333,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     Wakeup each participant waiting for our group commit, first calling the
     commit_ordered() methods for any transactions doing 2-phase commit.
   */
-  current= queue;
+  current= leader;
   while (current != NULL)
   {
     group_commit_entry *next;
@@ -9200,10 +9371,9 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   DBUG_VOID_RETURN;
 }
 
-
-int
-MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
-                                         uint64 commit_id)
+int MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
+                                             uint64 commit_id,
+                                             bool commit_by_rotate)
 {
   binlog_cache_mngr *mngr= entry->cache_mngr;
   bool has_xid= entry->end_event->get_type_code() == XID_EVENT;
@@ -9224,10 +9394,17 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ASSERT(!(entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
                 mngr->get_binlog_cache_log(FALSE)->error));
 
-  if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
-                       entry->using_trx_cache, commit_id,
-                       has_xid, entry->ro_1pc))
-    DBUG_RETURN(ER_ERROR_ON_WRITE);
+  /*
+    gtid will be written when renaming the binlog cache to binlog file,
+    if commit_by_rotate is true. Thus skip write_gtid_event here.
+  */
+  if (likely(!commit_by_rotate))
+  {
+    if (write_gtid_event(entry->thd, is_prepared_xa(entry->thd),
+                         entry->using_trx_cache, commit_id,
+                         false /* commit_by_rotate */, has_xid, entry->ro_1pc))
+      DBUG_RETURN(ER_ERROR_ON_WRITE);
+  }
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&
       write_cache(entry->thd, mngr->get_binlog_cache_data(FALSE)))
@@ -11136,7 +11313,7 @@ int TC_LOG_BINLOG::unlog(ulong cookie, my_xid xid)
   if (!BINLOG_COOKIE_IS_DUMMY(cookie))
     mark_xid_done(BINLOG_COOKIE_GET_ID(cookie), true);
   /*
-    See comment in trx_group_commit_leader() - if rotate() gave a failure,
+    See comment in trx_group_commit_with_engines() - if rotate() gave a failure,
     we delay the return of error code to here.
   */
   DBUG_RETURN(BINLOG_COOKIE_GET_ERROR_FLAG(cookie));
@@ -12934,3 +13111,243 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
 }
 
 #endif /* WITH_WSREP */
+
+inline bool Binlog_commit_by_rotate::should_commit_by_rotate(
+    const MYSQL_BIN_LOG::group_commit_entry *entry) const
+{
+  binlog_cache_data *trx_cache= entry->cache_mngr->get_binlog_cache_data(true);
+  binlog_cache_data *stmt_cache=
+      entry->cache_mngr->get_binlog_cache_data(false);
+
+  if (likely(trx_cache->get_byte_position() <=
+                 opt_binlog_commit_by_rotate_threshold &&
+             stmt_cache->get_byte_position() <=
+                 opt_binlog_commit_by_rotate_threshold))
+    return false;
+
+  binlog_cache_data *cache_data= trx_cache;
+  if (unlikely(entry->using_stmt_cache && !stmt_cache->empty()))
+    cache_data= stmt_cache;
+
+  /*
+     Don't do rename if no space reserved or no nothing written in the tmp
+     file. It happens in the case binlog cache buffer is larger than
+     threshold
+   */
+  if (cache_data->file_reserved_bytes() == 0 ||
+      cache_data->cache_log.disk_writes == 0)
+    return false;
+
+  /*
+    - The binlog cache file is not encrypted in the same way with binlog, so it
+      cannot be renamed to binlog file.
+    - It is not supported to rename both statement cache and transaction cache
+      to binlog files at the same time.
+    - opt_optimize_thread_scheduling is just for testing purpose, it is usually
+      enabled, skip the disabled case to make the code simple.
+   */
+  if (encrypt_binlog || !opt_optimize_thread_scheduling ||
+      (entry->using_stmt_cache && entry->using_trx_cache &&
+       !stmt_cache->empty() && !trx_cache->empty()))
+    return false;
+
+  return true;
+}
+
+bool Binlog_commit_by_rotate::commit(MYSQL_BIN_LOG::group_commit_entry *entry)
+{
+  bool check_purge= false;
+  THD *thd= entry->thd;
+  binlog_cache_mngr *cache_mngr= entry->cache_mngr;
+  binlog_cache_data *cache_data= cache_mngr->get_binlog_cache_data(true);
+  if (unlikely(!entry->using_trx_cache || cache_data->empty()))
+    cache_data= cache_mngr->get_binlog_cache_data(false);
+
+  /* Call them before enter log_lock to avoid holding the lock long */
+  if (cache_data->sync_temp_file())
+    return true;
+
+  /*
+    If there was a rollback_to_savepoint happened before, the real length of
+    tmp file can be greater than the file_end_pos. Truncate the cache tmp
+    file to file_end_pos of this cache.
+  */
+  my_chsize(cache_data->cache_log.file, cache_data->temp_file_length(), 0,
+            MYF(0));
+
+  if (thd->wait_for_prior_commit())
+    return true;
+
+  // It will be released by trx_group_commit_with_engines
+  mysql_mutex_lock(&mysql_bin_log.LOCK_log);
+
+  enum enum_binlog_checksum_alg expected_alg=
+      mysql_bin_log.checksum_alg_reset != BINLOG_CHECKSUM_ALG_UNDEF
+          ? mysql_bin_log.checksum_alg_reset
+          : (enum_binlog_checksum_alg) binlog_checksum_options;
+
+  /*
+    In legacy mode, all events should has a valid position this done by
+    updating log_pos field when writing events from binlog cache to binlog
+    file. Thus rename binlog cache to binlog file is not supported in legacy
+    mode.
+
+    if the cache's checksum alg is not same to the binlog's checksum, it needs
+    to recalculate the checksum. Thus rename binlog cache to binlog file is
+    not supported.
+  */
+  if (!mysql_bin_log.is_open() || opt_binlog_legacy_event_pos ||
+      (expected_alg != cache_data->checksum_opt))
+  {
+    mysql_mutex_unlock(&mysql_bin_log.LOCK_log);
+    // It cannot do rename, so go to group commit
+    return mysql_bin_log.write_transaction_with_group_commit(entry);
+  }
+
+  m_entry= entry;
+  m_replaced= false;
+  m_cache_data= cache_data;
+  ulong prev_binlog_id= mysql_bin_log.current_binlog_id;
+
+  /*
+    Rotate will call replace_binlog_file() to rename the transaction's binlog
+    cache to the new binlog file.
+  */
+  if (mysql_bin_log.rotate(true, &check_purge, true /* commit_by_rotate */))
+  {
+    DBUG_ASSERT(!m_replaced);
+    DBUG_ASSERT(!mysql_bin_log.is_open());
+    mysql_mutex_unlock(&mysql_bin_log.LOCK_log);
+    return true;
+  }
+
+  if (!m_replaced)
+  {
+    mysql_mutex_unlock(&mysql_bin_log.LOCK_log);
+    if (check_purge)
+      mysql_bin_log.checkpoint_and_purge(prev_binlog_id);
+    // It cannot do rename, so go to group commit
+    return mysql_bin_log.write_transaction_with_group_commit(entry);
+  }
+
+  DBUG_EXECUTE_IF("binlog_commit_by_rotate_crash_after_rotate",
+                  DBUG_SUICIDE(););
+
+  /* Seek binlog file to the end */
+  reinit_io_cache(&mysql_bin_log.log_file, WRITE_CACHE,
+                  cache_data->temp_file_length(), false, true);
+  status_var_add(m_entry->thd->status_var.binlog_bytes_written,
+                 cache_data->get_byte_position());
+  cache_data->detach_temp_file();
+
+  entry->next= nullptr;
+  mysql_bin_log.trx_group_commit_with_engines(entry, entry, true);
+  mysql_mutex_assert_not_owner(&mysql_bin_log.LOCK_log);
+
+  if (check_purge)
+    mysql_bin_log.checkpoint_and_purge(prev_binlog_id);
+
+  return false;
+}
+
+bool Binlog_commit_by_rotate::replace_binlog_file()
+{
+  size_t binlog_size= my_b_tell(&mysql_bin_log.log_file);
+  size_t required_size= binlog_size;
+  // space for Gtid_log_event
+  required_size+= LOG_EVENT_HEADER_LEN + Gtid_log_event::max_data_length +
+                  BINLOG_CHECKSUM_LEN;
+
+  DBUG_EXECUTE_IF("simulate_required_size_too_big", required_size= 10000;);
+  if (required_size > m_cache_data->file_reserved_bytes())
+  {
+    sql_print_information("Could not rename binlog cache to binlog(as "
+                          "requested by --binlog-commit-by-rotate-threshold). "
+                          "Required %llu bytes but only %llu bytes reserved.",
+                          required_size, m_cache_data->file_reserved_bytes());
+    return false;
+  }
+
+  File new_log_fd= -1;
+  bool ret= false;
+
+  /* Create fd for the cache file as a new binlog file fd */
+  new_log_fd= mysql_file_open(key_file_binlog, m_cache_data->temp_file_name(),
+                              O_BINARY | O_CLOEXEC | O_WRONLY, MYF(MY_WME));
+  if (new_log_fd == -1)
+    return false;
+
+  /* Copy the part which has been flushed to binlog file to binlog cache */
+  if (mysql_bin_log.log_file.pos_in_file > 0)
+  {
+    size_t copy_len= 0;
+    uchar buf[IO_SIZE];
+
+    int read_fd=
+        mysql_file_open(key_file_binlog, mysql_bin_log.get_log_fname(),
+                        O_RDONLY | O_BINARY | O_SHARE, MYF(MY_WME));
+    if (read_fd == -1)
+      goto err;
+
+    while (copy_len < mysql_bin_log.log_file.pos_in_file)
+    {
+      int read_len= (int) mysql_file_read(read_fd, buf, IO_SIZE, MYF(MY_WME));
+      if (read_len < 0 ||
+          mysql_file_write(new_log_fd, buf, read_len,
+                           MYF(MY_WME | MY_NABP | MY_WAIT_IF_FULL)))
+      {
+        mysql_file_close(read_fd, MYF(0));
+        goto err;
+      }
+      copy_len+= read_len;
+    }
+
+    mysql_file_close(read_fd, MYF(0));
+  }
+
+  // Set the cache file as binlog file.
+  mysql_file_close(mysql_bin_log.log_file.file, MYF(0));
+  mysql_bin_log.log_file.file= new_log_fd;
+  new_log_fd= -1;
+  my_delete(mysql_bin_log.get_log_fname(), MYF(0));
+
+  /* Any error happens after the file is deleted should return true. */
+  ret= true;
+
+  if (mysql_bin_log.write_gtid_event(
+          m_entry->thd, is_prepared_xa(m_entry->thd), m_entry->using_trx_cache,
+          0 /* commit_id */, true /* commit_by_rotate */,
+          m_entry->end_event->get_type_code() == XID_EVENT, m_entry->ro_1pc))
+    goto err;
+
+  DBUG_EXECUTE_IF("binlog_commit_by_rotate_crash_before_rename",
+                  DBUG_SUICIDE(););
+
+  if (DBUG_IF("simulate_rename_binlog_cache_to_binlog_error") ||
+      my_rename(m_cache_data->temp_file_name(), mysql_bin_log.get_log_fname(),
+                MYF(MY_WME)))
+    goto err;
+
+  sql_print_information("Renamed binlog cache to binlog %s",
+                        mysql_bin_log.get_log_fname());
+
+  m_replaced= true;
+  return false;
+err:
+  if (new_log_fd != -1)
+    mysql_file_close(new_log_fd, MYF(0));
+  return ret;
+}
+
+size_t Binlog_commit_by_rotate::get_gtid_event_pad_data_size()
+{
+  size_t begin_pos= my_b_tell(&mysql_bin_log.log_file);
+  // Gtid_event's data size doesn't include event header and checksum
+  size_t pad_data_to_size=
+      m_cache_data->file_reserved_bytes() - begin_pos - LOG_EVENT_HEADER_LEN;
+
+  if (binlog_checksum_options != BINLOG_CHECKSUM_ALG_OFF)
+    pad_data_to_size-= BINLOG_CHECKSUM_LEN;
+
+  return pad_data_to_size;
+}
