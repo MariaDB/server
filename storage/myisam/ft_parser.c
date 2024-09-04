@@ -32,7 +32,7 @@ typedef struct st_my_ft_parser_param
 
 static int FT_WORD_cmp(const void *_cs, const void *_w1, const void *_w2)
 {
-  const CHARSET_INFO *cs= (const CHARSET_INFO *) _cs;
+  CHARSET_INFO *cs= (CHARSET_INFO *) _cs;
   const FT_WORD *w1= (const FT_WORD *) _w1, *w2= (const FT_WORD *) _w2;
   return ha_compare_word(cs, (uchar*) w1->pos, w1->len,
                              (uchar*) w2->pos, w2->len);
