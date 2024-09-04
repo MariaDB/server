@@ -53,7 +53,7 @@ add_component(Backup
   DESCRIPTION "Installs backup utilities(mariabackup and mbstream)")
  
 #Miscellaneous hidden components, part of server / or client programs
-foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine plugin-hashicorp-key-management)
+foreach(comp connect-engine connect-engine-jdbc ClientPlugins aws-key-management rocksdb-engine)
   add_component(${comp} GROUP MySQLServer HIDDEN)
 endforeach()
 
