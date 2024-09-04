@@ -2885,6 +2885,7 @@ innobase_init_foreign(
 
                 db_len = dict_get_db_name_len(table->name.m_name);
 
+// Append partition suffix when FK is created in inplace alter
 		const size_t constr_len= strlen(constraint_name);
 		size_t alloc_len = 2 + db_len + constr_len + 2;
 		if (part_suffix)
@@ -8246,6 +8247,7 @@ check_if_ok_to_rename:
 				the FOREIGN KEY constraint name, compare
 				to the full constraint name. */
 				fid = fid ? fid + 1 : foreign->id;
+// For inplace drop FK find partition-suffixed FKs by ID without suffix
 				Lex_cstring id;
 				id.str= fid;
 				const char *suff= strchr(fid, '\xFF');
@@ -10013,6 +10015,7 @@ innobase_update_foreign_try(
 
 	foreign_id++;
 
+// Used by inplace add foreign key
 	const char *part_suffix= is_partition(ctx->old_table->name.m_name);
 	size_t part_suffix_len= part_suffix ? strlen(part_suffix) : 0;
 

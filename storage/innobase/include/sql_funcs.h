@@ -76,6 +76,9 @@ R"===(PROCEDURE RENAME_CONSTRAINT_IDS () IS
                              SUBSTR(foreign_id2, offset2, id_len - offset2));
         id_len := LENGTH(foreign_id);
       END IF;
+)==="
+// CONVERT OUT: remove partition suffix
+R"===(
       IF (:old_is_part > 0) THEN
         offset := INSTR(foreign_id, ')===" "\xFF" R"===(');
         IF (offset > 0) THEN
@@ -83,6 +86,9 @@ R"===(PROCEDURE RENAME_CONSTRAINT_IDS () IS
           id_len := LENGTH(foreign_id);
         END IF;
       END IF;
+)==="
+// CONVERT IN: append partition suffix
+R"===(
       IF (:new_is_part > 0) THEN
         foreign_id := CONCAT(foreign_id, ')===" "\xFF" R"===(', :new_part);
         id_len := LENGTH(foreign_id);
@@ -115,6 +121,9 @@ R"===(PROCEDURE RENAME_CONSTRAINT_IDS () IS
       END IF;
     END IF;
   END LOOP;
+)==="
+// Skip change FKs referencing this table if we just rename to backup
+R"===(
   IF (:rename_refs > 0) THEN
     UPDATE SYS_FOREIGN SET REF_NAME = :new_table_name
     WHERE REF_NAME = :old_table_name

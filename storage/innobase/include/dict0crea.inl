@@ -35,6 +35,7 @@ where the numbers start from 1, and are given locally for this table, that is,
 the number is not global, as it used to be before MySQL 4.0.18.  */
 UNIV_INLINE
 dberr_t
+// Used in inplace add foreign key
 dict_create_add_foreign_id(
 /*=======================*/
 	ulint*		id_nr,	/*!< in/out: number to use in id generation;
@@ -51,11 +52,13 @@ dict_create_add_foreign_id(
 		ulint	namelen	= strlen(name);
 		char*	id	= static_cast<char*>(
 					mem_heap_alloc(foreign->heap,
+// +1 for \xFF
 						       namelen + 21));
 		int idlen;
 		char buf[MAX_FOREIGN_ID_LEN];
 		const bool tmp_name= dict_table_t::is_temporary_name(name);
 		ut_ad(is_partition(name) == part_suffix);
+// First treat name without partition suffix ...
 		if (part_suffix) {
 			size_t len= size_t(part_suffix - name);
 			memcpy(buf, name, len);
@@ -92,12 +95,14 @@ dict_create_add_foreign_id(
 				(ulong) (*id_nr)++);
 			ut_ad(idlen > 0);
 
+// \xFF does not validate well. We don't check part that is not visible at SQL layer.
 			if (innobase_check_identifier_length(
 				strchr(id,'/') + 1)) {
 				DBUG_RETURN(DB_IDENTIFIER_TOO_LONG);
 			}
 		}
 
+// ... and then append partition suffix to the end.
 		if (part_suffix)
 		{
 			id[idlen++]= '\xFF';
