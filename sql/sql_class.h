@@ -4288,7 +4288,8 @@ public:
     @retval  FALSE otherwise.
    */
   bool notify_shared_lock(MDL_context_owner *ctx_in_use,
-                          bool needs_thr_lock_abort) override;
+                          bool needs_thr_lock_abort,
+                          bool needs_non_slave_abort) override;
 
   // End implementation of MDL_context_owner interface.
 

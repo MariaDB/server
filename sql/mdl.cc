@@ -613,7 +613,7 @@ public:
 
   bool needs_notification(const MDL_ticket *ticket) const
   { return m_strategy->needs_notification(ticket); }
-  void notify_conflicting_locks(MDL_context *ctx)
+  void notify_conflicting_locks(MDL_context *ctx, bool abort_blocking)
   {
     for (const auto &conflicting_ticket : m_granted)
     {
@@ -624,7 +624,8 @@ public:
 
         ctx->get_owner()->
           notify_shared_lock(conflicting_ctx->get_owner(),
-                             conflicting_ctx->get_needs_thr_lock_abort());
+                             conflicting_ctx->get_needs_thr_lock_abort(),
+                             abort_blocking);
       }
     }
   }
@@ -2361,10 +2362,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   /*
     Don't break conflicting locks if timeout is 0 as 0 is used
-    To check if there is any conflicting locks...
+    to check if there is any conflicting locks...
   */
   if (lock->needs_notification(ticket) && lock_wait_timeout)
-    lock->notify_conflicting_locks(this);
+    lock->notify_conflicting_locks(this, false);
 
   /*
     Ensure that if we are trying to get an exclusive lock for a slave
@@ -2397,14 +2398,44 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   find_deadlock();
 
-  struct timespec abs_timeout, abs_shortwait;
+  struct timespec abs_timeout, abs_shortwait, abs_abort_blocking_timeout;
+  bool abort_blocking_enabled= false;
+  double abort_blocking_timeout= slave_abort_blocking_timeout;
+  if (abort_blocking_timeout < lock_wait_timeout &&
+      m_owner->get_thd()->rgi_slave)
+  {
+    /*
+      After @@slave_abort_blocking_timeout seconds, kill non-replication
+      queries that are blocking a replication event (such as an ALTER TABLE)
+      from proceeding.
+    */
+    set_timespec_nsec(abs_abort_blocking_timeout,
+                      (ulonglong)(abort_blocking_timeout * 1000000000ULL));
+    abort_blocking_enabled= true;
+  }
   set_timespec_nsec(abs_timeout,
                     (ulonglong)(lock_wait_timeout * 1000000000ULL));
-  set_timespec(abs_shortwait, 1);
   wait_status= MDL_wait::EMPTY;
 
-  while (cmp_timespec(abs_shortwait, abs_timeout) <= 0)
+  for (;;)
   {
+    bool abort_blocking= false;
+    set_timespec(abs_shortwait, 1);
+    if (abort_blocking_enabled &&
+        cmp_timespec(abs_shortwait, abs_abort_blocking_timeout) >= 0)
+    {
+      /*
+        If a slave DDL has waited for --slave-abort-select-timeout, then notify
+        any blocking SELECT once before continuing to wait until the full
+        timeout.
+      */
+      abs_shortwait= abs_abort_blocking_timeout;
+      abort_blocking= true;
+      abort_blocking_enabled= false;
+    }
+    else if (cmp_timespec(abs_shortwait, abs_timeout) > 0)
+      break;
+
     /* abs_timeout is far away. Wait a short while and notify locks. */
     wait_status= m_wait.timed_wait(m_owner, &abs_shortwait, FALSE,
                                    mdl_request->key.get_wait_state_name());
@@ -2425,9 +2456,8 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
     mysql_prlock_wrlock(&lock->m_rwlock);
     if (lock->needs_notification(ticket))
-      lock->notify_conflicting_locks(this);
+      lock->notify_conflicting_locks(this, abort_blocking);
     mysql_prlock_unlock(&lock->m_rwlock);
-    set_timespec(abs_shortwait, 1);
   }
   if (wait_status == MDL_wait::EMPTY)
     wait_status= m_wait.timed_wait(m_owner, &abs_timeout, TRUE,

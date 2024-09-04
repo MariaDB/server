@@ -494,6 +494,7 @@ uint internal_slave_connections_needed_for_purge;
 ulong slave_max_allowed_packet= 0;
 double slave_max_statement_time_double;
 ulonglong slave_max_statement_time;
+double slave_abort_blocking_timeout;
 ulonglong binlog_stmt_cache_size=0;
 ulonglong  max_binlog_stmt_cache_size=0;
 ulonglong test_flags;

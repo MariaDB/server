@@ -2158,21 +2158,28 @@ void THD::disconnect()
 
 
 bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
-                             bool needs_thr_lock_abort)
+                             bool needs_thr_lock_abort,
+                             bool needs_non_slave_abort)
 {
   THD *in_use= ctx_in_use->get_thd();
   bool signalled= FALSE;
   DBUG_ENTER("THD::notify_shared_lock");
   DBUG_PRINT("enter",("needs_thr_lock_abort: %d", needs_thr_lock_abort));
 
-  if ((in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT) &&
-      !in_use->killed)
+  enum killed_state kill_signal;
+  if (in_use->system_thread & SYSTEM_THREAD_DELAYED_INSERT)
+    kill_signal= KILL_CONNECTION;
+  else if (needs_non_slave_abort && !in_use->slave_thread)
+    kill_signal= KILL_QUERY;
+  else
+    kill_signal= NOT_KILLED;
+  if (kill_signal != NOT_KILLED && !in_use->killed)
   {
     /* This code is similar to kill_delayed_threads() */
     DBUG_PRINT("info", ("kill delayed thread"));
     mysql_mutex_lock(&in_use->LOCK_thd_kill);
-    if (in_use->killed < KILL_CONNECTION)
-      in_use->set_killed_no_mutex(KILL_CONNECTION);
+    if (in_use->killed < kill_signal)
+      in_use->set_killed_no_mutex(kill_signal);
     in_use->abort_current_cond_wait(true);
     mysql_mutex_unlock(&in_use->LOCK_thd_kill);
     signalled= TRUE;

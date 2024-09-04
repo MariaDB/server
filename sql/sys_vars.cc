@@ -2591,6 +2591,17 @@ static Sys_var_on_access_global<
         GLOBAL_VAR(slave_max_statement_time_double), CMD_LINE(REQUIRED_ARG),
         VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(0), NO_MUTEX_GUARD,
         NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(update_slave_max_statement_time));
+
+static Sys_var_on_access_global<
+    Sys_var_double, PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_ABORT_BLOCKING_TIMEOUT>
+    Sys_slave_abort_blocking_timeout(
+        "slave_abort_blocking_timeout",
+        "Maximum time a slave DDL will wait for a blocking SELECT or other "
+        "user query until that query will be aborted. The argument will be "
+        "treated as a decimal value with nanosecond precision",
+        GLOBAL_VAR(slave_abort_blocking_timeout), CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, LONG_TIMEOUT), DEFAULT(LONG_TIMEOUT), NO_MUTEX_GUARD,
+        NOT_IN_BINLOG);
 #endif
 
 

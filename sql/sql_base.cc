@@ -1025,7 +1025,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
     thd->handler_stats.add(file->handler_stats);
   }
   /*
-    This look is needed to allow THD::notify_shared_lock() to
+    This lock is needed to allow THD::notify_shared_lock() to
     traverse the thd->open_tables list without having to worry that
     some of the tables are removed from under it
   */
