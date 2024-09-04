@@ -11021,6 +11021,7 @@ void TABLE::mark_table_for_reopen()
   thd->locked_tables_list.mark_table_for_reopen(this);
 }
 
+// Interface for CREATE/ALTER to create FKs only in current partition
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool TABLE::vers_system_time_partitioned() const
 {

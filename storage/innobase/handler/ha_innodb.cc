@@ -3512,6 +3512,7 @@ innobase_convert_identifier(
 	THD*		thd)
 {
 	const char*	s	= id;
+// That was wrong buffer size assumption as id is full identifier of format:
 	/* db/table_name#P#part_name#SP#subpart_name */
 	static const size_t ID_LEN= MAX_TABLE_NAME_LEN * 3 + 1 + 3 + 4 + 1;
 	char nz[ID_LEN];
@@ -5295,6 +5296,8 @@ create_table_info_t::create_table_info_t(
 	  m_table(NULL),
 	  m_innodb_file_per_table(file_per_table),
 	  m_creating_stub(thd_ddl_options(thd)->import_tablespace()),
+// These help to pass data from create_foreign_keys() to create_foreign_key()
+// More create_foreign_keys() variables should be moved to create_table_info_t
 	  part_suffix(NULL),
 	  tmp_name(false)
 {
@@ -12431,6 +12434,14 @@ create_table_info_t::create_foreign_keys()
 	}
 
 	while (Key* key = key_it++) {
+// Now we process tmp table from ALTER and create FKs for it prefixed by \xFF.
+// Backed up FKs are prefixed by \xFF\xFF.
+//
+// row_rename_table_for_mysql() either restores backup by removing \xFF\xFF or
+// applies new table by removing \xFF.
+//
+// There is also \xFF between usual FK ID and partition suffix. Partition suffix
+// helps to maintain FKs per each partition in SYS_FOREIGN table.
 		if (key->type != Key::FOREIGN_KEY)
 			continue;
 
@@ -12603,6 +12614,9 @@ create_table_info_t::create_foreign_key(
 			itself. We store the name to foreign->id. */
 
 			db_len = dict_get_db_name_len(table->name.m_name);
+// We prefix by \xFF not just for any ALTER TABLE command, but correctly decide
+// it from table name whether it is tmp table or not.
+// ALTER TABLE may avoid using tmp table (f.ex. ADD PARTITION).
 			size_t alloc_len = (tmp_name ? 3 : 2) + db_len + fk->constraint_name.length;
 			if (part_suffix)
 			{
@@ -12621,6 +12635,7 @@ create_table_info_t::create_foreign_key(
 			strcpy(pos, fk->constraint_name.str);
 			ut_ad(strlen(fk->constraint_name.str) == fk->constraint_name.length);
 			pos+= fk->constraint_name.length;
+// Append partition suffix
 			if (part_suffix)
 			{
 				*(pos++) = '\xFF';
@@ -12816,6 +12831,8 @@ create_table_info_t::create_foreign_key(
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
+// Prohibit CASCADE and SET NULL for partitioned tables
+// as we cannot handle cross-partition updates in InnoDB layer
 			if (part_suffix)
 			{
 				goto cascade_partitioned;
@@ -13377,6 +13394,8 @@ create_table_info_t::allocate_trx()
 @retval	0 on success */
 int
 ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
+// Default value in method definition limits it to current source file. Was it intended?
+// Upper interface decides whether to create FK or not. F.ex. TRUNCATE does not create FKs.
                     bool file_per_table, trx_t *trx, bool create_fk)
 {
   DBUG_ENTER("ha_innobase::create");
@@ -13410,6 +13429,8 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
 
   if (!error)
   {
+// Create FKs only for SYSTEM_TIME current partition or decide it from the caller.
+// Now TRUNCATE does not create FKs, all others do create.
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (create_fk && form->part_info)
     {
@@ -14085,6 +14106,7 @@ int ha_innobase::truncate()
     row_mysql_lock_data_dictionary(trx);
     ib_table->release();
     dict_sys.remove(ib_table, false, true);
+// Don't create FKs in TRUNCATE
     int err= create(ib_table->name.m_name, table, &info, true, trx, false);
     row_mysql_unlock_data_dictionary(trx);
 
@@ -15665,6 +15687,10 @@ get_foreign_key_info(
  	}
 
 	ptr = dict_remove_db_name(foreign->id);
+// Pass id as constraint name with partition suffix stripped. Temporary ids
+// should not be here (starting with \xFF) and we assert it by ut_ad(!ptr2) below.
+// Debug code will fail, release code will just show mangled foreign id which
+// will mean something is wrong with the code or data.
 	if ((ptr2= strchr(ptr, '\xFF')) && ptr2 > ptr) {
 		len= size_t(ptr2 - ptr);
 	} else {
@@ -15704,6 +15730,7 @@ get_foreign_key_info(
 
 	/* Foreign (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
+// Remove partition name from child table name
 	if ((ptr2 = is_partition(ptr))) {
 		len = ptr2 - ptr;
 		memcpy(tmp_buff, ptr, len);

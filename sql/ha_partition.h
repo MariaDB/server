@@ -1677,6 +1677,7 @@ public:
   void update_optimizer_costs(OPTIMIZER_COSTS *costs) override;
   virtual ulonglong index_blocks(uint index, uint ranges, ha_rows rows) override;
   virtual ulonglong row_blocks() override;
+// SQL layer interface
   virtual int get_foreign_key_list(THD *thd,
                                    List<FOREIGN_KEY_INFO> *f_key_list) override
   {

@@ -1746,6 +1746,8 @@ struct dict_foreign_matches_id {
 	bool operator()(const dict_foreign_t*	foreign) const
 	{
 		const Lex_ident_column ident = Lex_cstring_strlen(m_id);
+// Used by copy drop foreign key: like for inplace we must ignore partition suffix
+// when finding FKs.
 		const char *s;
 		char foreign_id[MAX_FOREIGN_ID_LEN];
 		const char*	stripped_id;

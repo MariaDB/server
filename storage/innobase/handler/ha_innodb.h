@@ -797,6 +797,7 @@ private:
 
 	/** Whether we are creating a stub table for importing. */
 	const bool	m_creating_stub;
+// Used by create_foreign_keys()
 	/** Buffer used for part_suffix */
 	char		part_suffix_buf[FN_REFLEN];
 	/** For partitioned tables contains partition suffix of table name */

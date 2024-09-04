@@ -4523,6 +4523,7 @@ handler *mysql_create_frm_image(THD *thd, HA_CREATE_INFO *create_info,
         DBUG_RETURN(NULL);
     }
   }
+// Allow FKs in partitioned table for CREATE TABLE
 #endif
 
   if (mysql_prepare_create_table_finalize(thd, create_info,
@@ -10980,6 +10981,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if ((create_info->db_type != table->s->db_type() ||
        (alter_info->partition_flags & ALTER_PARTITION_INFO)) &&
+// can_switch_engines() returns false if there are parent and child refs.
+// We allow engine switch for child.
       table->file->referenced_by_foreign_key())
   {
     my_error(ER_ROW_IS_REFERENCED, MYF(0));

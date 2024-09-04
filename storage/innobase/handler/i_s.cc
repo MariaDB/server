@@ -5773,6 +5773,9 @@ static ST_FIELD_INFO innodb_sys_foreign_fields_info[]=
 };
 } // namespace Show
 
+// In I_S show partition suffix with \xFF replaced by ':'.
+// #P# separator is skipped, if there is #SP# we skip to subpartition name
+// (partition name is skipped).
 /* Secondary partition foreign keys use '\xFF' to add suffix */
 static void fixup_foreign_id(char *dest, const char *src)
 {
