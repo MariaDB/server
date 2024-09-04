@@ -43,3 +43,18 @@ if ($MTR_COMBINATION_WIN) {
 
 drop function have_ssl;
 drop user test1@'%';
+
+
+--echo # MDEV-34854 Parsec sends garbage when using an empty password
+create user test2@'%' identified via parsec using PASSWORD('');
+--replace_regex /:[A-Za-z0-9+\/]{43}'/:password'/ /:[A-Za-z0-9+\/]{24}:/:salt:/
+show grants for test2@'%';
+connect con4, localhost, test2,;
+select 4, USER(), CURRENT_USER();
+disconnect con4;
+
+--replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--error ER_ACCESS_DENIED_ERROR
+connect con5, localhost, test2, "wrong_pwd";
+connection default;
+drop user test2@'%';
