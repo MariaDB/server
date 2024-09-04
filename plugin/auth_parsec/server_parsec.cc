@@ -282,7 +282,7 @@ int auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth info =
 {
-  MYSQL_AUTH_INTERFACE_VERSION_2_02,
+  MYSQL_AUTH_INTERFACE_VERSION_2_03,
   "parsec",
   auth,
   hash_password,

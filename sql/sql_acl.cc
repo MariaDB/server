@@ -2402,7 +2402,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
     res= ER_NOT_VALID_PASSWORD;
     goto end;
   }
-  if (pwtext.length)
+
+  // Starting from version 2.03 we also generate hash for empty passwords.
+  if ((info->interface_version >= MYSQL_AUTH_INTERFACE_VERSION_2_03
+       && pwtext.str) || pwtext.length)
   {
     if (info->hash_password)
     {
@@ -2423,6 +2426,7 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
       goto end;
     }
   }
+
   if (set_user_salt(auth, plugin))
   {
     res= ER_PASSWD_LENGTH;
