@@ -1985,14 +1985,14 @@ create trigger t1_bi2 before insert on t1 for each row begin end;
 drop trigger t1_bi;
 drop trigger t1_bi2;
 drop trigger t1_bi;
-Got one of the listed errors
+ERROR HY000: Trigger does not exist
 lock tables t1 read;
 create trigger t1_bi before insert on t1 for each row begin end;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 create trigger t1_bi before insert on t1 for each row begin end;
 ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
 drop trigger t1_bi;
-ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+ERROR HY000: Trigger does not exist
 unlock tables;
 create trigger t1_bi before insert on t1 for each row begin end;
 lock tables t1 read;

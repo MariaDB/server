@@ -5994,8 +5994,6 @@ int mysqld_main(int argc, char **argv)
   if (Events::init((THD*) 0, opt_noacl || opt_bootstrap))
     unireg_abort(1);
 
-  Events::search_n_execute_events(Event_parse_data::STARTUP);
-
 #ifdef WITH_WSREP
   if (WSREP_ON)
   {
@@ -6056,6 +6054,8 @@ int mysqld_main(int argc, char **argv)
     if (read_init_file(opt_init_file))
       unireg_abort(1);
   }
+
+  Events::search_n_execute_events(Event_parse_data::STARTUP);
 
   disable_log_notes= 0; /* Startup done, now we can give notes again */
 

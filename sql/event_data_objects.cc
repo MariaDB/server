@@ -186,7 +186,8 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n, int ek)
+Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n,
+                                   Event_parse_data::enum_event_kind ek)
 {
   if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
                                db.str, dbname.length= db.length, MYF(MY_WME))))
@@ -318,7 +319,7 @@ Event_queue_element::Event_queue_element():
 
   starts= ends= execute_at= last_executed= 0;
   starts_null= ends_null= execute_at_null= TRUE;
-  event_kind= 0;
+  event_kind= Event_parse_data::SCHEDULE;
 
   DBUG_VOID_RETURN;
 }
@@ -520,6 +521,10 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
     expression= table->field[ET_FIELD_INTERVAL_EXPR]->val_int();
   else
     expression= 0;
+
+  event_kind= (Event_parse_data::enum_event_kind)
+              table->field[ET_FIELD_EVENT_KIND]->val_int();
+
   /*
     If neigher STARTS and ENDS is set, then both fields are empty.
     Hence, if ET_FIELD_EXECUTE_AT is empty and event_kind is SCHEDULE
@@ -598,9 +603,6 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
 
   on_completion= (ptr[0]=='D'? Event_parse_data::ON_COMPLETION_DROP:
                                Event_parse_data::ON_COMPLETION_PRESERVE);
-
-  if (!table->field[ET_FIELD_EVENT_KIND]->is_null())
-    event_kind= (uint32) table->field[ET_FIELD_EVENT_KIND]->val_int();
 
   DBUG_RETURN(FALSE);
 }

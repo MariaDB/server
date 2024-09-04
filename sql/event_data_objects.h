@@ -39,13 +39,14 @@ public:
   ~Event_queue_element_for_exec();
 
   bool
-  init(const LEX_CSTRING &dbname, const LEX_CSTRING &name, int event_kind);
+  init(const LEX_CSTRING &dbname, const LEX_CSTRING &name,
+       Event_parse_data::enum_event_kind event_kind);
 
   LEX_CSTRING dbname;
   LEX_CSTRING name;
   bool dropped;
   THD *thd;
-  int event_kind;
+  Event_parse_data::enum_event_kind event_kind;
 
 private:
   /* Prevent use of these */
@@ -97,7 +98,7 @@ class Event_queue_element : public Event_basic
 public:
   int on_completion;
   int status;
-  int event_kind;
+  Event_parse_data::enum_event_kind event_kind;
   uint32 originator;
 
   my_time_t last_executed;

@@ -43,7 +43,7 @@ EXECUTE stmt_1;
 --echo # were damaged. Execution of this statement the second time expectedly
 --echo # results in emitting the error ER_EVENT_ALREADY_EXISTS since the event
 --echo # with the same name has just been created.
---error ER_TRG_ALREADY_EXISTS
+--error ER_EVENT_ALREADY_EXISTS
 EXECUTE stmt_1;
 
 --enable_warnings
@@ -62,7 +62,7 @@ EXECUTE stmt_3;
 --echo # were damaged. Execution of this statement the second time expectedly
 --echo # results in emitting the error ER_EVENT_DOESNT_EXIST since the event
 --echo # with the same name has just been dropped.
---error ER_TRG_DOES_NOT_EXIST
+--error ER_EVENT_DOES_NOT_EXIST
 EXECUTE stmt_3;
 --echo # Clean up
 DEALLOCATE PREPARE stmt_1;

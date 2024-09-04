@@ -1,7 +1,6 @@
 --source include/not_embedded.inc
 --source include/no_view_protocol.inc
 
-SET timestamp=UNIX_TIMESTAMP('2014-11-01 10:20:30');
 SET GLOBAL event_scheduler=off;
 
 CREATE TABLE t1 (a INT);
@@ -42,14 +41,12 @@ SET GLOBAL event_scheduler=off;
 --source include/wait_until_count_sessions.inc
 DELETE FROM t1;
 
-DROP EVENT IF EXISTS ev1;
+DROP TRIGGER IF EXISTS ev1;
 SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
-DROP EVENT IF EXISTS ev1;
+DROP TRIGGER IF EXISTS ev1;
 --error ER_TRG_DOES_NOT_EXIST
-DROP EVENT ev1;
+DROP TRIGGER ev1;
 SELECT EVENT_NAME, EVENT_DEFINITION FROM INFORMATION_SCHEMA.EVENTS;
 
 DROP TABLE t1;
-
-SET timestamp=DEFAULT;
 

@@ -2237,7 +2237,7 @@ create trigger t1_bi before insert on t1 for each row begin end;
 create trigger t1_bi2 before insert on t1 for each row begin end;
 drop trigger t1_bi;
 drop trigger t1_bi2;
---error 1360,1192
+--error ER_TRG_DOES_NOT_EXIST
 drop trigger t1_bi;
 
 lock tables t1 read;
@@ -2245,7 +2245,7 @@ lock tables t1 read;
 create trigger t1_bi before insert on t1 for each row begin end;
 --error ER_TABLE_NOT_LOCKED_FOR_WRITE
 create trigger t1_bi before insert on t1 for each row begin end;
---error ER_LOCK_OR_ACTIVE_TRANSACTION
+--error ER_TRG_DOES_NOT_EXIST
 drop trigger t1_bi;
 unlock tables;
 

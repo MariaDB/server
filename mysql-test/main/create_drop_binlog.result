@@ -257,7 +257,7 @@ ev1	DROP TABLE IF EXISTS t2
 DROP EVENT ev1;
 DROP EVENT IF EXISTS ev1;
 Warnings:
-Note	1360	Trigger does not exist
+Note	1305	Event ev1 does not exist
 SHOW BINLOG EVENTS;
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
 #	#	Format_desc	1	#	VER

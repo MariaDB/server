@@ -1321,18 +1321,18 @@ end:
   Useful for printing notes to the user.
 */
 
-LEX_CSTRING event_kind_to_name[Event_parse_data::EVENT_KIND_LAST] = {
+static LEX_CSTRING event_kind_to_name[Event_parse_data::EVENT_KIND_LAST] = {
   { STRING_WITH_LEN("")},
-  { STRING_WITH_LEN("SCHEDULE")},
-  { STRING_WITH_LEN("STARTUP")},
-  { STRING_WITH_LEN("SHUTDOWN")},
+  { STRING_WITH_LEN("ON SCHEDULE")},
+  { STRING_WITH_LEN("AFTER STARTUP")},
+  { STRING_WITH_LEN("BEFORE SHUTDOWN")},
 };
 
 /**
   Searches and executes all events matching a specific event kind.
 
-  This function is called whenever an event with an event_kind other
-  than SCHEDULE occurs.
+  This function is called whenever a STARTUP or SHUTDOWN
+  event occurs.
 
   @param event_kind The kind of event that should be executed.
 
@@ -1421,6 +1421,7 @@ Events::search_n_execute_events(Event_parse_data::enum_event_kind event_kind)
         goto end;
       }
       event_name->dropped = FALSE;
+      /* next line starts a new thread for executing the event in the background */
       scheduler->execute_top(event_name);
       count++;
     }

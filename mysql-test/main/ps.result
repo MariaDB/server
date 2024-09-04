@@ -2730,7 +2730,7 @@ Warnings:
 Warning	1105	Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it.
 call proc_1();
 call proc_1();
-ERROR HY000: Trigger does not exist
+ERROR HY000: Unknown event 'xyz'
 drop procedure proc_1;
 create function func_1() returns int begin drop event xyz; return 1; end|
 ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger

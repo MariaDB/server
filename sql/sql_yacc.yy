@@ -2950,7 +2950,8 @@ generalized_ev_tail:
             lex->event_parse_data->identifier= $3;
             lex->event_parse_data->on_completion=
                                   Event_parse_data::ON_COMPLETION_PRESERVE;
-            Lex->event_parse_data->event_kind= $4;
+            lex->event_parse_data->event_kind=
+                                   (Event_parse_data::enum_event_kind) $4;
 
             lex->sql_command= SQLCOM_CREATE_EVENT;
             /* We need that for disallowing subqueries */
@@ -13247,19 +13248,8 @@ drop:
         | DROP TRIGGER_SYM opt_if_exists sp_name
           {
             LEX *lex= Lex;
-            lex->spname= $4;
             lex->set_command(SQLCOM_DROP_TRIGGER, $3);
-#ifdef HAVE_EVENT_SCHEDULER
-            /*
-                If the trigger does not exist, try to drop a
-                trigger from mysql.event
-            */
-            char trn_path_buff[FN_REFLEN];
-            LEX_CSTRING trn_path= { trn_path_buff, 0 };
-            build_trn_path(thd, lex->spname, (LEX_STRING*) &trn_path);
-            if (check_trn_exists(&trn_path) && !opt_bootstrap)
-              lex->set_command(SQLCOM_DROP_EVENT, $3);
-#endif
+            lex->spname= $4;
           }
         | DROP SERVER_SYM opt_if_exists ident_or_text
           {
@@ -18324,6 +18314,9 @@ trigger_tail:
           }
         |
           event_tail
+          {
+            Lex->event_parse_data->is_trg_cmd= TRUE;
+          }
         ;
 
 /**************************************************************************

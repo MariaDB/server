@@ -95,7 +95,8 @@ public:
   longlong expression;
   interval_type interval;
 
-  int event_kind;
+  enum_event_kind event_kind;
+  bool is_trg_cmd;
 
   static Event_parse_data *
   new_instance(THD *thd);

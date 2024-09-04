@@ -14,3 +14,8 @@ inc
 1
 DROP TABLE t1;
 DROP TRIGGER trg;
+DROP TRIGGER trg;
+ERROR HY000: Trigger does not exist
+DROP TRIGGER IF EXISTS trg;
+Warnings:
+Note	1360	Trigger does not exist

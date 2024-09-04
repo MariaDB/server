@@ -2752,7 +2752,7 @@ drop event if exists xyz;
 #call proc_1();
 #drop event xyz;
 #call proc_1();
-#--error ER_TRG_ALREADY_EXISTS
+#--error ER_EVENT_ALREADY_EXISTS
 #call proc_1();
 #drop event xyz;
 #call proc_1();
@@ -2803,7 +2803,7 @@ create procedure proc_1() drop event xyz;
 call proc_1();
 create event xyz on schedule every 5 minute disable do select 123;
 call proc_1();
---error ER_TRG_DOES_NOT_EXIST
+--error ER_EVENT_DOES_NOT_EXIST
 call proc_1();
 drop procedure proc_1;
 delimiter |;

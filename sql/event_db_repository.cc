@@ -178,6 +178,97 @@ event_table_def= {ET_FIELD_COUNT, event_table_fields, 0, (uint*) 0};
 /** In case of an error, a message is printed to the error log. */
 static Table_check_intact_log_error table_intact;
 
+/* 
+   Functions to determine whether an error should relate to
+   triggers or events based on the command used,
+   since CREATE TRIGGER can be synonymous with CREATE EVENT.
+*/
+
+/**
+  Check whether a command related to a trigger was used.
+
+  Triggers related command can be DROP TRIGGER or
+  CREATE EVENT with event_kind != SCHEDULE
+
+  @retval  FALSE is not a trg related command
+  @retval  TRUE is a trg related command
+*/
+static bool is_trg_related_cmd(THD *thd)
+{
+  LEX *lex= thd->lex;
+
+  if (lex->sql_command == SQLCOM_DROP_TRIGGER)
+    return TRUE;
+
+  if (lex->sql_command == SQLCOM_CREATE_EVENT)
+  {
+    return lex->event_parse_data->is_trg_cmd;
+  }
+
+  return FALSE;
+}
+
+static void
+handle_er_already_exists(THD *thd, const LEX_CSTRING *name)
+{
+  if (is_trg_related_cmd(thd))
+    my_error(ER_TRG_ALREADY_EXISTS, MYF(0), name->str);
+  else
+    my_error(ER_EVENT_ALREADY_EXISTS, MYF(0), name->str);
+}
+
+static void
+handle_warn_already_exists(THD *thd, const LEX_CSTRING *name)
+{
+  if (is_trg_related_cmd(thd))
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_TRG_ALREADY_EXISTS,
+                        ER_THD(thd, ER_TRG_ALREADY_EXISTS),
+                        name->str);
+  else
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_EVENT_ALREADY_EXISTS,
+                        ER_THD(thd, ER_EVENT_ALREADY_EXISTS),
+                        name->str);
+}
+
+static void
+handle_er_does_not_exists(THD *thd, const LEX_CSTRING *name)
+{
+  if (is_trg_related_cmd(thd))
+    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
+  else
+    my_error(ER_EVENT_DOES_NOT_EXIST, MYF(0), name->str);
+}
+
+static void
+handle_warn_does_not_exists(THD *thd, const LEX_CSTRING *name)
+{
+  if (is_trg_related_cmd(thd))
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_TRG_DOES_NOT_EXIST,
+                        ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
+  else
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_EVENT_DOES_NOT_EXIST,
+                        ER_THD(thd, ER_EVENT_DOES_NOT_EXIST),
+                        name->str);
+}
+
+static void
+handle_warn_sp_not_exists(THD *thd, const LEX_CSTRING *name)
+{
+  if (is_trg_related_cmd(thd))
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
+                        "Trigger", name->str);
+  else
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                        ER_SP_DOES_NOT_EXIST, ER_THD(thd, ER_SP_DOES_NOT_EXIST),
+                        "Event", name->str);
+}
+
+/* End of error handler functions */
 
 /**
   Puts some data common to CREATE and ALTER EVENT into a row.
@@ -345,7 +436,6 @@ mysql_event_fill_row(THD *thd,
     fields[ET_FIELD_STARTS]->set_null();
     fields[ET_FIELD_ENDS]->set_null();
     fields[ET_FIELD_EXECUTE_AT]->set_null();
-    rs|= fields[ET_FIELD_EVENT_KIND]->store((longlong)et->event_kind, TRUE);
   }
 
   rs|= fields[ET_FIELD_MODIFIED]->set_time();
@@ -381,6 +471,8 @@ mysql_event_fill_row(THD *thd,
     rs|= fields[ET_FIELD_BODY_UTF8]->store(&sp->m_body_utf8,
                                            system_charset_info);
   }
+
+  rs|= fields[ET_FIELD_EVENT_KIND]->store((longlong)et->event_kind, TRUE);
 
   if (rs)
   {
@@ -708,16 +800,13 @@ Event_db_repository::create_event(THD *thd, Event_parse_data *parse_data,
     else if (thd->lex->create_info.if_not_exists())
     {
       *event_already_exists= true;
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                          ER_TRG_ALREADY_EXISTS,
-                          ER_THD(thd, ER_TRG_ALREADY_EXISTS),
-                          parse_data->name.str);
+      handle_warn_already_exists(thd, &parse_data->name);
       ret= 0;
       goto end;
     }
     else
     {
-      my_error(ER_TRG_ALREADY_EXISTS, MYF(0), parse_data->name.str);
+      handle_er_already_exists(thd, &parse_data->name);
       goto end;
     }
   } else
@@ -828,7 +917,7 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
     DBUG_PRINT("info", ("rename to: %s@%s", new_dbname->str, new_name->str));
     if (!find_named_event(new_dbname, new_name, table))
     {
-      my_error(ER_TRG_ALREADY_EXISTS, MYF(0), new_name->str);
+      handle_er_already_exists(thd, new_name);
       goto end;
     }
   }
@@ -840,7 +929,7 @@ Event_db_repository::update_event(THD *thd, Event_parse_data *parse_data,
   */
   if (find_named_event(&parse_data->dbname, &parse_data->name, table))
   {
-    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0), parse_data->name.str);
+    handle_er_does_not_exists(thd, &parse_data->name);
     goto end;
   }
 
@@ -932,12 +1021,15 @@ Event_db_repository::drop_event(THD *thd, const LEX_CSTRING *db,
   /* Event not found */
   if (!drop_if_exists)
   {
-    my_error(ER_TRG_DOES_NOT_EXIST, MYF(0), name->str);
+    handle_er_does_not_exists(thd, name);
     goto end;
   }
 
-  push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                      ER_TRG_DOES_NOT_EXIST, ER_THD(thd, ER_TRG_DOES_NOT_EXIST));
+  if(is_trg_related_cmd(thd))
+    handle_warn_does_not_exists(thd, name);
+  else
+    handle_warn_sp_not_exists(thd, name);
+
   ret= 0;
 
 end:
@@ -1110,7 +1202,7 @@ Event_db_repository::load_named_event(THD *thd, const LEX_CSTRING *dbname,
     }
 
     if ((ret= find_named_event(dbname, name, event_table.table)))
-      my_error(ER_TRG_DOES_NOT_EXIST, MYF(0), name->str);
+      handle_er_does_not_exists(thd, name);
     else if ((ret= etn->load_from_row(thd, event_table.table)))
       my_error(ER_CANNOT_LOAD_FROM_TABLE_V2, MYF(0), "mysql", "event");
     thd->commit_whole_transaction_and_close_tables();

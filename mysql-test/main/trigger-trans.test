@@ -251,7 +251,6 @@ CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
 --enable_warnings
 SET max_statement_time= default;
 --disable_warnings
---error 0,1192
 DROP TRIGGER IF EXISTS trg16;
 --enable_warnings
 DROP TABLE t1;
