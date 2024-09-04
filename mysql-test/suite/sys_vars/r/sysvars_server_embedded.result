@@ -462,6 +462,16 @@ NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
+VARIABLE_NAME	BINLOG_LARGE_COMMIT_THRESHOLD
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	BIGINT UNSIGNED
+VARIABLE_COMMENT	Increases transaction concurrency for large transactions (i.e. those with sizes larger than this value) by using the large transaction's cache file as a new binary log, and rotating the active binary log to the large transaction's cache file at commit time. This avoids the default commit logic that copies the transaction cache data to the end of the active binary log file while holding a lock that prevents other transactions from binlogging
+NUMERIC_MIN_VALUE	10485760
+NUMERIC_MAX_VALUE	18446744073709551615
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	BINLOG_OPTIMIZE_THREAD_SCHEDULING
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
@@ -1895,7 +1905,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	MAX_BINLOG_SIZE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value
+VARIABLE_COMMENT	Binary log will be rotated automatically when the size exceeds this value, unless `binlog_large_commit_threshold` causes rotation prematurely
 NUMERIC_MIN_VALUE	4096
 NUMERIC_MAX_VALUE	1073741824
 NUMERIC_BLOCK_SIZE	4096
@@ -3945,7 +3955,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	TMPDIR
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
-VARIABLE_COMMENT	Path for temporary files. Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
+VARIABLE_COMMENT	Path for temporary files. Files that are created in background for binlogging by user threads are placed in a separate location (see `binlog_large_commit_threshold` option). Several paths may be specified, separated by a colon (:), in this case they are used in a round-robin fashion
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
