@@ -8164,7 +8164,6 @@ best_access_path(JOIN      *join,
   SplM_plan_info *spl_plan= 0;
   table_map spl_pd_boundary= 0;
   Range_rowid_filter_cost_info *filter= 0;
-  const char* cause= NULL;
   enum join_type best_type= JT_UNKNOWN, type= JT_UNKNOWN;
 
   disable_jbuf= disable_jbuf || idx == join->const_tables;  
@@ -8193,6 +8192,7 @@ best_access_path(JOIN      *join,
     KEYUSE *start_key=0;
     TABLE *table= s->table;
     double best_records= DBL_MAX;
+    const char* cause= NULL;
     uint max_key_part=0;
 
     /* Test how we can use keys */
@@ -8754,7 +8754,8 @@ best_access_path(JOIN      *join,
                                table->key_info[filter->key_no].name);
         }
       }
-      trace_access_idx.add("rows", records).add("cost", tmp);
+      if (!cause)
+        trace_access_idx.add("rows", records).add("cost", tmp);
 
       if (tmp + 0.0001 < best_time - records/TIME_FOR_COMPARE)
       {
@@ -8773,7 +8774,6 @@ best_access_path(JOIN      *join,
         trace_access_idx.add("chosen", false)
                         .add("cause", cause ? cause : "cost");
       }
-      cause= nullptr;
     } /* for each key */
     records= best_records;
   }
