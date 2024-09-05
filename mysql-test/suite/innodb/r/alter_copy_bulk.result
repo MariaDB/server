@@ -1,10 +1,11 @@
-SET @@alter_algorithm=COPY;
+SET @default_stats_persistent= @@global.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
 CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
 INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
-ALTER TABLE t1 FORCE;
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
-ALTER TABLE t1 ADD INDEX(f2);
-ALTER TABLE t1 ADD PRIMARY KEY(f1(2));
+ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
 ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
 INSERT INTO t1 VALUES(repeat('a', 200), 1);
 ALTER TABLE t1 ADD UNIQUE KEY(f2);
@@ -13,14 +14,14 @@ ALTER IGNORE TABLE t1 MODIFY f1 CHAR(200) NOT NULL;
 CREATE TABLE t2(f1 INT NOT NULL,
 FOREIGN KEY(f1) REFERENCES t1(f2))ENGINE=InnoDB;
 INSERT INTO t2 VALUES(1);
-ALTER TABLE t2 FORCE;
+ALTER TABLE t2 ALGORITHM=COPY, FORCE;
 DROP TABLE t2, t1;
 CREATE TABLE t1 (f1 INT, f2 INT) ENGINE=InnoDB PARTITION BY HASH(f1) PARTITIONS 2;
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t1 SELECT seq, seq * 2 FROM seq_1_to_2;
-ALTER TABLE t1 FORCE;
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 INSERT INTO t1 SELECT seq, seq * 2 FROM seq_3_to_65536;
-ALTER TABLE t1 ADD INDEX(f2);
+ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
 DROP TABLE t1;
 #
 # MDEV-34756 Validation of new foreign key skipped
@@ -39,13 +40,14 @@ ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`#sql-alter`, CONSTRAINT `#sql-alter_ibfk_2` FOREIGN KEY (`f2`) REFERENCES `t1` (`f1`))
 INSERT INTO t1 VALUES(3, 1);
 SET STATEMENT foreign_key_checks=0 FOR
-ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
+ALTER TABLE t2 ALGORITHM=COPY, ADD CONSTRAINT FOREIGN KEY(f2) REFERENCES t1(f1);
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
-ALTER TABLE t1 FORCE;
+ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 affected rows: 2
 info: Records: 2  Duplicates: 0  Warnings: 0
-ALTER TABLE t2 FORCE;
+ALTER TABLE t2 ALGORITHM=COPY, FORCE;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t2, t1;
+SET GLOBAL innodb_stats_persistent=@default_stats_persistent;
