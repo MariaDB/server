@@ -21,6 +21,7 @@ CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
         return()
     ENDIF()
 
+    SET(PCRE_INCLUDES "${PCRE_INCLUDE_DIRS}")
     add_subdirectory(columnstore)
 
     IF(TARGET columnstore)
