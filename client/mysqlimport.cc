@@ -81,7 +81,7 @@ struct table_load_params
                             CREATE VIEW */
   std::string tablename; /* name of the table */
   std::string dbname;    /* name of the database */
-  ulonglong size;        /* size of the data file */
+  ulonglong size= 0;     /* size of the data file */
 };
 
 std::unordered_set<std::string> ignore_databases;
@@ -1017,7 +1017,7 @@ static void scan_backup_dir(const char *dir,
     }
     for (size_t j= 0; j < dir_info2->number_of_files; j++)
     {
-      table_load_params par{};
+      table_load_params par;
       par.dbname= dbname;
       fi= &dir_info2->dir_entry[j];
       if (has_extension(fi->name, ".sql") || has_extension(fi->name, ".txt"))
