@@ -2907,35 +2907,123 @@ server_option:
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.username.str == 0);
             Lex->server_options.username= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | HOST_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.host.str == 0);
             Lex->server_options.host= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | DATABASE TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.db.str == 0);
             Lex->server_options.db= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | OWNER_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.owner.str == 0);
             Lex->server_options.owner= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | PASSWORD_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.password.str == 0);
             Lex->server_options.password= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | SOCKET_SYM TEXT_STRING_sys
           {
             MYSQL_YYABORT_UNLESS(Lex->server_options.socket.str == 0);
             Lex->server_options.socket= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         | PORT_SYM ulong_num
           {
             Lex->server_options.port= $2;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                $2, thd->mem_root);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
+          }
+        /* port can be a quoted number */
+        | PORT_SYM TEXT_STRING_sys
+          {
+            int error;
+            char *end= (char *) $2.str + $2.length;
+            longlong p= my_strtoll10($2.str, &end, &error);
+            if (error > 0 || end != (char *) $2.str + $2.length ||
+                p > LONG_MAX || p < LONG_MIN)
+            {
+              thd->parse_error();
+              MYSQL_YYABORT;
+            }
+            Lex->server_options.port= (long) p;
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
+          }
+        | IDENT_sys TEXT_STRING_sys
+          {
+            engine_option_value *new_option=
+              new (thd->mem_root) engine_option_value(
+                engine_option_value::Name(
+                  safe_lexcstrdup_root(thd->mem_root, $1)),
+                engine_option_value::Value(
+                  safe_lexcstrdup_root(thd->mem_root, $2)), true);
+            new_option->link(&Lex->server_options.option_list,
+                             &Lex->option_list_last);
           }
         ;
 

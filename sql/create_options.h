@@ -26,6 +26,10 @@
 
 enum { ENGINE_OPTION_MAX_LENGTH=32767 };
 
+/*
+  Key-value list. Used for engine-defined options in CREATE TABLE
+  and OPTIONS in CREATE SERVER.
+*/
 class engine_option_value: public Sql_alloc
 {
 public:
