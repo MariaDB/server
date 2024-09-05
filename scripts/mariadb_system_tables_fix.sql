@@ -901,3 +901,10 @@ ALTER TABLE servers
 # MDEV-34716 Fix mysql.servers socket max length too short
 ALTER TABLE servers
   MODIFY Socket char(108) NOT NULL DEFAULT '';
+
+# MDEV-34716 Allow arbitrary options in CREATE SERVER
+ALTER TABLE servers
+  ADD Options JSON NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));
+# Ensure the collation is utf8mb4_bin (default for JSON)
+ALTER TABLE servers
+  MODIFY Options JSON  NOT NULL DEFAULT '{}' CHECK(JSON_VALID(Options));

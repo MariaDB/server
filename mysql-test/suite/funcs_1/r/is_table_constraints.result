@@ -81,6 +81,7 @@ def	mysql	PRIMARY	mysql	proc
 def	mysql	PRIMARY	mysql	procs_priv
 def	mysql	PRIMARY	mysql	proxies_priv
 def	mysql	Host	mysql	roles_mapping
+def	mysql	Options	mysql	servers
 def	mysql	PRIMARY	mysql	servers
 def	mysql	PRIMARY	mysql	tables_priv
 def	mysql	PRIMARY	mysql	table_stats
