@@ -106,7 +106,7 @@ static TABLE *get_fed_table_for_pushdown(SELECT_LEX *sel_lex)
       We intentionally don't support partitioned federatedx tables here, so
       use file->ht and not file->partition_ht().
     */
-    if (tbl->table->file->ht != federatedx_hton)
+    if (tbl->table->file->basic_ht() != federatedx_hton)
       return nullptr;
     const FEDERATEDX_SHARE *fshare=
         ((ha_federatedx *) tbl->table->file)->get_federatedx_share();

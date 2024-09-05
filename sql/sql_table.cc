@@ -6516,7 +6516,7 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   if (engine_options_differ(table_key->option_struct, new_key->option_struct,
-                            table->file->ht->index_options))
+                            table->file->table_ht()->index_options))
     return Compare_keys::NotEqual;
 
   Compare_keys result= Compare_keys::Equal;
@@ -6889,7 +6889,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
         ha_alter_info->handler_flags|= ALTER_COLUMN_COLUMN_FORMAT;
 
       if (engine_options_differ(field->option_struct, new_field->option_struct,
-                                table->file->ht->field_options))
+                                table->file->table_ht()->field_options))
       {
         ha_alter_info->handler_flags|= ALTER_COLUMN_OPTION;
         ha_alter_info->create_info->fields_option_struct[f_ptr - table->field]=
@@ -7515,7 +7515,7 @@ static bool notify_tabledef_changed(TABLE_LIST *table_list)
   if (table->file->partition_ht()->notify_tabledef_changed)
   {
     char db_buff[FN_REFLEN], table_buff[FN_REFLEN];
-    handlerton *hton= table->file->ht;
+    handlerton *hton= table->file->table_ht();
     LEX_CSTRING tmp_db, tmp_table;
 
     tmp_db.str=       db_buff;
@@ -7912,10 +7912,11 @@ static bool mysql_inplace_alter_table(THD *thd,
 
   {
     TR_table trt(thd, true);
-    if (trt != *table_list && table->file->ht->prepare_commit_versioned)
+    if (trt != *table_list && table->file->table_ht()->prepare_commit_versioned)
     {
       ulonglong trx_start_id= 0;
-      ulonglong trx_end_id= table->file->ht->prepare_commit_versioned(thd, &trx_start_id);
+      ulonglong trx_end_id= table->file->table_ht()->
+                              prepare_commit_versioned(thd, &trx_start_id);
       if (trx_end_id)
       {
         if (!TR_table::use_transaction_registry)
@@ -10458,7 +10459,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if (thd->mdl_context.upgrade_shared_lock(mdl_ticket, MDL_EXCLUSIVE,
                                              thd->variables.lock_wait_timeout))
       DBUG_RETURN(1);
-    quick_rm_table(thd, table->file->ht, &table_list->db,
+    quick_rm_table(thd, table->file->table_ht(), &table_list->db,
                    &table_list->table_name,
                    NO_HA_TABLE, 0);
     goto end_inplace;
@@ -11522,7 +11523,8 @@ do_continue:;
     - Neither old or new engine uses files from another engine
       The above is mainly true for the sequence and the partition engine.
   */
-  engine_changed= ((new_table->file->ht != table->file->ht) &&
+  engine_changed= ((new_table->file->table_ht()->db_type !=
+                      table->file->table_ht()->db_type) &&
                    ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
                      !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
                    !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&

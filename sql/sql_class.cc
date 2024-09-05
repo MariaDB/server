@@ -6864,11 +6864,11 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       if (tbl->lock_type >= TL_FIRST_WRITE)
       {
         bool trans;
-        if (prev_write_table && prev_write_table->file->ht !=
-            table->file->ht)
+        if (prev_write_table && prev_write_table->file->basic_ht() !=
+            table->file->basic_ht())
           multi_write_engine= TRUE;
 
-        if (table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB)
+        if (table->file->table_ht()->db_type == DB_TYPE_BLACKHOLE_DB)
           blackhole_table_found= 1;
 
         if (share->non_determinstic_insert &&
@@ -6906,8 +6906,8 @@ int THD::decide_logging_format(TABLE_LIST *tables)
                                                LEX::STMT_READS_NON_TRANS_TABLE);
       }
 
-      if (prev_access_table && prev_access_table->file->ht !=
-          table->file->ht)
+      if (prev_access_table && prev_access_table->file->basic_ht() !=
+          table->file->basic_ht())
         multi_access_engine= TRUE;
 
       prev_access_table= table;
@@ -7133,7 +7133,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
       {
         if (table->placeholder())
           continue;
-        if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
+        if (table->table->file->table_ht()->db_type == DB_TYPE_BLACKHOLE_DB &&
             table->lock_type >= TL_FIRST_WRITE)
         {
           table_names.append(&table->table_name);

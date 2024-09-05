@@ -297,6 +297,7 @@ private:
     partition_ft_read= 8
   };
   /* Data for the partition handler */
+  handlerton m_agg_hton;                // aggregated handlerton
   int  m_mode;                          // Open mode
   uint m_open_test_lock;                // Open test_if_locked
   uchar *m_file_buffer;                 // Content of the .par file
@@ -1617,6 +1618,9 @@ public:
       DBUG_ASSERT(h == m_file[i]->ht);
     return h;
   }
+
+  handlerton *basic_ht() const override
+  { return partition_hton; }
 
   bool partition_engine() override { return 1;}
 

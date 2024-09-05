@@ -149,7 +149,7 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
     DBUG_RETURN(TRUE);
   }
 
-  if (unlikely(part_table->file->ht != partition_hton))
+  if (unlikely(part_table->file->basic_ht() != partition_hton))
   {
     /*
       Only allowed on partitioned tables throught the generic ha_partition
@@ -159,7 +159,8 @@ static bool check_exchange_partition(TABLE *table, TABLE *part_table)
     DBUG_RETURN(TRUE);
   }
 
-  if (unlikely(table->file->ht != part_table->part_info->default_engine_type))
+  if (unlikely(table->file->basic_ht() !=
+               part_table->part_info->default_engine_type))
   {
     my_error(ER_MIX_HANDLER_ERROR, MYF(0));
     DBUG_RETURN(TRUE);
@@ -637,7 +638,7 @@ bool Sql_cmd_alter_table_exchange_partition::
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
     DBUG_RETURN(true);
 
-  table_hton= swap_table->file->ht;
+  table_hton= swap_table->file->basic_ht();
 
   THD_STAGE_INFO(thd, stage_verifying_table);
 
@@ -1035,7 +1036,7 @@ bool alter_partition_convert_in(ALTER_PARTITION_PARAM_TYPE *lpt)
                        table_from->db.str, table_from->table_name.str, "", 0);
 
   handler *file= get_new_handler(nullptr, thd->mem_root,
-                                 table_from->table->file->ht);
+                                 table_from->table->file->table_ht());
   if (unlikely(!file))
     return true;
 

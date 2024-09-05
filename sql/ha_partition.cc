@@ -330,6 +330,8 @@ void ha_partition::ha_partition_init()
 {
   DBUG_ENTER("ha_partition::ha_partition_init");
   init_alloc_root(PSI_INSTRUMENT_ME, &m_mem_root, 512, 512, MYF(0));
+  m_agg_hton= *ht;
+  ht= &m_agg_hton;
   init_handler_variables();
   DBUG_VOID_RETURN;
 }

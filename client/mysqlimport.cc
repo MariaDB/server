@@ -81,7 +81,7 @@ struct table_load_params
                             CREATE VIEW */
   std::string tablename; /* name of the table */
   std::string dbname;    /* name of the database */
-  ulonglong size;        /* size of the data file */
+  ulonglong size= 0;     /* size of the data file */
 };
 
 std::unordered_set<std::string> ignore_databases;

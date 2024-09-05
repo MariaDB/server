@@ -3249,8 +3249,14 @@ protected:
   */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
+  /*
+   Sstorage engine of this handler.
+   It points to like innodb_hton or myisam_hton for plain tables.
+   For partitioned tables it points to the internal 'aggregated' hton.
+  */
+  handlerton *ht;
+
 public:
-  handlerton *ht;               /* storage engine of this handler */
   OPTIMIZER_COSTS *costs;       /* Points to table->share->costs */
   uchar *ref;			/* Pointer to current row */
   uchar *dup_ref;		/* Pointer to duplicate row */
@@ -5475,6 +5481,15 @@ public:
 public:
   /* XXX to be removed, see ha_partition::partition_ht() */
   virtual handlerton *partition_ht() const
+  { return ht; }
+  /*
+    Partitioned tables modify the 'ht' to be an 'aggregated' hton.
+    So if we need the partition_hton returned for the PARTITION table
+    we should call the 'basic_ht'.
+  */
+  virtual handlerton *basic_ht() const
+  { return ht; }
+  handlerton *table_ht() const
   { return ht; }
   virtual bool partition_engine() { return 0;}
   inline int ha_write_tmp_row(uchar *buf);

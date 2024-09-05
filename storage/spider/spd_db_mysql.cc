@@ -416,7 +416,7 @@ int spider_db_mbase_row::store_to_field(
         ((Field_blob *)field)->set_ptr(*lengths, (uchar *) *row);
       else {
         DBUG_PRINT("info", ("spider blob convert"));
-        if (field->table->file->ht == spider_hton_ptr)
+        if (field->table->file->table_ht() == spider_hton_ptr)
         {
           ha_spider *spider = (ha_spider *) field->table->file;
           spider_string *str = &spider->blob_buff[field->field_index];

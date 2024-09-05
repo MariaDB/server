@@ -1332,7 +1332,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
   {
     if (!(file= create_handler(thd, mem_root, &handler_name)))
       goto end;
-    hton= file->ht;
+    hton= file->table_ht();
   }
 
   switch (ddl_log_entry->action_type) {
@@ -1963,7 +1963,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                                    &ddl_log_entry->from_handler_name)))
       goto end;
     /* Handlerton of the final table and any temporary tables */
-    org_hton= org_file->ht;
+    org_hton= org_file->table_ht();
     /*
       partition_hton is the hton for the new file, or
       in case of ALTER of a partitioned table, the underlying

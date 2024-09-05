@@ -10644,7 +10644,7 @@ bool TR_table::check(bool error)
     return true;
   }
 
-  if (table->file->ht->db_type != DB_TYPE_INNODB)
+  if (table->file->table_ht()->db_type != DB_TYPE_INNODB)
   {
     warn_schema_incorrect("Wrong table engine (expected InnoDB)");
     return true;

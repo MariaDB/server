@@ -178,7 +178,7 @@ dict_stats_should_ignore_index(
 struct dict_col_meta_t
 {
   /** column name */
-  const LEX_CSTRING name;
+  LEX_CSTRING name;
   /** main type */
   unsigned mtype;
   /** prtype mask; all these bits have to be set in prtype */

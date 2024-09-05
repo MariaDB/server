@@ -234,7 +234,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 
   table= table_ref->table;
 
-  if ((table->file->ht->flags & HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE) &&
+  if ((table->file->table_ht()->flags & HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE) &&
       !is_tmp_table)
   {
     if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
@@ -330,7 +330,7 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
       DBUG_RETURN(TRUE);
 
     versioned= table->versioned();
-    hton= table->file->ht;
+    hton= table->file->table_ht();
 #ifdef WITH_WSREP
     if (WSREP(thd) &&
 	!wsrep_should_replicate_ddl(thd, hton))
@@ -511,7 +511,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
       error= handler_truncate(thd, table_ref, FALSE);
 
       if (error == TRUNCATE_OK && thd->locked_tables_mode &&
-          (table_ref->table->file->ht->flags &
+          (table_ref->table->file->table_ht()->flags &
            (HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
             HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE)))
       {

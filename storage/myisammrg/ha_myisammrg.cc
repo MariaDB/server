@@ -699,7 +699,7 @@ extern "C" MI_INFO *myisammrg_attach_children_callback(void *callback_param)
   }
 
   /* Extract the MyISAM table structure pointer from the handler object. */
-  if ((child->file->ht->db_type != DB_TYPE_MYISAM) ||
+  if ((child->file->table_ht()->db_type != DB_TYPE_MYISAM) ||
       !(myisam= ((ha_myisam*) child->file)->file_ptr()))
   {
     DBUG_PRINT("error", ("no MyISAM handle for child table: '%s'.'%s' %p",

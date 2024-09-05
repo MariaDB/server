@@ -1146,7 +1146,7 @@ TABLE_LIST* find_dup_table(THD *thd, TABLE_LIST *table, TABLE_LIST *table_list,
       thd->lex->sql_command != SQLCOM_DELETE_MULTI)
   {
     /* All MyISAMMRG children are plain MyISAM tables. */
-    DBUG_ASSERT(table->table->file->ht->db_type != DB_TYPE_MRG_MYISAM);
+    DBUG_ASSERT(table->table->file->table_ht()->db_type != DB_TYPE_MRG_MYISAM);
 
     table= table->find_underlying_table(table->table);
     /*
@@ -4833,7 +4833,7 @@ restart:
         tbl &&
         tables == *start &&
         !wsrep_check_mode_after_open_table(thd,
-                                           tbl->file->ht, tables))
+                                           tbl->file->table_ht(), tables))
     {
       error= TRUE;
       goto error;
