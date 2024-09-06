@@ -8394,6 +8394,18 @@ best_access_path(JOIN      *join,
                found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
           {
             max_key_part= max_part_bit(found_part);
+            bool all_used_equalities_are_const;
+            if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF))
+            {
+              uint used_keyparts= PREV_BITS(uint, max_key_part);
+              all_used_equalities_are_const= !(used_keyparts & ~const_part);
+            }
+            else
+            {
+              // Old, incorrect check:
+              all_used_equalities_are_const= !found_ref;
+            }
             /*
               ReuseRangeEstimateForRef-3:
               We're now considering a ref[or_null] access via
@@ -8408,7 +8420,7 @@ best_access_path(JOIN      *join,
               create quick select over another index), so we can't compare
               them to (**). We'll make indirect judgements instead.
               The sufficient conditions for re-use are:
-              (C1) All e_i in (**) are constants, i.e. found_ref==FALSE. (if
+              (C1) All e_i in (**) are constants (if
                    this is not satisfied we have no way to know which ranges
                    will be actually scanned by 'ref' until we execute the 
                    join)
@@ -8433,7 +8445,8 @@ best_access_path(JOIN      *join,
 
               (C3) "range optimizer used (have ref_or_null?2:1) intervals"
             */
-            if (table->opt_range_keys.is_set(key) && !found_ref &&      //(C1)
+            if (table->opt_range_keys.is_set(key) &&
+                all_used_equalities_are_const && // (C1)
                 table->opt_range[key].key_parts == max_key_part &&      //(C2)
                 table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
@@ -8466,10 +8479,10 @@ best_access_path(JOIN      *join,
                 */
                 if (table->opt_range_keys.is_set(key))
                 {
+                  double rows= (double) table->opt_range[key].rows;
                   if (table->opt_range[key].key_parts >= max_key_part) // (2)
                   {
-                    double rows= (double) table->opt_range[key].rows;
-                    if (!found_ref &&                                  // (1)
+                    if (all_used_equalities_are_const &&               // (1)
                         records < rows)                                // (3)
                     {
                       trace_access_idx.add("used_range_estimates", "clipped up");
@@ -8537,15 +8550,30 @@ best_access_path(JOIN      *join,
               */
               if (table->opt_range_keys.is_set(key) &&
                   table->opt_range[key].key_parts <= max_key_part &&
-                  const_part &
-                  ((key_part_map)1 << table->opt_range[key].key_parts) &&
                   table->opt_range[key].ranges == (1 +
                                                    MY_TEST(ref_or_null_part &
                                                            const_part)) &&
                   records > (double) table->opt_range[key].rows)
               {
-                trace_access_idx.add("used_range_estimates", true);
-                records= (double) table->opt_range[key].rows;
+                bool all_parts_used;
+                if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                     OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF))
+                {
+                  key_part_map all_key_parts= PREV_BITS(key_part_map,
+                                                        table->opt_range[key].key_parts);
+
+                  all_parts_used= test_all_bits(const_part, all_key_parts);
+                }
+                else
+                  all_parts_used= (bool) (const_part &
+                                          ((key_part_map)1
+                                           << table->opt_range[key].key_parts));
+
+                if (all_parts_used)
+                {
+                  trace_access_idx.add("used_range_estimates", true);
+                  records= (double) table->opt_range[key].rows;
+                }
               }
             }
 

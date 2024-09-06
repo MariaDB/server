@@ -1904,3 +1904,66 @@ SELECT * FROM
 SET OPTIMIZER_USE_CONDITION_SELECTIVITY=@tmp;
 DROP TABLE t1,t2;
 --echo # End of 10.6 tests
+
+--source include/have_sequence.inc
+
+--echo #
+--echo # TODO-4858
+--echo #
+create table t0 (
+  a int,
+  b int,
+  dummy int
+);
+insert into t0 select seq,seq,seq from seq_1_to_10;
+
+create table t1 (
+  pk1 int,
+  pk2 int,
+  pk3 int,
+  key1 int,
+  key(key1),
+  filler char(100),
+  primary key(pk1,pk2,pk3)
+);
+
+insert into t1
+select
+  seq, seq, seq,
+  FLOOR(seq/2),
+  'filler-data'
+from seq_1_to_10000;
+analyze table t1;
+
+update t1 set pk1=1 where pk1 between 1 and 200;
+
+explain select * from t1 where pk1=1;
+
+explain select * from t0,t1 where t1.pk1=t0.a;
+
+create table t2 (
+ col int
+);
+insert into t2 select seq from seq_1_to_10000;
+
+set optimizer_adjust_secondary_key_costs='fix_reuse_range_for_ref';
+--echo # This must use this good query plan:
+--echo #  t0 - ALL
+--echo #  t1 - ref, key=key1, not PRIMARY.
+--echo #  t2 - ALL
+explain select * from t0, t1, t2
+where
+  t1.pk1=1 and t1.pk2=t2.col and t1.pk3=t0.dummy and
+  t1.key1=t0.b;
+
+set optimizer_adjust_secondary_key_costs=default;
+--echo # Bad query:
+--echo #  t0 - ALL
+--echo #  t1 - ref, key=PRIMARY
+--echo #  t2 - ALL
+explain select * from t0, t1, t2
+where
+  t1.pk1=1 and t1.pk2=t2.col and t1.pk3=t0.dummy and
+  t1.key1=t0.b;
+
+drop table t0,t1,t2;
