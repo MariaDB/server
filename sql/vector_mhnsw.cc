@@ -26,7 +26,6 @@
 
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
-static constexpr float generosity = 1.1f;
 static constexpr uint ef_construction= 10;
 
 static ulonglong mhnsw_cache_size;
@@ -334,6 +333,7 @@ public:
   size_t vec_len= 0;
   size_t byte_len= 0;
   Atomic_relaxed<double> ef_power{0.6}; // for the bloom filter size heuristic
+  Atomic_relaxed<float>  diameter{0};   // for the generosity heuristic
   FVectorNode *start= 0;
   const uint tref_len;
   const uint gref_len;
@@ -957,6 +957,17 @@ static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
   return 0;
 }
 
+
+static inline float generous_furthest(const Queue<Visited> &q, float maxd, float g)
+{
+  float d0=maxd*g/2;
+  float d= q.top()->distance_to_target;
+  float k= 5;
+  float x= (d-d0)/d0;
+  float sigmoid= k*x/std::sqrt(1+(k*k-1)*x*x); // or any other sigmoid
+  return d*(1 + (g - 1)/2 * (1 - sigmoid));
+}
+
 static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
                         Neighborhood *start_nodes, uint result_size,
                         size_t layer, Neighborhood *result, bool construction)
@@ -968,6 +979,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   Queue<Visited> candidates, best;
   bool skip_deleted;
   uint ef= result_size;
+  float generosity= 1.1f + ctx->M/500.0f;
 
   if (construction)
   {
@@ -991,9 +1003,11 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   best.init(ef, true, Visited::cmp);
 
   DBUG_ASSERT(start_nodes->num <= result_size);
+  float max_distance= ctx->diameter;
   for (size_t i=0; i < start_nodes->num; i++)
   {
     Visited *v= visited.create(start_nodes->links[i]);
+    max_distance= std::max(max_distance, v->distance_to_target);
     candidates.push(v);
     if (skip_deleted && v->node->deleted)
       continue;
@@ -1001,7 +1015,7 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
   }
 
   float furthest_best= best.is_empty() ? FLT_MAX
-                       : best.top()->distance_to_target * generosity;
+                       : generous_furthest(best, max_distance, generosity);
   while (candidates.elements())
   {
     const Visited &cur= *candidates.pop();
@@ -1027,11 +1041,12 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
         Visited *v= visited.create(links[i]);
         if (!best.is_full())
         {
+          max_distance= std::max(max_distance, v->distance_to_target);
           candidates.push(v);
           if (skip_deleted && v->node->deleted)
             continue;
           best.push(v);
-          furthest_best= best.top()->distance_to_target * generosity;
+          furthest_best= generous_furthest(best, max_distance, generosity);
         }
         else if (v->distance_to_target < furthest_best)
         {
@@ -1041,12 +1056,13 @@ static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
           if (v->distance_to_target < best.top()->distance_to_target)
           {
             best.replace_top(v);
-            furthest_best= best.top()->distance_to_target * generosity;
+            furthest_best= generous_furthest(best, max_distance, generosity);
           }
         }
       }
     }
   }
+  set_if_bigger(ctx->diameter, max_distance); // not atomic, but it's ok
   if (ef > 1 && visited.count*2 > est_size)
   {
     double ef_power= std::log(visited.count*2/est_heuristic) / std::log(ef);
