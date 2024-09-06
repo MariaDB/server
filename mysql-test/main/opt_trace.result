@@ -9417,8 +9417,6 @@ S
 {
     "access_type": "ref",
     "index": "PRIMARY",
-    "rows": 1.79769e308,
-    "cost": 1.79769e308,
     "chosen": false,
     "cause": "no predicate for first keypart"
 }
