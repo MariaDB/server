@@ -5242,7 +5242,7 @@ static bool get_quick_record_count(THD *thd, SQL_SELECT *select,
   if (unlikely(check_stack_overrun(thd, STACK_MIN_SIZE, buff)))
     DBUG_RETURN(false);                           // Fatal error flag is set
   if (select)
-  {
+  {
     select->head=table;
     table->reginfo.impossible_range=0;
     /*
