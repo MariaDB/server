@@ -2155,38 +2155,6 @@ corrupted_rec:
 			mem_heap_empty(row_heap);
 
 			if (!mtr_started) {
-				goto scan_next;
-			}
-
-			if (clust_index->lock.is_waiting()) {
-				/* There are waiters on the clustered
-				index tree lock, likely the purge
-				thread. Store and restore the cursor
-				position, and yield so that scanning a
-				large table will not starve other
-				threads. */
-
-				/* Store the cursor position on the last user
-				record on the page. */
-				if (!btr_pcur_move_to_prev_on_page(&pcur)) {
-					goto corrupted_index;
-				}
-				/* Leaf pages must never be empty, unless
-				this is the only page in the index tree. */
-				if (!btr_pcur_is_on_user_rec(&pcur)
-				    && btr_pcur_get_block(&pcur)->page.id()
-				    .page_no() != clust_index->page) {
-					goto corrupted_index;
-				}
-
-				btr_pcur_store_position(&pcur, &mtr);
-				mtr.commit();
-				mtr_started = false;
-
-				/* Give the waiters a chance to proceed. */
-				std::this_thread::yield();
-scan_next:
-				ut_ad(!mtr_started);
 				ut_ad(!mtr.is_active());
 				mtr.start();
 				mtr_started = true;
@@ -2199,7 +2167,7 @@ scan_next:
 corrupted_index:
 					err = DB_CORRUPTION;
 					goto func_exit;
-                                }
+				}
 				/* Move to the successor of the
 				original record. */
 				if (!btr_pcur_move_to_next_user_rec(
@@ -2234,14 +2202,14 @@ end_of_index:
 
 				buf_page_make_young_if_needed(&block->page);
 
+				const auto s = mtr.get_savepoint();
+				mtr.rollback_to_savepoint(s - 2, s - 1);
+
 				page_cur_set_before_first(block, cur);
 				if (!page_cur_move_to_next(cur)
 				    || page_cur_is_after_last(cur)) {
 					goto corrupted_rec;
 				}
-
-				const auto s = mtr.get_savepoint();
-				mtr.rollback_to_savepoint(s - 2, s - 1);
 			}
 		} else {
 			mem_heap_empty(row_heap);
