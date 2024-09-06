@@ -106,6 +106,7 @@ DATA="$WSREP_SST_OPT_DATA"
 INFO_FILE='mariadb_backup_galera_info'
 DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
+
 MAGIC_FILE="$DATA/$INFO_FILE"
 DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
@@ -846,7 +847,13 @@ recv_joiner()
     done
 
     if [ $checkf -eq 1 ]; then
-        if [ ! -r "$MAGIC_FILE" ]; then
+        if [ -r "$MAGIC_FILE" ]; then
+            :
+        elif [ -r "$dir/xtrabackup_galera_info" ]; then
+            mv "$dir/xtrabackup_galera_info" "$MAGIC_FILE"
+            wsrep_log_info "the SST donor uses an old version" \
+                           "of mariabackup or xtrabackup"
+        else
             # this message should cause joiner to abort:
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
@@ -918,9 +925,6 @@ monitor_process()
         sleep 0.1
     done
 }
-
-[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
 
 read_cnf
 setup_ports
@@ -1071,6 +1075,24 @@ get_transfer
 findopt='-L'
 [ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
 
+SST_PID="$DATA/wsrep_sst.pid"
+
+# give some time for previous SST to complete:
+check_round=0
+while check_pid "$SST_PID" 0; do
+    wsrep_log_info "previous SST is not completed, waiting for it to exit"
+    check_round=$(( check_round+1 ))
+    if [ $check_round -eq 30 ]; then
+       wsrep_log_error "previous SST script still running."
+       exit 114 # EALREADY
+    fi
+    sleep 1
+done
+
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE"
+[ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
+
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     trap cleanup_at_exit EXIT
@@ -1185,6 +1207,9 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
         setup_commands
 
+        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
+        BACKUP_PID="$xtmpdir/xtrabackup_pid"
+
         set +e
         timeit "$stagemsg-SST" "$INNOBACKUP | $tcmd; RC=( "\${PIPESTATUS[@]}" )"
         set -e
@@ -1197,9 +1222,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             wsrep_log_error "$tcmd finished with error: ${RC[1]}"
             exit 22
         fi
-
-        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
-        BACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
 
@@ -1313,33 +1335,12 @@ else # joiner
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$DATA/wsrep_sst.pid"
-
-    # give some time for previous SST to complete:
-    check_round=0
-    while check_pid "$SST_PID" 0; do
-        wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round+1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "previous SST script still running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
     trap simple_cleanup EXIT
     echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
 
     MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
-
-    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
-
-    # May need mariadb_backup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
-    [ -f "$DATA/mariadb_backup_galera_info" ] && rm -f "$DATA/mariadb_backup_galera_info"
-
     ADDR="$WSREP_SST_OPT_HOST"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]; then
@@ -1370,6 +1371,7 @@ else # joiner
 
     STATDIR="$(mktemp -d)"
     MAGIC_FILE="$STATDIR/$INFO_FILE"
+    DONOR_MAGIC_FILE="$STATDIR/$DONOR_INFO_FILE"
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
@@ -1443,12 +1445,52 @@ else # joiner
                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
                 -o -exec rm -rf {} >&2 \+
 
+        [ -f "$DATA/xtrabackup_checkpoints" ]     && rm -f "$DATA/xtrabackup_checkpoints"
+        [ -f "$DATA/mariadb_backup_checkpoints" ] && rm -f "$DATA/mariadb_backup_checkpoints"
+
         TDATA="$DATA"
         DATA="$DATA/.sst"
-        MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $jpid
+
+        # It is possible that the old version of the galera
+        # information file will be transferred second time:
+        if [ ! -f "$DATA/$INFO_FILE" -a \
+               -f "$DATA/xtrabackup_galera_info" ]
+        then
+            mv "$DATA/xtrabackup_galera_info" "$DATA/$INFO_FILE"
+        fi
+
+        # Correcting the name of the common information file
+        # if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_info" -a \
+               -f "$DATA/xtrabackup_info" ]
+        then
+            mv "$DATA/xtrabackup_info" "$DATA/mariadb_backup_info"
+            wsrep_log_info "general information file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # Correcting the name for the file with the binlog position
+        # for the master if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_slave_info" -a \
+               -f "$DATA/xtrabackup_slave_info" ]
+        then
+            mv "$DATA/xtrabackup_slave_info" "$DATA/mariadb_backup_slave_info"
+            wsrep_log_info "binlog position file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # An old version of the donor may send a checkpoints
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_checkpoints" -a \
+               -f "$DATA/xtrabackup_checkpoints" ]
+        then
+            mv "$DATA/xtrabackup_checkpoints" "$DATA/mariadb_backup_checkpoints"
+            wsrep_log_info "list of checkpoints with a legacy" \
+                           "name has been renamed"
+        fi
 
         if [ ! -s "$DATA/mariadb_backup_checkpoints" ]; then
             wsrep_log_error "mariadb_backup_checkpoints missing," \
@@ -1509,6 +1551,16 @@ else # joiner
             fi
         fi
 
+        # An old version of the donor may send a binary logs
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_binlog_info" -a \
+               -f "$DATA/xtrabackup_binlog_info" ]
+        then
+            mv "$DATA/xtrabackup_binlog_info" "$DATA/mariadb_backup_binlog_info"
+            wsrep_log_info "list of binary logs with a legacy" \
+                           "name has been renamed"
+        fi
+
         wsrep_log_info "Preparing the backup at $DATA"
         setup_commands
         timeit 'mariadb-backup prepare stage' "$INNOAPPLY"
@@ -1556,6 +1608,7 @@ else # joiner
         fi
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
+        DONOR_MAGIC_FILE="$TDATA/$DONOR_INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
         timeit 'mariadb-backup move stage' "$INNOMOVE"
@@ -1577,11 +1630,6 @@ else # joiner
             readonly WSREP_TRANSFER_TYPE='IST'
         fi
 
-    fi
-
-    if [ ! -r "$MAGIC_FILE" ]; then
-        wsrep_log_error "SST magic file '$MAGIC_FILE' not found/readable"
-        exit 2
     fi
 
     # use donor magic file, if present
