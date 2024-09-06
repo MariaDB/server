@@ -6967,12 +6967,13 @@ Item_equal::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
 }
 
 
-static uint
+static inline uint
 max_part_bit(key_part_map bits)
 {
-  uint found;
-  for (found=0; bits & 1 ; found++,bits>>=1) ;
-  return found;
+  if (bits == 0)
+    return 0;
+  /* find first zero bit by reverting all bits and find first bit */
+  return my_find_first_bit(~bits);
 }
 
 
