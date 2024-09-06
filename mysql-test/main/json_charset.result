@@ -1,0 +1,9 @@
+CREATE TABLE t ( cs varchar(80), cj JSON ) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+select character_set_name from information_schema.columns where table_name = 't' and column_name='cj';
+character_set_name
+utf8mb3
+alter table t CONVERT TO CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci;
+select character_set_name from information_schema.columns where table_name = 't' and column_name='cj';
+character_set_name
+utf8mb3
+drop table t;

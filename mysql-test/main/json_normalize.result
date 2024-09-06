@@ -3,7 +3,7 @@ create table t1 (json json);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`json`))
+  `json` longtext DEFAULT NULL CHECK (json_valid(`json`))
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t1 values
 ('{  }'),
@@ -20,9 +20,9 @@ json	json_normalize(json)
 [ "string", { "key" : "val", "a" : "b", "c" : [ 10, 9, 8, "seven", 11 ] }]	["string",{"a":"b","c":[1.0E1,9.0E0,8.0E0,"seven",1.1E1],"key":"val"}]
 [ 1.2, 0.0, "text", 0, null, true, false ]	[1.2E0,0.0E0,"text",0.0E0,null,true,false]
 {  }	{}
+{ "ăț€": "val1", "âț€":"val2" }	{"âț€":"val2","ăț€":"val1"}
 { "foo" : "bar" }	{"foo":"bar"}
 { "foo" : "bar", "baz" : "whatever" }	{"baz":"whatever","foo":"bar"}
-{ "ăț€": "val1", "âț€":"val2" }	{"âț€":"val2","ăț€":"val1"}
 create view v1 as (select json, json_normalize(json) norm_json from t1);
 show create view v1;
 View	Create View	character_set_client	collation_connection
@@ -34,9 +34,9 @@ json	norm_json
 [ "string", { "key" : "val", "a" : "b", "c" : [ 10, 9, 8, "seven", 11 ] }]	["string",{"a":"b","c":[1.0E1,9.0E0,8.0E0,"seven",1.1E1],"key":"val"}]
 [ 1.2, 0.0, "text", 0, null, true, false ]	[1.2E0,0.0E0,"text",0.0E0,null,true,false]
 {  }	{}
+{ "ăț€": "val1", "âț€":"val2" }	{"âț€":"val2","ăț€":"val1"}
 { "foo" : "bar" }	{"foo":"bar"}
 { "foo" : "bar", "baz" : "whatever" }	{"baz":"whatever","foo":"bar"}
-{ "ăț€": "val1", "âț€":"val2" }	{"âț€":"val2","ăț€":"val1"}
 select json_normalize(NULL);
 json_normalize(NULL)
 NULL

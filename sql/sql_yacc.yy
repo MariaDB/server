@@ -6443,7 +6443,7 @@ field_type_lob:
           { $$.set(&type_handler_medium_blob, $2); }
         | JSON_SYM opt_compressed
           {
-            $$.set(&type_handler_long_blob_json, &my_charset_utf8mb4_bin);
+            $$.set(&type_handler_long_blob_json);
           }
         ;
 

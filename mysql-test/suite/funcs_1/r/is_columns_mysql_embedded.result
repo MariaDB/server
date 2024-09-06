@@ -77,7 +77,7 @@ def	mysql	general_log	server_id	4	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(
 def	mysql	general_log	thread_id	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(21) unsigned					NEVER	NULL	NO	NO
 def	mysql	general_log	user_host	2	NULL	NO	mediumtext	16777215	16777215	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	mediumtext					NEVER	NULL	NO	NO
 def	mysql	global_priv	Host	1	''	NO	char	255	765	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(255)	PRI				NEVER	NULL	NO	NO
-def	mysql	global_priv	Priv	3	'{}'	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	global_priv	Priv	3	'{}'	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	global_priv	User	2	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)	PRI				NEVER	NULL	NO	NO
 def	mysql	gtid_slave_pos	domain_id	1	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned	PRI				NEVER	NULL	NO	NO
 def	mysql	gtid_slave_pos	seq_no	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned					NEVER	NULL	NO	NO
@@ -193,14 +193,14 @@ def	mysql	time_zone_transition_type	Time_zone_id	1	NULL	NO	int	NULL	NULL	10	0	NU
 def	mysql	time_zone_transition_type	Transition_type_id	2	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned	PRI				NEVER	NULL	NO	NO
 def	mysql	user	Alter_priv	17	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Alter_routine_priv	28	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
-def	mysql	user	authentication_string	43	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	authentication_string	43	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	user	Create_priv	8	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Create_routine_priv	27	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Create_tablespace_priv	32	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Create_tmp_table_priv	20	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Create_user_priv	29	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Create_view_priv	25	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
-def	mysql	user	default_role	46	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	default_role	46	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	user	Delete_history_priv	33	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Delete_priv	7	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Drop_priv	9	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
@@ -218,9 +218,9 @@ def	mysql	user	max_questions	38	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint
 def	mysql	user	max_statement_time	47	0.000000	NO	decimal	NULL	NULL	12	6	NULL	NULL	NULL	decimal(12,6)					NEVER	NULL	NO	NO
 def	mysql	user	max_updates	39	0	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned					NEVER	NULL	NO	NO
 def	mysql	user	max_user_connections	41	0	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(21)					NEVER	NULL	NO	NO
-def	mysql	user	Password	3	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	Password	3	NULL	YES	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	user	password_expired	44	''	NO	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
-def	mysql	user	plugin	42	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	plugin	42	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	user	Process_priv	12	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	References_priv	15	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Reload_priv	10	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
@@ -230,14 +230,14 @@ def	mysql	user	Select_priv	4	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_s
 def	mysql	user	Show_db_priv	18	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Show_view_priv	26	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Shutdown_priv	11	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
-def	mysql	user	ssl_cipher	35	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	ssl_cipher	35	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 def	mysql	user	ssl_type	34	NULL	YES	varchar	9	9	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(9)					NEVER	NULL	NO	NO
 def	mysql	user	Super_priv	19	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Trigger_priv	31	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	Update_priv	6	NULL	YES	varchar	1	1	NULL	NULL	NULL	latin1	latin1_swedish_ci	varchar(1)					NEVER	NULL	NO	NO
 def	mysql	user	User	2	''	NO	char	128	384	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(128)					NEVER	NULL	NO	NO
-def	mysql	user	x509_issuer	36	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
-def	mysql	user	x509_subject	37	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb4	utf8mb4_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	x509_issuer	36	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
+def	mysql	user	x509_subject	37	''	NO	longtext	4294967295	4294967295	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	longtext					NEVER	NULL	NO	NO
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
@@ -260,10 +260,10 @@ COL_CML	DATA_TYPE	CHARACTER_SET_NAME	COLLATION_NAME
 1.0000	varbinary	NULL	NULL
 1.0000	char	latin1	latin1_swedish_ci
 1.0000	varchar	latin1	latin1_swedish_ci
+1.0000	longtext	utf8mb3	utf8mb3_bin
 1.0000	text	utf8mb3	utf8mb3_bin
 1.0000	mediumtext	utf8mb3	utf8mb3_general_ci
 1.0000	text	utf8mb3	utf8mb3_general_ci
-1.0000	longtext	utf8mb4	utf8mb4_bin
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
 Warning	1286	Unknown storage engine 'InnoDB'
@@ -403,7 +403,7 @@ NULL	mysql	general_log	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 1.0000	mysql	general_log	argument	mediumtext	16777215	16777215	utf8mb3	utf8mb3_general_ci	mediumtext
 3.0000	mysql	global_priv	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	global_priv	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)
-1.0000	mysql	global_priv	Priv	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	global_priv	Priv	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
 NULL	mysql	gtid_slave_pos	domain_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
 NULL	mysql	gtid_slave_pos	sub_id	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	gtid_slave_pos	server_id	int	NULL	NULL	NULL	NULL	int(10) unsigned
@@ -518,7 +518,7 @@ NULL	mysql	time_zone_transition_type	Is_DST	tinyint	NULL	NULL	NULL	NULL	tinyint(
 3.0000	mysql	time_zone_transition_type	Abbreviation	char	8	24	utf8mb3	utf8mb3_general_ci	char(8)
 3.0000	mysql	user	Host	char	255	765	utf8mb3	utf8mb3_bin	char(255)
 3.0000	mysql	user	User	char	128	384	utf8mb3	utf8mb3_bin	char(128)
-1.0000	mysql	user	Password	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	user	Password	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
 1.0000	mysql	user	Select_priv	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
 1.0000	mysql	user	Insert_priv	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
 1.0000	mysql	user	Update_priv	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
@@ -550,18 +550,18 @@ NULL	mysql	time_zone_transition_type	Is_DST	tinyint	NULL	NULL	NULL	NULL	tinyint(
 1.0000	mysql	user	Create_tablespace_priv	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
 1.0000	mysql	user	Delete_history_priv	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
 1.0000	mysql	user	ssl_type	varchar	9	9	latin1	latin1_swedish_ci	varchar(9)
-1.0000	mysql	user	ssl_cipher	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
-1.0000	mysql	user	x509_issuer	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
-1.0000	mysql	user	x509_subject	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	user	ssl_cipher	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
+1.0000	mysql	user	x509_issuer	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
+1.0000	mysql	user	x509_subject	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
 NULL	mysql	user	max_questions	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	user	max_updates	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	user	max_connections	bigint	NULL	NULL	NULL	NULL	bigint(20) unsigned
 NULL	mysql	user	max_user_connections	bigint	NULL	NULL	NULL	NULL	bigint(21)
-1.0000	mysql	user	plugin	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
-1.0000	mysql	user	authentication_string	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	user	plugin	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
+1.0000	mysql	user	authentication_string	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
 1.0000	mysql	user	password_expired	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
 1.0000	mysql	user	is_role	varchar	1	1	latin1	latin1_swedish_ci	varchar(1)
-1.0000	mysql	user	default_role	longtext	4294967295	4294967295	utf8mb4	utf8mb4_bin	longtext
+1.0000	mysql	user	default_role	longtext	4294967295	4294967295	utf8mb3	utf8mb3_bin	longtext
 NULL	mysql	user	max_statement_time	decimal	NULL	NULL	NULL	NULL	decimal(12,6)
 Warnings:
 Warning	1286	Unknown storage engine 'InnoDB'
