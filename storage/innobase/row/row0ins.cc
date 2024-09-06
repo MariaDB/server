@@ -3043,13 +3043,8 @@ row_ins_sec_index_entry_low(
 
 	if (err != DB_SUCCESS) {
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning(thr_get_trx(thr)->mysql_thd,
-				DB_DECRYPTION_FAILED,
-				"Table %s is encrypted but encryption service or"
-				" used key_id is not available. "
-				" Can't continue reading table.",
-				index->table->name.m_name);
-			index->table->file_unreadable = true;
+			innodb_decryption_failed(thr_get_trx(thr)->mysql_thd,
+						 index->table);
 		}
 		goto func_exit;
 	}

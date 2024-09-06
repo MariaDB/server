@@ -37,6 +37,9 @@ simple headers.
 /* Forward declarations */
 class THD;
 class Field;
+struct dict_table_t;
+struct dict_foreign_t;
+struct table_name_t;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
@@ -83,7 +86,7 @@ innobase_invalidate_query_cache(
 void
 innobase_quote_identifier(
 	FILE*		file,
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /** Quote an standard SQL identifier like tablespace, index or column name.
@@ -93,7 +96,7 @@ Return the string as an std:string object.
 @return a std::string with id properly quoted. */
 std::string
 innobase_quote_identifier(
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id);
 
 /*****************************************************************//**
@@ -456,25 +459,20 @@ innobase_convert_to_filename_charset(
 	const char*	from,	/* in: identifier to convert */
 	ulint		len);	/* in: length of 'to', in bytes */
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
-void
-ib_push_warning(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report that a table cannot be decrypted.
+@param thd    connection context
+@param table  table that cannot be decrypted
+@retval DB_DECRYPTION_FAILED (always) */
+ATTRIBUTE_COLD
+dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table);
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
-void
-ib_push_warning(
-	void*		ithd,	/*!< in: thd */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...);
+/** Report a foreign key error.
+@param error    error to report
+@param name     table name
+@param foreign  constraint */
+ATTRIBUTE_COLD
+void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
+                     const dict_foreign_t& foreign);
 
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
