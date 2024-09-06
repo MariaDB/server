@@ -101,15 +101,9 @@ dict_table_is_partition(const dict_table_t* table)
 	return (strstr(table->name.m_name, "#p#")
 		|| strstr(table->name.m_name, "#P#"));
 }
-/********************************************************************//**
-Return the end of table name where we have removed dbname and '/'.
-@return table name */
-const char*
-dict_remove_db_name(
-/*================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+#define dict_remove_db_name(name) \
+	(table_name_t{const_cast<char*>(name)}.dbend() + 1)
 
 /** Operation to perform when opening a table */
 enum dict_table_op_t {
