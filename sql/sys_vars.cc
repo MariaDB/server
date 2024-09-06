@@ -3947,7 +3947,8 @@ static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_threadpool_mode(
   "thread_pool_mode",
-  "Chose implementation of the threadpool",
+  "Chose implementation of the threadpool. Use 'windows' unless you have a "
+  "workload with a lot of concurrent connections and minimal contention",
   READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
   threadpool_mode_names, DEFAULT(TP_MODE_WINDOWS)
   );
