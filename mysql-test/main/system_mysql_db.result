@@ -77,7 +77,7 @@ Table	Create Table
 global_priv	CREATE TABLE `global_priv` (
   `Host` char(60) NOT NULL DEFAULT '',
   `User` char(80) NOT NULL DEFAULT '',
-  `Priv` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL DEFAULT '{}' CHECK (json_valid(`Priv`)),
+  `Priv` longtext NOT NULL DEFAULT '{}' CHECK (json_valid(`Priv`)),
   PRIMARY KEY (`Host`,`User`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8 COLLATE=utf8_bin PAGE_CHECKSUM=1 TRANSACTIONAL=1 COMMENT='Users and global privileges'
 show create table tables_priv;

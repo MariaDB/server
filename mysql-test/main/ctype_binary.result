@@ -3270,7 +3270,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` enum('\0a') CHARACTER SET binary DEFAULT NULL,
-  `d` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`d`))
+  `d` longtext DEFAULT NULL CHECK (json_valid(`d`))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c) VALUES (1);
 SELECT HEX(c) FROM t1;

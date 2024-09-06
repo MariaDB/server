@@ -2879,7 +2879,7 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` enum('\0\0\0a','\0\0\0b','\0\0\0a\0\0\0c') CHARACTER SET binary DEFAULT NULL,
-  `c2` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`c2`)),
+  `c2` longtext DEFAULT NULL CHECK (json_valid(`c2`)),
   `c3` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 (c1) VALUES (1),(2),(3);

@@ -23,7 +23,7 @@ Collation:  latin1_swedish_ci (8)
 Length:     4294967295
 Max_length: 0
 Decimals:   0
-Flags:      BLOB BINARY 
+Flags:      BLOB 
 
 Field   2:  `js1`
 Org_field:  `js1`
@@ -83,7 +83,7 @@ Collation:  latin1_swedish_ci (8)
 Length:     4294967295
 Max_length: 0
 Decimals:   0
-Flags:      BINARY 
+Flags:      
 
 
 0 rows in set (TIME)
