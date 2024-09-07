@@ -2837,7 +2837,8 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
 */
 static const char *adjust_secondary_key_cost[]=
 {
-  "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by", "fix_innodb_cardinality",0
+  "adjust_secondary_key_cost", "disable_max_seek", "disable_forced_index_in_group_by",
+  "fix_innodb_cardinality", "fix_reuse_range_for_ref", 0
 };
 
 
@@ -2852,10 +2853,12 @@ static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
     "GROUP BY. "
     "fix_innodb_cardinality = Disable doubling of the Cardinality for InnoDB "
     "secondary keys. "
+    "fix_reuse_range_for_ref = Do a better job at reusing range access estimates "
+    "when estimating ref access. "
     "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
     "new 11.0 optimizer.",
     SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
-    adjust_secondary_key_cost, DEFAULT(0));
+    adjust_secondary_key_cost, DEFAULT(OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF));
 
 
 static Sys_var_charptr_fscs Sys_pid_file(

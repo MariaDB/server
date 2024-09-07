@@ -8125,6 +8125,7 @@ best_access_path(JOIN      *join,
       key_part_map notnull_part=0; // key parts which won't have NULL in lookup tuple.
       table_map found_ref= 0;
       uint key= keyuse->key;
+      uint max_const_parts;
       filter= 0;
       bool ft_key=  (keyuse->keypart == FT_KEYPART);
       /* Bitmap of keyparts where the ref access is over 'keypart=const': */
@@ -8228,6 +8229,8 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
+      max_const_parts= max_part_bit(const_part);
+
       /*
         full text keys require special treatment
       */
@@ -8344,9 +8347,7 @@ best_access_path(JOIN      *join,
                 in ReuseRangeEstimateForRef-3.
               */
               if (table->opt_range_keys.is_set(key) &&
-                  (const_part &
-                   (((key_part_map)1 << table->opt_range[key].key_parts)-1)) ==
-                  (((key_part_map)1 << table->opt_range[key].key_parts)-1) &&
+                  table->opt_range[key].key_parts <= max_const_parts &&
                   table->opt_range[key].ranges == 1 &&
                   records > (double) table->opt_range[key].rows)
               {
@@ -8394,6 +8395,17 @@ best_access_path(JOIN      *join,
                found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
           {
             max_key_part= max_part_bit(found_part);
+            bool all_used_equalities_are_const;
+            if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF))
+            {
+              all_used_equalities_are_const= (max_key_part == max_const_parts);
+            }
+            else
+            {
+              // Old, incorrect check:
+              all_used_equalities_are_const= !found_ref;
+            }
             /*
               ReuseRangeEstimateForRef-3:
               We're now considering a ref[or_null] access via
@@ -8408,7 +8420,7 @@ best_access_path(JOIN      *join,
               create quick select over another index), so we can't compare
               them to (**). We'll make indirect judgements instead.
               The sufficient conditions for re-use are:
-              (C1) All e_i in (**) are constants, i.e. found_ref==FALSE. (if
+              (C1) All e_i in (**) are constants (if
                    this is not satisfied we have no way to know which ranges
                    will be actually scanned by 'ref' until we execute the 
                    join)
@@ -8418,7 +8430,7 @@ best_access_path(JOIN      *join,
               We also have a property that "range optimizer produces equal or 
               tighter set of scan intervals than ref(const) optimizer". Each
               of the intervals in (**) are "tightest possible" intervals when 
-              one limits itself to using keyparts 1..K (which we do in #2).              
+              one limits itself to using keyparts 1..K (which we do in #2).
               From here it follows that range access used either one, or
               both of the (I1) and (I2) intervals:
               
@@ -8433,7 +8445,8 @@ best_access_path(JOIN      *join,
 
               (C3) "range optimizer used (have ref_or_null?2:1) intervals"
             */
-            if (table->opt_range_keys.is_set(key) && !found_ref &&      //(C1)
+            if (table->opt_range_keys.is_set(key) &&
+                all_used_equalities_are_const && // (C1)
                 table->opt_range[key].key_parts == max_key_part &&      //(C2)
                 table->opt_range[key].ranges == 1 + MY_TEST(ref_or_null_part)) //(C3)
             {
@@ -8466,10 +8479,10 @@ best_access_path(JOIN      *join,
                 */
                 if (table->opt_range_keys.is_set(key))
                 {
+                  double rows= (double) table->opt_range[key].rows;
                   if (table->opt_range[key].key_parts >= max_key_part) // (2)
                   {
-                    double rows= (double) table->opt_range[key].rows;
-                    if (!found_ref &&                                  // (1)
+                    if (all_used_equalities_are_const &&               // (1)
                         records < rows)                                // (3)
                     {
                       trace_access_idx.add("used_range_estimates", "clipped up");
@@ -8537,15 +8550,26 @@ best_access_path(JOIN      *join,
               */
               if (table->opt_range_keys.is_set(key) &&
                   table->opt_range[key].key_parts <= max_key_part &&
-                  const_part &
-                  ((key_part_map)1 << table->opt_range[key].key_parts) &&
                   table->opt_range[key].ranges == (1 +
                                                    MY_TEST(ref_or_null_part &
                                                            const_part)) &&
                   records > (double) table->opt_range[key].rows)
               {
-                trace_access_idx.add("used_range_estimates", true);
-                records= (double) table->opt_range[key].rows;
+                bool all_parts_used;
+                if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                     OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF))
+                {
+                  all_parts_used= table->opt_range[key].key_parts <= max_const_parts;
+                }
+                else
+                  all_parts_used= (bool) (const_part &
+                                          ((key_part_map)1
+                                           << table->opt_range[key].key_parts));
+                if (all_parts_used)
+                {
+                  trace_access_idx.add("used_range_estimates", true);
+                  records= (double) table->opt_range[key].rows;
+                }
               }
             }
 
