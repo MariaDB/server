@@ -13504,17 +13504,21 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
     mpvio->cached_server_packet.pkt_len= data_len;
   }
 
-  if (data_len < SCRAMBLE_LENGTH)
+  if (thd->scramble[SCRAMBLE_LENGTH] != 0)
   {
+    DBUG_ASSERT(thd->scramble[SCRAMBLE_LENGTH] == 1); // Sanity
+
     if (data_len)
     {
       /*
         the first packet *must* have at least 20 bytes of a scramble.
-        if a plugin provided less, we pad it to 20 with zeros
+        if a plugin provided less, we pad it to 20 with zeros,
+        plus extra zero termination sign is put in thd->scramble.
+        If more is provided, we'll use only 20 bytes as a handshake scramble.
       */
-      memcpy(scramble_buf, data, data_len);
-      bzero(scramble_buf + data_len, SCRAMBLE_LENGTH - data_len);
-      data= scramble_buf;
+      size_t fill_size= MY_MIN(SCRAMBLE_LENGTH, data_len);
+      memcpy(thd->scramble, data, fill_size);
+      bzero(thd->scramble + fill_size, SCRAMBLE_LENGTH - fill_size + 1);
     }
     else
     {
@@ -13528,9 +13532,12 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
         adding one more round trip.
       */
       thd_create_random_password(thd, thd->scramble, SCRAMBLE_LENGTH);
-      data= thd->scramble;
     }
-    data_len= SCRAMBLE_LENGTH;
+    if (data_len < SCRAMBLE_LENGTH)
+    {
+      data= thd->scramble;
+      data_len= SCRAMBLE_LENGTH;
+    }
   }
 
   end= strnmov(end, server_version, SERVER_VERSION_LENGTH) + 1;
