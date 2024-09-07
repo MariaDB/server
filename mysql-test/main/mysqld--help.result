@@ -229,6 +229,9 @@ The following specify which files/extra groups are read (specified before remain
  --deadlock-timeout-short=# 
  Short timeout for the two-step deadlock detection (in
  microseconds)
+ --default-auth-plugin[=name] 
+ Default plugin, that will be tried first when
+ authenticating new connections
  --default-password-lifetime=# 
  This defines the global password expiration policy. 0
  means automatic password expiration is disabled. If the
@@ -1656,6 +1659,7 @@ deadlock-search-depth-long 15
 deadlock-search-depth-short 4
 deadlock-timeout-long 50000000
 deadlock-timeout-short 10000
+default-auth-plugin mysql_native_password
 default-password-lifetime 0
 default-regex-flags 
 default-storage-engine myisam

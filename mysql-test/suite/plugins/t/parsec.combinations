@@ -1,0 +1,4 @@
+[normal]
+
+[default]
+--default-auth-plugin=parsec

@@ -80,7 +80,7 @@ const char *safe_vio_type_name(Vio *vio)
 
 #include "sql_acl_getsort.ic"
 
-static Lex_ident_plugin native_password_plugin_name=
+Lex_ident_plugin native_password_plugin_name=
   "mysql_native_password"_Lex_ident_plugin;
 
 
@@ -88,9 +88,8 @@ static Lex_ident_plugin old_password_plugin_name=
   "mysql_old_password"_Lex_ident_plugin;
 
 
-/// @todo make it configurable
-LEX_CSTRING *default_auth_plugin_name= &native_password_plugin_name;
-
+plugin_ref default_auth_plugin;
+const char *default_auth_plugin_name= native_password_plugin_name.str;
 /*
   Wildcard host, matches any hostname
 */
@@ -2543,8 +2542,19 @@ bool acl_init(bool dont_read_acl_tables)
   old_password_plugin= my_plugin_lock_by_name(0,
            &old_password_plugin_name, MYSQL_AUTHENTICATION_PLUGIN);
 
+  Lex_cstring_strlen def_plugin_name(default_auth_plugin_name);
+  default_auth_plugin= my_plugin_lock_by_name(NULL, &def_plugin_name,
+                                              MYSQL_AUTHENTICATION_PLUGIN);
+
   if (!native_password_plugin || !old_password_plugin)
     DBUG_RETURN(1);
+
+  if (!default_auth_plugin)
+  {
+    sql_print_error("Default plugin %s could not be loaded",
+                    default_auth_plugin_name);
+    DBUG_RETURN(1);
+  }
 
   if (dont_read_acl_tables)
   {
@@ -2945,6 +2955,7 @@ void acl_free(bool end)
     acl_cache->clear(1); /* purecov: inspected */
   else
   {
+    plugin_unlock(0, default_auth_plugin);
     plugin_unlock(0, native_password_plugin);
     plugin_unlock(0, old_password_plugin);
     delete acl_cache;
@@ -13480,7 +13491,6 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
 
   THD *thd= mpvio->auth_info.thd;
   char *buff= (char *) my_alloca(1 + SERVER_VERSION_LENGTH + 1 + data_len + 64);
-  char scramble_buf[SCRAMBLE_LENGTH];
   char *end= buff;
   DBUG_ENTER("send_server_handshake_packet");
 
@@ -14641,46 +14651,49 @@ static void make_ssl_info(THD *thd, LEX_CSTRING salt, char *info)
 #endif
 }
 
+static int do_auth_once(THD *thd, plugin_ref plugin,
+                        MPVIO_EXT *mpvio)
+{
+  mpvio->plugin= plugin;
+  mpvio->auth_info.user_name= NULL;
+  int res= CR_OK;
+  st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
+  switch (info->interface_version >> 8) {
+  case 0x02:
+    res= info->authenticate_user(mpvio, &mpvio->auth_info);
+    break;
+  case 0x01:
+    {
+      MYSQL_SERVER_AUTH_INFO_0x0100 compat;
+      compat.downgrade(&mpvio->auth_info);
+      res= info->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
+      compat.upgrade(&mpvio->auth_info);
+    }
+    break;
+  default: DBUG_ASSERT(0);
+  }
+
+  return res;
+}
+
 static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
                         MPVIO_EXT *mpvio)
 {
-  int res= CR_OK;
   bool unlock_plugin= false;
   plugin_ref plugin= get_auth_plugin(thd, *auth_plugin_name, &unlock_plugin);
-
-  mpvio->plugin= plugin;
-  mpvio->auth_info.user_name= NULL;
-
-  if (plugin)
-  {
-    st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
-    switch (info->interface_version >> 8) {
-    case 0x02:
-      res= info->authenticate_user(mpvio, &mpvio->auth_info);
-      break;
-    case 0x01:
-      {
-        MYSQL_SERVER_AUTH_INFO_0x0100 compat;
-        compat.downgrade(&mpvio->auth_info);
-        res= info->authenticate_user(mpvio, (MYSQL_SERVER_AUTH_INFO *)&compat);
-        compat.upgrade(&mpvio->auth_info);
-      }
-      break;
-    default: DBUG_ASSERT(0);
-    }
-
-    if (unlock_plugin)
-      plugin_unlock(thd, plugin);
-  }
-  else
+  if (unlikely(!plugin))
   {
     /* Server cannot load the required plugin. */
     Host_errors errors;
     errors.m_no_auth_plugin= 1;
     inc_host_errors(mpvio->auth_info.thd->security_ctx->ip, &errors);
     my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), auth_plugin_name->str);
-    res= CR_ERROR;
+    return CR_ERROR;
   }
+
+  int res= do_auth_once(thd, plugin, mpvio);
+  if (unlock_plugin)
+    plugin_unlock(thd, plugin);
 
   return res;
 }
@@ -14785,7 +14798,7 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       the correct plugin.
     */
 
-    res= do_auth_once(thd, default_auth_plugin_name, &mpvio);
+    res= do_auth_once(thd, default_auth_plugin, &mpvio);
   }
 
   PSI_CALL_set_connection_type(vio_type(thd->net.vio));

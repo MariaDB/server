@@ -18,6 +18,10 @@ connect(localhost,test1,wrong_pwd,test,MASTER_MYPORT,MASTER_MYSOCK);
 connect con3, localhost, test1, wrong_pwd;
 ERROR 28000: Access denied for user 'test1'@'localhost' (using password: NO)
 connection default;
+select "change_user success" as "result";
+result
+change_user success
+ERROR 28000: Access denied for user 'test1'@'localhost' (using password: NO)
 create function have_ssl() returns char(3)
 return (select if(variable_value > '','yes','no') as 'have_ssl'
   from information_schema.session_status
