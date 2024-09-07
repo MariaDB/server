@@ -3137,6 +3137,9 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   else
     mysql->server_capabilities&= ~CLIENT_SECURE_CONNECTION;
 
+  memmove(mysql->scramble, scramble_data, SCRAMBLE_LENGTH);
+  mysql->scramble[SCRAMBLE_LENGTH]= 0;
+
   mysql->client_flag= client_flag;
 
   set_connect_attributes(mysql, buff, sizeof(buff));
@@ -4178,10 +4181,6 @@ static int native_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
 
     if (pkt_len != SCRAMBLE_LENGTH + 1)
       DBUG_RETURN(CR_SERVER_HANDSHAKE_ERR);
-
-    /* save it in MYSQL */
-    memcpy(mysql->scramble, pkt, SCRAMBLE_LENGTH);
-    mysql->scramble[SCRAMBLE_LENGTH] = 0;
   }
 
   if (mysql->passwd[0])
@@ -4247,10 +4246,6 @@ static int old_password_auth_client(MYSQL_PLUGIN_VIO *vio, MYSQL *mysql)
     if (pkt_len != SCRAMBLE_LENGTH_323 + 1 &&
         pkt_len != SCRAMBLE_LENGTH + 1)
         DBUG_RETURN(CR_SERVER_HANDSHAKE_ERR);
-
-    /* save it in MYSQL */
-    memmove(mysql->scramble, pkt, pkt_len - 1);
-    mysql->scramble[pkt_len - 1] = 0;
   }
 
   if (mysql->passwd[0])
