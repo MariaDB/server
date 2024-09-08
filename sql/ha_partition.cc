@@ -578,6 +578,7 @@ bool ha_partition::initialize_partition(MEM_ROOT *mem_root)
 
   if (m_create_handler)
   {
+    DBUG_ASSERT(0);
     m_tot_parts= m_part_info->get_tot_partitions();
     DBUG_ASSERT(m_tot_parts > 0);
     if (new_handlers_from_part_info(mem_root))
