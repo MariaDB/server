@@ -42,5 +42,5 @@ insert into t1 values ("01234", "0123456789", "01234567890123456789", "1");
 drop table t1;
 
 --echo #
---echo # End of 10.7 tests
+--echo # End of 10.5 tests
 --echo #

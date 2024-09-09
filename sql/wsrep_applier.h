@@ -35,7 +35,21 @@ int wsrep_apply_events(THD*        thd,
 #define WSREP_ERR_FAILED       6 // Operation failed for some internal reason
 #define WSREP_ERR_ABORTED      7 // Operation was aborted externally
 
-void wsrep_store_error(const THD* thd, wsrep::mutable_buffer& buf);
+/* Loops over THD diagnostic area and concatenates all error messages
+ * and error codes to a single continuous buffer to create a unique
+ * but consistent failure signature which provider can use for voting
+ * between the nodes in the cluster.
+ *
+ * @param thd         THD context
+ * @param dst         buffer to store the signature
+ * @param include_msg whether to use MySQL error message in addition to
+ *                    MySQL error code. Note that in the case of a TOI
+ *                    operation the message may be not consistent between
+ *                    the nodes e.g. due to a different client locale setting
+ *                    and should be omitted */
+void wsrep_store_error(const THD*             thd,
+                       wsrep::mutable_buffer& buf,
+                       bool                   include_msg);
 
 class Format_description_log_event;
 void wsrep_set_apply_format(THD*, Format_description_log_event*);

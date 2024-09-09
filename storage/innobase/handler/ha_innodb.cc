@@ -4285,12 +4285,6 @@ innobase_end(handlerton*, ha_panic_function)
 		 	}
 		}
 
-		/* Do system tablespace truncation during slow shutdown */
-		if (!srv_fast_shutdown && !high_level_read_only
-		    && srv_operation == SRV_OPERATION_NORMAL) {
-			fsp_system_tablespace_truncate();
-		}
-
 		innodb_shutdown();
 		mysql_mutex_destroy(&log_requests.mutex);
 	}
