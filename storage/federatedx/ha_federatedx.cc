@@ -363,23 +363,18 @@ static handler *federatedx_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *
-federatedx_share_get_key(const uchar *_share, size_t *length,
-                         my_bool not_used __attribute__ ((unused)))
+static uchar *federatedx_share_get_key(const uchar *share_, size_t *length,
+                                       my_bool)
 {
-  const FEDERATEDX_SHARE *share=
-      reinterpret_cast<const FEDERATEDX_SHARE *>(_share);
+  auto share= reinterpret_cast<const FEDERATEDX_SHARE *>(share_);
   *length= share->share_key_length;
   return (uchar*) share->share_key;
 }
 
-
-static uchar *
-federatedx_server_get_key(const uchar *_server, size_t *length,
-                          my_bool not_used __attribute__ ((unused)))
+static uchar *federatedx_server_get_key(const uchar *server_, size_t *length,
+                                        my_bool)
 {
-  const FEDERATEDX_SERVER *server=
-      reinterpret_cast<const FEDERATEDX_SERVER *>(_server);
+  auto server= reinterpret_cast<const FEDERATEDX_SERVER *>(server_);
   *length= server->key_length;
   return server->key;
 }

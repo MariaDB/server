@@ -19,11 +19,10 @@
 #include <my_rnd.h>
 #include "tap.h"
 
-int cmp(const void *arg __attribute__((unused)), const void *_a,
-        const void *_b)
+int cmp(void *arg __attribute__((unused)), const void *a_, const void *b_)
 {
-  const uchar *a= (const uchar *) _a;
-  const uchar *b= (const uchar *) _b;
+  const uchar *a= a_;
+  const uchar *b= b_;
   return *a < *b ? -1 : *a > *b;
 }
 

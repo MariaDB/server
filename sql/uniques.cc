@@ -40,10 +40,10 @@
 #include "uniques.h"	                        // Unique
 #include "sql_sort.h"
 
-int unique_write_to_file(void* _key, element_count count, void *_unique)
+int unique_write_to_file(void* key_, element_count, void *unique_)
 {
-  uchar *key= static_cast<uchar *>(_key);
-  Unique *unique= static_cast<Unique *>(_unique);
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   /*
     Use unique->size (size of element stored in the tree) and not
     unique->tree.size_of_element. The latter is different from unique->size
@@ -53,27 +53,27 @@ int unique_write_to_file(void* _key, element_count count, void *_unique)
   return my_b_write(&unique->file, key, unique->size) ? 1 : 0;
 }
 
-int unique_write_to_file_with_count(void* _key, element_count count, void *_unique)
+int unique_write_to_file_with_count(void* key_, element_count count, void *unique_)
 {
-  uchar *key= static_cast<uchar *>(_key);
-  Unique *unique= static_cast<Unique *>(_unique);
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   return my_b_write(&unique->file, key, unique->size) ||
          my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
-int unique_write_to_ptrs(void* _key, element_count count, void *_unique)
+int unique_write_to_ptrs(void* key_, element_count, void *unique_)
 {
-  uchar *key= static_cast<uchar *>(_key);
-  Unique *unique= static_cast<Unique *>(_unique);
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   memcpy(unique->sort.record_pointers, key, unique->size);
   unique->sort.record_pointers+=unique->size;
   return 0;
 }
 
-int unique_intersect_write_to_ptrs(void* _key, element_count count, void *_unique)
+int unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique_)
 {
-  uchar *key= static_cast<uchar *>(_key);
-  Unique *unique= static_cast<Unique *>(_unique);
+  uchar *key= static_cast<uchar *>(key_);
+  Unique *unique= static_cast<Unique *>(unique_);
   if (count >= unique->min_dupl_count)
   {
     memcpy(unique->sort.record_pointers, key, unique->size);
@@ -440,9 +440,10 @@ C_MODE_START
 static int buffpek_compare(const void *arg, const void *key_ptr1,
                            const void *key_ptr2)
 {
-  const BUFFPEK_COMPARE_CONTEXT *ctx= (const BUFFPEK_COMPARE_CONTEXT *) arg;
+  auto ctx= static_cast<const BUFFPEK_COMPARE_CONTEXT *>(arg);
   return ctx->key_compare(ctx->key_compare_arg,
-                          *((const uchar **) key_ptr1), *((const uchar **)key_ptr2));
+                          *(static_cast<const uchar *const *>(key_ptr1)),
+                          *(static_cast<const uchar *const *>(key_ptr2)));
 }
 
 C_MODE_END

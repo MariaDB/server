@@ -380,70 +380,68 @@ LEX_CSTRING spider_unique_id;
 
 // for spider_open_tables
 uchar *spider_tbl_get_key(
-  const uchar *_share,
+  const uchar *share_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const SPIDER_SHARE *share= reinterpret_cast<const SPIDER_SHARE *>(_share);
+  auto share= reinterpret_cast<const SPIDER_SHARE *>(share_);
   DBUG_ENTER("spider_tbl_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_wide_share_get_key(
-  const uchar *_share,
+  const uchar *share_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const SPIDER_WIDE_SHARE *share=
-      reinterpret_cast<const SPIDER_WIDE_SHARE *>(_share);
+  auto share= reinterpret_cast<const SPIDER_WIDE_SHARE *>(share_);
   DBUG_ENTER("spider_wide_share_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_lgtm_tblhnd_share_hash_get_key(
-  const uchar *_share,
+  const uchar *share_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const SPIDER_LGTM_TBLHND_SHARE *share=
-      reinterpret_cast<const SPIDER_LGTM_TBLHND_SHARE *>(_share);
+  auto share= reinterpret_cast<const SPIDER_LGTM_TBLHND_SHARE *>(share_);
   DBUG_ENTER("spider_lgtm_tblhnd_share_hash_get_key");
   *length = share->table_name_length;
   DBUG_RETURN((uchar*) share->table_name);
 }
 
 uchar *spider_link_get_key(
-  const uchar *_link_for_hash,
+  const uchar *link_for_hash_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const SPIDER_LINK_FOR_HASH *link_for_hash=
-      reinterpret_cast<const SPIDER_LINK_FOR_HASH *>(_link_for_hash);
+  auto link_for_hash=
+      reinterpret_cast<const SPIDER_LINK_FOR_HASH *>(link_for_hash_);
   DBUG_ENTER("spider_link_get_key");
   *length = link_for_hash->db_table_str->length();
   DBUG_RETURN((uchar*) link_for_hash->db_table_str->ptr());
 }
 
 uchar *spider_ha_get_key(
-  const uchar *_spider,
+  const uchar *spider_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const ha_spider *spider= reinterpret_cast<const ha_spider *>(_spider);
+  auto spider= reinterpret_cast<const ha_spider *>(spider_);
   DBUG_ENTER("spider_ha_get_key");
   *length = spider->share->table_name_length;
   DBUG_RETURN((uchar*) spider->share->table_name);
 }
 
 uchar *spider_udf_tbl_mon_list_key(
-  const uchar *_table_mon_list,
+  const uchar *table_mon_list_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
-  const SPIDER_TABLE_MON_LIST *table_mon_list=
-      reinterpret_cast<const SPIDER_TABLE_MON_LIST *>(_table_mon_list);
+  auto table_mon_list=
+      reinterpret_cast<const SPIDER_TABLE_MON_LIST *>(table_mon_list_);
   DBUG_ENTER("spider_udf_tbl_mon_list_key");
   DBUG_PRINT("info",("spider hash key=%s", table_mon_list->key));
   DBUG_PRINT("info",("spider hash key length=%u", table_mon_list->key_length));
@@ -454,7 +452,7 @@ uchar *spider_udf_tbl_mon_list_key(
 uchar *spider_allocated_thds_get_key(
   const uchar *thd,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
   DBUG_ENTER("spider_allocated_thds_get_key");
   *length = sizeof(THD *);
@@ -8092,11 +8090,11 @@ bool spider_check_index_merge(
 }
 
 int spider_compare_for_sort(
-  const void *_a,
-  const void *_b
+  const void *a_,
+  const void *b_
 ) {
-  SPIDER_SORT *a= (SPIDER_SORT*) _a;
-  SPIDER_SORT *b= (SPIDER_SORT*) _b;
+  const SPIDER_SORT *a= static_cast<const SPIDER_SORT *>(a_);
+  const SPIDER_SORT *b= static_cast<const SPIDER_SORT *>(b_);
   DBUG_ENTER("spider_compare_for_sort");
   if (a->sort > b->sort)
     DBUG_RETURN(-1);

@@ -85,13 +85,13 @@ typedef struct st_spider_conn_loop_check
 uchar *spider_conn_get_key(
   const uchar *conn,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 uchar *spider_ipport_conn_get_key(
   const uchar *ip_port,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 int spider_conn_init(

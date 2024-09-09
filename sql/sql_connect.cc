@@ -305,19 +305,12 @@ end:
   started with corresponding variable that is greater then 0.
 */
 
-extern "C" uchar *get_key_conn(const uchar *_buff, size_t *length,
-			      my_bool not_used __attribute__((unused)))
+extern "C" uchar *get_key_conn(const uchar *buff_, size_t *length, my_bool)
 {
-  const user_conn *buff=
-      static_cast<const user_conn *>(static_cast<const void *>(_buff));
+  auto buff=
+      static_cast<const user_conn *>(static_cast<const void *>(buff_));
   *length= buff->len;
   return (uchar*) buff->user;
-}
-
-
-extern "C" void free_user(void *uc)
-{
-  my_free(static_cast<struct user_conn *>(uc));
 }
 
 
@@ -326,7 +319,7 @@ void init_max_user_conn(void)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   my_hash_init(key_memory_user_conn, &hash_user_connections,
                system_charset_info, max_connections, 0, 0, (my_hash_get_key)
-               get_key_conn, (my_hash_free_key) free_user, 0);
+               get_key_conn,  my_free, 0);
 #endif
 }
 
@@ -405,18 +398,13 @@ static const char *get_client_host(THD *client)
     client->security_ctx->host ? client->security_ctx->host : "";
 }
 
-extern "C" uchar *get_key_user_stats(const uchar *_user_stats, size_t *length,
-                                     my_bool not_used __attribute__((unused)))
+extern "C" uchar *get_key_user_stats(const uchar *user_stats_, size_t *length,
+                                     my_bool)
 {
-  const USER_STATS *user_stats=
-      static_cast<const USER_STATS *>(static_cast<const void *>(_user_stats));
+  auto *user_stats=
+      static_cast<const USER_STATS *>(static_cast<const void *>(user_stats_));
   *length= user_stats->user_name_length;
   return (uchar*) user_stats->user;
-}
-
-void free_user_stats(void *user_stats)
-{
-  my_free(static_cast<USER_STATS *>(user_stats));
 }
 
 void init_user_stats(USER_STATS *user_stats,
@@ -489,28 +477,23 @@ void init_global_user_stats(void)
 {
   my_hash_init(PSI_INSTRUMENT_ME, &global_user_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0);
+                my_free, 0);
 }
 
 void init_global_client_stats(void)
 {
   my_hash_init(PSI_INSTRUMENT_ME, &global_client_stats, system_charset_info, max_connections,
                0, 0, (my_hash_get_key) get_key_user_stats,
-               (my_hash_free_key) free_user_stats, 0);
+                my_free, 0);
 }
 
-extern "C" uchar *get_key_table_stats(const uchar *_table_stats, size_t *length,
-                                      my_bool not_used __attribute__((unused)))
+extern "C" uchar *get_key_table_stats(const uchar *table_stats_,
+                                      size_t *length, my_bool)
 {
-  const TABLE_STATS *table_stats= static_cast<const TABLE_STATS *>(
-      static_cast<const void *>(_table_stats));
+  auto table_stats= static_cast<const TABLE_STATS *>(
+      static_cast<const void *>(table_stats_));
   *length= table_stats->table_name_length;
   return (uchar*) table_stats->table;
-}
-
-extern "C" void free_table_stats(void *table_stats)
-{
-  my_free(static_cast<TABLE_STATS *>(table_stats));
 }
 
 void init_global_table_stats(void)
@@ -518,22 +501,17 @@ void init_global_table_stats(void)
   my_hash_init(PSI_INSTRUMENT_ME, &global_table_stats,
                Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_table_stats,
-               (my_hash_free_key) free_table_stats, 0);
+                my_free, 0);
 }
 
-extern "C" uchar *get_key_index_stats(const uchar *_index_stats,
+extern "C" uchar *get_key_index_stats(const uchar *index_stats_,
                                       size_t *length,
                                       my_bool not_used __attribute__((unused)))
 {
-  const INDEX_STATS *index_stats= static_cast<const INDEX_STATS *>(
-      static_cast<const void *>(_index_stats));
+  auto index_stats= static_cast<const INDEX_STATS *>(
+      static_cast<const void *>(index_stats_));
   *length= index_stats->index_name_length;
   return (uchar*) index_stats->index;
-}
-
-extern "C" void free_index_stats(void* index_stats)
-{
-  my_free(static_cast<INDEX_STATS *>(index_stats));
 }
 
 void init_global_index_stats(void)
@@ -541,7 +519,7 @@ void init_global_index_stats(void)
   my_hash_init(PSI_INSTRUMENT_ME, &global_index_stats,
                Lex_ident_fs::charset_info(),
                max_connections, 0, 0, (my_hash_get_key) get_key_index_stats,
-               (my_hash_free_key) free_index_stats, 0);
+                my_free, 0);
 }
 
 

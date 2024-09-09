@@ -12077,10 +12077,10 @@ void replace_dynstr_append_uint(DYNAMIC_STRING *ds, uint val)
   keep_header  If header should not be sorted
 */
 
-static int comp_lines(const void *_a, const void *_b)
+static int comp_lines(const void *a_, const void *b_)
 {
-  const char **a= (const char**) _a;
-  const char **b= (const char**) _b;
+  const char **a= (const char**) a_;
+  const char **b= (const char**) b_;
   return (strcmp(*a,*b));
 }
 

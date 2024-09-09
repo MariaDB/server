@@ -304,7 +304,7 @@ public:
   {
     list_node *node= first;
     for (;
-         node != &end_of_list && (!(*eq)((T *) node->info, info));
+         node != &end_of_list && (!(*eq)(static_cast<T *>(node->info), info));
          node= node->next) ;
     if (node == &end_of_list)
       return push_back(info);

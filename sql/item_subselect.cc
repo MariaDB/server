@@ -6058,13 +6058,13 @@ Ordered_key::cmp_keys_by_row_data(const ha_rows a, const ha_rows b) const
   return 0;
 }
 
-int Ordered_key::cmp_keys_by_row_data_and_rownum(const void *_key,
-                                                 const void *_a,
-                                                 const void *_b)
+int Ordered_key::cmp_keys_by_row_data_and_rownum(const void *key_,
+                                                 const void *a_,
+                                                 const void *b_)
 {
-  const Ordered_key *key= static_cast<const Ordered_key *>(_key);
-  const rownum_t *a= static_cast<const rownum_t *>(_a);
-  const rownum_t *b= static_cast<const rownum_t *>(_b);
+  const Ordered_key *key= static_cast<const Ordered_key *>(key_);
+  const rownum_t *a= static_cast<const rownum_t *>(a_);
+  const rownum_t *b= static_cast<const rownum_t *>(b_);
   /* The result of comparing the two keys according to their row data. */
   int cmp_row_res= key->cmp_keys_by_row_data(*a, *b);
   if (cmp_row_res)
@@ -6094,7 +6094,7 @@ bool Ordered_key::sort_keys()
   @retval  0  if only NULLs
 */
 
-double Ordered_key::null_selectivity()
+inline double Ordered_key::null_selectivity() const
 {
   /* We should not be processing empty tables. */
   DBUG_ASSERT(tbl->file->stats.records);
@@ -6226,7 +6226,7 @@ bool Ordered_key::next_same()
 }
 
 
-void Ordered_key::print(String *str)
+void Ordered_key::print(String *str) const
 {
   uint i;
   str->append("{idx=");
@@ -6585,11 +6585,11 @@ void subselect_rowid_merge_engine::cleanup()
   @retval -1  if k1 is more selective than k2
 */
 
-int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *_k1,
-                                                               const void *_k2)
+int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *k1_,
+                                                               const void *k2_)
 {
-  Ordered_key **k1= static_cast<Ordered_key **>(const_cast<void *>(_k1));
-  Ordered_key **k2= static_cast<Ordered_key **>(const_cast<void *>(_k2));
+  auto k1= static_cast<const Ordered_key *const *>(k1_);
+  auto k2= static_cast<const Ordered_key *const *>(k2_);
   double k1_sel= (*k1)->null_selectivity();
   double k2_sel= (*k2)->null_selectivity();
   if (k1_sel < k2_sel)
@@ -6604,11 +6604,13 @@ int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *_k1,
 */
 
 int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(const void *,
-                                                         const void *k1,
-                                                         const void *k2)
+                                                         const void *k1_,
+                                                         const void *k2_)
 {
-  rownum_t r1= ((Ordered_key*) k1)->current();
-  rownum_t r2= ((Ordered_key*) k2)->current();
+  auto k1= static_cast<const Ordered_key *>(k1_);
+  auto k2= static_cast<const Ordered_key *>(k2_);
+  rownum_t r1= k1->current();
+  rownum_t r2= k2->current();
 
   return (r1 < r2) ? -1 : (r1 > r2) ? 1 : 0;
 }

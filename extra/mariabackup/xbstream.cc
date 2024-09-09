@@ -357,25 +357,22 @@ err:
 	return NULL;
 }
 
-static
-uchar *
-get_file_entry_key(const uchar *_entry, size_t *length,
-		   my_bool not_used __attribute__((unused)))
+static uchar *get_file_entry_key(const uchar *entry_, size_t *length, my_bool)
 {
-	const file_entry_t *entry= reinterpret_cast<const file_entry_t*>(_entry);
+	const file_entry_t *entry= reinterpret_cast<const file_entry_t*>(entry_);
 	*length = entry->pathlen;
 	return (uchar *) entry->path;
 }
 
 static
 void
-file_entry_free(void *_entry)
+file_entry_free(void *entry_)
 {
-	file_entry_t *entry= (file_entry_t*) _entry;
-	pthread_mutex_destroy(&entry->mutex);
-	ds_close(entry->file);
-	my_free(entry->path);
-	my_free(entry);
+  file_entry_t *entry= static_cast<file_entry_t *>(entry_);
+  pthread_mutex_destroy(&entry->mutex);
+  ds_close(entry->file);
+  my_free(entry->path);
+  my_free(entry);
 }
 
 static
