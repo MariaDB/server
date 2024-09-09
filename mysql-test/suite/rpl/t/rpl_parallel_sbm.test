@@ -3,6 +3,7 @@
 #
 --source include/have_log_bin.inc
 --source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/master-slave.inc
 
 --echo #
@@ -16,14 +17,23 @@
 # Seconds_Behind_Master is based on the timestamp of the new transaction,
 # rather than the last committed transaction.
 #
+#   Note that the test doesn't actually use the value of MASTER_DELAY, but
+# rather uses debug_sync to coordinate the end of the delay. This is to ensure
+# that on slow machines, a delay doesn't pass before the test gets a chance to
+# validate results. Additionally, it lets us continue testing after validation
+# so we don't have to wait out a full delay unnecessarily. The debug_sync point
+# is enabled via sql_delay_by_debug_sync, which will delay transactions based
+# only on GTID events, so only one synchronization is needed per transaction.
+#
 
 --connection slave
 --source include/stop_slave.inc
 --let $save_dbug= `SELECT @@GLOBAL.debug_dbug`
 --let $save_parallel_mode= `SELECT @@GLOBAL.slave_parallel_mode`
-set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master";
 set @@GLOBAL.slave_parallel_mode= CONSERVATIVE;
---let $master_delay= 3
+set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master,sql_delay_by_debug_sync";
+
+--let $master_delay= 1
 --eval change master to master_delay=$master_delay, master_use_gtid=Slave_Pos
 --source include/start_slave.inc
 
@@ -31,7 +41,11 @@ set @@GLOBAL.slave_parallel_mode= CONSERVATIVE;
 --let insert_ctr= 0
 create table t1 (a int);
 create table t2 (a int);
---source include/sync_slave_sql_with_master.inc
+--source include/save_master_gtid.inc
+--connection slave
+--let $slave_sync_method= gtid
+--let $num_event_groups= 2
+--source include/sync_with_master_sql_delay_debug_sync.inc
 
 --echo #
 --echo # Pt 1) Ensure SBM is updated immediately upon arrival of the next event
@@ -48,8 +62,7 @@ sleep 2;
 --connection slave
 
 --echo # Waiting for transaction to arrive on slave and begin SQL Delay..
---let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting until MASTER_DELAY seconds after master executed event';
---source include/wait_condition.inc
+set debug_sync= "now WAIT_FOR at_sql_delay";
 
 --echo # Validating SBM is updated on event arrival..
 --let $sbm_trx1_arrive= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
@@ -66,7 +79,20 @@ if (`SELECT $sbm_trx1_arrive > ($seconds_since_idling + 1)`)
 --echo # delaying a transaction; then when the reciprocal START SLAVE occurs,
 --echo # if the event is still to be delayed, SBM should resume accordingly
 
---source include/stop_slave.inc
+--connection server_2
+--echo # Ensure the kill from STOP SLAVE will be received before continuing the
+--echo # SQL thread
+set debug_sync="after_thd_awake_kill SIGNAL slave_notified_of_kill";
+--send STOP SLAVE
+
+--connection slave
+set debug_sync= "now WAIT_FOR slave_notified_of_kill";
+set debug_sync= "now SIGNAL continue_sql_thread";
+
+--connection server_2
+--reap
+--source include/wait_for_slave_to_stop.inc
+set debug_sync="RESET";
 
 --echo # Lock t1 on slave to ensure the event can't finish (and thereby update
 --echo # Seconds_Behind_Master) so slow running servers don't accidentally
@@ -77,6 +103,11 @@ LOCK TABLES t1 WRITE;
 --source include/start_slave.inc
 
 --connection slave
+
+--echo # SQL delay has no impact for the rest of the test case, so ignore it
+--let $slave_sync_method= none
+--source include/sync_with_master_sql_delay_debug_sync.inc
+
 --echo # Waiting for replica to get blocked by the table lock
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock';
 --source include/wait_condition.inc
@@ -120,8 +151,13 @@ sleep 3;
 
 --connection slave
 --echo # Wait for first transaction to complete SQL delay and begin execution..
+--let $slave_sync_method= none
+--source include/sync_with_master_sql_delay_debug_sync.inc
 --let $wait_condition= SELECT count(*) FROM information_schema.processlist WHERE state LIKE 'Waiting for table metadata lock%' AND command LIKE 'Slave_Worker';
 --source include/wait_condition.inc
+
+--echo # Wait for second transaction to complete SQL delay..
+--source include/sync_with_master_sql_delay_debug_sync.inc
 
 --echo # Validate SBM calculation doesn't use the second transaction because worker threads shouldn't have gone idle..
 --let $sbm_after_trx_no_idle= query_get_value(SHOW SLAVE STATUS, Seconds_Behind_Master, 1)
@@ -147,6 +183,8 @@ UNLOCK TABLES;
 
 --echo # Cleanup
 --source include/stop_slave.inc
+set debug_sync= "RESET";
+set @@GLOBAL.debug_dbug= "-d,sql_delay_by_debug_sync";
 --eval CHANGE MASTER TO master_delay=0
 --source include/start_slave.inc
 
