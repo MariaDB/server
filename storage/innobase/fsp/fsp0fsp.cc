@@ -40,6 +40,9 @@ Created 11/29/1995 Heikki Tuuri
 #include "dict0mem.h"
 #include "fsp0types.h"
 #include "log.h"
+#ifndef DBUG_OFF
+# include "trx0purge.h"
+#endif
 
 /** Returns the first extent descriptor for a segment.
 We think of the extent lists of the segment catenated in the order
@@ -3576,6 +3579,8 @@ dberr_t fsp_sys_tablespace_validate()
 
 void fsp_system_tablespace_truncate()
 {
+  ut_ad(!purge_sys.enabled());
+  ut_ad(!srv_undo_sources);
   uint32_t last_used_extent= 0;
   fil_space_t *space= fil_system.sys_space;
   mtr_t mtr;
