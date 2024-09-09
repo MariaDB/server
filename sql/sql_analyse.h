@@ -95,9 +95,7 @@ public:
   friend  class analyse;
 };
 
-
-int collect_string(void *element, element_count count,
-		   void *info);
+int collect_string(void *element, element_count count, void *info);
 
 int sortcmp2(const void *, const void *a, const void *b);
 
@@ -143,9 +141,7 @@ public:
   { return (String*) 0; }
 };
 
-
-int collect_decimal(void *element, element_count count,
-                    void *info);
+int collect_decimal(void *element, element_count count, void *info);
 
 class field_decimal :public field_info
 {
@@ -229,8 +225,7 @@ public:
   { return (tree_walk_action) collect_real;}
 };
 
-int collect_longlong(void *element, element_count count,
-		     void *info);
+int collect_longlong(void *element, element_count count, void *info);
 
 class field_longlong: public field_info
 {
@@ -275,8 +270,7 @@ public:
   { return (tree_walk_action) collect_longlong;}
 };
 
-int collect_ulonglong(void *element, element_count count,
-		      void *info);
+int collect_ulonglong(void *element, element_count count, void *info);
 
 class field_ulonglong: public field_info
 {

@@ -17,8 +17,8 @@
 
 static int queue_key_cmp(const void *keyseg, const void *a, const void *b)
 {
-  const MYRG_TABLE *ma= (const MYRG_TABLE *)a;
-  const MYRG_TABLE *mb= (const MYRG_TABLE *)b;
+  const MYRG_TABLE *ma= a;
+  const MYRG_TABLE *mb= b;
   MI_INFO *aa= ma->table;
   MI_INFO *bb= mb->table;
   uint not_used[2];

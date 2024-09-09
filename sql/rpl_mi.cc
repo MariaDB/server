@@ -850,11 +850,11 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-uchar *get_key_master_info(const uchar *_mi, size_t *length,
+uchar *get_key_master_info(const uchar *mi_, size_t *length,
                            my_bool not_used __attribute__((unused)))
 {
   const Master_info *mi=
-      static_cast<const Master_info *>(static_cast<const void *>(_mi));
+      static_cast<const Master_info *>(static_cast<const void *>(mi_));
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
   return (uchar*) mi->cmp_connection_name.str;
@@ -867,9 +867,9 @@ uchar *get_key_master_info(const uchar *_mi, size_t *length,
   Stops associated slave threads and frees master_info
 */
 
-void free_key_master_info(void *_mi)
+void free_key_master_info(void *mi_)
 {
-  Master_info *mi= static_cast<Master_info*>(_mi);
+  Master_info *mi= static_cast<Master_info*>(mi_);
   DBUG_ENTER("free_key_master_info");
   mysql_mutex_unlock(&LOCK_active_mi);
 

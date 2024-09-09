@@ -50,25 +50,25 @@ typedef struct st_spider_param_string_parse
 uchar *spider_tbl_get_key(
   const uchar *share,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 uchar *spider_wide_share_get_key(
   const uchar *share,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 uchar *spider_link_get_key(
   const uchar *link_for_hash,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 uchar *spider_ha_get_key(
   const uchar *spider,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 );
 
 int spider_get_server(

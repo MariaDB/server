@@ -83,10 +83,10 @@ void my_dirend(MY_DIR *dir)
 
         /* Compare in sort of filenames */
 
-static int comp_names(const void *_a, const void *_b)
+static int comp_names(const void *a_, const void *b_)
 {
-  struct fileinfo *a= (struct fileinfo *) _a;
-  struct fileinfo *b= (struct fileinfo *) _b;
+  const struct fileinfo *a= a_;
+  const struct fileinfo *b= b_;
   return (strcmp(a->name,b->name));
 } /* comp_names */
 

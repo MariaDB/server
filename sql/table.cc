@@ -241,10 +241,10 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
 /* Get column name from column hash */
 
-static uchar *get_field_name(const uchar *_buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+static uchar *get_field_name(const uchar *buff_, size_t *length, my_bool)
 {
-  const Field **buff= (const Field **) _buff;
+  auto buff=
+      static_cast<const Field *const *>(static_cast<const void *>(buff_));
   *length= (uint) (*buff)->field_name.length;
   return (uchar*) (*buff)->field_name.str;
 }

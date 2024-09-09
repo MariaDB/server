@@ -709,12 +709,12 @@ static int file_info_compare(const void *cmp_arg __attribute__((unused)),
 
 	/* ARGSUSED */
 
-static int test_if_open (void *_key,
+static int test_if_open (void *key_,
 			 element_count count __attribute__((unused)),
-			 void *_param)
+			 void *param_)
 {
-  struct file_info *key= (struct file_info*) _key;
-  struct test_if_open_param *param= (struct test_if_open_param*) _param;
+  struct file_info *key= key_;
+  struct test_if_open_param *param= param_;
   if (!strcmp(key->name,param->name) && key->id > param->max_id)
     param->max_id=key->id;
   return 0;
@@ -739,12 +739,12 @@ static void fix_blob_pointers(MI_INFO *info, uchar *record)
 	/* close the file with hasn't been accessed for the longest time */
 	/* ARGSUSED */
 
-static int test_when_accessed (void *_key,
+static int test_when_accessed (void *key_,
 			       element_count count __attribute__((unused)),
-			       void *_access_param)
+			       void *access_param_)
 {
-  struct file_info *key= (struct file_info*) _key;
-  struct st_access_param *access_param= (struct st_access_param*) _access_param;
+  struct file_info *key= key_;
+  struct st_access_param *access_param= access_param_;
   if (key->accessed < access_param->min_accessed && ! key->closed)
   {
     access_param->min_accessed=key->accessed;

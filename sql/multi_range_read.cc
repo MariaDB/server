@@ -1405,11 +1405,11 @@ void DsMrr_impl::dsmrr_close()
 */
 
 int Mrr_ordered_index_reader::compare_keys(const void *arg,
-                                           const void *_key1_arg,
-                                           const void *_key2_arg)
+                                           const void *key1_arg_,
+                                           const void *key2_arg_)
 {
-  uchar *key1_arg= const_cast<uchar *>(static_cast<const uchar *>(_key1_arg));
-  uchar *key2_arg= const_cast<uchar *>(static_cast<const uchar *>(_key2_arg));
+  auto key1_arg= static_cast<const uchar *>(key1_arg_);
+  auto key2_arg= static_cast<const uchar *>(key2_arg_);
   Mrr_ordered_index_reader *reader= (Mrr_ordered_index_reader*)arg;
   TABLE *table= reader->file->get_table();
   KEY_PART_INFO *part= table->key_info[reader->file->active_index].key_part;

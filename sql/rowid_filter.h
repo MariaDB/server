@@ -463,7 +463,7 @@ public:
 
   Rowid_filter_container *create_container();
 
-  double get_a() { return a; }
+  double get_a() const { return a; }
 
   void trace_info(THD *thd);
 
