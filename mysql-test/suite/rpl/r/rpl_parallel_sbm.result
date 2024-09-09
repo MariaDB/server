@@ -5,14 +5,20 @@ include/master-slave.inc
 #
 connection slave;
 include/stop_slave.inc
-set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master";
 set @@GLOBAL.slave_parallel_mode= CONSERVATIVE;
-change master to master_delay=3, master_use_gtid=Slave_Pos;
+set @@GLOBAL.debug_dbug= "d,negate_clock_diff_with_master,sql_delay_by_debug_sync";
+change master to master_delay=1, master_use_gtid=Slave_Pos;
 include/start_slave.inc
 connection master;
 create table t1 (a int);
 create table t2 (a int);
-include/sync_slave_sql_with_master.inc
+include/save_master_gtid.inc
+connection slave;
+include/sync_with_master_sql_delay_debug_sync.inc
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
 #
 # Pt 1) Ensure SBM is updated immediately upon arrival of the next event
 connection master;
@@ -21,12 +27,23 @@ insert into t1 values (0);
 include/save_master_gtid.inc
 connection slave;
 # Waiting for transaction to arrive on slave and begin SQL Delay..
+set debug_sync= "now WAIT_FOR at_sql_delay";
 # Validating SBM is updated on event arrival..
 # ..done
 # MDEV-32265. At time of STOP SLAVE, if the SQL Thread is currently
 # delaying a transaction; then when the reciprocal START SLAVE occurs,
 # if the event is still to be delayed, SBM should resume accordingly
-include/stop_slave.inc
+connection server_2;
+# Ensure the kill from STOP SLAVE will be received before continuing the
+# SQL thread
+set debug_sync="after_thd_awake_kill SIGNAL slave_notified_of_kill";
+STOP SLAVE;
+connection slave;
+set debug_sync= "now WAIT_FOR slave_notified_of_kill";
+set debug_sync= "now SIGNAL continue_sql_thread";
+connection server_2;
+include/wait_for_slave_to_stop.inc
+set debug_sync="RESET";
 # Lock t1 on slave to ensure the event can't finish (and thereby update
 # Seconds_Behind_Master) so slow running servers don't accidentally
 # catch up to the master before checking SBM.
@@ -34,6 +51,10 @@ connection server_2;
 LOCK TABLES t1 WRITE;
 include/start_slave.inc
 connection slave;
+# SQL delay has no impact for the rest of the test case, so ignore it
+include/sync_with_master_sql_delay_debug_sync.inc
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
 # Waiting for replica to get blocked by the table lock
 # Sleeping 1s to increment SBM
 # Ensuring Seconds_Behind_Master increases after sleeping..
@@ -54,6 +75,13 @@ insert into t1 values (2);
 include/save_master_pos.inc
 connection slave;
 # Wait for first transaction to complete SQL delay and begin execution..
+include/sync_with_master_sql_delay_debug_sync.inc
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
+# Wait for second transaction to complete SQL delay..
+include/sync_with_master_sql_delay_debug_sync.inc
+set debug_sync= "now WAIT_FOR at_sql_delay";
+set debug_sync= "now SIGNAL continue_sql_thread";
 # Validate SBM calculation doesn't use the second transaction because worker threads shouldn't have gone idle..
 # ..and that SBM wasn't calculated using prior committed transactions
 # ..done
@@ -63,6 +91,8 @@ include/wait_for_slave_param.inc [Relay_Master_Log_File]
 include/wait_for_slave_param.inc [Exec_Master_Log_Pos]
 # Cleanup
 include/stop_slave.inc
+set debug_sync= "RESET";
+set @@GLOBAL.debug_dbug= "-d,sql_delay_by_debug_sync";
 CHANGE MASTER TO master_delay=0;
 include/start_slave.inc
 #
