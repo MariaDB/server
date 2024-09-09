@@ -1687,12 +1687,12 @@ static my_bool _ma_ck_write_tree(register MARIA_HA *info, MARIA_KEY *key)
 
 /* typeof(_ma_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(const void *_param, const void *_key1,
-                        const void *_key2)
+static int keys_compare(const void *param_, const void *key1_,
+                        const void *key2_)
 {
-  const bulk_insert_param *param= (const bulk_insert_param *) _param;
-  const uchar *key1= (const uchar *) _key1;
-  const uchar *key2= (const uchar *) _key2;
+  const bulk_insert_param *param= param_;
+  const uchar *key1= key1_;
+  const uchar *key2= key2_;
   uint not_used[2];
   return ha_key_cmp(param->info->s->keyinfo[param->keynr].seg,
                     key1, key2, USE_WHOLE_KEY, SEARCH_SAME,

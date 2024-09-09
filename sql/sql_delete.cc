@@ -1093,7 +1093,7 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
 
 extern "C" int refpos_order_cmp(const void *arg, const void *a, const void *b)
 {
-  handler *file= static_cast<handler*>(const_cast<void*>(arg));
+  auto file= static_cast<const handler *>(arg);
   return file->cmp_ref((const uchar*)a, (const uchar*)b);
 }
 

@@ -354,18 +354,15 @@ static void free_share(st_blackhole_share *share)
   mysql_mutex_unlock(&blackhole_mutex);
 }
 
-static void blackhole_free_key(void *_share)
+static void blackhole_free_key(void *share)
 {
-  st_blackhole_share *share= static_cast<st_blackhole_share*>(_share);
-  thr_lock_delete(&share->lock);
+  thr_lock_delete(&static_cast<st_blackhole_share *>(share)->lock);
   my_free(share);
 }
 
-static uchar* blackhole_get_key(const uchar *_share, size_t *length,
-                                my_bool not_used __attribute__((unused)))
+static uchar *blackhole_get_key(const uchar *share_, size_t *length, my_bool)
 {
-  const st_blackhole_share *share=
-      reinterpret_cast<const st_blackhole_share *>(_share);
+ auto share= reinterpret_cast<const st_blackhole_share *>(share_);
   *length= share->table_name_length;
   return (uchar*) share->table_name;
 }

@@ -1838,7 +1838,7 @@ typedef struct st_spider_result_list
   bool                    snap_direct_aggregate;
   SPIDER_DB_ROW           *snap_row;
 #endif
-  bool                    in_cmp_ref;
+  mutable bool            in_cmp_ref;
   bool                    set_split_read;
   bool                    insert_dup_update_pushdown;
   longlong                split_read_base;

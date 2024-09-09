@@ -2914,8 +2914,8 @@ int compare_packed_sort_keys(const void *sort_param,
   size_t a_len, b_len;
   Sort_param *param= (Sort_param*)sort_param;
   Sort_keys *sort_keys= param->sort_keys;
-  const uchar *a= *((const uchar **) a_ptr);
-  const uchar *b= *((const uchar **) b_ptr);
+  auto a= *(static_cast<const uchar *const *>(a_ptr));
+  auto b= *(static_cast<const uchar *const *>(b_ptr));
 
   a+= Sort_keys::size_of_length_field;
   b+= Sort_keys::size_of_length_field;

@@ -6834,10 +6834,10 @@ add_ft_keys(DYNAMIC_ARRAY *keyuse_array,
 
 
 static int
-sort_keyuse(const void *_a, const void *_b)
+sort_keyuse(const void *a_, const void *b_)
 {
-  const KEYUSE *a= static_cast<const KEYUSE *>(_a);
-  const KEYUSE *b= static_cast<const KEYUSE *>(_b);
+  const KEYUSE *a= static_cast<const KEYUSE *>(a_);
+  const KEYUSE *b= static_cast<const KEYUSE *>(b_);
   int res;
   if (a->table->tablenr != b->table->tablenr)
     return (int) (a->table->tablenr - b->table->tablenr);

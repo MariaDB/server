@@ -426,7 +426,7 @@ public:
   int rnd_init(bool scan) override;                                      //required
   int rnd_end() override;
   int rnd_next(uchar *buf) override;                                      //required
-  int rnd_pos(uchar *buf, uchar *pos) override;                            //required
+  int rnd_pos(uchar *buf, uchar *pos) override;                     //required
   void position(const uchar *record) override;                            //required
   /*
     A ref is a pointer inside a local buffer. It is not comparable to

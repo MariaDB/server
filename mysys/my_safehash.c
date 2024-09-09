@@ -50,9 +50,9 @@
     This function is called by the hash object on delete
 */
 
-static void safe_hash_entry_free(void *_entry)
+static void safe_hash_entry_free(void *entry_)
 {
-  SAFE_HASH_ENTRY *entry= (SAFE_HASH_ENTRY*) _entry;
+  SAFE_HASH_ENTRY *entry= entry_;
   DBUG_ENTER("safe_hash_entry_free");
   my_free(entry);
   DBUG_VOID_RETURN;
@@ -71,10 +71,10 @@ static void safe_hash_entry_free(void *_entry)
     #  reference on the key
 */
 
-static uchar *safe_hash_entry_get(const uchar *_entry, size_t *length,
+static uchar *safe_hash_entry_get(const uchar *entry_, size_t *length,
                                   my_bool not_used __attribute__((unused)))
 {
-  SAFE_HASH_ENTRY *entry= (SAFE_HASH_ENTRY*) _entry;
+  const SAFE_HASH_ENTRY *entry= (const SAFE_HASH_ENTRY *) entry_;
   *length= entry->length;
   return (uchar*) entry->key;
 }

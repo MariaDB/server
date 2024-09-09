@@ -556,8 +556,7 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 */
 
 uchar *Session_sysvars_tracker::sysvars_get_key(const uchar *entry,
-                                                size_t *length,
-                                                my_bool not_used __attribute__((unused)))
+                                                size_t *length, my_bool)
 {
   *length= sizeof(sys_var *);
   return (uchar *) &(((sysvar_node_st *) entry)->m_svar);
