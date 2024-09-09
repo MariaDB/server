@@ -671,8 +671,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     if (err)
     {
     err_exit:
-      if (err == DB_DECRYPTION_FAILED)
-        btr_decryption_failed(*index);
+      btr_read_failed(err, *index);
       mtr->rollback_to_savepoint(savepoint);
     }
   func_exit:
