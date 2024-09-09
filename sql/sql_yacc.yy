@@ -727,6 +727,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ELSIF_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  EXCEPTION_ORACLE_SYM          // SQL-2003-N, PLSQL-R
 %token  <kwd>  GOTO_MARIADB_SYM              // Oracle-R
+%token  <kwd>  NOCOPY_SYM
 %token  <kwd>  OTHERS_MARIADB_SYM            // SQL-2011-N, PLSQL-R
 %token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
@@ -19048,6 +19049,11 @@ sp_opt_default:
           }
         ;
 
+sp_opt_nocopy:
+          _empty
+        | NOCOPY_SYM
+        ;
+
 sp_opt_inout:
           _empty         { $$= sp_variable::MODE_IN; }
         | sp_parameter_type
@@ -19461,7 +19467,7 @@ sp_decl_variable_list_anchored:
         ;
 
 sp_param_name_and_mode:
-          sp_param_name sp_opt_inout
+          sp_param_name sp_opt_inout sp_opt_nocopy
           {
              $1->mode= $2;
              $$= $1;
