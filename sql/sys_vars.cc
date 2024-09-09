@@ -2832,6 +2832,20 @@ static Sys_var_ulong Sys_optimizer_selectivity_sampling_limit(
        VALID_RANGE(SELECTIVITY_SAMPLING_THRESHOLD, UINT_MAX),
        DEFAULT(SELECTIVITY_SAMPLING_LIMIT), BLOCK_SIZE(1));
 
+static Sys_var_ulonglong Sys_optimizer_join_limit_pref_ratio(
+       "optimizer_join_limit_pref_ratio",
+       "For queries with JOIN and ORDER BY LIMIT : make the optimizer "
+       "consider a join order that allows to short-cut execution after "
+       "producing #LIMIT matches if that promises N times speedup. "
+       "(A conservative setting here would be is a high value, like 100 so "
+       "the short-cutting plan is used if it promises a speedup of 100x or "
+       "more). Short-cutting plans are inherently risky so the default is 0 "
+       "which means do not consider this optimization",
+       SESSION_VAR(optimizer_join_limit_pref_ratio),
+       CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, UINT_MAX),
+       DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        "optimizer_use_condition_selectivity",
        "Controls selectivity of which conditions the optimizer takes into "

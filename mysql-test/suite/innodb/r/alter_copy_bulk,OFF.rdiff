@@ -1,9 +1,9 @@
 --- bulk_copy_alter.result
 +++ bulk_copy_alter,non_bulk_alter_copy.result
-@@ -5,7 +5,7 @@
+@@ -6,7 +6,7 @@
  INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
- ALTER TABLE t1 ADD INDEX(f2);
- ALTER TABLE t1 ADD PRIMARY KEY(f1(2));
+ ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
+ ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
 -ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
 +ERROR 23000: Duplicate entry 'aa' for key 'PRIMARY'
  INSERT INTO t1 VALUES(repeat('a', 200), 1);

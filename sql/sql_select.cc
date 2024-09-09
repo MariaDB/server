@@ -269,12 +269,14 @@ static COND *make_cond_for_table_from_pred(THD *thd, Item *root_cond,
                                            bool is_top_and_level);
 
 static Item* part_of_refkey(TABLE *form,Field *field);
-static bool test_if_cheaper_ordering(const JOIN_TAB *tab,
+static bool test_if_cheaper_ordering(bool in_join_optimizer,
+                                     const JOIN_TAB *tab,
                                      ORDER *order, TABLE *table,
                                      key_map usable_keys, int key,
                                      ha_rows select_limit,
                                      int *new_key, int *new_key_direction,
                                      ha_rows *new_select_limit,
+                                     double *new_read_time,
                                      uint *new_used_key_parts= NULL,
                                      uint *saved_best_key_parts= NULL);
 static int test_if_order_by_key(JOIN *, ORDER *, TABLE *, uint, uint *);
@@ -367,6 +369,18 @@ static bool process_direct_rownum_comparison(THD *thd, SELECT_LEX_UNIT *unit,
 static double prev_record_reads(const POSITION *positions, uint idx,
                                 table_map found_ref, double record_count,
                                 double *same_keys);
+
+static
+bool join_limit_shortcut_is_applicable(const JOIN *join);
+POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost);
+
+static
+bool find_indexes_matching_order(JOIN *join, TABLE *table, ORDER *order,
+                                 key_map *usable_keys);
+static
+void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
+                                         Item_field *item_field,
+                                         key_map *col_keys);
 
 #ifndef DBUG_OFF
 
@@ -6027,6 +6041,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->sort_by_table= get_sort_by_table(join->order, join->group_list,
                                          join->select_lex->leaf_tables,
                                          join->const_table_map);
+  join->limit_shortcut_applicable= join_limit_shortcut_is_applicable(join);
   /* 
     Update info on indexes that can be used for search lookups as
     reading const tables may has added new sargable predicates. 
@@ -9998,6 +10013,7 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   qsort2_cmp jtab_sort_func;
   DBUG_ENTER("choose_plan");
 
+  join->limit_optimization_mode= false;
   join->cur_embedding_map= 0;
   join->extra_heuristic_pruning= false;
   join->prune_level= join->thd->variables.optimizer_prune_level;
@@ -10072,8 +10088,46 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
       join->extra_heuristic_pruning= true;
     }
 
+    double limit_cost= DBL_MAX;
+    double limit_record_count;
+    POSITION *limit_plan= NULL;
+
+    /* First, build a join plan that can short-cut ORDER BY...LIMIT */
+    if (join->limit_shortcut_applicable && !join->emb_sjm_nest)
+    {
+      bool res;
+      Json_writer_object wrapper(join->thd);
+      Json_writer_array trace(join->thd, "join_limit_shortcut_plan_search");
+      join->limit_optimization_mode= true;
+      res= greedy_search(join, join_tables, search_depth,
+                         use_cond_selectivity);
+      join->limit_optimization_mode= false;
+
+      if (res)
+        DBUG_RETURN(TRUE);
+      DBUG_ASSERT(join->best_read != DBL_MAX);
+
+      /*
+        We've built a join order. Adjust its cost based on ORDER BY...LIMIT
+        short-cutting.
+      */
+      limit_plan= join_limit_shortcut_finalize_plan(join, &limit_cost);
+      limit_record_count= join->join_record_count;
+    }
+
+    /* The main call to search for the query plan: */
     if (greedy_search(join, join_tables, search_depth, use_cond_selectivity))
       DBUG_RETURN(TRUE);
+
+    DBUG_ASSERT(join->best_read != DBL_MAX);
+    if (limit_plan && limit_cost < join->best_read)
+    {
+      /* Plan that uses ORDER BY ... LIMIT shortcutting is better. */
+      memcpy((uchar*)join->best_positions, (uchar*)limit_plan,
+             sizeof(POSITION)*join->table_count);
+      join->best_read= limit_cost;
+      join->join_record_count= limit_record_count;
+    }
   }
 
   join->emb_sjm_nest= 0;
@@ -11366,6 +11420,315 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   DBUG_RETURN(found_eq_ref);
 }
 
+
+/*
+  @brief
+    Check if it is potentally possible to short-cut the JOIN execution due to
+    ORDER BY ... LIMIT clause
+
+  @detail
+    It is possible when the join has "ORDER BY ... LIMIT n" clause, and the
+    sort+limit operation is done right after the join operation (there's no
+    grouping or DISTINCT in between).
+    Then we can potentially build a join plan that enumerates rows in the
+    ORDER BY order and so will be able to terminate as soon as it has produced
+    #limit rows.
+
+    Note that it is not a requirement that sort_by_table has an index that
+    matches ORDER BY. If it doesn't have one, the optimizer will pass
+    sort_by_table to filesort. Reading from sort_by_table won't use
+    short-cutting but the rest of the join will.
+*/
+
+static
+bool join_limit_shortcut_is_applicable(const JOIN *join)
+{
+  /*
+    Any post-join operation like GROUP BY or DISTINCT or window functions
+    means we cannot short-cut join execution
+  */
+  if (!join->thd->variables.optimizer_join_limit_pref_ratio ||
+      !join->order ||
+      join->select_limit == HA_POS_ERROR ||
+      join->group_list ||
+      join->select_distinct ||
+      join->select_options & SELECT_BIG_RESULT ||
+      join->rollup.state != ROLLUP::STATE_NONE ||
+      join->select_lex->have_window_funcs() ||
+      join->select_lex->with_sum_func)
+  {
+    return false;
+  }
+
+  /*
+    Cannot do short-cutting if
+    (1) ORDER BY refers to more than one table or
+    (2) the table it refers to cannot be first table in the join order
+  */
+  if (!join->sort_by_table ||                           // (1)
+      join->sort_by_table->reginfo.join_tab->dependent) // (2)
+    return false;
+
+  Json_writer_object wrapper(join->thd);
+  Json_writer_object trace(join->thd, "join_limit_shortcut_is_applicable");
+  trace.add("applicable", 1);
+  /* It looks like we can short-cut limit due to join */
+  return true;
+}
+
+
+/*
+  @brief
+    Check if we could use an index-based access method to produce rows
+    in the order for ORDER BY ... LIMIT.
+
+  @detail
+  This should do what test_if_skip_sort_order() does. We can't use that
+  function directly, because:
+
+  1. We're at the join optimization stage and have not done query plan
+     fix-ups done in get_best_combination() and co.
+
+  2. The code in test_if_skip_sort_order() does modify query plan structures,
+     for example it may change the table's quick select. This is done even if
+     it's called with no_changes=true parameter.
+
+  @param  access_method_changed  OUT Whether the function changed the access
+                                     method to get rows in desired order.
+  @param  new_access_cost        OUT if access method changed: its cost.
+
+  @return
+    true  - Can skip sorting
+    false - Cannot skip sorting
+*/
+
+bool test_if_skip_sort_order_early(JOIN *join,
+                                   bool *access_method_changed,
+                                   double *new_access_cost)
+{
+  const POSITION *pos= &join->best_positions[join->const_tables];
+  TABLE *table= pos->table->table;
+  key_map usable_keys= table->keys_in_use_for_order_by;
+
+  *access_method_changed= false;
+
+  // Step #1: Find indexes that produce the required ordering.
+  if (find_indexes_matching_order(join, table, join->order, &usable_keys))
+  {
+    return false; // Cannot skip sorting
+  }
+
+  // Step #2: Check if the index we're using produces the needed ordering
+  uint ref_key;
+  if (pos->key)
+  {
+    // Mirror the (wrong) logic in test_if_skip_sort_order:
+    if (pos->spl_plan || pos->type == JT_REF_OR_NULL)
+      return false; // Use filesort
+
+    ref_key= pos->key->key;
+  }
+  else
+  {
+    if (pos->table->quick)
+    {
+      if (pos->table->quick->get_type() == QUICK_SELECT_I::QS_TYPE_RANGE)
+        ref_key= pos->table->quick->index;
+      else
+        ref_key= MAX_KEY;
+    }
+    else
+      ref_key= MAX_KEY;
+  }
+
+  if (ref_key != MAX_KEY && usable_keys.is_set(ref_key))
+  {
+    return true;  // we're using an index that produces the reqired ordering.
+  }
+
+  /*
+    Step #3: check if we can switch to using an index that would produce the
+    ordering.
+    (But don't actually switch, this will be done by test_if_skip_sort_order)
+  */
+  int best_key= -1;
+  uint UNINIT_VAR(best_key_parts);
+  uint saved_best_key_parts= 0;
+  int best_key_direction= 0;
+  JOIN_TAB *tab= pos->table;
+  ha_rows new_limit;
+  double new_read_time;
+  if (test_if_cheaper_ordering(/*in_join_optimizer */TRUE,
+                               tab, join->order, table, usable_keys,
+                               ref_key, join->select_limit,
+                               &best_key, &best_key_direction,
+                               &new_limit, &new_read_time,
+                               &best_key_parts,
+                               &saved_best_key_parts))
+  {
+    // Ok found a way to skip sorting
+    *access_method_changed= true;
+    *new_access_cost= new_read_time;
+    return true;
+  }
+
+  return false;
+}
+
+
+/*
+  Compute the cost of join assuming we only need fraction of the output.
+*/
+
+double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
+                                      double *first_table_cost,
+                                      double fraction)
+{
+  POSITION *pos= join->best_positions + join->const_tables;
+  /*
+    Generally, we assume that producing X% of output takes X% of the cost.
+  */
+  double partial_join_cost= join->best_read * fraction;
+
+  if (skip_sorting)
+  {
+    /*
+      First table produces rows in required order. Two options:
+
+      A. first_table_cost=NULL means we use whatever access method the join
+        optimizer has picked. Its cost was included in join->best_read and
+        we've already took a fraction of it.
+
+      B. first_table_cost!=NULL means we will need to switch to another access
+        method, we have the cost to read rows to produce #LIMIT rows in join
+        output.
+    */
+    if (first_table_cost)
+    {
+      /*
+        Subtract the remainder of the first table's cost we had in
+        join->best_read:
+      */
+      partial_join_cost -= pos->read_time*fraction;
+      partial_join_cost -= pos->records_read*fraction * WHERE_COST_THD(join->thd);
+
+      /* Add the cost of the new access method we've got: */
+      partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
+    }
+  }
+  else
+  {
+    DBUG_ASSERT(!first_table_cost);
+    /*
+      Cannot skip sorting. We read the first table entirely, then sort it.
+
+      partial_join_cost includes pos->read_time*fraction. Add to it
+      pos->read_time*(1-fraction) so we have the cost to read the entire first
+      table.  Do the same for costs of checking the WHERE.
+    */
+    double extra_first_table_cost= pos->read_time * (1.0 - fraction);
+    double extra_first_table_where= pos->records_read * (1.0 - fraction) *
+                                    WHERE_COST_THD(join->thd);
+
+    partial_join_cost= COST_ADD(partial_join_cost,
+                            COST_ADD(extra_first_table_cost,
+                                     extra_first_table_where));
+  }
+  return partial_join_cost;
+}
+
+
+/*
+  @brief
+    Finalize building the join order which allows to short-cut the join
+    execution.
+
+  @detail
+    This is called after we have produced a join order that allows short-
+    cutting.
+    Here, we decide if it is cheaper to use this one or the original join
+    order.
+*/
+
+POSITION *join_limit_shortcut_finalize_plan(JOIN *join, double *cost)
+{
+  Json_writer_object wrapper(join->thd);
+  Json_writer_object trace(join->thd, "join_limit_shortcut_choice");
+
+  double fraction= join->select_limit / join->join_record_count;
+  trace.add("limit_fraction", fraction);
+
+  /* Check which fraction of join output we need */
+  if (fraction >= 1.0)
+  {
+    trace.add("skip_adjustment", "no short-cutting");
+    return NULL;
+  }
+
+  /*
+    Check if the first table's access method produces the required ordering.
+    Possible options:
+    1. Yes: we can just take a fraction of the execution cost.
+    2A No: change the access method to one that does produce the required
+           ordering, update the costs.
+    2B No: Need to pass the first table to filesort().
+  */
+  bool skip_sorting;
+  bool access_method_changed;
+  double new_access_cost;
+  {
+    Json_writer_array tmp(join->thd, "test_if_skip_sort_order_early");
+    skip_sorting= test_if_skip_sort_order_early(join,
+                                                &access_method_changed,
+                                                &new_access_cost);
+  }
+  trace.add("can_skip_filesort", skip_sorting);
+
+  double cost_with_shortcut=
+    recompute_join_cost_with_limit(join, skip_sorting,
+                                   access_method_changed ?
+                                     &new_access_cost : (double*)0,
+                                   fraction);
+  double risk_ratio=
+    (double)join->thd->variables.optimizer_join_limit_pref_ratio;
+  trace.add("full_join_cost", join->best_read);
+  trace.add("risk_ratio", risk_ratio);
+  trace.add("shortcut_join_cost", cost_with_shortcut);
+  cost_with_shortcut *= risk_ratio;
+  trace.add("shortcut_cost_with_risk", cost_with_shortcut);
+  if (cost_with_shortcut < join->best_read)
+  {
+    trace.add("use_shortcut_cost", true);
+    POSITION *pos= (POSITION*)memdup_root(join->thd->mem_root,
+                                          join->best_positions,
+                                          sizeof(POSITION)*
+                                          (join->table_count + 1));
+    *cost= cost_with_shortcut;
+    return pos;
+  }
+  trace.add("use_shortcut_cost", false);
+  return NULL;
+}
+
+
+/*
+  @brief
+    If we're in Limit Optimization Mode, allow only join->sort_by_table as
+    the first table in the join order
+*/
+
+static
+bool join_limit_shortcut_limits_tables(const JOIN *join, uint idx, table_map *map)
+{
+  if (join->limit_optimization_mode && idx == join->const_tables)
+  {
+    *map= join->sort_by_table->map;
+    return true;
+  }
+  return false;
+}
+
+
 /**
   Find a good, possibly optimal, query execution plan (QEP) by a possibly
   exhaustive search.
@@ -11546,6 +11909,9 @@ best_extension_by_limited_search(JOIN      *join,
     */
     allowed_tables= remaining_tables;
     allowed_current_tables= join->get_allowed_nj_tables(idx) & remaining_tables;
+    table_map sort_table;
+    if (join_limit_shortcut_limits_tables(join, idx, &sort_table))
+      allowed_current_tables= sort_table;
   }
   DBUG_ASSERT(allowed_tables & remaining_tables);
 
@@ -26409,6 +26775,7 @@ find_field_in_item_list (Field *field, void *data)
   that belong to 'table' and are equal to 'item_field'.
 */
 
+static
 void compute_part_of_sort_key_for_equals(JOIN *join, TABLE *table,
                                          Item_field *item_field,
                                          key_map *col_keys)
@@ -26553,6 +26920,59 @@ static void prepare_for_reverse_ordered_access(JOIN_TAB *tab)
 }
 
 
+/*
+  @brief
+    Given a table and order, find indexes that produce rows in the order
+
+  @param  usable_keys  IN   Bitmap of keys we can use
+                       OUT  Bitmap of indexes that produce rows in order.
+
+  @return
+     false  Some indexes were found
+     true   No indexes found
+*/
+
+static
+bool find_indexes_matching_order(JOIN *join, TABLE *table, ORDER *order,
+                                 key_map *usable_keys)
+{
+  /* Find indexes that cover all ORDER/GROUP BY fields */
+  for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
+  {
+    Item *item= (*tmp_order->item)->real_item();
+    if (item->type() != Item::FIELD_ITEM)
+    {
+      usable_keys->clear_all();
+      return true;  /* No suitable keys */
+    }
+
+    /*
+      Take multiple-equalities into account. Suppose we have
+        ORDER BY col1, col10
+      and there are
+         multiple-equal(col1, col2, col3),
+         multiple-equal(col10, col11).
+
+      Then,
+      - when item=col1, we find the set of indexes that cover one of {col1,
+        col2, col3}
+      - when item=col10, we find the set of indexes that cover one of {col10,
+        col11}
+
+      And we compute an intersection of these sets to find set of indexes that
+      cover all ORDER BY components.
+    */
+    key_map col_keys;
+    compute_part_of_sort_key_for_equals(join, table, (Item_field*)item,
+                                        &col_keys);
+    usable_keys->intersect(col_keys);
+    if (usable_keys->is_clear_all())
+      return true; // No usable keys
+  }
+  return false;
+
+}
+
 /**
   Test if we can skip the ORDER BY by using an index.
 
@@ -26614,41 +27034,17 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     been taken into account.
   */
   usable_keys= *map;
-  
-  /* Find indexes that cover all ORDER/GROUP BY fields */
-  for (ORDER *tmp_order=order; tmp_order ; tmp_order=tmp_order->next)
+
+  // Step #1: Find indexes that produce the required ordering.
+  if (find_indexes_matching_order(tab->join, table, order, &usable_keys))
   {
-    Item *item= (*tmp_order->item)->real_item();
-    if (item->type() != Item::FIELD_ITEM)
-    {
-      usable_keys.clear_all();
-      DBUG_RETURN(0);
-    }
-
-    /*
-      Take multiple-equalities into account. Suppose we have
-        ORDER BY col1, col10
-      and there are
-         multiple-equal(col1, col2, col3),
-         multiple-equal(col10, col11).
-
-      Then, 
-      - when item=col1, we find the set of indexes that cover one of {col1,
-        col2, col3}
-      - when item=col10, we find the set of indexes that cover one of {col10,
-        col11}
-
-      And we compute an intersection of these sets to find set of indexes that
-      cover all ORDER BY components.
-    */
-    key_map col_keys;
-    compute_part_of_sort_key_for_equals(tab->join, table, (Item_field*)item,
-                                        &col_keys);
-    usable_keys.intersect(col_keys);
-    if (usable_keys.is_clear_all())
-      goto use_filesort;                        // No usable keys
+    DBUG_RETURN(false); // Cannot skip sorting
   }
 
+  /*
+    Step #2: Analyze the current access method. Note the used index as ref_key
+    and #used keyparts in ref_key_parts.
+  */
   ref_key= -1;
   /* Test if constant range in WHERE */
   if (tab->ref.key >= 0 && tab->ref.key_parts)
@@ -26692,6 +27088,12 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
     }
   }
 
+  /*
+    Step #3: Check if index ref_key that we're using produces the required
+    ordering or if there is another index new_ref_key such that
+    - ref_key is a prefix of new_ref_key  (so, access method can be reused)
+    - new_ref_key produces the required ordering
+  */
   if (ref_key >= 0 && ref_key != MAX_KEY)
   {
     /* Current access method uses index ref_key with ref_key_parts parts */
@@ -26811,17 +27213,24 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
 					       &used_key_parts)))
       goto check_reverse_order;
   }
+
+  /*
+    Step #4: Go through all indexes that produce required ordering (in
+    usable_keys) and check if any of them is cheaper than ref_key
+  */
   {
     uint UNINIT_VAR(best_key_parts);
     uint saved_best_key_parts= 0;
     int best_key_direction= 0;
     JOIN *join= tab->join;
     ha_rows table_records= table->stat_records();
+    double new_read_time_dummy;
 
-    test_if_cheaper_ordering(tab, order, table, usable_keys,
+    test_if_cheaper_ordering(FALSE, tab, order, table, usable_keys,
                              ref_key, select_limit,
                              &best_key, &best_key_direction,
-                             &select_limit, &best_key_parts,
+                             &select_limit, &new_read_time_dummy,
+                             &best_key_parts,
                              &saved_best_key_parts);
 
     /*
@@ -32084,11 +32493,13 @@ static bool get_range_limit_read_cost(const POSITION *pos,
 */
 
 static bool
-test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
+test_if_cheaper_ordering(bool in_join_optimizer,
+                         const JOIN_TAB *tab, ORDER *order, TABLE *table,
                          key_map usable_keys,  int ref_key,
                          ha_rows select_limit_arg,
                          int *new_key, int *new_key_direction,
-                         ha_rows *new_select_limit, uint *new_used_key_parts,
+                         ha_rows *new_select_limit, double *new_read_time,
+                         uint *new_used_key_parts,
                          uint *saved_best_key_parts)
 {
   DBUG_ENTER("test_if_cheaper_ordering");
@@ -32162,7 +32573,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
 
   if (join)                                     // True if SELECT
   {
-    uint nr= (uint) (tab - join->join_tab);
+    uint nr= join->const_tables;
     fanout= 1.0;
     if (nr != join->table_count - 1)            // If not last table
       fanout= (join->join_record_count / position->records_out);
@@ -32189,12 +32600,27 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
     Calculate the selectivity of the ref_key for REF_ACCESS. For
     RANGE_ACCESS we use table->opt_range_condition_rows.
   */
-  if (ref_key >= 0 && ref_key != MAX_KEY && tab->type == JT_REF)
+  if (in_join_optimizer)
+  {
+    if (ref_key >= 0 && ref_key != MAX_KEY &&
+        join->best_positions[join->const_tables].type == JT_REF)
+    {
+      refkey_rows_estimate=
+        (ha_rows)join->best_positions[join->const_tables].records_read;
+      set_if_bigger(refkey_rows_estimate, 1);
+    }
+  }
+  else if (ref_key >= 0 && ref_key != MAX_KEY && tab->type == JT_REF)
   {
     /*
       If ref access uses keypart=const for all its key parts,
       and quick select uses the same # of key parts, then they are equivalent.
       Reuse #rows estimate from quick select as it is more precise.
+
+      Note: we could just have used
+        join->best_positions[join->const_tables].records_read
+      here. That number was computed in best_access_path() and it already
+      includes adjustments based on table->opt_range[ref_key].rows.
     */
     if (tab->ref.const_ref_part_map ==
         make_prev_keypart_map(tab->ref.key_parts) &&
@@ -32431,6 +32857,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
   *new_key= best_key;
   *new_key_direction= best_key_direction;
   *new_select_limit= has_limit ? best_select_limit : table_records;
+  *new_read_time= read_time;
   DBUG_RETURN(TRUE);
 }
 
@@ -32529,10 +32956,11 @@ uint get_index_for_order(ORDER *order, TABLE *table, SQL_SELECT *select,
     table->opt_range_condition_rows= table->stat_records();
     
     int key, direction;
-    if (test_if_cheaper_ordering(NULL, order, table,
+    double new_cost;
+    if (test_if_cheaper_ordering(FALSE, NULL, order, table,
                                  table->keys_in_use_for_order_by, -1,
                                  limit,
-                                 &key, &direction, &limit) &&
+                                 &key, &direction, &limit, &new_cost) &&
         !is_key_used(table, key, table->write_set))
     {
       *need_sort= FALSE;
