@@ -551,9 +551,9 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     @retval +1                  first_rec is greater than second_rec
 */
 
-int key_rec_cmp(void *key_p, const uchar *first_rec, const uchar *second_rec)
+int key_rec_cmp(const KEY *const *key, const uchar *first_rec, const uchar *second_rec)
 {
-  const KEY **key= (const KEY**) key_p;
+  //auto key= static_cast<const KEY *const *>(key_p);
   const KEY *key_info= *(key++);                     // Start with first key
   uint key_parts, key_part_num;
   KEY_PART_INFO *key_part= key_info->key_part;

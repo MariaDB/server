@@ -772,10 +772,10 @@ static int rr_from_cache(READ_RECORD *info)
 } /* rr_from_cache */
 
 
-static int rr_cmp(const void *_a, const void *_b)
+static int rr_cmp(const void *a_, const void *b_)
 {
-  const uchar *a= static_cast<const uchar *>(_a);
-  const uchar *b= static_cast<const uchar *>(_b);
+  auto a= static_cast<const uchar *>(a_);
+  auto b= static_cast<const uchar *>(b_);
   if (a[0] != b[0])
     return (int) a[0] - (int) b[0];
   if (a[1] != b[1])

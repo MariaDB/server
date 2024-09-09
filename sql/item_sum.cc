@@ -656,8 +656,9 @@ bool Item_sum::check_vcol_func_processor(void *arg)
 
 int simple_str_key_cmp(const void *arg, const void *key1, const void *key2)
 {
-  const Field *f= (const Field *) arg;
-  return f->cmp((const uchar *) key1, (const uchar *) key2);
+  const Field *f= static_cast<const Field *>(arg);
+  return f->cmp(static_cast<const uchar *>(key1),
+                static_cast<const uchar *>(key2));
 }
 
 
@@ -687,11 +688,11 @@ C_MODE_END
     @retval >0       if key1 > key2
 */
 
-int Aggregator_distinct::composite_key_cmp(const void *arg, const void *_key1,
-                                           const void *_key2)
+int Aggregator_distinct::composite_key_cmp(const void *arg, const void *key1_,
+                                           const void *key2_)
 {
-  const uchar* key1= static_cast<const uchar *>(_key1);
-  const uchar* key2= static_cast<const uchar *>(_key2);
+  const uchar* key1= static_cast<const uchar *>(key1_);
+  const uchar* key2= static_cast<const uchar *>(key2_);
   const Aggregator_distinct *aggr= static_cast<const Aggregator_distinct *>(arg);
   Field **field    = aggr->table->field;
   Field **field_end= field + aggr->table->s->fields;
@@ -718,7 +719,7 @@ C_MODE_START
 
 int simple_raw_key_cmp(const void* arg, const void* key1, const void* key2)
 {
-    return memcmp(key1, key2, *(const uint *) arg);
+  return memcmp(key1, key2, *(static_cast<const uint *>(arg)));
 }
 
 
@@ -3566,8 +3567,7 @@ extern "C" int group_concat_key_cmp_with_distinct(const void *arg,
                                                   const void *key1,
                                                   const void *key2)
 {
-  const Item_func_group_concat *item_func=
-      static_cast<const Item_func_group_concat *>(arg);
+  auto item_func= static_cast<const Item_func_group_concat *>(arg);
 
   for (uint i= 0; i < item_func->arg_count_field; i++)
   {
@@ -3610,8 +3610,7 @@ int group_concat_key_cmp_with_distinct_with_nulls(const void *arg,
                                                   const void *key1_arg,
                                                   const void *key2_arg)
 {
-  const Item_func_group_concat *item_func=
-      static_cast<const Item_func_group_concat *>(arg);
+  auto item_func= static_cast<const Item_func_group_concat *>(arg);
 
   uchar *key1= (uchar*)key1_arg + item_func->table->s->null_bytes;
   uchar *key2= (uchar*)key2_arg + item_func->table->s->null_bytes;
@@ -3664,8 +3663,7 @@ extern "C" int group_concat_key_cmp_with_order(const void *arg,
                                                const void *key1,
                                                const void *key2)
 {
-  const Item_func_group_concat *grp_item=
-      static_cast<const Item_func_group_concat *>(arg);
+  auto grp_item= static_cast<const Item_func_group_concat *>(arg);
   ORDER **order_item, **end;
 
   for (order_item= grp_item->order, end=order_item+ grp_item->arg_count_order;
@@ -3725,8 +3723,7 @@ int group_concat_key_cmp_with_order_with_nulls(const void *arg,
                                                const void *key1_arg,
                                                const void *key2_arg)
 {
-  const Item_func_group_concat *grp_item=
-      static_cast<const Item_func_group_concat *>(arg);
+  auto grp_item= static_cast<const Item_func_group_concat *>(arg);
   ORDER **order_item, **end;
 
   uchar *key1= (uchar*)key1_arg + grp_item->table->s->null_bytes;

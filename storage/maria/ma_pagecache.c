@@ -4722,10 +4722,10 @@ static my_bool free_block(PAGECACHE *pagecache, PAGECACHE_BLOCK_LINK *block,
 }
 
 
-static int cmp_sec_link(const void *_a, const void *_b)
+static int cmp_sec_link(const void *a_, const void *b_)
 {
-  PAGECACHE_BLOCK_LINK **a= (PAGECACHE_BLOCK_LINK**) _a;
-  PAGECACHE_BLOCK_LINK **b= (PAGECACHE_BLOCK_LINK**) _b;
+  PAGECACHE_BLOCK_LINK *const *a= a_;
+  PAGECACHE_BLOCK_LINK *const *b= b_;
   return (((*a)->hash_link->pageno < (*b)->hash_link->pageno) ? -1 :
       ((*a)->hash_link->pageno > (*b)->hash_link->pageno) ? 1 : 0);
 }

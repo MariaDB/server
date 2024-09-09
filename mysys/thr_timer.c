@@ -48,8 +48,9 @@ static void *timer_handler(void *arg __attribute__((unused)));
 static int compare_timespec(const void *not_used __attribute__((unused)),
                             const void *a_ptr, const void *b_ptr)
 {
-  return cmp_timespec((*(struct timespec*) a_ptr),
-                      (*(struct timespec*) b_ptr));
+  const struct timespec *ap= a_ptr;
+  const struct timespec *bp= b_ptr;
+  return cmp_timespec((*ap), (*bp));
 }
 
 

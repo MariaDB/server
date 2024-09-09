@@ -79,8 +79,9 @@ static sig_handler thread_alarm(int sig __attribute__((unused)));
 static int compare_ulong(const void *not_used __attribute__((unused)),
 			 const void *a_ptr, const void *b_ptr)
 {
-  ulong a=*((ulong*) a_ptr),b= *((ulong*) b_ptr);
-  return (a < b) ? -1  : (a == b) ? 0 : 1;
+  const ulong *ap= a_ptr;
+  const ulong *bp= b_ptr;
+  return (*ap < *bp) ? -1  : (*ap == *bp) ? 0 : 1;
 }
 
 void init_thr_alarm(uint max_alarms)

@@ -615,10 +615,10 @@ int mysql_del_sys_var_chain(sys_var *first)
 }
 
 
-static int show_cmp(const void *_a, const void *_b)
+static int show_cmp(const void *a_, const void *b_)
 {
-  const SHOW_VAR *a= static_cast<const SHOW_VAR *>(_a);
-  const SHOW_VAR *b= static_cast<const SHOW_VAR *>(_b);
+  const SHOW_VAR *a= static_cast<const SHOW_VAR *>(a_);
+  const SHOW_VAR *b= static_cast<const SHOW_VAR *>(b_);
   return strcmp(a->name, b->name);
 }
 

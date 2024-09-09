@@ -1771,10 +1771,10 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
 }
 
 static int compare_tree(const void *cmp_arg __attribute__((unused)),
-                        const void *_s, const void *_t)
+                        const void *s_, const void *t_)
 {
-  register const uchar *s= (const uchar*) _s;
-  register const uchar *t= (const uchar*) _t;
+  const uchar *s=  s_;
+  const uchar *t=  t_;
 
   uint length;
   for (length=global_count->field_length; length-- ;)
@@ -1804,10 +1804,10 @@ static int compare_tree(const void *cmp_arg __attribute__((unused)),
     0
  */
 
-static int save_counts_in_queue(void *_key, element_count count, void *_tree)
+static int save_counts_in_queue(void *key_, element_count count, void *tree_)
 {
-  uchar *key= (uchar*) _key;
-  HUFF_TREE *tree= (HUFF_TREE*) _tree;
+  uchar *key= key_;
+  HUFF_TREE *tree= tree_;
   HUFF_ELEMENT *new_huff_el;
 
   new_huff_el=tree->element_buffer+(tree->elements++);
@@ -3327,10 +3327,10 @@ static void fakebigcodes(HUFF_COUNTS *huff_counts, HUFF_COUNTS *end_count)
     -1                  count1 >  count2
 */
 
-static int fakecmp(const void *_count1, const void *_count2)
+static int fakecmp(const void *count1_, const void *count2_)
 {
-  my_off_t **count1= (my_off_t**) _count1;
-  my_off_t **count2= (my_off_t**) _count2;
+  const my_off_t *const *count1= count1_;
+  const my_off_t *const *count2= count2_;
   return ((**count1 < **count2) ? 1 :
           (**count1 > **count2) ? -1 : 0);
 }

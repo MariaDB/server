@@ -70,8 +70,8 @@ extern "C" int event_queue_element_compare_q(void *, uchar *, uchar *);
 int event_queue_element_compare_q(const void *vptr, const void *a,
                                   const void *b)
 {
-  const Event_queue_element *left = (const Event_queue_element *)a;
-  const Event_queue_element *right = (const Event_queue_element *)b;
+  auto left= static_cast<const Event_queue_element *>(a);
+  auto right= static_cast<const Event_queue_element *>(b);
   my_time_t lhs = left->execute_at;
   my_time_t rhs = right->execute_at;
 

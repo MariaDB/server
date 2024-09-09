@@ -16,7 +16,7 @@
 
 #include "heapdef.h"
 
-static int keys_compare(const void *param, const void *key1, const void *key2);
+static int keys_compare(const void *heap_rb, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block,uint reclength,ulong min_records,
 		       ulong max_records);
 
@@ -255,15 +255,15 @@ err:
 } /* heap_create */
 
 
-static int keys_compare(const void *_param, const void *_key1,
-                        const void *_key2)
+static int keys_compare(const void *heap_rb_, const void *key1_,
+                        const void *key2_)
 {
-  const heap_rb_param *param= (const heap_rb_param*) _param;
-  const uchar *key1= (const uchar*) _key1;
-  const uchar *key2= (const uchar*) _key2;
+  const heap_rb_param *heap_rb= heap_rb_;
+  const uchar *key1= key1_;
+  const uchar *key2= key2_;
   uint not_used[2];
-  return ha_key_cmp(param->keyseg, key1, key2, param->key_length, 
-		    param->search_flag, not_used);
+  return ha_key_cmp(heap_rb->keyseg, key1, key2, heap_rb->key_length,
+                    heap_rb->search_flag, not_used);
 }
 
 static void init_block(HP_BLOCK *block, uint reclength, ulong min_records,

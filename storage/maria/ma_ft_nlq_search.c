@@ -53,10 +53,10 @@ typedef struct st_ft_superdoc
 
 
 static int FT_SUPERDOC_cmp(const void *cmp_arg __attribute__((unused)),
-                           const void *_p1, const void *_p2)
+                           const void *p1_, const void *p2_)
 {
-  const FT_SUPERDOC *p1= (const FT_SUPERDOC*) _p1;
-  const FT_SUPERDOC *p2= (const FT_SUPERDOC*) _p2;
+  const FT_SUPERDOC *p1= p1_;
+  const FT_SUPERDOC *p2= p2_;
 
   if (p1->doc.dpos < p2->doc.dpos)
     return -1;
@@ -65,10 +65,10 @@ static int FT_SUPERDOC_cmp(const void *cmp_arg __attribute__((unused)),
   return 1;
 }
 
-static int walk_and_match(void *_word, element_count count, void *_aio)
+static int walk_and_match(void *word_, element_count count, void *aio_)
  {
-  FT_WORD *word= (FT_WORD*) _word;
-  ALL_IN_ONE *aio= (ALL_IN_ONE*) _aio;
+  FT_WORD *word= word_;
+  ALL_IN_ONE *aio= aio_;
   FT_WEIGTH    subkeys;
   int          r;
   uint	       doc_cnt;
@@ -191,11 +191,11 @@ do_skip:
 }
 
 
-static int walk_and_copy(void *_from, uint32 count __attribute__((unused)),
-                         void *_to)
+static int walk_and_copy(void *from_, uint32 count __attribute__((unused)),
+                         void *to_)
 {
-  FT_SUPERDOC *from= (FT_SUPERDOC*) _from;
-  FT_DOC **to= (FT_DOC**) _to;
+  FT_SUPERDOC *from= from_;
+  FT_DOC **to= to_;
   DBUG_ENTER("walk_and_copy");
   from->doc.weight+=from->tmp_weight*from->word_ptr->weight;
   (*to)->dpos=from->doc.dpos;
@@ -204,12 +204,12 @@ static int walk_and_copy(void *_from, uint32 count __attribute__((unused)),
   DBUG_RETURN(0);
 }
 
-static int walk_and_push(void *_from,
+static int walk_and_push(void *from_,
                          element_count count __attribute__((unused)),
-                         void *_best)
+                         void *best_)
 {
-  FT_SUPERDOC *from= (FT_SUPERDOC*) _from;
-  QUEUE *best= (QUEUE*) _best;
+  FT_SUPERDOC *from= from_;
+  QUEUE *best= best_;
 
   DBUG_ENTER("walk_and_copy");
   from->doc.weight+=from->tmp_weight*from->word_ptr->weight;
@@ -220,10 +220,10 @@ static int walk_and_push(void *_from,
 
 
 static int FT_DOC_cmp(const void *unused __attribute__((unused)),
-                      const void *_a, const void *_b)
+                      const void *a_, const void *b_)
 {
-  FT_DOC *a= (FT_DOC*) _a;
-  FT_DOC *b= (FT_DOC*) _b;
+  const FT_DOC *a= a_;
+  const FT_DOC *b= b_;
   return CMP_NUM(b->weight, a->weight);
 }
 
