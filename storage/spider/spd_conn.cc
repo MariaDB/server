@@ -2568,7 +2568,6 @@ void *spider_bg_conn_action(
           } else {
             sql_type = SPIDER_SQL_TYPE_HANDLER;
           }
-        pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
         if (spider->use_fields)
         {
           if ((error_num = dbton_handler->set_sql_for_exec(sql_type,
@@ -2587,16 +2586,12 @@ void *spider_bg_conn_action(
               strmov(result_list->bgs_error_msg, spider_stmt_da_message(thd));
           }
         }
-        pthread_mutex_lock(&conn->mta_conn_mutex);
+        /* todo: is it ok if the following statement is not locked? */
         sql_type &= ~SPIDER_SQL_TYPE_TMP_SQL;
         DBUG_PRINT("info",("spider sql_type=%lu", sql_type));
         if (!result_list->bgs_error)
         {
-          conn->need_mon = &spider->need_mons[conn->link_idx];
-          DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = TRUE;
-          conn->mta_conn_mutex_unlock_later = TRUE;
+          spider_lock_before_query(conn, &spider->need_mons[conn->link_idx]);
             if (!(result_list->bgs_error =
               spider_db_set_names(spider, conn, conn->link_idx)))
             {
@@ -2665,13 +2660,7 @@ void *spider_bg_conn_action(
                 strmov(result_list->bgs_error_msg,
                   spider_stmt_da_message(thd));
             }
-          DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-          DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-          conn->mta_conn_mutex_lock_already = FALSE;
-          conn->mta_conn_mutex_unlock_later = FALSE;
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
-        } else {
-          pthread_mutex_unlock(&conn->mta_conn_mutex);
+            spider_unlock_after_query(conn, 0);
         }
       } else {
         spider->connection_ids[conn->link_idx] = conn->connection_id;
@@ -2746,24 +2735,14 @@ void *spider_bg_conn_action(
     {
       DBUG_PRINT("info",("spider bg exec sql start"));
       spider = (ha_spider*) conn->bg_target;
-      pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-      pthread_mutex_lock(&conn->mta_conn_mutex);
-      conn->need_mon = &spider->need_mons[conn->link_idx];
-      DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = TRUE;
-      conn->mta_conn_mutex_unlock_later = TRUE;
+      spider_lock_before_query(conn, &spider->need_mons[conn->link_idx]);
       *conn->bg_error_num = spider_db_query_with_set_names(
         conn->bg_sql_type,
         spider,
         conn,
         conn->link_idx
       );
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
-      pthread_mutex_unlock(&conn->mta_conn_mutex);
+      spider_unlock_after_query(conn, 0);
       conn->bg_exec_sql = FALSE;
       continue;
     }
@@ -4133,4 +4112,43 @@ void spider_free_ipport_conn(void *info)
     spider_my_free(p, MYF(0));
   }
   DBUG_VOID_RETURN;
+}
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon)
+{
+  pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
+  pthread_mutex_lock(&conn->mta_conn_mutex);
+  conn->need_mon = need_mon;
+  DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = TRUE;
+  conn->mta_conn_mutex_unlock_later = TRUE;
+}
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  pthread_mutex_unlock(&conn->mta_conn_mutex);
+  return ret;
+}
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  return spider_db_errorno(conn);
+}
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table)
+{
+  DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
+  DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
+  conn->mta_conn_mutex_lock_already = FALSE;
+  conn->mta_conn_mutex_unlock_later = FALSE;
+  return spider_db_store_result(spider, link_idx, table);
 }
