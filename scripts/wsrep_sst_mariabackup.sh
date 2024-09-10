@@ -687,16 +687,16 @@ cleanup_at_exit()
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        if [ -n "$BACKUP_PID" ]; then
+            if check_pid $BACKUP_PID; then
+                wsrep_log_error \
+                    "mariadb-backup process is still running. Killing..."
+                cleanup_pid $CHECK_PID
+            fi
+        fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     else
-        if [ -n "$BACKUP_PID" ]; then
-            if check_pid "$BACKUP_PID" 1; then
-                wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID "$BACKUP_PID"
-            fi
-        fi
         [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
@@ -1220,9 +1220,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             exit 22
         fi
 
-        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
-        BACKUP_PID="$xtmpdir/xtrabackup_pid"
-
     else # BYPASS FOR IST
 
         wsrep_log_info "Bypassing the SST for IST"
@@ -1402,7 +1399,7 @@ else # joiner
         fi
         mkdir -p "$DATA/.sst"
         (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
-        jpid=$!
+        BACKUP_PID=$!
         wsrep_log_info "Proceeding with SST"
 
         get_binlog
@@ -1447,6 +1444,7 @@ else # joiner
 
         # Deleting files from previous SST and legacy files from old versions:
         [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
+        [ -f "$DATA/xtrabackup_pid" ]         && rm -f "$DATA/xtrabackup_pid"
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
       # [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
@@ -1457,7 +1455,8 @@ else # joiner
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
-        monitor_process $jpid
+        monitor_process $BACKUP_PID
+        BACKUP_PID=""
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \
