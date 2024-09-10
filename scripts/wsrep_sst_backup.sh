@@ -21,50 +21,32 @@ set -ue
 
 # This is a reference script for rsync-based state snapshot transfer
 
-RSYNC_REAL_PID=0   # rsync process id
-STUNNEL_REAL_PID=0 # stunnel process id
-
 OS="$(uname)"
 [ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
-# Setting the path for lsof on CentOS
-export PATH="/usr/sbin:/sbin:$PATH"
-
 . $(dirname "$0")/wsrep_sst_common
+wsrep_check_datadir
 
-MAGIC_FILE="$WSREP_SST_OPT_DATA/backup_sst_complete"
-rm -r "$MAGIC_FILE"
+DATA="$WSREP_SST_OPT_DATA"
 
-WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
-# if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mysqld innodb-log-group-home-dir '')
-fi
+MAGIC_FILE="$DATA/backup_sst_complete"
 
-if [ -n "$WSREP_LOG_DIR" ]; then
-    # handle both relative and absolute paths
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$WSREP_LOG_DIR"; cd $WSREP_LOG_DIR; pwd -P)
-else
-    # default to datadir
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
-fi
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
 then
-
-    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
 
     RC=0
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]; then
 
-        FLUSHED="$WSREP_SST_OPT_DATA/tables_flushed"
-        ERROR="$WSREP_SST_OPT_DATA/sst_error"
+        FLUSHED="$DATA/tables_flushed"
+        ERROR="$DATA/sst_error"
 
         [ -f "$FLUSHED" ] && rm -f "$FLUSHED"
         [ -f "$ERROR"   ] && rm -f "$ERROR"
 
-        echo "flush tables"
+        echo 'flush tables'
 
         # Wait for :
         # (a) Tables to be flushed, AND
@@ -77,19 +59,23 @@ then
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]; then
                 # Flush tables operation failed.
-                rm -f "$ERROR"
+                rm "$ERROR"
                 exit 255
             fi
             sleep 0.2
         done
 
         STATE=$(cat "$FLUSHED")
-        rm -f "$FLUSHED"
-
+        rm "$FLUSHED"
 
     else # BYPASS
 
         wsrep_log_info "Bypassing state dump."
+
+        # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
+        # (separated by a space).
+        STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
+
     fi
 
     echo 'continue' # now server can resume updating data
