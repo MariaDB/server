@@ -2082,13 +2082,14 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
 }
 
 
-static int get_hlindex_keys(THD *thd, const LEX_CSTRING *db,
-                            const LEX_CSTRING *table_name, const char *path,
-                            uint *keys, uint *total_keys)
+static int get_hlindex_keys_by_open(THD *thd, const LEX_CSTRING *db,
+                                    const LEX_CSTRING *table_name,
+                                    const char *path, uint *keys,
+                                    uint *total_keys)
 {
   TABLE_SHARE share;
   int error;
-  DBUG_ENTER("get_hlindex_keys");
+  DBUG_ENTER("get_hlindex_keys_by_open");
 
   init_tmp_table_share(thd, &share, db->str, 0, table_name->str, path, 1);
   error= open_table_def(thd, &share, GTS_TABLE | GTS_USE_DISCOVERY);
@@ -2145,8 +2146,8 @@ bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
   if (flags & QRMT_HANDLER)
   {
     uint keys, total_keys;
-    int hlindex_error= get_hlindex_keys(thd, db, table_name, path, &keys,
-                                        &total_keys);
+    int hlindex_error= get_hlindex_keys_by_open(thd, db, table_name, path,
+                                                &keys, &total_keys);
     error|= ha_delete_table(thd, base, path, db, table_name, 0) > 0;
     if (!hlindex_error)
     {
@@ -5423,7 +5424,8 @@ mysql_rename_table(handlerton *base, const LEX_CSTRING *old_db,
       char *idx_to_end= strmov(idx_to, to_base);
       uint keys, total_keys;
 
-      if (!get_hlindex_keys(thd, new_db, new_name, to, &keys, &total_keys))
+      if (!get_hlindex_keys_by_open(thd, new_db, new_name, to, &keys,
+                                    &total_keys))
       {
         for (uint i= keys; i < total_keys; i++)
         {

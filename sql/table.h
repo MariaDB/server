@@ -728,6 +728,9 @@ struct TABLE_SHARE
   mysql_mutex_t LOCK_share;             /* To protect TABLE_SHARE */
   mysql_mutex_t LOCK_statistics;        /* To protect against concurrent load */
 
+  void lock_share() { if (!tmp_table) mysql_mutex_lock(&LOCK_share); }
+  void unlock_share() { if (!tmp_table) mysql_mutex_unlock(&LOCK_share); }
+
   TDC_element *tdc;
 
   LEX_CUSTRING tabledef_version;
