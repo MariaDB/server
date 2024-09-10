@@ -191,33 +191,29 @@ be implemented at a higher level.  In other words, all possible
 accesses to a given page through this function must be protected by
 the same set of mutexes or latches.
 @param page_id   page identifier
-@param zip_size  ROW_FORMAT=COMPRESSED page size in bytes
 @return pointer to the block, s-latched */
-buf_page_t *buf_page_get_zip(const page_id_t page_id, ulint zip_size);
+buf_page_t *buf_page_get_zip(const page_id_t page_id);
 
 /** Get access to a database page. Buffered redo log may be applied.
 @param[in]	page_id			page id
 @param[in]	zip_size		ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	rw_latch		RW_S_LATCH, RW_X_LATCH, RW_NO_LATCH
+@param[in]	rw_latch		latch mode
 @param[in]	guess			guessed block or NULL
 @param[in]	mode			BUF_GET, BUF_GET_IF_IN_POOL,
 or BUF_PEEK_IF_IN_POOL
 @param[in,out]	mtr			mini-transaction
 @param[out]	err			DB_SUCCESS or error code
-@param[in,out]	no_wait			If not NULL on input, then we must not
-wait for current page latch. On output, the value is set to true if we had to
-return because we could not wait on page latch.
-@return pointer to the block or NULL */
+@return pointer to the block
+@retval nullptr	if the block is corrupted or unavailable */
 buf_block_t*
 buf_page_get_gen(
 	const page_id_t		page_id,
 	ulint			zip_size,
-	ulint			rw_latch,
+	rw_lock_type_t		rw_latch,
 	buf_block_t*		guess,
 	ulint			mode,
 	mtr_t*			mtr,
-	dberr_t*		err = nullptr,
-        bool*			no_wait = nullptr);
+	dberr_t*		err = nullptr);
 
 /** Initialize a page in the buffer pool. The page is usually not read
 from a file even if it cannot be found in the buffer buf_pool. This is one
@@ -357,8 +353,8 @@ void buf_page_print(const byte* read_buf, ulint zip_size = 0)
 	ATTRIBUTE_COLD __attribute__((nonnull));
 /********************************************************************//**
 Decompress a block.
-@return TRUE if successful */
-ibool
+@return true if successful */
+bool
 buf_zip_decompress(
 /*===============*/
 	buf_block_t*	block,	/*!< in/out: block */
@@ -627,30 +623,42 @@ public:
 public:
   const page_id_t &id() const { return id_; }
   uint32_t state() const { return zip.fix; }
-  uint32_t buf_fix_count() const
-  {
-    uint32_t f= state();
-    ut_ad(f >= FREED);
-    return f < UNFIXED ? (f - FREED) : (~LRU_MASK & f);
-  }
+  static uint32_t buf_fix_count(uint32_t s)
+  { ut_ad(s >= FREED); return s < UNFIXED ? (s - FREED) : (~LRU_MASK & s); }
+
+  uint32_t buf_fix_count() const { return buf_fix_count(state()); }
+  /** Check if a file block is io-fixed.
+  @param s   state()
+  @return whether s corresponds to an io-fixed block */
+  static bool is_io_fixed(uint32_t s)
+  { ut_ad(s >= FREED); return s >= READ_FIX; }
+  /** Check if a file block is read-fixed.
+  @param s   state()
+  @return whether s corresponds to a read-fixed block */
+  static bool is_read_fixed(uint32_t s)
+  { return is_io_fixed(s) && s < WRITE_FIX; }
+  /** Check if a file block is write-fixed.
+  @param s   state()
+  @return whether s corresponds to a write-fixed block */
+  static bool is_write_fixed(uint32_t s)
+  { ut_ad(s >= FREED); return s >= WRITE_FIX; }
+
   /** @return whether this block is read or write fixed;
   read_complete() or write_complete() will always release
   the io-fix before releasing U-lock or X-lock */
-  bool is_io_fixed() const
-  { const auto s= state(); ut_ad(s >= FREED); return s >= READ_FIX; }
+  bool is_io_fixed() const { return is_io_fixed(state()); }
   /** @return whether this block is write fixed;
   write_complete() will always release the write-fix before releasing U-lock */
-  bool is_write_fixed() const { return state() >= WRITE_FIX; }
-  /** @return whether this block is read fixed; this should never hold
-  when a thread is holding the block lock in any mode */
-  bool is_read_fixed() const { return is_io_fixed() && !is_write_fixed(); }
+  bool is_write_fixed() const { return is_write_fixed(state()); }
+  /** @return whether this block is read fixed */
+  bool is_read_fixed() const { return is_read_fixed(state()); }
 
   /** @return if this belongs to buf_pool.unzip_LRU */
   bool belongs_to_unzip_LRU() const
   { return UNIV_LIKELY_NULL(zip.data) && frame; }
 
-  bool is_freed() const
-  { const auto s= state(); ut_ad(s >= FREED); return s < UNFIXED; }
+  static bool is_freed(uint32_t s) { ut_ad(s >= FREED); return s < UNFIXED; }
+  bool is_freed() const { return is_freed(state()); }
   bool is_reinit() const { return !(~state() & REINIT); }
 
   void set_reinit(uint32_t prev_state)
@@ -1358,11 +1366,43 @@ public:
   }
 
 public:
+  /** page_fix() mode of operation */
+  enum page_fix_conflicts{
+    /** Fetch if in the buffer pool, also blocks marked as free */
+    FIX_ALSO_FREED= -1,
+    /** Fetch, waiting for page read completion */
+    FIX_WAIT_READ,
+    /** Fetch, but avoid any waits for */
+    FIX_NOWAIT
+  };
+
   /** Look up and buffer-fix a page.
+  Note: If the page is read-fixed (being read into the buffer pool),
+  we would have to wait for the page latch before determining if the page
+  is accessible (it could be corrupted and have been evicted again).
+  If the caller is holding other page latches so that waiting for this
+  page latch could lead to lock order inversion (latching order violation),
+  the mode c=FIX_WAIT_READ must not be used.
   @param id        page identifier
+  @param err       error code (will only be assigned when returning nullptr)
+  @param c         how to handle conflicts
   @return undo log page, buffer-fixed
+  @retval -1       if c=FIX_NOWAIT and buffer-fixing would require waiting
   @retval nullptr  if the undo page was corrupted or freed */
-  buf_block_t *page_fix(const page_id_t id);
+  buf_block_t *page_fix(const page_id_t id, dberr_t *err,
+                        page_fix_conflicts c);
+
+  buf_block_t *page_fix(const page_id_t id)
+  { return page_fix(id, nullptr, FIX_WAIT_READ); }
+
+
+  /** Decompress a page and relocate the block descriptor
+  @param b      buffer-fixed compressed-only ROW_FORMAT=COMPRESSED page
+  @param chain  hash table chain for b->id().fold()
+  @return the decompressed block, x-latched and read-fixed
+  @retval nullptr if the decompression failed (b->unfix() will be invoked) */
+  ATTRIBUTE_COLD __attribute__((nonnull, warn_unused_result))
+  buf_block_t *unzip(buf_page_t *b, hash_chain &chain);
 
   /** @return whether the buffer pool contains a page
   @param page_id       page identifier
@@ -1572,8 +1612,8 @@ public:
   /** map of block->frame to buf_block_t blocks that belong
   to buf_buddy_alloc(); protected by buf_pool.mutex */
   hash_table_t zip_hash;
-	Atomic_counter<ulint>
-			n_pend_unzip;	/*!< number of pending decompressions */
+  /** number of pending unzip() */
+  Atomic_counter<ulint> n_pend_unzip;
 
 	time_t		last_printout_time;
 					/*!< when buf_print_io was last time

@@ -185,7 +185,7 @@ trx_undo_get_prev_rec_from_prev_page(buf_block_t *&block, uint16_t rec,
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&block->page))
-    buf_read_ahead_linear(block->page.id(), 0);
+    buf_read_ahead_linear(block->page.id());
   return trx_undo_page_get_last_rec(block, page_no, offset);
 }
 
@@ -242,7 +242,7 @@ trx_undo_get_prev_rec(buf_block_t *&block, uint16_t rec, uint32_t page_no,
 static trx_undo_rec_t*
 trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
                                      uint32_t page_no, uint16_t offset,
-                                     ulint mode, mtr_t *mtr)
+                                     rw_lock_type_t mode, mtr_t *mtr)
 {
   if (page_no == block->page.id().page_no() &&
       mach_read_from_2(block->page.frame + offset + TRX_UNDO_NEXT_LOG))
@@ -272,7 +272,8 @@ trx_undo_get_next_rec_from_next_page(const buf_block_t *&block,
 @retval nullptr if none */
 static trx_undo_rec_t*
 trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
-                       uint16_t offset, ulint mode, const buf_block_t*& block,
+                       uint16_t offset, rw_lock_type_t mode,
+                       const buf_block_t *&block,
                        mtr_t *mtr, dberr_t *err)
 {
   buf_block_t *b= buf_page_get_gen(page_id_t{space.id, page_no}, 0, mode,
@@ -282,7 +283,7 @@ trx_undo_get_first_rec(const fil_space_t &space, uint32_t page_no,
     return nullptr;
 
   if (!buf_page_make_young_if_needed(&b->page))
-    buf_read_ahead_linear(b->page.id(), 0);
+    buf_read_ahead_linear(b->page.id());
 
   if (trx_undo_rec_t *rec= trx_undo_page_get_first_rec(b, page_no, offset))
     return rec;
