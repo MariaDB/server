@@ -2660,6 +2660,9 @@ public:
   Item *neg_transformer(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isnull>(thd, this); }
+  Item *const_expr_transformer_for_pushdown_into_derived(THD *thd,
+                                                         uchar *arg)
+    override;
 };
 
 /* Functions used by HAVING for rewriting IN subquery */

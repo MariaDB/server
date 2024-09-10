@@ -5673,6 +5673,22 @@ bool Item_func_isnull::find_not_null_fields(table_map allowed)
 }
 
 
+Item *Item_func_isnull::const_expr_transformer_for_pushdown_into_derived(
+                                                         THD *thd,
+                                                         uchar *arg)
+{
+  if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
+  {
+    Item *new_arg= new (thd->mem_root) Item_int(thd, 1);
+    if (new_arg)
+      args[0]= new_arg;
+    else
+      return 0;
+  }
+  return this;
+}
+
+
 void Item_func_isnull::print(String *str, enum_query_type query_type)
 {
   if (const_item() && !args[0]->maybe_null &&

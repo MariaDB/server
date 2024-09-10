@@ -1549,6 +1549,11 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     if (!extracted_cond_copy)
       continue;
 
+    extracted_cond_copy= extracted_cond_copy->transform(thd,
+	      &Item::const_expr_transformer_for_pushdown_into_derived, 0);
+    if (!extracted_cond_copy)
+      continue;
+
     /*
       Rename the columns of all non-first selects of a union to be compatible
       by names with the columns of the first select. It will allow to use copies
