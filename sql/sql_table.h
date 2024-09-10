@@ -63,9 +63,9 @@ enum enum_explain_filename_mode
 #define WFRM_BACKUP_ORIGINAL 16
 
 /* Flags for conversion functions. */
-static const uint FN_FROM_IS_TMP=  1 << 0;
-static const uint FN_TO_IS_TMP=    1 << 1;
-static const uint FN_IS_TMP=       FN_FROM_IS_TMP | FN_TO_IS_TMP;
+static constexpr uint FN_FROM_IS_TMP=  1 << 0;
+static constexpr uint FN_TO_IS_TMP=    1 << 1;
+static constexpr uint FN_IS_TMP=       FN_FROM_IS_TMP | FN_TO_IS_TMP;
 /* Remove .frm table metadata. */
 static constexpr uint QRMT_FRM=       1 << 2;
 /* Remove .par partitioning metadata. */
@@ -75,9 +75,9 @@ static constexpr uint QRMT_HANDLER=   1 << 4;
 /* Default behaviour is to drop .FRM and handler, but not .par. */
 static constexpr uint QRMT_DEFAULT=   QRMT_FRM | QRMT_HANDLER;
 /** Don't resolve MySQL's fake "foo.sym" symbolic directory names. */
-static const uint SKIP_SYMDIR_ACCESS= 1 << 5;
+static constexpr uint SKIP_SYMDIR_ACCESS= 1 << 5;
 /** Don't check foreign key constraints while renaming table */
-static const uint NO_FK_CHECKS=    1 << 6;
+static constexpr uint NO_FK_CHECKS=    1 << 6;
 
 uint filename_to_tablename(const char *from, char *to, size_t to_length,
                            bool stay_quiet = false);
