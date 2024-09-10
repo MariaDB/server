@@ -8284,8 +8284,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
   if (s->check_set_initialized)
     return;
 
-  if (s->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_lock(&s->LOCK_share);
+  s->lock_share();
   if (s->check_set)
   {
     /* Mark fields used by check constraint */
@@ -8325,8 +8324,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     bitmap_clear_all(&tmp_set);
   }
   s->check_set_initialized= v_keys;
-  if (s->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_unlock(&s->LOCK_share);
+  s->unlock_share();
 }
 
 /* Add fields used by CHECK CONSTRAINT to read map */

@@ -392,13 +392,13 @@ public:
 
   virtual void reset(TABLE_SHARE *share)
   {
-    mysql_mutex_lock(&share->LOCK_share);
+    share->lock_share();
     if (static_cast<MHNSW_Context*>(share->hlindex->hlindex_data) == this)
     {
       share->hlindex->hlindex_data= nullptr;
       --refcnt;
     }
-    mysql_mutex_unlock(&share->LOCK_share);
+    share->unlock_share();
   }
 
   void release(TABLE *table)
@@ -603,8 +603,7 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
 
 MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
 {
-  if (share->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_lock(&share->LOCK_share);
+  share->lock_share();
   auto ctx= static_cast<MHNSW_Context*>(share->hlindex->hlindex_data);
   if (!ctx && table)
   {
@@ -615,8 +614,7 @@ MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
   }
   if (ctx)
     ctx->refcnt++;
-  if (share->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_unlock(&share->LOCK_share);
+  share->unlock_share();
   return ctx;
 }
 
