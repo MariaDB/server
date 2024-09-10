@@ -194,6 +194,9 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
                     const LEX_CSTRING *table_name, const LEX_CSTRING *handler,
                     bool partitioned, const LEX_CUSTRING *id,
                     bool temporary_table);
+int get_hlindex_keys_by_open(THD *thd, const LEX_CSTRING *db,
+                             const LEX_CSTRING *table_name, const char *path,
+                             uint *keys, uint *total_keys);
 bool quick_rm_table(THD *thd, handlerton *base, const LEX_CSTRING *db,
                     const LEX_CSTRING *table_name, uint flags,
                     const char *table_path=0);

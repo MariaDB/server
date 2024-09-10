@@ -1657,6 +1657,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       if (res)
         goto err;
 
+      debug_crash_here("ddl_log_drop_before_delete_hlindex");
       if (path + sizeof(path) > path_end + HLINDEX_BUF_LEN)
       {
         for (uint i= drop_index_from; i < drop_index_to; i++)
@@ -2082,10 +2083,10 @@ bool log_drop_table(THD *thd, const LEX_CSTRING *db_name,
 }
 
 
-static int get_hlindex_keys_by_open(THD *thd, const LEX_CSTRING *db,
-                                    const LEX_CSTRING *table_name,
-                                    const char *path, uint *keys,
-                                    uint *total_keys)
+int get_hlindex_keys_by_open(THD *thd, const LEX_CSTRING *db,
+                             const LEX_CSTRING *table_name,
+                             const char *path, uint *keys,
+                             uint *total_keys)
 {
   TABLE_SHARE share;
   int error;
