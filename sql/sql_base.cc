@@ -9838,12 +9838,10 @@ int TABLE::hlindex_open(uint nr)
   DBUG_ASSERT(nr == s->keys);
   if (!hlindex)
   {
-    if (s->tmp_table == NO_TMP_TABLE)
-      mysql_mutex_lock(&s->LOCK_share);
+    s->lock_share();
     if (!s->hlindex)
     {
-      if (s->tmp_table == NO_TMP_TABLE)
-        mysql_mutex_unlock(&s->LOCK_share);
+      s->unlock_share();
       TABLE_SHARE *share;
       char *path= NULL;
       size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
@@ -9867,26 +9865,20 @@ int TABLE::hlindex_open(uint nr)
         return 1;
       }
 
-      if (s->tmp_table == NO_TMP_TABLE)
-        mysql_mutex_lock(&s->LOCK_share);
+      s->lock_share();
       if (!s->hlindex)
       {
         s->hlindex= share;
-        if (s->tmp_table == NO_TMP_TABLE)
-          mysql_mutex_unlock(&s->LOCK_share);
+        s->unlock_share();
       }
       else
       {
-        if (s->tmp_table == NO_TMP_TABLE)
-          mysql_mutex_unlock(&s->LOCK_share);
+        s->unlock_share();
         free_table_share(share);
       }
     }
     else
-    {
-      if (s->tmp_table == NO_TMP_TABLE)
-        mysql_mutex_unlock(&s->LOCK_share);
-    }
+      s->unlock_share();
     TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
     if (!table || open_table_from_share(in_use, s->hlindex, &empty_clex_str,
                     db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
