@@ -1095,13 +1095,11 @@ static ATTRIBUTE_COLD void os_file_log_buffered()
   log_sys.log_maybe_unbuffered= false;
   log_sys.log_buffered= true;
 }
-# endif
 
 /** @return whether the log file may work with unbuffered I/O. */
 static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
 {
   MSAN_STAT_WORKAROUND(&st);
-# ifdef __linux__
   char b[20 + sizeof "/sys/dev/block/" ":" "/../queue/physical_block_size"];
   if (snprintf(b, sizeof b, "/sys/dev/block/%u:%u/queue/physical_block_size",
                major(st.st_dev), minor(st.st_dev)) >=
@@ -1133,13 +1131,11 @@ static ATTRIBUTE_COLD bool os_file_log_maybe_unbuffered(const struct stat &st)
   if (s > 4096 || s < 64 || !ut_is_2pow(s))
     return false;
   log_sys.set_block_size(uint32_t(s));
-# else
-  constexpr unsigned long s= 4096;
-# endif
 
   return !(st.st_size & (s - 1));
 }
-#endif
+# endif /* __linux__ */
+#endif /* O_DIRECT */
 
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
@@ -1192,7 +1188,9 @@ os_file_create_func(
 	}
 
 #ifdef O_DIRECT
+# ifdef __linux__
 	struct stat st;
+# endif
 	ut_a(type == OS_LOG_FILE
 	     || type == OS_DATA_FILE || type == OS_DATA_FILE_NO_O_DIRECT);
 	int direct_flag = 0;

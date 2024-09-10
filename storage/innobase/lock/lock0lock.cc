@@ -500,9 +500,8 @@ void lock_sys_t::close()
 requesting record lock are brute force (BF). If they are check is
 this BF-BF wait correct and if not report BF wait and assert.
 
-@param[in]	lock_rec	other waiting record lock
-@param[in]	trx		trx requesting conflicting record lock
-@param[in]	type_mode	lock type mode of requesting trx
+@param lock  other waiting lock
+@param trx   transaction requesting conflicting lock
 */
 static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx,
                                        const unsigned type_mode = LOCK_NONE)
@@ -5015,7 +5014,7 @@ void lock_trx_print_wait_and_mvcc_state(FILE *file, const trx_t *trx,
 	if (const lock_t* wait_lock = trx->lock.wait_lock) {
 		const my_hrtime_t suspend_time= trx->lock.suspend_time;
 		fprintf(file,
-			"------- TRX HAS BEEN WAITING %llu ns"
+			"------- TRX HAS BEEN WAITING %llu us"
 			" FOR THIS LOCK TO BE GRANTED:\n",
 			now.val - suspend_time.val);
 

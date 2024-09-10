@@ -9408,6 +9408,25 @@ static void print_buffer_to_nt_eventlog(enum loglevel level, char *buff,
 
 
 #ifndef EMBEDDED_LIBRARY
+#ifndef _WIN32
+#define fprintf_stderr(format, ...) fprintf(stderr, format, __VA_ARGS__)
+#else
+/*
+ On Windows, if FILE* is unbuffered, fprintf() writes output byte by byte.
+ This is suboptimal for printing to error log, we want full message at once.
+*/
+#define fprintf_stderr(format, ...)                                           \
+  do                                                                          \
+  {                                                                           \
+    char buf[256];                                                            \
+    size_t len= snprintf(buf, sizeof(buf), format, __VA_ARGS__);              \
+    if (len >= sizeof(buf))                                                   \
+      fprintf(stderr, format, __VA_ARGS__);                                   \
+    else                                                                      \
+      fwrite(buf, len, 1, stderr);                                            \
+  } while (0)
+#endif
+
 static void print_buffer_to_file(enum loglevel level, const char *buffer,
                                  size_t length)
 {
@@ -9441,7 +9460,7 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
   localtime_r(&skr, &tm_tmp);
   start=&tm_tmp;
 
-  fprintf(stderr, "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
+  fprintf_stderr( "%d-%02d-%02d %2d:%02d:%02d %lu [%s] %.*s%.*s\n",
           start->tm_year + 1900,
           start->tm_mon+1,
           start->tm_mday,

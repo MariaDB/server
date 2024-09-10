@@ -78,14 +78,10 @@ page_zip_des_t*
 btr_cur_get_page_zip(
 /*=================*/
 	btr_cur_t*	cursor);/*!< in: tree cursor */
-/*********************************************************//**
-Returns the page of a tree cursor.
+/** Returns the page of a tree cursor.
 @return pointer to page */
-UNIV_INLINE
-page_t*
-btr_cur_get_page(
-/*=============*/
-	btr_cur_t*	cursor);/*!< in: tree cursor */
+#define btr_cur_get_page(cursor) (cursor)->block()->page.frame
+
 /*********************************************************//**
 Returns the index of a cursor.
 @param cursor b-tree cursor

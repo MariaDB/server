@@ -751,6 +751,8 @@ public:
   void set_sub_test(Item_maxmin_subselect *item) { test_sub_item= item; test_sum_item= 0;};
   bool empty_underlying_subquery();
   Item *neg_transformer(THD *thd) override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_not_all>(thd, this); }
 };
 
 
@@ -811,6 +813,7 @@ public:
   friend class  Arg_comparator;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_eq>(thd, this); }
+  Item *do_build_clone(THD *thd) const override;
 };
 
 class Item_func_equal final :public Item_bool_rowready_func2
@@ -2445,7 +2448,7 @@ public:
   Item *do_build_clone(THD *thd) const override
   {
     Item_func_case_simple *clone= (Item_func_case_simple *)
-                                  Item_func_case::build_clone(thd);
+                                  Item_func_case::do_build_clone(thd);
     uint ncases= when_count();
     if (clone && clone->Predicant_to_list_comparator::init_clone(thd, ncases))
       return NULL;

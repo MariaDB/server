@@ -7952,7 +7952,10 @@ set_max_autoinc:
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			DBUG_PRINT("wsrep", ("row key failed"));
+			WSREP_DEBUG("::write_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			error_result = HA_ERR_INTERNAL_ERROR;
 			goto func_exit;
 		}
@@ -8662,8 +8665,10 @@ func_exit:
 	    Check THD-level wsrep state in that case. */
 	    (trx->is_wsrep() || (!trx_is_started(trx) && wsrep_on(m_user_thd)))
 	    && wsrep_thd_is_local(m_user_thd)
-	    && !wsrep_thd_ignore_table(m_user_thd)) {
-		DBUG_PRINT("wsrep", ("update row key"));
+	    && !wsrep_thd_ignore_table(m_user_thd)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_CREATE_TABLE)
+	    && (thd_sql_command(m_user_thd) != SQLCOM_LOAD ||
+	        thd_binlog_format(m_user_thd) == BINLOG_FORMAT_ROW)) {
 
 		/* We use table-level exclusive key for SEQUENCES
 		   and normal key append for others. */
@@ -8675,8 +8680,10 @@ func_exit:
 					     ? WSREP_SERVICE_KEY_UPDATE
 					     : WSREP_SERVICE_KEY_EXCLUSIVE,
 					     old_row, new_row)) {
-			WSREP_DEBUG("WSREP: UPDATE_ROW_KEY FAILED");
-			DBUG_PRINT("wsrep", ("row key failed"));
+			WSREP_DEBUG("::update_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
@@ -8728,7 +8735,10 @@ ha_innobase::delete_row(
 		if (wsrep_append_keys(m_user_thd, WSREP_SERVICE_KEY_EXCLUSIVE,
 				      record,
 				      NULL)) {
-			DBUG_PRINT("wsrep", ("delete fail"));
+			WSREP_DEBUG("::delete_rows::wsrep_append_keys failed THD %ld for %s.%s",
+				    thd_get_thread_id(m_user_thd),
+				    table->s->db.str,
+				    table->s->table_name.str);
 			DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
 		}
 	}
@@ -13335,7 +13345,7 @@ ha_innobase::discard_or_import_tablespace(
 			     | HA_STATUS_VARIABLE
 			     | HA_STATUS_AUTO);
 
-			fil_crypt_set_encrypt_tables(srv_encrypt_tables);
+			fil_crypt_add_imported_space(m_prebuilt->table->space);
 		}
 	}
 
@@ -14949,7 +14959,8 @@ ha_innobase::info_low(
 				index selectivity is 2 times better than
 				our estimate: */
 
-				rec_per_key_int = rec_per_key_int / 2;
+				rec_per_key_int /= 1
+					+ thd_double_innodb_cardinality(m_user_thd);
 
 				if (rec_per_key_int == 0) {
 					rec_per_key_int = 1;
@@ -15779,6 +15790,26 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		trx = check_trx_exists(ha_thd());
+		if (m_prebuilt->table->skip_alter_undo) {
+			if (dberr_t err= trx->bulk_insert_apply()) {
+				m_prebuilt->table->skip_alter_undo = 0;
+				return convert_error_code_to_mysql(
+					 err,
+					 m_prebuilt->table->flags,
+					 trx->mysql_thd);
+			}
+
+			trx->end_bulk_insert(*m_prebuilt->table);
+			trx->bulk_insert = false;
+			/* During copy alter operation, InnoDB
+			updates the stats only for non-persistent
+			tables. */
+			if (!dict_stats_is_persistent_enabled(
+					m_prebuilt->table)) {
+				dict_stats_update_if_needed(
+					m_prebuilt->table, *trx);
+			}
+		}
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()
 		    && !high_level_read_only) {
@@ -18520,6 +18551,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
       ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_CANT_CREATE_HANDLER_FILE);
       break;
     case log_t::RESIZE_STARTED:
+      const lsn_t start{log_sys.resize_in_progress()};
       for (timespec abstime;;)
       {
         if (thd_kill_level(thd))
@@ -18530,13 +18562,30 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
 
         set_timespec(abstime, 5);
         mysql_mutex_lock(&buf_pool.flush_list_mutex);
-        const bool in_progress(buf_pool.get_oldest_modification(LSN_MAX) <
-                               log_sys.resize_in_progress());
-        if (in_progress)
+        lsn_t resizing= log_sys.resize_in_progress();
+        if (resizing > buf_pool.get_oldest_modification(0))
+        {
+          buf_pool.page_cleaner_wakeup(true);
           my_cond_timedwait(&buf_pool.done_flush_list,
                             &buf_pool.flush_list_mutex.m_mutex, &abstime);
+          resizing= log_sys.resize_in_progress();
+        }
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-        if (!log_sys.resize_in_progress())
+        if (start > log_sys.get_lsn())
+        {
+          ut_ad(!log_sys.is_pmem());
+          /* The server is almost idle. Write dummy FILE_CHECKPOINT records
+          to ensure that the log resizing will complete. */
+          log_sys.latch.wr_lock(SRW_LOCK_CALL);
+          while (start > log_sys.get_lsn())
+          {
+            mtr_t mtr;
+            mtr.start();
+            mtr.commit_files(log_sys.last_checkpoint_lsn);
+          }
+          log_sys.latch.wr_unlock();
+        }
+        if (!resizing || resizing > start /* only wait for our resize */)
           break;
       }
     }
@@ -18905,7 +18954,7 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   PLUGIN_VAR_OPCMDARG,
   "Number of UNDO log pages to purge in one batch from the history list.",
   NULL, NULL,
-  1000,			/* Default setting */
+  127,			/* Default setting */
   1,			/* Minimum value */
   innodb_purge_batch_size_MAX, 0);
 
@@ -19223,11 +19272,6 @@ static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
   "How deep to scan LRU to keep it clean",
   NULL, NULL, 1536, 100, ~0UL, 0);
 
-static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
-  PLUGIN_VAR_RQCMDARG,
-  "How many pages to flush on LRU eviction",
-  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
-
 static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
   "Set to 0 (don't flush neighbors from buffer pool),"
@@ -19477,13 +19521,20 @@ static MYSQL_SYSVAR_ULONGLONG(max_undo_log_size, srv_max_undo_log_size,
   10 << 20, 10 << 20,
   1ULL << (32 + UNIV_PAGE_SIZE_SHIFT_MAX), 0);
 
-static ulong innodb_purge_rseg_truncate_frequency;
+static ulong innodb_purge_rseg_truncate_frequency= 128;
 
 static MYSQL_SYSVAR_ULONG(purge_rseg_truncate_frequency,
   innodb_purge_rseg_truncate_frequency,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
   "Deprecated parameter with no effect",
   NULL, NULL, 128, 1, 128, 0);
+
+static size_t innodb_lru_flush_size;
+
+static MYSQL_SYSVAR_SIZE_T(lru_flush_size, innodb_lru_flush_size,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_DEPRECATED | PLUGIN_VAR_NOCMDOPT,
+  "Deprecated parameter with no effect",
+  NULL, NULL, 32, 1, SIZE_T_MAX, 0);
 
 static void innodb_undo_log_truncate_update(THD *thd, struct st_mysql_sys_var*,
                                             void*, const void *save)
@@ -19731,6 +19782,10 @@ static MYSQL_SYSVAR_BOOL(force_primary_key,
   "Do not allow creating a table without primary key (off by default)",
   NULL, NULL, FALSE);
 
+static MYSQL_SYSVAR_BOOL(alter_copy_bulk, innodb_alter_copy_bulk,
+  PLUGIN_VAR_NOCMDARG,
+  "Allow bulk insert operation for copy alter operation", NULL, NULL, TRUE);
+
 const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
 {
@@ -19966,6 +20021,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
   MYSQL_SYSVAR(force_primary_key),
+  MYSQL_SYSVAR(alter_copy_bulk),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),
   /* Table page compression feature */
   MYSQL_SYSVAR(compression_default),

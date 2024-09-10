@@ -218,6 +218,7 @@ extern "C" const char *thd_client_ip(MYSQL_THD thd);
 extern "C" LEX_CSTRING *thd_current_db(MYSQL_THD thd);
 extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
+extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
 /**
   @class CSET_STRING
@@ -765,6 +766,7 @@ typedef struct system_variables
   ulong net_wait_timeout;
   ulong net_write_timeout;
   ulong optimizer_extra_pruning_depth;
+  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;

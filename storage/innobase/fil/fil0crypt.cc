@@ -1348,6 +1348,8 @@ inline bool fil_space_t::acquire_if_not_stopped()
 
 bool fil_crypt_must_default_encrypt()
 {
+  /* prevents a race condition with fil_crypt_set_rotate_key_age() */
+  mysql_mutex_assert_owner(&fil_system.mutex);
   return !srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate;
 }
 
@@ -2197,6 +2199,27 @@ void fil_crypt_set_rotation_iops(uint val)
 {
   mysql_mutex_lock(&fil_crypt_threads_mutex);
   srv_n_fil_crypt_iops= val;
+  pthread_cond_broadcast(&fil_crypt_threads_cond);
+  mysql_mutex_unlock(&fil_crypt_threads_mutex);
+}
+
+/** Add the import tablespace to default_encrypt list
+if necessary and signal fil_crypt_threads
+@param space imported tablespace */
+void fil_crypt_add_imported_space(fil_space_t *space)
+{
+  mysql_mutex_lock(&fil_crypt_threads_mutex);
+
+  mysql_mutex_lock(&fil_system.mutex);
+
+  if (fil_crypt_must_default_encrypt())
+  {
+    fil_system.default_encrypt_tables.push_back(*space);
+    space->is_in_default_encrypt= true;
+  }
+
+  mysql_mutex_unlock(&fil_system.mutex);
+
   pthread_cond_broadcast(&fil_crypt_threads_cond);
   mysql_mutex_unlock(&fil_crypt_threads_mutex);
 }

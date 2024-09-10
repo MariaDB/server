@@ -2895,7 +2895,10 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (thd->is_error() && !wsrep_must_ignore_error(thd))
     {
-      wsrep_store_error(thd, err);
+      /* use only error code, for the message can be inconsistent
+       * between the nodes due to differing lc_message settings
+       * in client session and server applier thread */
+      wsrep_store_error(thd, err, false);
     }
 
     int const ret= client_state.leave_toi_local(err);
@@ -3201,8 +3204,13 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
 
-    if (wsrep_thd_is_toi(granted_thd) ||
-        wsrep_thd_is_applying(granted_thd))
+    if (granted_thd->wsrep_aborter != 0)
+    {
+      DBUG_ASSERT(granted_thd->wsrep_aborter == request_thd->thread_id);
+      WSREP_DEBUG("BF thread waiting for a victim to release locks");
+    }
+    else if (wsrep_thd_is_toi(granted_thd) ||
+             wsrep_thd_is_applying(granted_thd))
     {
       if (wsrep_thd_is_aborting(granted_thd))
       {
@@ -3292,6 +3300,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
     mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
     mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
+    DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
   }
   else
   {

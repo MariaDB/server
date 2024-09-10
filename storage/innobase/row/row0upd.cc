@@ -702,7 +702,7 @@ fetch; output: fetched length of the prefix
 @param[in,out]	heap		heap where to allocate
 @return BLOB prefix
 @retval NULL if the record is incomplete (should only happen
-in row_vers_vc_matches_cluster() executed concurrently with another purge) */
+in row_purge_vc_matches_cluster() executed concurrently with another purge) */
 static
 byte*
 row_upd_ext_fetch(

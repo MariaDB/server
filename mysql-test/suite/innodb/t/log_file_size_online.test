@@ -25,17 +25,28 @@ SHOW VARIABLES LIKE 'innodb_log_file_size';
 let SEARCH_PATTERN = InnoDB: Resized log to 4\\.000MiB;
 --source include/search_pattern_in_file.inc
 
-UPDATE t SET b='' WHERE a<10;
+send SET GLOBAL innodb_log_file_size=5242880;
 
-SET GLOBAL innodb_log_file_size=5242880;
+--connect con1,localhost,root
+send UPDATE t SET b='' WHERE a<10;
+
+--connection default
+reap;
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 SELECT global_value FROM information_schema.system_variables
 WHERE variable_name = 'innodb_log_file_size';
 
+--connection con1
+reap;
+--disconnect con1
+--connection default
+
+--let $shutdown_timeout=0
 --let $restart_parameters=
 --source include/restart_mysqld.inc
 
 SELECT * FROM t WHERE a<10;
+SELECT COUNT(*),LENGTH(b) FROM t GROUP BY b;
 
 SHOW VARIABLES LIKE 'innodb_log_file_size';
 let SEARCH_PATTERN = InnoDB: Resized log to 5\\.000MiB;

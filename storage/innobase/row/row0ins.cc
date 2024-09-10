@@ -2701,7 +2701,7 @@ err_exit:
 
 	block = btr_pcur_get_block(&pcur);
 
-	DBUG_EXECUTE_IF("row_ins_row_level", goto skip_bulk_insert;);
+	DBUG_EXECUTE_IF("row_ins_row_level", goto row_level_insert;);
 
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->page.frame)
@@ -2709,37 +2709,33 @@ err_exit:
 	    && !trx->check_unique_secondary && !trx->check_foreigns
 	    && !trx->dict_operation
 	    && block->page.id().page_no() == index->page
-	    && !index->table->skip_alter_undo
-	    && !index->table->n_rec_locks
-	    && !index->table->is_active_ddl()
-	    && !index->table->has_spatial_index()
-	    && !index->table->versioned()
-            && (!dict_table_is_partition(index->table)
+	    && !index->table->is_native_online_ddl()
+	    && (!dict_table_is_partition(index->table)
 	        || thd_sql_command(trx->mysql_thd) == SQLCOM_INSERT)) {
-		DEBUG_SYNC_C("empty_root_page_insert");
 
-		trx->bulk_insert = true;
+		if (!index->table->n_rec_locks
+		    && !index->table->versioned()
+		    && !index->table->is_temporary()
+		    && !index->table->has_spatial_index()) {
 
-		if (!index->table->is_temporary()) {
+			ut_ad(!index->table->skip_alter_undo);
+			trx->bulk_insert = true;
 			err = lock_table(index->table, NULL, LOCK_X, thr);
-
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
 				trx->bulk_insert = false;
 				goto err_exit;
 			}
-
 			if (index->table->n_rec_locks) {
 avoid_bulk:
 				trx->bulk_insert = false;
-				goto skip_bulk_insert;
+				goto row_level_insert;
 			}
-
 #ifdef WITH_WSREP
 			if (trx->is_wsrep())
 			{
 				if (!wsrep_thd_is_local_transaction(trx->mysql_thd))
-					goto skip_bulk_insert;
+					goto row_level_insert;
 				if (wsrep_append_table_key(trx->mysql_thd, *index->table))
 				{
 					trx->error_state = DB_ROLLBACK;
@@ -2774,9 +2770,38 @@ avoid_bulk:
 			export_vars.innodb_bulk_operations++;
 			goto err_exit;
 		}
+	} else if (flags == (BTR_NO_UNDO_LOG_FLAG | BTR_NO_LOCKING_FLAG)
+		   && !index->table->n_rec_locks) {
+
+		ut_ad(index->table->skip_alter_undo);
+		ut_ad(!entry->is_metadata());
+
+		/* If foreign key exist and foreign key is enabled
+		then avoid using bulk insert for copy algorithm */
+		if (innodb_alter_copy_bulk
+		    && !index->table->is_temporary()
+		    && !index->table->versioned()
+		    && !index->table->has_spatial_index()
+		    && (!trx->check_foreigns
+                        || (index->table->foreign_set.empty()
+                            && index->table->referenced_set.empty()))) {
+			ut_ad(page_is_empty(block->page.frame));
+			/* This code path has been executed at the
+			start of the alter operation. Consecutive
+			insert operation are buffered in the
+			bulk buffer and doesn't check for constraint
+			validity of foreign key relationship. */
+			trx_start_if_not_started(trx, true);
+			trx->bulk_insert = true;
+			auto m = trx->mod_tables.emplace(index->table, 0);
+			m.first->second.start_bulk_insert(index->table);
+			err = m.first->second.bulk_insert_buffered(
+					*entry, *index, trx);
+			goto err_exit;
+		}
 	}
 
-skip_bulk_insert:
+row_level_insert:
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		const rec_t* rec = btr_pcur_get_rec(&pcur);
 
@@ -3386,9 +3411,12 @@ row_ins_index_entry(
 
 	if (index->is_btree()) {
 		if (auto t= trx->check_bulk_buffer(index->table)) {
-			/* MDEV-25036 FIXME: check also foreign key
-			constraints */
-			ut_ad(!trx->check_foreigns);
+			/* MDEV-25036 FIXME:
+			row_ins_check_foreign_constraint() check
+			should be done before buffering the insert
+			operation. */
+			ut_ad(index->table->skip_alter_undo
+			      || !trx->check_foreigns);
 			return t->bulk_insert_buffered(*entry, *index, trx);
 		}
 	}

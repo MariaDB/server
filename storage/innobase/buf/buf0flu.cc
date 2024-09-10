@@ -2696,12 +2696,12 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool()
 {
-  ut_ad(!os_aio_pending_reads());
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(!buf_flush_sync_lsn);
 
   service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                  "Waiting to flush the buffer pool");
+  os_aio_wait_until_no_pending_reads(false);
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 

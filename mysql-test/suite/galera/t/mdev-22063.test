@@ -16,6 +16,7 @@ SELECT * FROM t1;
 SELECT * FROM s;
 
 --connection node_2
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1'
 --source include/wait_condition.inc
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 's'
@@ -27,6 +28,7 @@ SELECT * FROM t1;
 SELECT * FROM s;
 
 --connection node_1
+SET GLOBAL WSREP_MODE='REPLICATE_ARIA,REPLICATE_MYISAM';
 DROP TABLE t1;
 DROP SEQUENCE s;
 
@@ -64,6 +66,7 @@ DROP TABLE t,t2,t3;
 
 --echo # Bigger REPLACE ... AS SELECT test
 
+SET GLOBAL wsrep_mode=REPLICATE_MYISAM;
 CREATE TABLE t1(id int not null primary key ,b int) ENGINE=InnoDB;
 CREATE TABLE t2(id int not null primary key ,b int) ENGINE=MyISAM;
 CREATE TABLE t3(id int not null primary key ,b int) ENGINE=Aria;
@@ -95,7 +98,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -105,7 +108,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
 SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
@@ -143,7 +146,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -153,7 +156,7 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
 SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
@@ -181,4 +184,7 @@ INSERT INTO view_t1 VALUES (5);
 SELECT * FROM t1;
 DROP TABLE t1;
 DROP VIEW view_t1;
+SET GLOBAL wsrep_mode=DEFAULT;
+
+--connection node_2
 SET GLOBAL wsrep_mode=DEFAULT;

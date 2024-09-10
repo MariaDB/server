@@ -556,6 +556,17 @@ DROP TABLE t1;
 
 --echo # End of 10.4 tests
 
-SET GLOBAL innodb_stats_persistent = @save_stats_persistent;
+--echo #
+--echo #  MDEV-29010  Table cannot be loaded after instant ALTER
+--echo #
+CREATE TABLE t1 (a CHAR(255), b INT,
+		 c INT as (b) VIRTUAL)ENGINE=InnoDB CHARACTER SET utf32;
+ALTER TABLE t1 DROP COLUMN a;
+ALTER TABLE t1 DROP COLUMN c;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests
 
 --echo # End of 10.6 tests
+
+SET GLOBAL innodb_stats_persistent = @save_stats_persistent;

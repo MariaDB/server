@@ -2435,7 +2435,7 @@ public:
   }
 
   /** @return whether a DDL operation is in progress on this table */
-  bool is_active_ddl() const
+  bool is_native_online_ddl() const
   {
     return UT_LIST_GET_FIRST(indexes)->online_log;
   }

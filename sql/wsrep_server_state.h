@@ -64,6 +64,8 @@ public:
     return m_provider_services;
   }
 
+  static void handle_fatal_signal();
+
 private:
   Wsrep_server_state(const std::string& name,
                      const std::string& incoming_address,

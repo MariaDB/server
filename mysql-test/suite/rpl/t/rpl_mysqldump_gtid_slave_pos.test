@@ -44,6 +44,7 @@ while ($i)
   eval insert into t1 set a = $i;
   --dec $i
 }
+--source include/save_master_gtid.inc
 
 --connection slave
 # due to MDEV-19801 on 10+.10+

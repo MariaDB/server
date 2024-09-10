@@ -470,6 +470,146 @@ func_exit:
 	return(err);
 }
 
+bool dtuple_coll_eq(const dtuple_t &tuple1, const dtuple_t &tuple2);
+
+/** Find out if an accessible version of a clustered index record
+corresponds to a secondary index entry.
+@param rec    record in a latched clustered index page
+@param index  secondary index
+@param ientry secondary index entry
+@param mtr    mini-transaction
+@return whether an accessible non-dete-marked version of rec
+corresponds to ientry */
+static bool row_undo_mod_sec_is_unsafe(const rec_t *rec, dict_index_t *index,
+                                       const dtuple_t *ientry, mtr_t *mtr)
+{
+	const rec_t*	version;
+	rec_t*		prev_version;
+	dict_index_t*	clust_index;
+	rec_offs*	clust_offsets;
+	mem_heap_t*	heap;
+	mem_heap_t*	heap2;
+	dtuple_t*	row;
+	const dtuple_t*	entry;
+	ulint		comp;
+	dtuple_t*	vrow = NULL;
+	mem_heap_t*	v_heap = NULL;
+	dtuple_t*	cur_vrow = NULL;
+
+	clust_index = dict_table_get_first_index(index->table);
+
+	comp = page_rec_is_comp(rec);
+	ut_ad(!dict_table_is_comp(index->table) == !comp);
+	heap = mem_heap_create(1024);
+	clust_offsets = rec_get_offsets(rec, clust_index, NULL,
+					clust_index->n_core_fields,
+					ULINT_UNDEFINED, &heap);
+
+	if (dict_index_has_virtual(index)) {
+		v_heap = mem_heap_create(100);
+		/* The current cluster index record could be
+		deleted, but the previous version of it might not. We will
+		need to get the virtual column data from undo record
+		associated with current cluster index */
+
+		cur_vrow = row_vers_build_cur_vrow(
+			rec, clust_index, &clust_offsets,
+			index, 0, 0, heap, v_heap, mtr);
+	}
+
+	version = rec;
+
+	for (;;) {
+		heap2 = heap;
+		heap = mem_heap_create(1024);
+		vrow = NULL;
+
+		trx_undo_prev_version_build(version,
+					    clust_index, clust_offsets,
+					    heap, &prev_version,
+					    mtr, TRX_UNDO_CHECK_PURGEABILITY,
+					    nullptr,
+					    dict_index_has_virtual(index)
+					    ? &vrow : nullptr);
+		mem_heap_free(heap2); /* free version and clust_offsets */
+
+		if (!prev_version) {
+			break;
+		}
+
+		clust_offsets = rec_get_offsets(prev_version, clust_index,
+						NULL,
+						clust_index->n_core_fields,
+						ULINT_UNDEFINED, &heap);
+
+		if (dict_index_has_virtual(index)) {
+			if (vrow) {
+				if (dtuple_vcol_data_missing(*vrow, *index)) {
+					goto nochange_index;
+				}
+				/* Keep the virtual row info for the next
+				version, unless it is changed */
+				mem_heap_empty(v_heap);
+				cur_vrow = dtuple_copy(vrow, v_heap);
+				dtuple_dup_v_fld(cur_vrow, v_heap);
+			}
+
+			if (!cur_vrow) {
+				/* Nothing for this index has changed,
+				continue */
+nochange_index:
+				version = prev_version;
+				continue;
+			}
+		}
+
+		if (!rec_get_deleted_flag(prev_version, comp)) {
+			row_ext_t*	ext;
+
+			/* The stack of versions is locked by mtr.
+			Thus, it is safe to fetch the prefixes for
+			externally stored columns. */
+			row = row_build(ROW_COPY_POINTERS, clust_index,
+					prev_version, clust_offsets,
+					NULL, NULL, NULL, &ext, heap);
+
+			if (dict_index_has_virtual(index)) {
+				ut_ad(cur_vrow);
+				ut_ad(row->n_v_fields == cur_vrow->n_v_fields);
+				dtuple_copy_v_fields(row, cur_vrow);
+			}
+
+			entry = row_build_index_entry(row, ext, index, heap);
+
+			/* If entry == NULL, the record contains unset
+			BLOB pointers.  This must be a freshly
+			inserted record that we can safely ignore.
+			For the justification, see the comments after
+			the previous row_build_index_entry() call. */
+
+			/* NOTE that we cannot do the comparison as binary
+			fields because maybe the secondary index record has
+			already been updated to a different binary value in
+			a char field, but the collation identifies the old
+			and new value anyway! */
+
+			if (entry && dtuple_coll_eq(*ientry, *entry)) {
+				break;
+			}
+		}
+
+		version = prev_version;
+	}
+
+	mem_heap_free(heap);
+
+	if (v_heap) {
+		mem_heap_free(v_heap);
+	}
+
+	return !!prev_version;
+}
+
 /***********************************************************//**
 Delete marks or removes a secondary index entry if found.
 @return DB_SUCCESS, DB_FAIL, or DB_OUT_OF_FILE_SPACE */
@@ -488,7 +628,6 @@ row_undo_mod_del_mark_or_remove_sec_low(
 	btr_cur_t*		btr_cur;
 	dberr_t			err	= DB_SUCCESS;
 	mtr_t			mtr;
-	mtr_t			mtr_vers;
 	const bool		modify_leaf = mode == BTR_MODIFY_LEAF;
 
 	row_mtr_start(&mtr, index, !modify_leaf);
@@ -555,17 +694,14 @@ found:
 	which cannot be purged yet, requires its existence. If some requires,
 	we should delete mark the record. */
 
-	mtr_vers.start();
-
-	ut_a(node->pcur.restore_position(BTR_SEARCH_LEAF, &mtr_vers) ==
-	      btr_pcur_t::SAME_ALL);
+	ut_a(node->pcur.restore_position(BTR_SEARCH_LEAF, &mtr) ==
+	     btr_pcur_t::SAME_ALL);
 
 	/* For temporary table, we can skip to check older version of
 	clustered index entry, because there is no MVCC or purge. */
 	if (node->table->is_temporary()
-	    || row_vers_old_has_index_entry(
-		    false, btr_pcur_get_rec(&node->pcur),
-		    &mtr_vers, index, entry, 0, 0)) {
+	    || row_undo_mod_sec_is_unsafe(
+		       btr_pcur_get_rec(&node->pcur), index, entry, &mtr)) {
 		btr_rec_set_deleted<true>(btr_cur_get_block(btr_cur),
 					  btr_cur_get_rec(btr_cur), &mtr);
 	} else {
@@ -599,7 +735,9 @@ found:
 		}
 	}
 
-	btr_pcur_commit_specify_mtr(&(node->pcur), &mtr_vers);
+	ut_ad(node->pcur.pos_state == BTR_PCUR_IS_POSITIONED);
+	node->pcur.pos_state = BTR_PCUR_WAS_POSITIONED;
+	node->pcur.latch_mode = BTR_NO_LATCHES;
 
 func_exit:
 	btr_pcur_close(&pcur);

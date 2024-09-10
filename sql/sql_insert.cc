@@ -1053,19 +1053,11 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
         */
         restore_record(table,s->default_values);	// Get empty record
         table->reset_default_fields();
-        /*
-          Reset the sentinel thd->bulk_param in order not to consume the next
-          values of a bound array in case one of statement executed by
-          the trigger's body is INSERT statement.
-        */
-        void *save_bulk_param= thd->bulk_param;
-        thd->bulk_param= nullptr;
 
         if (unlikely(fill_record_n_invoke_before_triggers(thd, table, fields,
                                                           *values, 0,
                                                           TRG_EVENT_INSERT)))
         {
-          thd->bulk_param= save_bulk_param;
           if (values_list.elements != 1 && ! thd->is_error())
           {
             info.records++;
@@ -1079,7 +1071,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 	  error=1;
 	  break;
         }
-        thd->bulk_param= save_bulk_param;
       }
       else
       {
@@ -1372,7 +1363,18 @@ values_loop_end:
     */
    if (returning)
       result->send_eof();
-   else
+   else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))
+     /*
+       Set the status and the number of affected rows in Diagnostics_area
+       only in case the INSERT statement is not processed as part of a trigger
+       invoked by some other DML statement. Else we would result in incorrect
+       number of affected rows for bulk DML operations, e.g. the UPDATE
+       statement (called via PS protocol). It would happen since the data
+       member Diagnostics_area::m_affected_rows modified twice per DML
+       statement - first time at the end of handling the INSERT statement
+       invoking by a trigger fired on handling the original DML statement,
+       and the second time at the end of handling the original DML statement.
+     */
       my_ok(thd, info.copied + info.deleted +
                ((thd->client_capabilities & CLIENT_FOUND_ROWS) ?
                 info.touched : info.updated), id);
@@ -1394,14 +1396,25 @@ values_loop_end:
               (long) thd->get_stmt_da()->current_statement_warn_count());
     if (returning)
       result->send_eof();
-    else
+    else if (!(thd->in_sub_stmt & SUB_STMT_TRIGGER))
+      /*
+        Set the status and the number of affected rows in Diagnostics_area
+        only in case the INSERT statement is not processed as part of a trigger
+        invoked by some other DML statement. Else we would result in incorrect
+        number of affected rows for bulk DML operations, e.g. the UPDATE
+        statement (called via PS protocol). It would happen since the data
+        member Diagnostics_area::m_affected_rows modified twice per DML
+        statement - first time at the end of handling the INSERT statement
+        invoking by a trigger fired on handling the original DML statement,
+        and the second time at the end of handling the original DML statement.
+      */
       ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
   }
 
   my_free(readbuff);
@@ -4356,7 +4369,16 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
-  table->file->extra(HA_EXTRA_END_ALTER_COPY);
+  if (error <= 0)
+  {
+    error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
+    if (error == HA_ERR_FOUND_DUPP_KEY)
+    {
+      uint key_nr= table->file->get_dup_key(error);
+      if ((int)key_nr >= 0 && key_nr < table->s->keys)
+        print_keydup_error(table, &table->key_info[key_nr], MYF(0));
+    }
+  }
   table->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
   table->file->extra(HA_EXTRA_WRITE_CANNOT_REPLACE);
 

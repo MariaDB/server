@@ -1212,6 +1212,20 @@ public:
     passing 1st non-const table to filesort(). NULL means no such table exists.
   */
   TABLE    *sort_by_table;
+
+  /*
+    If true, there is ORDER BY x LIMIT n clause and for certain join orders, it
+    is possible to short-cut the join execution, i.e. stop it as soon as n
+    output rows were produced. See join_limit_shortcut_is_applicable().
+  */
+  bool    limit_shortcut_applicable;
+
+  /*
+    Used during join optimization: if true, we're building a join order that
+    will short-cut join execution as soon as #LIMIT rows are produced.
+  */
+  bool    limit_optimization_mode;
+
   /* 
     Number of tables in the join. 
     (In MySQL, it is named 'tables' and is also the number of elements in 

@@ -649,7 +649,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 
  search_loop:
   auto buf_mode= BUF_GET;
-  ulint rw_latch= RW_NO_LATCH;
+  rw_lock_type_t rw_latch= RW_NO_LATCH;
 
   if (height)
   {
@@ -660,7 +660,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
       rw_latch= upper_rw_latch;
   }
   else if (latch_mode <= BTR_MODIFY_LEAF)
-    rw_latch= latch_mode;
+    rw_latch= rw_lock_type_t(latch_mode);
 
   dberr_t err;
   auto block_savepoint= mtr->get_savepoint();
