@@ -106,6 +106,7 @@ DATA="$WSREP_SST_OPT_DATA"
 INFO_FILE='xtrabackup_galera_info'
 DONOR_INFO_FILE='donor_galera_info'
 IST_FILE='xtrabackup_ist'
+
 MAGIC_FILE="$DATA/$INFO_FILE"
 DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
@@ -919,9 +920,6 @@ monitor_process()
     done
 }
 
-[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
-
 read_cnf
 setup_ports
 
@@ -1070,6 +1068,24 @@ get_transfer
 
 findopt='-L'
 [ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
+
+SST_PID="$DATA/wsrep_sst.pid"
+
+# give some time for previous SST to complete:
+check_round=0
+while check_pid "$SST_PID" 0; do
+    wsrep_log_info "previous SST is not completed, waiting for it to exit"
+    check_round=$(( check_round+1 ))
+    if [ $check_round -eq 30 ]; then
+       wsrep_log_error "previous SST script still running."
+       exit 114 # EALREADY
+    fi
+    sleep 1
+done
+
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE"
+[ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
@@ -1319,33 +1335,12 @@ else # joiner
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$DATA/wsrep_sst.pid"
-
-    # give some time for previous SST to complete:
-    check_round=0
-    while check_pid "$SST_PID" 0; do
-        wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round+1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "previous SST script still running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
     trap simple_cleanup EXIT
     echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
 
     MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
-
-    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
-
-    # May need xtrabackup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
-    [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
-
     ADDR="$WSREP_SST_OPT_HOST"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]; then
@@ -1376,6 +1371,7 @@ else # joiner
 
     STATDIR="$(mktemp -d)"
     MAGIC_FILE="$STATDIR/$INFO_FILE"
+    DONOR_MAGIC_FILE="$STATDIR/$DONOR_INFO_FILE"
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
@@ -1448,6 +1444,13 @@ else # joiner
                 ${ar_log_dir:+"$ar_log_dir"} \
                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
                 -o -exec rm -rf {} >&2 \+
+
+        # Deleting files from previous SST and legacy files from old versions:
+        [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
+        [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
+        [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
+      # [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
@@ -1562,6 +1565,7 @@ else # joiner
         fi
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
+        DONOR_MAGIC_FILE="$TDATA/$DONOR_INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
         timeit 'mariadb-backup move stage' "$INNOMOVE"
@@ -1586,7 +1590,8 @@ else # joiner
     fi
 
     if [ ! -r "$MAGIC_FILE" ]; then
-        wsrep_log_error "SST magic file '$MAGIC_FILE' not found/readable"
+        wsrep_log_error "Internal error: SST magic file '$MAGIC_FILE'" \
+                        "not found or not readable"
         exit 2
     fi
 

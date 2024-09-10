@@ -33,7 +33,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 . $(dirname "$0")/wsrep_sst_common
 
 MAGIC_FILE="$WSREP_SST_OPT_DATA/backup_sst_complete"
-rm -rf "$MAGIC_FILE"
+rm -r "$MAGIC_FILE"
 
 WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
 # if WSREP_LOG_DIR env. variable is not set, try to get it from my.cnf
