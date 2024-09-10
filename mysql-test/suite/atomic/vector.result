@@ -7,6 +7,8 @@ engine: myisam
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -14,11 +16,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -26,13 +32,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -40,11 +50,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -52,13 +66,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -66,13 +84,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -80,8 +102,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -89,6 +113,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -96,8 +122,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -107,6 +135,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -114,13 +144,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -128,8 +162,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -138,6 +174,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 query: ALTER TABLE t1 COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -145,13 +183,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -159,11 +201,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -171,12 +217,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
 crash point: ddl_log_alter_after_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -184,7 +234,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -209,6 +261,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 change column a c int COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -216,13 +270,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -230,11 +288,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -242,12 +304,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
 crash point: ddl_log_alter_after_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -255,7 +321,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -280,6 +348,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -287,11 +357,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -299,13 +373,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -313,11 +391,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -325,13 +407,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -339,13 +425,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_to_backup_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -353,8 +443,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -362,6 +454,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -369,13 +463,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -383,13 +481,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -397,13 +499,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_delete_backup
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -411,13 +517,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_drop_original_table
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -425,8 +535,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -464,6 +576,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -471,11 +585,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -483,13 +601,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -497,11 +619,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -509,13 +635,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -523,13 +653,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -537,8 +671,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -546,6 +682,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGOR
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -553,8 +691,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -564,6 +704,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -571,13 +713,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -585,8 +731,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -613,6 +761,8 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -620,11 +770,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_rename_triggers
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -632,7 +786,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -644,6 +800,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -651,13 +809,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -665,11 +827,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -677,12 +843,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -690,7 +860,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -704,6 +876,8 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -711,12 +885,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -724,7 +902,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -737,6 +917,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -744,13 +926,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -758,11 +944,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -770,12 +960,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -783,7 +977,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -797,6 +993,8 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -804,12 +1002,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -817,7 +1019,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -830,6 +1034,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -837,11 +1043,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -849,13 +1059,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -863,11 +1077,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -875,12 +1093,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -888,12 +1110,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -901,7 +1127,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -909,6 +1137,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "n
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -916,7 +1146,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -926,6 +1158,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -933,12 +1167,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -946,7 +1184,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -955,6 +1195,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "n
 query: ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -962,11 +1204,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -974,13 +1220,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -988,11 +1238,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1000,12 +1254,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1013,12 +1271,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1026,7 +1288,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -1034,6 +1298,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int C
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1041,7 +1307,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -1051,6 +1319,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1058,12 +1328,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -1071,7 +1345,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -1080,6 +1356,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int C
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1087,11 +1365,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1099,13 +1381,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1113,11 +1399,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1125,13 +1415,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1139,13 +1433,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1153,8 +1451,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -1162,6 +1462,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1169,13 +1471,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1183,13 +1489,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1197,13 +1507,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_delete_backup
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1211,13 +1525,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_drop_original_table
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -1225,8 +1543,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -1235,6 +1555,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1242,11 +1564,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1254,13 +1580,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1268,11 +1598,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1281,13 +1615,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1296,13 +1634,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_to_backup_log
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1311,8 +1653,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1320,6 +1664,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1328,13 +1674,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1343,13 +1693,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1358,13 +1712,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_delete_backup
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1373,13 +1731,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_drop_original_table
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1388,8 +1750,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1398,6 +1762,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 query: ALTER TABLE t1 COMMENT "new", rename test2.t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1405,13 +1771,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1419,11 +1789,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1431,12 +1805,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_log
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1444,7 +1822,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1458,6 +1838,8 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1466,12 +1848,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MYD
+t2#i#01.MYI
 t2.MYD
 t2.MYI
 t2.frm
@@ -1480,7 +1866,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1493,6 +1881,8 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ADD key(b), COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1500,11 +1890,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1512,13 +1906,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1526,11 +1924,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1538,13 +1940,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1552,13 +1958,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1566,8 +1976,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1575,6 +1987,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "ne
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1582,8 +1996,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1593,6 +2009,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1600,13 +2018,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#02.MYD
+t1#i#02.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1614,8 +2036,10 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -1624,163 +2048,6 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "ne
 query: ALTER TABLE t1 DROP INDEX a
 
 crash point: ddl_log_alter_after_create_frm
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-crash point: ddl_log_alter_after_rename_to_backup
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-crash point: ddl_log_alter_after_rename_to_backup_log
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-crash point: ddl_log_alter_before_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_delete_backup
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-crash point: ddl_log_alter_after_drop_original_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-
-crash point: ddl_log_alter_after_create_frm
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
 t1#i#01.MYD
 t1#i#01.MYI
 t1.MYD
@@ -1790,120 +2057,15 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
   VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_rename_to_backup
-t1#i#01.MYD
-t1#i#01.MYI
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_rename_to_backup_log
-t1#i#01.MYD
-t1#i#01.MYI
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t1#i#01.MYD
-t1#i#01.MYI
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_before_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_delete_backup
-t1#i#01.MYD
-t1#i#01.MYI
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_drop_original_table
-t1#i#01.MYD
-t1#i#01.MYI
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-
-crash point: ddl_log_alter_after_create_frm
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1911,13 +2073,17 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.MYD
+t1#i#01.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -1925,152 +2091,65 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
+t1.frm
 Table	Create Table
-t2	CREATE TABLE `t2` (
+t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
+t1.frm
 Table	Create Table
-t2	CREATE TABLE `t2` (
+t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
+t1.frm
 Table	Create Table
-t2	CREATE TABLE `t2` (
+t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-
-crash point: ddl_log_alter_after_create_frm
+t1#i#00.MYD
+t1#i#00.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -2078,148 +2157,35 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-crash point: ddl_log_alter_after_create_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup_log
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
 t1.frm
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_drop_original_table
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-
-crash point: ddl_log_alter_after_create_frm
+t1#i#00.MYD
+t1#i#00.MYI
 t1.MYD
 t1.MYI
 t1.frm
@@ -2227,361 +2193,12 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-
-crash point: ddl_log_alter_after_create_frm
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.MYD
-t1.MYI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.MYD
-t2#i#01.MYI
-t2.MYD
-t2.MYI
-t2.frm
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 
 engine: innodb
 
@@ -2589,49 +2206,61 @@ engine: innodb
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -2656,48 +2285,60 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -2722,48 +2363,60 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 change column a c int COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -2788,49 +2441,61 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -2844,27 +2509,33 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -2932,75 +2603,93 @@ Note	1031	Storage engine InnoDB of the table `test`.`t1` doesn't have this optio
 query: ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3008,14 +2697,17 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGOR
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3025,27 +2717,33 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3072,24 +2770,30 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_rename_triggers
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -3101,48 +2805,60 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3156,25 +2872,31 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3187,48 +2909,60 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -3242,25 +2976,31 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 Table	Create Table
 t2	CREATE TABLE `t2` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
@@ -3273,41 +3013,52 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3315,12 +3066,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3328,12 +3083,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3341,7 +3100,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -3349,6 +3110,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "n
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3356,7 +3119,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -3366,6 +3131,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3373,12 +3140,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3386,7 +3157,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -3395,41 +3168,52 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=aria, COMMENT "n
 query: ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3437,12 +3221,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3450,12 +3238,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3463,7 +3255,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -3471,6 +3265,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int C
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3478,7 +3274,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -3488,6 +3286,8 @@ crash point: ddl_log_alter_before_rename_triggers
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3495,12 +3295,16 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=aria
 crash point: ddl_log_alter_after_drop_original_table
+t1#i#01.MAD
+t1#i#01.MAI
 t1.MAD
 t1.MAI
 t1.frm
@@ -3508,7 +3312,9 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `c` int(11) DEFAULT NULL COMMENT 'new',
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`c`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`c`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
 count(*)
 2
@@ -3517,41 +3323,52 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int C
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_prepare_inplace
 "No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3559,13 +3376,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3573,13 +3394,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_to_backup_log
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3587,8 +3412,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -3596,6 +3423,8 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3603,13 +3432,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3617,13 +3450,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3631,13 +3468,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_delete_backup
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3645,13 +3486,17 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=aria
 crash point: ddl_log_alter_after_drop_original_table
+t2#i#01.MAD
+t2#i#01.MAI
 t2.MAD
 t2.MAI
 t2.frm
@@ -3659,8 +3504,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1 COMMENT='new'
 count(*)
 2
@@ -3669,49 +3516,61 @@ master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMME
 query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3725,6 +3584,7 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 "Table is in test2"
@@ -3732,13 +3592,16 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 "Table is in test2"
@@ -3746,8 +3609,10 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   `c` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3760,48 +3625,60 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 COMMENT "new", rename test2.t2
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
 "No crash!"
 crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3815,6 +3692,7 @@ crash point: ddl_log_alter_rename_frm
 crash point: ddl_log_alter_after_rename_to_original
 "No crash!"
 crash point: ddl_log_alter_before_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 "Table is in test2"
@@ -3822,12 +3700,15 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
 crash point: ddl_log_alter_after_rename_triggers
+t2#i#01.ibd
 t2.frm
 t2.ibd
 "Table is in test2"
@@ -3835,7 +3716,9 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
@@ -3848,915 +3731,285 @@ crash point: ddl_log_alter_after_drop_original_table
 query: ALTER TABLE t1 ADD key(b), COMMENT "new"
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
-"No crash!"
-crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#02.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   KEY `a` (`a`),
-  KEY `b` (`b`)
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
-"No crash!"
+t1#i#02.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup_log
-"No crash!"
+t1#i#02.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
-"No crash!"
+t1#i#02.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
-"No crash!"
+t1#i#02.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 crash point: ddl_log_alter_after_drop_original_table
-"No crash!"
+t1#i#02.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  KEY `b` (`b`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
 
 query: ALTER TABLE t1 DROP INDEX a
 
 crash point: ddl_log_alter_after_create_frm
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_create_table
-"No crash!"
-crash point: ddl_log_alter_after_prepare_inplace
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
 crash point: ddl_log_alter_after_copy
+t1#i#01.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  KEY `a` (`a`),
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 crash point: ddl_log_alter_after_log
+t1#i#00.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_rename_to_backup
-"No crash!"
+t1#i#00.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_rename_to_backup_log
-"No crash!"
+t1#i#00.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_rename_frm
 "No crash!"
 crash point: ddl_log_alter_after_rename_to_original
-"No crash!"
+t1#i#00.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_before_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_rename_triggers
 "No crash!"
 crash point: ddl_log_alter_after_delete_backup
-"No crash!"
+t1#i#00.ibd
+t1.frm
+t1.ibd
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
 crash point: ddl_log_alter_after_drop_original_table
-"No crash!"
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-
-crash point: ddl_log_alter_after_create_frm
+t1#i#00.ibd
 t1.frm
 t1.ibd
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
+  `v` vector(5) NOT NULL DEFAULT x'e360d63ebe554f3fcdbc523f4522193f5236083d',
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 count(*)
 2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_rename_to_backup
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_rename_to_backup_log
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_before_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_delete_backup
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-crash point: ddl_log_alter_after_drop_original_table
-t1#i#01.ibd
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v)
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-
-crash point: ddl_log_alter_after_create_frm
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.ibd
-t2.frm
-t2.ibd
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-
-crash point: ddl_log_alter_after_create_frm
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup_log
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_before_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_rename_triggers
-"No crash!"
-crash point: ddl_log_alter_after_delete_backup
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-crash point: ddl_log_alter_after_drop_original_table
-t1#i#01.MAD
-t1#i#01.MAI
-t1.MAD
-t1.MAI
-t1.frm
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), ENGINE=aria
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-
-crash point: ddl_log_alter_after_create_frm
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.MAD
-t2#i#01.MAI
-t2.MAD
-t2.MAI
-t2.frm
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME t2, ENGINE=aria
-
-query: ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-
-crash point: ddl_log_alter_after_create_frm
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_create_table
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_prepare_inplace
-"No crash!"
-crash point: ddl_log_alter_after_copy
-t1.frm
-t1.ibd
-Table	Create Table
-t1	CREATE TABLE `t1` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  KEY `a` (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-crash point: ddl_log_alter_after_log
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_to_backup
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_to_backup_log
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_rename_frm
-"No crash!"
-crash point: ddl_log_alter_after_rename_to_original
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_before_rename_triggers
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_rename_triggers
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_delete_backup
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
-crash point: ddl_log_alter_after_drop_original_table
-t2#i#01.ibd
-t2.frm
-t2.ibd
-"Table is in test2"
-Table	Create Table
-t2	CREATE TABLE `t2` (
-  `a` int(11) DEFAULT NULL,
-  `b` int(11) DEFAULT NULL,
-  `v` vector(5) NOT NULL,
-  KEY `a` (`a`),
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-count(*)
-2
-master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN v VECTOR(5) NOT NULL, ADD VECTOR INDEX(v), RENAME test2.t2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
