@@ -351,7 +351,7 @@ SST_PID="$DATA/wsrep_sst.pid"
 
 # give some time for previous SST to complete:
 check_round=0
-while check_pid "$SST_PID" 0; do
+while check_pid "$SST_PID"; do
     wsrep_log_info "Previous SST is not completed, waiting for it to exit"
     check_round=$(( check_round+1 ))
     if [ $check_round -eq 20 ]; then
@@ -866,19 +866,18 @@ EOF
 
     echo "ready $ADDR:$RSYNC_PORT/$MODULE"
 
-    MYSQLD_PID="$WSREP_SST_OPT_PARENT"
-
     # wait for SST to complete by monitoring magic file
     while [ ! -r "$MAGIC_FILE" ] && check_pid "$TRANSFER_PID" && \
-          ps -p $MYSQLD_PID >/dev/null 2>&1
+          ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1
     do
         sleep 1
     done
 
-    if ! ps -p $MYSQLD_PID >/dev/null 2>&1; then
+    if ! ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1; then
         wsrep_log_error \
-            "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
-        kill -- -$MYSQLD_PID
+            "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
+            "terminated unexpectedly."
+        kill -- -$WSREP_SST_OPT_PARENT
         sleep 1
         exit 32
     fi

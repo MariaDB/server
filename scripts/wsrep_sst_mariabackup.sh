@@ -687,16 +687,16 @@ cleanup_at_exit()
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        if [ -n "$BACKUP_PID" ]; then
+            if ps -p $BACKUP_PID >/dev/null 2>&1; then
+                wsrep_log_error \
+                    "mariadb-backup process is still running. Killing..."
+                cleanup_pid $CHECK_PID
+            fi
+        fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     else
-        if [ -n "$BACKUP_PID" ]; then
-            if check_pid "$BACKUP_PID" 1; then
-                wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID "$BACKUP_PID"
-            fi
-        fi
         [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
@@ -906,14 +906,14 @@ monitor_process()
     local sst_stream_pid=$1
 
     while :; do
-        if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
+        if ! ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1; then
             wsrep_log_error \
                 "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                 "terminated unexpectedly."
-            kill -- -"$WSREP_SST_OPT_PARENT"
+            kill -- -$WSREP_SST_OPT_PARENT
             exit 32
         fi
-        if ! ps -p "$sst_stream_pid" >/dev/null 2>&1; then
+        if ! ps -p $sst_stream_pid >/dev/null 2>&1; then
             break
         fi
         sleep 0.1
@@ -1073,7 +1073,7 @@ SST_PID="$DATA/wsrep_sst.pid"
 
 # give some time for previous SST to complete:
 check_round=0
-while check_pid "$SST_PID" 0; do
+while check_pid "$SST_PID"; do
     wsrep_log_info "previous SST is not completed, waiting for it to exit"
     check_round=$(( check_round+1 ))
     if [ $check_round -eq 30 ]; then
@@ -1219,9 +1219,6 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             wsrep_log_error "$tcmd finished with error: ${RC[1]}"
             exit 22
         fi
-
-        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
-        BACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
 
@@ -1402,7 +1399,7 @@ else # joiner
         fi
         mkdir -p "$DATA/.sst"
         (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
-        jpid=$!
+        BACKUP_PID=$!
         wsrep_log_info "Proceeding with SST"
 
         get_binlog
@@ -1447,6 +1444,7 @@ else # joiner
 
         # Deleting files from previous SST and legacy files from old versions:
         [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
+        [ -f "$DATA/xtrabackup_pid" ]         && rm -f "$DATA/xtrabackup_pid"
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
@@ -1457,7 +1455,8 @@ else # joiner
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
-        monitor_process $jpid
+        monitor_process $BACKUP_PID
+        BACKUP_PID=""
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \
