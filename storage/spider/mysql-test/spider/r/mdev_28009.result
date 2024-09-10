@@ -1,0 +1,6 @@
+FOUND 1 /\[Warning\] .*spider-table-sts-thread-count is deprecated and will be removed in a future release/ in mysqld.1.1.err
+select @@spider_table_sts_thread_count;
+@@spider_table_sts_thread_count
+5
+set spider_table_sts_thread_count=8;
+ERROR HY000: Variable 'spider_table_sts_thread_count' is a read only variable
