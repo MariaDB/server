@@ -1273,7 +1273,7 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;  
 
-  Optimizer_hint_parser_output *parsed_optimizer_hints;
+  const Optimizer_hint_parser_output *parsed_optimizer_hints;
 
   /** System Versioning */
   int vers_setup_conds(THD *thd, TABLE_LIST *tables);

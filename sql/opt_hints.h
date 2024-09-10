@@ -15,7 +15,50 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
 
 /*
-  Parse tree node classes for optimizer hint syntax
+  HintsArchitecture
+
+  == Parsing ==
+  Hints have a separate parser, see sql/opt_hint_parser.{h,cc}
+  The parser is invoked separately for each occurence of
+
+    SELECT / *+ hint_body * /  ...
+
+  in the query. The result of parsing is saved in
+  SELECT_LEX::parsed_optimizer_hints.
+
+  == Hint "resolution" ==
+
+  This is done using "resolve" method of parsed data structures
+  This process
+  - Creates interpreted hint structures: Opt_hints_global, Opt_hints_qb,
+    Opt_hints_table, Opt_hints_key.
+  - Interprets QB_NAME hints and assigns Query Block names.
+  - Table-level hints are put into their Query Block's Opt_hints_qb object.
+  - Index-level hints are put into their table's Opt_hints_table object.
+
+  == Hint "adjustment" ==
+
+  During Name Resolution, setup_tables() calls adjust_table_hints() for each
+  table and sets TABLE_LIST::opt_hints_table to point to its Opt_hints_table.
+
+  == Hint hierarchy ==
+
+  Hints have this hierarchy, parent to child:
+
+    Opt_hints_global
+      Opt_hints_qb
+        Opt_hints_table
+          Opt_hints_key
+
+  For some hints, one needs to check the hint's base object and its parent. For
+  example, MRR can be disabled on a per-index or a per-table basis.
+
+  == How the optimizer checks hints  ==
+
+  The optimizer checks what hints specify using these calls:
+    hint_table_state()
+    hint_table_state_or_fallback()
+    hint_key_state()
 */
 
 
