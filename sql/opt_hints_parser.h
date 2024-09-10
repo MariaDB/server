@@ -218,29 +218,29 @@ public:
 
 private:
 
-  using PARSER= Optimizer_hint_parser; // for a shorter notation
+  using Parser= Optimizer_hint_parser; // for a shorter notation
 
   // Rules consisting of a single token
 
-  class TokenAT: public TOKEN<PARSER, TokenID::tAT>
+  class TokenAT: public TOKEN<Parser, TokenID::tAT>
   {
   public:
     using TOKEN::TOKEN;
   };
 
-  class TokenEOF: public TOKEN<PARSER, TokenID::tEOF>
+  class TokenEOF: public TOKEN<Parser, TokenID::tEOF>
   {
   public:
     using TOKEN::TOKEN;
   };
 
-  class Keyword_QB_NAME: public TOKEN<PARSER, TokenID::keyword_QB_NAME>
+  class Keyword_QB_NAME: public TOKEN<Parser, TokenID::keyword_QB_NAME>
   {
   public:
     using TOKEN::TOKEN;
   };
 
-  class Identifier: public TOKEN<PARSER, TokenID::tIDENT>
+  class Identifier: public TOKEN<Parser, TokenID::tIDENT>
   {
   public:
     using TOKEN::TOKEN;
@@ -258,13 +258,13 @@ private:
     }
   };
 
-  class LParen: public TOKEN<PARSER, TokenID::tLPAREN>
+  class LParen: public TOKEN<Parser, TokenID::tLPAREN>
   {
   public:
     using TOKEN::TOKEN;
   };
 
-  class RParen: public TOKEN<PARSER, TokenID::tRPAREN>
+  class RParen: public TOKEN<Parser, TokenID::tRPAREN>
   {
   public:
     using TOKEN::TOKEN;
@@ -285,7 +285,7 @@ private:
              id == TokenID::keyword_NO_BNL;
     }
   };
-  class Table_level_hint_type: public TokenChoice<PARSER,
+  class Table_level_hint_type: public TokenChoice<Parser,
                                                   Table_level_hint_type_cond>
   {
   public:
@@ -305,7 +305,7 @@ private:
              id == TokenID::keyword_NO_MRR;
     }
   };
-  class Index_level_hint_type: public TokenChoice<PARSER,
+  class Index_level_hint_type: public TokenChoice<Parser,
                                                   Index_level_hint_type_cond>
   {
   public:
@@ -343,7 +343,7 @@ private:
   /*
     at_query_block_name ::= @ query_block_name
   */
-  class At_query_block_name: public AND2<PARSER, TokenAT, Query_block_name>
+  class At_query_block_name: public AND2<Parser, TokenAT, Query_block_name>
   {
   public:
     using AND2::AND2;
@@ -353,7 +353,7 @@ private:
   /*
     opt_qb_name ::=  [ @ query_block_name ]
   */
-  class Opt_qb_name: public OPT<PARSER, At_query_block_name>
+  class Opt_qb_name: public OPT<Parser, At_query_block_name>
   {
   public:
     using OPT::OPT;
@@ -362,7 +362,7 @@ private:
   /*
     hint_param_table ::= table_name opt_qb_name
   */
-  class Hint_param_table: public AND2<PARSER, Table_name, Opt_qb_name>
+  class Hint_param_table: public AND2<Parser, Table_name, Opt_qb_name>
   {
   public:
     using AND2::AND2;
@@ -382,7 +382,7 @@ private:
     size_t count() const { return elements; }
   };
 
-  class Opt_hint_param_table_list: public LIST<PARSER,
+  class Opt_hint_param_table_list: public LIST<Parser,
                                                Hint_param_table_list_container,
                                                Hint_param_table,
                                                TokenID::tCOMMA, 0>
@@ -403,7 +403,7 @@ private:
     size_t count() const { return elements; }
   };
 
-  class Opt_table_name_list: public LIST<PARSER,
+  class Opt_table_name_list: public LIST<Parser,
                                          Table_name_list_container,
                                          Table_name, TokenID::tCOMMA, 0>
   {
@@ -425,7 +425,7 @@ private:
     size_t count() const { return elements; }
   };
 
-  class Opt_hint_param_index_list: public LIST<PARSER,
+  class Opt_hint_param_index_list: public LIST<Parser,
                                                Hint_param_index_list_container,
                                                Hint_param_index,
                                                TokenID::tCOMMA, 0>
@@ -439,7 +439,7 @@ private:
     hint_param_table_ext ::=   hint_param_table
                              | @ query_block_name table_name
   */
-  class At_query_block_name_table_name: public AND2<PARSER,
+  class At_query_block_name_table_name: public AND2<Parser,
                                                     At_query_block_name,
                                                     Table_name>
   {
@@ -465,7 +465,7 @@ private:
     }
   };
 
-  class Hint_param_table_ext: public OR2C<PARSER,
+  class Hint_param_table_ext: public OR2C<Parser,
                                           Hint_param_table_ext_container,
                                           Hint_param_table,
                                           At_query_block_name_table_name>
@@ -480,7 +480,7 @@ private:
       @ query_block_name opt_table_name_list
   */
   class At_query_block_name_opt_table_name_list: public AND2<
-                                                    PARSER,
+                                                    Parser,
                                                     At_query_block_name,
                                                     Opt_table_name_list>
   {
@@ -494,7 +494,7 @@ private:
                            | opt_hint_param_table_list
   */
   class Table_level_hint_body: public OR2<
-                                        PARSER,
+                                        Parser,
                                         At_query_block_name_opt_table_name_list,
                                         Opt_hint_param_table_list>
   {
@@ -503,7 +503,7 @@ private:
   };
 
   // table_level_hint ::= table_level_hint_type ( table_level_hint_body )
-  class Table_level_hint: public AND4<PARSER,
+  class Table_level_hint: public AND4<Parser,
                                       Table_level_hint_type,
                                       LParen,
                                       Table_level_hint_body,
@@ -517,7 +517,7 @@ private:
 
 
   // index_level_hint_body ::= hint_param_table_ext opt_hint_param_index_list
-  class Index_level_hint_body: public AND2<PARSER,
+  class Index_level_hint_body: public AND2<Parser,
                                            Hint_param_table_ext,
                                            Opt_hint_param_index_list>
   {
@@ -527,7 +527,7 @@ private:
 
 
   // index_level_hint ::= index_level_hint_type ( index_level_hint_body )
-  class Index_level_hint: public AND4<PARSER,
+  class Index_level_hint: public AND4<Parser,
                                       Index_level_hint_type,
                                       LParen,
                                       Index_level_hint_body,
@@ -541,7 +541,7 @@ private:
 
 
   // qb_name_hint ::= QB_NAME ( query_block_name )
-  class Qb_name_hint: public AND4<PARSER,
+  class Qb_name_hint: public AND4<Parser,
                                   Keyword_QB_NAME,
                                   LParen,
                                   Query_block_name,
@@ -559,7 +559,7 @@ private:
              | table_level_hint
              | qb_name_hint
   */
-  class Hint: public OR3<PARSER,
+  class Hint: public OR3<Parser,
                          Index_level_hint,
                          Table_level_hint,
                          Qb_name_hint>
@@ -579,13 +579,13 @@ private:
     size_t count() const { return elements; }
   };
 
-  class Hint_list: public LIST<PARSER, Hint_list_container,
+  class Hint_list: public LIST<Parser, Hint_list_container,
                                Hint, TokenID::tNULL/*not separated list*/, 1>
   {
   public:
     using LIST::LIST;
     
-    bool resolve(Parse_context *pc);
+    bool resolve(Parse_context *pc) const;
   };
 
 public:
@@ -593,7 +593,7 @@ public:
     The main rule:
       hints ::= hint_list EOF
   */
-  class Hints: public AND2<PARSER, Hint_list, TokenEOF>
+  class Hints: public AND2<Parser, Hint_list, TokenEOF>
   {
   public:
     using AND2::AND2;

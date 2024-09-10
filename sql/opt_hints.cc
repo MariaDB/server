@@ -685,7 +685,7 @@ bool Optimizer_hint_parser::Qb_name_hint::resolve(Parse_context *pc) const
 }
 
 
-bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
+bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc) const
 {
   if (pc->thd->lex->create_view)
   {
@@ -699,20 +699,20 @@ bool Optimizer_hint_parser::Hint_list::resolve(Parse_context *pc)
   if (!get_qb_hints(pc))
     return true;
 
-  List_iterator_fast<Optimizer_hint_parser::Hint> li(*this);
-  while(Optimizer_hint_parser::Hint *hint= li++)
+  for (Hint_list::const_iterator li= this->cbegin(); li != this->cend(); ++li)
   {
-    if (const Table_level_hint &table_hint= *hint)
+    const Optimizer_hint_parser::Hint &hint= *li;
+    if (const Table_level_hint &table_hint= hint)
     {
       if (table_hint.resolve(pc))
         return true;
     }
-    else if (const Index_level_hint &index_hint= *hint)
+    else if (const Index_level_hint &index_hint= hint)
     {
       if (index_hint.resolve(pc))
         return true;
     }
-    else if (const Qb_name_hint &qb_hint= *hint)
+    else if (const Qb_name_hint &qb_hint= hint)
     {
       if (qb_hint.resolve(pc))
         return true;
