@@ -934,33 +934,3 @@ ib_push_frm_error(
 @return true if index column length exceeds limit */
 MY_ATTRIBUTE((warn_unused_result))
 bool too_big_key_part_length(size_t max_field_len, const KEY& key);
-
-/** This function is used to rollback one X/Open XA distributed transaction
-which is in the prepared state
-
-@param[in] hton InnoDB handlerton
-@param[in] xid X/Open XA transaction identification
-
-@return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid);
-
-/**
-  This function is used to rollback one X/Open XA distributed transaction
-  which is in the prepared state asynchronously.
-
-  It only set the transaction's status to ACTIVE and persist the status.
-  The transaction will be rolled back by background rollback thread.
-
-  @param xid X/Open XA transaction identification
-
-  @return 0 or error number
-*/
-int innobase_recover_rollback_by_xid(const XID *xid);
-/**
-  This function is called after tc log is opened(typically binlog recovery)
-  has done. It starts rollback thread to rollback the transactions
-  have been changed from PREPARED to ACTIVE.
-
-  @return 0 or error number
-*/
-void innobase_tc_log_recovery_done();

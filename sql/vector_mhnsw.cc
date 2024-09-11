@@ -442,21 +442,21 @@ public:
       db_type= DB_TYPE_HLINDEX_HELPER;
       flags = HTON_NOT_USER_SELECTABLE | HTON_HIDDEN;
       savepoint_offset= 0;
-      savepoint_set= [](handlerton *, THD *, void *){ return 0; };
-      savepoint_rollback_can_release_mdl= [](handlerton *, THD *){ return true; };
+      savepoint_set= [](THD *, void *){ return 0; };
+      savepoint_rollback_can_release_mdl= [](THD *){ return true; };
       savepoint_rollback= do_savepoint_rollback;
       commit= do_commit;
       rollback= do_rollback;
     }
-    static int do_commit(handlerton *, THD *thd, bool);
-    static int do_rollback(handlerton *, THD *thd, bool);
-    static int do_savepoint_rollback(handlerton *, THD *thd, void *);
+    static int do_commit(THD *thd, bool);
+    static int do_rollback(THD *thd, bool);
+    static int do_savepoint_rollback(THD *thd, void *);
   } hton;
 };
 
 MHNSW_Trx::MHNSW_hton MHNSW_Trx::hton;
 
-int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(handlerton *, THD *thd, void *)
+int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(THD *thd, void *)
 {
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
        trx; trx= trx->next)
@@ -464,7 +464,7 @@ int MHNSW_Trx::MHNSW_hton::do_savepoint_rollback(handlerton *, THD *thd, void *)
   return 0;
 }
 
-int MHNSW_Trx::MHNSW_hton::do_rollback(handlerton *, THD *thd, bool)
+int MHNSW_Trx::MHNSW_hton::do_rollback(THD *thd, bool)
 {
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
@@ -477,7 +477,7 @@ int MHNSW_Trx::MHNSW_hton::do_rollback(handlerton *, THD *thd, bool)
   return 0;
 }
 
-int MHNSW_Trx::MHNSW_hton::do_commit(handlerton *, THD *thd, bool)
+int MHNSW_Trx::MHNSW_hton::do_commit(THD *thd, bool)
 {
   MHNSW_Trx *trx_next;
   for (auto trx= static_cast<MHNSW_Trx*>(thd_get_ha_data(thd, &hton));
