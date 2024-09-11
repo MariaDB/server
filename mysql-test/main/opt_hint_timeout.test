@@ -1,4 +1,6 @@
+--source include/not_embedded.inc
 --source include/have_sequence.inc
+
 --echo #
 --echo # MAX_EXECUTION_TIME hint testing
 --echo #

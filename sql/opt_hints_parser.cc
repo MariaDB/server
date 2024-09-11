@@ -57,6 +57,37 @@ Optimizer_hint_tokenizer::find_keyword(const LEX_CSTRING &str)
       return TokenID::keyword_QB_NAME;
     break;
 
+  case 8:
+    if ("SEMIJOIN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_SEMIJOIN;
+    else if ("SUBQUERY"_Lex_ident_column.streq(str))
+      return TokenID::keyword_SUBQUERY;
+    break;
+
+  case 9:
+    if ("LOOSESCAN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_LOOSESCAN;
+    break;
+
+  case 10:
+    if ("FIRSTMATCH"_Lex_ident_column.streq(str))
+      return TokenID::keyword_FIRSTMATCH;
+    else if ("INTOEXISTS"_Lex_ident_column.streq(str))
+      return TokenID::keyword_INTOEXISTS;
+    break;
+
+  case 11:
+    if ("NO_SEMIJOIN"_Lex_ident_column.streq(str))
+      return TokenID::keyword_NO_SEMIJOIN;
+    else if ("DUPSWEEDOUT"_Lex_ident_column.streq(str))
+      return TokenID::keyword_DUPSWEEDOUT;
+    break;
+
+  case 15:
+    if ("MATERIALIZATION"_Lex_ident_column.streq(str))
+      return TokenID::keyword_MATERIALIZATION;
+    break;
+
   case 18:
     if ("MAX_EXECUTION_TIME"_Lex_ident_column.streq(str))
       return TokenID::keyword_MAX_EXECUTION_TIME;
@@ -215,6 +246,19 @@ Optimizer_hint_parser::
                            Hint &&elem)
 {
   Hint *pe= (Hint*) p->m_thd->alloc(sizeof(*pe));
+  if (!pe)
+    return true;
+  *pe= std::move(elem);
+  return push_back(pe, p->m_thd->mem_root);
+}
+
+
+bool
+Optimizer_hint_parser::
+  Semijoin_strategy_list_container::add(Optimizer_hint_parser *p,
+                                        Semijoin_strategy &&elem)
+{
+  Semijoin_strategy *pe= (Semijoin_strategy*) p->m_thd->alloc(sizeof(*pe));
   if (!pe)
     return true;
   *pe= std::move(elem);
