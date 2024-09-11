@@ -530,7 +530,7 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
     void *trx_hton= ha_info->ht();
     auto table_entry= list;
 
-    if (!ha_info->is_trx_read_write() || trx_hton == binlog_hton)
+    if (!ha_info->is_trx_read_write() || trx_hton == &binlog_tp)
       continue;
     while (table_entry)
     {
@@ -552,7 +552,7 @@ rpl_slave_state::select_gtid_pos_table(THD *thd, LEX_CSTRING *out_tablename)
               ha_info= ha_info->next();
               if (!ha_info)
                 break;
-              if (ha_info->is_trx_read_write() && ha_info->ht() != binlog_hton)
+              if (ha_info->is_trx_read_write() && ha_info->ht() != &binlog_tp)
               {
                 statistic_increment(rpl_transactions_multi_engine, LOCK_status);
                 break;

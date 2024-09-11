@@ -1062,14 +1062,13 @@ static
 int
 innobase_close_connection(
 /*======================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd);		/*!< in: MySQL thread handle for
 					which to close the connection */
 
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
 static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels);
-static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
+static void innobase_commit_ordered(THD* thd, bool all);
 
 /*****************************************************************//**
 Commits a transaction in an InnoDB database or marks an SQL statement
@@ -1079,7 +1078,6 @@ static
 int
 innobase_commit(
 /*============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -1095,7 +1093,6 @@ static
 int
 innobase_rollback(
 /*==============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back */
@@ -1111,7 +1108,6 @@ static
 int
 innobase_rollback_to_savepoint(
 /*===========================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be rolled back to savepoint */
@@ -1125,7 +1121,6 @@ static
 bool
 innobase_rollback_to_savepoint_can_release_mdl(
 /*===========================================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd);		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be rolled back to savepoint */
@@ -1137,7 +1132,6 @@ static
 int
 innobase_savepoint(
 /*===============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user's XA transaction for which
 					we need to take a savepoint */
@@ -1151,7 +1145,6 @@ static
 int
 innobase_release_savepoint(
 /*=======================*/
-	handlerton*	hton,		/*!< in/out: handlerton for InnoDB */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction's
 					savepoint should be released */
@@ -1194,7 +1187,6 @@ static
 int
 innobase_xa_prepare(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be prepared */
@@ -1208,7 +1200,6 @@ static
 int
 innobase_xa_recover(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid_list,	/*!< in/out: prepared transactions */
 	uint		len);		/*!< in: number of slots in xid_list */
 /*******************************************************************//**
@@ -1219,9 +1210,46 @@ static
 int
 innobase_commit_by_xid(
 /*===================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
+/*******************************************************************//**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+@return 0 or error number */
+static
+int
+innobase_rollback_by_xid(
+/*===================*/
+	XID*		xid);		/*!< in: X/Open XA transaction
+					identification */
+#ifndef EMBEDDED_LIBRARY
+/*******************************************************************//**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state asynchronously.
+
+It only set the transaction's status to ACTIVE and persist the status.
+The transaction will be rolled back by background rollback thread.
+
+@return 0 or error number
+*/
+static
+int
+innobase_recover_rollback_by_xid(
+/*===================*/
+	const XID*	xid);		/*!< in: X/Open XA transaction
+					identification */
+/*******************************************************************//**
+  This function is called after tc log is opened(typically binlog recovery)
+  has done. It starts rollback thread to rollback the transactions
+  have been changed from PREPARED to ACTIVE.
+
+  @return 0 or error number
+*/
+static
+void
+innobase_tc_log_recovery_done();
+#endif
+
 
 /** Ignore FOREIGN KEY constraints that would be violated by DROP DATABASE */
 static ibool innodb_drop_database_ignore_fk(void*,void*) { return false; }
@@ -1572,7 +1600,6 @@ static
 int
 innobase_start_trx_and_assign_read_view(
 /*====================================*/
-	handlerton*	hton,		/* in: InnoDB handlerton */
 	THD*		thd);		/* in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -4314,12 +4341,10 @@ static
 int
 innobase_start_trx_and_assign_read_view(
 /*====================================*/
-	handlerton*	hton,	/*!< in: InnoDB handlerton */
 	THD*		thd)	/*!< in: MySQL thread handle of the user for
 				whom the transaction should be committed */
 {
 	DBUG_ENTER("innobase_start_trx_and_assign_read_view");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	/* Create a new trx struct for thd, if it does not yet have one */
 
@@ -4350,7 +4375,7 @@ innobase_start_trx_and_assign_read_view(
 
 	/* Set the MySQL flag to mark that there is an active transaction */
 
-	innobase_register_trx(hton, current_thd, trx);
+	innobase_register_trx(innodb_hton_ptr, current_thd, trx);
 
 	DBUG_RETURN(0);
 }
@@ -4416,7 +4441,6 @@ static
 void
 innobase_commit_ordered(
 /*====================*/
-	handlerton *hton, /*!< in: Innodb handlerton */
 	THD*	thd,	/*!< in: MySQL thread handle of the user for whom
 			the transaction should be committed */
 	bool	all)	/*!< in:	TRUE - commit transaction
@@ -4424,7 +4448,6 @@ innobase_commit_ordered(
 {
 	trx_t*		trx;
 	DBUG_ENTER("innobase_commit_ordered");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
 
@@ -4473,7 +4496,6 @@ static
 int
 innobase_commit(
 /*============*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -4483,7 +4505,6 @@ innobase_commit(
 {
 	DBUG_ENTER("innobase_commit");
 	DBUG_PRINT("enter", ("commit_trx: %d", commit_trx));
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("ending transaction"));
 
 	trx_t*	trx = check_trx_exists(thd);
@@ -4561,7 +4582,6 @@ static
 int
 innobase_rollback(
 /*==============*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back */
@@ -4570,7 +4590,6 @@ innobase_rollback(
 					statement only */
 {
 	DBUG_ENTER("innobase_rollback");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("aborting transaction"));
 
 	trx_t*	trx = check_trx_exists(thd);
@@ -4773,7 +4792,6 @@ static
 int
 innobase_rollback_to_savepoint(
 /*===========================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back to savepoint */
@@ -4781,7 +4799,6 @@ innobase_rollback_to_savepoint(
 {
 
 	DBUG_ENTER("innobase_rollback_to_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -4813,13 +4830,11 @@ static
 bool
 innobase_rollback_to_savepoint_can_release_mdl(
 /*===========================================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd)		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back to savepoint */
 {
 	DBUG_ENTER("innobase_rollback_to_savepoint_can_release_mdl");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -4841,7 +4856,6 @@ static
 int
 innobase_release_savepoint(
 /*=======================*/
-	handlerton*	hton,		/*!< in: handlerton for InnoDB */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction's
 					savepoint should be released */
@@ -4852,7 +4866,6 @@ innobase_release_savepoint(
 	char		name[64];
 
 	DBUG_ENTER("innobase_release_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
 
@@ -4876,12 +4889,10 @@ static
 int
 innobase_savepoint(
 /*===============*/
-	handlerton*	hton,	/*!< in: handle to the InnoDB handlerton */
 	THD*		thd,	/*!< in: handle to the MySQL thread */
 	void*		savepoint)/*!< in: savepoint data */
 {
 	DBUG_ENTER("innobase_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	/* In the autocommit mode there is no sense to set a savepoint
 	(unless we are in sub-statement), so SQL layer ensures that
@@ -4915,9 +4926,8 @@ innobase_savepoint(
 
   @return 0 always
 */
-static int innobase_close_connection(handlerton *hton, THD *thd)
+static int innobase_close_connection(THD *thd)
 {
-  DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
     thd_set_ha_data(thd, innodb_hton_ptr, NULL);
@@ -16157,7 +16167,7 @@ ha_innobase::external_lock(
 
 			if (trx_is_started(trx)) {
 
-				innobase_commit(ht, thd, TRUE);
+				innobase_commit(thd, TRUE);
 			}
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
@@ -16996,7 +17006,6 @@ static
 int
 innobase_xa_prepare(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be prepared */
@@ -17005,8 +17014,6 @@ innobase_xa_prepare(
 					ended */
 {
 	trx_t*		trx = check_trx_exists(thd);
-
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 
@@ -17070,12 +17077,9 @@ static
 int
 innobase_xa_recover(
 /*================*/
-	handlerton*	hton,	/*!< in: InnoDB handlerton */
 	XID*		xid_list,/*!< in/out: prepared transactions */
 	uint		len)	/*!< in: number of slots in xid_list */
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	if (len == 0 || xid_list == NULL) {
 
 		return(0);
@@ -17092,11 +17096,8 @@ static
 int
 innobase_commit_by_xid(
 /*===================*/
-	handlerton*	hton,
 	XID*		xid)	/*!< in: X/Open XA transaction identification */
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
@@ -17125,10 +17126,8 @@ which is in the prepared state
 @param[in] xid X/Open XA transaction identification
 
 @return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid)
+static int innobase_rollback_by_xid(XID* xid)
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
@@ -17167,7 +17166,7 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 
   @return 0 or error number
 */
-int innobase_recover_rollback_by_xid(const XID *xid)
+static int innobase_recover_rollback_by_xid(const XID *xid)
 {
   DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
 
@@ -17212,7 +17211,7 @@ int innobase_recover_rollback_by_xid(const XID *xid)
   return 0;
 }
 
-void innobase_tc_log_recovery_done()
+static void innobase_tc_log_recovery_done()
 {
   if (high_level_read_only)
     return;

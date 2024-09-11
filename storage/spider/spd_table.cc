@@ -6189,7 +6189,6 @@ handler* spider_create_handler(
 }
 
 int spider_close_connection(
-  handlerton* hton,
   THD* thd
 ) {
   int roop_count = 0;
@@ -6219,7 +6218,7 @@ int spider_close_connection(
     SPIDER_CONN_RESTORE_DASTATUS;
   }
 
-  spider_rollback(spider_hton_ptr, thd, TRUE);
+  spider_rollback(thd, TRUE);
 
   Dummy_error_handler deh; // suppress network errors at this stage
   thd->push_internal_handler(&deh);

@@ -82,7 +82,6 @@
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
-handlerton *binlog_hton;
 LOGGER logger;
 
 const char *log_bin_index= 0;
@@ -93,14 +92,13 @@ MYSQL_BIN_LOG mysql_bin_log(&sync_binlog_period);
 static bool test_if_number(const char *str,
 			   ulong *res, bool allow_wildcards);
 static int binlog_init(void *p);
-static int binlog_close_connection(handlerton *hton, THD *thd);
-static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv);
-static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv);
-static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
-                                                      THD *thd);
-static int binlog_rollback(handlerton *hton, THD *thd, bool all);
-static int binlog_prepare(handlerton *hton, THD *thd, bool all);
-static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
+static int binlog_close_connection(THD *thd);
+static int binlog_savepoint_set(THD *thd, void *sv);
+static int binlog_savepoint_rollback(THD *thd, void *sv);
+static bool binlog_savepoint_rollback_can_release_mdl(THD *thd);
+static int binlog_rollback(THD *thd, bool all);
+static int binlog_prepare(THD *thd, bool all);
+static int binlog_start_consistent_snapshot(THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
@@ -1638,40 +1636,34 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_VOID_RETURN;
 }
 
-
-/*
-  this function is mostly a placeholder.
-  conceptually, binlog initialization (now mostly done in MYSQL_BIN_LOG::open)
-  should be moved here.
-*/
+transaction_participant binlog_tp;
 
 int binlog_init(void *p)
 {
-  binlog_hton= (handlerton *)p;
-  binlog_hton->db_type= DB_TYPE_BINLOG;
-  binlog_hton->savepoint_offset= sizeof(my_off_t);
-  binlog_hton->close_connection= binlog_close_connection;
-  binlog_hton->savepoint_set= binlog_savepoint_set;
-  binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
-  binlog_hton->savepoint_rollback_can_release_mdl=
+  bzero(&binlog_tp, sizeof(binlog_tp));
+  binlog_tp.savepoint_offset= sizeof(my_off_t);
+  binlog_tp.close_connection= binlog_close_connection;
+  binlog_tp.savepoint_set= binlog_savepoint_set;
+  binlog_tp.savepoint_rollback= binlog_savepoint_rollback;
+  binlog_tp.savepoint_rollback_can_release_mdl=
                                      binlog_savepoint_rollback_can_release_mdl;
-  binlog_hton->commit= [](handlerton *, THD *thd, bool all) { return 0; };
-  binlog_hton->rollback= binlog_rollback;
-  binlog_hton->drop_table= [](handlerton *, const char*) { return -1; };
+  binlog_tp.commit= [](THD *thd, bool all) { return 0; };
+  binlog_tp.rollback= binlog_rollback;
   if (WSREP_ON || opt_bin_log)
   {
-    binlog_hton->prepare= binlog_prepare;
-    binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
+    binlog_tp.prepare= binlog_prepare;
+    binlog_tp.start_consistent_snapshot= binlog_start_consistent_snapshot;
   }
-
-  binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
-  return 0;
+  binlog_tp.flags= HTON_NO_ROLLBACK;
+  auto plugin= (st_plugin_int*)p;
+  plugin->data= &binlog_tp;
+  return setup_transaction_participant(plugin);
 }
 
 #ifdef WITH_WSREP
 #include "wsrep_binlog.h"
 #endif /* WITH_WSREP */
-static int binlog_close_connection(handlerton *hton, THD *thd)
+static int binlog_close_connection(THD *thd)
 {
   DBUG_ENTER("binlog_close_connection");
   binlog_cache_mngr *const cache_mngr= thd->binlog_get_cache_mngr();
@@ -1981,14 +1973,14 @@ inline bool is_preparing_xa(THD *thd)
 }
 
 
-static int binlog_prepare(handlerton *hton, THD *thd, bool all)
+static int binlog_prepare(THD *thd, bool all)
 {
   /* Do nothing unless the transaction is a user XA. */
   return is_preparing_xa(thd) ? binlog_commit(thd, all, FALSE) : 0;
 }
 
 
-int binlog_commit_by_xid(handlerton *hton, XID *xid)
+int binlog_commit_by_xid(XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
@@ -2009,20 +2001,20 @@ int binlog_commit_by_xid(handlerton *hton, XID *xid)
   THD_TRANS trans;
   trans.ha_list= NULL;
 
-  thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
-  thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+  thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(&trans, &binlog_tp);
+  thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
   (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
 
   rc= binlog_commit(thd, TRUE, FALSE);
-  thd->ha_data[binlog_hton->slot].ha_info[1].reset();
+  thd->ha_data[binlog_tp.slot].ha_info[1].reset();
 
   return rc;
 }
 
 
-int binlog_rollback_by_xid(handlerton *hton, XID *xid)
+int binlog_rollback_by_xid(XID *xid)
 {
   int rc= 0;
   THD *thd= current_thd;
@@ -2039,14 +2031,14 @@ int binlog_rollback_by_xid(handlerton *hton, XID *xid)
   THD_TRANS trans;
   trans.ha_list= NULL;
 
-  thd->ha_data[hton->slot].ha_info[1].register_ha(&trans, hton);
-  thd->ha_data[hton->slot].ha_info[1].set_trx_read_write();
+  thd->ha_data[binlog_tp.slot].ha_info[1].register_ha(&trans, &binlog_tp);
+  thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
   (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
               (thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY));
-  rc= binlog_rollback(hton, thd, TRUE);
-  thd->ha_data[hton->slot].ha_info[1].reset();
+  rc= binlog_rollback(thd, TRUE);
+  thd->ha_data[binlog_tp.slot].ha_info[1].reset();
 
   return rc;
 }
@@ -2193,8 +2185,8 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   }
   if (cache_mngr->trx_cache.empty() &&
       (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
-       !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
-         thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
+       !(thd->ha_data[binlog_tp.slot].ha_info[1].is_started() &&
+         thd->ha_data[binlog_tp.slot].ha_info[1].is_trx_read_write())))
   {
     /*
       This is an empty transaction commit (both the regular and xa),
@@ -2255,7 +2247,7 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
 
   @see handlerton::rollback
 */
-static int binlog_rollback(handlerton *hton, THD *thd, bool all)
+static int binlog_rollback(THD *thd, bool all)
 {
   DBUG_ENTER("binlog_rollback");
 
@@ -2292,8 +2284,8 @@ static int binlog_rollback(handlerton *hton, THD *thd, bool all)
 
   if (!cache_mngr->trx_cache.has_incident() && cache_mngr->trx_cache.empty() &&
       (thd->transaction->xid_state.get_state_code() != XA_PREPARED ||
-       !(thd->ha_data[binlog_hton->slot].ha_info[1].is_started() &&
-         thd->ha_data[binlog_hton->slot].ha_info[1].is_trx_read_write())))
+       !(thd->ha_data[binlog_tp.slot].ha_info[1].is_started() &&
+         thd->ha_data[binlog_tp.slot].ha_info[1].is_trx_read_write())))
   {
     /*
       The same comments apply as in the binlog commit method's branch.
@@ -2401,8 +2393,8 @@ void Event_log::set_write_error(THD *thd, bool is_transactional)
   if (WSREP_EMULATE_BINLOG(thd))
   {
     if (is_transactional)
-      trans_register_ha(thd, TRUE, binlog_hton, 0);
-    trans_register_ha(thd, FALSE, binlog_hton, 0);
+      trans_register_ha(thd, TRUE, &binlog_tp, 0);
+    trans_register_ha(thd, FALSE, &binlog_tp, 0);
   }
 #endif /* WITH_WSREP */
   DBUG_VOID_RETURN;
@@ -2474,7 +2466,7 @@ Event_log::check_cache_error(THD *thd, binlog_cache_data *cache_data)
   that case there is no need to have it in the binlog).
 */
 
-static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
+static int binlog_savepoint_set(THD *thd, void *sv)
 {
   int error= 1;
   DBUG_ENTER("binlog_savepoint_set");
@@ -2507,7 +2499,7 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv)
   DBUG_RETURN(error);
 }
 
-static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
+static int binlog_savepoint_rollback(THD *thd, void *sv)
 {
   DBUG_ENTER("binlog_savepoint_rollback");
 
@@ -2561,8 +2553,7 @@ static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv)
   @return true  - It is safe to release MDL locks.
           false - If it is not.
 */
-static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
-                                                      THD *thd)
+static bool binlog_savepoint_rollback_can_release_mdl(THD *thd)
 {
   DBUG_ENTER("binlog_savepoint_rollback_can_release_mdl");
   /*
@@ -6199,7 +6190,7 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
 
 /*
   These functions are placed in this file since they need access to
-  binlog_hton, which has internal linkage.
+  binlog_tp, which has internal linkage.
 */
 
 static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
@@ -6243,12 +6234,12 @@ binlog_cache_mngr *THD::binlog_setup_trx_data()
 {
   DBUG_ENTER("THD::binlog_setup_trx_data");
   binlog_cache_mngr *cache_mngr=
-    (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+    (binlog_cache_mngr*) thd_get_ha_data(this, &binlog_tp);
 
   if (!cache_mngr)
   {
     cache_mngr= binlog_setup_cache_mngr(this);
-    thd_set_ha_data(this, binlog_hton, cache_mngr);
+    thd_set_ha_data(this, &binlog_tp, cache_mngr);
   }
 
 
@@ -6351,7 +6342,7 @@ THD::binlog_start_trans_and_stmt()
        ha_info->is_started().
     */
     Ha_trx_info *ha_info;
-    ha_info= this->ha_data[binlog_hton->slot].ha_info + (mstmt_mode ? 1 : 0);
+    ha_info= this->ha_data[binlog_tp.slot].ha_info + (mstmt_mode ? 1 : 0);
 
     if (!ha_info->is_started() && is_gtid_written_on_trans_start(this))
     {
@@ -6385,8 +6376,8 @@ THD::binlog_start_trans_and_stmt()
     }
 #endif
     if (mstmt_mode)
-      trans_register_ha(this, TRUE, binlog_hton, 0);
-    trans_register_ha(this, FALSE, binlog_hton, 0);
+      trans_register_ha(this, TRUE, &binlog_tp, 0);
+    trans_register_ha(this, FALSE, &binlog_tp, 0);
     /*
       Mark statement transaction as read/write. We never start
       a binary log transaction and keep it read-only,
@@ -6396,7 +6387,7 @@ THD::binlog_start_trans_and_stmt()
       since the statement-level flag will be propagated automatically
       inside ha_commit_trans.
     */
-    ha_data[binlog_hton->slot].ha_info[0].set_trx_read_write();
+    ha_data[binlog_tp.slot].ha_info[0].set_trx_read_write();
   }
   DBUG_VOID_RETURN;
 }
@@ -6417,7 +6408,7 @@ void THD::binlog_set_stmt_begin() {
 }
 
 static int
-binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
+binlog_start_consistent_snapshot(THD *thd)
 {
   int err= 0;
   DBUG_ENTER("binlog_start_consistent_snapshot");
@@ -6429,7 +6420,7 @@ binlog_start_consistent_snapshot(handlerton *hton, THD *thd)
   strmake_buf(cache_mngr->last_commit_pos_file, mysql_bin_log.last_commit_pos_file);
   cache_mngr->last_commit_pos_offset= mysql_bin_log.last_commit_pos_offset;
 
-  trans_register_ha(thd, TRUE, binlog_hton, 0);
+  trans_register_ha(thd, TRUE, &binlog_tp, 0);
 
   DBUG_RETURN(err);
 }
@@ -6614,7 +6605,7 @@ write_err:
 
 binlog_cache_mngr *THD::binlog_get_cache_mngr() const
 {
-  return (binlog_cache_mngr*) thd_get_ha_data(this, binlog_hton);
+  return (binlog_cache_mngr*) thd_get_ha_data(this, &binlog_tp);
 }
 
 
@@ -8317,7 +8308,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   {
     for (; ha_info; ha_info= ha_info->next())
     {
-      if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
+      if (ha_info->is_started() && ha_info->ht() != &binlog_tp &&
           !ha_info->ht()->commit_checkpoint_request)
       {
         entry.need_unlog= true;
@@ -9994,10 +9985,10 @@ TC_LOG::run_prepare_ordered(THD *thd, bool all)
   mysql_mutex_assert_owner(&LOCK_prepare_ordered);
   for (; ha_info; ha_info= ha_info->next())
   {
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     if (!ht->prepare_ordered)
       continue;
-    ht->prepare_ordered(ht, thd, all);
+    ht->prepare_ordered(thd, all);
   }
 }
 
@@ -10011,10 +10002,10 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
   mysql_mutex_assert_owner(&LOCK_commit_ordered);
   for (; ha_info; ha_info= ha_info->next())
   {
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     if (!ht->commit_ordered)
       continue;
-    ht->commit_ordered(ht, thd, all);
+    ht->commit_ordered(thd, all);
     DBUG_EXECUTE_IF("enable_log_write_upto_crash",
       {
         DBUG_SET_INITIAL("+d,crash_after_log_write_upto");
@@ -11172,8 +11163,8 @@ int TC_LOG_BINLOG::unlog_xa_prepare(THD *thd, bool all)
     {
       /* an empty XA-prepare event group is logged */
       rc= write_empty_xa_prepare(thd, cache_mngr); // normally gains need_unlog
-      trans_register_ha(thd, true, binlog_hton, 0); // do it for future commmit
-      thd->ha_data[binlog_hton->slot].ha_info[1].set_trx_read_write();
+      trans_register_ha(thd, true, &binlog_tp, 0); // do it for future commmit
+      thd->ha_data[binlog_tp.slot].ha_info[1].set_trx_read_write();
     }
     if (rw_count == 0 || !cache_mngr->need_unlog)
       return rc;
@@ -12811,24 +12802,27 @@ get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list)
   return errormsg;
 }
 
-
-struct st_mysql_storage_engine binlog_storage_engine=
-{ MYSQL_HANDLERTON_INTERFACE_VERSION };
+/*
+  Make it a "plugin" to be able to use a transaction_participant and to
+  add system and status variables.
+*/
+struct st_mysql_daemon binlog_plugin=
+{ MYSQL_DAEMON_INTERFACE_VERSION  };
 
 maria_declare_plugin(binlog)
 {
-  MYSQL_STORAGE_ENGINE_PLUGIN,
-  &binlog_storage_engine,
+  MYSQL_DAEMON_PLUGIN,
+  &binlog_plugin,
   "binlog",
   "MySQL AB",
-  "This is a pseudo storage engine to represent the binlog in a transaction",
+  "This is a plugin to represent the binlog in a transaction",
   PLUGIN_LICENSE_GPL,
   binlog_init, /* Plugin Init */
   NULL, /* Plugin Deinit */
-  0x0100 /* 1.0 */,
-  binlog_status_vars_top,     /* status variables                */
-  binlog_sys_vars,            /* system variables                */
-  "1.0",                      /* string version */
+  0x0200 /* 1.0 */,
+  binlog_status_vars_top,     /* status variables */
+  binlog_sys_vars,            /* system variables */
+  "2.0",                      /* string version */
   MariaDB_PLUGIN_MATURITY_STABLE /* maturity */
 }
 maria_declare_plugin_end;
@@ -12838,7 +12832,7 @@ maria_declare_plugin_end;
 
 IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
 {
-  DBUG_ASSERT(binlog_hton->slot != HA_SLOT_UNDEF);
+  DBUG_ASSERT(binlog_tp.slot != HA_SLOT_UNDEF);
   binlog_cache_mngr *cache_mngr = thd->binlog_get_cache_mngr();
   if (cache_mngr)
     return cache_mngr->get_binlog_cache_log(is_transactional);
@@ -12851,7 +12845,7 @@ IO_CACHE *wsrep_get_cache(THD * thd, bool is_transactional)
 bool wsrep_is_binlog_cache_empty(THD *thd)
 {
   binlog_cache_mngr *cache_mngr=
-      (binlog_cache_mngr *) thd_get_ha_data(thd, binlog_hton);
+      (binlog_cache_mngr *) thd_get_ha_data(thd, &binlog_tp);
   if (cache_mngr)
     return cache_mngr->trx_cache.empty() && cache_mngr->stmt_cache.empty();
   return true;
@@ -12923,13 +12917,13 @@ void wsrep_register_binlog_handler(THD *thd, bool trx)
       Set callbacks in order to be able to call commmit or rollback.
     */
     if (trx)
-      trans_register_ha(thd, TRUE, binlog_hton, 0);
-    trans_register_ha(thd, FALSE, binlog_hton, 0);
+      trans_register_ha(thd, TRUE, &binlog_tp, 0);
+    trans_register_ha(thd, FALSE, &binlog_tp, 0);
 
     /*
       Set the binary log as read/write otherwise callbacks are not called.
     */
-    thd->ha_data[binlog_hton->slot].ha_info[0].set_trx_read_write();
+    thd->ha_data[binlog_tp.slot].ha_info[0].set_trx_read_write();
   }
   DBUG_VOID_RETURN;
 }
