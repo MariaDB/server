@@ -1179,7 +1179,7 @@ public:
     returns the sort_length for a field without the suffix length bytes
     for field with binary charset.
   */
-  virtual uint32 sort_length_without_suffix() const { return pack_length(); }
+  virtual uint32 max_storage_size_without_length_storage() const { return pack_length(); }
 
   /*
     sort_suffix_length() return the length bytes needed to store the length
@@ -4278,7 +4278,7 @@ public:
   {
     return (uint32) field_length + sort_suffix_length();
   }
-  uint32 sort_length_without_suffix() const override
+  uint32 max_storage_size_without_length_storage() const override
   {
     return (uint32) field_length;
   }
@@ -4628,7 +4628,7 @@ public:
   { return (uint32) (packlength); }
   uint row_pack_length() const override { return pack_length_no_ptr(); }
   uint32 sort_length() const override;
-  uint32 sort_length_without_suffix() const override
+  uint32 max_storage_size_without_length_storage() const override
   {
     return (uint32)field_length;
   }

@@ -237,14 +237,14 @@ class Unique : public Sql_alloc
 {
   DYNAMIC_ARRAY file_ptrs;
   /* Total number of elements that will be stored in-memory */
-  ulong max_elements;
+  uint size;
   size_t max_in_memory_size;
+  size_t max_elements;
   IO_CACHE file;
   TREE tree;
  /* Number of elements filtered out due to min_dupl_count when storing results
     to table. See Unique::get */
   ulong filtered_out_elems;
-  uint size;
 
   const uint full_size;   /* Size of element + space needed to store the number of
                              duplicates found for the element. */
@@ -252,7 +252,6 @@ class Unique : public Sql_alloc
                                 required for it to be written to
                                 record_pointers.
                                 always 0 for unions, > 0 for intersections */
-  const bool with_counters;
 
   // size in bytes used for storing keys in the Unique tree
   size_t memory_used;
@@ -297,7 +296,7 @@ class Unique : public Sql_alloc
   bool unique_add(void *ptr, uint key_size)
   {
     DBUG_ENTER("unique_add");
-    DBUG_PRINT("info", ("tree %u - %lu", tree.elements_in_tree, max_elements));
+    DBUG_PRINT("info", ("tree %u - %zu", tree.elements_in_tree, max_elements));
     TREE_ELEMENT *res;
     size_t rec_size= key_size + sizeof(TREE_ELEMENT) + tree.size_of_element;
 
@@ -378,7 +377,7 @@ public:
 
   uint get_size() const { return size; }
   uint get_full_size() const { return full_size; }
-  bool is_count_stored() { return with_counters; }
+  bool is_count_stored() { return min_dupl_count; }
   int write_record_to_file(uchar *key);
   size_t get_max_in_memory_size() const { return max_in_memory_size; }
 

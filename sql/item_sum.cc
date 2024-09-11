@@ -4160,7 +4160,7 @@ bool Item_func_group_concat::add(bool exclude_nulls)
     row to the output buffer here. That will be done in val_str.
   */
   if (!warning_for_row && (!tree && !distinct))
-    dump_leaf_key(get_record_pointer(), 1, this);
+    this->dump_leaf_key_impl(get_record_pointer(), false);
 
   return 0;
 }
@@ -4506,11 +4506,11 @@ bool Item_sum::is_packing_allowed(uint *total_length) const
       // 1 byte for nullability;
       tot_length+= MY_TEST(field->maybe_null());
 
-      tot_length+= field->sort_length_without_suffix();
+      tot_length+= field->max_storage_size_without_length_storage();
       if (field->is_packable())
       {
-        size_of_packable_fields+=
-              number_storage_requirement(field->sort_length_without_suffix());
+        size_of_packable_fields+= number_storage_requirement(
+            field->max_storage_size_without_length_storage());
       }
     }
   }
