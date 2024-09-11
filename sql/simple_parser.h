@@ -21,6 +21,38 @@
 
 #include "simple_tokenizer.h"
 
+/*
+  A set of templates for constructing a recursive-descent LL(1) parser.
+
+  One is supposed to define classes corresponding to grammar productions.
+  The class should inherit from the grammar rule template. For example, a
+  grammar rule
+
+    foo := bar, baz
+
+  is implemented with
+
+    class Bar ... ; // "bar" is parsed into Bar object
+    class Baz ... ; // "baz" is parsed into Baz object
+
+    // "foo" is parsed into a Foo object.
+    class Foo: public Parser_templates::AND2<PARSER, Bar, Baz> {
+      using AND2::AND2;
+      ...
+    };
+
+  Inheriting AND2's constructors with "using" will generate the parsing code.
+  Parsing is done by constructing parser output from the parser object:
+
+    Foo parsed_output(parser);
+
+  All parser objects should also have
+  - A capability to construct an "empty" or "invalid" object with constructor
+    that accepts no arguments. This is necessary when parsing fails.
+  - operator bool() which returns true if the object is valid/non-empty and
+    false if otherwise.
+*/
+
 class Parser_templates
 {
 protected:
