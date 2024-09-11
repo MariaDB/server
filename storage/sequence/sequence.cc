@@ -364,10 +364,6 @@ static int discover_table_existence(handlerton *hton, const char *db,
   return !parse_table_name(table_name, strlen(table_name), &from, &to, &step);
 }
 
-static int dummy_commit_rollback(handlerton *, THD *, bool) { return 0; }
-
-static int dummy_savepoint(handlerton *, THD *, void *) { return 0; }
-
 /*****************************************************************************
   Example of a simple group by handler for queries like:
   SELECT SUM(seq) from sequence_table;
@@ -535,9 +531,10 @@ static int init(void *p)
   hton->drop_table= drop_table;
   hton->discover_table= discover_table;
   hton->discover_table_existence= discover_table_existence;
-  hton->commit= hton->rollback= dummy_commit_rollback;
+  hton->commit= hton->rollback= [](THD *, bool) { return 0; };
   hton->savepoint_set= hton->savepoint_rollback= hton->savepoint_release=
-    dummy_savepoint;
+    [](THD *, void *) { return 0; };
+
   hton->create_group_by= create_group_by_handler;
   hton->update_optimizer_costs= sequence_update_optimizer_costs;
   return 0;
