@@ -38,8 +38,9 @@
 
   == Hint "adjustment" ==
 
-  During Name Resolution, setup_tables() calls adjust_table_hints() for each
-  table and sets TABLE_LIST::opt_hints_table to point to its Opt_hints_table.
+  During Name Resolution, setup_tables() calls adjust_hints_for_table() for
+  each table and sets TABLE_LIST::opt_hints_table to point to its
+  Opt_hints_table.
 
   == Hint hierarchy ==
 
@@ -76,6 +77,7 @@
 #include "mysqld_error.h"
 #include "opt_hints_parser.h"
 
+
 struct LEX;
 struct TABLE;
 
@@ -93,7 +95,9 @@ enum opt_hints_enum
   NO_RANGE_HINT_ENUM,
   QB_NAME_HINT_ENUM,
   MAX_EXEC_TIME_HINT_ENUM,
-  MAX_HINT_ENUM
+  SEMIJOIN_HINT_ENUM,
+  SUBQUERY_HINT_ENUM,
+  MAX_HINT_ENUM // This one must be the last in the list
 };
 
 
@@ -201,10 +205,12 @@ private:
   */
   Opt_hints *parent;
 
-  Opt_hints_map hints_map;   // Hint map
+  /* Bitmap describing switch-type (on/off) hints set at this scope */
+  Opt_hints_map hints_map;
 
   /* Array of child objects. i.e. array of the lower level objects */
   Mem_root_array<Opt_hints*, true> child_array;
+
   /* true if hint is connected to the real object */
   bool resolved;
   /* Number of resolved children */
@@ -256,6 +262,7 @@ public:
   */
   bool get_switch(opt_hints_enum type_arg) const;
 
+  /* Collation for comparing the name of this hint */
   virtual CHARSET_INFO *charset_info() const
   {
     return Lex_ident_column::charset_info();
@@ -339,7 +346,11 @@ protected:
     Override this function in descendants so that print_warn_unresolved()
     prints the proper warning text for table/index level unresolved hints
   */
-  virtual uint get_warn_unresolved_code() const { return 0; }
+  virtual uint get_warn_unresolved_code() const
+  {
+    DBUG_ASSERT(0);
+    return 0;
+  }
 };
 
 
@@ -390,7 +401,6 @@ class Opt_hints_qb : public Opt_hints
   char buff[32];          // Buffer to hold sys name
 
 public:
-
   Opt_hints_qb(Opt_hints *opt_hints_arg,
                MEM_ROOT *mem_root_arg,
                uint select_number_arg);
@@ -428,6 +438,23 @@ public:
     append_identifier(thd, str, &print_name);
   }
 
+  std::function<void(THD*, String*)> get_args_printer() const override
+  {
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    if (semijoin_hint)
+    {
+      return std::bind(&Parser::Semijoin_hint::append_args, semijoin_hint,
+                       _1, _2);
+    }
+    else if (subquery_hint)
+    {
+      return std::bind(&Parser::Subquery_hint::append_args, subquery_hint,
+                       _1, _2);
+    }
+    return [](THD*, String*) {};
+  }
+
   /**
     Function finds Opt_hints_table object corresponding to
     table alias in the query block and attaches corresponding
@@ -439,8 +466,46 @@ public:
     @return  pointer Opt_hints_table object if this object is found,
              NULL otherwise.
   */
-  Opt_hints_table *adjust_table_hints(TABLE *table,
+  Opt_hints_table *adjust_hints_for_table(TABLE *table,
                                       const Lex_ident_table &alias);
+
+  /**
+    Returns whether semi-join is enabled for this query block
+
+    A SEMIJOIN hint will force semi-join regardless of optimizer_switch settings.
+    A NO_SEMIJOIN hint will only turn off semi-join if the variant with no
+    strategies is used.
+    A SUBQUERY hint will turn off semi-join.
+    If there is no SEMIJOIN/SUBQUERY hint, optimizer_switch setting determines
+    whether SEMIJOIN is used.
+
+    @param thd  Pointer to THD object for session.
+                Used to access optimizer_switch
+
+    @return true if semijoin is enabled
+  */
+  bool semijoin_enabled(THD *thd) const;
+
+  /**
+    Returns bit mask of which semi-join strategies are enabled for this query
+    block.
+
+    @param opt_switches Bit map of strategies enabled by optimizer_switch
+
+    @return Bit mask of strategies that are enabled
+  */
+  uint sj_enabled_strategies(uint opt_switches) const;
+
+  const Parser::Semijoin_hint* semijoin_hint= nullptr;
+
+  /*
+    Bitmap of strategies listed in the SEMIJOIN/NO_SEMIJOIN hint body, e.g.
+    FIRSTMATCH | LOOSESCAN
+  */
+  uint semijoin_strategies_map= 0;
+
+  const Parser::Subquery_hint *subquery_hint= nullptr;
+  uint subquery_strategy= SUBS_NOT_TRANSFORMED;
 };
 
 
@@ -465,7 +530,6 @@ public:
     return Lex_ident_table::charset_info();
   }
 
-
   /**
     Append table name.
 
@@ -477,6 +541,7 @@ public:
     append_identifier(thd, str, &name);
     get_parent()->append_name(thd, str);
   }
+
   /**
     Function sets correlation between key hint objects and
     appropriate KEY structures.
