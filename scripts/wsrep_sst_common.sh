@@ -20,8 +20,13 @@
 trap 'exit 32' HUP PIPE
 trap 'exit 3'  INT QUIT TERM
 
-# Setting the path for some utilities on CentOS
-export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
+OS="$(uname)"
+
+# Setting the paths for some utilities on CentOS
+export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+if [ "$OS" != 'Darwin' ]; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/usr/lib:/lib:/opt/lib"
+fi
 
 commandex()
 {
@@ -1722,6 +1727,99 @@ simple_cleanup()
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
     exit $estatus
+}
+
+create_data()
+{
+    OLD_PWD="$(pwd)"
+
+    if [ -n "$DATA" -a "$DATA" != '.' ]; then
+        [ ! -d "$DATA" ] && mkdir -p "$DATA"
+        cd "$DATA"
+    fi
+    DATA_DIR="$(pwd)"
+
+    cd "$OLD_PWD"
+}
+
+create_dirs()
+{
+    local simplify=${1:-0}
+
+    # if no command line argument and INNODB_DATA_HOME_DIR environment
+    # variable is not set, try to get it from the my.cnf:
+    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
+        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
+    fi
+
+    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+        cd "$INNODB_DATA_HOME_DIR"
+        ib_home_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
+    fi
+
+    # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
+    fi
+
+    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+        cd "$INNODB_LOG_GROUP_HOME"
+        ib_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
+    fi
+
+    # if no command line argument and INNODB_UNDO_DIR is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_UNDO_DIR" ]; then
+        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
+        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
+    fi
+
+    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
+        cd "$INNODB_UNDO_DIR"
+        ib_undo_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
+    fi
+
+    # if no command line argument then try to get it from the my.cnf:
+    if [ -z "$ARIA_LOG_DIR" ]; then
+        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+    fi
+
+    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+        cd "$ARIA_LOG_DIR"
+        ar_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
+    fi
 }
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

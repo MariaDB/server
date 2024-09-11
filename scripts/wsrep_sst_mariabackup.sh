@@ -23,8 +23,6 @@ set -ue
 # https://mariadb.com/kb/en/mariabackup-overview/
 # Make sure to read that before proceeding!
 
-OS="$(uname)"
-
 . $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
@@ -935,15 +933,7 @@ if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
     disver=' --no-version-check'
 fi
 
-OLD_PWD="$(pwd)"
-
-if [ -n "$DATA" -a "$DATA" != '.' ]; then
-    [ ! -d "$DATA" ] && mkdir -p "$DATA"
-    cd "$DATA"
-fi
-DATA_DIR="$(pwd)"
-
-cd "$OLD_PWD"
+create_data
 
 if [ $ssyslog -eq 1 ]; then
     if [ -n "$(commandex logger)" ]; then
@@ -1249,84 +1239,11 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
 else # joiner
 
+    create_dirs 1
+
     [ -e "$SST_PROGRESS_FILE" ] && \
         wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
-
-    # if no command line argument and INNODB_DATA_HOME_DIR environment
-    # variable is not set, try to get it from the my.cnf:
-    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
-        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
-    fi
-
-    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
-         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
-        cd "$INNODB_DATA_HOME_DIR"
-        ib_home_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
-    fi
-
-    # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
-    # then try to get it from the my.cnf:
-    if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
-        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
-    fi
-
-    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
-         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
-        cd "$INNODB_LOG_GROUP_HOME"
-        ib_log_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
-    fi
-
-    # if no command line argument and INNODB_UNDO_DIR is not set,
-    # then try to get it from the my.cnf:
-    if [ -z "$INNODB_UNDO_DIR" ]; then
-        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
-        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
-    fi
-
-    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
-         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
-        cd "$INNODB_UNDO_DIR"
-        ib_undo_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
-    fi
-
-    # if no command line argument then try to get it from the my.cnf:
-    if [ -z "$ARIA_LOG_DIR" ]; then
-        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
-        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
-    fi
-
-    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
-         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
-        cd "$ARIA_LOG_DIR"
-        ar_log_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
-    fi
 
     if [ -n "$backup_threads" ]; then
         impts="--parallel=$backup_threads${impts:+ }$impts"

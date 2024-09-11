@@ -21,13 +21,12 @@ set -ue
 
 # This is a reference script for rsync-based state snapshot transfer
 
-OS="$(uname)"
-[ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
-
 . $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
 DATA="$WSREP_SST_OPT_DATA"
+
+create_data
 
 MAGIC_FILE="$DATA/backup_sst_complete"
 
