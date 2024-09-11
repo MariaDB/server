@@ -531,7 +531,6 @@ public:
   }
 
   class Iterator;
-  class Const_Iterator;
   using value_type= T;
   using iterator= Iterator;
   iterator begin() const { return iterator(first); }
@@ -578,49 +577,6 @@ public:
 
   private:
     list_node *node{&end_of_list};
-  };
-
-  class Const_Iterator
-  {
-  public:
-    using iterator_category= std::forward_iterator_tag;
-    using value_type= const T;
-    using difference_type= std::ptrdiff_t;
-    using pointer= const T *;
-    using reference= const T &;
-
-    Const_Iterator(const list_node *p= &end_of_list) : node{p} {}
-
-    Const_Iterator &operator++()
-    {
-      DBUG_ASSERT(node != &end_of_list);
-
-      node= node->next;
-      return *this;
-    }
-
-    Const_Iterator operator++(int)
-    {
-      Const_Iterator tmp(*this);
-      operator++();
-      return tmp;
-    }
-
-    const T &operator*() { return *static_cast<const T *>(node->info); }
-    const T *operator->() { return static_cast<const T *>(node->info); }
-
-    bool operator==(const typename List<T>::const_iterator &rhs)
-    {
-      return node == rhs.node;
-    }
-
-    bool operator!=(const typename List<T>::const_iterator &rhs)
-    {
-      return node != rhs.node;
-    }
-
-  private:
-    const list_node* node{&end_of_list};
   };
 };
 

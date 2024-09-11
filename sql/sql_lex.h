@@ -1576,6 +1576,9 @@ public:
   { 
     parsed_optimizer_hints= hl;
   }
+  uint subquery_strategies_allowed(THD *thd) const;
+  bool semijoin_enabled(THD *thd) const;
+  void update_available_semijoin_strategies(THD *thd);
 };
 typedef class st_select_lex SELECT_LEX;
 

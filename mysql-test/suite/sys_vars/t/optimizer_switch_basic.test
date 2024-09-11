@@ -19,8 +19,8 @@ select * from information_schema.session_variables where variable_name='optimize
 #
 # show that it's writable
 #
-set global optimizer_switch=2053;
-set session optimizer_switch=1034;
+set global optimizer_switch=4101;
+set session optimizer_switch=2058;
 select @@global.optimizer_switch;
 select @@session.optimizer_switch;
 set global optimizer_switch="index_merge_sort_union=on";

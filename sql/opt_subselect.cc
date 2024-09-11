@@ -465,6 +465,7 @@ enum_nested_loop_state
 end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records);
 
 
+
 /*
   Check if Materialization strategy is allowed for given subquery predicate.
 
@@ -484,7 +485,7 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   /*
     Check if the subquery predicate can be executed via materialization.
     The required conditions are:
-    0. The materialization optimizer switch was set.
+    0. The materialization optimizer switch/hint was set.
     1. Subquery is a single SELECT (not a UNION).
        TODO: this is a limitation that can be fixed
     2. Subquery is not a table-less query. In this case there is no
@@ -513,7 +514,8 @@ bool is_materialization_applicable(THD *thd, Item_in_subselect *in_subs,
   select_lex->sj_subselects list to be populated for every EXECUTE. 
 
   */
-  if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION) &&      // 0
+  uint strategies_allowed= child_select->subquery_strategies_allowed(thd);
+  if ((strategies_allowed & SUBS_MATERIALIZATION) &&                  // 0
         !child_select->is_part_of_union() &&                          // 1
         parent_unit->first_select()->leaf_tables.elements &&          // 2
         child_select->outer_select() &&
@@ -739,7 +741,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
       yet. They are checked later in convert_join_subqueries_to_semijoins(),
       look for calls to block_conversion_to_sj().
     */
-    if (optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
+    if (select_lex->semijoin_enabled(thd) &&
         in_subs &&                                                    // 1
         !select_lex->is_part_of_union() &&                            // 2
         !select_lex->group_list.elements && !join->order &&           // 3
@@ -815,7 +817,7 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
             with jtbm strategy
           */
           if (in_subs->emb_on_expr_nest == NO_JOIN_NEST &&
-              optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN))
+              select_lex->semijoin_enabled(thd))
           {
             in_subs->is_flattenable_semijoin= FALSE;
             if (!in_subs->is_registered_semijoin)
@@ -833,11 +835,11 @@ int check_and_do_in_subquery_rewrites(JOIN *join)
 
         /*
           IN-TO-EXISTS is the only universal strategy. Choose it if the user
-          allowed it via an optimizer switch, or if materialization is not
+          allowed it via an optimizer switch/hint, or if materialization is not
           possible.
         */
-        if (optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS) ||
-            !in_subs->has_strategy())
+        uint strategies_allowed= select_lex->subquery_strategies_allowed(thd);
+        if (strategies_allowed & SUBS_IN_TO_EXISTS || !in_subs->has_strategy())
           in_subs->add_strategy(SUBS_IN_TO_EXISTS);
       }
 
@@ -2558,11 +2560,11 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
 
     sj_nest->sj_mat_info= NULL;
     /*
-      The statement may have been executed with 'semijoin=on' earlier.
-      We need to verify that 'semijoin=on' still holds.
+      The statement may have been executed as a semijoin earlier.
+      We need to verify that semijoin materialization is still allowed.
      */
-    if (optimizer_flag(join->thd, OPTIMIZER_SWITCH_SEMIJOIN) &&
-        optimizer_flag(join->thd, OPTIMIZER_SWITCH_MATERIALIZATION))
+    if (sj_nest->nested_join->sj_enabled_strategies &
+        OPTIMIZER_SWITCH_MATERIALIZATION)
     {
       if ((sj_nest->sj_inner_tables  & ~join->const_table_map) && /* not everything was pulled out */
           !sj_nest->sj_subq_pred->is_correlated && 
@@ -3049,10 +3051,20 @@ void optimize_semi_joins(JOIN *join, table_map remaining_tables, uint idx,
           (dusp_producing_tables & handled_fanout is true), then
           *current_read_time is updated and the cost for the next
           strategy can be smaller than *current_read_time.
+
+          The strategy may be disabled by an optimizer switch or a hint,
+          which is checked at (1). Currently, this is applicable only to
+          Duplicate Weedout since other disabled strategies will will be
+          cut off earlier and will not make it here. However, since
+          Duplicate Weedout serves as the default fallback strategy, it is
+          chosen even when disabled, provided no other viable alternatives
+          are available.
         */
-        if ((dups_producing_tables & handled_fanout) ||
+        if (((dups_producing_tables & handled_fanout) ||
             (read_time + COST_EPS < *current_read_time &&
-             !(handled_fanout & pos->inner_tables_handled_with_other_sjs)))
+             !(handled_fanout & pos->inner_tables_handled_with_other_sjs))) &&
+            (!(*strategy)->is_disabled() ||
+              pos->sj_strategy == SJ_OPT_NONE)) // (1)
         {
           DBUG_ASSERT(pos->sj_strategy != sj_strategy);
           /*
@@ -3480,7 +3492,8 @@ bool Firstmatch_picker::check_qep(JOIN *join,
                                   POSITION *loose_scan_pos)
 {
   if (new_join_tab->emb_sj_nest &&
-      optimizer_flag(join->thd, OPTIMIZER_SWITCH_FIRSTMATCH) &&
+      (new_join_tab->emb_sj_nest->nested_join->sj_enabled_strategies &
+         OPTIMIZER_SWITCH_FIRSTMATCH) &&
       !join->outer_join)
   {
     const table_map outer_corr_tables=
@@ -3724,10 +3737,22 @@ bool Duplicate_weedout_picker::check_qep(JOIN *join,
       POSITION *p= join->positions + j;
       dups_cost= COST_ADD(dups_cost, p->read_time);
 
-      if (p->table->emb_sj_nest)
+      TABLE_LIST *emb_sj_nest= p->table->emb_sj_nest;
+      if (emb_sj_nest)
       {
         sj_inner_fanout= COST_MULT(sj_inner_fanout, p->records_out);
         dups_removed_fanout |= p->table->table->map;
+
+        /*
+          Duplicate Weedout is the default fallback strategy. It is used when
+          all other strategies are disabled by either an optimizer switch or
+          a hint. So, mark it as disabled for when there are other enabled
+          strategies to choose from
+        */
+        disabled |=
+            emb_sj_nest->nested_join->sj_enabled_strategies != 0 && // (1)
+            !(emb_sj_nest->nested_join->sj_enabled_strategies &
+              OPTIMIZER_SWITCH_DUPSWEEDOUT);
       }
       else
       {
@@ -3935,7 +3960,9 @@ at_sjmat_pos(const JOIN *join, table_map remaining_tables, const JOIN_TAB *tab,
   TABLE_LIST *emb_sj_nest= tab->emb_sj_nest;
   table_map suffix= remaining_tables & ~tab->table->map;
   if (emb_sj_nest && emb_sj_nest->sj_mat_info &&
-      !(suffix & emb_sj_nest->sj_inner_tables))
+      !(suffix & emb_sj_nest->sj_inner_tables) &&
+      (emb_sj_nest->nested_join->sj_enabled_strategies &
+        OPTIMIZER_SWITCH_MATERIALIZATION))
   {
     /* 
       Walk back and check if all immediately preceding tables are from

@@ -38,7 +38,7 @@
 #include "sql_partition.h"
 #include "sql_partition_admin.h"               // Sql_cmd_alter_table_*_part
 #include "event_parse_data.h"
-#include "opt_hints_parser.h"
+#include "opt_hints.h"
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
@@ -5983,6 +5983,84 @@ bool st_select_lex::is_merged_child_of(st_select_lex *ancestor)
   }
   return all_merged;
 }
+
+/**
+  Returns which subquery execution strategies can be used for this query block.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+
+  @retval SUBS_MATERIALIZATION  Subquery Materialization should be used
+  @retval SUBS_IN_TO_EXISTS     In-to-exists execution should be used
+  @retval SUBS_MATERIALIZATION | SUBS_IN_TO_EXISTS  A cost-based decision
+                                                    should be made
+*/
+uint st_select_lex::subquery_strategies_allowed(THD *thd) const
+{
+  if (opt_hints_qb && opt_hints_qb->subquery_strategy != SUBS_NOT_TRANSFORMED)
+    return opt_hints_qb->subquery_strategy;
+
+  // No SUBQUERY hint given, base possible strategies on optimizer_switch
+  uint strategy = SUBS_NOT_TRANSFORMED;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_MATERIALIZATION))
+    strategy |= SUBS_MATERIALIZATION;
+  if (optimizer_flag(thd, OPTIMIZER_SWITCH_IN_TO_EXISTS))
+    strategy |= SUBS_IN_TO_EXISTS;
+  return strategy;
+}
+
+/**
+  Returns whether semi-join is enabled for this query block
+
+  @see @c Opt_hints_qb::semijoin_enabled for details on how hints
+  affect this decision.  If there are no hints for this query block,
+  optimizer_switch setting determines whether semi-join is used.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+
+  @return true if semijoin is enabled,
+          false otherwise
+*/
+bool st_select_lex::semijoin_enabled(THD *thd) const
+{
+  return opt_hints_qb ?
+    opt_hints_qb->semijoin_enabled(thd) :
+    optimizer_flag(thd, OPTIMIZER_SWITCH_SEMIJOIN);
+}
+
+/**
+  Update available semijoin strategies for semijoin nests.
+
+  Available semijoin strategies needs to be updated on every execution since
+  optimizer_switch setting may have changed.
+
+  @param thd  Pointer to THD object for session.
+              Used to access optimizer_switch
+*/
+void st_select_lex::update_available_semijoin_strategies(THD *thd)
+{
+  uint sj_strategy_mask= OPTIMIZER_SWITCH_FIRSTMATCH |
+    OPTIMIZER_SWITCH_LOOSE_SCAN | OPTIMIZER_SWITCH_MATERIALIZATION |
+    OPTIMIZER_SWITCH_DUPSWEEDOUT;
+
+  uint opt_switches= thd->variables.optimizer_switch & sj_strategy_mask;
+
+  List_iterator<TABLE_LIST> sj_list_it(sj_nests);
+  TABLE_LIST *sj_nest;
+  while ((sj_nest= sj_list_it++))
+  {
+    /*
+      After semi-join transformation, original SELECT_LEX with hints is lost.
+      Fetch hints from first table in semijoin nest.
+    */
+    List_iterator<TABLE_LIST> table_list(sj_nest->nested_join->join_list);
+    TABLE_LIST *table= table_list++;
+    sj_nest->nested_join->sj_enabled_strategies= table->opt_hints_qb ?
+      table->opt_hints_qb->sj_enabled_strategies(opt_switches) : opt_switches;
+  }
+}
+
 
 /* 
   This is used by SHOW EXPLAIN|ANALYZE. It assumes query plan has been already
