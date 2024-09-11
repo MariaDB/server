@@ -198,15 +198,13 @@ static bool btr_root_fseg_validate(ulint offset,
   return false;
 }
 
-/** Report a decryption failure. */
-ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index)
+/** Report a read failure if it is a decryption failure.
+@param err   error code
+@param index the index that is being accessed */
+ATTRIBUTE_COLD void btr_read_failed(dberr_t err, const dict_index_t &index)
 {
-  ib_push_warning(static_cast<void*>(nullptr), DB_DECRYPTION_FAILED,
-                  "Table %s is encrypted but encryption service or"
-                  " used key_id is not available. "
-                  " Can't continue reading table.",
-                  index.table->name.m_name);
-  index.table->file_unreadable= true;
+  if (err == DB_DECRYPTION_FAILED)
+    innodb_decryption_failed(nullptr, index.table);
 }
 
 /** Get an index page and declare its latching order level.
@@ -246,8 +244,8 @@ buf_block_t *btr_block_get(const dict_index_t &index,
     else if (!buf_page_make_young_if_needed(&block->page) && first)
       *first= true;
   }
-  else if (*err == DB_DECRYPTION_FAILED)
-    btr_decryption_failed(index);
+  else
+    btr_read_failed(*err, index);
 
   return block;
 }
@@ -309,8 +307,8 @@ btr_root_block_get(
     else
       buf_page_make_young_if_needed(&block->page);
   }
-  else if (*err == DB_DECRYPTION_FAILED)
-    btr_decryption_failed(*index);
+  else
+    btr_read_failed(*err, *index);
 
   return block;
 }
