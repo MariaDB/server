@@ -56,6 +56,7 @@ ANALYZE TABLE t3;
 set optimizer_switch=default;
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo # Check statistics with no hint
 FLUSH STATUS;
 SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
@@ -66,6 +67,7 @@ FLUSH STATUS;
 SELECT /*+ NO_RANGE_OPTIMIZATION(t3 PRIMARY, f2_idx) */ f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
 SHOW STATUS LIKE 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 EXPLAIN EXTENDED SELECT f1 FROM t3 WHERE f1 > 30 AND f1 < 33;
 --echo # Turn off range access for PRIMARY key
@@ -171,6 +173,7 @@ EXPLAIN EXTENDED
 SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo # Check statistics without hint
 FLUSH STATUS;
 SELECT * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
@@ -181,6 +184,7 @@ FLUSH STATUS;
 SELECT /*+ BKA() */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 SHOW STATUS LIKE 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 EXPLAIN EXTENDED SELECT /*+ BKA(t13) */ * FROM t12, t13
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
@@ -355,11 +359,13 @@ WHERE tbl12.a=tbl13.a AND (tbl13.b+1 <= tbl13.b+1);
 --enable_ps_protocol
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo # Check that PS and conventional statements give the same result.
 FLUSH STATUS;
 SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 SHOW STATUS LIKE 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 PREPARE stmt1 FROM "SELECT /*+ BKA(t13) */ * FROM t12, t13 WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1)";
 FLUSH STATUS;
@@ -388,6 +394,7 @@ CREATE TABLE t3 (a INT, b INT);
 INSERT INTO t3 VALUES (1,1),(2,2);
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo # Check statistics without hint
 FLUSH STATUS;
 SELECT t1.* FROM t1,t2,t3;
@@ -398,6 +405,7 @@ FLUSH STATUS;
 SELECT /*+ NO_BNL() */t1.* FROM t1,t2,t3;
 SHOW STATUS LIKE 'handler_read%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 EXPLAIN EXTENDED SELECT t1.* FROM t1,t2,t3;
 EXPLAIN EXTENDED SELECT /*+ NO_BNL() */t1.* FROM t1,t2,t3;
@@ -706,6 +714,7 @@ ANALYZE TABLE t1;
 set optimizer_switch='mrr=on,mrr_cost_based=off';
 
 --disable_ps2_protocol
+--disable_cursor_protocol
 --echo # Check statistics without hint
 FLUSH STATUS;
 SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
@@ -725,6 +734,7 @@ SHOW STATUS LIKE 'handler_read%';
 
 DROP PROCEDURE p;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE f2 <= 3 AND 3 <= f3;
 --echo # Turn off MRR. MRR should not be used.

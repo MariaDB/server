@@ -8318,6 +8318,7 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
         my_error(ER_TOO_MANY_TABLES, MYF(0), static_cast<int>(MAX_TABLES));
         DBUG_RETURN(1);
       }
+
       if (qb_hints &&                          // QB hints initialized
           !table_list->opt_hints_table)        // Table hints are not adjusted yet
       {
