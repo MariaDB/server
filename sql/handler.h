@@ -571,8 +571,6 @@ enum legacy_db_type
   DB_TYPE_BLACKHOLE_DB=19,
   DB_TYPE_PARTITION_DB=20,
   DB_TYPE_BINLOG=21,
-  DB_TYPE_ONLINE_ALTER=22,
-  DB_TYPE_PBXT=23,
   DB_TYPE_PERFORMANCE_SCHEMA=28,
   DB_TYPE_S3=41,
   DB_TYPE_ARIA=42,
@@ -1253,19 +1251,8 @@ typedef class st_select_lex SELECT_LEX;
 typedef class st_select_lex_unit SELECT_LEX_UNIT;
 typedef struct st_order ORDER;
 
-/*
-  handlerton is a singleton structure - one instance per storage engine -
-  to provide access to storage engine functionality that works on the
-  "global" level (unlike handler class that works on a per-table basis)
-*/
-struct handlerton
+struct transaction_participant
 {
-  /*
-    Historical number used for frm file to determine the correct
-    storage engine.  This is going away and new engines will just use
-    "name" for this.
-  */
-  enum legacy_db_type db_type;
   /*
     each storage engine has it's own memory area (actually a pointer)
     in the thd, for storing per-connection information.
@@ -1290,6 +1277,217 @@ struct handlerton
     global handlerton flags HTON_...
   */
   uint32 flags;
+  /*
+    close_connection is only called if
+    thd->ha_data[xxx_hton.slot] is non-zero, so even if you don't need
+    this storage area - set it to something, so that MySQL would know
+    this storage engine was accessed in this connection
+  */
+  int  (*close_connection)(THD *thd);
+  /*
+    sv points to an uninitialized storage area of requested size
+    (see savepoint_offset description)
+  */
+  int  (*savepoint_set)(THD *thd, void *sv);
+  /*
+    sv points to a storage area, that was earlier passed
+    to the savepoint_set call
+  */
+  int  (*savepoint_rollback)(THD *thd, void *sv);
+  /**
+    Check if storage engine allows to release metadata locks which were
+    acquired after the savepoint if rollback to savepoint is done.
+    @return true  - If it is safe to release MDL locks.
+            false - If it is not.
+  */
+  bool (*savepoint_rollback_can_release_mdl)(THD *thd);
+  int  (*savepoint_release)(THD *thd, void *sv);
+  /*
+    'all' is true if it's a real commit, that makes persistent changes
+    'all' is false if it's not in fact a commit but an end of the
+    statement that is part of the transaction.
+    NOTE 'all' is also false in auto-commit mode where 'end of statement'
+    and 'real commit' mean the same event.
+  */
+  int (*commit)(THD *thd, bool all);
+  int  (*rollback)(THD *thd, bool all);
+  int  (*prepare)(THD *thd, bool all);
+  int  (*recover)(XID *xid_list, uint len);
+  int  (*commit_by_xid)(XID *xid);
+  int  (*rollback_by_xid)(XID *xid);
+  /*
+    recover_rollback_by_xid is optional. If set, it will be called instead of
+    rollback_by_xid when transactions should be rolled back at server startup.
+
+    This function should just change the transaction's state from prepared to
+    active before returing. The actual rollback should then happen
+    asynchroneously (eg. in a background thread). This way, rollbacks that
+    take a long time to complete will not block server startup, and the
+    database becomes available sooner to serve user queries.
+  */
+  int  (*recover_rollback_by_xid)(const XID *xid);
+  /*
+    It is called after binlog recovery has done commit/rollback of
+    all transactions. It is used together with recover_rollback_by_xid()
+    together to rollback prepared transactions asynchronously.
+  */
+  void (*signal_tc_log_recovery_done)();
+  int (*start_consistent_snapshot)(THD *thd);
+  /*
+    The commit_ordered() method is called prior to the commit() method, after
+    the transaction manager has decided to commit (not rollback) the
+    transaction. Unlike commit(), commit_ordered() is called only when the
+    full transaction is committed, not for each commit of statement
+    transaction in a multi-statement transaction.
+
+    Not that like prepare(), commit_ordered() is only called when 2-phase
+    commit takes place. Ie. when no binary log and only a single engine
+    participates in a transaction, one commit() is called, no
+    commit_ordered(). So engines must be prepared for this.
+
+    The calls to commit_ordered() in multiple parallel transactions is
+    guaranteed to happen in the same order in every participating
+    handler. This can be used to ensure the same commit order among multiple
+    handlers (eg. in table handler and binlog). So if transaction T1 calls
+    into commit_ordered() of handler A before T2, then T1 will also call
+    commit_ordered() of handler B before T2.
+
+    Engines that implement this method should during this call make the
+    transaction visible to other transactions, thereby making the order of
+    transaction commits be defined by the order of commit_ordered() calls.
+
+    The intention is that commit_ordered() should do the minimal amount of
+    work that needs to happen in consistent commit order among handlers. To
+    preserve ordering, calls need to be serialised on a global mutex, so
+    doing any time-consuming or blocking operations in commit_ordered() will
+    limit scalability.
+
+    Handlers can rely on commit_ordered() calls to be serialised (no two
+    calls can run in parallel, so no extra locking on the handler part is
+    required to ensure this).
+
+    Note that commit_ordered() can be called from a different thread than the
+    one handling the transaction! So it can not do anything that depends on
+    thread local storage, in particular it can not call my_error() and
+    friends (instead it can store the error code and delay the call of
+    my_error() to the commit() method).
+
+    Similarly, since commit_ordered() returns void, any return error code
+    must be saved and returned from the commit() method instead.
+
+    The commit_ordered method is optional, and can be left unset if not
+    needed in a particular handler (then there will be no ordering guarantees
+    wrt. other engines and binary log).
+  */
+  void (*commit_ordered)(THD *thd, bool all);
+  /*
+    The prepare_ordered method is optional. If set, it will be called after
+    successful prepare() in all handlers participating in 2-phase
+    commit. Like commit_ordered(), it is called only when the full
+    transaction is committed, not for each commit of statement transaction.
+
+    The calls to prepare_ordered() among multiple parallel transactions are
+    ordered consistently with calls to commit_ordered(). This means that
+    calls to prepare_ordered() effectively define the commit order, and that
+    each handler will see the same sequence of transactions calling into
+    prepare_ordered() and commit_ordered().
+
+    Thus, prepare_ordered() can be used to define commit order for handlers
+    that need to do this in the prepare step (like binlog). It can also be
+    used to release transaction's locks early in an order consistent with the
+    order transactions will be eventually committed.
+
+    Like commit_ordered(), prepare_ordered() calls are serialised to maintain
+    ordering, so the intention is that they should execute fast, with only
+    the minimal amount of work needed to define commit order. Handlers can
+    rely on this serialisation, and do not need to do any extra locking to
+    avoid two prepare_ordered() calls running in parallel.
+
+    Like commit_ordered(), prepare_ordered() is not guaranteed to be called
+    in the context of the thread handling the rest of the transaction. So it
+    cannot invoke code that relies on thread local storage, in particular it
+    cannot call my_error().
+
+    prepare_ordered() cannot cause a rollback by returning an error, all
+    possible errors must be handled in prepare() (the prepare_ordered()
+    method returns void). In case of some fatal error, a record of the error
+    must be made internally by the engine and returned from commit() later.
+
+    Note that for user-level XA SQL commands, no consistent ordering among
+    prepare_ordered() and commit_ordered() is guaranteed (as that would
+    require blocking all other commits for an indefinite time).
+
+    When 2-phase commit is not used (eg. only one engine (and no binlog) in
+    transaction), neither prepare() nor prepare_ordered() is called.
+  */
+  void (*prepare_ordered)(THD *thd, bool all);
+
+  /*
+    The commit_checkpoint_request() handlerton method is used to checkpoint
+    the XA recovery process for storage engines that support two-phase
+    commit.
+
+    The method is optional - an engine that does not implemented is expected
+    to work the traditional way, where every commit() durably flushes the
+    transaction to disk in the engine before completion, so XA recovery will
+    no longer be needed for that transaction.
+
+    An engine that does implement commit_checkpoint_request() is also
+    expected to implement commit_ordered(), so that ordering of commits is
+    consistent between 2pc participants. Such engine is no longer required to
+    durably flush to disk transactions in commit(), provided that the
+    transaction has been successfully prepare()d and commit_ordered(); thus
+    potentionally saving one fsync() call. (Engine must still durably flush
+    to disk in commit() when no prepare()/commit_ordered() steps took place,
+    at least if durable commits are wanted; this happens eg. if binlog is
+    disabled).
+
+    The TC will periodically (eg. once per binlog rotation) call
+    commit_checkpoint_request(). When this happens, the engine must arrange
+    for all transaction that have completed commit_ordered() to be durably
+    flushed to disk (this does not include transactions that might be in the
+    middle of executing commit_ordered()). When such flush has completed, the
+    engine must call commit_checkpoint_notify_ha(), passing back the opaque
+    "cookie".
+
+    The flush and call of commit_checkpoint_notify_ha() need not happen
+    immediately - it can be scheduled and performed asynchronously (ie. as
+    part of next prepare(), or sync every second, or whatever), but should
+    not be postponed indefinitely. It is however also permissible to do it
+    immediately, before returning from commit_checkpoint_request().
+
+    When commit_checkpoint_notify_ha() is called, the TC will know that the
+    transactions are durably committed, and thus no longer require XA
+    recovery. It uses that to reduce the work needed for any subsequent XA
+    recovery process.
+  */
+  void (*commit_checkpoint_request)(void *cookie);
+
+  /*********************************************************************
+    System Versioning
+  **********************************************************************/
+  /** Determine if system-versioned data was modified by the transaction.
+      @param[in,out] thd          current session
+      @param[out]    trx_id       transaction start ID
+      @return transaction commit ID
+      @retval 0 if no system-versioned data was affected by the transaction
+  */
+  ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
+};
+
+/*
+  handlerton is a singleton structure - one instance per storage engine -
+  to provide access to storage engine functionality that works on the
+  "global" level (unlike handler class that works on a per-table basis)
+*/
+struct handlerton : public transaction_participant
+{
+  /*
+    Historical number used for frm file to determine the correct
+    storage engine.  This is going away and new engines will just use
+    "name" for this.
+  */
+  enum legacy_db_type db_type;
   /*
     Optional clauses in the CREATE/ALTER TABLE
   */
@@ -1319,13 +1517,6 @@ struct handlerton
    Generic handlerton methods
   **********************************************************************/
   handler *(*create)(handlerton *hton, TABLE_SHARE *table, MEM_ROOT *mem_root);
-  /*
-    close_connection is only called if
-    thd->ha_data[xxx_hton.slot] is non-zero, so even if you don't need
-    this storage area - set it to something, so that MySQL would know
-    this storage engine was accessed in this connection
-  */
-  int  (*close_connection)(handlerton *hton, THD *thd);
   /*
     Tell handler that query has been killed.
   */
@@ -1387,188 +1578,6 @@ struct handlerton
   */
   int (*create_partitioning_metadata)(const char *path, const char *old_path,
                                       chf_create_flags action_flag);
-
-
-  /**********************************************************************
-   Transaction handling
-  **********************************************************************/
-  /*
-    sv points to an uninitialized storage area of requested size
-    (see savepoint_offset description)
-  */
-  int  (*savepoint_set)(handlerton *hton, THD *thd, void *sv);
-  /*
-    sv points to a storage area, that was earlier passed
-    to the savepoint_set call
-  */
-  int  (*savepoint_rollback)(handlerton *hton, THD *thd, void *sv);
-  /**
-    Check if storage engine allows to release metadata locks which were
-    acquired after the savepoint if rollback to savepoint is done.
-    @return true  - If it is safe to release MDL locks.
-            false - If it is not.
-  */
-  bool (*savepoint_rollback_can_release_mdl)(handlerton *hton, THD *thd);
-  int  (*savepoint_release)(handlerton *hton, THD *thd, void *sv);
-  /*
-    'all' is true if it's a real commit, that makes persistent changes
-    'all' is false if it's not in fact a commit but an end of the
-    statement that is part of the transaction.
-    NOTE 'all' is also false in auto-commit mode where 'end of statement'
-    and 'real commit' mean the same event.
-  */
-  int (*commit)(handlerton *hton, THD *thd, bool all);
-  /*
-    The commit_ordered() method is called prior to the commit() method, after
-    the transaction manager has decided to commit (not rollback) the
-    transaction. Unlike commit(), commit_ordered() is called only when the
-    full transaction is committed, not for each commit of statement
-    transaction in a multi-statement transaction.
-
-    Not that like prepare(), commit_ordered() is only called when 2-phase
-    commit takes place. Ie. when no binary log and only a single engine
-    participates in a transaction, one commit() is called, no
-    commit_ordered(). So engines must be prepared for this.
-
-    The calls to commit_ordered() in multiple parallel transactions is
-    guaranteed to happen in the same order in every participating
-    handler. This can be used to ensure the same commit order among multiple
-    handlers (eg. in table handler and binlog). So if transaction T1 calls
-    into commit_ordered() of handler A before T2, then T1 will also call
-    commit_ordered() of handler B before T2.
-
-    Engines that implement this method should during this call make the
-    transaction visible to other transactions, thereby making the order of
-    transaction commits be defined by the order of commit_ordered() calls.
-
-    The intention is that commit_ordered() should do the minimal amount of
-    work that needs to happen in consistent commit order among handlers. To
-    preserve ordering, calls need to be serialised on a global mutex, so
-    doing any time-consuming or blocking operations in commit_ordered() will
-    limit scalability.
-
-    Handlers can rely on commit_ordered() calls to be serialised (no two
-    calls can run in parallel, so no extra locking on the handler part is
-    required to ensure this).
-
-    Note that commit_ordered() can be called from a different thread than the
-    one handling the transaction! So it can not do anything that depends on
-    thread local storage, in particular it can not call my_error() and
-    friends (instead it can store the error code and delay the call of
-    my_error() to the commit() method).
-
-    Similarly, since commit_ordered() returns void, any return error code
-    must be saved and returned from the commit() method instead.
-
-    The commit_ordered method is optional, and can be left unset if not
-    needed in a particular handler (then there will be no ordering guarantees
-    wrt. other engines and binary log).
-  */
-  void (*commit_ordered)(handlerton *hton, THD *thd, bool all);
-  int  (*rollback)(handlerton *hton, THD *thd, bool all);
-  int  (*prepare)(handlerton *hton, THD *thd, bool all);
-  /*
-    The prepare_ordered method is optional. If set, it will be called after
-    successful prepare() in all handlers participating in 2-phase
-    commit. Like commit_ordered(), it is called only when the full
-    transaction is committed, not for each commit of statement transaction.
-
-    The calls to prepare_ordered() among multiple parallel transactions are
-    ordered consistently with calls to commit_ordered(). This means that
-    calls to prepare_ordered() effectively define the commit order, and that
-    each handler will see the same sequence of transactions calling into
-    prepare_ordered() and commit_ordered().
-
-    Thus, prepare_ordered() can be used to define commit order for handlers
-    that need to do this in the prepare step (like binlog). It can also be
-    used to release transaction's locks early in an order consistent with the
-    order transactions will be eventually committed.
-
-    Like commit_ordered(), prepare_ordered() calls are serialised to maintain
-    ordering, so the intention is that they should execute fast, with only
-    the minimal amount of work needed to define commit order. Handlers can
-    rely on this serialisation, and do not need to do any extra locking to
-    avoid two prepare_ordered() calls running in parallel.
-
-    Like commit_ordered(), prepare_ordered() is not guaranteed to be called
-    in the context of the thread handling the rest of the transaction. So it
-    cannot invoke code that relies on thread local storage, in particular it
-    cannot call my_error().
-
-    prepare_ordered() cannot cause a rollback by returning an error, all
-    possible errors must be handled in prepare() (the prepare_ordered()
-    method returns void). In case of some fatal error, a record of the error
-    must be made internally by the engine and returned from commit() later.
-
-    Note that for user-level XA SQL commands, no consistent ordering among
-    prepare_ordered() and commit_ordered() is guaranteed (as that would
-    require blocking all other commits for an indefinite time).
-
-    When 2-phase commit is not used (eg. only one engine (and no binlog) in
-    transaction), neither prepare() nor prepare_ordered() is called.
-  */
-  void (*prepare_ordered)(handlerton *hton, THD *thd, bool all);
-  int  (*recover)(handlerton *hton, XID *xid_list, uint len);
-  int  (*commit_by_xid)(handlerton *hton, XID *xid);
-  int  (*rollback_by_xid)(handlerton *hton, XID *xid);
-   /*
-     recover_rollback_by_xid is optional. If set, it will be called instead of
-     rollback_by_xid when transactions should be rolled back at server startup.
-
-     This function should just change the transaction's state from prepared to
-     active before returing. The actual rollback should then happen
-     asynchroneously (eg. in a background thread). This way, rollbacks that
-     take a long time to complete will not block server startup, and the
-     database becomes available sooner to serve user queries.
-   */
-   int  (*recover_rollback_by_xid)(const XID *xid);
-   /*
-     It is called after binlog recovery has done commit/rollback of
-     all transactions. It is used together with recover_rollback_by_xid()
-     together to rollback prepared transactions asynchronously.
-   */
-   void (*signal_tc_log_recovery_done)();
-  /*
-    The commit_checkpoint_request() handlerton method is used to checkpoint
-    the XA recovery process for storage engines that support two-phase
-    commit.
-
-    The method is optional - an engine that does not implemented is expected
-    to work the traditional way, where every commit() durably flushes the
-    transaction to disk in the engine before completion, so XA recovery will
-    no longer be needed for that transaction.
-
-    An engine that does implement commit_checkpoint_request() is also
-    expected to implement commit_ordered(), so that ordering of commits is
-    consistent between 2pc participants. Such engine is no longer required to
-    durably flush to disk transactions in commit(), provided that the
-    transaction has been successfully prepare()d and commit_ordered(); thus
-    potentionally saving one fsync() call. (Engine must still durably flush
-    to disk in commit() when no prepare()/commit_ordered() steps took place,
-    at least if durable commits are wanted; this happens eg. if binlog is
-    disabled).
-
-    The TC will periodically (eg. once per binlog rotation) call
-    commit_checkpoint_request(). When this happens, the engine must arrange
-    for all transaction that have completed commit_ordered() to be durably
-    flushed to disk (this does not include transactions that might be in the
-    middle of executing commit_ordered()). When such flush has completed, the
-    engine must call commit_checkpoint_notify_ha(), passing back the opaque
-    "cookie".
-
-    The flush and call of commit_checkpoint_notify_ha() need not happen
-    immediately - it can be scheduled and performed asynchronously (ie. as
-    part of next prepare(), or sync every second, or whatever), but should
-    not be postponed indefinitely. It is however also permissible to do it
-    immediately, before returning from commit_checkpoint_request().
-
-    When commit_checkpoint_notify_ha() is called, the TC will know that the
-    transactions are durably committed, and thus no longer require XA
-    recovery. It uses that to reduce the work needed for any subsequent XA
-    recovery process.
-  */
-  void (*commit_checkpoint_request)(void *cookie);
-  int (*start_consistent_snapshot)(handlerton *hton, THD *thd);
 
   /**********************************************************************
    Functions to intercept queries
@@ -1724,17 +1733,6 @@ struct handlerton
                        const LEX_CUSTRING *version, ulonglong create_id);
 
   /*********************************************************************
-    System Versioning
-  **********************************************************************/
-  /** Determine if system-versioned data was modified by the transaction.
-      @param[in,out] thd          current session
-      @param[out]    trx_id       transaction start ID
-      @return transaction commit ID
-      @retval 0 if no system-versioned data was affected by the transaction
-  */
-  ulonglong (*prepare_commit_versioned)(THD *thd, ulonglong *trx_id);
-
-  /*********************************************************************
     backup
   **********************************************************************/
   void (*prepare_for_backup)(void);
@@ -1752,7 +1750,7 @@ struct handlerton
 
 extern const char *hton_no_exts[];
 
-static inline LEX_CSTRING *hton_name(const handlerton *hton)
+static inline LEX_CSTRING *hton_name(const transaction_participant *hton)
 {
   return &(hton2plugin[hton->slot]->name);
 }
@@ -1762,7 +1760,7 @@ static inline handlerton *plugin_hton(plugin_ref plugin)
   return plugin_data(plugin, handlerton *);
 }
 
-static inline sys_var *find_hton_sysvar(handlerton *hton, st_mysql_sys_var *var)
+static inline sys_var *find_hton_sysvar(transaction_participant *hton, st_mysql_sys_var *var)
 {
   return find_plugin_sysvar(hton2plugin[hton->slot], var);
 }
@@ -1983,7 +1981,7 @@ class Ha_trx_info
 {
 public:
   /** Register this storage engine in the given transaction context. */
-  void register_ha(THD_TRANS *trans, handlerton *ht_arg)
+  void register_ha(THD_TRANS *trans, transaction_participant *ht_arg)
   {
     DBUG_ASSERT(m_flags == 0);
     DBUG_ASSERT(m_ht == NULL);
@@ -2034,7 +2032,7 @@ public:
     DBUG_ASSERT(is_started());
     return m_next;
   }
-  handlerton *ht() const
+  transaction_participant *ht() const
   {
     DBUG_ASSERT(is_started());
     return m_ht;
@@ -2048,7 +2046,7 @@ private:
     for the same storage engine, 'ht' is not-NULL only when the
     corresponding storage is a part of a transaction.
   */
-  handlerton *m_ht;
+  transaction_participant *m_ht;
   /**
     Transaction flags related to this engine.
     Not-null only if this instance is a part of transaction.
@@ -5602,7 +5600,8 @@ static inline enum legacy_db_type ha_legacy_type(const handlerton *db_type)
   return (db_type == NULL) ? DB_TYPE_UNKNOWN : db_type->db_type;
 }
 
-static inline const char *ha_resolve_storage_engine_name(const handlerton *db_type)
+static inline const char *
+ha_resolve_storage_engine_name(const transaction_participant *db_type)
 {
   return (db_type == NULL ? "UNKNOWN" :
           db_type == view_pseudo_hton ? "VIEW" : hton_name(db_type)->str);
@@ -5624,6 +5623,7 @@ int ha_init(void);
 int ha_end(void);
 int ha_initialize_handlerton(st_plugin_int *plugin);
 int ha_finalize_handlerton(st_plugin_int *plugin);
+int setup_transaction_participant(st_plugin_int *plugin);
 
 TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
@@ -5723,7 +5723,7 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
 #endif
 
 /* these are called by storage engines */
-void trans_register_ha(THD *thd, bool all, handlerton *ht,
+void trans_register_ha(THD *thd, bool all, transaction_participant *ht,
                        ulonglong trxid);
 
 /*

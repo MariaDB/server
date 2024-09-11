@@ -1397,7 +1397,7 @@ binlog_cache_data* binlog_get_cache_data(binlog_cache_mngr *cache_mngr,
                                          bool use_trans_cache);
 
 extern MYSQL_PLUGIN_IMPORT MYSQL_BIN_LOG mysql_bin_log;
-extern handlerton *binlog_hton;
+extern transaction_participant binlog_tp;
 extern LOGGER logger;
 
 extern const char *log_bin_index;
@@ -1483,8 +1483,8 @@ const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
 
 int binlog_commit(THD *thd, bool all, bool is_ro_1pc= false);
-int binlog_commit_by_xid(handlerton *hton, XID *xid);
-int binlog_rollback_by_xid(handlerton *hton, XID *xid);
+int binlog_commit_by_xid(XID *xid);
+int binlog_rollback_by_xid(XID *xid);
 bool write_bin_log_start_alter(THD *thd, bool& partial_alter,
                                uint64 start_alter_id, bool log_if_exists);
 #endif /* LOG_H */

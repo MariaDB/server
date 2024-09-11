@@ -670,6 +670,48 @@ static bool update_optimizer_costs(handlerton *hton)
 const char *hton_no_exts[]= { 0 };
 static bool ddl_recovery_done= false;
 
+int setup_transaction_participant(st_plugin_int *plugin)
+{
+  auto tp= (transaction_participant *)(plugin->data);
+  ulong fslot;
+  for (fslot= 0; fslot < total_ha; fslot++)
+    if (!hton2plugin[fslot])
+      break;
+  if (fslot < total_ha)
+    tp->slot= fslot;
+  else
+  {
+    if (total_ha >= MAX_HA)
+    {
+      sql_print_error("Too many plugins loaded. Limit is %u. Failed on '%s'",
+                      MAX_HA, plugin->name.str);
+      return 1;
+    }
+    tp->slot= total_ha++;
+  }
+  uint tmp= tp->savepoint_offset;
+  tp->savepoint_offset= savepoint_alloc_size;
+  savepoint_alloc_size+= tmp;
+  hton2plugin[tp->slot]=plugin;
+
+  if (tp->prepare)
+  {
+    total_ha_2pc++;
+    if (tc_log && tc_log != get_tc_log_implementation())
+    {
+      total_ha_2pc--;
+      tp->prepare= 0;
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_UNKNOWN_ERROR,
+                          "Cannot enable tc-log at run-time. "
+                          "XA features of %s are disabled",
+                          plugin->name.str);
+    }
+  }
+
+  return 0;
+}
+
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
@@ -712,9 +754,6 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
       hton->discover_table_existence= full_discover_for_existence;
   }
 
-  uint tmp;
-  ulong fslot;
-
   DBUG_EXECUTE_IF("unstable_db_type", {
                     static int i= (int) DB_TYPE_FIRST_DYNAMIC;
                     hton->db_type= (enum legacy_db_type)++i;
@@ -742,53 +781,13 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     hton->db_type= (enum legacy_db_type) idx;
   }
 
-  /*
-    In case a plugin is uninstalled and re-installed later, it should
-    reuse an array slot. Otherwise the number of uninstall/install
-    cycles would be limited. So look for a free slot.
-  */
-  DBUG_PRINT("plugin", ("total_ha: %lu", total_ha));
-  for (fslot= 0; fslot < total_ha; fslot++)
-  {
-    if (!hton2plugin[fslot])
-      break;
-  }
-  if (fslot < total_ha)
-    hton->slot= fslot;
-  else
-  {
-    if (total_ha >= MAX_HA)
-    {
-      sql_print_error("Too many plugins loaded. Limit is %lu. "
-                      "Failed on '%s'", (ulong) MAX_HA, plugin->name.str);
-      ret= 1;
-      goto err_deinit;
-    }
-    hton->slot= total_ha++;
-  }
+  if ((ret= setup_transaction_participant(plugin)))
+    goto err_deinit;
+
   installed_htons[hton->db_type]= hton;
-  tmp= hton->savepoint_offset;
-  hton->savepoint_offset= savepoint_alloc_size;
-  savepoint_alloc_size+= tmp;
-  hton2plugin[hton->slot]=plugin;
 
   if (!(hton->flags & HTON_HIDDEN) && update_optimizer_costs(hton))
     goto err_deinit;
-
-  if (hton->prepare)
-  {
-    total_ha_2pc++;
-    if (tc_log && tc_log != get_tc_log_implementation())
-    {
-      total_ha_2pc--;
-      hton->prepare= 0;
-      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_UNKNOWN_ERROR,
-                          "Cannot enable tc-log at run-time. "
-                          "XA features of %s are disabled",
-                          plugin->name.str);
-    }
-  }
 
   /* 
     This is entirely for legacy. We will create a new "disk based" hton and a 
@@ -872,6 +871,31 @@ int ha_end()
 }
 
 
+/*
+  unlike plugin_foreach() this is called for all plugins from
+  hton2plugin[], that is for anything that has a transaction_participant
+  object. Not only for storage engines.
+*/
+typedef bool (tp_foreach_func)(THD *thd, transaction_participant *tp, void *arg);
+
+static bool tp_foreach(THD *thd, tp_foreach_func *func, void *arg)
+{
+  int j=0, err= 0;
+  plugin_ref locks[MAX_HA];
+  for (uint i= 0; i < MAX_HA; i++)
+  {
+    if (st_plugin_int *pi= hton2plugin[i])
+    {
+      locks[j]= plugin_lock(NULL, plugin_int_to_ref(pi));
+      if ((err= func(thd, plugin_hton(locks[j++]), arg)))
+        break;
+    }
+  }
+  plugin_unlock_list(NULL, locks, j);
+  return err;
+}
+
+
 static my_bool dropdb_handlerton(THD *, plugin_ref plugin, void *path)
 {
   handlerton *hton= plugin_hton(plugin);
@@ -893,11 +917,11 @@ struct st_commit_checkpoint_request {
   void (*pre_hook)(void *);
 };
 
-static my_bool commit_checkpoint_request_handlerton(THD *, plugin_ref plugin,
-                                                    void *data)
+static bool commit_checkpoint_request_handlerton(THD *,
+                                                 transaction_participant *hton,
+                                                 void *data)
 {
   st_commit_checkpoint_request *st= (st_commit_checkpoint_request *)data;
-  handlerton *hton= plugin_hton(plugin);
   if (hton->commit_checkpoint_request)
   {
     void *cookie= st->cookie;
@@ -920,8 +944,7 @@ ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *))
   st_commit_checkpoint_request st;
   st.cookie= cookie;
   st.pre_hook= pre_hook;
-  plugin_foreach(NULL, commit_checkpoint_request_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &st);
+  tp_foreach(NULL, commit_checkpoint_request_handlerton, &st);
 }
 
 
@@ -941,7 +964,7 @@ void ha_close_connection(THD* thd)
       thd->ha_data[i].lock= NULL;
       handlerton *hton= plugin_hton(plugin);
       if (hton->close_connection)
-        hton->close_connection(hton, thd);
+        hton->close_connection(thd);
       thd_set_ha_data(thd, hton, 0);
       plugin_unlock(NULL, plugin);
     }
@@ -1413,7 +1436,7 @@ void ha_pre_shutdown()
     times per transaction.
 
 */
-void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
+void trans_register_ha(THD *thd, bool all, transaction_participant *ht_arg, ulonglong trxid)
 {
   THD_TRANS *trans;
   Ha_trx_info *ha_info;
@@ -1455,7 +1478,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
   Do not register transactions in which binary log is the only participating
   transactional storage engine.
 */
-  if (thd->m_transaction_psi == NULL && ht_arg->db_type != DB_TYPE_BINLOG)
+  if (thd->m_transaction_psi == NULL && ht_arg != &binlog_tp)
   {
     thd->m_transaction_psi= MYSQL_START_TRANSACTION(&thd->m_transaction_state,
           thd->get_xid(), trxid, thd->tx_isolation, thd->tx_read_only,
@@ -1467,7 +1490,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht_arg, ulonglong trxid)
 }
 
 
-static int prepare_or_error(handlerton *ht, THD *thd, bool all)
+static int prepare_or_error(transaction_participant *ht, THD *thd, bool all)
 {
 #ifdef WITH_WSREP
   const bool run_wsrep_hooks= wsrep_run_commit_hook(thd, all);
@@ -1478,7 +1501,7 @@ static int prepare_or_error(handlerton *ht, THD *thd, bool all)
   }
 #endif /* WITH_WSREP */
 
-  int err= ht->prepare(ht, thd, all);
+  int err= ht->prepare(thd, all);
   status_var_increment(thd->status_var.ha_prepare_count);
   if (err)
   {
@@ -1513,7 +1536,7 @@ int ha_prepare(THD *thd)
   {
     for (; ha_info; ha_info= ha_info->next())
     {
-      handlerton *ht= ha_info->ht();
+      transaction_participant *ht= ha_info->ht();
       if (ht->prepare)
       {
         if (unlikely(prepare_or_error(ht, thd, all)))
@@ -1676,7 +1699,7 @@ static bool wsrep_have_no2pc_rw_ha(Ha_trx_info* ha_list)
 {
   for (Ha_trx_info *ha_info=ha_list; ha_info; ha_info= ha_info->next())
   {
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     // Transaction is read-write and handler does not support 2pc
     if (ha_info->is_trx_read_write() && ht->prepare==0)
       return true;
@@ -1937,7 +1960,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   for (Ha_trx_info *hi= ha_info; hi; hi= hi->next())
   {
-    handlerton *ht= hi->ht();
+    transaction_participant *ht= hi->ht();
     /*
       Do not call two-phase commit if this particular
       transaction is read-only. This allows for simpler
@@ -2147,7 +2170,7 @@ static bool has_binlog_hton(Ha_trx_info *ha_info)
 {
   bool rc;
   for (rc= false; ha_info && !rc; ha_info= ha_info->next())
-    rc= ha_info->ht() == binlog_hton;
+    rc= ha_info->ht() == &binlog_tp;
 
   return rc;
 }
@@ -2186,15 +2209,15 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
 
     for (; ha_info; ha_info= ha_info_next)
     {
-      handlerton *ht= ha_info->ht();
-      if ((err= ht->commit(ht, thd, all)))
+      transaction_participant *ht= ha_info->ht();
+      if ((err= ht->commit(thd, all)))
       {
         my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
         error=1;
       }
       /* Should this be done only if is_real_trans is set ? */
       status_var_increment(thd->status_var.ha_commit_count);
-      if (is_real_trans && ht != binlog_hton && ha_info->is_trx_read_write())
+      if (is_real_trans && ht != &binlog_tp && ha_info->is_trx_read_write())
         ++count;
       ha_info_next= ha_info->next();
       ha_info->reset(); /* keep it conveniently zero-filled */
@@ -2312,8 +2335,8 @@ int ha_rollback_trans(THD *thd, bool all)
     for (; ha_info; ha_info= ha_info_next)
     {
       int err;
-      handlerton *ht= ha_info->ht();
-      if ((err= ht->rollback(ht, thd, all)))
+      transaction_participant *ht= ha_info->ht();
+      if ((err= ht->rollback(thd, all)))
       {
         // cannot happen
         my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
@@ -2399,23 +2422,21 @@ struct xahton_st {
   int result;
 };
 
-static my_bool xacommit_handlerton(THD *, plugin_ref plugin, void *arg)
+static bool xacommit_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  handlerton *hton= plugin_hton(plugin);
   if (hton->recover)
   {
-    hton->commit_by_xid(hton, ((struct xahton_st *)arg)->xid);
+    hton->commit_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
   }
   return FALSE;
 }
 
-static my_bool xarollback_handlerton(THD *, plugin_ref plugin, void *arg)
+static bool xarollback_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  handlerton *hton= plugin_hton(plugin);
   if (hton->recover)
   {
-    hton->rollback_by_xid(hton, ((struct xahton_st *)arg)->xid);
+    hton->rollback_by_xid(((struct xahton_st *)arg)->xid);
     ((struct xahton_st *)arg)->result= 0;
   }
   return FALSE;
@@ -2433,12 +2454,11 @@ int ha_commit_or_rollback_by_xid(XID *xid, bool commit)
     by it first.
   */
   if (commit)
-    binlog_commit_by_xid(binlog_hton, xid);
+    binlog_commit_by_xid(xid);
   else
-    binlog_rollback_by_xid(binlog_hton, xid);
+    binlog_rollback_by_xid(xid);
 
-  plugin_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &xaop);
+  tp_foreach(NULL, commit ? xacommit_handlerton : xarollback_handlerton, &xaop);
 
   return xaop.result;
 }
@@ -2646,7 +2666,7 @@ static bool xarecover_decide_to_commit(xid_recovery_member* member,
   For a given hton decides what to do with a xid passed in the 2nd arg
   and carries out the decision.
 */
-static void xarecover_do_commit_or_rollback(handlerton *hton,
+static void xarecover_do_commit_or_rollback(transaction_participant *hton,
                                             xarecover_complete_arg *arg)
 {
   XA_data x;
@@ -2661,11 +2681,11 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
     x= *member->full_xid;
 
   if (xarecover_decide_to_commit(member, ptr_commit_max))
-    rc= hton->commit_by_xid(hton, &x);
+    rc= hton->commit_by_xid(&x);
   else if (hton->recover_rollback_by_xid)
     rc= hton->recover_rollback_by_xid(&x);
   else
-    rc= hton->rollback_by_xid(hton, &x);
+    rc= hton->rollback_by_xid(&x);
 
   /*
     It's fine to have non-zero rc which would be from transaction
@@ -2690,16 +2710,11 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
 /*
   Per hton recovery decider function.
 */
-static my_bool xarecover_do_commit_or_rollback_handlerton(THD *,
-                                                          plugin_ref plugin,
-                                                          void *arg)
+static bool xarecover_do_commit_or_rollback_handlerton(THD *,
+                                      transaction_participant *hton, void *arg)
 {
-  handlerton *hton= plugin_hton(plugin);
-
   if (hton->recover)
-  {
     xarecover_do_commit_or_rollback(hton, (xarecover_complete_arg *) arg);
-  }
 
   return FALSE;
 }
@@ -2710,16 +2725,14 @@ static my_bool xarecover_do_commit_or_rollback_handlerton(THD *,
 
   Returns always FALSE.
 */
-static my_bool xarecover_complete_and_count(void *member_arg,
-                                            void *param_arg)
+static my_bool xarecover_complete_and_count(void *member_arg, void *param_arg)
 {
   xid_recovery_member *member= (xid_recovery_member*) member_arg;
   xarecover_complete_arg *complete_params=
     (xarecover_complete_arg*) param_arg;
   complete_params->member= member;
 
-  (void) plugin_foreach(NULL, xarecover_do_commit_or_rollback_handlerton,
-                        MYSQL_STORAGE_ENGINE_PLUGIN, complete_params);
+  tp_foreach(NULL, xarecover_do_commit_or_rollback_handlerton, complete_params);
 
   if (member->in_engine_prepare)
   {
@@ -2760,15 +2773,14 @@ uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord)
   return complete.count;
 }
 
-static my_bool xarecover_handlerton(THD *, plugin_ref plugin, void *arg)
+static bool xarecover_handlerton(THD *, transaction_participant *hton, void *arg)
 {
-  handlerton *hton= plugin_hton(plugin);
   struct xarecover_st *info= (struct xarecover_st *) arg;
   int got;
 
   if (hton->recover)
   {
-    while ((got= hton->recover(hton, info->list, info->len)) > 0 )
+    while ((got= hton->recover(info->list, info->len)) > 0 )
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
                             got, hton_name(hton)->str);
@@ -2847,7 +2859,7 @@ static my_bool xarecover_handlerton(THD *, plugin_ref plugin, void *arg)
                       x <= wsrep_limit), false) ||
             tc_heuristic_recover == TC_HEURISTIC_RECOVER_COMMIT)
         {
-          int rc= hton->commit_by_xid(hton, info->list+i);
+          int rc= hton->commit_by_xid(info->list+i);
           if (rc == 0)
           {
             DBUG_EXECUTE("info",{
@@ -2858,7 +2870,7 @@ static my_bool xarecover_handlerton(THD *, plugin_ref plugin, void *arg)
         }
         else if (!info->mem_root)
         {
-          int rc= hton->rollback_by_xid(hton, info->list+i);
+          int rc= hton->rollback_by_xid(info->list+i);
           if (rc == 0)
           {
             DBUG_EXECUTE("info",{
@@ -2911,8 +2923,7 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
     DBUG_RETURN(1);
   }
 
-  plugin_foreach(NULL, xarecover_handlerton, 
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &info);
+  tp_foreach(NULL, xarecover_handlerton, &info);
 
   my_free(info.list);
   if (info.found_foreign_xids)
@@ -2972,11 +2983,11 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd)
   */
   for (ha_info= trans->ha_list; ha_info; ha_info= ha_info->next())
   {
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     DBUG_ASSERT(ht);
 
     if (ht->savepoint_rollback_can_release_mdl == 0 ||
-        ht->savepoint_rollback_can_release_mdl(ht, thd) == false)
+        ht->savepoint_rollback_can_release_mdl(thd) == false)
       DBUG_RETURN(false);
   }
 
@@ -3000,11 +3011,10 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
   for (ha_info= sv->ha_list; ha_info; ha_info= ha_info->next())
   {
     int err;
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     DBUG_ASSERT(ht);
     DBUG_ASSERT(ht->savepoint_set != 0);
-    if ((err= ht->savepoint_rollback(ht, thd,
-                                     (uchar *)(sv+1)+ht->savepoint_offset)))
+    if ((err= ht->savepoint_rollback(thd, (uchar *)(sv+1)+ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
@@ -3020,7 +3030,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
        ha_info= ha_info_next)
   {
     int err;
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
 #ifdef WITH_WSREP
     if (WSREP(thd) && ht->flags & HTON_WSREP_REPLICATION)
     {
@@ -3029,7 +3039,7 @@ int ha_rollback_to_savepoint(THD *thd, SAVEPOINT *sv)
 
     }
 #endif // WITH_WSREP
-    if ((err= ht->rollback(ht, thd, !thd->in_sub_stmt)))
+    if ((err= ht->rollback(thd, !thd->in_sub_stmt)))
     { // cannot happen
       my_error(ER_ERROR_DURING_ROLLBACK, MYF(0), err);
       error=1;
@@ -3080,7 +3090,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
   for (; ha_info; ha_info= ha_info->next())
   {
     int err;
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     DBUG_ASSERT(ht);
     if (! ht->savepoint_set)
     {
@@ -3088,7 +3098,7 @@ int ha_savepoint(THD *thd, SAVEPOINT *sv)
       error=1;
       break;
     }
-    if ((err= ht->savepoint_set(ht, thd, (uchar *)(sv+1)+ht->savepoint_offset)))
+    if ((err= ht->savepoint_set(thd, (uchar *)(sv+1)+ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
@@ -3116,13 +3126,12 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
   for (; ha_info; ha_info= ha_info->next())
   {
     int err;
-    handlerton *ht= ha_info->ht();
+    transaction_participant *ht= ha_info->ht();
     /* Savepoint life time is enclosed into transaction life time. */
     DBUG_ASSERT(ht);
     if (!ht->savepoint_release)
       continue;
-    if ((err= ht->savepoint_release(ht, thd,
-                                    (uchar *)(sv+1) + ht->savepoint_offset)))
+    if ((err= ht->savepoint_release(thd, (uchar *)(sv+1) + ht->savepoint_offset)))
     { // cannot happen
       my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
       error=1;
@@ -3135,12 +3144,11 @@ int ha_release_savepoint(THD *thd, SAVEPOINT *sv)
   DBUG_RETURN(error);
 }
 
-static my_bool snapshot_handlerton(THD *thd, plugin_ref plugin, void *arg)
+static bool snapshot_handlerton(THD *thd, transaction_participant *hton, void *arg)
 {
-  handlerton *hton= plugin_hton(plugin);
   if (hton->start_consistent_snapshot)
   {
-    if (hton->start_consistent_snapshot(hton, thd))
+    if (hton->start_consistent_snapshot(thd))
       return TRUE;
     *((bool *)arg)= false;
   }
@@ -3159,7 +3167,7 @@ int ha_start_consistent_snapshot(THD *thd)
     have a consistent binlog position.
   */
   mysql_mutex_lock(&LOCK_commit_ordered);
-  err= plugin_foreach(thd, snapshot_handlerton, MYSQL_STORAGE_ENGINE_PLUGIN, &warn);
+  err= tp_foreach(thd, snapshot_handlerton, &warn);
   mysql_mutex_unlock(&LOCK_commit_ordered);
 
   if (err)
