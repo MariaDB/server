@@ -5579,6 +5579,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   DBUG_ENTER("make_join_statistics");
 
   table_count=join->table_count;
+  const uint sj_nests= join->select_lex->sj_nests.elements; // Changed by pull-out
 
   /*
     best_extension_by_limited_search need sort space for 2POSITIION
@@ -6293,6 +6294,9 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   join->table= table_vector;
   join->const_tables=const_count;
   join->found_const_table_map=found_const_table_map;
+
+  if (sj_nests)
+    join->select_lex->update_available_semijoin_strategies(thd);
 
   if (join->const_tables != join->table_count)
     optimize_keyuse(join, keyuse_array);
