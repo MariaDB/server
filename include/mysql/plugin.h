@@ -645,7 +645,7 @@ struct st_mysql_storage_engine
   int interface_version;
 };
 
-struct handlerton;
+struct transaction_participant;
 
 
 /*
@@ -748,7 +748,7 @@ void mysql_query_cache_invalidate4(MYSQL_THD thd,
 /**
   Provide a handler data getter to simplify coding
 */
-void *thd_get_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
+void *thd_get_ha_data(const MYSQL_THD thd, const struct transaction_participant *hton);
 
 
 /**
@@ -769,10 +769,10 @@ void *thd_get_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
   thd_set_ha_data() in this connection before, storage engine
   plugin lock gets released.
 
-  If handlerton::close_connection() didn't reset ha_data, server does
-  it immediately after calling handlerton::close_connection().
+  If transaction_participant::close_connection() didn't reset ha_data, server
+  does it immediately after calling transaction_participant::close_connection()
 */
-void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
+void thd_set_ha_data(MYSQL_THD thd, const struct transaction_participant *hton,
                      const void *ha_data);
 
 

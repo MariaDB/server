@@ -289,12 +289,12 @@ private:
   int stash_remote_error();
 
   static federatedx_txn *get_txn(THD *thd, bool no_create= FALSE);
-  static int disconnect(handlerton *hton, MYSQL_THD thd);
-  static int savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv);
-  static int commit(handlerton *hton, MYSQL_THD thd, bool all);
-  static int rollback(handlerton *hton, MYSQL_THD thd, bool all);
+  static int disconnect(MYSQL_THD thd);
+  static int savepoint_set(MYSQL_THD thd, void *sv);
+  static int savepoint_rollback(MYSQL_THD thd, void *sv);
+  static int savepoint_release(MYSQL_THD thd, void *sv);
+  static int commit(MYSQL_THD thd, bool all);
+  static int rollback(MYSQL_THD thd, bool all);
   static int discover_assisted(handlerton *, THD*, TABLE_SHARE *,
                                HA_CREATE_INFO *);
 
