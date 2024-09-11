@@ -108,9 +108,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 46064.98442,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 97.28224614,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 972.8224614,
         "use_shortcut_cost": true
     }
@@ -160,9 +160,9 @@ JS
         "test_if_skip_sort_order_early": 
         [],
         "can_skip_filesort": false,
-        "full_join_cost": 46064.98442,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 2097.281246,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 20972.81246,
         "use_shortcut_cost": true
     }
@@ -244,9 +244,9 @@ JS
             }
         ],
         "can_skip_filesort": false,
-        "full_join_cost": 46064.98442,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 24059.12698,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 240591.2698,
         "use_shortcut_cost": false
     }
@@ -363,9 +363,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 47079.71684,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 98.29697856,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 982.9697856,
         "use_shortcut_cost": true
     }
@@ -448,9 +448,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 46064.98442,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 97.28224614,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 972.8224614,
         "use_shortcut_cost": true
     }
