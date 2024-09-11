@@ -1340,7 +1340,7 @@ static void mrn_drop_database(handlerton *hton, char *path)
   DBUG_VOID_RETURN;
 }
 
-static int mrn_close_connection(handlerton *hton, THD *thd)
+static int mrn_close_connection(THD *thd)
 {
   MRN_DBUG_ENTER_FUNCTION();
   void *p = thd_get_ha_data(thd, mrn_hton_ptr);

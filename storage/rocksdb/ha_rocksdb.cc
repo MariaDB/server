@@ -3798,7 +3798,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
   return tx;
 }
 
-static int rocksdb_close_connection(handlerton *const hton, THD *const thd) {
+static int rocksdb_close_connection(THD *const thd) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   if (tx != nullptr) {
     bool is_critical_error;
@@ -3876,7 +3876,7 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
   For a slave, prepare() updates the slave_gtid_info table which tracks the
   replication progress.
 */
-static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
+static int rocksdb_prepare(THD* thd, bool prepare_tx)
 {
   bool async=false; // This is "ASYNC_COMMIT" feature which is only present in webscalesql
 
@@ -3960,10 +3960,9 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
  do nothing for prepare/commit by xid
  this is needed to avoid crashes in XA scenarios
 */
-static int rocksdb_commit_by_xid(handlerton *const hton, XID *const xid) {
+static int rocksdb_commit_by_xid(XID *const xid) {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
@@ -3993,11 +3992,9 @@ static int rocksdb_commit_by_xid(handlerton *const hton, XID *const xid) {
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
 
-static int rocksdb_rollback_by_xid(
-    handlerton *const hton MY_ATTRIBUTE((__unused__)), XID *const xid) {
+static int rocksdb_rollback_by_xid(XID *const xid) {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(rdb != nullptr);
 
@@ -4049,7 +4046,7 @@ static void rdb_xid_from_string(const std::string &src, XID *const dst) {
   Reading last committed binary log info from RocksDB system row.
   The info is needed for crash safe slave/master to work.
 */
-static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
+static int rocksdb_recover(XID* xid_list, uint len)
 #ifdef MARIAROCKS_NOT_YET
                            char* const binlog_file,
                            my_off_t *const binlog_pos,
@@ -4128,7 +4125,7 @@ static void rocksdb_checkpoint_request(void *cookie)
   @param all:   TRUE - commit the transaction
                 FALSE - SQL statement ended
 */
-static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
+static void rocksdb_commit_ordered(THD* thd, bool all)
 {
   // Same assert as InnoDB has
   DBUG_ASSERT(all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
@@ -4154,11 +4151,10 @@ static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
 }
 
 
-static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
+static int rocksdb_commit(THD* thd, bool commit_tx)
 {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(thd != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
@@ -4236,8 +4232,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 }
 
 
-static int rocksdb_rollback(handlerton *const hton, THD *const thd,
-                            bool rollback_tx) {
+static int rocksdb_rollback(THD *const thd, bool rollback_tx) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   Rdb_perf_context_guard guard(tx, rocksdb_perf_context_level(thd));
 
@@ -4875,7 +4870,6 @@ static bool rocksdb_explicit_snapshot(
     InnoDB and RocksDB transactions.
 */
 static int rocksdb_start_tx_and_assign_read_view(
-    handlerton *const hton,    /*!< in: RocksDB handlerton */
     THD *const thd             /*!< in: MySQL thread handle of the
                                user for whom the transaction should
                                be committed */
@@ -4918,7 +4912,7 @@ static int rocksdb_start_tx_and_assign_read_view(
 
   DBUG_ASSERT(!tx->has_snapshot());
   tx->set_tx_read_only(true);
-  rocksdb_register_tx(hton, thd, tx);
+  rocksdb_register_tx(rocksdb_hton, thd, tx);
   tx->acquire_snapshot(true);
 
 #ifdef MARIADB_NOT_YET
@@ -5026,19 +5020,16 @@ static int rocksdb_start_tx_with_shared_read_view(
  * Current SAVEPOINT does not correctly handle ROLLBACK and does not return
  * errors. This needs to be addressed in future versions (Issue#96).
  */
-static int rocksdb_savepoint(handlerton *const hton, THD *const thd,
-                             void *const savepoint) {
+static int rocksdb_savepoint(THD *const thd, void *const savepoint) {
   return HA_EXIT_SUCCESS;
 }
 
-static int rocksdb_rollback_to_savepoint(handlerton *const hton, THD *const thd,
-                                         void *const savepoint) {
+static int rocksdb_rollback_to_savepoint(THD *const thd, void *const savepoint) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   return tx->rollback_to_savepoint(savepoint);
 }
 
-static bool rocksdb_rollback_to_savepoint_can_release_mdl(
-    handlerton *const /* hton */, THD *const /* thd */) {
+static bool rocksdb_rollback_to_savepoint_can_release_mdl(THD *const) {
   return true;
 }
 

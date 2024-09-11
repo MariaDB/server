@@ -3587,8 +3587,7 @@ static int maria_hton_panic(handlerton *hton, ha_panic_function flag)
 }
 
 
-static int maria_commit(handlerton *hton __attribute__ ((unused)),
-                        THD *thd, bool all)
+static int maria_commit(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   int res= 0;
@@ -3618,7 +3617,7 @@ static int maria_commit(handlerton *hton __attribute__ ((unused)),
 }
 
 #ifdef MARIA_CANNOT_ROLLBACK
-static int maria_rollback(handlerton *hton, THD *thd, bool all)
+static int maria_rollback(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");
@@ -3630,15 +3629,14 @@ static int maria_rollback(handlerton *hton, THD *thd, bool all)
                         ER_THD(thd, ER_DATA_WAS_COMMITED_UNDER_ROLLBACK),
                         "Aria");
   if (all)
-    DBUG_RETURN(maria_commit(hton, thd, all));
+    DBUG_RETURN(maria_commit(thd, all));
   /* Statement rollbacks are ignored. Commit will happen in external_lock */
   DBUG_RETURN(0);
 }
 
 #else
 
-static int maria_rollback(handlerton *hton __attribute__ ((unused)),
-                          THD *thd, bool all)
+static int maria_rollback(THD *thd, bool all)
 {
   TRN *trn= THD_TRN;
   DBUG_ENTER("maria_rollback");

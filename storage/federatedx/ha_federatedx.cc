@@ -1772,9 +1772,9 @@ federatedx_txn *ha_federatedx::get_txn(THD *thd, bool no_create)
 }
 
 
-int ha_federatedx::disconnect(handlerton *hton, MYSQL_THD thd)
+int ha_federatedx::disconnect(MYSQL_THD thd)
 {
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   delete txn;
   return 0;
 }
@@ -3541,16 +3541,16 @@ int ha_federatedx::external_lock(MYSQL_THD thd, int lock_type)
 }
 
 
-int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_set(MYSQL_THD thd, void *sv)
 {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_set");
 
   if (txn && txn->has_connections())
   {
     if (txn->txn_begin())
-      trans_register_ha(thd, TRUE, hton, 0);
+      trans_register_ha(thd, TRUE, federatedx_hton, 0);
     
     txn->sp_acquire((ulong *) sv);
 
@@ -3561,10 +3561,10 @@ int ha_federatedx::savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_rollback(MYSQL_THD thd, void *sv)
  {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_rollback");
   
   if (txn)
@@ -3574,10 +3574,10 @@ int ha_federatedx::savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv)
+int ha_federatedx::savepoint_release(MYSQL_THD thd, void *sv)
 {
   int error= 0;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::savepoint_release");
   
   if (txn)
@@ -3587,10 +3587,10 @@ int ha_federatedx::savepoint_release(handlerton *hton, MYSQL_THD thd, void *sv)
 }
 
 
-int ha_federatedx::commit(handlerton *hton, MYSQL_THD thd, bool all)
+int ha_federatedx::commit(MYSQL_THD thd, bool all)
 {
   int return_val;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::commit");
 
   if (all)
@@ -3603,10 +3603,10 @@ int ha_federatedx::commit(handlerton *hton, MYSQL_THD thd, bool all)
 }
 
 
-int ha_federatedx::rollback(handlerton *hton, MYSQL_THD thd, bool all)
+int ha_federatedx::rollback(MYSQL_THD thd, bool all)
 {
   int return_val;
-  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, hton);
+  federatedx_txn *txn= (federatedx_txn *) thd_get_ha_data(thd, federatedx_hton);
   DBUG_ENTER("ha_federatedx::rollback");
 
   if (all)
