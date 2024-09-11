@@ -3422,6 +3422,10 @@ typedef struct st_nested_join
   table_map         sj_corr_tables;
   table_map         direct_children_map;
   List<Item_ptr>    sj_outer_expr_list;
+
+  /// Bitmap of which strategies are enabled for this semi-join nest
+  uint sj_enabled_strategies;
+
   /**
      True if this join nest node is completely covered by the query execution
      plan. This means two things.

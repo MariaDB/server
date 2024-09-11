@@ -805,6 +805,12 @@ public:
 
   virtual void mark_used() = 0;
 
+  /*
+     Returns TRUE if the strategy is disabled by either optimizer switch
+     setting or an optimizer hint
+  */
+  virtual bool is_disabled() const { return false; }
+
   virtual ~Semi_join_strategy_picker() = default;
 };
 
@@ -825,12 +831,15 @@ class Duplicate_weedout_picker : public Semi_join_strategy_picker
   table_map dupsweedout_tables;
   
   bool is_used;
+
+  bool disabled; // See comment for Semi_join_strategy_picker::is_disabled()
 public:
   void set_empty() override
   {
     dupsweedout_tables= 0;
     first_dupsweedout_table= MAX_TABLES;
     is_used= FALSE;
+    disabled= FALSE;
   }
   void set_from_prev(POSITION *prev) override;
   
@@ -845,6 +854,9 @@ public:
                  POSITION *loose_scan_pos) override;
 
   void mark_used() override { is_used= TRUE; }
+
+  bool is_disabled() const override { return disabled; }
+
   friend void fix_semijoin_strategies_for_picked_join_order(JOIN *join);
 };
 
