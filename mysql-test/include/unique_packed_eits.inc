@@ -3,7 +3,6 @@
 --echo #  we can compare that value by calculating distinct values for the same columns
 --echo #
 
-
 --echo #
 --echo # Running ANALYZE for customer table
 --echo #

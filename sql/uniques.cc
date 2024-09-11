@@ -57,7 +57,8 @@ int Unique::unique_write_to_file_with_count(void *key_, element_count count,
          my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
 }
 
-int Unique::unique_write_to_ptrs(void* key_, element_count count, void *unique_)
+int Unique::unique_write_to_ptrs(void *key_, element_count count,
+                                 void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
@@ -66,14 +67,15 @@ int Unique::unique_write_to_ptrs(void* key_, element_count count, void *unique_)
   return 0;
 }
 
-int Unique::unique_intersect_write_to_ptrs(void* key_, element_count count, void *unique_)
+int Unique::unique_intersect_write_to_ptrs(void *key_, element_count count,
+                                           void *unique_)
 {
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
   if (count >= unique->min_dupl_count)
   {
     memcpy(unique->sort.record_pointers, key, unique->size);
-    unique->sort.record_pointers+=unique->size;
+    unique->sort.record_pointers+= unique->size;
   }
   else
     unique->filtered_out_elems++;
@@ -84,11 +86,11 @@ int Unique::unique_intersect_write_to_ptrs(void* key_, element_count count, void
 Unique::Unique(Keys_descriptor *desc,
                size_t max_in_memory_size_arg,
                uint min_dupl_count_arg)
-  :max_in_memory_size(max_in_memory_size_arg),
-   size(desc->get_max_key_length()),
+  :size(desc->get_max_key_length()),
+   max_in_memory_size(max_in_memory_size_arg),
+   max_elements(max_in_memory_size / ALIGN_SIZE(sizeof(TREE_ELEMENT)+size)),
    full_size(min_dupl_count_arg ? size + sizeof(element_count) : size),
    min_dupl_count(min_dupl_count_arg),
-   with_counters(MY_TEST(min_dupl_count_arg)),
    memory_used(0),
    elements(0),
    keys_descriptor(desc)
@@ -96,14 +98,9 @@ Unique::Unique(Keys_descriptor *desc,
   my_b_clear(&file);
   init_tree(&tree, MY_MIN(max_in_memory_size / 16, UINT32_MAX), 0, 0, unique_compare_keys,
             NULL, desc, MYF(MY_THREAD_SPECIFIC));
-  /* If the following fail's the next add will also fail */
+  /* If the following fails the next add will also fail */
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &file_ptrs, sizeof(Merge_chunk), 16,
                         16, MYF(MY_THREAD_SPECIFIC));
-  /*
-    If you change the following, change it in get_max_elements function, too.
-  */
-  max_elements= (ulong) (max_in_memory_size /
-                         ALIGN_SIZE(sizeof(TREE_ELEMENT)+size));
   if (!max_elements)
   {
     max_elements= 1;
@@ -390,7 +387,7 @@ Unique::~Unique()
 }
 
 
-    /* Write tree to disk; clear tree */
+/* Write tree to disk; clear tree */
 bool Unique::flush()
 {
   Merge_chunk file_ptr;
@@ -401,8 +398,7 @@ bool Unique::flush()
   tree_walk_action action= min_dupl_count ?
 		            unique_write_to_file_with_count :
 		            unique_write_to_file;
-  if (tree_walk(&tree, action,
-		(void*) this, left_root_right) ||
+  if (tree_walk(&tree, action, (void*) this, left_root_right) ||
       insert_dynamic(&file_ptrs, (uchar*) &file_ptr))
     return 1;
   /**
@@ -709,7 +705,7 @@ bool Unique::walk(TABLE *table, tree_walk_action action, void *walk_action_arg)
                     (Merge_chunk *) file_ptrs.buffer,
                     (Merge_chunk *) file_ptrs.buffer + file_ptrs.elements,
                     action, walk_action_arg,
-                    tree.compare, tree.custom_arg, &file, with_counters,
+                    tree.compare, tree.custom_arg, &file, is_count_stored(),
                     min_dupl_count, is_variable_sized());
   }
   my_free(merge_buffer);

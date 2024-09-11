@@ -1110,7 +1110,7 @@ Field::make_packed_sort_key_part(uchar *buff,
 
 /*
   @brief
-    Create a packed key part
+    Create a packed key part that must be compared with sortcomp for equality
 
   @param  buff           buffer where values are written
   @param  sort_field     sort column structure
@@ -1121,6 +1121,9 @@ Field::make_packed_sort_key_part(uchar *buff,
 
   @retval
     length of the bytes written, does not include the NULL bytes
+
+  @note
+    This is only used with group_concat for equality comparison.
 */
 uint
 Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
