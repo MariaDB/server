@@ -155,7 +155,7 @@ int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
     share->init_from_sql_statement_string(thd, true, sql.ptr(), sql.length());
 }
 
-int oqgraph_close_connection(handlerton *hton, THD *thd);
+int oqgraph_close_connection(THD *thd);
 
 static int oqgraph_init(void *p)
 {
@@ -380,7 +380,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 ** OQGRAPH tables
 *****************************************************************************/
 
-int oqgraph_close_connection(handlerton *hton, THD *thd)
+int oqgraph_close_connection(THD *thd)
 {
   DBUG_PRINT( "oq-debug", ("thd: 0x%lx; oqgraph_close_connection.", (long) thd));
   // close_thread_tables(thd); // maybe this?

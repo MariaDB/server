@@ -119,6 +119,7 @@ enum enum_sql_command {
 };
 
 struct TABLE_LIST;
+struct handlerton;
 
 class Storage_engine_name
 {
@@ -133,8 +134,7 @@ public:
   Storage_engine_name(const LEX_CSTRING &name)
    :m_storage_engine_name(name)
   { }
-  bool resolve_storage_engine_with_error(THD *thd,
-                                         handlerton **ha,
+  bool resolve_storage_engine_with_error(THD *thd, handlerton **ha,
                                          bool tmp_table);
   bool is_set() { return m_storage_engine_name.str != NULL; }
 };
