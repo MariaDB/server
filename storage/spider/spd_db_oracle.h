@@ -125,7 +125,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
     ha_spider *spider,
@@ -135,7 +134,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
   size_t escape_string(
     char *to,
     const char *from,
@@ -523,9 +521,7 @@ public:
   spider_string      *db_names_str;
   spider_string      *db_table_str;
   spider_string      *nextval_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *db_table_str_hash_value;
-#endif
   uint               table_nm_max_length;
   uint               db_nm_max_length;
   uint               nextval_max_length;
@@ -745,7 +741,6 @@ public:
   int append_update_set(
     spider_string *str
   );
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_part();
   int append_direct_update_set(
     spider_string *str
@@ -764,7 +759,6 @@ public:
     const char *alias,
     uint alias_length
   );
-  #endif
   int append_select_part(
     ulong sql_type
   );
@@ -961,7 +955,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_sum_select_part(
     ulong sql_type,
     const char *alias,
@@ -972,14 +965,12 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   void set_order_pos(
     ulong sql_type
   );
   void set_order_to_pos(
     ulong sql_type
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_part(
     const char *alias,
     uint alias_length,
@@ -990,7 +981,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,

@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -379,12 +378,7 @@ void spider_free_trx_alter_table_alloc(
   SPIDER_ALTER_TABLE *alter_table
 ) {
   DBUG_ENTER("spider_free_trx_alter_table_alloc");
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  my_hash_delete_with_hash_value(&trx->trx_alter_table_hash,
-    alter_table->table_name_hash_value, (uchar*) alter_table);
-#else
   my_hash_delete(&trx->trx_alter_table_hash, (uchar*) alter_table);
-#endif
   if (alter_table->tmp_char)
     spider_free(trx, alter_table->tmp_char, MYF(0));
   spider_free(trx, alter_table, MYF(0));
@@ -601,11 +595,9 @@ int spider_create_trx_alter_table(
   alter_table->table_name = tmp_name;
   memcpy(alter_table->table_name, share->table_name, share->table_name_length);
   alter_table->table_name_length = share->table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   DBUG_PRINT("info",("spider table_name_hash_value=%u",
     share->table_name_hash_value));
   alter_table->table_name_hash_value = share->table_name_hash_value;
-#endif
   alter_table->tmp_priority = share->priority;
   alter_table->link_count = share->link_count;
   alter_table->all_link_count = share->all_link_count;
@@ -834,12 +826,7 @@ int spider_create_trx_alter_table(
     share_alter->tmp_link_statuses_length;
 
   old_elements = trx->trx_alter_table_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-  if (my_hash_insert_with_hash_value(&trx->trx_alter_table_hash,
-    alter_table->table_name_hash_value, (uchar*) alter_table))
-#else
   if (my_hash_insert(&trx->trx_alter_table_hash, (uchar*) alter_table))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
@@ -1241,13 +1228,11 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_ha_hash.array.size_of_element);
 
     trx->thd = (THD*) thd;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
     if (thd)
       trx->thd_hash_value = my_calc_hash(&spider_allocated_thds,
         (uchar*) thd, sizeof(THD *));
     else
       trx->thd_hash_value = 0;
-#endif
     pthread_mutex_lock(&spider_thread_id_mutex);
     trx->spider_thread_id = spider_thread_id;
     ++spider_thread_id;
@@ -1334,12 +1319,7 @@ SPIDER_TRX *spider_get_trx(
       {
         pthread_mutex_lock(&spider_allocated_thds_mutex);
         uint old_elements = spider_allocated_thds.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-        if (my_hash_insert_with_hash_value(&spider_allocated_thds,
-          trx->thd_hash_value, (uchar*) thd))
-#else
         if (my_hash_insert(&spider_allocated_thds, (uchar*) thd))
-#endif
         {
           pthread_mutex_unlock(&spider_allocated_thds_mutex);
           goto error_allocated_thds_insert;
@@ -1445,12 +1425,7 @@ int spider_free_trx(
     {
       if (need_lock)
         pthread_mutex_lock(&spider_allocated_thds_mutex);
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      my_hash_delete_with_hash_value(&spider_allocated_thds,
-        trx->thd_hash_value, (uchar*) trx->thd);
-#else
       my_hash_delete(&spider_allocated_thds, (uchar*) trx->thd);
-#endif
       if (need_lock)
         pthread_mutex_unlock(&spider_allocated_thds_mutex);
     }
@@ -1578,12 +1553,10 @@ static int spider_xa_lock(
   DBUG_ENTER("spider_xa_lock");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
     (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
 #ifdef XID_CACHE_IS_SPLITTED
   uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
 #endif
 #endif
   old_proc_info = thd_proc_info(thd, "Locking xid by Spider");
@@ -1600,7 +1573,6 @@ static int spider_xa_lock(
 #else
   pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #endif
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
 #ifdef XID_CACHE_IS_SPLITTED
   if (my_hash_search_using_hash_value(&spd_db_att_xid_cache[idx], hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
@@ -1608,25 +1580,11 @@ static int spider_xa_lock(
   if (my_hash_search_using_hash_value(spd_db_att_xid_cache, hash_value,
     xid_state->xid.key(), xid_state->xid.key_length()))
 #endif
-#else
-  if (my_hash_search(spd_db_att_xid_cache,
-    xid_state->xid.key(), xid_state->xid.key_length()))
-#endif
   {
     error_num = ER_SPIDER_XA_LOCKED_NUM;
     goto error;
   }
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-#ifdef XID_CACHE_IS_SPLITTED
-  if (my_hash_insert_with_hash_value(&spd_db_att_xid_cache[idx], hash_value,
-    (uchar*)xid_state))
-#else
-  if (my_hash_insert_with_hash_value(spd_db_att_xid_cache, hash_value,
-    (uchar*)xid_state))
-#endif
-#else
   if (my_hash_insert(spd_db_att_xid_cache, (uchar*)xid_state))
-#endif
   {
     error_num = HA_ERR_OUT_OF_MEM;
     goto error;
@@ -1661,13 +1619,6 @@ static int spider_xa_unlock(
   DBUG_ENTER("spider_xa_unlock");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
 #else
-#if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-  my_hash_value_type hash_value = my_calc_hash(spd_db_att_xid_cache,
-    (uchar*) xid_state->xid.key(), xid_state->xid.key_length());
-#ifdef XID_CACHE_IS_SPLITTED
-  uint idx = hash_value % *spd_db_att_xid_cache_split_num;
-#endif
-#endif
 #endif
   old_proc_info = thd_proc_info(thd, "Unlocking xid by Spider");
 #ifdef SPIDER_XID_USES_xid_cache_iterate
@@ -1678,17 +1629,7 @@ static int spider_xa_unlock(
 #else
   pthread_mutex_lock(spd_db_att_LOCK_xid_cache);
 #endif
-#if defined(SPIDER_HAS_HASH_VALUE_TYPE) && defined(HASH_UPDATE_WITH_HASH_VALUE)
-#ifdef XID_CACHE_IS_SPLITTED
-  my_hash_delete_with_hash_value(&spd_db_att_xid_cache[idx],
-    hash_value, (uchar *)xid_state);
-#else
-  my_hash_delete_with_hash_value(spd_db_att_xid_cache,
-    hash_value, (uchar *)xid_state);
-#endif
-#else
   my_hash_delete(spd_db_att_xid_cache, (uchar *)xid_state);
-#endif
 #ifdef XID_CACHE_IS_SPLITTED
   pthread_mutex_unlock(&spd_db_att_LOCK_xid_cache[idx]);
 #else
@@ -3849,12 +3790,7 @@ int spider_create_trx_ha(
   ) {
     DBUG_PRINT("info",("spider need recreate"));
     need_create = TRUE;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    my_hash_delete_with_hash_value(&trx->trx_ha_hash,
-      share->table_name_hash_value, (uchar*) trx_ha);
-#else
     my_hash_delete(&trx->trx_ha_hash, (uchar*) trx_ha);
-#endif
     spider_free(trx, trx_ha, MYF(0));
   } else {
     DBUG_PRINT("info",("spider use this"));
@@ -3884,12 +3820,7 @@ int spider_create_trx_ha(
     trx_ha->conn_can_fo = conn_can_fo;
     trx_ha->wait_for_reusing = FALSE;
     uint old_elements = trx->trx_ha_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-    if (my_hash_insert_with_hash_value(&trx->trx_ha_hash,
-      share->table_name_hash_value, (uchar*) trx_ha))
-#else
     if (my_hash_insert(&trx->trx_ha_hash, (uchar*) trx_ha))
-#endif
     {
       spider_free(trx, trx_ha, MYF(0));
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -3921,14 +3852,9 @@ SPIDER_TRX_HA *spider_check_trx_ha(
     link_bitmap_size, which is an indication of a share that has been
     freed. Delete the trx_ha and return NULL on mismatch.
   */
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search_using_hash_value(
     &trx->trx_ha_hash, share->table_name_hash_value,
     (uchar*) share->table_name, share->table_name_length)))
-#else
-  if ((trx_ha = (SPIDER_TRX_HA *) my_hash_search(&trx->trx_ha_hash,
-    (uchar*) share->table_name, share->table_name_length)))
-#endif
   {
     if (trx_ha->share == share && trx_ha->link_count == share->link_count &&
         trx_ha->link_bitmap_size == share->link_bitmap_size)

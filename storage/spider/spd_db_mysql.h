@@ -145,7 +145,6 @@ protected:
     spider_fields *fields
   );
 public:
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int open_item_sum_func(
     Item_sum *item_sum,
     ha_spider *spider,
@@ -155,7 +154,6 @@ public:
     bool use_fields,
     spider_fields *fields
   ) override;
-#endif
   int append_escaped_util(
     spider_string *to,
     String *from
@@ -324,11 +322,9 @@ public:
     int mode,
     ha_rows &records
   ) override;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int fetch_table_checksum(
     ha_spider *spider
   ) override;
-#endif
   int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -628,9 +624,7 @@ public:
   spider_string      *db_names_str;
   /* fixme: this field looks useless */
   spider_string      *db_table_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *db_table_str_hash_value;
-#endif
   uint               table_nm_max_length;
   uint               db_nm_max_length;
   spider_string      *column_name_str;
@@ -677,9 +671,7 @@ public:
     spider_string *str
   ) override;
 #endif
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   bool checksum_support() override;
-#endif
 protected:
   int create_table_names_str();
   void free_table_names_str();
@@ -866,7 +858,6 @@ public:
   int append_update_set(
     spider_string *str
   );
-  #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   int append_direct_update_set_part() override;
   int append_direct_update_set(
     spider_string *str
@@ -885,7 +876,6 @@ public:
     const char *alias,
     uint alias_length
   );
-  #endif
   int append_select_part(
     ulong sql_type
   ) override;
@@ -1082,7 +1072,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_sum_select_part(
     ulong sql_type,
     const char *alias,
@@ -1093,14 +1082,12 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   void set_order_pos(
     ulong sql_type
   ) override;
   void set_order_to_pos(
     ulong sql_type
   ) override;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   int append_group_by_part(
     const char *alias,
     uint alias_length,
@@ -1111,7 +1098,6 @@ public:
     const char *alias,
     uint alias_length
   );
-#endif
   int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -1412,11 +1398,9 @@ public:
   int show_records(
     int link_idx
   ) override;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   int checksum_table(
     int link_idx
   ) override;
-#endif
   int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id
@@ -1563,7 +1547,6 @@ public:
     spider_fields *fields
   );
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -1574,7 +1557,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   ) override;
-#endif
 };
 
 class spider_mysql_handler: public spider_mbase_handler

@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -1033,10 +1032,8 @@ static int spider_prepare_init_scan(
   for (link_idx = 0; link_idx < (int) share->link_count; ++link_idx)
     spider->sql_kind[link_idx] = SPIDER_SQL_KIND_SQL;
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   spider->do_direct_update = FALSE;
   spider->direct_update_kinds = 0;
-#endif
   spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
   direct_order_limit = spider_param_direct_order_limit(thd,
     share->direct_order_limit);
