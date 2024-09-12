@@ -449,30 +449,22 @@ read_ahead:
   return count;
 }
 
-/** High-level function which reads a page from a file to buf_pool
-if it is not already there. Sets the io_fix and an exclusive lock
-on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param[in]	page_id		page id
-@retval DB_SUCCESS if the page was read and is not corrupted
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t buf_read_page(const page_id_t page_id)
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
-  if (!space)
+  if (UNIV_UNLIKELY(!space))
   {
-    ib::info() << "trying to read page " << page_id
-               << " in nonexisting or being-dropped tablespace";
+    sql_print_information("InnoDB: trying to read page "
+                          "[page id: space=" UINT32PF
+                          ", page number=" UINT32PF "]"
+                          " in nonexisting or being-dropped tablespace",
+                          page_id.space(), page_id.page_no());
     return DB_TABLESPACE_DELETED;
   }
 
   buf_LRU_stat_inc_io(); /* NOT protected by buf_pool.mutex */
   return buf_read_page_low(space, true, BUF_READ_ANY_PAGE,
-                           page_id, space->zip_size(), false);
+                           page_id, space->zip_size(), true);
 }
 
 /** High-level function which reads a page asynchronously from a file to the
