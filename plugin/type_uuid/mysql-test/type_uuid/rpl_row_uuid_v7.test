@@ -10,12 +10,12 @@ connection master;
 # Start the actual test
 
 CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, vchar_column VARCHAR(100), PRIMARY KEY(a)) engine=myisam;
-INSERT INTO test.t1  VALUES(1,UUIDv7(),UUIDv7());
+INSERT INTO test.t1  VALUES(1,UUID_v7(),UUID_v7());
 delimiter |;
 create procedure test.p1()
 begin
-  INSERT INTO test.t1  VALUES(2,UUIDv7(),UUIDv7());
-  INSERT INTO test.t1  VALUES(3,UUIDv7(),UUIDv7());
+  INSERT INTO test.t1  VALUES(2,UUID_v7(),UUID_v7());
+  INSERT INTO test.t1  VALUES(3,UUID_v7(),UUID_v7());
 end|
 delimiter ;|
 
@@ -25,8 +25,8 @@ delimiter |;
 create function test.fn1(x int)
        returns int
 begin
-       insert into t1 values (4+x,UUIDv7(),UUIDv7());
-       insert into t1 values (5+x,UUIDv7(),UUIDv7());
+       insert into t1 values (4+x,UUID_v7(),UUID_v7());
+       insert into t1 values (5+x,UUID_v7(),UUID_v7());
        return 0;
 end|
 
@@ -46,8 +46,8 @@ SHOW CREATE TABLE test.t1;
 # then LOAD DATA INFILE in slave, and use a query to compare.
 # This would have the advantage that it would not assume
 # the system has a 'diff'
---exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_master.sql
---exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_slave.sql
+--exec $MYSQL_DUMP --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql
+--exec $MYSQL_DUMP_SLAVE --compact --order-by-primary --skip-extended-insert --no-create-info test > $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql
 
 connection master;
 
@@ -61,10 +61,10 @@ DROP TABLE test.t2;
 # will be created. You will need to go to the mysql-test dir and diff
 # the files your self to see what is not matching :-)
 
-diff_files $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_master.sql $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_slave.sql;
+diff_files $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql;
 
-remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_master.sql;
-remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUIDv7_slave.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_master.sql;
+remove_file $MYSQLTEST_VARDIR/tmp/rpl_row_UUID_v7_slave.sql;
 
 --echo # End of 11.7 tests
 

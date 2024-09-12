@@ -96,7 +96,7 @@ public:
   using Item_func_uuid_vx::Item_func_uuid_vx;
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("uuidv4") };
+    static LEX_CSTRING name= {STRING_WITH_LEN("uuid_v4") };
     return name;
   }
   Item *do_get_copy(THD *thd) const override
@@ -109,7 +109,7 @@ public:
   using Item_func_uuid_vx::Item_func_uuid_vx;
   LEX_CSTRING func_name_cstring() const override
   {
-    static LEX_CSTRING name= {STRING_WITH_LEN("uuidv7") };
+    static LEX_CSTRING name= {STRING_WITH_LEN("uuid_v7") };
     return name;
   }
   Item *do_get_copy(THD *thd) const override
