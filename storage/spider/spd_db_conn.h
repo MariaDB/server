@@ -634,14 +634,6 @@ void spider_db_discard_multiple_result(
   SPIDER_CONN *conn
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_store_result(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx,
-  bool discard_result
-);
-#endif
 
 int spider_db_fetch(
   uchar *buf,
@@ -764,11 +756,6 @@ int spider_db_bulk_insert(
   bool bulk_end
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_bulk_insert(
-  ha_spider *spider
-);
-#endif
 
 int spider_db_update_auto_increment(
   ha_spider *spider,
@@ -815,12 +802,6 @@ int spider_db_direct_update(
 );
 #endif
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_direct_update(
-  ha_spider *spider,
-  ha_rows *update_rows
-);
-#endif
 
 int spider_db_bulk_delete(
   ha_spider *spider,
@@ -1190,13 +1171,6 @@ int spider_db_open_handler(
   int link_idx
 );
 
-#ifdef HA_CAN_BULK_ACCESS
-int spider_db_bulk_open_handler(
-  ha_spider *spider,
-  SPIDER_CONN *conn,
-  int link_idx
-);
-#endif
 
 int spider_db_close_handler(
   ha_spider *spider,

@@ -1866,9 +1866,6 @@ static void spider_minus_1(SPIDER_SHARE *share, TABLE_SHARE *table_share)
   share->error_read_mode = -1;
   share->error_write_mode = -1;
   share->active_link_count = -1;
-#ifdef HA_CAN_BULK_ACCESS
-  share->bulk_access_free = -1;
-#endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   share->force_bulk_update = -1;
 #endif
@@ -2192,9 +2189,6 @@ int spider_parse_connect_info(
             2147483647);
           SPIDER_PARAM_INT_WITH_MAX("aim", auto_increment_mode, 0, 3);
           SPIDER_PARAM_INT("alc", active_link_count, 1);
-#ifdef HA_CAN_BULK_ACCESS
-          SPIDER_PARAM_INT_WITH_MAX("baf", bulk_access_free, 0, 1);
-#endif
           SPIDER_PARAM_INT("bfz", buffer_size, 0);
 #ifndef WITHOUT_SPIDER_BG_SEARCH
           SPIDER_PARAM_LONGLONG("bfr", bgs_first_read, 0);
@@ -2455,10 +2449,6 @@ int spider_parse_connect_info(
             net_read_timeouts, 0, 2147483647);
           SPIDER_PARAM_INT_WITH_MAX(
             "error_write_mode", error_write_mode, 0, 1);
-#ifdef HA_CAN_BULK_ACCESS
-          SPIDER_PARAM_INT_WITH_MAX(
-            "bulk_access_free", bulk_access_free, 0, 1);
-#endif
           SPIDER_PARAM_INT_WITH_MAX(
             "query_cache_sync", query_cache_sync, 0, 3);
           error_num = parse.fail(true);
@@ -4703,8 +4693,6 @@ SPIDER_SHARE *spider_get_share(
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
-#ifdef HA_CAN_BULK_ACCESS
-#endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
@@ -5181,8 +5169,6 @@ SPIDER_SHARE *spider_get_share(
           sizeof(uchar) * share->link_bitmap_size,
         &result_list->tmp_table_created,
           sizeof(uchar) * share->link_bitmap_size,
-#ifdef HA_CAN_BULK_ACCESS
-#endif
         &result_list->sql_kind_backup, sizeof(uint) * share->link_count,
         &result_list->casual_read, sizeof(int) * share->link_count,
         &spider->dbton_handler,
@@ -5893,22 +5879,10 @@ int spider_open_all_tables(
     }
     conn->error_mode &= spider_param_error_read_mode(thd, 0);
     conn->error_mode &= spider_param_error_write_mode(thd, 0);
-    pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
-    pthread_mutex_lock(&conn->mta_conn_mutex);
-    SPIDER_SET_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    conn->need_mon = &mon_val;
-    DBUG_ASSERT(!conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(!conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = TRUE;
-    conn->mta_conn_mutex_unlock_later = TRUE;
+    spider_lock_before_query(conn, &mon_val);
     if ((error_num = spider_db_before_query(conn, &mon_val)))
     {
-      DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-      DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-      conn->mta_conn_mutex_lock_already = FALSE;
-      conn->mta_conn_mutex_unlock_later = FALSE;
-      SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-      pthread_mutex_unlock(&conn->mta_conn_mutex);
+      spider_unlock_after_query(conn, 0);
       spider_sys_index_end(table_tables);
       spider_close_sys_table(thd, table_tables,
         &open_tables_backup, TRUE);
@@ -5917,12 +5891,7 @@ int spider_open_all_tables(
       free_root(&mem_root, MYF(0));
       DBUG_RETURN(error_num);
     }
-    DBUG_ASSERT(conn->mta_conn_mutex_lock_already);
-    DBUG_ASSERT(conn->mta_conn_mutex_unlock_later);
-    conn->mta_conn_mutex_lock_already = FALSE;
-    conn->mta_conn_mutex_unlock_later = FALSE;
-    SPIDER_CLEAR_FILE_POS(&conn->mta_conn_mutex_file_pos);
-    pthread_mutex_unlock(&conn->mta_conn_mutex);
+    spider_unlock_after_query(conn, 0);
 
     if (lock && spider_param_use_snapshot_with_flush_tables(thd) == 2)
     {
@@ -7904,18 +7873,10 @@ bool spider_check_direct_order_limit(
     spider->use_index_merge ? "TRUE" : "FALSE"));
   DBUG_PRINT("info",("spider is_clone=%s",
     spider->is_clone ? "TRUE" : "FALSE"));
-#ifdef HA_CAN_BULK_ACCESS
-  DBUG_PRINT("info",("spider is_bulk_access_clone=%s",
-    spider->is_bulk_access_clone ? "TRUE" : "FALSE"));
-#endif
   if (
     spider->wide_handler->sql_command != SQLCOM_HA_READ &&
     !spider->use_index_merge &&
-#ifdef HA_CAN_BULK_ACCESS
-    (!spider->is_clone || spider->is_bulk_access_clone)
-#else
     !spider->is_clone
-#endif
   ) {
     spider_get_select_limit(spider, &select_lex, &select_limit, &offset_limit);
     bool first_check = TRUE;
@@ -8117,12 +8078,6 @@ Field *spider_field_exchange(
   Field *field
 ) {
   DBUG_ENTER("spider_field_exchange");
-#ifdef HA_CAN_BULK_ACCESS
-  if (handler->is_bulk_access_clone)
-  {
-    handler = handler->pt_clone_source_handler;
-  }
-#endif
   DBUG_PRINT("info",("spider in field=%p", field));
   DBUG_PRINT("info",("spider in field->table=%p", field->table));
     DBUG_PRINT("info",("spider table=%p", handler->get_table()));
