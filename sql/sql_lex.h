@@ -3869,6 +3869,10 @@ public:
                                          const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
                                             const LEX_CSTRING &expr_str);
+  bool sp_variable_declarations_rec_finalize(THD *thd, int nvars,
+                                             Row_definition_list *src_row,
+                                             Item *def,
+                                             const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                              Row_definition_list *row,
                                              Item *def,
