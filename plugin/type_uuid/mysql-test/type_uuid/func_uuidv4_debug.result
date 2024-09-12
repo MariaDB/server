@@ -1,8 +1,5 @@
 SET debug_dbug="+d,simulate_uuidv4_my_random_bytes_failure";
 #
-# Start of 11.6 tests
-#
-#
 # MDEV-11339 Support UUID v4 generation
 #
 CREATE TABLE t1 (
@@ -12,22 +9,22 @@ unique key(u)
 );
 INSERT INTO t1(a) SELECT seq FROM seq_1_to_16;
 Warnings:
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
-Note	1105	UUIDv4 generation failed; using a my_rnd fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv4: RANDOM_BYTES() failed, using fallback
 SELECT COUNT(DISTINCT u) AS distinct_uuid_count FROM t1;
 distinct_uuid_count
 16
@@ -38,7 +35,5 @@ FROM t1 GROUP BY is_correct_version_and_revision;
 is_correct_version_and_revision	COUNT(*)
 1	16
 DROP TABLE t1;
-#
-# End of 11.6 tests
-#
+# End of 11.7 tests
 SET debug_dbug="";

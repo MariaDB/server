@@ -41,7 +41,6 @@
 */
 
 #include "sql_type_uuid.h"
-#include <my_rnd.h>
 #include <m_string.h>
 #include <myisampack.h> /* mi_int2store, mi_int6store */
 #include <errmsg.h>
@@ -52,22 +51,12 @@ extern mysql_mutex_t LOCK_uuid_v7_generator;
 class UUIDv7: public Type_handler_uuid_new::Fbt
 {
   static constexpr uchar UUID_VERSION()      { return 0x70; }
-  static constexpr uchar UUID_VERSION_MASK() { return 0x0F; }
   static constexpr uchar UUID_VARIANT()      { return 0x80; }
-  static constexpr uchar UUID_VARIANT_MASK() { return 0x3F; }
-  static constexpr double MICROSECONDS_TO_12BIT_MAPPING_FACTOR() { return 4.096; }
 
   static void inject_version_and_variant(uchar *to)
   {
     to[6]= ((to[6] & UUID_VERSION_MASK()) | UUID_VERSION());
     to[8]= ((to[8] & UUID_VARIANT_MASK()) | UUID_VARIANT());
-  }
-
-  // Construct using a my_rnd()-based fallback method
-  static void construct_fallback(char *to)
-  {
-    for (uint i= 0; i < 4; i++)
-      int4store(&to[i * 4], (uint32) (my_rnd(&sql_rand)*0xFFFFFFFF));
   }
 
   static void construct(char *to)
@@ -79,23 +68,22 @@ class UUIDv7: public Type_handler_uuid_new::Fbt
     {
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_ERROR,
-                          "UUIDv7 generation failed; using a my_rnd fallback");
-      construct_fallback(to);
+                          "UUIDv7: RANDOM_BYTES() failed, using fallback");
     }
 
-    uint64 tv= my_hrtime().val;
+    /*
+      We have 12 bits for to ensure monotonocity. Let's store microseconds
+      there (from 0 to 999) as described in section 6.2, Method 3 of RFC 9562,
+      and use two remaining bits as a counter, thus allowing 4000 UUIDv7
+      values to be generated within one millisecond.
+    */
+    uint64 tv= my_hrtime().val * 4;
     mysql_mutex_lock(&LOCK_uuid_v7_generator);
     last_uuidv7_timestamp= tv= MY_MAX(last_uuidv7_timestamp+1, tv);
     mysql_mutex_unlock(&LOCK_uuid_v7_generator);
 
-    mi_int6store(to, tv / 1000);
-
-    /**
-    Map all the possible microseconds values (from 0 to 999) to all the
-    values that can be represented in 12 bits (from 0 to 4095) as
-    described in section 6.2, Method 3 of RFC 9562.
-    */
-    mi_int2store(to+6, MICROSECONDS_TO_12BIT_MAPPING_FACTOR() * (tv % 1000));
+    mi_int6store(to, tv / 4000);
+    mi_int2store(to+6, tv % 4000);
 
     /*
       Let's inject proper version and variant to make it good UUIDv7.

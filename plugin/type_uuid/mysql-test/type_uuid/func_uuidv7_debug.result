@@ -12,22 +12,22 @@ unique key(u)
 );
 INSERT INTO t1(a) SELECT seq FROM seq_1_to_16;
 Warnings:
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
-Note	1105	UUIDv7 generation failed; using a my_rnd fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
+Note	1105	UUIDv7: RANDOM_BYTES() failed, using fallback
 SELECT COUNT(DISTINCT u) AS distinct_uuid_count FROM t1;
 distinct_uuid_count
 16

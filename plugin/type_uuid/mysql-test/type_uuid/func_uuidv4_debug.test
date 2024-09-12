@@ -5,10 +5,6 @@ SET debug_dbug="+d,simulate_uuidv4_my_random_bytes_failure";
 source include/have_sequence.inc;
 
 --echo #
---echo # Start of 11.6 tests
---echo #
-
---echo #
 --echo # MDEV-11339 Support UUID v4 generation
 --echo #
 
@@ -25,8 +21,6 @@ SELECT
 FROM t1 GROUP BY is_correct_version_and_revision;
 DROP TABLE t1;
 
---echo #
---echo # End of 11.6 tests
---echo #
+--echo # End of 11.7 tests
 
 SET debug_dbug="";

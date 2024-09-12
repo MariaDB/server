@@ -202,7 +202,19 @@ int uuid_init(void*)
 
 int uuidv7_init(void*)
 {
-  mysql_mutex_init(0, &LOCK_uuid_v7_generator, MY_MUTEX_INIT_FAST);
+#ifdef HAVE_PSI_INTERFACE
+  static PSI_mutex_key key_LOCK_uuid_v7_generator;
+  static PSI_mutex_info psi_mutexes[]=
+  {
+    { &key_LOCK_uuid_v7_generator, "LOCK_uuid_v7_generator", PSI_FLAG_GLOBAL }
+  };
+  mysql_mutex_register("uuidv7", psi_mutexes, 1);
+#else
+#define key_LOCK_uuid_v7_generator 0
+#endif
+
+  mysql_mutex_init(key_LOCK_uuid_v7_generator, &LOCK_uuid_v7_generator,
+                   MY_MUTEX_INIT_FAST);
   return 0;
 }
 

@@ -471,8 +471,7 @@ PSI_mutex_key key_BITMAP_mutex, key_IO_CACHE_append_buffer_lock,
   key_THR_LOCK_lock, key_THR_LOCK_malloc,
   key_THR_LOCK_mutex, key_THR_LOCK_myisam, key_THR_LOCK_net,
   key_THR_LOCK_open, key_THR_LOCK_threads,
-  key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_uuid_generator,
-  key_LOCK_uuid_v7_generator;
+  key_TMPDIR_mutex, key_THR_LOCK_myisam_mmap, key_LOCK_uuid_generator;
 
 static PSI_mutex_info all_mysys_mutexes[]=
 {
@@ -499,8 +498,7 @@ static PSI_mutex_info all_mysys_mutexes[]=
   { &key_THR_LOCK_threads, "THR_LOCK_threads", PSI_FLAG_GLOBAL},
   { &key_TMPDIR_mutex, "TMPDIR_mutex", PSI_FLAG_GLOBAL},
   { &key_THR_LOCK_myisam_mmap, "THR_LOCK_myisam_mmap", PSI_FLAG_GLOBAL},
-  { &key_LOCK_uuid_generator, "LOCK_uuid_generator", PSI_FLAG_GLOBAL },
-  { &key_LOCK_uuid_v7_generator, "LOCK_uuid_v7_generator", PSI_FLAG_GLOBAL }
+  { &key_LOCK_uuid_generator, "LOCK_uuid_generator", PSI_FLAG_GLOBAL }
 };
 
 PSI_cond_key key_COND_timer, key_IO_CACHE_SHARE_cond,

@@ -27,7 +27,8 @@
 
 #include <my_crypt.h>
 #include <ssl_compat.h>
-#include <cstdint>
+
+#include <random>
 
 #define CTX_ALIGN 16
 
@@ -359,10 +360,25 @@ unsigned int my_aes_ctx_size(enum my_aes_mode)
   return MY_AES_CTX_SIZE;
 }
 
+static std::mt19937 rnd;
+
 int my_random_bytes(uchar *buf, int num)
 {
   if (RAND_bytes(buf, num) != 1)
+  { /* shouldn't happen */
+    uchar *end= buf + num - 3;
+    uint r= rnd();
+    for (; buf < end; buf+= 4, r= rnd())
+      int4store(buf, r);
+    switch (num % 4)
+    {
+    case 0: break;
+    case 1: *buf= rnd(); break;
+    case 2: r=rnd(); int2store(buf, r); break;
+    case 3: r=rnd(); int3store(buf, r); break;
+    }
     return MY_AES_OPENSSL_ERROR;
+  }
   return MY_AES_OK;
 }
 

@@ -18,6 +18,9 @@
 
 #include "sql_type_fixedbin_storage.h"
 
+static constexpr uchar UUID_VERSION_MASK() { return 0x0F; }
+static constexpr uchar UUID_VARIANT_MASK() { return 0x3F; }
+
 template <bool force_swap>
 class UUID: public FixedBinTypeStorage<MY_UUID_SIZE, MY_UUID_STRING_LENGTH>
 {

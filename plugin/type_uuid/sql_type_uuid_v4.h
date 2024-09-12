@@ -18,7 +18,7 @@
 
 /*
   Implements Universal Unique Identifiers version 4, as described in
-  draft-ietf-uuidrev-rfc4122bis-14.
+  RFC 9562.
 
     Field                       Octet #          Note
   random_a                       0-5     Random CSPRNG 48 bits.
@@ -36,26 +36,16 @@
 */
 
 #include "sql_type_uuid.h"
-#include "my_rnd.h"
 
 class UUIDv4: public Type_handler_uuid_new::Fbt
 {
   static constexpr uchar UUID_VERSION()      { return 0x40; }
-  static constexpr uchar UUID_VERSION_MASK() { return 0x0F; }
   static constexpr uchar UUID_VARIANT()      { return 0x80; }
-  static constexpr uchar UUID_VARIANT_MASK() { return 0x3F; }
 
   static void inject_version_and_variant(uchar *to)
   {
     to[6]= ((to[6] & UUID_VERSION_MASK()) | UUID_VERSION());
     to[8]= ((to[8] & UUID_VARIANT_MASK()) | UUID_VARIANT());
-  }
-
-  // Construct using a my_rnd()-based fallback method
-  static void construct_fallback(char *to)
-  {
-    for (uint i= 0; i < 4; i++)
-      int4store(&to[i * 4], (uint32) (my_rnd(&sql_rand)*0xFFFFFFFF));
   }
 
   static void construct(char *to)
@@ -67,8 +57,7 @@ class UUIDv4: public Type_handler_uuid_new::Fbt
     {
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_NOTE,
                           ER_UNKNOWN_ERROR,
-                          "UUIDv4 generation failed; using a my_rnd fallback");
-      construct_fallback(to);
+                          "UUIDv4: RANDOM_BYTES() failed, using fallback");
     }
     /*
       We have random bytes at to[6] and to[8].

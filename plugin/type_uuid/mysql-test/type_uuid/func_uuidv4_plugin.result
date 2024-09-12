@@ -1,7 +1,4 @@
 #
-# Start of 11.6 tests
-#
-#
 # MDEV-11339 Support UUID v4 generation
 #
 SELECT
@@ -30,6 +27,4 @@ PLUGIN_DESCRIPTION	Function UUIDv4()
 PLUGIN_LICENSE	GPL
 PLUGIN_MATURITY	Experimental
 PLUGIN_AUTH_VERSION	1.0
-#
-# End of 11.6 tests
-#
+# End of 11.7 tests

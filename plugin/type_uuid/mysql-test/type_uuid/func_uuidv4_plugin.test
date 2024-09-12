@@ -1,8 +1,4 @@
 --echo #
---echo # Start of 11.6 tests
---echo #
-
---echo #
 --echo # MDEV-11339 Support UUID v4 generation
 --echo #
 
@@ -25,6 +21,4 @@ WHERE PLUGIN_TYPE='FUNCTION'
 ORDER BY PLUGIN_NAME;
 --horizontal_results
 
---echo #
---echo # End of 11.6 tests
---echo #
+--echo # End of 11.7 tests
