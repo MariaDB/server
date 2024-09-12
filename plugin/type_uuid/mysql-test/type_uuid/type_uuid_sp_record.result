@@ -1,0 +1,29 @@
+# Start of 11.8 tests
+#
+# MDEV-34317 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
+#
+#
+# Demonstrate UDT field type with RECORD
+#
+SET sql_mode=ORACLE;
+DECLARE
+TYPE rec_t IS RECORD (
+a INT,
+b UUID
+);
+rec rec_t:= rec_t(1,'6021cf0b-94f8-11ef-b80e-e454e874f5e5');
+BEGIN
+CREATE TABLE t1 AS SELECT rec.a, rec.b;
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+DROP TABLE t1;
+END;
+$$
+Table	Create Table
+t1	CREATE TABLE "t1" (
+  "rec.a" int(11) DEFAULT NULL,
+  "rec.b" uuid DEFAULT NULL
+)
+rec.a	rec.b
+1	6021cf0b-94f8-11ef-b80e-e454e874f5e5
+# End of 11.8 tests

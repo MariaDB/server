@@ -815,6 +815,14 @@ public:
                                           const LEX_CSTRING &db,
                                           const LEX_CSTRING &table);
 
+  bool spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column);
+  bool spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                 const LEX_CSTRING &db,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column);
+
   void set_c_chistics(const st_sp_chistics &chistics);
   void set_info(longlong created, longlong modified,
 		const st_sp_chistics &chistics, sql_mode_t sql_mode);

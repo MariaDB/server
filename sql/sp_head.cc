@@ -3933,6 +3933,38 @@ bool sp_head::spvar_fill_type_reference(THD *thd,
 }
 
 
+bool sp_head::spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                 const LEX_CSTRING &table,
+                                 const LEX_CSTRING &column)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(&table, &column)))
+    return true;
+  
+  def->set_column_type_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
+  return false;
+}
+
+
+bool sp_head::spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
+                                const LEX_CSTRING &db,
+                                const LEX_CSTRING &table,
+                                const LEX_CSTRING &column)
+{
+  Qualified_column_ident *ref;
+  if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table,
+                                                        &column)))
+    return true;
+  
+  def->set_column_type_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
+  return false;
+}
+
+
 bool sp_head::spvar_fill_table_rowtype_reference(THD *thd,
                                                  sp_variable *spvar,
                                                  const LEX_CSTRING &table)

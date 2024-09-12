@@ -6755,6 +6755,17 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                             const LEX_CSTRING &expr_str)
 {
   DBUG_ASSERT(cdef);
+
+  if (cdef->type_handler() == &type_handler_row)
+  {
+    if (sp_record *sprec=
+       (sp_record *)cdef->get_attr_const_void_ptr(0)) {
+      return sp_variable_declarations_rec_finalize(thd, nvars,
+                                                   sprec->field,
+                                                   dflt_value_item, expr_str);
+    }
+  }
+
   Column_definition tmp(*cdef);
   if (sphead->fill_spvar_definition(thd, &tmp))
     return true;
@@ -6762,6 +6773,34 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                                      dflt_value_item, expr_str);
 }
 
+
+bool LEX::sp_variable_declarations_rec_finalize(THD *thd, int nvars,
+                                                Row_definition_list *src_row,
+                                                Item *dflt_value_item,
+                                                const LEX_CSTRING &expr_str)
+{
+  DBUG_ASSERT(src_row);
+
+  // Create a copy of the row definition list to fill
+  // definitions
+  Row_definition_list *row= new (thd->mem_root) Row_definition_list();
+  if (unlikely(row == NULL))
+    return true;
+  
+  // Create a deep copy of the elements
+  List_iterator<Spvar_definition> it(*src_row);
+  for (Spvar_definition *def= it++; def; def= it++)
+  {
+    Spvar_definition *new_def= new (thd->mem_root) Spvar_definition(*def);
+    if (unlikely(new_def == NULL))
+      return true;
+    
+    row->push_back(new_def, thd->mem_root);
+  }
+
+  return sp_variable_declarations_row_finalize(thd, nvars, row,
+                                               dflt_value_item, expr_str);
+}
 
 bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                                 Row_definition_list *row,

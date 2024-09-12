@@ -12145,9 +12145,8 @@ ER_UNKNOWN_OPERATOR
         eng "Operator does not exist: '%-.128s'"
         spa "El operador no existe: '%-.128s'"
         sw "Opereta haipo: '% -.128s'"
-ER_UNUSED_29
-	eng "You should never see it"
-        sw "Hupaswi kuiona kamwe"
+ER_SP_DUP_DECL
+	eng "Duplicate declaration: '%-.64s'"
 ER_PART_STARTS_BEYOND_INTERVAL
         eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
         spa "%`s: STARTS es posterior al momento de consulta (query), la primera partición de historia puede exceder el valor INTERVAL"

@@ -515,6 +515,7 @@ SYMBOL symbols[] = {
   { "READS",		SYM(READS_SYM)},
   { "REAL",		SYM(REAL)},
   { "REBUILD",		SYM(REBUILD_SYM)},
+  { "RECORD",           SYM(RECORD_SYM)},
   { "RECOVER",          SYM(RECOVER_SYM)},
   { "RECURSIVE",        SYM(RECURSIVE_SYM)},
   { "REDO_BUFFER_SIZE",	SYM(REDO_BUFFER_SIZE_SYM)},

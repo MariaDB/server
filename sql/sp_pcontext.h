@@ -320,6 +320,31 @@ public:
   { }
 };
 
+
+///////////////////////////////////////////////////////////////////////////
+
+/// This class represents 'DECLARE RECORD' statement.
+
+class sp_record : public Sql_alloc
+{
+public:
+  /// Name of the record.
+  Lex_ident_column name;
+  Row_definition_list *field;
+
+public:
+  sp_record(const Lex_ident_column &name_arg, Row_definition_list *prmfield) 
+   :Sql_alloc(),
+    name(name_arg),
+    field(prmfield)
+  { }
+  bool eq_name(const LEX_CSTRING *str) const
+  {
+    return name.streq(*str);
+  }
+};
+
+
 ///////////////////////////////////////////////////////////////////////////
 
 /// The class represents parse-time context, which keeps track of declared
@@ -696,6 +721,29 @@ public:
     return m_for_loop;
   }
 
+  /////////////////////////////////////////////////////////////////////////
+  // Record.
+  /////////////////////////////////////////////////////////////////////////
+
+  bool add_record(THD *thd,
+                  const Lex_ident_column &name,
+                  Row_definition_list *field);
+
+  sp_record *find_record(const LEX_CSTRING *name,
+                         bool current_scope_only) const;
+
+  bool declare_record(THD *thd,
+                      const Lex_ident_column &name,
+                      Row_definition_list *field)
+  {
+    if (find_record(&name, true))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      return true;
+    }
+    return add_record(thd, name, field);
+  }
+
 private:
   /// Constructor for a tree node.
   /// @param prev the parent parsing context
@@ -759,6 +807,9 @@ private:
 
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
+
+  /// Stack of records.
+  Dynamic_array<sp_record *> m_records;
 
   /*
    In the below example the label <<lab>> has two meanings:
