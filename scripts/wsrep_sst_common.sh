@@ -39,10 +39,44 @@ commandex()
     fi
 }
 
+with_bash_42=0
 with_printf=1
 if [ -z "$BASH_VERSION" ]; then
     [ -z "$(commandex printf)" ] && with_printf=0
+else
+    [ "${BASH_VERSINFO[0]}" -eq 4 -a "${BASH_VERSINFO[1]}" -ge 2 -o \
+      "${BASH_VERSINFO[0]}" -gt 4 ] && with_bash_42=1
 fi
+
+wsrep_log()
+{
+    local t
+    # echo everything to stderr so that it gets into common error log
+    # deliberately made to look different from the rest of the log
+    if [ "$OS" = 'Linux' ]; then
+        t=$(date '+%Y%m%d %H:%M:%S.%3N')
+    elif [ $with_bash_42 -ne 0 ]; then
+        printf -v t '%(%Y%m%d %H:%M:%S)T.000'
+    else
+        t=$(date '+%Y%m%d %H:%M:%S.000')
+    fi
+    echo "WSREP_SST: $* ($t)" >&2
+}
+
+wsrep_log_error()
+{
+    wsrep_log "[ERROR] $*"
+}
+
+wsrep_log_warning()
+{
+    wsrep_log "[WARNING] $*"
+}
+
+wsrep_log_info()
+{
+    wsrep_log "[INFO] $*"
+}
 
 trim_string()
 {
@@ -844,29 +878,6 @@ else
     MYSQLDUMP=$(commandex 'mysqldump')
 fi
 
-wsrep_log()
-{
-    # echo everything to stderr so that it gets into common error log
-    # deliberately made to look different from the rest of the log
-    local readonly tst=$(date "+%Y%m%d %H:%M:%S.%N" | cut -b -21)
-    echo "WSREP_SST: $* ($tst)" >&2
-}
-
-wsrep_log_error()
-{
-    wsrep_log "[ERROR] $*"
-}
-
-wsrep_log_warning()
-{
-    wsrep_log "[WARNING] $*"
-}
-
-wsrep_log_info()
-{
-    wsrep_log "[INFO] $*"
-}
-
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
 elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
@@ -1090,7 +1101,7 @@ wsrep_check_program()
     local prog="$1"
     local cmd=$(commandex "$prog")
     if [ -z "$cmd" ]; then
-        echo "'$prog' not found in PATH"
+        wsrep_log_error "'$prog' not found in path"
         return 2 # no such file or directory
     fi
 }
