@@ -1,0 +1,15 @@
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-32637 Implement native UUID7 function
+#
+CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUID_v7(), unique key(u));
+insert into t1(a) select seq from seq_1_to_100;
+select count(distinct u) AS distinct_uuid_count from t1;
+distinct_uuid_count
+100
+drop table t1;
+#
+# End of 11.7 tests
+#

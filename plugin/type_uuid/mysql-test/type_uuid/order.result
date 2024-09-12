@@ -834,7 +834,7 @@ drop table t1;
 #
 # MDEV-32637 Implement native UUID7 function
 #
-CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUIDv7(), unique key(u));
+CREATE TABLE t1 (a int primary key not null, u UUID DEFAULT UUID_v7(), unique key(u));
 insert into t1(a) select seq from seq_1_to_10;
 select a from t1 order by u asc;
 a

@@ -202,7 +202,19 @@ int uuid_init(void*)
 
 int uuidv7_init(void*)
 {
-  mysql_mutex_init(0, &LOCK_uuid_v7_generator, MY_MUTEX_INIT_FAST);
+#ifdef HAVE_PSI_INTERFACE
+  static PSI_mutex_key key_LOCK_uuid_v7_generator;
+  static PSI_mutex_info psi_mutexes[]=
+  {
+    { &key_LOCK_uuid_v7_generator, "LOCK_uuid_v7_generator", PSI_FLAG_GLOBAL }
+  };
+  mysql_mutex_register("uuid_v7", psi_mutexes, 1);
+#else
+#define key_LOCK_uuid_v7_generator 0
+#endif
+
+  mysql_mutex_init(key_LOCK_uuid_v7_generator, &LOCK_uuid_v7_generator,
+                   MY_MUTEX_INIT_FAST);
   return 0;
 }
 
@@ -263,9 +275,9 @@ maria_declare_plugin(type_uuid)
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_function_uuid_v4, // pointer to type-specific plugin descriptor
-  "uuidv4",                     // plugin name
+  "uuid_v4",                    // plugin name
   "Stefano Petrilli",           // plugin author
-  "Function UUIDv4()",          // the plugin description
+  "Function UUID_v4()",         // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   0,                            // Pointer to plugin initialization function
   0,                            // Pointer to plugin deinitialization function
@@ -278,9 +290,9 @@ maria_declare_plugin(type_uuid)
 {
   MariaDB_FUNCTION_PLUGIN,      // the plugin type (see include/mysql/plugin.h)
   &plugin_descriptor_function_uuid_v7, // pointer to type-specific plugin descriptor
-  "uuidv7",                     // plugin name
+  "uuid_v7",                    // plugin name
   "Stefano Petrilli",           // plugin author
-  "Function UUIDv7()",          // the plugin description
+  "Function UUID_v7()",         // the plugin description
   PLUGIN_LICENSE_GPL,           // the plugin license (see include/mysql/plugin.h)
   uuidv7_init,                  // Pointer to plugin initialization function
   uuidv7_terminate,             // Pointer to plugin deinitialization function

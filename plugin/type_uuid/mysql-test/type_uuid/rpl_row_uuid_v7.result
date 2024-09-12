@@ -5,18 +5,18 @@ include/master-slave.inc
 #
 connection master;
 CREATE TABLE test.t1 (a INT, blob_column LONGBLOB, vchar_column VARCHAR(100), PRIMARY KEY(a)) engine=myisam;
-INSERT INTO test.t1  VALUES(1,UUIDv7(),UUIDv7());
+INSERT INTO test.t1  VALUES(1,UUID_v7(),UUID_v7());
 create procedure test.p1()
 begin
-INSERT INTO test.t1  VALUES(2,UUIDv7(),UUIDv7());
-INSERT INTO test.t1  VALUES(3,UUIDv7(),UUIDv7());
+INSERT INTO test.t1  VALUES(2,UUID_v7(),UUID_v7());
+INSERT INTO test.t1  VALUES(3,UUID_v7(),UUID_v7());
 end|
 CALL test.p1();
 create function test.fn1(x int)
 returns int
 begin
-insert into t1 values (4+x,UUIDv7(),UUIDv7());
-insert into t1 values (5+x,UUIDv7(),UUIDv7());
+insert into t1 values (4+x,UUID_v7(),UUID_v7());
+insert into t1 values (5+x,UUID_v7(),UUID_v7());
 return 0;
 end|
 select fn1(0);
