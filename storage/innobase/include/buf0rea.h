@@ -29,10 +29,8 @@ Created 11/5/1995 Heikki Tuuri
 
 #include "buf0buf.h"
 
-/** High-level function which reads a page asynchronously from a file to the
-buffer buf_pool if it is not already there. Sets the io_fix flag and sets
-an exclusive lock on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
+/** Read a page synchronously from a file. buf_page_t::read_complete()
+will be invoked on read completion.
 @param page_id   page id
 @retval DB_SUCCESS if the page was read and is not corrupted
 @retval DB_SUCCESS_LOCKED_REC if the page was not read

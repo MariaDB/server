@@ -3769,7 +3769,7 @@ release_page:
   if (recovery && !recv_recover_page(node.space, this))
     return DB_PAGE_CORRUPTED;
 
-  const bool ibuf_may_exist= frame && !recv_no_ibuf_operations &&
+  const bool ibuf_may_exist= !recv_no_ibuf_operations &&
     (!expected_id.space() || !is_predefined_tablespace(expected_id.space())) &&
     fil_page_get_type(read_frame) == FIL_PAGE_INDEX &&
     page_is_leaf(read_frame);
