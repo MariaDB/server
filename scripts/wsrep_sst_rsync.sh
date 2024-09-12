@@ -96,29 +96,35 @@ check_pid_and_port()
         local port_info
         local busy=0
 
-        if [ $lsof_available -ne 0 ]; then
-            port_info=$(lsof -Pnl -i ":$port" 2>/dev/null | grep -F '(LISTEN)')
-            echo "$port_info" | \
-            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port[[:space:]]" && busy=1
-        else
-            local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
-            if [ $sockstat_available -ne 0 ]; then
+        if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
+            if [ $ss_available -ne 0 ]; then
+                port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
+                    grep -F 'users:(' | grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+")
+            else
                 local opts='-p'
+                local terms=4
                 if [ "$OS" = 'FreeBSD' ]; then
                     # sockstat on FreeBSD requires the "-s" option
                     # to display the connection state:
                     opts='-sp'
                     # in addition, sockstat produces an additional column:
-                    filter='([^[:space:]]+[[:space:]]+){5}[^[:space:]]+'
+                    terms=5
                 fi
-                port_info=$(sockstat "$opts" "$port" 2>/dev/null | \
-                    grep -E '[[:space:]]LISTEN' | grep -o -E "$filter")
-            else
-                port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
-                    grep -F 'users:(' | grep -o -E "$filter")
+                port_info=$(sockstat $opts "$port" 2>/dev/null | \
+                    grep -E '[[:space:]]LISTEN' | grep -o -E "([^[:space:]]+[[:space:]]+){$terms}[^[:space:]]+")
             fi
             echo "$port_info" | \
             grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port\$" && busy=1
+        else
+            local lsof_opts='-Pnl'
+            if [ $lsof_available -gt 1 ]; then
+                lsof_opts="$lsof_opts -b -w"
+            else
+                lsof_opts="$lsof_opts -S 15"
+            fi
+            port_info=$(lsof $lsof_opts -i ":$port" 2>/dev/null | grep -F '(LISTEN)' || :)
+            echo "$port_info" | \
+            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port[[:space:]]" && busy=1
         fi
 
         if [ $busy -eq 0 ]; then
