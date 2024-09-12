@@ -7431,5 +7431,13 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   "while holding a lock that prevents other transactions from "
   "binlogging",
   GLOBAL_VAR(opt_binlog_commit_by_rotate_threshold),
-  CMD_LINE(REQUIRED_ARG), VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
+  CMD_LINE(REQUIRED_ARG),
+
+#ifndef DBUG_OFF
+  // Allow a smaller minimum value for debug builds to help with testing
+  VALID_RANGE(100 * 1024, ULLONG_MAX),
+#else
+  VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
+#endif
+
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
