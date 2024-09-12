@@ -7963,6 +7963,8 @@ Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
   st_select_lex *sel= (st_select_lex *)arg;
   Field_pair *gr_field= find_matching_field_pair(this,
                                                  sel->grouping_tmp_fields);
+  if (!gr_field)
+    return this;
   return gr_field->corresponding_item->build_clone(thd);
 }
 
