@@ -2608,7 +2608,10 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
           return reinterpret_cast<buf_block_t*>(-1);
         }
 
-        if (UNIV_UNLIKELY(!b->frame))
+        if (UNIV_LIKELY(b->frame != nullptr));
+        else if (state < buf_page_t::READ_FIX)
+          goto unzip;
+        else
         {
         wait_for_unzip:
           b->unfix();
@@ -2629,6 +2632,7 @@ buf_block_t *buf_pool_t::page_fix(const page_id_t id,
 
       if (UNIV_UNLIKELY(!b->frame))
       {
+      unzip:
         if (b->lock.x_lock_try());
         else if (c == FIX_NOWAIT)
           goto would_block;
