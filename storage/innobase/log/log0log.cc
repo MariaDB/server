@@ -816,7 +816,7 @@ void log_t::resize_write_buf(const byte *b, size_t length) noexcept
     d&= ~int64_t(block_size_1);
     if (int64_t(d + length) <= 0)
       return;
-    length+= d;
+    length+= size_t(d);
     b-= d;
     d= 0;
   }
