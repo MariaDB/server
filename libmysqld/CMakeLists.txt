@@ -168,7 +168,11 @@ ENDIF()
 IF(TARGET libfmt)
   ADD_DEPENDENCIES(sql_embedded libfmt)
 ENDIF()
-TARGET_LINK_LIBRARIES(sql_embedded LINK_PRIVATE tpool ${CRC32_LIBRARY})
+TARGET_LINK_LIBRARIES(sql_embedded PRIVATE tpool ${CRC32_LIBRARY})
+IF(NOT TARGET Eigen3::Eigen)
+  FIND_PACKAGE(Eigen3 3.3 NO_MODULE REQUIRED)
+ENDIF()
+TARGET_LINK_LIBRARIES(sql_embedded PRIVATE Eigen3::Eigen)
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a

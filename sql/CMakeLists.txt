@@ -225,12 +225,28 @@ RECOMPILE_FOR_EMBEDDED)
 MYSQL_ADD_PLUGIN(online_alter_log online_alter.cc STORAGE_ENGINE MANDATORY
 STATIC_ONLY NOT_EMBEDDED)
 
-FIND_PACKAGE(Eigen3 3.3 REQUIRED NO_MODULE)
+FIND_PACKAGE(Eigen3 3.3 NO_MODULE)
+
+IF(NOT TARGET Eigen3::Eigen)
+  INCLUDE(ExternalProject)
+  SET(EIGEN_INSTALL_DIR "${CMAKE_BINARY_DIR}/eigen-install/")
+  ExternalProject_Add(
+    eigen
+    URL https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz
+    URL_MD5  4c527a9171d71a72a9d4186e65bea559
+    INSTALL_DIR "${EIGEN_INSTALL_DIR}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=<INSTALL_DIR> -Wno-dev
+  )
+  FILE(MAKE_DIRECTORY ${EIGEN_INSTALL_DIR}/include)
+  ADD_LIBRARY(Eigen3::Eigen INTERFACE IMPORTED GLOBAL)
+  ADD_DEPENDENCIES(Eigen3::Eigen eigen)
+  TARGET_INCLUDE_DIRECTORIES(Eigen3::Eigen INTERFACE ${EIGEN_INSTALL_DIR}/include)
+ENDIF()
 
 ADD_LIBRARY(sql STATIC ${SQL_SOURCE})
 MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
-TARGET_LINK_LIBRARIES(sql
+TARGET_LINK_LIBRARIES(sql PRIVATE
   mysys mysys_ssl dbug strings vio pcre2-8
   tpool Eigen3::Eigen
   online_alter_log
@@ -244,7 +260,7 @@ ENDIF()
 FOREACH(se aria partition perfschema sql_sequence wsrep)
   # These engines are used directly in sql sources.
   IF(TARGET ${se})
-    TARGET_LINK_LIBRARIES(sql ${se})
+    TARGET_LINK_LIBRARIES(sql PRIVATE ${se})
   ENDIF()
 ENDFOREACH()
 
