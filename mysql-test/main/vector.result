@@ -844,3 +844,6 @@ drop table t1;
 create table t1(v blob not null, vector index(v));
 alter table t1 add column a int;
 drop table t1;
+# Aria doesn't support VECTOR yet
+create table t1(v blob not null, vector index(v)) engine=aria;
+ERROR HY000: Table storage engine 'Aria' does not support the create option 'VECTOR'

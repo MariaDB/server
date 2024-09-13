@@ -376,3 +376,7 @@ drop table t1;
 create table t1(v blob not null, vector index(v));
 alter table t1 add column a int;
 drop table t1;
+
+--echo # Aria doesn't support VECTOR yet
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1(v blob not null, vector index(v)) engine=aria;

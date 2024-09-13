@@ -3317,6 +3317,11 @@ int ha_maria::create(const char *name, TABLE *table_arg,
   THD *thd= current_thd;
   DBUG_ENTER("ha_maria::create");
 
+  if (share->total_keys > share->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "Aria", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   for (i= 0; i < share->keys; i++)
   {
     if (table_arg->key_info[i].flags & HA_USES_PARSER)
