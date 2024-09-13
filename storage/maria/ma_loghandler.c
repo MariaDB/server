@@ -5707,7 +5707,7 @@ translog_write_variable_record_mgroup(LSN *lsn,
       goto err_unlock;
     }
 
-    DBUG_PRINT("info", ("chunk: #%u  first_page: %u (%u)  "
+    DBUG_PRINT("info", ("chunk: #%zu  first_page: %u (%u)  "
                         "full_pages: %lu (%lu)  "
                         "Left %lu",
                         groups.elements,
@@ -5875,8 +5875,8 @@ translog_write_variable_record_mgroup(LSN *lsn,
          record_rest + header_fixed_part +
          (groups.elements - groups_per_page * (chunk0_pages - 1)) * (7 + 1))
     chunk0_pages++;
-  DBUG_PRINT("info", ("chunk0_pages: %u  groups %u  groups per full page: %u  "
-                      "Group on last page: %u",
+  DBUG_PRINT("info", ("chunk0_pages: %u  groups %zu  groups per full page: %u  "
+                      "Group on last page: %zu",
                       chunk0_pages, groups.elements,
                       groups_per_page,
                       (groups.elements -

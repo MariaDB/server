@@ -3771,7 +3771,7 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   if (is_loaded[compression_algorithm])
     return 0;
 
-  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%lu)"
     " is not available. Please, load the corresponding provider plugin.", flags,
     page_compression_algorithms[compression_algorithm], compression_algorithm);
   return 1;
@@ -4016,7 +4016,7 @@ static int innodb_init_params()
 			"InnoDB: innodb_open_files=%lu is not greater "
 			"than the number of system tablespace files, "
 			"temporary tablespace files, "
-			"innodb_undo_tablespaces=%lu; adjusting "
+			"innodb_undo_tablespaces=%u; adjusting "
 			"to innodb_open_files=%zu",
 			innobase_open_files, srv_undo_tablespaces,
 			min_open_files_limit);
@@ -18565,7 +18565,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
-                    " innodb_log_buffer_size=%zu", MYF(0), log_sys.buf_size);
+                    " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
