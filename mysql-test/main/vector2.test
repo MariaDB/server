@@ -1,0 +1,7 @@
+#
+# tests that don't need to be run on many engines
+#
+
+--echo # Aria doesn't support VECTOR yet
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table t1(v blob not null, vector index(v)) engine=aria;
