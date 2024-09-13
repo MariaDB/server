@@ -1220,26 +1220,55 @@ is_local_ip()
 
 check_sockets_utils()
 {
+    # The presence of any of these utilities is enough for us:
     lsof_available=0
     sockstat_available=0
     ss_available=0
 
-    # The presence of any of these utilities is enough for us:
-    if [ -n "$(commandex ss)" ]; then
+    socket_utility="$(commandex ss)"
+    if [ -n "$socket_utility" ]; then
+        socket_uname='ss'
         ss_available=1
-    elif [ -n "$(commandex sockstat)" ]; then
-        sockstat_available=1
-    elif [ -n "$(commandex lsof)" ]; then
-        lsof_available=1
-        # Let's check that lsof has an option to bypass blocking:
-        if lsof -h 2>&1 | grep -qw -F -- '-b'; then
-            lsof_available=2
+        ss_opts='-nlp'
+        # Let's check that ss has an option to skip headers:
+        if $socket_utility -h 2>&1 | grep -qw -F -- '-H'; then
+            ss_available=2
+            ss_opts="${ss_opts}H"
         fi
     else
-        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in" \
-                        "the PATH. Make sure you have it installed."
-        exit 2 # ENOENT
+        socket_utility="$(commandex sockstat)"
+        if [ -n "$socket_utility" ]; then
+            socket_uname='sockstat'
+            sockstat_available=1
+            sockstat_opts='-p'
+            if [ "$OS" = 'FreeBSD' ]; then
+                # sockstat in FreeBSD is different from other systems,
+                # let's denote it with a different value:
+                sockstat_available=2
+            fi
+        else
+            socket_utility="$(commandex lsof)"
+            if [ -n "$socket_utility" ]; then
+                socket_uname='lsof'
+                lsof_available=1
+                lsof_opts='-Pnl'
+                # Let's check that lsof has an option to bypass blocking:
+                if $socket_utility -h 2>&1 | grep -qw -F -- '-b'; then
+                    lsof_available=2
+                    lsof_opts="$lsof_opts -b -w"
+                else
+                    lsof_opts="$lsof_opts -S 10"
+                fi
+            else
+                wsrep_log_error "Neither lsof, nor sockstat, nor ss tool" \
+                                "were found in the path. Make sure you have" \
+                                "at least one of them installed."
+                exit 2 # ENOENT
+            fi
+        fi
     fi
+    wsrep_log_info "'$socket_uname' is selected as a socket" \
+                   "information utility."
 }
 
 #
@@ -1263,26 +1292,23 @@ check_port()
     local rc=1
 
     if [ $ss_available -ne 0 ]; then
-        ss -nlpH "( sport = :$port )" 2>/dev/null | \
-        grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+        $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
+            grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
-        local opts='-p'
-        if [ "$OS" = 'FreeBSD' ]; then
-            # sockstat on FreeBSD requires the "-s" option
-            # to display the connection state:
-            opts='-sp'
-        fi
-        sockstat $opts "$port" 2>/dev/null | \
-        grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
-    elif [ $lsof_available -ne 0 ]; then
-        local lsof_opts='-Pnl'
-        if [ $lsof_available -gt 1 ]; then
-            lsof_opts="$lsof_opts -b -w"
+        if [ $sockstat_available -gt 1 ]; then
+            # sockstat on FreeBSD does not return the connection
+            # state without special option that cancel filtering
+            # by the port, so we ignore the connection state for
+            # this system:
+            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
         else
-            lsof_opts="$lsof_opts -S 15"
+            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
         fi
-        lsof $lsof_opts -i ":$port" 2>/dev/null | \
-        grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
+    elif [ $lsof_available -ne 0 ]; then
+        $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+            grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" && rc=0
     else
         wsrep_log_error "Unknown sockets utility"
         exit 2 # ENOENT
@@ -1553,7 +1579,7 @@ get_proc()
     if [ -z "$nproc" ]; then
         set +e
         if [ "$OS" = 'Linux' ]; then
-            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null)
+            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null || :)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi

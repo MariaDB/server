@@ -751,7 +751,7 @@ setup_ports()
 wait_for_listen()
 {
     for i in {1..150}; do
-        if check_port "" "$SST_PORT" 'socat|nc'; then
+        if check_port "" "$SST_PORT" 'socat|nc|netcat'; then
             break
         fi
         sleep 0.2

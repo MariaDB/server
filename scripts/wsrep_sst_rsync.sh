@@ -92,53 +92,52 @@ check_pid_and_port()
 
     local utils='rsync|stunnel'
 
-    if ! check_port $pid "$port" "$utils"; then
-        local port_info
-        local busy=0
+    local port_info
+    local final
 
+    if ! check_port $pid "$port" "$utils"; then
         if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
             if [ $ss_available -ne 0 ]; then
-                port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
-                    grep -F 'users:(' | grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+")
+                port_info=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
+                    grep -E '[[:space:]]users:[[:space:]]?(' | \
+                    grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
             else
-                local opts='-p'
-                local terms=4
-                if [ "$OS" = 'FreeBSD' ]; then
-                    # sockstat on FreeBSD requires the "-s" option
-                    # to display the connection state:
-                    opts='-sp'
-                    # in addition, sockstat produces an additional column:
-                    terms=5
+                if [ $sockstat_available -gt 1 ]; then
+                    # sockstat on FreeBSD does not return the connection
+                    # state without special option that cancel filtering
+                    # by the port, so we ignore the connection state for
+                    # this system, also on the FreeBSD sockstat utility
+                    # produces an additional column:
+                    port_info=$($socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                        grep -o -E "([^[:space:]]+[[:space:]]+){5}[^[:space:]]+" || :)
+                else
+                    port_info=$($socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                        grep -E '[[:space:]]LISTEN([[:space:]]|$)' | \
+                        grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
                 fi
-                port_info=$(sockstat $opts "$port" 2>/dev/null | \
-                    grep -E '[[:space:]]LISTEN' | grep -o -E "([^[:space:]]+[[:space:]]+){$terms}[^[:space:]]+")
             fi
-            echo "$port_info" | \
-            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port\$" && busy=1
+            final='$'
         else
-            local lsof_opts='-Pnl'
-            if [ $lsof_available -gt 1 ]; then
-                lsof_opts="$lsof_opts -b -w"
-            else
-                lsof_opts="$lsof_opts -S 15"
-            fi
-            port_info=$(lsof $lsof_opts -i ":$port" 2>/dev/null | grep -F '(LISTEN)' || :)
-            echo "$port_info" | \
-            grep -q -E "[[:space:]]\\[?(\\*|[[:xdigit:]]*(:[[:xdigit:]]*)+)(\\](%[^:]+)?)?:$port[[:space:]]" && busy=1
+            port_info=$($socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+                grep -w -F '(LISTEN)' || :)
+            final='[[:space:]]'
+        fi
+
+        local busy=0
+        if [ -n "$port_info" ]; then
+            local address='(\*|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7}|[0-9]+(\.[0-9]+){3})'
+            local filter="[[:space:]]($address|\\[$address\\])(%[^:]+)?:$port$final"
+            echo "$port_info" | grep -q -E "$filter" && busy=1
         fi
 
         if [ $busy -eq 0 ]; then
-            if ! echo "$port_info" | grep -qw -F "[$addr]:$port" && \
-               ! echo "$port_info" | grep -qw -F -- "$addr:$port"
-            then
-                if ! ps -p $pid >/dev/null 2>&1; then
-                    wsrep_log_error \
-                        "rsync or stunnel daemon (PID: $pid)" \
-                        "terminated unexpectedly."
-                    exit 16 # EBUSY
-                fi
-                return 1
+            if ! ps -p $pid >/dev/null 2>&1; then
+                wsrep_log_error \
+                    "the rsync or stunnel daemon (PID: $pid)" \
+                    "terminated unexpectedly."
+                exit 16 # EBUSY
             fi
+            return 1
         fi
 
         if ! check_port $pid "$port" "$utils"; then
@@ -244,7 +243,7 @@ if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]; then
     elif [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         # check if the address is an ip-address (v4 or v6):
         if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(\:[0-9a-fA-F]*)+)$'
+           grep -q -E '^([0-9]+(\.[0-9]+){3}|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7})$'
         then
             CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
         else
