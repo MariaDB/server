@@ -1466,6 +1466,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
 
+%type <num> alter_algorithm_option_is_kwd
+
 %type <object_ddl_options>
         create_or_replace
         opt_if_not_exists
@@ -7940,11 +7942,28 @@ opt_index_lock_algorithm:
         | alter_algorithm_option alter_lock_option
         ;
 
+alter_algorithm_option_is_kwd:
+           DEFAULT    { $$ = 0; }
+        |  NOCOPY_SYM { $$ = 1; }
+        ;
+
+
 alter_algorithm_option:
-          ALGORITHM_SYM opt_equal DEFAULT
+          ALGORITHM_SYM opt_equal alter_algorithm_option_is_kwd
           {
-            Lex->alter_info.set_requested_algorithm(
-              Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT);
+            Alter_info::enum_alter_table_algorithm algoType;
+            switch ($3) {
+            case 0:
+              algoType = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
+              break;
+            case 1:
+              algoType = Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY;
+              break;
+            default:
+              algoType = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
+            }
+
+            Lex->alter_info.set_requested_algorithm(algoType);
           }
         | ALGORITHM_SYM opt_equal ident
           {
