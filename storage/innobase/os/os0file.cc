@@ -3941,7 +3941,8 @@ bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
     invalid:
       if (dpage)
         goto retry_dpage;
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
       goto err_exit;
     }
