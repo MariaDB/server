@@ -2024,7 +2024,7 @@ static MYSQL* connect_to_db(char *host, char *user,char *passwd)
     goto err;
 
   /* Set server side timeout between client commands to server compiled-in default */
-  if(mysql_query_with_error_report(con,0, "/*!100100 SET WAIT_TIMEOUT=DEFAULT */"))
+  if(mysql_query_with_error_report(con,0, "/*M!100100 SET WAIT_TIMEOUT=DEFAULT */"))
     goto err;
 
   DBUG_RETURN(con);
