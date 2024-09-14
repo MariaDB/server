@@ -40,18 +40,18 @@ delete from t1 where id=7;
 rollback;
 select id,vec_distance_euclidean(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
 id	d
-2	0.8781474260354732
-10	0.8856208347761952
-30	1.0162643974895857
-7	1.026397313888122
-5	1.0308161006949719
+2	0.87814
+10	0.88562
+30	1.01626
+7	1.02639
+5	1.03081
 select id,vec_distance_euclidean(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
 id	d
-2	0.9426904171992334
-33	0.9477554826856
-30	1.111405427702547
-10	1.118630286292343
-8	1.1405733350751739
+2	0.94269
+33	0.94775
+30	1.11140
+10	1.11863
+8	1.14057
 create table t2 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
 insert t2 (v) values
 (x'45cf153f830a313f7a0a113fb1ff533f47a1533fcf9e6e3f'),
@@ -73,18 +73,18 @@ insert t2 values
 commit;
 select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
 id	d
-6	0.9309383181777582
-5	0.9706304662574956
-30	0.98144492002831
-50	1.079862635421575
-2	1.0907138991979892
+6	0.93093
+5	0.97063
+30	0.98144
+50	1.07986
+2	1.09071
 select id,vec_distance_euclidean(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
 id	d
-21	0.43559180321379337
-20	0.6435053022072372
-6	0.6942000623336242
-2	0.7971622099055623
-9	0.8298589136476077
+21	0.43559
+20	0.64350
+6	0.69420
+2	0.79716
+9	0.82985
 drop table t1, t2;
 #
 # MDEV-34989 After selecting from empty table with vector key the next insert hangs

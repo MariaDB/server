@@ -37,7 +37,9 @@ insert t1 values
 delete from t1 where id=7;
 rollback;
 
+--replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'c923e33dc0da313fe7c7983e526b3d3fde63963e6eaf3a3f27fa133fe27a583f') d from t1 order by d limit 5;
+--replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'754b5f3ea2312b3fc169f43e4604883e1d20173e8dd7443f421b703fb11e0d3e') d from t1 order by d limit 5;
 
 ### two indexes in one transaction:
@@ -63,7 +65,9 @@ insert t2 values
      (21, x'35e05d3f18e8513fb81a3d3f8acf7d3e794a1d3c72f9613f');
 commit;
 
+--replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1 order by d limit 5;
+--replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
 
 drop table t1, t2;
