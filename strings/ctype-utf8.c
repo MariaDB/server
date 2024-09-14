@@ -315,7 +315,7 @@ my_strnxfrm_unicode_full_bin(CHARSET_INFO *cs,
 
   if (flags & MY_STRXFRM_PAD_WITH_SPACE)
   {
-    if ((de - dst) < nweights * 3)
+    if ((uint)(de - dst) < nweights * 3)
       rc.m_warnings|= MY_STRNXFRM_TRUNCATED_WEIGHT_TRAILING_SPACE;
     for ( ; dst < de && nweights; nweights--)
     {

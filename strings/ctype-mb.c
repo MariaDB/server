@@ -491,7 +491,7 @@ my_strnxfrm_ret_t my_strnxfrm_mb_internal(CHARSET_INFO *cs,
   */
   for (; src < se && *nweights && dst < de; (*nweights)--)
   {
-    uint chlen;
+    int chlen;
     if (*src < 128 || !(chlen= my_ismbchar(cs, (const char *) src,
                                                (const char *) se)))
     {
