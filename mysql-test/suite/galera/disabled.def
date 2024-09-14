@@ -20,3 +20,4 @@ galera_sequences : MDEV-32561 WSREP FSM failure: no such a transition REPLICATIN
 galera_concurrent_ctas : MDEV-32779 galera_concurrent_ctas: assertion in the galera::ReplicatorSMM::finish_cert()
 galera_as_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
 galera_slave_replay : MDEV-32780 galera_as_slave_replay: assertion in the wsrep::transaction::before_rollback()
+galera_ssl_compression : MDEV-34930 caused by MDEV-32014
