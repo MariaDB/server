@@ -105,6 +105,8 @@ public:
    :Item_str_ascii_func(thd, a) { }
   Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b)
    :Item_str_ascii_func(thd, a, b) { }
+  Item_str_ascii_checksum_func(THD *thd, Item *a, Item *b, Item *c)
+   :Item_str_ascii_func(thd, a, b, c) { }
   bool eq(const Item *item, bool binary_cmp) const override
   {
     // Always use binary argument comparison: MD5('x') != MD5('X')
