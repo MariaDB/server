@@ -13,17 +13,13 @@ INSERT INTO table_simple_aggregation ( grouping_condition, location ) VALUES
 # result shall be 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
-0,3 0) ',4326));
-ST_EQUALS( (SELECT ST_COLLECT( location ) AS t FROM
-table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
-0,3 0) ',4326))
+0,3 0) ',4326)) c;
+c
 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
-0) ',4326));
-ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
-table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
-0) ',4326))
+0) ',4326)) c;
+c
 1
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
@@ -33,35 +29,30 @@ INSERT INTO table_simple_aggregation (location) VALUES
 # the result here shall be 1
 SELECT ST_EQUALS((SELECT ST_COLLECT(LOCATION) AS T FROM
 table_simple_aggregation), ST_GEOMFROMTEXT('GEOMETRYCOLLECTION( MULTIPOINT(0
-0,1 0,3 0), MULTIPOINT(2 0,0 0), POINT(0 0))',4326));
-ST_EQUALS((SELECT ST_COLLECT(LOCATION) AS T FROM
-table_simple_aggregation), ST_GEOMFROMTEXT('GEOMETRYCOLLECTION( MULTIPOINT(0
-0,1 0,3 0), MULTIPOINT(2 0,0 0), POINT(0 0))',4326))
+0,1 0,3 0), MULTIPOINT(2 0,0 0), POINT(0 0))',4326)) c;
+c
 1
 # F-1 ST_COLLECT SHALL only return NULL if all elements are NULL or the
 # aggregate is empty.
 # as only a null is aggregated the result of the subquery shall be NULL
 # and the result of the whole query shall be 1
 SELECT  (SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-location = NULL) IS NULL;
-(SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-location = NULL) IS NULL
+location = NULL) IS NULL c;
+c
 1
 # as no element is aggregated the result of the subquery shall be NULL
 # and the result of the whole query shall be 1
 SELECT  (SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-st_srid(location)=2110) IS NULL;
-(SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-st_srid(location)=2110) IS NULL
+st_srid(location)=2110) IS NULL c;
+c
 1
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
 ( NULL),
 ( NULL);
 SELECT ST_ASTEXT(ST_COLLECT(location) OVER ( ROWS BETWEEN 1 PRECEDING AND
-CURRENT ROW)) FROM table_simple_aggregation;
-ST_ASTEXT(ST_COLLECT(location) OVER ( ROWS BETWEEN 1 PRECEDING AND
-CURRENT ROW))
+CURRENT ROW)) c FROM table_simple_aggregation;
+c
 MULTIPOINT(0 0)
 MULTIPOINT(0 0,0 0)
 MULTIPOINT(0 0,1 0)
