@@ -54,6 +54,14 @@ public:
     ON_COMPLETION_PRESERVE
   };
 
+  enum enum_event_kind
+  {
+    SCHEDULE = 1,
+    STARTUP,
+    SHUTDOWN,
+    EVENT_KIND_LAST
+  };
+
   int on_completion;
   int status;
   bool status_changed;
@@ -86,6 +94,9 @@ public:
   Item* item_expression;
   longlong expression;
   interval_type interval;
+
+  enum_event_kind event_kind;
+  bool is_trg_cmd;
 
   static Event_parse_data *
   new_instance(THD *thd);

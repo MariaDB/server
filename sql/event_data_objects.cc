@@ -186,7 +186,8 @@ Event_creation_ctx::load_from_db(THD *thd,
 */
 
 bool
-Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
+Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n,
+                                   Event_parse_data::enum_event_kind ek)
 {
   if (!(dbname.str= my_strndup(key_memory_Event_queue_element_for_exec_names,
                                db.str, dbname.length= db.length, MYF(MY_WME))))
@@ -198,6 +199,7 @@ Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
     dbname.str= NULL;
     return TRUE;
   }
+  event_kind = ek;
   return FALSE;
 }
 
@@ -317,6 +319,7 @@ Event_queue_element::Event_queue_element():
 
   starts= ends= execute_at= last_executed= 0;
   starts_null= ends_null= execute_at_null= TRUE;
+  event_kind= Event_parse_data::SCHEDULE;
 
   DBUG_VOID_RETURN;
 }
@@ -518,12 +521,18 @@ Event_queue_element::load_from_row(THD *thd, TABLE *table)
     expression= table->field[ET_FIELD_INTERVAL_EXPR]->val_int();
   else
     expression= 0;
+
+  event_kind= (Event_parse_data::enum_event_kind)
+              table->field[ET_FIELD_EVENT_KIND]->val_int();
+
   /*
     If neigher STARTS and ENDS is set, then both fields are empty.
-    Hence, if ET_FIELD_EXECUTE_AT is empty there is an error.
+    Hence, if ET_FIELD_EXECUTE_AT is empty and event_kind is SCHEDULE
+    there is an error.
   */
   execute_at_null= table->field[ET_FIELD_EXECUTE_AT]->is_null();
-  DBUG_ASSERT(!(starts_null && ends_null && !expression && execute_at_null));
+  DBUG_ASSERT(!(event_kind == Event_parse_data::SCHEDULE &&
+              (starts_null && ends_null && !expression && execute_at_null)));
   if (!expression && !execute_at_null)
   {
     if (table->field[ET_FIELD_EXECUTE_AT]->get_date(&time, TIME_NO_ZERO_DATE |

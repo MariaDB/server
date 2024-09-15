@@ -54,7 +54,9 @@ Event_parse_data::Event_parse_data()
   do_not_create(FALSE), body_changed(FALSE),
   item_starts(NULL), item_ends(NULL), item_execute_at(NULL),
   starts_null(TRUE), ends_null(TRUE), execute_at_null(TRUE),
-  item_expression(NULL), expression(0)
+  item_expression(NULL), expression(0),
+  event_kind(Event_parse_data::SCHEDULE),
+  is_trg_cmd(FALSE)
 {
   DBUG_ENTER("Event_parse_data::Event_parse_data");
 

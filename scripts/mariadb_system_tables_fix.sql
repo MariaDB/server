@@ -680,6 +680,8 @@ ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
 alter table event MODIFY definer varchar(384) collate utf8mb3_bin NOT NULL DEFAULT '';
 
+ALTER TABLE event ADD event_kind ENUM('SCHEDULE','STARTUP','SHUTDOWN') NOT NULL DEFAULT 'SCHEDULE';
+
 # Enable event scheduler if the event table was not up to date before.
 set global event_scheduler=original;
 
