@@ -105,6 +105,7 @@ check_pid_and_port()
     local final
 
     if ! check_port $pid "$port" "$utils"; then
+
         if [ $ss_available -ne 0 -o $sockstat_available -ne 0 ]; then
             if [ $ss_available -ne 0 ]; then
                 port_info=$($socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
@@ -112,11 +113,11 @@ check_pid_and_port()
                     grep -o -E "([^[:space:]]+[[:space:]]+){4}[^[:space:]]+" || :)
             else
                 if [ $sockstat_available -gt 1 ]; then
-                    # sockstat on FreeBSD does not return the connection
-                    # state without special option that cancel filtering
-                    # by the port, so we ignore the connection state for
-                    # this system, also on the FreeBSD sockstat utility
-                    # produces an additional column:
+                    # The sockstat command on FreeBSD does not return
+                    # the connection state without special option, but
+                    # it supports filtering by connection state.
+                    # Additionally, the sockstat utility on FreeBSD
+                    # produces an one extra column:
                     port_info=$($socket_utility $sockstat_opts "$port" 2>/dev/null | \
                         grep -o -E "([^[:space:]]+[[:space:]]+){5}[^[:space:]]+" || :)
                 else

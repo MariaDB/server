@@ -1233,6 +1233,7 @@ check_sockets_utils()
                 # sockstat in FreeBSD is different from other systems,
                 # let's denote it with a different value:
                 sockstat_available=2
+                sockstat_opts='-46lq -P tcp -p'
             fi
         else
             socket_utility="$(commandex lsof)"
@@ -1284,10 +1285,9 @@ check_port()
             grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
         if [ $sockstat_available -gt 1 ]; then
-            # sockstat on FreeBSD does not return the connection
-            # state without special option that cancel filtering
-            # by the port, so we ignore the connection state for
-            # this system:
+            # The sockstat command on FreeBSD does not return
+            # the connection state without special option, but
+            # it supports filtering by connection state:
             $socket_utility $sockstat_opts "$port" 2>/dev/null | \
                 grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
         else
@@ -1569,7 +1569,7 @@ get_proc()
         if [ "$OS" = 'Linux' ]; then
             nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null || :)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
-            nproc=$(sysctl -n hw.ncpu)
+            nproc=$(sysctl -n hw.ncpu || :)
         fi
         set -e
         if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
