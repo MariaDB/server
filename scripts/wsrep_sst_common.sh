@@ -865,19 +865,6 @@ readonly WSREP_SST_OPT_ADDR_PORT
 script_binary=$(dirname "$0")
 SCRIPTS_DIR=$(cd "$script_binary"; pwd)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
-CLIENT_DIR="$SCRIPTS_DIR/../client"
-
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
-else
-    MYSQL_CLIENT=$(commandex 'mysql')
-fi
-
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
-else
-    MYSQLDUMP=$(commandex 'mysqldump')
-fi
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"

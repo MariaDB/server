@@ -23,6 +23,20 @@ set -ue
 
 . $(dirname "$0")/wsrep_sst_common
 
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mysql" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+else
+    MYSQL_CLIENT=$(commandex 'mysql')
+fi
+
+if [ -x "$CLIENT_DIR/mysqldump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+else
+    MYSQLDUMP=$(commandex 'mysqldump')
+fi
+
 wait_previous_sst
 
 EINVAL=22
@@ -37,7 +51,8 @@ if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED" && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
     wsrep_log_error \
-    "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT' matches source address."
+        "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT'" \
+        "matches source address."
     exit $EINVAL
 fi
 
