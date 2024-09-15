@@ -2119,7 +2119,7 @@ public:
 };
 
 
-class Item_func_collect :public Item_sum_int
+class Item_func_collect :public Item_sum_int // XXX why *int* ???
 {
   uint32 srid;
   bool has_cached_result;
@@ -2140,15 +2140,17 @@ public:
   Item_func_collect(THD *thd, bool is_distinct, Item *item_par);
   Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item);
 
+  bool fix_length_and_dec(THD *thd) override
+  {
+    Item_sum_int::fix_length_and_dec(thd);
+    base_flags|= item_base_t::MAYBE_NULL;
+    return false;
+  }
   enum Sumfunctype sum_func () const override
   {
     return GEOMETRY_COLLECT_FUNC;
   }
   void no_rows_in_result() override {; }
-  void make_const(longlong count_arg)
-  {
-    Item_sum_int::make_const();
-  }
   const Type_handler *type_handler() const override
   { return &type_handler_string; }
   longlong val_int() override { return 0; }
