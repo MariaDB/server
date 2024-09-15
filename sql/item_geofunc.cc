@@ -2785,7 +2785,7 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
 }
 
 
-String *Item_func_geohash::val_str(String *str)
+String *Item_func_geohash::val_str_ascii(String *str)
 {
   DBUG_ASSERT(fixed());
   double latitude, longitude;
