@@ -1882,4 +1882,8 @@ create_data
 
 SST_PID="$DATA/wsrep_sst.pid"
 
+echo "------------------------ PID=$$ ------------------" >&2
+exec {BASH_XTRACEFD}>&2
+set -x
+
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

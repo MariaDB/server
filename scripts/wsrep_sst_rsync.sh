@@ -137,6 +137,16 @@ check_pid_and_port()
             local address='(\*|[0-9a-fA-F]*(:[0-9a-fA-F]*){1,7}|[0-9]+(\.[0-9]+){3})'
             local filter="[[:space:]]($address|\\[$address\\])(%[^:]+)?:$port$final"
             echo "$port_info" | grep -q -E "$filter" && busy=1
+            if [ $busy -eq 0 ]; then
+                wsrep_log_info "filter check:"
+                wsrep_log_info "--------------------------------"
+                echo "$port_info" | grep -E "$filter" 1>&2 || :
+                wsrep_log_info "--------------------------------"
+                wsrep_log_info "port_info:"
+                wsrep_log_info "--------------------------------"
+                echo "$port_info" 1>&2
+                wsrep_log_info "--------------------------------"
+            fi
         fi
 
         if [ $busy -eq 0 ]; then
@@ -151,7 +161,22 @@ check_pid_and_port()
 
         if ! check_port $pid "$port" "$utils"; then
             wsrep_log_error "rsync or stunnel daemon port '$port'" \
-                            "has been taken by another program"
+                            "has been taken by another program:"
+            wsrep_log_info "--------------------------------"
+            if [ $ss_available -ne 0 ]; then
+                $socket_utility $ss_opts -t "( sport = :$port )" 1>&2 || :
+            elif [ $sockstat_available -ne 0 ]; then
+                if [ "$OS" = 'FreeBSD' ]; then
+                    $socket_utility $sockstat_opts "$port" 1>&2 || :
+                else
+                    $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                        grep -E '[[:space:]]LISTEN([[:space:]]|$)' 1>&2 || :
+                fi
+            elif [ $lsof_available -ne 0 ]; then
+                $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+                    grep -F '(LISTEN)' 1>&2 || :
+            fi
+            wsrep_log_info "--------------------------------"
             exit 16 # EBUSY
         fi
     fi
