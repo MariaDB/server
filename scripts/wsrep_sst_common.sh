@@ -1769,7 +1769,7 @@ simple_cleanup()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
     fi
-    if [ -n "${SST_PID:-}" ]; then
+    if [ -n "$SST_PID" ]; then
         [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
@@ -1868,5 +1868,30 @@ create_dirs()
         [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
     fi
 }
+
+wait_previous_sst()
+{
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 1; do
+        wsrep_log_info "Previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round+1 ))
+        if [ $check_round -eq 30 ]; then
+            wsrep_log_error "previous SST script still running..."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    trap simple_cleanup EXIT
+    echo $$ > "$SST_PID"
+}
+
+DATA="$WSREP_SST_OPT_DATA"
+
+wsrep_check_datadir
+create_data
+
+SST_PID="$DATA/wsrep_sst.pid"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

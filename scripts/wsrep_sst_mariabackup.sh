@@ -24,7 +24,21 @@ set -ue
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
-wsrep_check_datadir
+
+BACKUP_BIN=$(commandex 'mariadb-backup')
+if [ -z "$BACKUP_BIN" ]; then
+    wsrep_log_error 'mariadb-backup binary not found in path'
+    exit 42
+fi
+
+BACKUP_PID=""
+
+INFO_FILE='xtrabackup_galera_info'
+DONOR_INFO_FILE='donor_galera_info'
+IST_FILE='xtrabackup_ist'
+
+MAGIC_FILE="$DATA/$INFO_FILE"
+DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 ealgo=""
 eformat=""
@@ -33,7 +47,6 @@ ekeyfile=""
 encrypt=0
 ssyslog=""
 ssystag=""
-BACKUP_PID=""
 tcert=""
 tcap=""
 tpem=""
@@ -62,10 +75,10 @@ tcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p'"
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE"
-STATDIR=""
 uextra=0
 disver=""
 
+STATDIR=""
 tmpopts=""
 itmpdir=""
 xtmpdir=""
@@ -90,23 +103,6 @@ readonly TOTAL_TAG='total'
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
 sst_ver=1
-
-declare -a RC
-
-BACKUP_BIN=$(commandex 'mariadb-backup')
-if [ -z "$BACKUP_BIN" ]; then
-    wsrep_log_error 'mariadb-backup binary not found in path'
-    exit 42
-fi
-
-DATA="$WSREP_SST_OPT_DATA"
-
-INFO_FILE='xtrabackup_galera_info'
-DONOR_INFO_FILE='donor_galera_info'
-IST_FILE='xtrabackup_ist'
-
-MAGIC_FILE="$DATA/$INFO_FILE"
-DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
@@ -713,7 +709,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o 'pgid=' $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
+    local pgid=$(ps -o 'pgid=' $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
@@ -727,7 +723,7 @@ cleanup_at_exit()
         fi
     fi
 
-    if [ -n "${SST_PID:-}" ]; then
+    if [ -n "$SST_PID" ]; then
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
 
@@ -933,7 +929,17 @@ if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
     disver=' --no-version-check'
 fi
 
-create_data
+get_stream
+get_transfer
+
+findopt='-L'
+[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
+
+wait_previous_sst
+
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE"
+[ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
 if [ $ssyslog -eq 1 ]; then
     if [ -n "$(commandex logger)" ]; then
@@ -1052,30 +1058,6 @@ send_magic()
         echo "$TOTAL_TAG $payload" >> "$MAGIC_FILE"
     fi
 }
-
-get_stream
-get_transfer
-
-findopt='-L'
-[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
-
-SST_PID="$DATA/wsrep_sst.pid"
-
-# give some time for previous SST to complete:
-check_round=0
-while check_pid "$SST_PID"; do
-    wsrep_log_info "previous SST is not completed, waiting for it to exit"
-    check_round=$(( check_round+1 ))
-    if [ $check_round -eq 30 ]; then
-       wsrep_log_error "previous SST script still running."
-       exit 114 # EALREADY
-    fi
-    sleep 1
-done
-
-[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-[ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE"
-[ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
@@ -1248,9 +1230,6 @@ else # joiner
     if [ -n "$backup_threads" ]; then
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
-
-    trap simple_cleanup EXIT
-    echo $$ > "$SST_PID"
 
     stagemsg='Joiner-Recv'
 

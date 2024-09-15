@@ -22,12 +22,21 @@ set -ue
 # This is a reference script for rsync-based state snapshot transfer
 
 . $(dirname "$0")/wsrep_sst_common
-wsrep_check_datadir
 
 wsrep_check_programs rsync
 
 RSYNC_REAL_PID=0   # rsync process id
 STUNNEL_REAL_PID=0 # stunnel process id
+
+MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
+
+RSYNC_PID="$DATA/$MODULE.pid"
+RSYNC_CONF="$DATA/$MODULE.conf"
+
+STUNNEL_CONF="$DATA/stunnel.conf"
+STUNNEL_PID="$DATA/stunnel.pid"
+
+MAGIC_FILE="$DATA/rsync_sst_complete"
 
 cleanup_joiner()
 {
@@ -150,21 +159,12 @@ check_pid_and_port()
     check_pid "$pid_file" && [ $CHECK_PID -eq $pid ]
 }
 
-DATA="$WSREP_SST_OPT_DATA"
-
-STUNNEL_CONF="$DATA/stunnel.conf"
-STUNNEL_PID="$DATA/stunnel.pid"
-
-MAGIC_FILE="$DATA/rsync_sst_complete"
-
 get_binlog
 
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
     binlog_base=$(basename "$WSREP_SST_OPT_BINLOG")
 fi
-
-create_data
 
 BINLOG_TAR_FILE="$DATA_DIR/wsrep_sst_binlog.tar"
 
@@ -270,22 +270,7 @@ fi
 readonly SECRET_TAG='secret'
 readonly BYPASS_TAG='bypass'
 
-SST_PID="$DATA/wsrep_sst.pid"
-
-# give some time for previous SST to complete:
-check_round=0
-while check_pid "$SST_PID"; do
-    wsrep_log_info "Previous SST is not completed, waiting for it to exit"
-    check_round=$(( check_round+1 ))
-    if [ $check_round -eq 20 ]; then
-        wsrep_log_error "previous SST script still running."
-        exit 114 # EALREADY
-    fi
-    sleep 1
-done
-
-trap simple_cleanup EXIT
-echo $$ > "$SST_PID"
+wait_previous_sst
 
 # give some time for stunnel from the previous SST to complete:
 check_round=0
@@ -293,17 +278,12 @@ while check_pid "$STUNNEL_PID" 1 "$STUNNEL_CONF"; do
     wsrep_log_info "Lingering stunnel daemon found at startup," \
                    "waiting for it to exit"
     check_round=$(( check_round+1 ))
-    if [ $check_round -eq 10 ]; then
-        wsrep_log_error "stunnel daemon still running."
+    if [ $check_round -eq 30 ]; then
+        wsrep_log_error "stunnel daemon still running..."
         exit 114 # EALREADY
     fi
     sleep 1
 done
-
-MODULE="${WSREP_SST_OPT_MODULE:-rsync_sst}"
-
-RSYNC_PID="$DATA/$MODULE.pid"
-RSYNC_CONF="$DATA/$MODULE.conf"
 
 # give some time for rsync from the previous SST to complete:
 check_round=0
@@ -311,8 +291,8 @@ while check_pid "$RSYNC_PID" 1 "$RSYNC_CONF"; do
     wsrep_log_info "Lingering rsync daemon found at startup," \
                    "waiting for it to exit"
     check_round=$(( check_round+1 ))
-    if [ $check_round -eq 10 ]; then
-        wsrep_log_error "rsync daemon still running."
+    if [ $check_round -eq 30 ]; then
+        wsrep_log_error "rsync daemon still running..."
         exit 114 # EALREADY
     fi
     sleep 1

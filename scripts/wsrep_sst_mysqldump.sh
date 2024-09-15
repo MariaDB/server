@@ -23,6 +23,8 @@ set -ue
 
 . $(dirname "$0")/wsrep_sst_common
 
+wait_previous_sst
+
 EINVAL=22
 
 if test -z "$WSREP_SST_OPT_HOST";  then wsrep_log_error "HOST cannot be nil";  exit $EINVAL; fi
