@@ -2,7 +2,7 @@
 
 set -ue
 
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2010-2022 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,7 +19,7 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for rsync-based state snapshot transfer
+# This is a reference script for rsync-based state snapshot transfer.
 
 . $(dirname "$0")/wsrep_sst_common
 

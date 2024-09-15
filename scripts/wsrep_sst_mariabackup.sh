@@ -2,7 +2,7 @@
 
 set -ue
 
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
@@ -18,6 +18,8 @@ set -ue
 # along with this program; see the file COPYING. If not, write to the
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
+
+# This is a reference script for mariadb-backup-based state snapshot transfer.
 
 # Documentation:
 # https://mariadb.com/kb/en/mariabackup-overview/

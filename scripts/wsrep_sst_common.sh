@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,8 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a common command line parser to be sourced by other SST scripts
+# This is a common command line parser and common functions to
+# be sourced by other SST scripts.
 
 trap 'exit 32' HUP PIPE
 trap 'exit 3'  INT QUIT TERM
