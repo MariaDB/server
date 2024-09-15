@@ -32,12 +32,12 @@ INSERT INTO table_simple_aggregation ( grouping_condition, location ) VALUES
 --echo # result shall be 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,0 0,1 0,2
-0,3 0) ',4326));
+0,3 0) ',4326)) c;
 # --echo # Functional requirement F-8 Shall support DISTINCT in aggregates
 # --echo # result shall be 1
 SELECT ST_EQUALS( (SELECT ST_COLLECT( DISTINCT location ) AS t FROM
 table_simple_aggregation) , ST_GEOMFROMTEXT('MULTIPOINT(0 0,1 0,2 0,3
-0) ',4326));
+0) ',4326)) c;
 # --echo # Functional requirement F-5: ST_COLLECT shall support group by, which
 # --echo # is given by aggregation machinery
 # --echo # result shall be
@@ -61,24 +61,24 @@ INSERT INTO table_simple_aggregation (location) VALUES
 --echo # the result here shall be 1
 SELECT ST_EQUALS((SELECT ST_COLLECT(LOCATION) AS T FROM
 table_simple_aggregation), ST_GEOMFROMTEXT('GEOMETRYCOLLECTION( MULTIPOINT(0
-0,1 0,3 0), MULTIPOINT(2 0,0 0), POINT(0 0))',4326));
+0,1 0,3 0), MULTIPOINT(2 0,0 0), POINT(0 0))',4326)) c;
 --echo # F-1 ST_COLLECT SHALL only return NULL if all elements are NULL or the
 --echo # aggregate is empty.
 --echo # as only a null is aggregated the result of the subquery shall be NULL
 --echo # and the result of the whole query shall be 1
 SELECT  (SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-location = NULL) IS NULL;
+location = NULL) IS NULL c;
 --echo # as no element is aggregated the result of the subquery shall be NULL
 --echo # and the result of the whole query shall be 1
 SELECT  (SELECT ST_COLLECT(location) AS t FROM table_simple_aggregation WHERE
-st_srid(location)=2110) IS NULL;
+st_srid(location)=2110) IS NULL c;
 
 INSERT INTO table_simple_aggregation (location) VALUES
 ( ST_GEOMFROMTEXT('POINT(0 -0)'         ,4326)),
 ( NULL),
 ( NULL);
 SELECT ST_ASTEXT(ST_COLLECT(location) OVER ( ROWS BETWEEN 1 PRECEDING AND
-CURRENT ROW)) FROM table_simple_aggregation;
+CURRENT ROW)) c FROM table_simple_aggregation;
 
 
 # --echo Excercising multiple code paths.
