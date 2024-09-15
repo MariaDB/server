@@ -1283,7 +1283,7 @@ public:
 };
 
 
-class Item_func_geohash: public Item_geometry_func
+class Item_func_geohash: public Item_str_ascii_checksum_func
 {
   void encode_geohash(String *str, double longitude, double latitude,
                       uint length);
@@ -1295,22 +1295,28 @@ class Item_func_geohash: public Item_geometry_func
 
 public:
   Item_func_geohash(THD *thd, Item *point, Item *max_length):
-    Item_geometry_func(thd, point, max_length) {}
+    Item_str_ascii_checksum_func(thd, point, max_length) {}
   Item_func_geohash(THD *thd, Item *longitude, Item *latitude,
                     Item *max_length):
-    Item_geometry_func(thd, longitude, latitude, max_length) {}
+    Item_str_ascii_checksum_func(thd, longitude, latitude, max_length) {}
+  bool fix_length_and_dec(THD *thd) override
+  {
+    fix_length_and_charset(UINT_MAX32, default_charset());
+    return FALSE;
+  }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("st_geohash") };
     return name;
   }
-  String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  String *val_str_ascii(String *) override;
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_geohash>(thd, this); }
 };
 
 
-class Item_func_latlongfromgeohash : public Item_real_func {
+class Item_func_latlongfromgeohash : public Item_real_func
+{
  private:
   String buf;
   static const uint8_t geohash_alphabet[256];
