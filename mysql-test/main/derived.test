@@ -1816,6 +1816,8 @@ create view v6 as select * from
 explain format=json select * from v6 where (c3+1) > 10 and c1 > 1 and c2 > 123;
 drop function f1;
 
+# MDEV-34931
+--disable_view_protocol
 --echo # name resolution for multi select units
 select a1 from
   (select * from t1 union select * from t2 order by c1) as d3 (a1, a2, a3);
@@ -2081,6 +2083,7 @@ select * from v20 limit 9;
 select * from v21;
 drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
+--enable_view_protocol
 
 --echo #
 --echo # End of 11.7 tests
