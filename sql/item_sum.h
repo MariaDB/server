@@ -2162,7 +2162,7 @@ public:
     return { STRING_WITH_LEN("st_collect(") };
   }
   Item *copy_or_same(THD* thd) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_collect>(thd, this); }
 
   bool supports_removal() const override
