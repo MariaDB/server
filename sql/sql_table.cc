@@ -1405,7 +1405,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     Table_type table_type;
     size_t path_length= 0;
     char *path_end= 0;
-    uint drop_index_from, drop_index_to=0;
+    uint drop_index_from=0 , drop_index_to=0;
 
     error= 0;
 
