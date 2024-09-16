@@ -197,6 +197,21 @@ EXPLAIN EXTENDED SELECT /*+ BKA(t12) */ * FROM t12, t13
 EXPLAIN EXTENDED SELECT /*+ QB_NAME(QB1) BKA(t13@QB1) */ * FROM t12, t13 
   WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
 
+--echo # Hint overrides both join_cache_level and optimizer switch
+set join_cache_level = 0;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 2;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 4;
+EXPLAIN EXTENDED SELECT /*+ BKA(t12, t13) */ * FROM t12, t13
+  WHERE t12.a=t13.a AND (t13.b+1 <= t13.b+1);
+
+set join_cache_level = 8;
+
 --echo # Enable BKA
 set optimizer_switch='join_cache_bka=on';
 
@@ -599,6 +614,25 @@ EXPLAIN
 SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
   FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
        LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+--echo # BNL() hint overrides join_cache_levels from 0 to 3 increasing it to 4
+set join_cache_level = 1;
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+set join_cache_level = 2;
+EXPLAIN
+SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
+  FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
+       LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
+
+set join_cache_level = 3;
+EXPLAIN
 SELECT /*+ BNL(t4, t5) */ t4.a4, t5.b5
   FROM ((t1 LEFT JOIN (t2 JOIN t3 ON t2.a2 = t3.a3) ON t2.b2 = t1.a1)
        LEFT JOIN t4 ON t4.a4 <> 0) LEFT JOIN t5 ON t5.a5 = t2.a2;
