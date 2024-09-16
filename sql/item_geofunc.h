@@ -990,7 +990,7 @@ public:
   {
     return &type_handler_geometry;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_simplify>(thd, this); }
 };
 
@@ -1036,7 +1036,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_isvalid") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_isvalid>(thd, this); }
 };
 
@@ -1056,7 +1056,7 @@ public:
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_validate>(thd, this); }
 };
 
@@ -1341,7 +1341,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_latfromgeohash") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_latfromgeohash>(thd, this); }
 };
 
@@ -1356,7 +1356,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("st_longfromgeohash") };
     return name;
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_longfromgeohash>(thd, this); }
 };
 
@@ -1376,7 +1376,7 @@ public:
     return name;
   }
   String *val_str(String *) override;
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_pointfromgeohash>(thd, this); }
 };
 
