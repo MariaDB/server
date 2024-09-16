@@ -1233,7 +1233,7 @@ check_sockets_utils()
                 # sockstat in FreeBSD is different from other systems,
                 # let's denote it with a different value:
                 sockstat_available=2
-                sockstat_opts='-46lq -P tcp -p'
+#               sockstat_opts='-46lq -P tcp -p'
             fi
         else
             socket_utility="$(commandex lsof)"
@@ -1288,8 +1288,44 @@ check_port()
             # The sockstat command on FreeBSD does not return
             # the connection state without special option, but
             # it supports filtering by connection state:
-            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+            $socket_utility $sockstat_opts "$port" 2>/dev/null | tee /dev/stderr | \
                 grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
+            local x=$($socket_utility $sockstat_opts "$port" || :)
+            local y=$(echo "$x" | grep -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" || :)
+            local z=1
+            local r=0
+            echo "$x" | grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && z=0
+            if [ $z -ne 0 -a -n "$y" ]; then
+                wsrep_log_info "BUG: z != 0 && y != ''"
+                r=1
+            fi
+            if [ $z -eq 0 -a -z "$y" ]; then
+                wsrep_log_info "BUG: z == 0 && y == ''"
+                r=1
+            fi
+            if [ $z -eq 0 -a $rc -ne 0 ]; then
+                wsrep_log_info "BUG: z != rc (rc != 0)"
+                r=1
+            fi
+            if [ $z -ne 0 -a $rc -eq 0 ]; then
+                wsrep_log_info "BUG: z != rc (rc == 0)"
+                r=1
+            fi
+            if [ -n "$y" -a $rc -ne 0 ]; then
+                wsrep_log_info "BUG: y != '' && rc != 0"
+                r=1
+            fi
+            if [ $r -ne 0 ]; then
+                wsrep_log_info "**************************"
+                wsrep_log_info "x=[$x]"
+                wsrep_log_info "y=[$y]"
+                wsrep_log_info "z=[$z]"
+                wsrep_log_info "rc=[$rc]"
+                wsrep_log_info "**************************"
+                $socket_utility $sockstat_opts "$port" >&2 || :
+                wsrep_log_info "**************************"
+                exit 22
+            fi
         else
             $socket_utility $sockstat_opts "$port" 2>/dev/null | \
                 grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
@@ -1569,7 +1605,7 @@ get_proc()
         if [ "$OS" = 'Linux' ]; then
             nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null || :)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
-            nproc=$(sysctl -n hw.ncpu || :)
+            nproc=$(sysctl -n hw.ncpu)
         fi
         set -e
         if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
