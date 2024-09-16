@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+connection node_2;
+set statement sql_log_bin=0 for call mtr.add_suppression("Found binlog cache dir");
+connection node_1;
 CREATE TABLE t1 (id INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
 connection node_2;

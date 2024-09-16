@@ -1,5 +1,8 @@
 connection node_2;
 connection node_1;
+connection node_2;
+set statement sql_log_bin=0 for call mtr.add_suppression("Found binlog cache dir");
+connection node_1;
 CREATE TABLE t1 (f1 INT PRIMARY KEY);
 SET SESSION wsrep_trx_fragment_unit='ROWS';
 SET SESSION wsrep_trx_fragment_size=1;
