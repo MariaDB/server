@@ -5614,9 +5614,10 @@ static int init_server_components()
     mysql_mutex_unlock(log_lock);
     if (unlikely(error))
       unireg_abort(1);
-    if (unlikely(init_binlog_cache_dir()))
-      unireg_abort(1);
   }
+
+  if (unlikely(init_binlog_cache_dir()))
+    unireg_abort(1);
 
 #ifdef HAVE_REPLICATION
   binlog_space_limit= internal_binlog_space_limit;
