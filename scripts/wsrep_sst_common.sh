@@ -1233,6 +1233,7 @@ check_sockets_utils()
                 # sockstat in FreeBSD is different from other systems,
                 # let's denote it with a different value:
                 sockstat_available=2
+                sockstat_opts='-46lq -P tcp -p'
             fi
         else
             socket_utility="$(commandex lsof)"
@@ -1277,18 +1278,25 @@ check_port()
 
     [ $pid -le 0 ] && pid='[0-9]+'
 
-    local rc=1
+    local rc=2 # ENOENT
 
     if [ $ss_available -ne 0 ]; then
         $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
             grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
         if [ $sockstat_available -gt 1 ]; then
-            # sockstat on FreeBSD does not return the connection
-            # state without special option that cancel filtering
-            # by the port, so we ignore the connection state for
-            # this system:
-            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+            # The sockstat command on FreeBSD does not return
+            # the connection state without special option, but
+            # it supports filtering by connection state:
+            local out
+            out=$($socket_utility $sockstat_opts "$port" 2>/dev/null) || rc=16 # EBUSY
+            # On FreeBSD, the sockstat utility may exit without
+            # any output due to locking issues in certain versions;
+            # let's return a special exit code in such cases:
+            if [ $rc -eq 16 -o -z "$out" ]; then
+                return 16 # EBUSY
+            fi
+            echo "$out" | \
                 grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
         else
             $socket_utility $sockstat_opts "$port" 2>/dev/null | \
