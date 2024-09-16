@@ -15715,12 +15715,15 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   bool no_bka_cache= !hint_table_state_or_fallback(join->thd,
                           tab->tab_list->table, BKA_HINT_ENUM,
                           join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
+  bool hint_forces_bka= hint_table_state_or_fallback(join->thd,
+                                                     tab->tab_list->table,
+                                                     BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
   if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
-  if (cache_level == 0 && hint_table_state_or_fallback(join->thd,
+  if (cache_level < 4 && hint_table_state_or_fallback(join->thd,
                                                        tab->tab_list->table,
                                                        BNL_HINT_ENUM, false))
   {
@@ -15728,11 +15731,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   }
 
   /*
-    Don't use join cache if @@join_cache_level==0 or this table is the first
+    Don't use join cache if @@join_cache_level==0 and hint BKA()
+    is not specified or this table is the first
     one join suborder (either at top level or inside a bush)
   */
-  if (cache_level == 0 || !prev_tab)
+  if ((cache_level == 0 && !hint_forces_bka) || !prev_tab)
+  {
+    /*
+      We could have cache_level==0 but join cache was forced for some previous
+      table (PT) with a hint. Proceed to cancel join cache for PT if it is not
+      allowed to use join cache for PT without using it for this table.
+    */
     goto no_join_cache;
+  }
 
   if (force_unlinked_cache && (cache_level%2 == 0))
     cache_level--;
@@ -15871,6 +15882,8 @@ uint check_join_cache_usage(JOIN_TAB *tab,
   case JT_CONST:
   case JT_REF:
   case JT_EQ_REF:
+    if (hint_forces_bka)
+      cache_level= 8; // Increase to BKAH incremental
     if (cache_level <=2 || (no_hashed_cache && no_bka_cache))
       goto no_join_cache;
     if (tab->ref.is_access_triggered())
