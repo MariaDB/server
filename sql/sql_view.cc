@@ -662,6 +662,19 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   }
 #endif
 
+  /*
+    Reset item list names within derived tables so that when reparsed in the
+    view, references elsewhere within this select_lex can be correctly resolved
+  */
+  for (SELECT_LEX *sl= lex->all_selects_list; sl; sl= sl->next_select_in_list())
+  {
+    for (TABLE_LIST *tl= sl->get_table_list(); tl && !res; tl= tl->next_local)
+    {
+      if (tl->original_names_source)
+        tl->original_names_source->set_item_list_names(tl->original_names);
+    }
+  }
+
   res= mysql_register_view(thd, &ddl_log_state, view, mode, backup_file_name);
 
   /*

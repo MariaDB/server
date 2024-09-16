@@ -2640,7 +2640,7 @@ struct TABLE_LIST
   With_element *with;          /* With element defining this table (if any) */
   List<Lex_ident_sys>   *column_names;  /* list of correlation column names */
   List<Lex_ident_sys>   *original_names;/* list of original column names    */
-  bool original_names_are_saved:1;
+  st_select_lex         *original_names_source;
   bool save_original_names(st_select_lex *derived);
 
   /* Bitmap of the defining with element */
