@@ -691,7 +691,11 @@ void Log_event::init_show_field_list(THD *thd, List<Item>* field_list)
 int Log_event_writer::write_internal(const uchar *pos, size_t len)
 {
   DBUG_ASSERT(!ctx || encrypt_or_write == &Log_event_writer::encrypt_and_write);
-  if (cache_data && cache_data->write_prepare(len))
+  if (cache_data &&
+#ifdef WITH_WSREP
+      mysql_bin_log.is_open() &&
+#endif
+      cache_data->write_prepare(len))
     return 1;
 
   if (my_b_safe_write(file, pos, len))
