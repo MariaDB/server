@@ -10333,7 +10333,7 @@ bool TABLE_LIST::save_original_names(st_select_lex *derived)
 {
   if (unlikely(derived->with_wild))
     return false;
-  if (original_names_are_saved)
+  if (original_names_source)
     return false;
 
   // these elements allocated in LEX::parsed_derived_table
@@ -10353,7 +10353,7 @@ bool TABLE_LIST::save_original_names(st_select_lex *derived)
          (original_name= overwrite_iterator++))
     lex_string_set( original_name, item_list_element->name.str);
 
-  original_names_are_saved= true;
+  original_names_source= derived;
   return false;
 }
 

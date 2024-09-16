@@ -2084,6 +2084,15 @@ union
 select c1, c2, sum(c3) as s from t2 group by c1, c2 having s > 3
 )
 as d2 (f1, f2, f3);
+create view v6 as select a1 from
+(
+select * from t1 union select * from t2 order by c1
+) as d3 (a1, a2, a3);
+create view v7 (b1) as select a1 from (select c1 from t1) dt (a1);
+create view v8 (b1, b2, b3) as select a1, a2, a3 from
+(
+select * from t1 union select * from t2 order by c1
+) as d3 (a1, a2, a3);
 # test parent query mergability
 explain format=json select a1 from v1;
 EXPLAIN
@@ -2156,6 +2165,31 @@ select * from v4 where e3 < 10;
 e1	e2	e3
 1	2	3
 4	5	6
+select * from v6;
+a1
+1
+4
+7
+10
+show create view v6;
+View	Create View	character_set_client	collation_connection
+v6	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v6` AS select `d3`.`a1` AS `a1` from (select `t1`.`c1` AS `a1`,`t1`.`c2` AS `a2`,`t1`.`c3` AS `a3` from `t1` union select `t2`.`c1` AS `c1`,`t2`.`c2` AS `c2`,`t2`.`c3` AS `c3` from `t2` order by `c1`) `d3`(`a1`,`a2`,`a3`)	latin1	latin1_swedish_ci
+select * from v7;
+b1
+1
+4
+show create view v7;
+View	Create View	character_set_client	collation_connection
+v7	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v7` AS select `dt`.`a1` AS `b1` from (select `t1`.`c1` AS `a1` from `t1`) `dt`(`a1`)	latin1	latin1_swedish_ci
+select * from v8;
+b1	b2	b3
+1	2	3
+4	5	6
+7	8	9
+10	11	12
+show create view v8;
+View	Create View	character_set_client	collation_connection
+v8	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v8` AS select `d3`.`a1` AS `b1`,`d3`.`a2` AS `b2`,`d3`.`a3` AS `b3` from (select `t1`.`c1` AS `a1`,`t1`.`c2` AS `a2`,`t1`.`c3` AS `a3` from `t1` union select `t2`.`c1` AS `c1`,`t2`.`c2` AS `c2`,`t2`.`c3` AS `c3` from `t2` order by `c1`) `d3`(`a1`,`a2`,`a3`)	latin1	latin1_swedish_ci
 # show materialization and condition pushdown into having
 explain format=json select * from v4 where e3 < 10;
 EXPLAIN
@@ -3169,9 +3203,9 @@ EXPLAIN
 }
 # pushdown through GROUP BY
 create function f1(a int) returns int DETERMINISTIC return (a+1);
-create view v6 as select * from
+create view v9 as select * from
 (select c1, f1(c2), sum(c3) from t1 group by c1, f1(c2)) as f (c1, c2, c3);
-explain format=json select * from v6 where (c3+1) > 10 and c1 > 1 and c2 > 123;
+explain format=json select * from v9 where (c3+1) > 10 and c1 > 1 and c2 > 123;
 EXPLAIN
 {
   "query_block": {
@@ -5124,7 +5158,7 @@ where c1=d2 limit 1)
 alter table t1 rename column c1 to cc1;
 select * from v1;
 ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
-drop view v1, v2, v3, v4, v5, v6;
+drop view v1, v2, v3, v4, v5, v6, v7, v8, v9;
 drop table t1, t2, t3;
 create table t10 (a int);
 create table t20 (b int);
@@ -5148,14 +5182,14 @@ select * from v20;
 c	x	u1	y1	b2
 1	X	U	Y	1
 3	NULL	NULL	NULL	NULL
-select * from v20 limit 9;
+select * from v20  order by c limit 9;
 c	x	u1	y1	b2
 1	X	U	Y	1
 3	NULL	NULL	NULL	NULL
-select * from v21;
+select * from v21 order by c;
 c	x	u1	b1
-3	NULL	NULL	NULL
 1	X	U	1
+3	NULL	NULL	NULL
 drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
 #

@@ -1637,6 +1637,15 @@ create view v5 as select * from
     select c1, c2, sum(c3) as s from t2 group by c1, c2 having s > 3
   )
   as d2 (f1, f2, f3);
+create view v6 as select a1 from
+  (
+    select * from t1 union select * from t2 order by c1
+  ) as d3 (a1, a2, a3);
+create view v7 (b1) as select a1 from (select c1 from t1) dt (a1);
+create view v8 (b1, b2, b3) as select a1, a2, a3 from
+  (
+    select * from t1 union select * from t2 order by c1
+  ) as d3 (a1, a2, a3);
 
 --echo # test parent query mergability
 --source include/explain-no-costs.inc
@@ -1652,6 +1661,12 @@ select a1, a2 from v1 union select b1, b2 from v2;
 select * from v1 union select * from v2;
 select * from v3 intersect select * from v2 union select * from v1;
 select * from v4 where e3 < 10;
+select * from v6;
+show create view v6;
+select * from v7;
+show create view v7;
+select * from v8;
+show create view v8;
 --echo # show materialization and condition pushdown into having
 --source include/explain-no-costs.inc
 explain format=json select * from v4 where e3 < 10;
@@ -1811,9 +1826,9 @@ explain format=json select * from v1 where if( a1 regexp 'def', 'foo', a2 )
 
 --echo # pushdown through GROUP BY
 create function f1(a int) returns int DETERMINISTIC return (a+1);
-create view v6 as select * from
+create view v9 as select * from
   (select c1, f1(c2), sum(c3) from t1 group by c1, f1(c2)) as f (c1, c2, c3);
-explain format=json select * from v6 where (c3+1) > 10 and c1 > 1 and c2 > 123;
+explain format=json select * from v9 where (c3+1) > 10 and c1 > 1 and c2 > 123;
 drop function f1;
 
 --echo # name resolution for multi select units
@@ -2054,7 +2069,7 @@ alter table t1 rename column c1 to cc1;
 --error ER_VIEW_INVALID
 select * from v1;
 
-drop view v1, v2, v3, v4, v5, v6;
+drop view v1, v2, v3, v4, v5, v6, v7, v8, v9;
 drop table t1, t2, t3;
 
 # test derived embedded in views
@@ -2077,8 +2092,8 @@ create view v21 as select * from t30
   left join (select 'X' as x, v11.u, v11.b1 from v11) dt2 (x, u1, b1)
   on t30.c=dt2.b1 order by x;
 select * from v20;
-select * from v20 limit 9;
-select * from v21;
+select * from v20  order by c limit 9;
+select * from v21 order by c;
 drop view v10, v20, v11, v21;
 drop table t10, t20, t30;
 
