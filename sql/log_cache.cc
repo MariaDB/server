@@ -59,9 +59,14 @@ bool init_binlog_cache_dir()
   uint max_tmp_file_name_len=
       2 /* prefix */ + 10 /* max len of thread_id */ + 1 /* underline */;
 
-  ignore_db_dirs_append(BINLOG_CACHE_DIR);
-
-  dirname_part(binlog_cache_dir, log_bin_basename, &length);
+  /*
+    Even if the binary log is disabled (and thereby we wouldn't use the binlog
+    cache), we need to try to build the directory name, so if it exists while
+    the binlog is off (e.g. due to a previous run of mariadbd, or an SST), we
+    can delete it.
+  */
+  dirname_part(binlog_cache_dir,
+               opt_bin_log ? log_bin_basename : opt_log_basename, &length);
   /*
     Must ensure the full name of the tmp file is shorter than FN_REFLEN, to
     avoid overflowing the name buffer in write and commit.
@@ -78,6 +83,26 @@ bool init_binlog_cache_dir()
   binlog_cache_dir[length + strlen(BINLOG_CACHE_DIR)]= 0;
 
   MY_DIR *dir_info= my_dir(binlog_cache_dir, MYF(0));
+
+  /*
+    If the binlog cache dir exists, yet binlogging is disabled, delete the
+    directory and skip the initialization logic.
+  */
+  if (!opt_bin_log)
+  {
+    if (dir_info)
+    {
+      sql_print_information(
+          "Found binlog cache dir '%s', yet binary logging is "
+          "disabled. Deleting directory.",
+          binlog_cache_dir);
+      my_dirend(dir_info);
+      my_rmtree(binlog_cache_dir, MYF(0));
+    }
+    return false;
+  }
+
+  ignore_db_dirs_append(BINLOG_CACHE_DIR);
 
   if (!dir_info)
   {
