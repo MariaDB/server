@@ -1602,11 +1602,13 @@ static int sst_donate_mysqldump (const char*         addr,
                      WSREP_SST_OPT_PORT " '%u' "
                      WSREP_SST_OPT_LPORT " '%u' "
                      WSREP_SST_OPT_SOCKET " '%s' "
+                     WSREP_SST_OPT_DATA " '%s' "
                      "%s"
                      WSREP_SST_OPT_GTID " '%s:%lld,%d-%d-%llu' "
                      WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                      "%s",
                      addr, port, mysqld_port, mysqld_unix_port,
+                     mysql_real_data_home,
                      wsrep_defaults_file,
                      uuid_oss.str().c_str(), gtid.seqno().get(),
                      wsrep_gtid_server.domain_id, wsrep_gtid_server.server_id,

@@ -175,8 +175,8 @@ static int my_b_encr_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
       DBUG_RETURN(info->error= -1);
     }
     crypt_data->counter= 0;
-
-    IF_DBUG(crypt_data->block_length= 0,);
+    crypt_data->block_length= 0;
+    crypt_data->last_block_length= 0;
   }
 
   do
