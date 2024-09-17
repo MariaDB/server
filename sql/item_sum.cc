@@ -3521,6 +3521,42 @@ String *Item_sum_udf_str::val_str(String *str)
 #endif /* HAVE_DLOPEN */
 
 
+bool
+Item_sum_str::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+
+  if (init_sum_func_check(thd))
+    return TRUE;
+
+  set_maybe_null();
+
+  /*
+    Fix fields for select list and ORDER clause
+  */
+
+  for (uint i=0 ; i < arg_count ; i++)
+  {
+    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
+      return TRUE;
+    /* We should ignore FIELD's in arguments to sum functions */
+    with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
+	if (args[i]->check_type_can_return_str(
+                   Item_func_group_concat::func_name_cstring()))
+      return true;
+  }
+
+  if (fix_fields_impl(thd, ref))
+      return TRUE;
+
+  if (check_sum_func(thd, ref))
+    return TRUE;
+
+  base_flags|= item_base_t::FIXED;
+  return FALSE;
+}
+
+
 /*****************************************************************************
  GROUP_CONCAT function
 
@@ -3900,7 +3936,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
                        const SQL_I_List<ORDER> &order_list,
                        String *separator_arg, bool limit_clause,
                        Item *row_limit_arg, Item *offset_limit_arg)
-  :Item_sum(thd), tmp_table_param(0), separator(separator_arg), tree(0),
+  :Item_sum_str(thd), tmp_table_param(0), separator(separator_arg), tree(0),
    unique_filter(NULL), table(0),
    order(0), context(context_arg),
    arg_count_order(order_list.elements),
@@ -3963,7 +3999,7 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
 
 Item_func_group_concat::Item_func_group_concat(THD *thd,
                                                Item_func_group_concat *item)
-  :Item_sum(thd, item),
+  :Item_sum_str(thd, item),
   tmp_table_param(item->tmp_table_param),
   separator(item->separator),
   tree(item->tree),
@@ -4232,31 +4268,8 @@ bool Item_func_group_concat::add(bool exclude_nulls)
 
 
 bool
-Item_func_group_concat::fix_fields(THD *thd, Item **ref)
+Item_func_group_concat::fix_fields_impl(THD *thd, Item **ref)
 {
-  uint i;                       /* for loop variable */
-  DBUG_ASSERT(fixed() == 0);
-
-  if (init_sum_func_check(thd))
-    return TRUE;
-
-  set_maybe_null();
-
-  /*
-    Fix fields for select list and ORDER clause
-  */
-
-  for (i=0 ; i < arg_count ; i++)
-  {
-    if (args[i]->fix_fields_if_needed_for_scalar(thd, &args[i]))
-      return TRUE;
-    /* We should ignore FIELD's in arguments to sum functions */
-    with_flags|= (args[i]->with_flags & ~item_with_t::FIELD);
-    if (args[i]->check_type_can_return_str(
-                   Item_func_group_concat::func_name_cstring()))
-      return true;
-  }
-
   /* skip charset aggregation for order columns */
   if (agg_arg_charsets_for_string_result(collation,
                                          args, arg_count - arg_count_order))
@@ -4296,10 +4309,6 @@ Item_func_group_concat::fix_fields(THD *thd, Item **ref)
     separator= new_separator;
   }
 
-  if (check_sum_func(thd, ref))
-    return TRUE;
-
-  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 
@@ -4609,7 +4618,7 @@ void Item_func_collect::clear() {
 void Item_func_collect::cleanup() {
   List_iterator<String> geometries_iterator(geometries);
   geometries.delete_elements();
-  Item_sum_int::cleanup();
+  Item_sum_str::cleanup();
 }
 
 
@@ -4679,7 +4688,7 @@ bool Item_func_collect::list_contains_element(String *wkb) {
 
 
 Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par) :
-  Item_sum_int(thd, item_par),
+  Item_sum_str(thd, item_par),
   mem_root(thd->mem_root),
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
@@ -4688,7 +4697,7 @@ Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item *item_par)
 
 
 Item_func_collect::Item_func_collect(THD *thd, bool is_distinct, Item_func_collect *item) :
-  Item_sum_int(thd, item),
+  Item_sum_str(thd, item),
   mem_root(thd->mem_root),
   is_distinct(is_distinct),
   group_collect_max_len(thd->variables.group_concat_max_len)
