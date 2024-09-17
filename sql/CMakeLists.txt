@@ -226,6 +226,9 @@ MYSQL_ADD_PLUGIN(online_alter_log online_alter.cc STORAGE_ENGINE MANDATORY
 STATIC_ONLY NOT_EMBEDDED)
 
 FIND_PACKAGE(Eigen3 3.3 NO_MODULE)
+IF(Eigen3_DIR)
+  FIND_FILE(eigen3_dense_h eigen3/Eigen/Dense) # for build_depends.cmake
+ENDIF()
 
 IF(NOT TARGET Eigen3::Eigen)
   INCLUDE(ExternalProject)
