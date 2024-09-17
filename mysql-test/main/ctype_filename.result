@@ -132,4 +132,31 @@ a	c
 @002d1	@002d1
 DROP TABLE t1;
 SET NAMES utf8;
+#
+# MDEV-25900 Assertion `octets < 1024' failed in Binlog_type_info_fixed_string::Binlog_type_info_fixed_string OR Assertion `field_length < 1024' failed in Field_string::save_field_metadata
+#
+CREATE TABLE t1 (a CHAR(204)) CHARACTER SET filename;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` char(204) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=filename COLLATE=filename
+DROP TABLE t1;
+CREATE TABLE t1 (a CHAR(205)) CHARACTER SET filename;
+ERROR 42000: Column length too big for column 'a' (max = 204); use BLOB or TEXT instead
+SET sql_mode='';
+CREATE TABLE t1 (a CHAR(205)) CHARACTER SET filename;
+Warnings:
+Note	1246	Converting column 'a' from CHAR to VARCHAR
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` varchar(205) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=filename COLLATE=filename
+DROP TABLE t1;
+SET sql_mode=DEFAULT;
+CREATE TABLE t1 (a CHAR(205) CHARACTER SET latin1);
+ALTER TABLE t1 CONVERT TO CHARACTER SET filename;
+ERROR 42000: Column length too big for column 'a' (max = 204); use BLOB or TEXT instead
+DROP TABLE t1;
 # End of 10.5 tests
