@@ -708,7 +708,7 @@ public:
 
 class Item_func_json_arrayagg : public Item_func_group_concat
 {
-protected:
+private:
   /*
     Overrides Item_func_group_concat::skip_nulls()
     NULL-s should be added to the result as JSON null value.
