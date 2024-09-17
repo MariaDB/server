@@ -804,7 +804,7 @@ public:
   bool describe:1; /* union exec() called for EXPLAIN */
   bool columns_are_renamed:1;
   inline bool rename_item_list(TABLE_LIST *derived_arg);
-  inline void rename_types_list(List<Lex_ident_sys> *new_names);
+  inline bool rename_types_list(List<Lex_ident_sys> *new_names);
 
 protected:
   /* This is bool, not bit, as it's used and set in many places */
