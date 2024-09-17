@@ -1378,14 +1378,22 @@ inline bool st_select_lex_unit::rename_item_list(TABLE_LIST *derived_arg)
 }
 
 
-inline void st_select_lex_unit::rename_types_list(List<Lex_ident_sys> *newnames)
+inline bool st_select_lex_unit::rename_types_list(List<Lex_ident_sys> *newnames)
 {
+  if (item_list.elements != newnames->elements)
+  {
+    my_error(ER_INCORRECT_COLUMN_NAME_COUNT, MYF(0));
+    return true;
+  }
+
   List_iterator<Lex_ident_sys> it(*newnames);
   List_iterator_fast<Item> li(types);
   Item *item;
 
   while ((item= li++))
     lex_string_set( &item->name, (it++)->str);
+
+  return false;
 }
 
 
@@ -1973,7 +1981,10 @@ cont:
       Rename types used in result table for union.
     */
     if (derived_arg && derived_arg->column_names)
-      rename_types_list(derived_arg->column_names);
+    {
+      if (rename_types_list(derived_arg->column_names))
+        goto err;
+    }
 
     if (!thd->lex->is_view_context_analysis())
       pushdown_unit= find_unit_handler(thd, this);
