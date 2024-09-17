@@ -490,9 +490,15 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     query_plan.set_no_partitions();
     if (thd->lex->describe || thd->lex->analyze_stmt)
       goto produce_explain_and_leave;
-
+  
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+    }
 
     my_ok(thd, 0);
     DBUG_RETURN(0);

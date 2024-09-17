@@ -7174,12 +7174,13 @@ Item_equal::add_key_fields(JOIN *join, KEY_FIELD **key_fields,
 }
 
 
-static uint
+static inline uint
 max_part_bit(key_part_map bits)
 {
-  uint found;
-  for (found=0; bits & 1 ; found++,bits>>=1) ;
-  return found;
+  if (bits == 0)
+    return 0;
+  /* find first zero bit by reverting all bits and find first bit */
+  return my_find_first_bit(~(ulonglong) bits);
 }
 
 
@@ -8608,6 +8609,7 @@ best_access_path(JOIN      *join,
   if (s->keyuse)
   {                                            /* Use key if possible */
     KEYUSE *keyuse, *start_key= 0;
+    const char *cause= NULL;
     uint max_key_part=0;
     enum join_type type= JT_UNKNOWN;
     double cur_cost, copy_cost, cached_prev_record_reads= 0.0;
@@ -8618,7 +8620,6 @@ best_access_path(JOIN      *join,
     for (keyuse=s->keyuse ; keyuse->table == table ;)
     {
       KEY *keyinfo;
-      const char *cause= NULL;
       ulong key_flags;
       uint key_parts;
       key_part_map found_part= 0;
@@ -8626,6 +8627,7 @@ best_access_path(JOIN      *join,
       key_part_map notnull_part=0;
       table_map found_ref= 0;
       uint key= keyuse->key;
+      uint max_const_parts;
       bool ft_key=  (keyuse->keypart == FT_KEYPART);
       /* Bitmap of keyparts where the ref access is over 'keypart=const': */
       key_part_map const_part= 0;
@@ -8752,6 +8754,8 @@ best_access_path(JOIN      *join,
         rec= MATCHING_ROWS_IN_OTHER_TABLE;      // Fix for small tables
 
       Json_writer_object trace_access_idx(thd);
+      max_const_parts= max_part_bit(const_part);
+
       /*
         full text keys require special treatment
       */
@@ -8898,9 +8902,7 @@ best_access_path(JOIN      *join,
                 in ReuseRangeEstimateForRef-3.
               */
               if (table->opt_range_keys.is_set(key) &&
-                  (const_part &
-                   (((key_part_map)1 << table->opt_range[key].key_parts)-1)) ==
-                  (((key_part_map)1 << table->opt_range[key].key_parts)-1) &&
+                  table->opt_range[key].key_parts <= max_const_parts &&
                   table->opt_range[key].ranges == 1 &&
                   records > (double) table->opt_range[key].rows)
               {
@@ -8948,6 +8950,8 @@ best_access_path(JOIN      *join,
             double extra_cost= 0;
 
             max_key_part= max_part_bit(found_part);
+            bool all_used_equalities_are_const= (max_key_part ==
+                                                 max_const_parts);
             /*
               ReuseRangeEstimateForRef-3:
               We're now considering a ref[or_null] access via
@@ -8962,7 +8966,7 @@ best_access_path(JOIN      *join,
               create quick select over another index), so we can't compare
               them to (**). We'll make indirect judgements instead.
               The sufficient conditions for re-use are:
-              (C1) All e_i in (**) are constants, i.e. found_ref==FALSE. (if
+              (C1) All e_i in (**) are constants (if
                    this is not satisfied we have no way to know which ranges
                    will be actually scanned by 'ref' until we execute the 
                    join)
@@ -8987,7 +8991,8 @@ best_access_path(JOIN      *join,
 
               (C3) "range optimizer used (have ref_or_null?2:1) intervals"
             */
-            if (table->opt_range_keys.is_set(key) && !found_ref &&      //(C1)
+            if (table->opt_range_keys.is_set(key) &&
+                all_used_equalities_are_const && // (C1)
                 table->opt_range[key].key_parts == max_key_part &&      //(C2)
                 (table->opt_range[key].ranges ==
                  1 + MY_TEST(ref_or_null_part))) //(C3)
@@ -9033,7 +9038,7 @@ best_access_path(JOIN      *join,
                       This is the case when we have only one const range
                       and it consist of more parts than what we used for REF.
                     */
-                    if (!found_ref &&
+                    if (all_used_equalities_are_const &&
                         table->opt_range[key].key_parts > max_key_part &&
                         table->opt_range[key].ranges <=
                         (uint) (1 + MY_TEST(ref_or_null_part)))
@@ -9045,7 +9050,7 @@ best_access_path(JOIN      *join,
                     }
                   }
                   rows= (double) table->opt_range[key].rows;
-                  if (!found_ref &&                                  // (1)
+                  if (all_used_equalities_are_const &&               // (1)
                       records < rows)                                // (3)
                   {
                     trace_access_idx.add("used_range_estimates",
@@ -9113,16 +9118,17 @@ best_access_path(JOIN      *join,
                 applied to first table->quick_key_parts[key] key parts.
               */
               if (table->opt_range_keys.is_set(key) &&
-                  table->opt_range[key].key_parts <= max_key_part &&
-                  const_part &
-                  ((key_part_map)1 << table->opt_range[key].key_parts) &&
+                  table->opt_range[key].key_parts <= max_const_parts &&
                   table->opt_range[key].ranges == (1 +
                                                    MY_TEST(ref_or_null_part &
                                                            const_part)) &&
                   records > (double) table->opt_range[key].rows)
               {
-                trace_access_idx.add("used_range_estimates", true);
-                records= (double) table->opt_range[key].rows;
+                // psergey-merge-sept: remove: if (table->opt_range[key].key_parts <= max_const_parts)
+                {
+                  trace_access_idx.add("used_range_estimates", true);
+                  records= (double) table->opt_range[key].rows;
+                }
               }
             }
 
@@ -9250,6 +9256,7 @@ best_access_path(JOIN      *join,
           add("rows", records_after_filter).
           add("cost", cur_cost);
       }
+
 
       /*
         The COST_EPS is here to ensure we use the first key if there are
