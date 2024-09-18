@@ -1196,8 +1196,7 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
     buf_page_get_gen(page_id, zip_size, rw_latch, guess, BUF_GET, mtr, &err);
   if (!block)
   {
-    if (err != DB_SUCCESS)
-      btr_read_failed(err, *index());
+    btr_read_failed(err, *index());
     goto func_exit;
   }
 
