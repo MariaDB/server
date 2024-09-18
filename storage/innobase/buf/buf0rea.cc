@@ -202,8 +202,8 @@ Sets the io_fix flag and sets an exclusive lock on the buffer frame. The
 flag is cleared and the x-lock released by an i/o-handler thread.
 
 @param[in] page_id	page id
-@param[in] zip_size	ROW_FORMAT=COMPRESSED page size, or 0,
-			bitwise-ORed with 1 in recovery
+@param[in] zip_size	0 or ROW_FORMAT=COMPRESSED page size
+			bitwise-ORed with 1 to allocate an uncompressed frame
 @param[in,out] chain	buf_pool.page_hash cell for page_id
 @param[in,out] space	tablespace
 @param[in,out] block	preallocated buffer block
@@ -400,26 +400,17 @@ read_ahead:
   return count;
 }
 
-/** High-level function which reads a page from a file to buf_pool
-if it is not already there. Sets the io_fix and an exclusive lock
-on the buffer frame. The flag is cleared and the x-lock
-released by the i/o-handler thread.
-@param page_id    page id
-@param chain      buf_pool.page_hash cell for page_id
-@retval DB_SUCCESS if the page was read and is not corrupted
-@retval DB_SUCCESS_LOCKED_REC if the page was not read
-@retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted,
-@retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
-after decryption normal page checksum does not match.
-@retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
 dberr_t buf_read_page(const page_id_t page_id,
                       buf_pool_t::hash_chain &chain)
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
-  if (!space)
+  if (UNIV_UNLIKELY(!space))
   {
-    ib::info() << "trying to read page " << page_id
-               << " in nonexisting or being-dropped tablespace";
+    sql_print_information("InnoDB: trying to read page "
+                          "[page id: space=" UINT32PF
+                          ", page number=" UINT32PF "]"
+                          " in nonexisting or being-dropped tablespace",
+                          page_id.space(), page_id.page_no());
     return DB_TABLESPACE_DELETED;
   }
 
@@ -436,7 +427,7 @@ dberr_t buf_read_page(const page_id_t page_id,
     block= buf_LRU_get_free_block(have_mutex);
     mysql_mutex_unlock(&buf_pool.mutex);
   }
-  else if (recv_recovery_is_on())
+  else
   {
     zip_size|= 1;
     goto allocate_block;
