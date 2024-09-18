@@ -2016,15 +2016,6 @@ struct gtid_binlog_state_data { rpl_gtid *list; uint32 list_len; };
 bool
 Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
 {
-  String str, *res;
-  struct gtid_binlog_state_data *data;
-  rpl_gtid *list;
-  uint32 list_len;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!(res= var->value->val_str(&str)))
-    return true;
   if (thd->in_active_multi_stmt_transaction())
   {
     my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
@@ -2040,6 +2031,31 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
     my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
     return true;
   }
+  return false;
+}
+
+
+bool
+Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
+{
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  bool result;
+  String str, *res;
+  struct gtid_binlog_state_data *data;
+  rpl_gtid *list;
+  uint32 list_len;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!(res= var->value->val_str(&str)))
+    return true;
   if (res->length() == 0)
   {
     list= NULL;
@@ -2061,31 +2077,13 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
   data->list= list;
   data->list_len= list_len;
   var->save_result.ptr= data;
-  return false;
-}
-
-
-bool
-Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
-{
-  bool res;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-
-  struct gtid_binlog_state_data *data=
-    (struct gtid_binlog_state_data *)var->save_result.ptr;
+  
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  res= (reset_master(thd, data->list, data->list_len, 0) != 0);
+  result= (reset_master(thd, data->list, data->list_len, 0) != 0);
   mysql_mutex_lock(&LOCK_global_system_variables);
   my_free(data->list);
   my_free(data);
-  return res;
+  return result;
 }
 
 
