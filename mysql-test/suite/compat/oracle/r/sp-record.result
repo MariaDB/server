@@ -56,6 +56,32 @@ $$
 str
 dept_id:   11; dept_name: a; mgr_id:    201; loc_id:    1700
 DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(5) CHARACTER SET utf8mb4, b INT, c DOUBLE);
+CREATE OR REPLACE PROCEDURE p1 AS
+TYPE RecT IS RECORD (
+a t1.a%TYPE,
+b t1.b%TYPE,
+c t1.c%TYPE
+);
+rec RecT:= RecT('a',2,3.5);
+BEGIN
+CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c;
+SHOW CREATE TABLE t2;
+SELECT * FROM t2;
+DROP TABLE t2;
+END;
+$$
+CALL p1;
+Table	Create Table
+t2	CREATE TABLE "t2" (
+  "rec.a" varchar(5) DEFAULT NULL,
+  "rec.b" int(11) DEFAULT NULL,
+  "rec.c" double DEFAULT NULL
+)
+rec.a	rec.b	rec.c
+a	2	3.5
+DROP PROCEDURE p1;
+DROP TABLE t1;
 #
 # RECORD using SUBTYPE
 # This is not supported yet
