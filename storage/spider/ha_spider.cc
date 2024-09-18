@@ -21,7 +21,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -1164,13 +1163,7 @@ int ha_spider::extra(
       if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
         DBUG_RETURN(error_num);
       break;
-#if defined(HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN) || defined(HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF)
-#ifdef HA_EXTRA_HAS_STARTING_ORDERED_INDEX_SCAN
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
-#endif
-#ifdef HA_EXTRA_HAS_HA_EXTRA_USE_CMP_REF
-    case HA_EXTRA_USE_CMP_REF:
-#endif
       DBUG_PRINT("info",("spider HA_EXTRA_STARTING_ORDERED_INDEX_SCAN"));
       if (table_share->primary_key != MAX_KEY)
       {
@@ -1198,7 +1191,6 @@ int ha_spider::extra(
         }
       }
       break;
-#endif
     default:
       break;
   }
@@ -6447,9 +6439,7 @@ int ha_spider::info(
   DBUG_ENTER("ha_spider::info");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider flag=%x", flag));
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
   auto_inc_temporary = FALSE;
-#endif
   wide_handler->sql_command = thd_sql_command(thd);
     if (flag & HA_STATUS_AUTO)
     {
@@ -6458,9 +6448,7 @@ int ha_spider::info(
           share->lgtm_tblhnd_share->auto_increment_value;
       else {
         stats.auto_increment_value = 1;
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
         auto_inc_temporary = TRUE;
-#endif
       }
     }
     if (
@@ -6715,9 +6703,7 @@ int ha_spider::info(
     }
     if (flag & HA_STATUS_AUTO)
     {
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
       auto_inc_temporary = FALSE;
-#endif
       if (share->wide_share && table->next_number_field)
       {
         ulonglong first_value, nb_reserved_values;
@@ -7550,7 +7536,6 @@ bool ha_spider::need_info_for_auto_inc()
   ));
 }
 
-#ifdef HANDLER_HAS_CAN_USE_FOR_AUTO_INC_INIT
 bool ha_spider::can_use_for_auto_inc_init()
 {
   DBUG_ENTER("ha_spider::can_use_for_auto_inc_init");
@@ -7562,7 +7547,6 @@ bool ha_spider::can_use_for_auto_inc_init()
     !auto_inc_temporary
   ));
 }
-#endif
 
 int ha_spider::update_auto_increment()
 {
@@ -7890,19 +7874,11 @@ int ha_spider::end_bulk_update(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::bulk_update_row(
   const uchar *old_data,
   const uchar *new_data,
   ha_rows *dup_key_found
 )
-#else
-int ha_spider::bulk_update_row(
-  const uchar *old_data,
-  uchar *new_data,
-  ha_rows *dup_key_found
-)
-#endif
 {
   DBUG_ENTER("ha_spider::bulk_update_row");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -7910,17 +7886,10 @@ int ha_spider::bulk_update_row(
   DBUG_RETURN(update_row(old_data, new_data));
 }
 
-#ifdef SPIDER_UPDATE_ROW_HAS_CONST_NEW_DATA
 int ha_spider::update_row(
   const uchar *old_data,
   const uchar *new_data
 )
-#else
-int ha_spider::update_row(
-  const uchar *old_data,
-  uchar *new_data
-)
-#endif
 {
   int error_num;
   THD *thd = ha_thd();

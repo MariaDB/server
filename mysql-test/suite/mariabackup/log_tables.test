@@ -7,9 +7,9 @@
 CREATE TABLE t(i INT)
   ENGINE ARIA TRANSACTIONAL=1 ROW_FORMAT=PAGE PAGE_CHECKSUM=1;
 
---let $general_log_old = `SELECT @@global.general_log`
---let $log_output_old = `SELECT @@global.log_output`
-
+# Truncate the log in order to make the test ./mtr --repeat proof
+SET GLOBAL general_log = 0;
+TRUNCATE mysql.general_log;
 SET GLOBAL general_log = 1;
 SET GLOBAL log_output = 'TABLE';
 
@@ -43,7 +43,3 @@ SELECT * FROM mysql.general_log
 
 --rmdir $targetdir
 DROP TABLE t;
---disable_query_log
---eval SET GLOBAL general_log = $general_log_old
---eval SET GLOBAL log_output = $log_output_old
---enable_query_log

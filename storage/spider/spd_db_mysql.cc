@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -2007,9 +2006,7 @@ int spider_db_mbase::connect(
       connect_retry_count--;
       my_sleep((ulong) connect_retry_interval);
     } else {
-#ifdef SPIDER_NET_HAS_THD
       db_conn->net.thd = NULL;
-#endif
       if (connect_mutex)
         pthread_mutex_unlock(&spider_open_conn_mutex);
       break;
