@@ -214,7 +214,7 @@ set log_slow_filter=default;
 set timestamp=default;
 
 let SEARCH_FILE=`select @@slow_query_log_file`;
-let SEARCH_PATTERN=use.*2;
+let SEARCH_PATTERN= use \`a\n.*2;
 let SEARCH_OUTPUT=matches;
 source include/search_pattern_in_file.inc;
 
