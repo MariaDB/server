@@ -34,6 +34,7 @@
 #include "sql_profile.h"
 #include "sql_i_s.h"                      // schema_table_store_record
 #include "sql_class.h"                    // THD
+#include "my_json_writer.h"
 
 #ifdef _WIN32
 #pragma comment(lib,"psapi.lib")
@@ -237,6 +238,21 @@ void PROF_MEASUREMENT::set_label(const char *status_arg,
   line= line_arg;
 }
 
+void PROFILE_STATS::collect()
+{
+#ifdef HAVE_GETRUSAGE
+  getrusage(RUSAGE_THREAD, &rusage);
+#elif defined(_WIN32)
+  FILETIME ftDummy;
+  // NOTE: Get{Process|Thread}Times has a granularity of the clock interval,
+  // which is typically ~15ms. So intervals shorter than that will not be
+  // measurable by this function.
+  GetProcessTimes(GetCurrentProcess(), &ftDummy, &ftDummy, &ftKernel, &ftUser);
+  GetProcessIoCounters(GetCurrentProcess(), &io_count);
+  GetProcessMemoryInfo(GetCurrentProcess(), &mem_count, sizeof(mem_count));
+#endif
+}
+
 /**
   This updates the statistics for this moment of time.  It captures the state
   of the running system, so later we can compare points in time and infer what
@@ -248,17 +264,7 @@ void PROF_MEASUREMENT::set_label(const char *status_arg,
 void PROF_MEASUREMENT::collect()
 {
   time_usecs= my_interval_timer() / 1e3;  /* ns to us */
-#ifdef HAVE_GETRUSAGE
-  getrusage(RUSAGE_SELF, &rusage);
-#elif defined(_WIN32)
-  FILETIME ftDummy;
-  // NOTE: Get{Process|Thread}Times has a granularity of the clock interval,
-  // which is typically ~15ms. So intervals shorter than that will not be
-  // measurable by this function.
-  GetProcessTimes(GetCurrentProcess(), &ftDummy, &ftDummy, &ftKernel, &ftUser);
-  GetProcessIoCounters(GetCurrentProcess(), &io_count);
-  GetProcessMemoryInfo(GetCurrentProcess(), &mem_count, sizeof(mem_count));
-#endif
+  PROFILE_STATS::collect();
 }
 
 
@@ -686,6 +692,39 @@ int PROFILING::fill_statistics_info(THD *thd_arg, TABLE_LIST *tables, Item *cond
   }
 
   DBUG_RETURN(0);
+}
+
+void PROFILE_STATS::write_increment_json(Json_writer_object *obj,
+                                         const PROFILE_STATS *prev)
+{
+#ifdef HAVE_GETRUSAGE
+  const timeval &ut_start= prev->rusage.ru_utime;
+  const timeval &ut_end= rusage.ru_utime;
+
+  double ut= (ut_end.tv_sec - ut_start.tv_sec) * 1000.0  +
+             (ut_end.tv_usec - ut_start.tv_usec) / 1000.0;
+  obj->add("r_user_time_ms", ut);
+
+  const timeval &st_start= prev->rusage.ru_stime;
+  const timeval &st_end= rusage.ru_stime;
+
+  double st= (st_end.tv_sec - st_start.tv_sec) * 1000.0  +
+             (st_end.tv_usec - st_start.tv_usec) / 1000.0;
+  obj->add("r_system_time_ms", st);
+
+  obj->add("r_context_voluntary",
+           (uint32)(rusage.ru_nvcsw - prev->rusage.ru_nvcsw));
+  obj->add("r_context_involuntary",
+           (uint32)(rusage.ru_nivcsw - prev->rusage.ru_nivcsw));
+
+#elif defined(_WIN32)
+
+  double ut= GetTimeDiffInSeconds(&ftUser, &prev->ftUser);
+  double st= GetTimeDiffInSeconds(&ftKernel, &prev->ftKernel);
+  obj->add("r_user_time_ms", ut/1000.0);
+  obj->add("r_system_time_ms", st/1000.0);
+
+#endif
 }
 
 

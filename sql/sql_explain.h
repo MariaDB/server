@@ -53,6 +53,8 @@ it into the slow query log.
 #ifndef SQL_EXPLAIN_INCLUDED
 #define SQL_EXPLAIN_INCLUDED
 
+#include "sql_profile.h"  /* for PROFILE_STATS */
+
 class String_list: public List<char>
 {
 public:
@@ -535,6 +537,12 @@ private:
 #endif
 
   Exec_time_tracker optimization_time_tracker;
+
+  /*
+    if profiling=1, we are collecting the profiling data, and this holds
+    the counters taken at the query start.
+  */
+  PROFILE_STATS *start_profile= nullptr;
 };
 
 

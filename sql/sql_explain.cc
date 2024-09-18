@@ -48,6 +48,12 @@ Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) :
   operations(0)
 {
   optimization_time_tracker.start_tracking(stmt_thd);
+  if (thd_arg->profiling.is_enabled())
+  {
+    if ((start_profile= (PROFILE_STATS*) alloc_root(mem_root,
+                                                    sizeof(PROFILE_STATS))))
+      start_profile->collect();
+  }
 }
 
 static void print_json_array(Json_writer *writer,
@@ -275,6 +281,15 @@ int Explain_query::print_explain_json(select_result_sink *output,
     }
 
     print_query_optimization_json(&writer);
+  }
+
+  if (start_profile)
+  {
+    PROFILE_STATS endp;
+    endp.collect();
+    writer.add_member("r_profile_stats");
+    Json_writer_object obj(&writer);
+    endp.write_increment_json(&obj, start_profile);
   }
 
   bool plan_found = print_query_blocks_json(&writer, is_analyze);

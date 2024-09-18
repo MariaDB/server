@@ -169,18 +169,11 @@ public:
 
 };
 
+class Json_writer_object;
 
-/**
-  A single entry in a single profile.
-*/
-class PROF_MEASUREMENT
+class PROFILE_STATS
 {
-private:
-  friend class QUERY_PROFILE;
-  friend class PROFILING;
-
-  QUERY_PROFILE *profile;
-  char *status;
+public:
 #ifdef HAVE_GETRUSAGE
   struct rusage rusage;
 #elif defined(_WIN32)
@@ -188,7 +181,21 @@ private:
   IO_COUNTERS io_count;
   PROCESS_MEMORY_COUNTERS mem_count;
 #endif
+  void collect();
+  void write_increment_json(Json_writer_object *obj, const PROFILE_STATS *prev);
+};
 
+/**
+  A single entry in a single profile.
+*/
+class PROF_MEASUREMENT : private PROFILE_STATS
+{
+private:
+  friend class QUERY_PROFILE;
+  friend class PROFILING;
+
+  QUERY_PROFILE *profile;
+  char *status;
   char *function;
   char *file;
   unsigned int line;
@@ -275,6 +282,8 @@ private:
 public:
   PROFILING();
   ~PROFILING();
+
+  bool is_enabled() const { return enabled; }
 
   /**
     At a point in execution where we know the query source, save the text
