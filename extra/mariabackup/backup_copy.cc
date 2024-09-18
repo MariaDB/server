@@ -1353,9 +1353,6 @@ out:
 	return(ret);
 }
 
-lsn_t server_lsn_after_lock;
-extern void backup_wait_for_lsn(lsn_t lsn);
-
 /** Release resources after backup_files() */
 void backup_release()
 {

@@ -3051,7 +3051,8 @@ row_ins_sec_index_entry_low(
 
 	if (err != DB_SUCCESS) {
 		if (err == DB_DECRYPTION_FAILED) {
-			btr_decryption_failed(*index);
+			innodb_decryption_failed(thr_get_trx(thr)->mysql_thd,
+						 index->table);
 		}
 		goto func_exit;
 	}

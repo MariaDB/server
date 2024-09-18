@@ -195,21 +195,6 @@ dict_tables_have_same_db(
 	return(FALSE);
 }
 
-/********************************************************************//**
-Return the end of table name where we have removed dbname and '/'.
-@return table name */
-const char*
-dict_remove_db_name(
-/*================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-{
-	const char*	s = strchr(name, '/');
-	ut_a(s);
-
-	return(s + 1);
-}
-
 /** Decrement the count of open handles */
 void dict_table_close(dict_table_t *table)
 {
@@ -3844,15 +3829,10 @@ dict_index_calc_min_rec_len(
 	return(sum);
 }
 
-/**********************************************************************//**
-Outputs info on a foreign key of a table in a format suitable for
-CREATE TABLE. */
 std::string
-dict_print_info_on_foreign_key_in_create_format(
-/*============================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline)	/*!< in: whether to add a newline */
+dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
+                                                const dict_foreign_t *foreign,
+                                                bool add_newline)
 {
 	const char*	stripped_id;
 	ulint	i;

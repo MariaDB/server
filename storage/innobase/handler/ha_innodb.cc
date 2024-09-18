@@ -3337,7 +3337,7 @@ innobase_invalidate_query_cache(
 void
 innobase_quote_identifier(
 	FILE*		file,
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id)
 {
 	const int	q = trx != NULL && trx->mysql_thd != NULL
@@ -3367,7 +3367,7 @@ innobase_quote_identifier(
 std::string
 innobase_quote_identifier(
 /*======================*/
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id)
 {
 	std::string quoted_identifier;
@@ -21071,64 +21071,46 @@ static void innodb_remember_check_sysvar_funcs()
 	check_sysvar_int = MYSQL_SYSVAR_NAME(flush_log_at_timeout).check;
 }
 
-static const size_t MAX_BUF_SIZE = 4 * 1024;
-
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...)
+/** Report that a table cannot be decrypted.
+@param thd    connection context
+@param table  table that cannot be decrypted
+@retval DB_DECRYPTION_FAILED (always) */
+ATTRIBUTE_COLD
+dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table)
 {
-	if (trx && trx->mysql_thd) {
-		THD *thd = (THD *)trx->mysql_thd;
-		va_list args;
-		char *buf;
-
-		va_start(args, format);
-		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
-		buf[MAX_BUF_SIZE - 1] = 0;
-		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
-
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
-		my_free(buf);
-		va_end(args);
-	}
+  table->file_unreadable= true;
+  if (!thd)
+    thd= current_thd;
+  const int dblen= int(table->name.dblen());
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      HA_ERR_DECRYPTION_FAILED,
+                      "Table %`.*s.%`s in tablespace " UINT32PF
+                      " (file %s) cannot be decrypted.",
+                      dblen, table->name.m_name,
+                      table->name.m_name + dblen + 1,
+                      uint32_t(table->space_id),
+                      UT_LIST_GET_FIRST(table->space->chain)->name);
+  return DB_DECRYPTION_FAILED;
 }
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-void
-ib_push_warning(
-	void*		ithd,	/*!< in: thd */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...)
+/** Report a foreign key error.
+@param error    error to report
+@param name     table name
+@param foreign  constraint */
+ATTRIBUTE_COLD
+void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
+                     const dict_foreign_t& foreign)
 {
-	va_list args;
-	THD *thd = (THD *)ithd;
-	char *buf;
-
-	if (ithd == NULL) {
-		thd = current_thd;
-	}
-
-	if (thd) {
-		va_start(args, format);
-		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
-		buf[MAX_BUF_SIZE - 1] = 0;
-		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
-
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
-		my_free(buf);
-		va_end(args);
-	}
+  const int dblen= int(table_name_t(const_cast<char*>(name)).dblen());
+  std::string fk= dict_print_info_on_foreign_key_in_create_format
+    (trx, &foreign, false);
+  push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_WARN,
+                      convert_error_code_to_mysql(err, 0, nullptr),
+                      "CREATE or ALTER TABLE %`.*s.%`s failed%s%.*s",
+                      dblen, name, name + dblen + 1,
+                      err == DB_DUPLICATE_KEY
+                      ? ": duplicate name" : "",
+                      int(fk.length()), fk.data());
 }
 
 /** Helper function to push warnings from InnoDB internals to SQL-layer.
