@@ -61,6 +61,29 @@ $$
 DELIMITER ;$$
 DROP TABLE t1;
 
+
+CREATE TABLE t1 (a VARCHAR(5) CHARACTER SET utf8mb4, b INT, c DOUBLE);
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1 AS
+  TYPE RecT IS RECORD (
+    a t1.a%TYPE,
+    b t1.b%TYPE,
+    c t1.c%TYPE
+  );
+  rec RecT:= RecT('a',2,3.5);
+BEGIN
+  CREATE TABLE t2 AS SELECT rec.a, rec.b, rec.c;
+  SHOW CREATE TABLE t2;
+  SELECT * FROM t2;
+  DROP TABLE t2;
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+
 --echo #
 --echo # RECORD using SUBTYPE
 --echo # This is not supported yet
