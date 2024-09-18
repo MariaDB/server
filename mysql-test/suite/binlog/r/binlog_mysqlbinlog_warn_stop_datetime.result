@@ -1,0 +1,23 @@
+
+# MDEV-27037 mysqlbinlog emits a warning when reaching EOF before stop-datetime
+
+set timestamp=1000000000;
+CREATE TABLE t1(word VARCHAR(20));
+set timestamp=1000000010;
+INSERT INTO t1 VALUES ("abirvalg");
+set timestamp=1000000020;
+INSERT INTO t1 SELECT * FROM t1;
+flush logs;
+Case: Default, must not see warning.
+# MYSQL_BINLOG --short-form MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop datetime before EOF, must not see warning.
+# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop datetime between records, must not see warning.
+# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop datetime at EOF, must not see warning.
+# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop datetime after EOF, must see warning.
+# MYSQL_BINLOG --short-form --stop-datetime='2035-01-19 03:14:05' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+WARNING: Did not reach stop datetime '2035-01-19 03:14:05' before end of input
+DROP TABLE t1;
+# End of binlog_mysqlbinlog_warn_stop_datetime.test
