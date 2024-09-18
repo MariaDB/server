@@ -489,7 +489,6 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   DBUG_RETURN(conn);
 
 error:
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
 error_too_many_ipport_count:
   spider_conn_done(conn);
 error_conn_init:

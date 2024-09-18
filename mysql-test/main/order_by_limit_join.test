@@ -68,6 +68,7 @@ set optimizer_join_limit_pref_ratio=10;
 eval $query;
 
 set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 --echo #
@@ -95,6 +96,7 @@ set optimizer_join_limit_pref_ratio=10;
 eval $query;
 
 set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 --echo #
@@ -121,6 +123,7 @@ set optimizer_join_limit_pref_ratio=10;
 eval $query;
 
 set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 --echo #
@@ -140,6 +143,7 @@ limit 10;
 set @trace=(select trace from information_schema.optimizer_trace);
 --echo # This will show nothing as limit shortcut code figures that
 --echo #   it's not possible to use t1 to construct shortcuts:
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 --echo #
@@ -169,6 +173,7 @@ set optimizer_join_limit_pref_ratio=10;
 eval $query;
 
 set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 --echo #
@@ -197,6 +202,7 @@ set optimizer_join_limit_pref_ratio=10;
 eval $query;
 
 set @trace=(select trace from information_schema.optimizer_trace);
+--source include/optimizer_trace_no_costs.inc
 select json_detailed(json_extract(@trace, '$**.join_limit_shortcut_choice')) as JS;
 
 

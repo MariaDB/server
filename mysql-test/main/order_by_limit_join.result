@@ -81,8 +81,8 @@ JS
                     "clause": "ORDER BY",
                     "table": "t1",
                     "rows_estimation": 10000,
-                    "filesort_cost": 0.205030632,
-                    "read_cost": 1.791376632,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
                     "filesort_type": "priority_queue with row lookup",
                     "fanout": 1,
                     "possible_keys": 
@@ -103,7 +103,7 @@ JS
                             "direction": 1,
                             "rows_to_examine": 10,
                             "range_scan": false,
-                            "scan_cost": 0.013129232,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -111,9 +111,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 37.9789756,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 0.049201862,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 0.492018616,
         "use_shortcut_cost": true
     }
@@ -163,9 +163,9 @@ JS
         "test_if_skip_sort_order_early": 
         [],
         "can_skip_filesort": false,
-        "full_join_cost": 37.9789756,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 1.94241863,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 19.4241863,
         "use_shortcut_cost": true
     }
@@ -220,8 +220,8 @@ JS
                     "clause": "ORDER BY",
                     "table": "t1",
                     "rows_estimation": 10000,
-                    "filesort_cost": 1.070467741,
-                    "read_cost": 2.656813741,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
                     "filesort_type": "merge_sort with addon fields",
                     "fanout": 1,
                     "possible_keys": 
@@ -242,7 +242,7 @@ JS
                             "direction": 1,
                             "rows_to_examine": 5000,
                             "range_scan": false,
-                            "scan_cost": 6.174703142,
+                            "scan_cost": "REPLACED",
                             "usable": false,
                             "cause": "cost"
                         }
@@ -251,9 +251,9 @@ JS
             }
         ],
         "can_skip_filesort": false,
-        "full_join_cost": 37.9789756,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 19.9426608,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 199.426608,
         "use_shortcut_cost": false
     }
@@ -342,8 +342,8 @@ JS
                     "clause": "ORDER BY",
                     "table": "t1",
                     "rows_estimation": 10000,
-                    "filesort_cost": 0.205030632,
-                    "read_cost": 1.791376632,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
                     "filesort_type": "priority_queue with row lookup",
                     "fanout": 1,
                     "possible_keys": 
@@ -364,7 +364,7 @@ JS
                             "direction": 1,
                             "rows_to_examine": 10,
                             "range_scan": false,
-                            "scan_cost": 0.013129232,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -372,9 +372,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 42.02203018,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 0.053244916,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 0.532449162,
         "use_shortcut_cost": true
     }
@@ -430,8 +430,8 @@ JS
                     "clause": "ORDER BY",
                     "table": "t1",
                     "rows_estimation": 10000,
-                    "filesort_cost": 0.205030632,
-                    "read_cost": 1.791376632,
+                    "filesort_cost": "REPLACED",
+                    "read_cost": "REPLACED",
                     "filesort_type": "priority_queue with row lookup",
                     "fanout": 1,
                     "possible_keys": 
@@ -452,7 +452,7 @@ JS
                             "direction": 1,
                             "rows_to_examine": 10,
                             "range_scan": false,
-                            "scan_cost": 0.013129232,
+                            "scan_cost": "REPLACED",
                             "chosen": true
                         }
                     ]
@@ -460,9 +460,9 @@ JS
             }
         ],
         "can_skip_filesort": true,
-        "full_join_cost": 37.9789756,
+        "full_join_cost": "REPLACED",
         "risk_ratio": 10,
-        "shortcut_join_cost": 0.049201862,
+        "shortcut_join_cost": "REPLACED",
         "shortcut_cost_with_risk": 0.492018616,
         "use_shortcut_cost": true
     }
