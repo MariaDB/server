@@ -3289,22 +3289,47 @@ retry:
 
     if (!mtr->have_x_latch(reinterpret_cast<const buf_block_t&>(*bpage)))
     {
-      const bool got= bpage->lock.x_lock_try();
-      if (!got)
+      /* Buffer-fix the block to prevent the block being concurrently freed
+      after we release the buffer pool mutex. It should work fine with
+      concurrent load of the page (free on disk) to buffer pool due to
+      possible read ahead. After we find a zero filled page during load, we
+      call buf_pool_t::corrupted_evict, where we try to wait for all buffer
+      fixes to go away only after resetting the page ID and releasing the
+      page latch. */
+      auto state= bpage->fix();
+      DBUG_EXECUTE_IF("ib_buf_create_intermittent_wait",
       {
+        static bool need_to_wait = false;
+        need_to_wait = !need_to_wait;
+        /* Simulate try lock failure in every alternate call. */
+        if (need_to_wait) {
+          goto must_wait;
+        }
+      });
+
+      if (!bpage->lock.x_lock_try())
+      {
+#ifndef DBUG_OFF
+      must_wait:
+#endif
         mysql_mutex_unlock(&buf_pool.mutex);
+
         bpage->lock.x_lock();
         const page_id_t id{bpage->id()};
         if (UNIV_UNLIKELY(id != page_id))
         {
           ut_ad(id.is_corrupted());
+          ut_ad(bpage->is_freed());
+          bpage->unfix();
           bpage->lock.x_unlock();
           goto retry;
         }
         mysql_mutex_lock(&buf_pool.mutex);
+        state= bpage->state();
+        ut_ad(!bpage->is_io_fixed(state));
+        ut_ad(bpage->buf_fix_count(state));
       }
 
-      auto state= bpage->fix();
       ut_ad(state >= buf_page_t::FREED);
       ut_ad(state < buf_page_t::READ_FIX);
 
