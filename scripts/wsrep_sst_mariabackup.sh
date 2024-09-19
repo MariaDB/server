@@ -843,7 +843,13 @@ recv_joiner()
     done
 
     if [ $checkf -eq 1 ]; then
-        if [ ! -r "$MAGIC_FILE" ]; then
+        if [ -r "$MAGIC_FILE" ]; then
+            :
+        elif [ -r "$dir/xtrabackup_galera_info" ]; then
+            mv "$dir/xtrabackup_galera_info" "$MAGIC_FILE"
+            wsrep_log_info "the SST donor uses an old version" \
+                           "of mariabackup or xtrabackup"
+        else
             # this message should cause joiner to abort:
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
@@ -1334,14 +1340,21 @@ else # joiner
                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
                 -o -exec rm -rf {} >&2 \+
 
-        # Deleting files from previous SST and legacy files from old versions:
+        # Deleting legacy files from old versions:
         [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
         [ -f "$DATA/xtrabackup_pid" ]         && rm -f "$DATA/xtrabackup_pid"
         [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
-        [ -f "$DATA/mariadb_backup_checkpoints" ] && rm -f "$DATA/mariadb_backup_checkpoints"
         [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
         [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_info" ] && rm -f "$DATA/xtrabackup_binlog_info"
         [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
+
+        # Deleting files from previous SST:
+        [ -f "$DATA/mariadb_backup_checkpoints" ] && rm -f "$DATA/mariadb_backup_checkpoints"
+        [ -f "$DATA/mariadb_backup_info" ]        && rm -f "$DATA/mariadb_backup_info"
+        [ -f "$DATA/mariadb_backup_slave_info" ]  && rm -f "$DATA/mariadb_backup_slave_info"
+        [ -f "$DATA/mariadb_backup_binlog_info" ] && rm -f "$DATA/mariadb_backup_binlog_info"
+        [ -f "$DATA/mariadb_backup_binlog_pos_innodb" ] && rm -f "$DATA/mariadb_backup_binlog_pos_innodb"
 
         TDATA="$DATA"
         DATA="$DATA/.sst"
@@ -1350,6 +1363,44 @@ else # joiner
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $BACKUP_PID
         BACKUP_PID=""
+
+        # It is possible that the old version of the galera
+        # information file will be transferred second time:
+        if [ ! -f "$DATA/$INFO_FILE" -a \
+               -f "$DATA/xtrabackup_galera_info" ]
+        then
+            mv "$DATA/xtrabackup_galera_info" "$DATA/$INFO_FILE"
+        fi
+
+        # Correcting the name of the common information file
+        # if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_info" -a \
+               -f "$DATA/xtrabackup_info" ]
+        then
+            mv "$DATA/xtrabackup_info" "$DATA/mariadb_backup_info"
+            wsrep_log_info "general information file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # Correcting the name for the file with the binlog position
+        # for the master if the donor has an old version:
+        if [ ! -f "$DATA/mariadb_backup_slave_info" -a \
+               -f "$DATA/xtrabackup_slave_info" ]
+        then
+            mv "$DATA/xtrabackup_slave_info" "$DATA/mariadb_backup_slave_info"
+            wsrep_log_info "binlog position file with a legacy" \
+                           "name has been renamed"
+        fi
+
+        # An old version of the donor may send a checkpoints
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_checkpoints" -a \
+               -f "$DATA/xtrabackup_checkpoints" ]
+        then
+            mv "$DATA/xtrabackup_checkpoints" "$DATA/mariadb_backup_checkpoints"
+            wsrep_log_info "list of checkpoints with a legacy" \
+                           "name has been renamed"
+        fi
 
         if [ ! -s "$DATA/mariadb_backup_checkpoints" ]; then
             wsrep_log_error "mariadb_backup_checkpoints missing," \
@@ -1408,6 +1459,16 @@ else # joiner
                 wsrep_log_error "Decompression failed. Exit code: $extcode"
                 exit 22
             fi
+        fi
+
+        # An old version of the donor may send a binary logs
+        # list file under an outdated name:
+        if [ ! -f "$DATA/mariadb_backup_binlog_info" -a \
+               -f "$DATA/xtrabackup_binlog_info" ]
+        then
+            mv "$DATA/xtrabackup_binlog_info" "$DATA/mariadb_backup_binlog_info"
+            wsrep_log_info "list of binary logs with a legacy" \
+                           "name has been renamed"
         fi
 
         wsrep_log_info "Preparing the backup at $DATA"
