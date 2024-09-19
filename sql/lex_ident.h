@@ -586,7 +586,7 @@ public:
   size_t make_sep_name_opt_casedn(char *dst, size_t dst_size,
                                   int sep, bool casedn) const
   {
-    DBUG_ASSERT(m_name[0].length + m_name[1].length + 2 < FN_REFLEN - 1);
+    DBUG_ASSERT(m_name[0].length + m_name[1].length + 2 < FN_REFLEN);
     return casedn ? make_sep_name_casedn(dst, dst_size, sep) :
                     make_sep_name(dst, dst_size, sep);
   }

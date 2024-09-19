@@ -30,6 +30,7 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
+#include <strfunc.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -2867,8 +2868,10 @@ innobase_init_foreign(
 	dict_index_t*	referenced_index,	/*!< in: referenced index */
 	const char**	referenced_column_names,/*!< in: referenced column
 						names */
-	ulint		referenced_num_field)	/*!< in: number of referenced
+	ulint		referenced_num_field,	/*!< in: number of referenced
 						columns */
+	const char *	part_suffix,
+	const size_t	part_suffix_len)
 {
 	ut_ad(dict_sys.locked());
 
@@ -2882,12 +2885,27 @@ innobase_init_foreign(
 
                 db_len = dict_get_db_name_len(table->name.m_name);
 
+// Append partition suffix when FK is created in inplace alter
+		const size_t constr_len= strlen(constraint_name);
+		size_t alloc_len = 2 + db_len + constr_len + 2;
+		if (part_suffix)
+		{
+			alloc_len += part_suffix_len + 1;
+		}
+
                 foreign->id = static_cast<char*>(mem_heap_alloc(
-                        foreign->heap, db_len + strlen(constraint_name) + 2));
+                        foreign->heap, alloc_len));
 
                 memcpy(foreign->id, table->name.m_name, db_len);
                 foreign->id[db_len] = '/';
-                strcpy(foreign->id + db_len + 1, constraint_name);
+		char *pos= foreign->id + db_len + 1;
+		strcpy(pos, constraint_name);
+		if (part_suffix)
+		{
+			pos+= constr_len;
+			*(pos++) = '\xFF';
+			strcpy(pos, part_suffix);
+		}
 
 		/* Check if any existing foreign key has the same id,
 		this is needed only if user supplies the constraint name */
@@ -3210,6 +3228,10 @@ innobase_get_foreign_key_info(
 	ulint		num_fk = 0;
 	Alter_info*	alter_info = ha_alter_info->alter_info;
 	const CHARSET_INFO*	cs = thd_charset(trx->mysql_thd);
+	char db_name[MAX_DATABASE_NAME_LEN + 1];
+	char t_name[MAX_TABLE_NAME_LEN + 1];
+	const char *	part_suffix= is_partition(table->name.basename());
+	const size_t	part_suffix_len= part_suffix ? strlen(part_suffix) : 0;
 
 	DBUG_ENTER("innobase_get_foreign_key_info");
 
@@ -3274,14 +3296,51 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
+		LEX_CSTRING table_name = fk_key->ref_table;
+		CHARSET_INFO* to_cs = &my_charset_filename;
+
+		if (!strncmp(table_name.str, srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1)) {
+			table_name.str
+				+= sizeof srv_mysql50_table_name_prefix - 1;
+			table_name.length
+				-= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		}
+
+		uint errors;
+		Lex_ident_table t;
+		t.str = t_name;
+		t.length = strconvert(cs, LEX_STRING_WITH_LEN(table_name),
+				      to_cs, t_name, MAX_TABLE_NAME_LEN,
+				      &errors);
+		Lex_ident_db d(fk_key->ref_db);
+		if (!d.str) {
+			d.str = table->name.m_name;
+			d.length = table->name.dblen();
+		}
+
+		if (!strncmp(d.str, srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1)) {
+			d.str += sizeof srv_mysql50_table_name_prefix - 1;
+			d.length -= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		} else if (d.str == table->name.m_name) {
+			goto name_converted;
+		} else {
+			to_cs = &my_charset_filename;
+		}
+
+		d.length = strconvert(cs, LEX_STRING_WITH_LEN(d), to_cs,
+				      db_name, MAX_DATABASE_NAME_LEN,
+				      &errors);
+		d.str = db_name;
+
+name_converted:
 		dict_sys.lock(SRW_LOCK_CALL);
 
 		referenced_table_name = dict_get_referenced_table(
-			table->name.m_name,
-			LEX_STRING_WITH_LEN(fk_key->ref_db),
-			LEX_STRING_WITH_LEN(fk_key->ref_table),
-			&referenced_table,
-			add_fk[num_fk]->heap, cs);
+			d, t, &referenced_table, add_fk[num_fk]->heap);
 
 		/* Test the case when referenced_table failed to
 		open, if trx->check_foreigns is not set, we should
@@ -3345,7 +3404,8 @@ innobase_get_foreign_key_info(
 			    table, index, column_names,
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
-			    referenced_column_names, referenced_num_col)) {
+			    referenced_column_names, referenced_num_col,
+			    part_suffix, part_suffix_len)) {
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
@@ -7852,6 +7912,7 @@ ha_innobase::prepare_inplace_alter_table(
 	bool		add_fts_idx		= false;
 	dict_s_col_list*s_cols			= NULL;
 	mem_heap_t*	s_heap			= NULL;
+	char foreign_id[MAX_FOREIGN_ID_LEN];
 
 	DBUG_ENTER("prepare_inplace_alter_table");
 	DBUG_ASSERT(!ha_alter_info->handler_ctx);
@@ -8186,8 +8247,18 @@ check_if_ok_to_rename:
 				the FOREIGN KEY constraint name, compare
 				to the full constraint name. */
 				fid = fid ? fid + 1 : foreign->id;
-
-				if (Lex_ident_column(Lex_cstring_strlen(fid)).
+// For inplace drop FK find partition-suffixed FKs by ID without suffix
+				Lex_cstring id;
+				id.str= fid;
+				const char *suff= strchr(fid, '\xFF');
+				if (suff) {
+					id.length= size_t(suff - fid);
+					memcpy(foreign_id, fid, id.length);
+					id.str= foreign_id;
+					foreign_id[id.length]= 0;
+				} else
+					id.length = strlen(fid);
+				if (Lex_ident_column(id).
 				      streq(drop.name)) {
 					goto found_fk;
 				}
@@ -9944,6 +10015,10 @@ innobase_update_foreign_try(
 
 	foreign_id++;
 
+// Used by inplace add foreign key
+	const char *part_suffix= is_partition(ctx->old_table->name.m_name);
+	size_t part_suffix_len= part_suffix ? strlen(part_suffix) : 0;
+
 	for (i = 0; i < ctx->num_to_add_fk; i++) {
 		dict_foreign_t*		fk = ctx->add_fk[i];
 
@@ -9951,7 +10026,8 @@ innobase_update_foreign_try(
 		      || fk->foreign_table == ctx->old_table);
 
 		dberr_t error = dict_create_add_foreign_id(
-			&foreign_id, ctx->old_table->name.m_name, fk);
+			&foreign_id, ctx->old_table->name.m_name, fk,
+			part_suffix, part_suffix_len);
 
 		if (error != DB_SUCCESS) {
 			my_error(ER_TOO_LONG_IDENT, MYF(0),
@@ -10339,10 +10415,12 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx, false);
+						   ctx->tmp_name, trx,
+						   RENAME_REBUILD);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx, false);
+			rebuilt_table->name.m_name, old_name, trx,
+			RENAME_REBUILD);
 		if (error == DB_SUCCESS) {
 			/* The statistics for the surviving indexes will be
 			re-inserted in alter_stats_rebuild(). */

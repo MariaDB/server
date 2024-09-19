@@ -1617,7 +1617,8 @@ dict_table_rename_in_cache(
 			foreign->heap, table->name.m_name);
 		foreign->foreign_table_name_lookup_set();
 
-		if (strchr(foreign->id, '/')) {
+		const bool tmp_id = (strchr(foreign->id, '\xFF') != NULL);
+		if (!tmp_id && strchr(foreign->id, '/')) {
 			/* This is a >= 4.0.18 format id */
 
 			ulint	db_len;
@@ -1761,10 +1762,17 @@ dict_table_rename_in_cache(
 		}
 
 		table->foreign_set.erase(it);
-		fk_set.insert(foreign);
 
-		if (foreign->referenced_table) {
-			foreign->referenced_table->referenced_set.insert(foreign);
+		if (!tmp_id) {
+			fk_set.insert(foreign);
+
+			if (foreign->referenced_table) {
+				foreign->referenced_table
+					->referenced_set.insert(foreign);
+			}
+		} else {
+			/* foreign was not added to cache, free it */
+			dict_foreign_free(foreign);
 		}
 	}
 
@@ -3222,81 +3230,46 @@ Open a table from its database and table name, this is currently used by
 foreign constraint parser to get the referenced table.
 @return complete table name with database and table name, allocated from
 heap memory passed in */
-char*
-dict_get_referenced_table(
-	const char*    name,		  /*!< in: foreign key table name */
-	const char*    database_name,	  /*!< in: table db name */
-	ulint	       database_name_len, /*!< in: db name length */
-	const char*    table_name,	  /*!< in: table name */
-	ulint	       table_name_len,	  /*!< in: table name length */
-	dict_table_t** table,		  /*!< out: table object or NULL */
-	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
+char *dict_get_referenced_table(
+    Lex_ident_db database_name, /*!< in: table db name */
+    Lex_ident_table table_name,    /*!< in: table name */
+    dict_table_t **table,      /*!< out: table object or NULL */
+    mem_heap_t *heap)          /*!< in/out: heap memory */
 {
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
-	ut_ad(database_name || name);
-	ut_ad(table_name);
+  /* Copy database_name, '/', table_name, '\0' */
+  const size_t len= database_name.length + table_name.length + 1;
+  char *ref= static_cast<char *>(mem_heap_alloc(heap, len + 1));
+  memcpy(ref, database_name.str, database_name.length);
+  ref[database_name.length]= '/';
+  memcpy(ref + database_name.length + 1, table_name.str,
+         table_name.length + 1);
 
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
+  /* Values;  0 = Store and compare as given; case sensitive
+              1 = Store and compare in lower; case insensitive
+              2 = Store as given, compare in lower; case semi-sensitive */
+  if (lower_case_table_names == 2)
+  {
+    innobase_casedn_str(ref);
+    *table= dict_sys.load_table({ref, len});
+    memcpy(ref, database_name.str, database_name.length);
+    ref[database_name.length]= '/';
+    memcpy(ref + database_name.length + 1, table_name.str,
+           table_name.length + 1);
+  }
+  else
+  {
+#ifndef _WIN32
+    if (lower_case_table_names == 1)
+    {
+      innobase_casedn_str(ref);
+    }
+#else
+    innobase_casedn_str(ref);
+#endif /* !_WIN32 */
+    *table= dict_sys.load_table({ref, len});
+  }
 
-		to_cs = system_charset_info;
-	}
-
-	table_name_len = strconvert(from_cs, table_name, table_name_len, to_cs,
-				    tbl_name, MAX_TABLE_NAME_LEN, &errors);
-	table_name     = tbl_name;
-
-	if (database_name) {
-		to_cs = &my_charset_filename;
-		if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-			     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-			database_name
-				+= sizeof(srv_mysql50_table_name_prefix) - 1;
-			database_name_len
-				-= sizeof(srv_mysql50_table_name_prefix) - 1;
-			to_cs = system_charset_info;
-		}
-
-		database_name_len = strconvert(
-			from_cs, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		database_name = db_name;
-	} else {
-		/* Use the database name of the foreign key table */
-
-		database_name = name;
-		database_name_len = dict_get_db_name_len(name);
-	}
-
-	/* Copy database_name, '/', table_name, '\0' */
-	Identifier_chain2 ident({database_name, database_name_len},
-				{table_name, table_name_len});
-	size_t ref_nbytes= (database_name_len + table_name_len) *
-			system_charset_info->casedn_multiply() + 2;
-	char *ref = static_cast<char*>(mem_heap_alloc(heap, ref_nbytes));
-
-	/* Values;  0 = Store and compare as given; case sensitive
-	            1 = Store and compare in lower; case insensitive
-	            2 = Store as given, compare in lower; case semi-sensitive */
-
-	size_t len= ident.make_sep_name_opt_casedn(ref, ref_nbytes,
-					'/', lower_case_table_names > 0);
-	*table = dict_sys.load_table({ref, len});
-
-	if (lower_case_table_names == 2) {
-		ident.make_sep_name_opt_casedn(ref, ref_nbytes, '/', false);
-	}
-
-	return(ref);
+  return (ref);
 }
 
 /*********************************************************************//**
@@ -3827,13 +3800,23 @@ dict_print_info_on_foreign_key_in_create_format(
 	const char*	stripped_id;
 	ulint	i;
 	std::string	str;
+// When returning FKs to SQL layer remove partition suffix from foreign ID (constraint name).
+	char foreign_id[MAX_FOREIGN_ID_LEN];
+	const char* s;
 
-	if (strchr(foreign->id, '/')) {
+	if (size_t db_len= dict_get_db_name_len(foreign->id)) {
+		ut_ad(foreign->id[db_len + 1]);
 		/* Strip the preceding database name from the constraint id */
-		stripped_id = foreign->id + 1
-			+ dict_get_db_name_len(foreign->id);
+		stripped_id = foreign->id + 1 + db_len;
 	} else {
 		stripped_id = foreign->id;
+	}
+
+	if ((s= strchr(stripped_id, '\xFF')) && s > stripped_id) {
+		size_t l= size_t(s - stripped_id);
+		memcpy(foreign_id, stripped_id, l);
+		foreign_id[l]= 0;
+		stripped_id= foreign_id;
 	}
 
 	str.append(",");

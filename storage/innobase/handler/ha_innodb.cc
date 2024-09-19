@@ -262,15 +262,14 @@ void set_my_errno(int err)
 /** Checks whether the file name belongs to a partition of a table.
 @param[in]	file_name	file name
 @return pointer to the end of the table name part of the file name, or NULL */
-static
 char*
 is_partition(
 /*=========*/
-	char*		file_name)
+	const char*		file_name)
 {
 	/* We look for pattern #P# to see if the table is partitioned
 	MariaDB table. */
-	return strstr(file_name, table_name_t::part_suffix);
+	return strstr(const_cast<char *>(file_name), table_name_t::part_suffix);
 }
 
 
@@ -2474,6 +2473,16 @@ innobase_basename(
 	return((name) ? name : "null");
 }
 
+/******************************************************************//**
+Makes all characters in a NUL-terminated UTF-8 string lower case. */
+void
+innobase_casedn_str(
+/*================*/
+	char*	a)	/*!< in/out: string to put in lower case */
+{
+	my_casedn_str_8bit(system_charset_info, a);
+}
+
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
@@ -3408,14 +3417,17 @@ innobase_convert_identifier(
 	THD*		thd)
 {
 	const char*	s	= id;
-
-	char nz[MAX_TABLE_NAME_LEN + 1];
-	char nz2[MAX_TABLE_NAME_LEN + 1];
+// That was wrong buffer size assumption as id is full identifier of format:
+	/* db/table_name#P#part_name#SP#subpart_name */
+	static const size_t ID_LEN= MAX_TABLE_NAME_LEN * 3 + 1 + 3 + 4 + 1;
+	char nz[ID_LEN];
+	char nz2[ID_LEN];
 
 	/* Decode the table name.  The MySQL function expects
 	a NUL-terminated string.  The input and output strings
 	buffers must not be shared. */
-	ut_a(idlen <= MAX_TABLE_NAME_LEN);
+        /* ut_a(db/table_name#P#part_name#SP#subpart_name) */
+	ut_a(idlen < ID_LEN);
 	memcpy(nz, id, idlen);
 	nz[idlen] = 0;
 
@@ -5293,7 +5305,12 @@ create_table_info_t::create_table_info_t(
 	  m_create_info(create_info),
 	  m_table(NULL),
 	  m_innodb_file_per_table(file_per_table),
-	  m_creating_stub(thd_ddl_options(thd)->import_tablespace())
+	  m_creating_stub(thd_ddl_options(thd)->import_tablespace()),
+// These help to pass data from create_foreign_keys() to create_foreign_key()
+// More create_foreign_keys() variables should be moved to create_table_info_t
+	  part_suffix(NULL),
+	  tmp_name(false),
+	  alter_table(NULL)
 {
   m_table_name[0]= '\0';
   m_remote_path[0]= '\0';
@@ -12238,31 +12255,63 @@ create_table_info_t::create_foreign_keys()
 	dict_foreign_set      local_fk_set;
 	dict_foreign_set_free local_fk_set_free(local_fk_set);
 	dberr_t		      error;
-	ulint		      number	      = 1;
-	static const unsigned MAX_COLS_PER_FK = 500;
+	ulint                 number          = 1;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
+	/* Quoted form `db`.`table` used for warning messages */
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
-	dict_index_t*	      index	  = NULL;
-	fkerr_t		      index_error = FK_SUCCESS;
-	dict_index_t*	      err_index	  = NULL;
-	ulint		      err_col	= 0;
+	/* Name of original table in filename charset (or system charset for mysql50 name) */
+	char db_name[MAX_DATABASE_NAME_LEN + 1];
+	char t_name[MAX_TABLE_NAME_LEN + 1];
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
-	const char*	      name	= m_table_name;
+        /* Name of innodb table without db */
+	const char*	      basename;
 
 	enum_sql_command sqlcom = enum_sql_command(thd_sql_command(m_thd));
+        /* Name of innodb table with db */
+	LEX_CSTRING name= {m_table_name, strlen(m_table_name)};
 
+	ut_ad(!part_suffix);
 	if (sqlcom == SQLCOM_ALTER_TABLE) {
-		dict_table_t* table_to_alter;
-		mem_heap_t*   heap = mem_heap_create(10000);
-		ulint	      highest_id_so_far;
-		char*	      n = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(m_form->s->db),
-			LEX_STRING_WITH_LEN(m_form->s->table_name),
-			&table_to_alter, heap, cs);
+		mem_heap_t* heap = mem_heap_create(10000);
+		LEX_CSTRING table_name = m_form->s->table_name;
+		CHARSET_INFO* to_cs = &my_charset_filename;
+
+		if (!strncmp(table_name.str, srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1)) {
+			table_name.str
+				+= sizeof srv_mysql50_table_name_prefix - 1;
+			table_name.length
+				-= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		}
+
+		uint errors;
+		Lex_ident_table t;
+		t.str = t_name;
+		t.length = strconvert(cs, LEX_STRING_WITH_LEN(table_name),
+				      to_cs, t_name, MAX_TABLE_NAME_LEN,
+				      &errors);
+		Lex_ident_db d= m_form->s->db;
+
+		if (!strncmp(d.str, srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1)) {
+			d.str += sizeof srv_mysql50_table_name_prefix - 1;
+			d.length -= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		} else {
+			to_cs = &my_charset_filename;
+		}
+
+		d.length = strconvert(cs, LEX_STRING_WITH_LEN(d), to_cs,
+				      db_name, MAX_DATABASE_NAME_LEN,
+				      &errors);
+		d.str = db_name;
+
+		char* n = dict_get_referenced_table(d, t, &alter_table, heap);
 
 		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
 		in the format databasename/tablename_ibfk_[number], where
@@ -12272,38 +12321,54 @@ create_table_info_t::create_foreign_keys()
 
 		/* If we are altering a temporary table, the table name after
 		ALTER TABLE does not correspond to the internal table name, and
-		table_to_alter is NULL. TODO: should we fix this somehow? */
+		alter_table=nullptr. But, we do not support FOREIGN KEY
+		constraints for temporary tables. */
 
-		if (table_to_alter) {
-			n		  = table_to_alter->name.m_name;
-			highest_id_so_far = dict_table_get_highest_foreign_id(
-				table_to_alter);
-		} else {
-			highest_id_so_far = 0;
+		if (alter_table) {
+			n = alter_table->name.m_name;
+			number = 1 + dict_table_get_highest_foreign_id(
+				alter_table);
 		}
 
-		char* bufend = innobase_convert_name(
-			create_name, sizeof create_name, n, strlen(n), m_thd);
-		create_name[bufend - create_name] = '\0';
-		number				  = highest_id_so_far + 1;
+		/*
+			alter_table == NULL might be by the following reasons:
+
+			1. tmp_table;
+			2. is_partition(m_table_name);
+			3. Engine changed from non-InnoDB, so no original table in InnoDB;
+			4. Anything else?
+		*/
+
+		*innobase_convert_name(create_name, sizeof create_name,
+				       n, strlen(n), m_thd) = '\0';
 		mem_heap_free(heap);
 		operation = "Alter ";
-	} else if (strstr(name, "#P#") || strstr(name, "#p#")) {
-		/* Partitioned table */
-		create_name[0] = '\0';
+		/* Alter does not mean temporary name. F.ex. ADD PARTITION adds
+		as is name. */
+		tmp_name = dict_table_t::is_temporary_name(name.str);
 	} else {
-		char* bufend = innobase_convert_name(create_name,
-						     sizeof create_name,
-						     name,
-						     strlen(name), m_thd);
-		create_name[bufend - create_name] = '\0';
+		*innobase_convert_name(create_name, sizeof create_name,
+				       LEX_STRING_WITH_LEN(name), m_thd)= '\0';
+	}
+
+	if ((part_suffix= is_partition(name.str))) {
+		/* Partitioned table */
+		part_suffix_len= strlen(part_suffix);
+		/* We don't need #TMP# suffix in temporary FK is it is handled
+		   by \xFF technology. #TMP# is not handled by rename_constraint_ids. */
+		if (0 == memcmp(part_suffix + part_suffix_len - 5, "#TMP#", 5)) {
+			part_suffix_len-= 5;
+			memcpy(part_suffix_buf, part_suffix, part_suffix_len);
+			part_suffix= part_suffix_buf;
+			part_suffix_buf[part_suffix_len]= 0;
+		}
 	}
 
 	Alter_info* alter_info = m_create_info->alter_info;
 	ut_ad(alter_info);
 	List_iterator_fast<Key> key_it(alter_info->key_list);
 
-	dict_table_t* table = dict_sys.find_table({name,strlen(name)});
+	dict_table_t* table = dict_sys.find_table({name.str, name.length});
 	if (!table) {
 		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 				"%s table %s foreign key constraint"
@@ -12313,8 +12378,18 @@ create_table_info_t::create_foreign_keys()
 		return (DB_CANNOT_ADD_CONSTRAINT);
 	}
 
+	basename = table->name.basename();
+
 	while (Key* key = key_it++) {
-		if (key->type != Key::FOREIGN_KEY || key->old)
+// Now we process tmp table from ALTER and create FKs for it prefixed by \xFF.
+// Backed up FKs are prefixed by \xFF\xFF.
+//
+// row_rename_table_for_mysql() either restores backup by removing \xFF\xFF or
+// applies new table by removing \xFF.
+//
+// There is also \xFF between usual FK ID and partition suffix. Partition suffix
+// helps to maintain FKs per each partition in SYS_FOREIGN table.
+		if (key->type != Key::FOREIGN_KEY)
 			continue;
 
 		if (tmp_table) {
@@ -12332,8 +12407,60 @@ create_table_info_t::create_foreign_keys()
 			ut_ad("should be unreachable" == 0);
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
-
 		Foreign_key*   fk = static_cast<Foreign_key*>(key);
+		dberr_t err = create_foreign_key(
+			fk, table, basename, local_fk_set, column_names,
+			ref_column_names, create_name, operation, number,
+			db_name, t_name);
+		if (err != DB_SUCCESS) {
+			return err;
+		}
+	}
+
+	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
+		return (DB_NO_FK_ON_S_BASE_COL);
+	}
+
+	/**********************************************************/
+	/* The following call adds the foreign key constraints
+	to the data dictionary system tables on disk */
+	m_trx->op_info = "adding foreign keys";
+
+	trx_start_if_not_started_xa(m_trx, true);
+
+	m_trx->dict_operation = true;
+
+	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
+						       m_trx);
+
+	if (error == DB_SUCCESS) {
+
+		table->foreign_set.insert(local_fk_set.begin(),
+					  local_fk_set.end());
+		std::for_each(local_fk_set.begin(), local_fk_set.end(),
+			      dict_foreign_add_to_referenced_table());
+		local_fk_set.clear();
+
+		dict_mem_table_fill_foreign_vcol_set(table);
+	}
+	return (error);
+}
+
+dberr_t
+create_table_info_t::create_foreign_key(
+	Foreign_key*   fk, dict_table_t* table, const char* basename,
+	dict_foreign_set &local_fk_set, const char** column_names,
+	const char** ref_column_names, char* create_name, const char* operation,
+	ulint &number, char *db_name, char *t_name)
+{
+	dict_index_t*	      index	  = NULL;
+	fkerr_t		      index_error = FK_SUCCESS;
+	dict_index_t*	      err_index	  = NULL;
+	ulint		      err_col = 0;
+	dberr_t		      error;
+	const CHARSET_INFO*   cs	= thd_charset(m_thd);
+
+	{
 		Key_part_spec* col;
 		bool	       success;
 
@@ -12350,27 +12477,27 @@ create_table_info_t::create_foreign_keys()
 				col->field_name.length);
 			success = find_col(table, column_names + i);
 			if (!success) {
-				key_text k(fk);
 				ib_foreign_warn(
 					m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s foreign key %s constraint"
 					" failed. Column %s was not found.",
-					operation, create_name, k.str(),
+					operation, create_name,
+					key_text(fk).str(),
 					column_names[i]);
 				dict_foreign_free(foreign);
 				return (DB_CANNOT_ADD_CONSTRAINT);
 			}
 			++i;
 			if (i >= MAX_COLS_PER_FK) {
-				key_text k(fk);
 				ib_foreign_warn(
 					m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s foreign key %s constraint"
 					" failed. Too many columns: %u (%u "
 					"allowed).",
-					operation, create_name, k.str(), i,
+					operation, create_name,
+					key_text(fk).str(), i,
 					MAX_COLS_PER_FK);
 				dict_foreign_free(foreign);
 				return (DB_CANNOT_ADD_CONSTRAINT);
@@ -12381,10 +12508,13 @@ create_table_info_t::create_foreign_keys()
 			table, NULL, column_names, i, NULL, TRUE, FALSE,
 			&index_error, &err_col, &err_index);
 
-		if (!index) {
-			key_text k(fk);
+		/* ALTER now renames FK for backup table, so it creates new versions
+		for new table. We have to respect check_foreigns for such commands
+		as DROP INDEX. */
+		if (!index && m_trx->check_foreigns) {
 			foreign_push_index_error(m_trx, operation, create_name,
-						 k.str(), column_names,
+						 key_text(fk).str(),
+						 column_names,
 						 index_error, err_col,
 						 err_index, table);
 			dict_foreign_free(foreign);
@@ -12400,20 +12530,41 @@ create_table_info_t::create_foreign_keys()
 			itself. We store the name to foreign->id. */
 
 			db_len = dict_get_db_name_len(table->name.m_name);
-
+// We prefix by \xFF not just for any ALTER TABLE command, but correctly decide
+// it from table name whether it is tmp table or not.
+// ALTER TABLE may avoid using tmp table (f.ex. ADD PARTITION).
+			size_t alloc_len = (tmp_name ? 3 : 2) + db_len + fk->constraint_name.length;
+			if (part_suffix)
+			{
+				alloc_len += part_suffix_len + 1;
+			}
 			foreign->id = static_cast<char*>(mem_heap_alloc(
-				foreign->heap,
-				db_len + fk->constraint_name.length + 2));
+				foreign->heap, alloc_len));
 
-			memcpy(foreign->id, table->name.m_name, db_len);
-			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->constraint_name.str);
+			char *pos = foreign->id;
+			memcpy(pos, table->name.m_name, db_len);
+			pos += db_len;
+			*(pos++) = '/';
+			if (tmp_name) {
+				*(pos++) = '\xFF';
+			}
+			strcpy(pos, fk->constraint_name.str);
+			ut_ad(strlen(fk->constraint_name.str) == fk->constraint_name.length);
+			pos+= fk->constraint_name.length;
+// Append partition suffix
+			if (part_suffix)
+			{
+				*(pos++) = '\xFF';
+				strcpy(pos, part_suffix);
+			}
 		}
 
 		if (foreign->id == NULL) {
+			/* Auto-generated foreign id is prefixed by tmp table name
+			with #sql-alter- prefix. We don't need it to prefix by \xFF. */
 			error = dict_create_add_foreign_id(
-				&number, table->name.m_name, foreign);
+				&number, m_table_name, foreign, part_suffix,
+				part_suffix_len);
 			if (error != DB_SUCCESS) {
 				dict_foreign_free(foreign);
 				return (error);
@@ -12450,32 +12601,69 @@ create_table_info_t::create_foreign_keys()
 		memcpy(foreign->foreign_col_names, column_names,
 		       i * sizeof(void*));
 
-		foreign->referenced_table_name = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(fk->ref_db),
-			LEX_STRING_WITH_LEN(fk->ref_table),
-			&foreign->referenced_table, foreign->heap, cs);
+		LEX_CSTRING table_name = fk->ref_table;
+		CHARSET_INFO* to_cs = &my_charset_filename;
+		uint errors;
+		Lex_ident_table t;
+		Lex_ident_db d(fk->ref_db);
 
-		if (!foreign->referenced_table_name) {
-			return (DB_OUT_OF_MEMORY);
+		if (!d.str) {
+			d.str = table->name.m_name;
+			d.length = size_t(basename - table->name.m_name - 1);
 		}
+
+		if (!strncmp(table_name.str, srv_mysql50_table_name_prefix,
+                             sizeof srv_mysql50_table_name_prefix - 1)) {
+			table_name.str
+				+= sizeof srv_mysql50_table_name_prefix - 1;
+			table_name.length
+				-= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		}
+
+		t.str = t_name;
+		t.length = strconvert(cs, LEX_STRING_WITH_LEN(table_name),
+				      to_cs, t_name,
+				      MAX_TABLE_NAME_LEN, &errors);
+
+		if (!strncmp(d.str, srv_mysql50_table_name_prefix,
+			     sizeof srv_mysql50_table_name_prefix - 1)) {
+			d.str += sizeof srv_mysql50_table_name_prefix - 1;
+			d.length -= sizeof srv_mysql50_table_name_prefix - 1;
+			to_cs = system_charset_info;
+		} else if (d.str == table->name.m_name) {
+			goto name_converted;
+		} else {
+			to_cs = &my_charset_filename;
+		}
+
+		if (d.str != table->name.m_name) {
+			d.length = strconvert(cs, LEX_STRING_WITH_LEN(d),
+					      to_cs, db_name,
+					      MAX_DATABASE_NAME_LEN,
+					      &errors);
+			d.str = db_name;
+		}
+name_converted:
+		foreign->referenced_table_name = dict_get_referenced_table(
+			d, t, &foreign->referenced_table, foreign->heap);
 
 		if (!foreign->referenced_table && m_trx->check_foreigns) {
 			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
-			char* bufend;
 
-			bufend = innobase_convert_name(
+			*innobase_convert_name(
 				buf, MAX_TABLE_NAME_LEN,
 				foreign->referenced_table_name,
-				strlen(foreign->referenced_table_name), m_thd);
-			buf[bufend - buf] = '\0';
-			key_text k(fk);
+				strlen(foreign->referenced_table_name), m_thd)
+				= '\0';
 			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
 					create_name,
 					"%s table %s with foreign key %s "
 					"constraint failed. Referenced table "
 					"%s not found in the data dictionary.",
-					operation, create_name, k.str(), buf);
-			return (DB_CANNOT_ADD_CONSTRAINT);
+					operation, create_name,
+					key_text(fk).str(), buf);
+			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
 		/* Don't allow foreign keys on partitioned tables yet. */
@@ -12498,7 +12686,6 @@ create_table_info_t::create_foreign_keys()
 				success = find_col(foreign->referenced_table,
 						   ref_column_names + j);
 				if (!success) {
-					key_text k(fk);
 					ib_foreign_warn(
 						m_trx,
 						DB_CANNOT_ADD_CONSTRAINT,
@@ -12507,9 +12694,9 @@ create_table_info_t::create_foreign_keys()
 						"constraint failed. "
 						"Column %s was not found.",
 						operation, create_name,
-						k.str(), ref_column_names[j]);
-
-					return (DB_CANNOT_ADD_CONSTRAINT);
+						key_text(fk).str(),
+						ref_column_names[j]);
+					return DB_CANNOT_ADD_CONSTRAINT;
 				}
 			}
 			++j;
@@ -12529,16 +12716,15 @@ create_table_info_t::create_foreign_keys()
 				&err_index);
 
 			if (!index) {
-				key_text k(fk);
 				foreign_push_index_error(
-					m_trx, operation, create_name, k.str(),
+					m_trx, operation, create_name,
+					key_text(fk).str(),
 					column_names, index_error, err_col,
 					err_index, foreign->referenced_table);
-
-				return (DB_CANNOT_ADD_CONSTRAINT);
+				return DB_CANNOT_ADD_CONSTRAINT;
 			}
 		} else {
-			ut_a(m_trx->check_foreigns == FALSE);
+			ut_a(!m_trx->check_foreigns);
 			index = NULL;
 		}
 
@@ -12575,7 +12761,6 @@ create_table_info_t::create_foreign_keys()
 					NULL
 					if the column is not allowed to be
 					NULL! */
-					key_text k(fk);
 					ib_foreign_warn(
 						m_trx,
 						DB_CANNOT_ADD_CONSTRAINT,
@@ -12586,9 +12771,9 @@ create_table_info_t::create_foreign_keys()
 						"but column '%s' is defined as "
 						"NOT NULL.",
 						operation, create_name,
-						k.str(), col_name);
+						key_text(fk).str(), col_name);
 
-					return (DB_CANNOT_ADD_CONSTRAINT);
+					return DB_CANNOT_ADD_CONSTRAINT;
 				}
 			}
 		}
@@ -12598,9 +12783,19 @@ create_table_info_t::create_foreign_keys()
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
+// Prohibit CASCADE and SET NULL for partitioned tables
+// as we cannot handle cross-partition updates in InnoDB layer
+			if (part_suffix)
+			{
+				goto cascade_partitioned;
+			}
 			foreign->type |= DICT_FOREIGN_ON_DELETE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
+			if (part_suffix)
+			{
+				goto cascade_partitioned;
+			}
 			foreign->type |= DICT_FOREIGN_ON_DELETE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
@@ -12619,9 +12814,27 @@ create_table_info_t::create_foreign_keys()
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
+			if (part_suffix)
+			{
+				goto cascade_partitioned;
+			}
 			foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
+			if (part_suffix)
+			{
+cascade_partitioned:
+				key_text k(fk);
+				ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
+						create_name,
+						"%s table %s with foreign key "
+						"%s constraint failed. "
+						"CASCADE or SET NULL action is not allowed "
+						"in partitioned table",
+						operation, create_name,
+						k.str());
+				return (DB_CANNOT_ADD_CONSTRAINT);
+			}
 			foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
@@ -12635,34 +12848,7 @@ create_table_info_t::create_foreign_keys()
 			break;
 		}
 	}
-
-	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
-		return (DB_NO_FK_ON_S_BASE_COL);
-	}
-
-	/**********************************************************/
-	/* The following call adds the foreign key constraints
-	to the data dictionary system tables on disk */
-	m_trx->op_info = "adding foreign keys";
-
-	trx_start_if_not_started_xa(m_trx, true);
-
-	m_trx->dict_operation = true;
-
-	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
-						       m_trx);
-
-	if (error == DB_SUCCESS) {
-
-		table->foreign_set.insert(local_fk_set.begin(),
-					  local_fk_set.end());
-		std::for_each(local_fk_set.begin(), local_fk_set.end(),
-			      dict_foreign_add_to_referenced_table());
-		local_fk_set.clear();
-
-		dict_mem_table_fill_foreign_vcol_set(table);
-	}
-	return (error);
+	return (DB_SUCCESS);
 }
 
 /** Create the internal innodb table.
@@ -13157,7 +13343,9 @@ create_table_info_t::allocate_trx()
 @retval	0 on success */
 int
 ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
-                    bool file_per_table, trx_t *trx= nullptr)
+// Default value in method definition limits it to current source file. Was it intended?
+// Upper interface decides whether to create FK or not. F.ex. TRUNCATE does not create FKs.
+                    bool file_per_table, trx_t *trx, bool create_fk)
 {
   DBUG_ENTER("ha_innobase::create");
   DBUG_ASSERT(form->s == table_share);
@@ -13189,10 +13377,25 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   }
 
   if (!error)
+  {
+// Create FKs only for SYSTEM_TIME current partition or decide it from the caller.
+// Now TRUNCATE does not create FKs, all others do create.
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+    if (create_fk && form->part_info)
+    {
+      if (form->vers_system_time_partitioned())
+      {
+        /* MDEV-19191 allows FK for SYSTEM_TIME partitioning. We create foreign
+        keys for current partition. */
+        create_fk= form->is_vers_current_partition(this);
+      }
+    }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
     /* We can't possibly have foreign key information when creating a
     stub table for importing .frm / .cfg / .ibd because it is not
     stored in any of these files. */
-    error= info.create_table(own_trx, !create_info->recreate_identical_table);
+    error= info.create_table(create_fk, !create_info->recreate_identical_table);
+  }
 
   if (own_trx || (info.flags2() & DICT_TF2_TEMPORARY))
   {
@@ -13714,10 +13917,10 @@ err_exit:
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	use_fk	whether to enforce FOREIGN KEY
+@param[in]	fk	how to handle FOREIGN KEY
 @return DB_SUCCESS or error code */
 static dberr_t innobase_rename_table(trx_t *trx, const char *from,
-                                     const char *to, bool use_fk)
+                                     const char *to, rename_fk fk)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13735,7 +13938,7 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	ut_ad(trx->will_lock);
 
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, fk);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13762,7 +13965,8 @@ static dberr_t innobase_rename_table(trx_t *trx, const char *from,
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
-					par_case_name, norm_to, trx, false);
+					par_case_name, norm_to, trx,
+					RENAME_IGNORE_FK);
 			}
 		}
 
@@ -13852,7 +14056,8 @@ int ha_innobase::truncate()
     row_mysql_lock_data_dictionary(trx);
     ib_table->release();
     dict_sys.remove(ib_table, false, true);
-    int err= create(ib_table->name.m_name, table, &info, true, trx);
+// Don't create FKs in TRUNCATE
+    int err= create(ib_table->name.m_name, table, &info, true, trx, false);
     row_mysql_unlock_data_dictionary(trx);
 
     ut_ad(!err);
@@ -13958,7 +14163,7 @@ int ha_innobase::truncate()
 
   if (error == DB_SUCCESS)
   {
-    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name, false);
+    error= innobase_rename_table(trx, ib_table->name.m_name, temp_name, RENAME_REBUILD);
     if (error == DB_SUCCESS)
       error= trx->drop_table(*ib_table);
   }
@@ -13979,7 +14184,7 @@ int ha_innobase::truncate()
     m_prebuilt->table= nullptr;
 
     err= create(name, table, &info, dict_table_is_file_per_table(ib_table),
-                trx);
+                trx, false);
     if (!err)
     {
       m_prebuilt->table->acquire();
@@ -14156,7 +14361,11 @@ ha_innobase::rename_table(
 	row_mysql_lock_data_dictionary(trx);
 
 	if (error == DB_SUCCESS) {
-		error = innobase_rename_table(trx, from, to, true);
+		error = innobase_rename_table(trx, from, to,
+					      thd_sql_command(thd)
+					      == SQLCOM_ALTER_TABLE
+					      ? RENAME_ALTER_COPY
+					      : RENAME_FK);
 	}
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
@@ -15422,6 +15631,7 @@ get_foreign_key_info(
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
+	const char*		ptr2;
 	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
@@ -15429,8 +15639,18 @@ get_foreign_key_info(
  	}
 
 	ptr = dict_remove_db_name(foreign->id);
+// Pass id as constraint name with partition suffix stripped. Temporary ids
+// should not be here (starting with \xFF) and we assert it by ut_ad(!ptr2) below.
+// Debug code will fail, release code will just show mangled foreign id which
+// will mean something is wrong with the code or data.
+	if ((ptr2= strchr(ptr, '\xFF')) && ptr2 > ptr) {
+		len= size_t(ptr2 - ptr);
+	} else {
+		ut_ad(!ptr2);
+		len= strlen(ptr);
+	}
 	f_key_info.foreign_id = thd_make_lex_string(
-		thd, 0, ptr, strlen(ptr), 1);
+		thd, 0, ptr, len, 1);
 
 	/* Name format: database name, '/', table name, '\0' */
 
@@ -15450,7 +15670,7 @@ get_foreign_key_info(
 	f_key_info.referenced_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
-	/* Dependent (child) database name */
+	/* Foreign (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
 	ut_a(len < sizeof(tmp_buff));
 	memcpy(tmp_buff, foreign->foreign_table_name, len);
@@ -15460,8 +15680,15 @@ get_foreign_key_info(
 	f_key_info.foreign_db = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
 
-	/* Dependent (child) table name */
+	/* Foreign (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
+// Remove partition name from child table name
+	if ((ptr2 = is_partition(ptr))) {
+		len = ptr2 - ptr;
+		memcpy(tmp_buff, ptr, len);
+		tmp_buff[len] = 0;
+		ptr = tmp_buff;
+	}
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
 	f_key_info.foreign_table = thd_make_lex_string(
 		thd, 0, name_buff, len, 1);
