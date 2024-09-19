@@ -410,13 +410,17 @@ typedef ssux_lock_impl<true> srw_spin_lock_low;
 #ifndef UNIV_PFS_RWLOCK
 # define SRW_LOCK_INIT(key) init()
 # define SRW_LOCK_ARGS(file, line) /* nothing */
+# define SRW_LOCK_ARGS2(file, line) /* nothing */
 # define SRW_LOCK_CALL /* nothing */
+# define SRW_LOCK_CALL2 /* nothing */
 typedef srw_lock_low srw_lock;
 typedef srw_spin_lock_low srw_spin_lock;
 #else
 # define SRW_LOCK_INIT(key) init(key)
 # define SRW_LOCK_ARGS(file, line) file, line
+# define SRW_LOCK_ARGS2(file, line) , file, line
 # define SRW_LOCK_CALL __FILE__, __LINE__
+# define SRW_LOCK_CALL2 , __FILE__, __LINE__
 
 /** Slim shared-update-exclusive lock with PERFORMANCE_SCHEMA instrumentation */
 class ssux_lock
