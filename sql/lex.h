@@ -213,6 +213,7 @@ SYMBOL symbols[] = {
   { "ELSIF",            SYM(ELSIF_MARIADB_SYM)},
   { "ENABLE",		SYM(ENABLE_SYM)},
   { "ENCLOSED",		SYM(ENCLOSED)},
+  { "ENCODED",		SYM(ENCODED)},
   { "END",		SYM(END)},
   { "ENDS",		SYM(ENDS_SYM)},
   { "ENGINE",		SYM(ENGINE_SYM)},

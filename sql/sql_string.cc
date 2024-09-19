@@ -26,6 +26,7 @@
 #include <mysql_com.h>
 
 #include "sql_string.h"
+#include "strfunc.h" // hexchar_to_int
 
 /*****************************************************************************
 ** String functions
@@ -190,6 +191,42 @@ bool Binary_string::set_hex(const char *str, uint32 len)
     return true;
   length(0);
   qs_append_hex(str, len);
+  return false;
+}
+
+
+bool Binary_string::set_unhex(const char *from, uint32 from_length)
+{
+  uint32 dst_length= from_length / 2 + 1;
+  if (alloc(dst_length))
+    return true;
+  length(0);
+  return qs_append_unhex(from, from_length);
+}
+
+
+bool Static_binary_string::qs_append_unhex(const char *from, uint32 from_length)
+{
+  char *to= Ptr + str_length;
+  const char *from_end= from + from_length;
+
+  if (from_length  % 2)
+  {
+    int hex_char;
+    *to++= hex_char= hexchar_to_int(*from++);
+    if ((hex_char == -1))
+      return true;
+  }
+  for ( ; from < from_end ; from+= 2, to++)
+  {
+    int hex_char1, hex_char2;
+    hex_char1= hexchar_to_int(from[0]);
+    hex_char2= hexchar_to_int(from[1]);
+    if (hex_char1 == -1 || hex_char2 == -1)
+      return true;
+    *to= (char) ((hex_char1 << 4) | hex_char2);
+  }
+  str_length= (uint32) (to - Ptr);
   return false;
 }
 

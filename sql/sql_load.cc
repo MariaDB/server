@@ -276,6 +276,10 @@ public:
     while (GET != my_b_EOF)
       ;
   }
+  int get_escape_char() const
+  {
+    return escape_char;
+  }
 };
 
 static int read_fixed_length(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
@@ -1148,8 +1152,22 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       else
       {
         read_info.row_end[0]= 0;  // Safe to change end marker
-        if (dst->load_data_set_value(thd, (const char *) pos, length, &read_info))
-          DBUG_RETURN(1);
+        if (length > 3 &&
+            pos[0] == read_info.get_escape_char() &&
+            pos[1] == 'X')
+        {
+          StringBuffer<256> tmp;
+          if (tmp.set_unhex((const char*) pos + 2, length - 2) ||
+              dst->load_data_set_value(thd, tmp.ptr(), tmp.length(),
+                                       &read_info))
+            DBUG_RETURN(1);
+        }
+        else
+        {
+          if (dst->load_data_set_value(thd, (const char *) pos, length,
+                                       &read_info))
+            DBUG_RETURN(1);
+        }
       }
     }
 
@@ -1499,7 +1517,7 @@ inline bool READ_INFO::terminator(const uchar *ptr, uint length)
 
 int READ_INFO::read_field()
 {
-  int chr,found_enclosed_char;
+  int chr,found_enclosed_char= INT_MAX;
 
   found_null=0;
   if (found_end_of_line)
@@ -1524,9 +1542,22 @@ int READ_INFO::read_field()
     found_enclosed_char=enclosed_char;
     data.append(chr);                            // If error
   }
+  else if (chr == escape_char)
+  {
+    int chr2= GET;
+    if (chr2 == 'X')
+    {
+      data.append(chr);
+      data.append(chr2);
+    }
+    else
+    {
+      PUSH(chr2);
+      PUSH(chr);
+    }
+  }
   else
   {
-    found_enclosed_char= INT_MAX;
     PUSH(chr);
   }
 

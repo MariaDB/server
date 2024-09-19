@@ -440,6 +440,7 @@ public:
   void qs_append(const char *str, size_t len);
   void qs_append_hex(const char *str, uint32 len);
   void qs_append_hex_uint32(uint32 num);
+  bool qs_append_unhex(const char *str, uint32 len);
   void qs_append(double d);
   void qs_append(const double *d);
   inline void qs_append(const char c)
@@ -625,6 +626,7 @@ public:
 
   bool set_hex(ulonglong num);
   bool set_hex(const char *str, uint32 len);
+  bool set_unhex(const char *str, uint32 len);
   bool set_fcvt(double num, uint decimals);
 
   bool copy();                                  // Alloc string if not alloced

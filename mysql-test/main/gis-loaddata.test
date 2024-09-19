@@ -19,3 +19,25 @@ TRUNCATE TABLE t1;
 LOAD DATA INFILE '../../std_data/loaddata/mdev-15497.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
 SELECT * FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-34959 Add an OUTFILE option to dump binary data using HEX encoding
+--echo #
+
+CREATE TABLE t1 (
+  name VARCHAR(10),
+  p point NOT NULL
+) CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE t2 LIKE t1;
+
+INSERT INTO t1 VALUES ('point1', GeomFromText('POINT(37.646944 -75.761111)'));
+
+--disable_query_log
+eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' BINARY ENCODED USING HEX FROM t1;
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t2;
+--enable_query_log
+--cat_file $MYSQLTEST_VARDIR/tmp/t1
+SELECT AsText(p) FROM t2;
+DROP TABLE t1, t2;
+remove_file $MYSQLTEST_VARDIR/tmp/t1;

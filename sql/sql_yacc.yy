@@ -501,6 +501,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> ELSE                          /* SQL-2003-R */
 %token  <kwd> ELSIF_ORACLE_SYM              /* PLSQL-R    */
 %token  <kwd> ENCLOSED
+%token  <kwd> ENCODED
 %token  <kwd> ESCAPED
 %token  <kwd> EXCEPT_SYM                    /* SQL-2003-R */
 %token  <kwd> EXISTS                        /* SQL-2003-R */
@@ -1404,6 +1405,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         case_stmt_body opt_bin_mod opt_for_system_time_clause
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
+        opt_hexblob
 
 %type <object_ddl_options>
         create_or_replace
@@ -6824,6 +6826,19 @@ charset_name_or_default:
 opt_load_data_charset:
           /* Empty */ { $$= NULL; }
         | charset charset_name_or_default { $$= $2; }
+        ;
+
+opt_hexblob:
+          /* Empty */ { $$= false; }
+        | BINARY ENCODED USING ident
+          {
+            if ($4.length != 3 || strncasecmp($4.str, "hex", 3))
+              my_yyabort_error((ER_BAD_OPTION_VALUE, MYF(0),
+                               ErrConvString($4.str, $4.length,
+                                             system_charset_info).ptr(),
+                               "ENCODED"));
+            $$= true;
+          }
         ;
 
 old_or_new_charset_name:
@@ -12784,6 +12799,8 @@ into_destination:
           }
           opt_load_data_charset
           { Lex->exchange->cs= $4; }
+          opt_hexblob
+          { Lex->exchange->opt_hexblob= $6; }
           opt_field_term opt_line_term
         | DUMPFILE TEXT_STRING_filesystem
           {
@@ -16131,6 +16148,7 @@ reserved_keyword_udt_not_param_type:
         | ELSEIF_MARIADB_SYM
         | ELSIF_ORACLE_SYM
         | ENCLOSED
+        | ENCODED
         | ESCAPED
         | EXCEPT_SYM
         | EXISTS

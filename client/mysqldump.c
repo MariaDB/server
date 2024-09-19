@@ -4047,6 +4047,9 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                                          default_charset);
     dynstr_append_checked(&query_string, " */");
 
+    if (opt_hex_blob)
+      dynstr_append_checked(&query_string, " BINARY ENCODED USING hex");
+
     if (fields_terminated || enclosed || opt_enclosed || escaped)
       dynstr_append_checked(&query_string, " FIELDS");
     

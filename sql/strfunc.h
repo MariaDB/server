@@ -16,6 +16,21 @@
 #ifndef STRFUNC_INCLUDED
 #define STRFUNC_INCLUDED
 
+/**
+  convert a hex digit into number.
+*/
+
+inline int hexchar_to_int(char c)
+{
+  if (c <= '9' && c >= '0')
+    return c-'0';
+  c|=32;
+  if (c <= 'f' && c >= 'a')
+    return c-'a'+10;
+  return -1;
+}
+
+
 typedef struct st_typelib TYPELIB;
 
 ulonglong find_set(const TYPELIB *lib,

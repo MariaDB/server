@@ -3088,7 +3088,8 @@ static String default_xml_row_term("<row>", default_charset_info);
 
 sql_exchange::sql_exchange(const char *name, bool flag,
                            enum enum_filetype filetype_arg)
-  :file_name(name), opt_enclosed(0), dumpfile(flag), skip_lines(0)
+  :file_name(name), opt_enclosed(0), dumpfile(flag), skip_lines(0),
+   opt_hexblob(false)
 {
   filetype= filetype_arg;
   field_term= &default_field_term;
@@ -3340,6 +3341,13 @@ select_export::prepare(List<Item> &list, SELECT_LEX_UNIT *u)
         non_string_results= TRUE;
     }
   }
+  if (exchange->opt_hexblob && !exchange->escaped->length())
+  {
+    my_error(ER_CONFLICTING_DECLARATIONS, MYF(0),
+             "BINARY ENCODED USING HEX", "",
+             "FIELDS ESCAPED BY ''", "");
+    return true;
+  }
   if (exchange->escaped->numchars() > 1 || exchange->enclosed->numchars() > 1)
   {
     my_error(ER_WRONG_FIELD_TERMINATORS, MYF(0));
@@ -3435,6 +3443,21 @@ int select_export::send_data(List<Item> &items)
     bool enclosed = (exchange->enclosed->length() &&
                      (!exchange->opt_enclosed || result_type == STRING_RESULT));
     res=item->str_result(&tmp);
+    bool using_hex= escape_char != -1 && exchange->opt_hexblob &&
+                    res && res->charset() == &my_charset_bin &&
+                    result_type == STRING_RESULT;
+
+    if (res && res->length() && using_hex)
+    {
+      StringBuffer<256> tmp;
+      tmp.set_hex(res->ptr(), res->length());
+      uchar escape_ch= (uchar) escape_char;
+      if (my_b_write(&cache, &escape_ch, 1) ||
+          my_b_write(&cache, (const uchar *) "X", 1) ||
+          my_b_write(&cache, (uchar*) tmp.ptr(), tmp.length()))
+        goto err;
+      goto end_of_field;
+    }
     if (res && !my_charset_same(write_cs, res->charset()) &&
         !my_charset_same(write_cs, &my_charset_bin))
     {
@@ -3635,6 +3658,7 @@ int select_export::send_data(List<Item> &items)
                      exchange->enclosed->length()))
         goto err;
     }
+end_of_field:
     if (--items_left)
     {
       if (my_b_write(&cache, (uchar*) exchange->field_term->ptr(),

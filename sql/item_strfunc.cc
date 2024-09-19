@@ -3802,40 +3802,19 @@ String *Item_func_hex::val_str_ascii_from_val_int(String *str)
 
 String *Item_func_unhex::val_str(String *str)
 {
-  const char *from, *end;
-  char *to;
   String *res;
-  uint length;
   DBUG_ASSERT(fixed == 1);
 
   res= args[0]->val_str(&tmp_value);
-  if (!res || str->alloc(length= (1+res->length())/2))
+  if (!res)
   {
     null_value=1;
     return 0;
   }
 
-  from= res->ptr();
-  null_value= 0;
   str->set_charset(&my_charset_bin);
-  str->length(length);
-  to= (char*) str->ptr();
-  if (res->length() % 2)
-  {
-    int hex_char;
-    *to++= hex_char= hexchar_to_int(*from++);
-    if ((null_value= (hex_char == -1)))
-      return 0;
-  }
-  for (end=res->ptr()+res->length(); from < end ; from+=2, to++)
-  {
-    int hex_char1, hex_char2;
-    hex_char1= hexchar_to_int(from[0]);
-    hex_char2= hexchar_to_int(from[1]);
-    if ((null_value= (hex_char1 == -1 || hex_char2 == -1)))
-      return 0;
-    *to= (char) ((hex_char1 << 4) | hex_char2);
-  }
+  if ((null_value= str->set_unhex(res->ptr(), res->length())))
+    return 0;
   return str;
 }
 

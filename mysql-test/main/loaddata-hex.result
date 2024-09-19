@@ -1,0 +1,23 @@
+#
+# MDEV-34959 Add an OUTFILE option to dump binary data using HEX encoding
+#
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3, b BLOB);
+INSERT INTO t1 VALUES ('тест', 0xEE5C095C0A);
+CREATE TABLE t2 LIKE t1;
+тест	\XEE5C095C0A
+SELECT a, hex(b) FROM t2;
+a	hex(b)
+тест	EE5C095C0A
+DROP TABLE t2;
+CREATE TABLE t2 LIKE t1;
+тест	+XEE5C095C0A
+SELECT a, hex(b) FROM t2;
+a	hex(b)
+тест	EE5C095C0A
+DROP TABLE t2;
+# Empty FIELDS ESCAPED BY
+ERROR HY000: Conflicting declarations: 'BINARY ENCODED USING HEX' and 'FIELDS ESCAPED BY '''
+тест	\XEE5C095C0A
+тест	+XEE5C095C0A
+DROP TABLE t1;

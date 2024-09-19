@@ -5535,6 +5535,7 @@ public:
   bool dumpfile;
   ulong skip_lines;
   CHARSET_INFO *cs;
+  bool opt_hexblob;
   sql_exchange(const char *name, bool dumpfile_flag,
                enum_filetype filetype_arg= FILETYPE_CSV);
   bool escaped_given(void) const;

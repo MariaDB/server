@@ -1,0 +1,48 @@
+--echo #
+--echo # MDEV-34959 Add an OUTFILE option to dump binary data using HEX encoding
+--echo #
+
+SET NAMES utf8mb3;
+CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8mb3, b BLOB);
+INSERT INTO t1 VALUES ('тест', 0xEE5C095C0A);
+CREATE TABLE t2 LIKE t1;
+
+--disable_query_log
+eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' BINARY ENCODED USING HEX FROM t1;
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t2 CHARACTER SET utf8mb3;
+--enable_query_log
+--cat_file $MYSQLTEST_VARDIR/tmp/t1
+SELECT a, hex(b) FROM t2;
+DROP TABLE t2;
+remove_file $MYSQLTEST_VARDIR/tmp/t1;
+
+CREATE TABLE t2 LIKE t1;
+--disable_query_log
+eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' BINARY ENCODED USING HEX FIELDS ESCAPED BY '+' FROM t1;
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1' INTO TABLE t2 CHARACTER SET utf8mb3 FIELDS ESCAPED BY '+';
+--enable_query_log
+--cat_file $MYSQLTEST_VARDIR/tmp/t1
+SELECT a, hex(b) FROM t2;
+DROP TABLE t2;
+remove_file $MYSQLTEST_VARDIR/tmp/t1;
+
+--echo # Empty FIELDS ESCAPED BY
+--disable_query_log
+--error ER_CONFLICTING_DECLARATIONS
+eval SELECT * INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1' BINARY ENCODED USING HEX FIELDS ESCAPED BY '' FROM t1;
+remove_file $MYSQLTEST_VARDIR/tmp/t1;
+--enable_query_log
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --hex-blob --skip-comments --tab=$MYSQLTEST_VARDIR/tmp/ test
+--cat_file $MYSQLTEST_VARDIR/tmp/t1.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.txt
+
+--exec $MYSQL_DUMP --default-character-set=utf8mb4 --hex-blob --fields-escaped-by=+ --skip-comments --tab=$MYSQLTEST_VARDIR/tmp/ test
+--cat_file $MYSQLTEST_VARDIR/tmp/t1.txt
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.sql
+--remove_file $MYSQLTEST_VARDIR/tmp/t1.txt
+
+
+DROP TABLE t1;
+

@@ -5398,6 +5398,16 @@ select astext(g) from t2;
 astext(g)
 POINT(1 1)
 POINT(2 2)
+truncate t2;
+##################################################
+\X000000000101000000000000000000F03F000000000000F03F
+\X00000000010100000000000000000000400000000000000040
+##################################################
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.txt' INTO TABLE t2 CHARACTER SET koi8r;
+select astext(g) from t2;
+astext(g)
+POINT(1 1)
+POINT(2 2)
 drop table t1, t2;
 #
 # End of 5.1 tests

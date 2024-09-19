@@ -2448,6 +2448,16 @@ SET @@global.general_log=      @old_general_log_state;
 create table t1 (g GEOMETRY) CHARSET koi8r;
 create table t2 (g GEOMETRY) CHARSET koi8r;
 insert into t1 values (point(1,1)), (point(2,2));
+--exec $MYSQL_DUMP --disable-default-character-set --character-sets-dir=$MYSQL_SHAREDIR/charsets --tab=$MYSQLTEST_VARDIR/tmp/ test t1
+--echo ##################################################
+--cat_file $file
+--echo ##################################################
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET koi8r
+--remove_file $file
+select astext(g) from t2;
+truncate t2;
+
 --exec $MYSQL_DUMP --disable-default-character-set --hex-blob --character-sets-dir=$MYSQL_SHAREDIR/charsets --tab=$MYSQLTEST_VARDIR/tmp/ test t1
 --echo ##################################################
 --cat_file $file
