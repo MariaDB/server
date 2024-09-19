@@ -4121,7 +4121,7 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
         if ((err= lock_table_for_trx(child.table, trx, LOCK_X)) != DB_SUCCESS)
           break;
 
-  dict_sys.freeze(SRW_LOCK_CALL);
+  const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
   for (table_mdl &child : children)
   {
     if (child.mdl)
@@ -4130,7 +4130,6 @@ dberr_t lock_table_children(dict_table_t *table, trx_t *trx)
       mdl_context->release_lock(child.mdl);
     }
   }
-  dict_sys.unfreeze();
 
   return err;
 }

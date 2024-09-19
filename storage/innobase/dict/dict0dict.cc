@@ -808,9 +808,8 @@ dict_acquire_mdl_shared(dict_table_t *table,
 
   if (trylock)
   {
-    dict_sys.freeze(SRW_LOCK_CALL);
+    const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
     db_len= dict_get_db_name_len(table->name.m_name);
-    dict_sys.unfreeze();
   }
   else
   {
@@ -871,9 +870,8 @@ dict_table_t *dict_table_open_on_id(table_id_t table_id, bool dict_locked,
       dict_sys.unlock();
       if (table && thd)
       {
-        dict_sys.freeze(SRW_LOCK_CALL);
+        const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
         table= dict_acquire_mdl_shared<false>(table, thd, mdl, table_op);
-        dict_sys.unfreeze();
       }
       return table;
     }
@@ -3651,19 +3649,13 @@ dict_index_get_if_in_cache(
 /*=======================*/
 	index_id_t	index_id)	/*!< in: index id */
 {
-	dict_index_t*	index;
-
 	if (!dict_sys.is_initialised()) {
 		return(NULL);
 	}
 
-	dict_sys.freeze(SRW_LOCK_CALL);
+	const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 
-	index = dict_index_get_if_in_cache_low(index_id);
-
-	dict_sys.unfreeze();
-
-	return(index);
+	return dict_index_get_if_in_cache_low(index_id);
 }
 
 /**********************************************************************//**
@@ -3930,7 +3922,7 @@ dict_print_info_on_foreign_keys(
 	dict_foreign_t*	foreign;
 	std::string 	str;
 
-	dict_sys.freeze(SRW_LOCK_CALL);
+	const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 
 	for (dict_foreign_set::iterator it = table->foreign_set.begin();
 	     it != table->foreign_set.end();
@@ -3997,7 +3989,6 @@ dict_print_info_on_foreign_keys(
 		}
 	}
 
-	dict_sys.unfreeze();
 	return str;
 }
 
@@ -4191,14 +4182,12 @@ void
 dict_set_merge_threshold_all_debug(
 	uint	merge_threshold_all)
 {
-	dict_sys.freeze(SRW_LOCK_CALL);
+	const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 
 	dict_set_merge_threshold_list_debug(
 		&dict_sys.table_LRU, merge_threshold_all);
 	dict_set_merge_threshold_list_debug(
 		&dict_sys.table_non_LRU, merge_threshold_all);
-
-	dict_sys.unfreeze();
 }
 
 #endif /* UNIV_DEBUG */

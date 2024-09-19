@@ -11404,18 +11404,16 @@ err_index:
 		table_stats = dict_table_open_on_name(
 			TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
 		if (table_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
+			const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 			table_stats = dict_acquire_mdl_shared<false>(
 				table_stats, m_user_thd, &mdl_table);
-			dict_sys.unfreeze();
 		}
 		index_stats = dict_table_open_on_name(
 			INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
 		if (index_stats) {
-			dict_sys.freeze(SRW_LOCK_CALL);
+			const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 			index_stats = dict_acquire_mdl_shared<false>(
 				index_stats, m_user_thd, &mdl_index);
-			dict_sys.unfreeze();
 		}
 
 		if (table_stats && index_stats

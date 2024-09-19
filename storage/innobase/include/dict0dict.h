@@ -1570,6 +1570,28 @@ public:
   dberr_t create_or_check_sys_tables();
 };
 
+/*********************************************************************//**
+Freeze a dict_sys_t and automatically unfreeze it when the scope exits. */
+class Scope_freeze_dict_sys {
+  dict_sys_t &the_dict_sys;
+
+public:
+  explicit Scope_freeze_dict_sys(dict_sys_t &_the_dict_sys SRW_LOCK_ARGS2(const char *file, unsigned line)) noexcept
+    :the_dict_sys(_the_dict_sys)
+  {
+    the_dict_sys.freeze(SRW_LOCK_ARGS(file, line));
+  }
+
+  ~Scope_freeze_dict_sys() noexcept {
+    the_dict_sys.unfreeze();
+  }
+
+private:
+  // copying/moving not allowed
+  Scope_freeze_dict_sys(const Scope_freeze_dict_sys &) = delete;
+  Scope_freeze_dict_sys &operator=(const Scope_freeze_dict_sys &) = delete;
+};
+
 /** the data dictionary cache */
 extern dict_sys_t	dict_sys;
 
