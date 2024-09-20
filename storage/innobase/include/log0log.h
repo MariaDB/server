@@ -452,8 +452,9 @@ public:
 
 #ifdef HAVE_PMEM
   /** Persist the log.
-  @param lsn    desired new value of flushed_to_disk_lsn */
-  inline void persist(lsn_t lsn) noexcept;
+  @param lsn            desired new value of flushed_to_disk_lsn
+  @param holding_latch  whether the caller is holding exclusive latch */
+  void persist(lsn_t lsn, bool holding_latch) noexcept;
 #endif
 
   bool check_for_checkpoint() const

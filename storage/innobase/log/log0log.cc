@@ -730,21 +730,22 @@ static size_t log_pad(lsn_t lsn, size_t pad, byte *begin, byte *extra)
 #endif
 
 #ifdef HAVE_PMEM
-/** Persist the log.
-@param lsn    desired new value of flushed_to_disk_lsn */
-inline void log_t::persist(lsn_t lsn) noexcept
+void log_t::persist(lsn_t lsn, bool holding_latch) noexcept
 {
   ut_ad(is_pmem());
   ut_ad(!write_lock.is_owner());
   ut_ad(!flush_lock.is_owner());
+#ifdef LOG_LATCH_DEBUG
+  ut_ad(holding_latch == latch_have_wr());
+#endif
 
   lsn_t old= flushed_to_disk_lsn.load(std::memory_order_relaxed);
 
   if (old >= lsn)
     return;
 
-  const lsn_t resizing{resize_in_progress()};
-  if (UNIV_UNLIKELY(resizing))
+  const bool latching{!holding_latch && resize_in_progress()};
+  if (UNIV_UNLIKELY(latching))
     latch.rd_lock(SRW_LOCK_CALL);
   const size_t start(calc_lsn_offset(old));
   const size_t end(calc_lsn_offset(lsn));
@@ -771,7 +772,7 @@ inline void log_t::persist(lsn_t lsn) noexcept
     DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
   }
 
-  if (UNIV_UNLIKELY(resizing))
+  if (UNIV_UNLIKELY(latching))
     latch.rd_unlock();
 }
 #endif
@@ -976,7 +977,7 @@ void log_write_up_to(lsn_t lsn, bool durable,
   {
     ut_ad(!callback);
     if (durable)
-      log_sys.persist(lsn);
+      log_sys.persist(lsn, false);
     return;
   }
 #endif
@@ -1043,7 +1044,7 @@ ATTRIBUTE_COLD void log_write_and_flush()
   }
 #ifdef HAVE_PMEM
   else
-    log_sys.persist(log_sys.get_lsn());
+    log_sys.persist(log_sys.get_lsn(), true);
 #endif
 }
 
