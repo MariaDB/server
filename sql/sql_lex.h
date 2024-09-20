@@ -1042,6 +1042,7 @@ public:
   bool check_parameters(SELECT_LEX *main_select);
 
   bool set_lock_to_the_last_select(Lex_select_lock l);
+  void print_lock_from_the_last_select(String *str);
 
   bool can_be_merged();
 
@@ -1465,6 +1466,7 @@ public:
   bool setup_ref_array(THD *thd, uint order_group_num);
   uint get_cardinality_of_ref_ptrs_slice(uint order_group_num_arg);
   void print(THD *thd, String *str, enum_query_type query_type);
+  void print_lock_type(String *str);
   void print_item_list(THD *thd, String *str, enum_query_type query_type);
   void print_set_clause(THD *thd, String *str, enum_query_type query_type);
   void print_on_duplicate_key_clause(THD *thd, String *str,
