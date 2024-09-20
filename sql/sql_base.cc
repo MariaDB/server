@@ -1954,11 +1954,15 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       ! (flags & MYSQL_OPEN_GET_NEW_TABLE))
   {						// Using table locks
     TABLE *best_table= 0;
-    int best_distance= INT_MIN;
-    for (table=thd->open_tables; table ; table=table->next)
+
+    thd->mdl_context.ticket_hash.find(table_list->mdl_request.key, 
+    [thd, &best_table, alias, key, key_length, table_list]
+    (const MDL_ticket *t) 
     {
-      if (table->s->table_cache_key.length == key_length &&
-	  !memcmp(table->s->table_cache_key.str, key, key_length))
+      TABLE *table= t->object;
+      int best_distance= INT_MIN;
+        
+      if (!memcmp(t->get_key()->ptr(), key, key_length))
       {
         if (!my_strcasecmp(system_charset_info, table->alias.c_ptr(), alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
@@ -1993,12 +1997,13 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
                 between calling statement and SP/trigger is done in
                 lock_tables().
               */
-              break;
+              return true;
             }
           }
         }
       }
-    }
+      return false;
+    });
     if (best_table)
     {
       table= best_table;

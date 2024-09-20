@@ -704,6 +704,7 @@ public:
   */
   MDL_ticket *next_in_context;
   MDL_ticket **prev_in_context;
+  TABLE *object;
 public:
 #ifdef WITH_WSREP
   void wsrep_report(bool debug) const;
@@ -1093,7 +1094,7 @@ private:
   bool try_acquire_lock_impl(MDL_request *mdl_request,
                              MDL_ticket **out_ticket);
   bool fix_pins();
-
+public:
   /**
     Ticket hash. Stores only locked tickets.
   */
