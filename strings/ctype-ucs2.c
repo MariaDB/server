@@ -1011,6 +1011,8 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+     return LONGLONG_MIN;
    return -((longlong) li);
   }
   return (longlong) li;
@@ -2574,6 +2576,8 @@ end4:
   {
    if (li > MAX_NEGATIVE_NUMBER)
      goto overflow;
+   if (li == MAX_NEGATIVE_NUMBER) // Avoid undefinite behavior in negation
+     return LONGLONG_MIN;
    return -((longlong) li);
   }
   return (longlong) li;
