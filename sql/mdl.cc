@@ -1959,8 +1959,8 @@ MDL_context::find_ticket(MDL_request *mdl_request,
 {
   const auto &ticket_identical=
       [&mdl_request](const MDL_ticket *t) {
-        return mdl_request->key.is_equal(t->get_key()) &&
-               t->has_stronger_or_equal_type(mdl_request->type) &&
+        DBUG_ASSERT(mdl_request->key.is_equal(t->get_key()));
+        return t->has_stronger_or_equal_type(mdl_request->type) &&
                t->m_duration == mdl_request->duration;
       };
 
@@ -1970,8 +1970,8 @@ MDL_context::find_ticket(MDL_request *mdl_request,
   {
     const auto &ticket_still_good=
         [&mdl_request](const MDL_ticket *t) {
-          return mdl_request->key.is_equal(t->get_key()) &&
-                 t->has_stronger_or_equal_type(mdl_request->type);
+          DBUG_ASSERT(mdl_request->key.is_equal(t->get_key()));
+          return t->has_stronger_or_equal_type(mdl_request->type);
         };
 
     found_ticket= ticket_hash.find(&mdl_request->key, ticket_still_good);

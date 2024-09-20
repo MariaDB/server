@@ -96,6 +96,7 @@ my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
   hash->free=free_element;
   hash->flags=flags;
   hash->charset=charset;
+  hash->keycmp=NULL;
   res= init_dynamic_array2(psi_key, &hash->array, sizeof(HASH_LINK), NULL, size,
                            growth_size, MYF((flags & HASH_THREAD_SPECIFIC ?
                                              MY_THREAD_SPECIFIC : 0)));
@@ -378,7 +379,8 @@ static int hashcmp(const HASH *hash, HASH_LINK *pos, const uchar *key,
   size_t rec_keylength;
   uchar *rec_key;
   rec_key= (uchar*) my_hash_key(hash, pos->data, &rec_keylength, 1);
-  return (length != rec_keylength) ||
+  return hash->keycmp? hash->keycmp(key, rec_key) : 
+          (length != rec_keylength) ||
 	  my_strnncoll(hash->charset, (uchar*) rec_key, rec_keylength,
 		       (uchar*) key, rec_keylength);
 }

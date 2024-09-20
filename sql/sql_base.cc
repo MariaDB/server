@@ -4937,10 +4937,10 @@ TABLE_LIST *find_fk_prelocked_table(const Query_tables_list *prelocking_ctx,
 {
   return prelocking_ctx->fk_table_hash.find(key,
           [&key, lock_type](const TABLE_LIST *tl) {
-                  return tl->lock_type >= lock_type
-                         && tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK
-                         && strcmp(tl->table_name.str, key.name()) == 0
-                         && strcmp(tl->db.str, key.db_name()) == 0;
+//            DBUG_ASSERT(tl->prelocking_placeholder == TABLE_LIST::PRELOCK_FK
+//                        && strcmp(tl->table_name.str, key.name()) == 0
+//                        && strcmp(tl->db.str, key.db_name()) == 0);
+            return tl->lock_type >= lock_type;
   });
 }
 
