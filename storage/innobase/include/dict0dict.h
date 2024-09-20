@@ -1493,24 +1493,24 @@ public:
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is holding the latch */
-  bool frozen() const { return latch.have_any(); }
+  bool frozen() const noexcept { return latch.have_any(); }
   /** @return whether the current thread is holding a shared latch */
-  bool frozen_not_locked() const { return latch.have_rd(); }
+  bool frozen_not_locked() const noexcept { return latch.have_rd(); }
   /** @return whether the current thread holds the exclusive latch */
-  bool locked() const { return latch.have_wr(); }
+  bool locked() const noexcept { return latch.have_wr(); }
 #endif
 private:
   /** Acquire the exclusive latch */
   ATTRIBUTE_NOINLINE
-  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line));
+  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept;
 public:
   /** @return the my_hrtime_coarse().val of the oldest lock_wait() start,
   assuming that requests are served on a FIFO basis */
-  ulonglong oldest_wait() const
+  ulonglong oldest_wait() const noexcept
   { return latch_ex_wait_start.load(std::memory_order_relaxed); }
 
   /** Exclusively lock the dictionary cache. */
-  void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
   {
     if (!latch.wr_lock_try())
       lock_wait(SRW_LOCK_ARGS(file, line));
@@ -1518,18 +1518,18 @@ public:
 
 #ifdef UNIV_PFS_RWLOCK
   /** Unlock the data dictionary cache. */
-  ATTRIBUTE_NOINLINE void unlock();
+  ATTRIBUTE_NOINLINE void unlock() noexcept;
   /** Acquire a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line) noexcept;
   /** Release a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void unfreeze();
+  ATTRIBUTE_NOINLINE void unfreeze() noexcept;
 #else
   /** Unlock the data dictionary cache. */
-  void unlock() { latch.wr_unlock(); }
+  void unlock() noexcept { latch.wr_unlock(); }
   /** Acquire a shared lock on the dictionary cache. */
-  void freeze() { latch.rd_lock(); }
+  void freeze() noexcept { latch.rd_lock(); }
   /** Release a shared lock on the dictionary cache. */
-  void unfreeze() { latch.rd_unlock(); }
+  void unfreeze() noexcept { latch.rd_unlock(); }
 #endif
 
   /** Estimate the used memory occupied by the data dictionary
