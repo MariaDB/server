@@ -47,14 +47,14 @@
   --thread-pool-oversubscribe=# 
   How many additional active worker threads in a group are
   allowed
-@@ -1555,8 +1567,8 @@ The following specify which files/extra groups are read (specified before remain
-  automatically convert it to an on-disk MyISAM or Aria
-  table
-  -t, --tmpdir=name   Path for temporary files. Several paths may be specified,
-- separated by a colon (:), in this case they are used in a
-- round-robin fashion
-+ separated by a semicolon (;), in this case they are used
-+ in a round-robin fashion
+@@ -1597,8 +1597,8 @@
+  background for binlogging by user threads are placed in a
+  separate location (see `binlog_large_commit_threshold`
+  option). Several paths may be specified, separated by a
+- colon (:), in this case they are used in a round-robin
+- fashion
++ semicolon (;), in this case they are used in a
++ round-robin fashion
   --transaction-alloc-block-size=# 
   Allocation block size for transactions to be stored in
   binary log
