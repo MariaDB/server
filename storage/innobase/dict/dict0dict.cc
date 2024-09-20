@@ -955,7 +955,7 @@ void dict_sys_t::create()
 }
 
 
-void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
+void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
 {
   ulonglong now= my_hrtime_coarse().val, old= 0;
   if (latch_ex_wait_start.compare_exchange_strong
@@ -981,17 +981,17 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
 }
 
 #ifdef UNIV_PFS_RWLOCK
-ATTRIBUTE_NOINLINE void dict_sys_t::unlock()
+ATTRIBUTE_NOINLINE void dict_sys_t::unlock() noexcept
 {
   latch.wr_unlock();
 }
 
-ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line)
+ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line) noexcept
 {
   latch.rd_lock(file, line);
 }
 
-ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
+ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze() noexcept
 {
   latch.rd_unlock();
 }
