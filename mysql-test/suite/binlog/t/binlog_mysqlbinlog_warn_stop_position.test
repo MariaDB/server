@@ -1,0 +1,26 @@
+--echo
+--echo # MDEV-27037 mysqlbinlog emits a warning when reaching EOF before stop-condition
+--echo
+
+--let assert_file= $MYSQLTEST_VARDIR/tmp/warn_pos_test_file.out
+--let data_file= $MYSQLTEST_VARDIR/std_data/master-bin.000001
+
+--echo Case: Default stop position, WARNING must not appear
+--echo # MYSQL_BINLOG --short-form --start-position=4 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+--exec $MYSQL_BINLOG --short-form --start-position=4 $data_file --result-file=$assert_file 2>&1
+
+--echo Case: Stop position before EOF, WARNING must not appear
+--echo # MYSQL_BINLOG --short-form --start-position=4 --stop-position=97 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+--exec $MYSQL_BINLOG --short-form --start-position=4 --stop-position=97 $data_file --result-file=$assert_file 2>&1
+
+--echo Case: Stop position at EOF, WARNING must not appear
+--echo # MYSQL_BINLOG --short-form --start-position=4 --stop-position=98 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+--exec $MYSQL_BINLOG --short-form --start-position=4 --stop-position=98 $data_file --result-file=$assert_file 2>&1
+
+--echo Case: Stop position after EOF, WARNING must appear
+--echo # MYSQL_BINLOG --short-form --start-position=4 --stop-position=99 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+--exec $MYSQL_BINLOG --short-form --start-position=4 --stop-position=99 $data_file --result-file=$assert_file 2>&1
+
+--remove_file $assert_file
+
+--echo # End of binlog_mysqlbinlog_warn_stop_position.test
