@@ -3263,5 +3263,16 @@ SELECT
 SET @@timestamp= DEFAULT;
 
 --echo #
+--echo # MDEV-31302 Assertion `mon > 0 && mon < 13' failed in my_time_t sec_since_epoch(int, int, int, int, int, int)
+--echo #
+
+CREATE TABLE t1 (a DATE);
+SET @@time_zone='+1:00';
+INSERT INTO t1 VALUES ('2024-00-01');
+SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+SET @@time_zone=DEFAULT;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
