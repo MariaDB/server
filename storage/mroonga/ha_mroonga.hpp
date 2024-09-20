@@ -618,7 +618,7 @@ protected:
   bool can_switch_engines() mrn_override;
   int get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
   int get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list) mrn_override;
-  uint referenced_by_foreign_key() mrn_override;
+  bool referenced_by_foreign_key() const noexcept mrn_override;
   void init_table_handle_for_HANDLER() mrn_override;
   void free_foreign_key_create_info(char* str) mrn_override;
 #ifdef MRN_HAVE_HA_REBIND_PSI
@@ -1268,8 +1268,8 @@ private:
   int storage_get_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
   int wrapper_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
   int storage_get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list);
-  uint wrapper_referenced_by_foreign_key();
-  uint storage_referenced_by_foreign_key();
+  bool wrapper_referenced_by_foreign_key() const noexcept;
+  bool storage_referenced_by_foreign_key() const noexcept;
   void wrapper_init_table_handle_for_HANDLER();
   void storage_init_table_handle_for_HANDLER();
   void wrapper_free_foreign_key_create_info(char* str);

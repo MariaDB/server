@@ -10052,8 +10052,8 @@ wsrep_append_key(
 static bool
 referenced_by_foreign_key2(
 /*=======================*/
-	dict_table_t* table,
-	dict_index_t* index)
+	const dict_table_t* table,
+	const dict_index_t* index) noexcept
 {
 	ut_ad(table != NULL);
 	ut_ad(index != NULL);
@@ -15451,16 +15451,12 @@ ha_innobase::can_switch_engines(void)
 	DBUG_RETURN(can_switch);
 }
 
-/*******************************************************************//**
-Checks if a table is referenced by a foreign key. The MySQL manual states that
-a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
+/** Checks if a table is referenced by a foreign key. The MySQL manual states
+that a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
 delete is then allowed internally to resolve a duplicate key conflict in
 REPLACE, not an update.
-@return > 0 if referenced by a FOREIGN KEY */
-
-uint
-ha_innobase::referenced_by_foreign_key(void)
-/*========================================*/
+@return whether the table is referenced by a FOREIGN KEY */
+bool ha_innobase::referenced_by_foreign_key() const noexcept
 {
 	if (dict_table_is_referenced_by_foreign_key(m_prebuilt->table)) {
 
