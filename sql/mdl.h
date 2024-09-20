@@ -672,6 +672,8 @@ public:
   virtual uint get_deadlock_weight() const = 0;
 };
 
+struct TABLE;
+
 
 /**
   A granted metadata lock.
@@ -861,10 +863,27 @@ struct MDL_key_trait
   using Hash_value_type= decltype(MDL_key().tc_hash_value());
 
   static MDL_key *get_key(T *t) { return t->get_key(); }
+  static int is_equal(MDL_key *lhs, MDL_key* rhs)
+  {
+    return lhs->is_equal(rhs);
+  }
+  const uchar* get_key_compat(const uchar* _val,
+                              size_t* size, char first)
+  {
+    T *value= (T*)_val;
+    *size= sizeof(MDL_key);
+    return value->get_key();
+  }
   static my_hash_value_type get_hash_value(const MDL_key *key)
   {
     return key->tc_hash_value();
   }
+  static my_hash_value_type hash_function_compat(CHARSET_INFO *ci,
+                                                 const uchar *key, size_t len)
+  {
+    return ((MDL_key*)key)->tc_hash_value();
+  }
+  
 };
 namespace traits
 {

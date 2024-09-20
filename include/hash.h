@@ -56,6 +56,7 @@ typedef struct st_hash {
   DYNAMIC_ARRAY array;				/* Place for hash_keys */
   my_hash_get_key get_key;
   my_hash_function hash_function;
+  int (*keycmp)(const uchar*, const uchar*);
   void (*free)(void *);
   CHARSET_INFO *charset;
 } HASH;
@@ -69,6 +70,24 @@ my_bool my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
                       size_t key_offset, size_t key_length,
                       my_hash_get_key get_key, my_hash_function hash_function,
                       void (*free_element)(void*), uint flags);
+
+inline static
+my_bool my_hash_init3(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
+                      CHARSET_INFO *charset, size_t default_array_elements,
+                      size_t key_offset, size_t key_length,
+                      my_hash_get_key get_key, my_hash_function hash_function,
+                      void (*free_element)(void*),
+                      int (*keycmp)(const uchar*, const uchar*),
+                      uint flags)
+{
+  my_bool res= my_hash_init2(psi_key, hash, growth_size, charset, 
+                         default_array_elements, key_offset, key_length, get_key,
+                         hash_function, free_element, flags);
+  if (res)
+    return res;
+  hash->keycmp= keycmp;
+  return 0;
+}
 void my_hash_free(HASH *tree);
 void my_hash_reset(HASH *hash);
 uchar *my_hash_element(HASH *hash, size_t idx);
