@@ -160,14 +160,14 @@ connect foo,localhost,root;
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- autocommit
 -- ON
--- time_zone
--- SYSTEM
 -- character_set_client
 -- latin1
 -- character_set_connection
 -- latin1
 -- redirect_url
 -- 
+-- time_zone
+-- SYSTEM
 
 connection default;
 disconnect foo;
