@@ -616,7 +616,10 @@ bs:
     return (~(ulonglong) 0);
   }
 
-  return (negative ? -((longlong) res) : (longlong) res);
+  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  return negative && (longlong) res != LONGLONG_MIN ?
+         -((longlong) res) :
+          (longlong) res;
 }
 
 
