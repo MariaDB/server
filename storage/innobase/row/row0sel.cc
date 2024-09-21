@@ -6774,7 +6774,7 @@ rec_loop:
     {
       push_warning_printf(prebuilt->trx->mysql_thd,
                           Sql_condition::WARN_LEVEL_WARN, ER_NOT_KEYFILE,
-                          "InnoDB: Invalid PAGE_MAX_TRX_ID=%llu"
+                          "InnoDB: Invalid PAGE_MAX_TRX_ID=%" PRIu64
                           " in index '%-.200s'",
                           page_trx_id, index->name());
       prebuilt->autoinc_error= DB_INDEX_CORRUPT;

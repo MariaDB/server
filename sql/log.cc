@@ -3941,8 +3941,9 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
                                   (my_off_t)opt_binlog_gtid_index_span_min);
           if (!gtid_index)
             sql_print_information("Could not create GTID index for binlog "
-                                  "file '%s'. Accesses to this binlog file will "
-                                  "fallback to slower sequential scan.");
+                                  "file '%s'. Accesses to this binlog file "
+                                  "will fallback to slower sequential scan.",
+                                  log_file_name);
         }
         else
           gtid_index= nullptr;
@@ -12174,7 +12175,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         Query_log_event *query_ev= (Query_log_event*) ev;
         if (query_ev->xid)
         {
-          DBUG_PRINT("QQ", ("xid: %llu xid"));
+          DBUG_PRINT("QQ", ("xid: %llu xid", query_ev->xid));
           DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,

@@ -548,7 +548,7 @@ static int is_view(const char *table)
   int view;
   DBUG_ENTER("is_view");
 
-  my_snprintf(query, sizeof(query), "SHOW CREATE TABLE %`s", table);
+  my_snprintf(query, sizeof(query), "SHOW CREATE TABLE %sQ", table);
   if (mysql_query(sock, query))
   {
     fprintf(stderr, "Failed to %s\n", query);
@@ -797,7 +797,7 @@ static int fix_table_storage_name(const char *name)
 
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
-  my_snprintf(qbuf, sizeof(qbuf), "RENAME TABLE %`s TO %`s",
+  my_snprintf(qbuf, sizeof(qbuf), "RENAME TABLE %sQ TO %sQ",
               name, name + 9);
 
   rc= run_query(qbuf, 1);
@@ -814,7 +814,7 @@ static int fix_database_storage_name(const char *name)
 
   if (strncmp(name, "#mysql50#", 9))
     DBUG_RETURN(1);
-  my_snprintf(qbuf, sizeof(qbuf), "ALTER DATABASE %`s UPGRADE DATA DIRECTORY "
+  my_snprintf(qbuf, sizeof(qbuf), "ALTER DATABASE %sQ UPGRADE DATA DIRECTORY "
               "NAME", name);
   rc= run_query(qbuf, 1);
   if (!opt_silent)
@@ -1023,7 +1023,7 @@ static void insert_table_name(DYNAMIC_ARRAY *arr, char *in, size_t dblen)
 {
   char buf[NAME_LEN*2+2];
   in[dblen]= 0;
-  my_snprintf(buf, sizeof(buf), "%`s.%`s", in, in + dblen + 1);
+  my_snprintf(buf, sizeof(buf), "%sQ.%sQ", in, in + dblen + 1);
   insert_dynamic(arr, (uchar*) buf);
 }
 

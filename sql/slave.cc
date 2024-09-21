@@ -6563,7 +6563,7 @@ dbug_gtid_accept:
                         "the last seen GTID is %u-%u-%llu",
                         Log_event::get_type_str((Log_event_type) (uchar)
                                                 buf[EVENT_TYPE_OFFSET]),
-                        mi->last_queued_gtid);
+                        PARAM_GTID(mi->last_queued_gtid));
         goto err;
       }
     }

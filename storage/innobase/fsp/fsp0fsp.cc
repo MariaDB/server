@@ -2643,7 +2643,7 @@ dberr_t fseg_free_page(fseg_header_t *seg_header, fil_space_t *space,
     mtr->x_lock_space(space);
 
   DBUG_PRINT("fseg_free_page",
-             ("space_id: " ULINTPF ", page_no: %u", space->id, offset));
+             ("space_id: %" PRIu32 ", page_no: %" PRIu32, space->id, offset));
 
   dberr_t err;
   if (fseg_inode_t *seg_inode= fseg_inode_try_get(seg_header,

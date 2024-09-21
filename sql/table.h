@@ -573,6 +573,7 @@ class Table_check_intact
 {
 protected:
   bool has_keys;
+  ATTRIBUTE_FORMAT(printf, 3, 4) // 1st arg is `Table_check_intact* this`
   virtual void report_error(uint code, const char *fmt, ...)= 0;
 
 public:
@@ -590,6 +591,7 @@ public:
 class Table_check_intact_log_error : public Table_check_intact
 {
 protected:
+  ATTRIBUTE_FORMAT(printf, 3, 4)
   void report_error(uint, const char *fmt, ...) override;
 public:
   Table_check_intact_log_error() : Table_check_intact(true) {}

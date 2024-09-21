@@ -191,7 +191,7 @@ bool btr_root_fseg_validate(ulint offset, const buf_block_t &block,
   sql_print_error("InnoDB: Index root page " UINT32PF " in %s is corrupted "
                   "at " ULINTPF,
                   block.page.id().page_no(),
-                  UT_LIST_GET_FIRST(space.chain)->name);
+                  UT_LIST_GET_FIRST(space.chain)->name, offset);
   return false;
 }
 
@@ -1215,7 +1215,7 @@ uint64_t btr_read_autoinc_with_fallback(const dict_table_t *table,
       {
         sql_print_information("InnoDB: Resetting PAGE_ROOT_AUTO_INC from "
                               UINT64PF " to " UINT64PF
-                              " on table %`.*s.%`s (created with version %lu)",
+                              " on table %.*sQ.%sQ (created with version %lu)",
                               autoinc, max_autoinc,
                               int(table->name.dblen()), table->name.m_name,
                               table->name.basename(), mysql_version);

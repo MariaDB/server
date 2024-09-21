@@ -2595,7 +2595,7 @@ os_file_io(
 
 		if (type.type != IORequest::READ_MAYBE_PARTIAL) {
 			sql_print_warning("InnoDB: %zu bytes should have been"
-					  " %s at %llu from %s,"
+					  " %s at %" PRIu64 " from %s,"
 					  " but got only %zd."
 					  " Retrying.",
 					  n, type.is_read()
@@ -2769,7 +2769,7 @@ os_file_read_func(
 
   os_file_handle_error_no_exit(type.node ? type.node->name : nullptr, "read",
                                false);
-  sql_print_error("InnoDB: Tried to read %zu bytes at offset %llu"
+  sql_print_error("InnoDB: Tried to read %zu bytes at offset %" PRIu64
                   " of file %s, but was only able to read %zd",
                   n, offset, type.node ? type.node->name : "(unknown)",
                   n_bytes);
@@ -4018,7 +4018,8 @@ bool fil_node_t::read_page0()
                                      (flags & ~FSP_FLAGS_MEM_MASK)))
     {
 invalid:
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
       return false;
     }

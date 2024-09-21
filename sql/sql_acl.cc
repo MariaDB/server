@@ -3474,12 +3474,12 @@ end:
            target user, so printing `priv_user@priv_host` is not incorrect.
          */
         if (!host.str)
-          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+          my_printf_error(ER_INVALID_ROLE, "User %sQ@%sQ has not been granted role %sQ",
                           MYF(0), thd->security_ctx->priv_user,
                           thd->security_ctx->priv_host, rolename.str);
         else
           /* Role is not granted but current user can see the role */
-          my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+          my_printf_error(ER_INVALID_ROLE, "User %sQ@%sQ has not been granted role %sQ",
                           MYF(0), user.str, host.str, rolename.str);
       }
       else
@@ -12346,9 +12346,9 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   while ((user= it++))
   {
     if (opt_skip_name_resolve && hostname_requires_resolving(user->host.str))
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_HOSTNAME_WONT_WORK,
-                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WARN_HOSTNAME_WONT_WORK,
+                   ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
   }
 }
 
@@ -13613,7 +13613,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -13686,7 +13686,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -13776,7 +13776,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       !ignore_max_password_errors(mpvio->acl_user))
   {
     my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
       ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
     DBUG_RETURN(1);
   }
@@ -13791,7 +13791,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(!Lex_ident_plugin(mpvio->acl_user->auth->plugin).
                   streq(old_password_plugin_name));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }

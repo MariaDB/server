@@ -1011,7 +1011,7 @@ ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 static void dict_table_open_failed(const table_name_t &name)
 {
   my_printf_error(ER_TABLE_CORRUPT,
-                  "Table %`.*s.%`s is corrupted."
+                  "Table %.*sQ.%sQ is corrupted."
                   " Please drop the table and recreate.",
                   MYF(ME_ERROR_LOG),
                   int(name.dblen()), name.m_name, name.basename());
@@ -1052,7 +1052,7 @@ dict_table_open_on_name(
         ulint algo= table->space->get_compression_algo();
         if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo))
           my_printf_error(ER_PROVIDER_NOT_LOADED,
-                          "Table %`.*s.%`s is compressed with %s,"
+                          "Table %.*sQ.%sQ is compressed with %s,"
                           " which is not currently loaded. "
                           "Please load the %s provider plugin"
                           " to open the table",

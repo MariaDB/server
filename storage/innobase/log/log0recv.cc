@@ -4439,7 +4439,7 @@ static dberr_t recv_rename_files()
         err= space->rename(new_name, false);
         if (err != DB_SUCCESS)
           sql_print_error("InnoDB: Cannot replay rename of tablespace "
-                          UINT32PF " to '%s: %s", new_name, ut_strerr(err));
+                          UINT32PF " to '%s': %s", id, new_name, ut_strerr(err));
         goto done;
       }
       mysql_mutex_unlock(&fil_system.mutex);

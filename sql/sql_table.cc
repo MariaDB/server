@@ -6351,9 +6351,9 @@ remove_key:
         }
         if (!part_elem)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_PARTITION_DOES_NOT_EXIST,
-                              ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
+          push_warning(thd, Sql_condition::WARN_LEVEL_NOTE,
+                       ER_PARTITION_DOES_NOT_EXIST,
+                       ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
           names_it.remove();
         }
       }
@@ -10148,7 +10148,7 @@ const char *online_alter_check_supported(const THD *thd,
       LEX_CSTRING nxvl{STRING_WITH_LEN("NEXTVAL()")};
       size_t len= strlen(fmt) + nxvl.length + c.field_name.length + dflt.length;
       char *resp= (char*)thd->alloc(len);
-      // expression %s cannot be used in the %s clause of %`s
+      // expression %s cannot be used in the %s clause of %sQ
       my_snprintf(resp, len, fmt, nxvl.str, dflt.str, c.field_name.str);
       return resp;
     }

@@ -629,8 +629,10 @@ static const char *load_default_groups[]=
   0 };
 static void ensure_out_dir_exists(const char *db);
 static void maybe_exit(int error);
-static void die(int error, const char* reason, ...);
-static void maybe_die(int error, const char* reason, ...);
+static void die(int error, const char* reason, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+static void maybe_die(int error, const char* reason, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 static void write_header(FILE *sql_file, const char *db_name);
 static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
                         const char *prefix,const char *name,
@@ -657,7 +659,8 @@ static int dump_all_tablespaces();
 static int dump_tablespaces_for_tables(char *db, char **table_names, int tables);
 static int dump_tablespaces_for_databases(char** databases);
 static int dump_tablespaces(char* ts_where);
-static void print_comment(FILE *, my_bool, const char *, ...);
+static void print_comment(FILE *, my_bool, const char *, ...)
+  ATTRIBUTE_FORMAT(printf, 3, 4);
 
 
 static inline int cmp_database(const char *a, const char *b)
@@ -1864,7 +1867,7 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
   query_length= my_snprintf(query_buffer,
                             sizeof (query_buffer),
                             "SET SESSION character_set_results = '%s'",
-                            (const char *) cs_name);
+                            cs_name);
 
   return mysql_real_query(mysql, query_buffer, (ulong)query_length);
 }
@@ -7432,7 +7435,7 @@ int main(int argc, char **argv)
       goto err;
     connection_pool.for_each_connection([](MYSQL *c) {
       if (start_transaction(c))
-        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %u", mysql->thread_id);
+        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %lu", mysql->thread_id);
     });
   }
 

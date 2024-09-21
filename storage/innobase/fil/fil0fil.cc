@@ -2604,7 +2604,7 @@ fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space)
 
 	if (space) {
 		sql_print_information("InnoDB: Ignoring data file '%s'"
-				      " with space ID " ULINTPF
+				      " with space ID %" PRIu32
 				      ". Another data file called %s"
 				      " exists"
 				      " with the same space ID.",

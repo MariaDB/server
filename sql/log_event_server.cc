@@ -2471,7 +2471,7 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %u-%u-%llu could not "
+    sql_print_warning("ALTER query started at %llu-%u-%u could not "
                       "be completed because of unexpected master server "
                       "or its binlog change", info->sa_seq_no, // todo:gtid
                       0, 0);
@@ -3702,7 +3702,7 @@ int Xid_apply_log_event::do_apply_event(rpl_group_info *rgi)
 #endif
   }
 
-  general_log_print(thd, COM_QUERY, get_query());
+  general_log_print(thd, COM_QUERY, "%s", get_query());
   thd->variables.option_bits&= ~OPTION_GTID_BEGIN;
   /*
     Use the time from the current Xid_log_event for the generated
@@ -7449,7 +7449,7 @@ void issue_long_find_row_warning(Log_event_type type,
                             "while looking up records to be processed. Consider adding a "
                             "primary key (or unique key) to the table to improve "
                             "performance.",
-                            evt_type, table_name, (long) delta, scan_type);
+                            evt_type, table_name, delta, scan_type);
     }
   }
 }

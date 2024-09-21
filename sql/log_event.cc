@@ -3149,7 +3149,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   uchar *ptr_after_width= (uchar*) ptr_width;
   DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
   m_width= net_field_length(&ptr_after_width);
-  DBUG_PRINT("debug", ("m_width=%lu", m_width));
+  DBUG_PRINT("debug", ("m_width=%u", m_width));
 
   /* Avoid reading out of buffer */
   if (ptr_after_width + (m_width + 7) / 8 > (uchar*)buf + event_len)
@@ -3212,7 +3212,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
     DBUG_VOID_RETURN;
   }
   size_t const data_size= event_len - read_size;
-  DBUG_PRINT("info",("m_table_id: %llu  m_flags: %d  m_width: %lu  data_size: %lu",
+  DBUG_PRINT("info",("m_table_id: %llu  m_flags: %d  m_width: %u  data_size: %lu",
                      m_table_id, m_flags, m_width, (ulong) data_size));
 
   m_rows_buf= (uchar*) my_malloc(PSI_INSTRUMENT_ME, data_size, MYF(MY_WME));
