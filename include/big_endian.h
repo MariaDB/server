@@ -16,7 +16,7 @@
 /*
   Data in big-endian format.
 */
-#define float4store(T,A) do { *(T)= ((uchar *) &A)[3];\
+#define float4store(T,A) do { *((T)+0)=(char) ((uchar *) &A)[3];\
                               *((T)+1)=(char) ((uchar *) &A)[2];\
                               *((T)+2)=(char) ((uchar *) &A)[1];\
                               *((T)+3)=(char) ((uchar *) &A)[0]; } while(0)
@@ -28,7 +28,7 @@
                               ((uchar*) &def_temp)[3]=(M)[0];\
                               (V)=def_temp; } while(0)
 
-#define float8store(T,V) do { *(T)= ((uchar *) &V)[7];\
+#define float8store(T,V) do { *((T)+0)=(char) ((uchar *) &V)[7];\
                               *((T)+1)=(char) ((uchar *) &V)[6];\
                               *((T)+2)=(char) ((uchar *) &V)[5];\
                               *((T)+3)=(char) ((uchar *) &V)[4];\
