@@ -1,0 +1,1 @@
+--binlog-storage-engine=innodb --max-binlog-size=256K
