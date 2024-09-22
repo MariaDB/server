@@ -3901,7 +3901,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           if (!gtid_index)
             sql_print_information("Could not create GTID index for binlog "
                                   "file '%s'. Accesses to this binlog file will "
-                                  "fallback to slower sequential scan.");
+                                  "fallback to slower sequential scan.",
+                                  log_file_name);
         }
         else
           gtid_index= nullptr;
