@@ -1,0 +1,19 @@
+--source include/have_innodb_binlog.inc
+--source include/have_binlog_format_mixed.inc
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog1.txt
+
+--source include/restart_mysqld.inc
+
+INSERT INTO t1 VALUES (2, 0);
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog2.txt
+
+--source include/restart_mysqld.inc
+
+INSERT INTO t1 VALUES (3, 0);
+
+--exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog3.txt
+
+DROP TABLE t1;
