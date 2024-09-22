@@ -8009,6 +8009,30 @@ double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
   return min_freq;
 }
 
+#ifndef DBUG_OFF
+
+char join_prefix_buf[256];
+
+const char* dbug_print_join_prefix(const POSITION *join_positions,
+                                   uint idx,
+                                   JOIN_TAB *s)
+{
+  char *buf= join_prefix_buf;
+  String str(buf, sizeof(join_prefix_buf), &my_charset_bin);
+  str.length(0);
+  for (uint i=0; i!=idx; i++)
+  {
+    str.append(join_positions[i].table->table->alias);
+    str.append(',');
+  }
+  str.append(s->table->alias);
+  if (str.c_ptr_safe() == buf)
+   return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+#endif
+
 
 /**
   Find the best access path for an extension of a partial execution
@@ -8033,6 +8057,14 @@ double hash_join_fanout(JOIN *join, JOIN_TAB *s, table_map remaining_tables,
   @param pos              OUT Table access plan
   @param loose_scan_pos   OUT Table plan that uses loosescan, or set cost to 
                               DBL_MAX if not possible.
+  @detail
+   Use this to print the current join prefix:
+
+      dbug_print_join_prefix(join_positions, idx, s)
+
+   Use this as breakpoint condition to stop at join prefix "t1,t2,t3":
+
+    $_streq(dbug_print_join_prefix(join_positions, idx, s), "t1,t2,t3")
 
   @return
     None
