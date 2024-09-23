@@ -96,21 +96,31 @@ drop table t1, t2, t3;
 --echo # the binlogging to semi-sync, and starting the wait for ACK; and during
 --echo # this pause, semi-sync is manually switched off and on.
 
+
+--connection master
+set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
+set @@global.rpl_semi_sync_master_wait_no_slave= 1;
+
 --echo # Waiting for semi-sync to turn on..
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
 --connection slave
 let $status_var= rpl_semi_sync_slave_status;
 let $status_var_value= ON;
 source include/wait_for_status_var.inc;
 
 --connection master
-set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
-set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
-let $status_var= rpl_semi_sync_master_status;
-let $status_var_value= ON;
-source include/wait_for_status_var.inc;
-
 create table t (a int) engine=innodb;
 --sync_slave_with_master
+
+--echo # Wait no slave is on, so we don't need to slave on to wait for the
+--echo # ACK, and this way we guarantee the ACK doesn't come, so we can verify
+--echo # the informational message is displayed
+--connection slave
+--source include/stop_slave.inc
 
 --connection server_1
 start transaction;
@@ -134,9 +144,20 @@ set debug_sync= "now SIGNAL continue_commit";
 --connection server_1
 --reap
 
+--let $assert_text= Ensure error log shows that transaction is skipping its semi-sync wait
+--let $assert_select=Skipping semi-sync wait for transaction
+--let $assert_file= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let $assert_count= 1
+--let $assert_only_after=CURRENT_TEST
+--source include/assert_grep.inc
+
 --echo # Cleanup
+--connection slave
+--source include/start_slave.inc
+
 --connection master
 drop table t;
+--sync_slave_with_master
 
 
 --echo #
@@ -148,6 +169,16 @@ drop table t;
 --connection master
 set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
 
+--echo # Waiting for semi-sync to turn on..
+let $status_var= rpl_semi_sync_master_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+--connection slave
+let $status_var= rpl_semi_sync_slave_status;
+let $status_var_value= ON;
+source include/wait_for_status_var.inc;
+
+--connection master
 create table tn (a int) engine=Aria;
 start transaction;
 insert into tn values (NULL);
@@ -159,5 +190,6 @@ commit;
 --connection master
 drop table tn;
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
+set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 
 --source include/rpl_end.inc

@@ -45,13 +45,21 @@ drop table t1, t2, t3;
 # Here, debug_sync is used to pause the leader thread between reporting
 # the binlogging to semi-sync, and starting the wait for ACK; and during
 # this pause, semi-sync is manually switched off and on.
+connection master;
+set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
+set @old_master_wait_no_slave= @@global.rpl_semi_sync_master_wait_no_slave;
+set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
+set @@global.rpl_semi_sync_master_wait_no_slave= 1;
 # Waiting for semi-sync to turn on..
 connection slave;
 connection master;
-set @old_master_wait_point= @@global.rpl_semi_sync_master_wait_point;
-set @@global.rpl_semi_sync_master_wait_point= AFTER_SYNC;
 create table t (a int) engine=innodb;
 connection slave;
+# Wait no slave is on, so we don't need to slave on to wait for the
+# ACK, and this way we guarantee the ACK doesn't come, so we can verify
+# the informational message is displayed
+connection slave;
+include/stop_slave.inc
 connection server_1;
 start transaction;
 insert into t values (0);
@@ -65,9 +73,13 @@ set @@global.rpl_semi_sync_master_enabled= 1;
 # Resuming transaction to await ACK
 set debug_sync= "now SIGNAL continue_commit";
 connection server_1;
+include/assert_grep.inc [Ensure error log shows that transaction is skipping its semi-sync wait]
 # Cleanup
+connection slave;
+include/start_slave.inc
 connection master;
 drop table t;
+connection slave;
 #
 # MDEV-34122.b: Test wait_point = AFTER_COMMIT
 # Here, use a transaction with a non-transactional statement to write to
@@ -75,6 +87,9 @@ drop table t;
 # transaction.
 connection master;
 set @@global.rpl_semi_sync_master_wait_point= AFTER_COMMIT;
+# Waiting for semi-sync to turn on..
+connection slave;
+connection master;
 create table tn (a int) engine=Aria;
 start transaction;
 insert into tn values (NULL);
@@ -85,4 +100,5 @@ commit;
 connection master;
 drop table tn;
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
+set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 include/rpl_end.inc
