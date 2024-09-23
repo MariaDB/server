@@ -92,11 +92,13 @@ template<bool spinloop>
 class srw_mutex_impl final
 {
   friend ssux_lock_impl<spinloop>;
-  /** The lock word, containing HOLDER + 1 if the lock is being held,
-  plus the number of waiters */
+  /** The lock word, containing HOLDER + WAITER if the lock is being held,
+  plus WAITER times the number of waiters */
   std::atomic<uint32_t> lock;
   /** Identifies that the lock is being held */
-  static constexpr uint32_t HOLDER= 1U << 31;
+  static constexpr uint32_t HOLDER= 1;
+  /** Identifies a lock waiter */
+  static constexpr uint32_t WAITER= 2;
 
 #ifdef SUX_LOCK_GENERIC
 public:
@@ -144,7 +146,7 @@ public:
   bool wr_lock_try()
   {
     uint32_t lk= 0;
-    return lock.compare_exchange_strong(lk, HOLDER + 1,
+    return lock.compare_exchange_strong(lk, HOLDER + WAITER,
                                         std::memory_order_acquire,
                                         std::memory_order_relaxed);
   }
@@ -152,8 +154,9 @@ public:
   void wr_lock() { if (!wr_lock_try()) wait_and_lock(); }
   void wr_unlock()
   {
-    const uint32_t lk= lock.fetch_sub(HOLDER + 1, std::memory_order_release);
-    if (lk != HOLDER + 1)
+    const uint32_t lk=
+      lock.fetch_sub(HOLDER + WAITER, std::memory_order_release);
+    if (lk != HOLDER + WAITER)
     {
       DBUG_ASSERT(lk & HOLDER);
       wake();
@@ -269,10 +272,14 @@ public:
   {
     writer.wr_lock();
 #if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
-    /* On IA-32 and AMD64, this type of fetch_or() can only be implemented
-    as a loop around LOCK CMPXCHG. In this particular case, setting the
-    most significant bit using fetch_add() is equivalent, and is
-    translated into a simple LOCK XADD. */
+    /* On IA-32 and AMD64, a fetch_XXX() that needs to return the
+    previous value of the word state can only be implemented
+    efficiently for fetch_add() or fetch_sub(), both of which
+    translate into a 80486 LOCK XADD instruction. Anything else would
+    translate into a loop around LOCK CMPXCHG. In this particular
+    case, we know that the bit was previously clear, and therefore
+    setting (actually toggling) the most significant bit using
+    fetch_add() or fetch_sub() is equivalent. */
     static_assert(WRITER == 1U << 31, "compatibility");
     if (uint32_t lk= readers.fetch_add(WRITER, std::memory_order_acquire))
       wr_wait(lk);
