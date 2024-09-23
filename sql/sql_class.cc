@@ -855,6 +855,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_id= 0;
   query_name_consts= 0;
   semisync_info= 0;
+
+#ifndef DBUG_OFF
+  expected_semi_sync_offs= 0;
+#endif
+
   db_charset= global_system_variables.collation_database;
   bzero((void*) ha_data, sizeof(ha_data));
   mysys_var=0;
