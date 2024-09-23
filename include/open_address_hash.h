@@ -30,11 +30,14 @@ class Open_address_hash
 public:
   using Hash_value_type= typename Key_trait::Hash_value_type;
 
+  void init()
+  {
+    first.set(EMPTY, true);
+    second= EMPTY;
+  }
   Open_address_hash()
   {
-    first.set_mark(true);
-    first.set_ptr(EMPTY);
-    second= EMPTY;
+    init();
   }
 
   ~Open_address_hash()
@@ -175,11 +178,14 @@ public:
   template <typename Func>
   Value find(const Key &key, const Func &elem_suits) const
   {
-    if (first.mark())
+    if (likely(first.mark()))
     {
-      if (first.ptr() && elem_suits(first.ptr()))
-        return first.ptr();
-      if (!is_empty(second) && elem_suits(second))
+      if (first.ptr())
+      {
+        if (elem_suits(first.ptr()))
+          return first.ptr();
+      }
+      else if (!is_empty(second) && elem_suits(second))
         return second;
 
       return EMPTY;
@@ -201,7 +207,8 @@ public:
     {
       if (!is_empty(first.ptr()) && is_equal(first.ptr(), value))
       {
-        first.set_ptr(EMPTY);
+        first.set_ptr(second);
+        second= EMPTY;
         return true;
       }
       else if (second && is_equal(second, value))
@@ -219,6 +226,8 @@ public:
     if (!erase_from_bucket(value))
       return false;
     _size--;
+    if (!_size)
+      init();
     return true;
   }
 
@@ -319,6 +328,12 @@ private:
   public:
     static constexpr uint MARK_SHIFT = 63;
     static constexpr uintptr_t MARK_MASK = 1UL << MARK_SHIFT;
+
+    void set(Value ptr, bool mark)
+    {
+      uintptr_t mark_bit = static_cast<uintptr_t>(mark) << MARK_SHIFT;
+      p = reinterpret_cast<uintptr_t>(ptr) | mark_bit;
+    }
 
     void set_ptr(Value ptr)
     {
