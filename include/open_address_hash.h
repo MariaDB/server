@@ -33,14 +33,23 @@ class Open_address_hash
 public:
   using Hash_value_type= typename Key_trait::Hash_value_type;
 
+  void init()
+  {
+    first.set(EMPTY, true);
+    second= EMPTY;
+  }
   Open_address_hash()
   {
-    first.set_mark(true);
-    first.set_ptr(EMPTY);
-    second= EMPTY;
+    init();
   }
 
   ~Open_address_hash()
+  {
+    dealloc_buffer();
+  }
+
+private:
+  void dealloc_buffer()
   {
     if (!first.mark())
     {
@@ -48,8 +57,6 @@ public:
       my_free(hash_array);
     }
   }
-
-private:
   size_t _buffer_size() const
   {
     return (size_t)1 << capacity_shift;
@@ -181,11 +188,14 @@ public:
   template <typename Func>
   Value find(const Key &key, const Func &match) const
   {
-    if (first.mark())
+    if (likely(first.mark()))
     {
-      if (first.ptr() && match(first.ptr()))
-        return first.ptr();
-      if (!is_empty(second) && match(second))
+      if (first.ptr())
+      {
+        if (match(first.ptr()))
+          return first.ptr();
+      }
+      else if (!is_empty(second) && match(second))
         return second;
 
       return EMPTY;
@@ -207,7 +217,8 @@ public:
     {
       if (!is_empty(first.ptr()) && is_equal(first.ptr(), value))
       {
-        first.set_ptr(EMPTY);
+        first.set_ptr(second);
+        second= EMPTY;
         return true;
       }
       else if (second && is_equal(second, value))
@@ -227,6 +238,11 @@ public:
     if (!erase_from_bucket(value))
       return false;
     _size--;
+    if (!_size)
+    {
+      dealloc_buffer();
+      init();
+    }
     return true;
   }
 
@@ -325,6 +341,12 @@ private:
   public:
     static constexpr uint MARK_SHIFT = 63;
     static constexpr uintptr_t MARK_MASK = (uintptr_t)1 << MARK_SHIFT;
+
+    void set(Value ptr, bool mark)
+    {
+      uintptr_t mark_bit = static_cast<uintptr_t>(mark) << MARK_SHIFT;
+      p = reinterpret_cast<uintptr_t>(ptr) | mark_bit;
+    }
 
     void set_ptr(Value ptr)
     {
