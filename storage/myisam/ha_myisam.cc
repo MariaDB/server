@@ -724,14 +724,12 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
   /* This mutex is needed for parallel repair */
   mysql_mutex_lock(&info->s->intern_lock);
   TABLE *table= (TABLE*)(info->external_ref);
-  uchar *old_record= table->field[0]->record_ptr();
-  table->move_fields(table->field, record, old_record);
+  table->move_fields(table->field, record, table->field[0]->record_ptr());
   if (keynum == -1) // update all vcols
   {
     int error= table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ);
     if (table->update_virtual_fields(table->file, VCOL_UPDATE_INDEXED))
       error= 1;
-    table->move_fields(table->field, old_record, record);
     mysql_mutex_unlock(&info->s->intern_lock);
     return error;
   }
@@ -744,7 +742,6 @@ static int compute_vcols(MI_INFO *info, uchar *record, int keynum)
     if (f->vcol_info && !f->vcol_info->stored_in_db)
       table->update_virtual_field(f, false);
   }
-  table->move_fields(table->field, old_record, record);
   mysql_mutex_unlock(&info->s->intern_lock);
   return 0;
 }
@@ -1030,7 +1027,7 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
 
 void ha_myisam::restore_vcos_after_repair()
 {
-  if (file->s->base.reclength < file->s->vreclength)
+  if (table->vfield)
   {
     table->move_fields(table->field, table->record[0],
                        table->field[0]->record_ptr());
