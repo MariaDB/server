@@ -5117,7 +5117,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
 
       if (table->triggers->
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
 
     if (table->file->referenced_by_foreign_key())
@@ -5125,7 +5125,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
       if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                      need_prelocking,
                                      table_list->trg_event_map))
-        return TRUE;
+        DBUG_RETURN(TRUE);
     }
   }
   else if (table_list->slave_fk_event_map &&
@@ -5134,7 +5134,7 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
     if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
                                    need_prelocking,
                                    table_list->slave_fk_event_map))
-      return TRUE;
+      DBUG_RETURN(TRUE);
   }
 
   /* Open any tables used by DEFAULT (like sequence tables) */
