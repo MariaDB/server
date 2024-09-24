@@ -5053,27 +5053,41 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
     else
       lock_type= TL_READ;
 
-    MDL_key key(MDL_key::TABLE, fk->foreign_db->str, fk->foreign_table->str);
+    const char *db= fk->foreign_db->str;
+    const char *table_name= fk->foreign_table->str;
+    MDL_key key(MDL_key::TABLE, db, table_name);
 
-    TABLE_LIST *tl= find_fk_prelocked_table(prelocking_ctx, key, lock_type);
-    if (tl == NULL)
+    TABLE_LIST *tl= NULL;
+    bool success= prelocking_ctx->fk_table_hash.insert(key,
+            [db, table_name, lock_type](const TABLE_LIST *tl)
+            {
+              return tl->lock_type >= lock_type
+                     && strcmp(tl->table_name.str, table_name) == 0
+                     && strcmp(tl->db.str, db) == 0;
+            },
+            [&tl, thd]()
+            {
+              tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+              return tl;
+            }
+    );
+
+    if (unlikely(!success))
     {
-      tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-      tl->init_one_table_for_prelocking(
-          fk->foreign_db, fk->foreign_table, NULL, lock_type,
-          TABLE_LIST::PRELOCK_FK, table_list->belong_to_view, op,
-          &prelocking_ctx->query_tables_last, &key,
-          table_list->for_insert_data);
-      bool success= prelocking_ctx->fk_table_hash.insert(tl);
-      if (!success)
-      {
-        my_error(ER_OUTOFMEMORY, MYF(0));
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
-        DBUG_RETURN(TRUE);
-      }
+      my_error(ER_OUTOFMEMORY, MYF(0));
+      if (arena)
+        thd->restore_active_arena(arena, &backup);
+      DBUG_RETURN(TRUE);
     }
 
+    if (tl != NULL)
+    {
+      tl->init_one_table_for_prelocking(
+              fk->foreign_db, fk->foreign_table, NULL, lock_type,
+              TABLE_LIST::PRELOCK_FK, table_list->belong_to_view, op,
+              &prelocking_ctx->query_tables_last, &key,
+              table_list->for_insert_data);
+    }
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);

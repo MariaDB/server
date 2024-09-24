@@ -1964,7 +1964,7 @@ MDL_context::find_ticket(MDL_request *mdl_request,
                t->m_duration == mdl_request->duration;
       };
 
-  MDL_ticket *found_ticket= ticket_hash.find(&mdl_request->key,
+  MDL_ticket *found_ticket= ticket_hash.find(mdl_request->key,
                                              ticket_identical);
   if (!found_ticket)
   {
