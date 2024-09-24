@@ -2777,6 +2777,25 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+/*
+  Symbolic names for OPTIMIZER_ADJ_* flags in sql_priv.h
+*/
+static const char *adjust_secondary_key_cost[]=
+{
+  "fix_card_multiplier", 0
+};
+
+static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
+    "optimizer_adjust_secondary_key_costs",
+    "A bit field with the following values: "
+    "fix_card_multiplier = Fix the computation in selectivity_for_indexes."
+    " selectivity_multiplier. "
+    "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
+    "new 11.0 optimizer.",
+    SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
+    adjust_secondary_key_cost, DEFAULT(OPTIMIZER_ADJ_FIX_CARD_MULT));
+
+
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),

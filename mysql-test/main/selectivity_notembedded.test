@@ -257,7 +257,25 @@ select
 from 
   information_schema.optimizer_trace;
 
+--echo # Disable the fix and try the same:
+set @@optimizer_adjust_secondary_key_costs='';
+explain select * from t1 
+where
+  pk in (1,2,3,4,5) and
+  key1 <= 4;
 drop table t1;
+--echo # Shows a high multiplier, without a "note":
+select 
+  json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
+from 
+  information_schema.optimizer_trace;
+
+--echo # Includes 1.79...e308 as cost:
+select 
+  json_detailed(json_extract(trace,'$**.best_access_path')) as JS
+from 
+  information_schema.optimizer_trace;
+set optimizer_adjust_secondary_key_costs=default;
 
 --echo #
 --echo # Clean up

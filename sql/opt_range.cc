@@ -3521,7 +3521,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
               multiplied by quick_cond_selectivity above, so we will only
               multiply it with selectivity_mult).
             */
-            if (selectivity_mult > 1.0 / quick_cond_selectivity)
+            if ((thd->variables.optimizer_adjust_secondary_key_costs &
+                 OPTIMIZER_ADJ_FIX_CARD_MULT) &&
+                selectivity_mult > 1.0 / quick_cond_selectivity)
             {
               selectivity_for_index.add("note", "multiplier too high, clipping");
               selectivity_mult= 1.0/quick_cond_selectivity;
