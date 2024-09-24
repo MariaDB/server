@@ -1,5 +1,8 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_sequence.inc
+--source include/have_aria.inc
+--source include/log_bin.inc
 
 #
 # MDEV-19353 : Alter Sequence do not replicate to another nodes with in Galera Cluster
@@ -283,8 +286,11 @@ CREATE SEQUENCE t INCREMENT BY 0 CACHE=20 ENGINE=INNODB;
 ALTER TABLE t ENGINE=MYISAM;
 --error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 1 CACHE=10;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 1 NOCACHE;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 0 NOCACHE;
+--error ER_NOT_SUPPORTED_YET
 ALTER SEQUENCE t INCREMENT BY 0 CACHE=10;
 DROP SEQUENCE t;
 
@@ -341,3 +347,14 @@ SELECT NEXTVAL(t);
 --connection node_1
 DROP TABLE t1;
 DROP SEQUENCE t;
+
+#
+# MDEV-32631
+#
+
+CREATE OR REPLACE TABLE t1(c INT ) ENGINE=ARIA;
+SET SESSION WSREP_OSU_METHOD=RSU;
+--error ER_NOT_SUPPORTED_YET
+INSERT INTO t1 SELECT seq,concat(seq,1) FROM seq_1_to_100;
+SET SESSION WSREP_OSU_METHOD=TOI;
+DROP TABLE t1;
