@@ -3503,9 +3503,33 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
               */
               selectivity_mult= ((double)(i+1)) / i;
             }
-            table->cond_selectivity*= selectivity_mult;
             selectivity_for_index.add("selectivity_multiplier",
                                       selectivity_mult);
+
+            /*
+              Ok, now we assume that selectivity that range condition on
+              this index adds over selectivities on indexes that we've already
+              examined is
+
+                $SEL= (quick_cond_selectivity * selectivity_mult)
+
+              The heuristic that we used to obtain selectivity_mult may not be
+              correct (actually is known to be incorrect in simple cases), so
+              we make sure here that $SEL <= 1.0.
+
+              We adjust selectivity_mult (table->cond_selectivity was already
+              multiplied by quick_cond_selectivity above, so we will only
+              multiply it with selectivity_mult).
+            */
+            if (selectivity_mult > 1.0 / quick_cond_selectivity)
+            {
+              selectivity_for_index.add("note", "multiplier too high, clipping");
+              selectivity_mult= 1.0/quick_cond_selectivity;
+              selectivity_for_index.add("clipped_multiplier", selectivity_mult);
+              DBUG_ASSERT(quick_cond_selectivity * selectivity_mult <= 1.0);
+            }
+
+            table->cond_selectivity*= selectivity_mult;
           }
           /*
             We need to set selectivity for fields supported by indexes.
