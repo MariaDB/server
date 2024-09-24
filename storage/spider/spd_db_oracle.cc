@@ -12460,11 +12460,6 @@ int spider_oracle_handler::append_list_item_select(
   begin = str->length();
   while ((item = it++))
   {
-    if (item->const_item())
-    {
-      DBUG_PRINT("info",("spider const item"));
-      continue;
-    }
     if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {

@@ -13971,14 +13971,19 @@ int spider_mbase_handler::append_list_item_select(
   Item *item;
   Field *field;
   const char *item_name;
+  uint skip= select->elements - fields->get_first_table_holder()->table->pos_in_table_list->select_lex->join->fields_list.elements;
   DBUG_ENTER("spider_mbase_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
   begin = str->length();
   while ((item = it++))
   {
-    if (item->const_item())
+    if (skip > 0)
     {
-      DBUG_PRINT("info",("spider const item"));
+      str->reserve(2);
+      str->q_append("1", 1);
+      field = *(fields->get_next_field_ptr());
+      str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
+      skip--;
       continue;
     }
     if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
