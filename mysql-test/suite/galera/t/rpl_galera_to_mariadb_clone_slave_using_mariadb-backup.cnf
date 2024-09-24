@@ -1,10 +1,10 @@
 !include ../galera_2nodes_as_master.cnf
 
 [mysqld.1]
-innodb-log-file-buffering
+loose-innodb-log-file-buffering
 
 [mysqld.2]
-innodb-log-file-buffering
+loose-innodb-log-file-buffering
 
 [mysqld.3]
-innodb-log-file-buffering
+loose-innodb-log-file-buffering
