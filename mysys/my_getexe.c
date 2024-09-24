@@ -53,5 +53,7 @@ int my_get_exepath(char *buf, size_t size, const char *argv0)
   }
 #endif
 
-  return my_realpath(buf, argv0, 0);
+  if (argv0)
+    return my_realpath(buf, argv0, 0);
+  return 1;
 }
