@@ -71,18 +71,30 @@ private:
     return Key_trait::get_hash_value(get_key(value));
   }
 
-  void insert_into_bucket(const Value &value)
+  template <typename MatchFunc, typename GetElemFunc>
+  void insert_into_bucket(const Key& key,
+                          const MatchFunc &match,
+                          const GetElemFunc &get_elem)
   {
-    auto hash_val= to_index(hash_from_value(value));
+    auto hash_val= to_index(Key_trait::get_hash_value(&key));
 
     while (!is_empty(hash_array[hash_val]))
     {
-      if (is_equal(hash_array[hash_val], value))
+      if (match(hash_array[hash_val]))
         return;
       hash_val= to_index(hash_val + 1);
     }
 
+    Value &&value= get_elem();
     hash_array[hash_val]= value;
+  }
+
+  void insert_into_bucket(const Value &value)
+  {
+    insert_into_bucket(*get_key(value),
+            [&value](const Value &rhs){ return is_equal(rhs, value); },
+            [&value](){ return value; }
+    );
   }
 
   void rehash_subsequence(uint i)
@@ -181,7 +193,7 @@ private:
 public:
   Value find(const Value &elem) const
   {
-    return find(*Key_trait::get_key(elem),
+    return find(*get_key(elem),
                 [&elem](const Value &rhs) { return is_equal(rhs, elem); });
   }
 
@@ -190,12 +202,9 @@ public:
   {
     if (likely(first.mark()))
     {
-      if (first.ptr())
-      {
-        if (match(first.ptr()))
-          return first.ptr();
-      }
-      else if (!is_empty(second) && match(second))
+      if (!is_empty(first.ptr()) && match(first.ptr()))
+        return first.ptr();
+      if (!is_empty(second) && match(second))
         return second;
 
       return EMPTY;
@@ -209,7 +218,7 @@ public:
     }
 
     return EMPTY;
-  };
+  }
 
   bool erase(const Value &value)
   {
@@ -221,7 +230,7 @@ public:
         second= EMPTY;
         return true;
       }
-      else if (second && is_equal(second, value))
+      else if (!is_empty(second) && is_equal(second, value))
       {
         second= EMPTY;
         return true;
@@ -246,30 +255,35 @@ public:
     return true;
   }
 
-  bool insert(const Value &value)
+  template <typename ElemSuitsFunc, typename GetElemFunc>
+  bool insert(const Key &key,
+              const ElemSuitsFunc &elem_suits,
+              const GetElemFunc &get_elem)
   {
     if (first.mark())
     {
       if (is_empty(first.ptr()))
       {
-        if (is_equal(second, value))
-          return false;
-        first.set_ptr(value);
+        first.set_ptr(get_elem());
         return true;
       }
-      else if (is_empty(second))
+
+      if (elem_suits(first.ptr()))
+        return true;
+
+      if (is_empty(second))
       {
-        if (is_equal(first.ptr(), value))
-          return false;
-        second= value;
+        second= get_elem();
         return true;
       }
-      else
-      {
-        first.set_mark(false);
-        if (!init_hash_array())
-          return false;
-      }
+
+      if (elem_suits(second))
+        return true;
+
+      first.set_mark(false);
+      if (!init_hash_array())
+        return false;
+
     }
 
     if (unlikely(_size == TABLE_SIZE_MAX))
@@ -281,8 +295,15 @@ public:
       return false;
 
     _size++;
-    insert_into_bucket(value);
+    insert_into_bucket(key, elem_suits, get_elem);
     return true;
+  }
+
+  bool insert(const Value &value)
+  {
+    return insert(*get_key(value),
+                  [&value](const Value &rhs){ return is_equal(rhs, value); },
+                  [&value](){ return value; });
   }
 
   bool clear()
