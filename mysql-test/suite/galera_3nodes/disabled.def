@@ -9,5 +9,3 @@
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
-
-galera_2_cluster : MDEV-32631 galera_2_cluster: before_rollback(): Assertion `0' failed
