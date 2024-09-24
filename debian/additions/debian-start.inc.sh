@@ -23,17 +23,19 @@ function check_for_crashed_tables() {
   # If a crashed table is encountered, the "mariadb" command will return with a status different from 0
   #
   # The first query will generate lines like.
-  #   select count(*) into @discard from 'mysql'.'db'
+  #   select count(*) into @discard from `mysql`.`db`
   # The second line will load all tables without printing any actual results,
   # but may show warnings and definitely is expected to have some error and
   # exit code if crashed tables are encountered.
   #
-  # Note that inside single quotes must be quoted with '\'' (to be outside of single quotes).
+  # Note that the below is inside an echo with single quotes which is why double-quotes and back-ticks
+  # are used.
   set +e
   # The $MARIADB is intentionally used to expand into a command and arguments
   # shellcheck disable=SC2086
+  # shellcheck disable=SC2016
   echo '
-    SELECT CONCAT("select count(*) into @discard from '\''", TABLE_SCHEMA, "'\''.'\''", TABLE_NAME, "'\''")
+    SELECT CONCAT("select count(*) into @discard from `", TABLE_SCHEMA, "`.`", TABLE_NAME, "`")
     FROM information_schema.TABLES WHERE TABLE_SCHEMA<>"INFORMATION_SCHEMA" AND TABLE_SCHEMA<>"PERFORMANCE_SCHEMA"
     AND (ENGINE="MyISAM" OR ENGINE="Aria")
     ' | \
