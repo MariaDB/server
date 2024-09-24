@@ -5009,7 +5009,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
   } while ((tables= tables->next_global));
   DBUG_RETURN(FALSE);
 }
-
+extern ulonglong global_time_spent;
 /**
   Extend the table_list to include foreign tables for prelocking.
 
@@ -5046,6 +5046,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
   }
 
   *need_prelocking= TRUE;
+  clock_t start= clock();
 
   while ((fk= fk_list_it++))
   {
@@ -5072,6 +5073,8 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
         &prelocking_ctx->query_tables_last,
         table_list->for_insert_data);
   }
+  clock_t measured_time= clock() - start;
+  global_time_spent+= measured_time;
   if (arena)
     thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(FALSE);

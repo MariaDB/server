@@ -7327,3 +7327,9 @@ static Sys_var_enum Sys_block_encryption_mode(
   "AES_ENCRYPT() and AES_DECRYPT() functions",
   SESSION_VAR(block_encryption_mode), CMD_LINE(REQUIRED_ARG),
   block_encryption_mode_values, DEFAULT(0));
+
+ulonglong global_time_spent= 0;
+static Sys_var_ulonglong Sys_time_spent(
+        "time_spent", "",
+        GLOBAL_VAR(global_time_spent), CMD_LINE(NO_ARG),
+        VALID_RANGE(0, ULONGLONG_MAX), DEFAULT(0), BLOCK_SIZE(1));
