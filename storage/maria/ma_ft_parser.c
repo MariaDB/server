@@ -31,7 +31,7 @@ typedef struct st_my_maria_ft_parser_param
   MEM_ROOT *mem_root;
 } MY_FT_PARSER_PARAM;
 
-static int FT_WORD_cmp(const void *cs_, const void *w1_, const void *w2_)
+static int FT_WORD_cmp(void *cs_, const void *w1_, const void *w2_)
 {
   CHARSET_INFO *cs= cs_;
   const FT_WORD *w1= w1_;
@@ -261,8 +261,8 @@ void maria_ft_parse_init(TREE *wtree, CHARSET_INFO *cs)
 {
   DBUG_ENTER("maria_ft_parse_init");
   if (!is_tree_inited(wtree))
-    init_tree(wtree,0,0,sizeof(FT_WORD),(qsort_cmp2)&FT_WORD_cmp, NULL,
-              (void*) cs, MYF(0));
+    init_tree(wtree, 0, 0, sizeof(FT_WORD), &FT_WORD_cmp, NULL, (void *) cs,
+              MYF(0));
   DBUG_VOID_RETURN;
 }
 

@@ -1293,7 +1293,7 @@ public:
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
-  static int cmp_inet6(const void *, const void *a_, const void *b_)
+  static int cmp_inet6(void *, const void *a_, const void *b_)
   {
     const Inet6 *a= static_cast<const Inet6*>(a_);
     const Inet6 *b= static_cast<const Inet6*>(b_);
@@ -1301,7 +1301,7 @@ class in_inet6 :public in_vector
   }
 public:
   in_inet6(THD *thd, uint elements)
-   :in_vector(thd, elements, sizeof(Inet6), (qsort2_cmp) cmp_inet6, 0),
+   :in_vector(thd, elements, sizeof(Inet6), cmp_inet6, 0),
     m_value(Inet6_zero())
   { }
   const Type_handler *type_handler() const override

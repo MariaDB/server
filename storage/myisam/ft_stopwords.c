@@ -30,7 +30,7 @@ typedef struct st_ft_stopwords
 
 static TREE *stopwords3=NULL;
 
-static int FT_STOPWORD_cmp(const void *cmp_arg __attribute__((unused)),
+static int FT_STOPWORD_cmp(void *cmp_arg __attribute__((unused)),
                            const void *w1_, const void *w2_)
 {
   const FT_STOPWORD *w1= w1_, *w2= w2_;
@@ -64,7 +64,7 @@ int ft_init_stopwords()
     if (!(stopwords3=(TREE *)my_malloc(mi_key_memory_ft_stopwords,
                                        sizeof(TREE), MYF(0))))
       DBUG_RETURN(-1);
-    init_tree(stopwords3,0,0,sizeof(FT_STOPWORD),(qsort_cmp2)&FT_STOPWORD_cmp,
+    init_tree(stopwords3,0,0,sizeof(FT_STOPWORD),&FT_STOPWORD_cmp,
               (ft_stopword_file ? (tree_element_free)&FT_STOPWORD_free : 0),
               NULL, MYF(0));
     /*

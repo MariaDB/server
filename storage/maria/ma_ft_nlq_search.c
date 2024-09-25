@@ -52,7 +52,7 @@ typedef struct st_ft_superdoc
 } FT_SUPERDOC;
 
 
-static int FT_SUPERDOC_cmp(const void *cmp_arg __attribute__((unused)),
+static int FT_SUPERDOC_cmp(void *cmp_arg __attribute__((unused)),
                            const void *p1_, const void *p2_)
 {
   const FT_SUPERDOC *p1= p1_;
@@ -219,7 +219,7 @@ static int walk_and_push(void *from_,
 }
 
 
-static int FT_DOC_cmp(const void *unused __attribute__((unused)),
+static int FT_DOC_cmp(void *unused __attribute__((unused)),
                       const void *a_, const void *b_)
 {
   const FT_DOC *a= a_;
@@ -257,8 +257,8 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
 
   bzero(&wtree,sizeof(wtree));
 
-  init_tree(&aio.dtree,0,0,sizeof(FT_SUPERDOC),(qsort_cmp2)&FT_SUPERDOC_cmp,
-            NULL, NULL, MYF(0));
+  init_tree(&aio.dtree, 0, 0, sizeof(FT_SUPERDOC), &FT_SUPERDOC_cmp, NULL,
+            NULL, MYF(0));
 
   maria_ft_parse_init(&wtree, aio.charset);
   ftparser_param->flags= 0;
@@ -273,8 +273,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
   if (flags & FT_EXPAND && ft_query_expansion_limit)
   {
     QUEUE best;
-    init_queue(&best,ft_query_expansion_limit,0,0, (queue_compare) &FT_DOC_cmp,
-	       0, 0, 0);
+    init_queue(&best, ft_query_expansion_limit, 0, 0, &FT_DOC_cmp, 0, 0, 0);
     tree_walk(&aio.dtree, (tree_walk_action) &walk_and_push,
               &best, left_root_right);
     while (best.elements)
@@ -321,8 +320,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
 	    &dptr, left_root_right);
 
   if (flags & FT_SORTED)
-    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC),
-              (qsort2_cmp)&FT_DOC_cmp, 0);
+    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC), &FT_DOC_cmp, 0);
 
 err:
   delete_tree(&aio.dtree, 0);

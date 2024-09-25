@@ -346,8 +346,8 @@ private:
   */
   bool read_was_interrupted;
 
-  static int compare_keys(const void *arg, const void *key1, const void *key2);
-  static int compare_keys_reverse(const void *arg, const void *key1,
+  static int compare_keys(void *arg, const void *key1, const void *key2);
+  static int compare_keys_reverse(void *arg, const void *key1,
                                   const void *key2);
 
   friend class Key_value_records_iterator; 

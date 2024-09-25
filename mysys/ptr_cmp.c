@@ -44,17 +44,17 @@
 
 #include <string.h>
 
-static int native_compare(const void *length_, const void *a_, const void *b_)
+static int native_compare(void *length_, const void *a_, const void *b_)
 {
-  const size_t *length= length_;
+  size_t *length= length_;
   const unsigned char **a= (const unsigned char **) a_;
   const unsigned char **b= (const unsigned char **) b_;
   return memcmp(*a, *b, *length);
 }
 
-qsort2_cmp get_ptr_compare (size_t size __attribute__((unused)))
+qsort_cmp2 get_ptr_compare (size_t size __attribute__((unused)))
 {
-  return (qsort2_cmp) native_compare;
+  return (qsort_cmp2) native_compare;
 }
 
 #else /* USE_NATIVE_MEMCMP */
@@ -70,17 +70,17 @@ static int degenerate_compare_func(size_t *compare_length, uchar **a, uchar **b)
   return 0;
 }
 
-qsort2_cmp get_ptr_compare (size_t size)
+qsort_cmp2 get_ptr_compare (size_t size)
 {
   if (size == 0)
-    return (qsort2_cmp) degenerate_compare_func;
+    return (qsort_cmp2) degenerate_compare_func;
   if (size < 4)
-    return (qsort2_cmp) ptr_compare;
+    return (qsort_cmp2) ptr_compare;
   switch (size & 3) {
-    case 0: return (qsort2_cmp) ptr_compare_0;
-    case 1: return (qsort2_cmp) ptr_compare_1;
-    case 2: return (qsort2_cmp) ptr_compare_2;
-    case 3: return (qsort2_cmp) ptr_compare_3;
+    case 0: return (qsort_cmp2) ptr_compare_0;
+    case 1: return (qsort_cmp2) ptr_compare_1;
+    case 2: return (qsort_cmp2) ptr_compare_2;
+    case 3: return (qsort_cmp2) ptr_compare_3;
     }
   return 0;					/* Impossible */
 }

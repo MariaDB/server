@@ -1687,7 +1687,7 @@ static my_bool _ma_ck_write_tree(register MARIA_HA *info, MARIA_KEY *key)
 
 /* typeof(_ma_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(const void *param_, const void *key1_,
+static int keys_compare(void *param_, const void *key1_,
                         const void *key2_)
 {
   const bulk_insert_param *param= param_;
@@ -1798,7 +1798,7 @@ int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows)
       init_tree(&info->bulk_insert[i],
                 cache_size * key[i].maxlength,
                 cache_size * key[i].maxlength, 0,
-                (qsort_cmp2) keys_compare, keys_free, (void *)params++, MYF(0));
+                keys_compare, keys_free, (void *)params++, MYF(0));
     }
     else
      info->bulk_insert[i].root=0;

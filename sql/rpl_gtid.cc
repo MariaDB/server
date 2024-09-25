@@ -2925,7 +2925,7 @@ gtid_waiting::destroy()
 
 
 static int
-cmp_queue_elem(const void *, const void *a, const void *b)
+cmp_queue_elem(void *, const void *a, const void *b)
 {
   auto seq_no_a= *(static_cast<const uint64 *>(a));
   auto seq_no_b= *(static_cast<const uint64 *>(b));

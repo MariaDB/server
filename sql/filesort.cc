@@ -1819,7 +1819,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   uchar *strpos;
   Merge_chunk *buffpek;
   QUEUE queue;
-  qsort2_cmp cmp;
+  qsort_cmp2 cmp;
   void *first_cmp_arg;
   element_count dupl_count= 0;
   uchar *src;
@@ -1863,9 +1863,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     cmp= param->get_compare_function();
     first_cmp_arg= param->get_compare_argument(&sort_length);
   }
-  if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1,
-                         offsetof(Merge_chunk,m_current_key), 0,
-                          (queue_compare) cmp, first_cmp_arg, 0, 0)))
+  if (unlikely(init_queue(&queue, (uint) (Tb - Fb) + 1,
+                          offsetof(Merge_chunk, m_current_key), 0, cmp,
+                          first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   const size_t chunk_sz = (sort_buffer.size()/((uint) (Tb-Fb) +1));
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
@@ -2785,9 +2785,9 @@ void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
   Compare function used for packing sort keys
 */
 
-qsort2_cmp get_packed_keys_compare_ptr()
+qsort_cmp2 get_packed_keys_compare_ptr()
 {
-  return (qsort2_cmp) compare_packed_sort_keys;
+  return compare_packed_sort_keys;
 }
 
 
@@ -2907,12 +2907,12 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(const uchar *a, size_t *a_le
 
 */
 
-int compare_packed_sort_keys(const void *sort_param,
-                             const void *a_ptr, const void *b_ptr)
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr)
 {
   int retval= 0;
   size_t a_len, b_len;
-  Sort_param *param= (Sort_param*)sort_param;
+  Sort_param *param= static_cast<Sort_param *>(sort_param);
   Sort_keys *sort_keys= param->sort_keys;
   auto a= *(static_cast<const uchar *const *>(a_ptr));
   auto b= *(static_cast<const uchar *const *>(b_ptr));

@@ -294,7 +294,7 @@ public:
     my_qsort(array.buffer, array.elements, sizeof(Elem), cmp_func);
   }
 
-  void sort(qsort2_cmp cmp_func, void *data)
+  void sort(qsort_cmp2 cmp_func, void *data)
   {
     my_qsort2(array.buffer, array.elements, sizeof(Elem), cmp_func, data);
   }

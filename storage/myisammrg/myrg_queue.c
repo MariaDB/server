@@ -15,7 +15,7 @@
 
 #include "myrg_def.h"
 
-static int queue_key_cmp(const void *keyseg, const void *a, const void *b)
+static int queue_key_cmp(void *keyseg, const void *a, const void *b)
 {
   const MYRG_TABLE *ma= a;
   const MYRG_TABLE *mb= b;

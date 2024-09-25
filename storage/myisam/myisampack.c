@@ -131,7 +131,7 @@ static void free_counts_and_tree_and_queue(HUFF_TREE *huff_trees,
 					   uint trees,
 					   HUFF_COUNTS *huff_counts,
 					   uint fields);
-static int compare_tree(const void *cmp_arg __attribute__((unused)),
+static int compare_tree(void *cmp_arg __attribute__((unused)),
                         const void *s, const void *t);
 static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts);
 static void check_counts(HUFF_COUNTS *huff_counts,uint trees,
@@ -142,7 +142,7 @@ static int test_space_compress(HUFF_COUNTS *huff_counts,my_off_t records,
 			       enum en_fieldtype field_type);
 static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_tree(HUFF_TREE *tree,HUFF_COUNTS *huff_counts);
-static int compare_huff_elements(const void *not_used, const void *a, const void *b);
+static int compare_huff_elements(void *not_used, const void *a, const void *b);
 static int save_counts_in_queue(void *key, element_count count,
 				    void *tree);
 static my_off_t calc_packed_length(HUFF_COUNTS *huff_counts,uint flag);
@@ -822,8 +822,8 @@ static HUFF_COUNTS *init_huff_count(MI_INFO *info,my_off_t records)
         'tree_pos'. It's keys are implemented by pointers into 'tree_buff'.
         This is accomplished by '-1' as the element size.
       */
-      init_tree(&count[i].int_tree,0,0,-1,(qsort_cmp2) compare_tree, NULL,
-		NULL, MYF(0));
+      init_tree(&count[i].int_tree, 0, 0, -1, compare_tree, NULL, NULL,
+                MYF(0));
       if (records && type != FIELD_BLOB && type != FIELD_VARCHAR)
 	count[i].tree_pos=count[i].tree_buff =
 	  my_malloc(PSI_NOT_INSTRUMENTED, count[i].field_length > 1 ? tree_buff_length : 2,
@@ -1181,8 +1181,8 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
   DBUG_RETURN(error != HA_ERR_END_OF_FILE);
 }
 
-static int compare_huff_elements(const void *not_used __attribute__((unused)),
-				 const void *a, const void *b)
+static int compare_huff_elements(void *not_used __attribute__((unused)),
+                                 const void *a, const void *b)
 {
   return *((const my_off_t*) a) < *((const my_off_t*) b) ? -1 :
     (*((const my_off_t*) a) == *((const my_off_t*) b)  ? 0 : 1);
@@ -1694,8 +1694,8 @@ static int make_huff_tree(HUFF_TREE *huff_tree, HUFF_COUNTS *huff_counts)
   return 0;
 }
 
-static int compare_tree(const void *cmp_arg __attribute__((unused)),
-                        const void *s_, const void *t_)
+static int compare_tree(void *cmp_arg __attribute__((unused)), const void *s_,
+                        const void *t_)
 {
   const uchar *s= s_;
   const uchar *t= t_;

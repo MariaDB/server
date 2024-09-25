@@ -57,8 +57,7 @@ extern int main(int argc,char * *argv);
 static void get_options(int *argc,char ***argv);
 static int examine_log(char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
-static int file_info_compare(const void *cmp_arg, const void *a,
-                             const void *b);
+static int file_info_compare(void *cmp_arg, const void *a, const void *b);
 static int test_if_open(void *key, element_count count, void *param);
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
 static int test_when_accessed(void *key, element_count count,
@@ -329,7 +328,7 @@ static int examine_log(char * file_name, char **table_names)
 
   init_io_cache(&cache,file,0,READ_CACHE,start_offset,0,MYF(0));
   bzero((uchar*) com_count,sizeof(com_count));
-  init_tree(&tree,0,0,sizeof(file_info),(qsort_cmp2) file_info_compare,
+  init_tree(&tree,0,0,sizeof(file_info), file_info_compare,
 	          file_info_free, NULL, MYF(MY_TREE_WITH_DELETE));
   (void) init_key_cache(dflt_key_cache,KEY_CACHE_BLOCK_SIZE,KEY_CACHE_SIZE,
                         0, 0, 0, 0);
@@ -695,8 +694,7 @@ static int read_string(IO_CACHE *file, register uchar* *to, register uint length
   DBUG_RETURN (0);
 }				/* read_string */
 
-
-static int file_info_compare(const void *cmp_arg __attribute__((unused)),
+static int file_info_compare(void *cmp_arg __attribute__((unused)),
                              const void *a, const void *b)
 {
   long lint;

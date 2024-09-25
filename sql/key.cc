@@ -642,10 +642,10 @@ next_loop:
     @retval +1  key1 > key2 
 */
 
-int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2, 
+int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
                   uint tuple_length)
 {
-  uchar *key1_end= key1 + tuple_length;
+  const uchar *key1_end= key1 + tuple_length;
   int UNINIT_VAR(len);
   int res;
   for (;key1 < key1_end; key1 += len, key2 += len, part++)

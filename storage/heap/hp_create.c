@@ -16,7 +16,7 @@
 
 #include "heapdef.h"
 
-static int keys_compare(const void *heap_rb, const void *key1, const void *key2);
+static int keys_compare(void *heap_rb, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block,uint reclength,ulong min_records,
 		       ulong max_records);
 
@@ -190,7 +190,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	keyseg++;
 
 	init_tree(&keyinfo->rb_tree, 0, 0, sizeof(uchar*),
-		  (qsort_cmp2)keys_compare, NULL, NULL,
+		  keys_compare, NULL, NULL,
                   MYF((create_info->internal_table ? MY_THREAD_SPECIFIC : 0) |
                       MY_TREE_WITH_DELETE));
 	keyinfo->delete_key= hp_rb_delete_key;
@@ -255,10 +255,10 @@ err:
 } /* heap_create */
 
 
-static int keys_compare(const void *heap_rb_, const void *key1_,
+static int keys_compare(void *heap_rb_, const void *key1_,
                         const void *key2_)
 {
-  const heap_rb_param *heap_rb= heap_rb_;
+  heap_rb_param *heap_rb= heap_rb_;
   const uchar *key1= key1_;
   const uchar *key2= key2_;
   uint not_used[2];
