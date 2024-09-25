@@ -1819,7 +1819,7 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
   uchar *strpos;
   Merge_chunk *buffpek;
   QUEUE queue;
-  qsort2_cmp cmp;
+  qsort_cmp2 cmp;
   void *first_cmp_arg;
   element_count dupl_count= 0;
   uchar *src;
@@ -2785,9 +2785,9 @@ void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
   Compare function used for packing sort keys
 */
 
-qsort2_cmp get_packed_keys_compare_ptr()
+qsort_cmp2 get_packed_keys_compare_ptr()
 {
-  return (qsort2_cmp) compare_packed_sort_keys;
+  return (qsort_cmp2) compare_packed_sort_keys;
 }
 
 

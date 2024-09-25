@@ -762,8 +762,8 @@ int Mrr_ordered_index_reader::refill_buffer(bool initial)
   }
 
   key_buffer->sort((key_buffer->type() == Lifo_buffer::FORWARD)? 
-                     (qsort2_cmp)Mrr_ordered_index_reader::compare_keys_reverse : 
-                     (qsort2_cmp)Mrr_ordered_index_reader::compare_keys, 
+                     (qsort_cmp2)Mrr_ordered_index_reader::compare_keys_reverse : 
+                     (qsort_cmp2)Mrr_ordered_index_reader::compare_keys, 
                    this);
   DBUG_RETURN(0);
 }
@@ -935,7 +935,7 @@ int Mrr_ordered_rndpos_reader::refill_from_index_reader()
   if (!index_reader_needs_refill)
     index_reader->interrupt_read();
   /* Sort the buffer contents by rowid */
-  rowid_buffer->sort((qsort2_cmp)rowid_cmp_reverse, (void*)file);
+  rowid_buffer->sort((qsort_cmp2)rowid_cmp_reverse, (void*)file);
 
   rowid_buffer->setup_reading(file->ref_length,
                               is_mrr_assoc ? sizeof(range_id_t) : 0);

@@ -3728,7 +3728,7 @@ bool in_vector::find(Item *item)
                      base + start * size, result) == 0);
 }
 
-in_string::in_string(THD *thd, uint elements, qsort2_cmp cmp_func,
+in_string::in_string(THD *thd, uint elements, qsort_cmp2 cmp_func,
                      CHARSET_INFO *cs)
   :in_vector(thd, elements, sizeof(String), cmp_func, cs),
    tmp(buff, sizeof(buff), &my_charset_bin)
@@ -3783,7 +3783,7 @@ in_row::in_row(THD *thd, uint elements, Item * item)
 {
   base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
-  compare= (qsort2_cmp) cmp_row;
+  compare= (qsort_cmp2) cmp_row;
   /*
     We need to reset these as otherwise we will call sort() with
     uninitialized (even if not used) elements
@@ -3816,7 +3816,7 @@ bool in_row::set(uint pos, Item *item)
 
 in_longlong::in_longlong(THD *thd, uint elements)
   :in_vector(thd, elements, sizeof(packed_longlong),
-             (qsort2_cmp) cmp_longlong, 0)
+             (qsort_cmp2) cmp_longlong, 0)
 {}
 
 bool in_longlong::set(uint pos, Item *item)
@@ -3856,7 +3856,7 @@ static int cmp_timestamp(void *, const void *a_, const void *b_)
 
 
 in_timestamp::in_timestamp(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(Value), (qsort2_cmp) cmp_timestamp, 0)
+  :in_vector(thd, elements, sizeof(Value), (qsort_cmp2) cmp_timestamp, 0)
 {}
 
 
@@ -3940,7 +3940,7 @@ Item *in_temporal::create_item(THD *thd)
 
 
 in_double::in_double(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(double), (qsort2_cmp) cmp_double, 0)
+  :in_vector(thd, elements, sizeof(double), (qsort_cmp2) cmp_double, 0)
 {}
 
 bool in_double::set(uint pos, Item *item)
@@ -3964,7 +3964,7 @@ Item *in_double::create_item(THD *thd)
 
 
 in_decimal::in_decimal(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(my_decimal), (qsort2_cmp) cmp_decimal, 0)
+  :in_vector(thd, elements, sizeof(my_decimal), (qsort_cmp2) cmp_decimal, 0)
 {}
 
 

@@ -5856,7 +5856,7 @@ in_vector *Type_handler_string_result::make_in_vector(THD *thd,
                                                       const Item_func_in *func,
                                                       uint nargs) const
 {
-  return new (thd->mem_root) in_string(thd, nargs, (qsort2_cmp) srtcmp_in,
+  return new (thd->mem_root) in_string(thd, nargs, (qsort_cmp2) srtcmp_in,
                                        func->compare_collation());
 
 }

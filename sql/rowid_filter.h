@@ -343,7 +343,7 @@ public:
 
   uint elements() { return (uint) (array->elements() / elem_size); }
 
-  void sort(qsort2_cmp cmp, void *cmp_arg)
+  void sort(qsort_cmp2 cmp, void *cmp_arg)
   {
     my_qsort2(array->front(), array->elements()/elem_size,
               elem_size, cmp, cmp_arg);
