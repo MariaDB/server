@@ -8615,7 +8615,7 @@ choose_plan(JOIN *join, table_map join_tables)
 
   join->cur_embedding_map= 0;
   reset_nj_counters(join, join->join_list);
-  qsort2_cmp jtab_sort_func;
+  qsort_cmp2 jtab_sort_func;
 
   if (join->emb_sjm_nest)
   {

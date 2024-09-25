@@ -1365,12 +1365,12 @@ class in_vector :public Sql_alloc
 public:
   char *base;
   uint size;
-  qsort2_cmp compare;
+  qsort_cmp2 compare;
   CHARSET_INFO *collation;
   uint count;
   uint used_count;
   in_vector() = default;
-  in_vector(THD *thd, uint elements, uint element_length, qsort2_cmp cmp_func,
+  in_vector(THD *thd, uint elements, uint element_length, qsort_cmp2 cmp_func,
   	    CHARSET_INFO *cmp_coll)
     :base((char*) thd_calloc(thd, elements * element_length)),
      size(element_length), compare(cmp_func), collation(cmp_coll),
@@ -1437,7 +1437,7 @@ class in_string :public in_vector
     }
   };
 public:
-  in_string(THD *thd, uint elements, qsort2_cmp cmp_func, CHARSET_INFO *cs);
+  in_string(THD *thd, uint elements, qsort_cmp2 cmp_func, CHARSET_INFO *cs);
   ~in_string();
   bool set(uint pos, Item *item) override;
   uchar *get_value(Item *item) override;

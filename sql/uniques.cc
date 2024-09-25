@@ -744,7 +744,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
 				       sort_param.sort_length);
 
-  sort_param.compare= (qsort2_cmp) buffpek_compare;
+  sort_param.compare= (qsort_cmp2) buffpek_compare;
   sort_param.cmp_context.key_compare= tree.compare;
   sort_param.cmp_context.key_compare_arg= tree.custom_arg;
 

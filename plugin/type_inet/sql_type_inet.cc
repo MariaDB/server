@@ -1301,7 +1301,7 @@ class in_inet6 :public in_vector
   }
 public:
   in_inet6(THD *thd, uint elements)
-   :in_vector(thd, elements, sizeof(Inet6), (qsort2_cmp) cmp_inet6, 0),
+   :in_vector(thd, elements, sizeof(Inet6), (qsort_cmp2) cmp_inet6, 0),
     m_value(Inet6_zero())
   { }
   const Type_handler *type_handler() const override
