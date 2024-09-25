@@ -841,7 +841,7 @@ bool Aggregator_distinct::setup(THD *thd)
       if (all_binary)
       {
         cmp_arg= (void*) &tree_key_length;
-        compare_key= (qsort_cmp2) simple_raw_key_cmp;
+        compare_key= simple_raw_key_cmp;
       }
       else
       {
@@ -853,14 +853,14 @@ bool Aggregator_distinct::setup(THD *thd)
             compare method that can take advantage of not having to worry
             about other fields.
           */
-          compare_key= (qsort_cmp2) simple_str_key_cmp;
+          compare_key= simple_str_key_cmp;
           cmp_arg= (void*) table->field[0];
           /* tree_key_length has been set already */
         }
         else
         {
           uint32 *length;
-          compare_key= (qsort_cmp2) composite_key_cmp;
+          compare_key= composite_key_cmp;
           cmp_arg= (void*) this;
           field_lengths= (uint32*) thd->alloc(table->s->fields * sizeof(uint32));
           for (tree_key_length= 0, length= field_lengths, field= table->field;
