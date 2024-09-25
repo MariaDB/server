@@ -1018,6 +1018,7 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
   backup_file_name[0]= 0;
   {
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
+    Sql_path_save_and_clear sql_path_save(thd->variables.path);
 
     lex->unit.print(&view_query, enum_query_type(QT_FOR_FRM |
                                                  QT_VIEW_INTERNAL |
@@ -1503,6 +1504,7 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     lex->stmt_lex= old_lex;
 
     Sql_mode_save_for_frm_handling sql_mode_save(thd);
+    Sql_path_save_and_clear sql_path_save(thd->variables.path);
     /* Parse the query. */
 
     parse_status= parse_sql(thd, & parser_state, table->view_creation_ctx);

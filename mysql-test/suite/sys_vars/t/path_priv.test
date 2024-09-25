@@ -1,0 +1,26 @@
+--source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-34391: Check privilige for setting global path
+--echo #
+CREATE USER priv_test;
+connect (conn1,localhost,priv_test,,);
+connection conn1;
+
+--error ER_SPECIFIC_ACCESS_DENIED_ERROR
+SET @@global.path= 'sys';
+SET @@path= 'sys';
+
+connection default;
+disconnect conn1;
+
+GRANT SUPER ON *.* TO priv_test;
+connect (conn1,localhost,priv_test,,);
+connection conn1;
+
+SET @@global.path= 'sys';
+
+connection default;
+
+DROP USER priv_test;
+SET @@global.path= DEFAULT;

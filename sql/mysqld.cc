@@ -4398,6 +4398,8 @@ static int init_common_variables()
     make_default_log_name(&opt_logname, ".log", false);
   if (!opt_slow_logname || !*opt_slow_logname)
     make_default_log_name(&opt_slow_logname, "-slow.log", false);
+  
+  global_system_variables.path.init();
 
 #if defined(ENABLED_DEBUG_SYNC)
   /* Initialize the debug sync facility. See debug_sync.cc. */

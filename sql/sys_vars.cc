@@ -7478,3 +7478,8 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   // Allow a smaller minimum value for debug builds to help with testing
   VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));
+
+static Sys_var_path Sys_path(
+        "path", "SET PATH statement",
+        SESSION_VAR(path), CMD_LINE(REQUIRED_ARG),
+        NOT_IN_BINLOG);

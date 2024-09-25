@@ -12294,3 +12294,5 @@ ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
 ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
+ER_INVALID_SCHEMA_NAME_LIST_SPEC
+        eng "Invalid schema list specification"

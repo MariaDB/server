@@ -485,6 +485,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> CROSS                         /* SQL-2003-R */
 %token  <kwd> CUME_DIST_SYM
 %token  <kwd> CURDATE                       /* MYSQL-FUNC */
+%token  <kwd> CURRENT_PATH                  /* SQL-2003-R */
 %token  <kwd> CURRENT_ROLE                  /* SQL-2003-R */
 %token  <kwd> CURRENT_USER                  /* SQL-2003-R */
 %token  <kwd> CURSOR_SYM                    /* SQL-2003-R */
@@ -10387,6 +10388,14 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | CURRENT_PATH optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_current_path(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query= 0;
+          }
         | CURRENT_USER optional_braces
           {
             $$= new (thd->mem_root) Item_func_current_user(thd,
@@ -10815,14 +10824,6 @@ function_call_conflict:
             $$= new (thd->mem_root) Item_func_mod(thd, $3, $5);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
-          }
-        | PASSWORD_SYM '(' expr ')'
-          {
-            Item* i1;
-            i1= new (thd->mem_root) Item_func_password(thd, $3);
-            if (unlikely(i1 == NULL))
-              MYSQL_YYABORT;
-            $$= i1;
           }
         | REPEAT_SYM '(' expr ',' expr ')'
           {
@@ -15934,6 +15935,7 @@ IDENT_sys:
 ident_cli_func:
           IDENT
         | IDENT_QUOTED
+        | keyword_set_special_case       { $$= $1; }
         | keyword_func_sp_var_and_label  { $$= $1; }
         | keyword_func_sp_var_not_label  { $$= $1; }
         ;
@@ -16293,6 +16295,7 @@ keyword_set_special_case:
           NAMES_SYM
         | ROLE_SYM
         | PASSWORD_SYM
+        | PATH_SYM
         ;
 
 keyword_sysvar_type:
@@ -16538,7 +16541,6 @@ keyword_func_sp_var_and_label:
         | PARTIAL
         | PARTITIONING_SYM
         | PARTITIONS_SYM
-        | PATH_SYM
         | PERSISTENT_SYM
         | PHASE_SYM
         | PLUGIN_SYM
@@ -16734,6 +16736,7 @@ reserved_keyword_udt_not_param_type:
         | CROSS
         | CUME_DIST_SYM
         | CURDATE
+        | CURRENT_PATH
         | CURRENT_USER
         | CURRENT_ROLE
         | CURTIME
@@ -17376,6 +17379,20 @@ option_value_no_option_type:
           {
             if (unlikely(Lex->sp_create_set_password_instr(thd, $4, $6,
                                                            yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
+        | PATH_SYM equal
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          set_expr_or_default
+          {
+            Lex_ident_sys tmp(thd, &$1);
+
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $4.expr, $4.expr_str)) ||
+                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
         ;

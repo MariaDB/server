@@ -4276,7 +4276,8 @@ public:
                         enum ha_rkey_function find_flag);
   int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
                             key_part_map keypart_map,
-                            enum ha_rkey_function find_flag);
+                            enum ha_rkey_function find_flag,
+                            bool update= true);
   int ha_index_next(uchar * buf);
   int ha_index_prev(uchar * buf);
   int ha_index_first(uchar * buf);
@@ -5203,7 +5204,7 @@ protected:
     Increment statistics. As a side effect increase accessed_rows_and_keys
     and checks if lex->limit_rows_examined_cnt is reached
   */
-  inline void increment_statistics(ulong SSV::*offset) const;
+  inline void increment_statistics(ulong SSV::*offset, bool update=true) const;
   /* Same as increment_statistics but doesn't increase accessed_rows_and_keys */
   inline void fast_increment_statistics(ulong SSV::*offset) const;
   inline void decrement_statistics(ulong SSV::*offset) const;

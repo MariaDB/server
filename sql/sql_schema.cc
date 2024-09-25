@@ -87,6 +87,9 @@ Schema *Schema::find_by_name(const LEX_CSTRING &name)
 
 Schema *Schema::find_implied(THD *thd)
 {
+  if (Schema *from_path= thd->variables.path.find_first_internal_schema())
+    return from_path;
+
   if (thd->variables.sql_mode & MODE_ORACLE)
     return &oracle_schema;
   if (thd->variables.sql_mode & MODE_MAXDB)
