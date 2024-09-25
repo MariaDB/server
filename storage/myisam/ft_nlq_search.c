@@ -312,7 +312,7 @@ FT_INFO *ft_init_nlq_search(MI_INFO *info, uint keynr, uchar *query,
 	    &dptr, left_root_right);
 
   if (flags & FT_SORTED)
-    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC), (qsort2_cmp)&FT_DOC_cmp,
+    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC), (qsort_cmp2)&FT_DOC_cmp,
               0);
 
 err:

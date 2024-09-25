@@ -321,7 +321,7 @@ FT_INFO *maria_ft_init_nlq_search(MARIA_HA *info, uint keynr, uchar *query,
 
   if (flags & FT_SORTED)
     my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC),
-              (qsort2_cmp)&FT_DOC_cmp, 0);
+              (qsort_cmp2)&FT_DOC_cmp, 0);
 
 err:
   delete_tree(&aio.dtree, 0);
