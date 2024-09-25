@@ -268,8 +268,8 @@ private:
   longlong m_idx;
 };
 
-int compare_packed_sort_keys(const void *sort_param,
-                             const void *a_ptr, const void *b_ptr);
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr);
 qsort2_cmp get_packed_keys_compare_ptr();
 
 #endif  // FILESORT_UTILS_INCLUDED

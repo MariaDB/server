@@ -144,7 +144,7 @@ typedef struct st_ft_info
   enum { UNINITIALIZED, READY, INDEX_SEARCH, INDEX_DONE } state;
 } FTB;
 
-static int FTB_WORD_cmp(const void *v_, const void *a_, const void *b_)
+static int FTB_WORD_cmp(void *v_, const void *a_, const void *b_)
 {
   int i;
   const my_off_t *v= v_;
@@ -162,7 +162,7 @@ static int FTB_WORD_cmp(const void *v_, const void *a_, const void *b_)
   return i;
 }
 
-static int FTB_WORD_cmp_list(const void *cs_, const void *a_, const void *b_)
+static int FTB_WORD_cmp_list(void *cs_, const void *a_, const void *b_)
 {
   CHARSET_INFO *cs= cs_;
   const FTB_WORD *const *a= a_;
@@ -333,9 +333,8 @@ static int _ftb_parse_query(FTB *ftb, uchar *query, uint len,
   DBUG_RETURN(parser->parse(param));
 }
 
-
-static int _ftb_no_dupes_cmp(const void *not_used __attribute__((unused)),
-                             const void *a,const void *b)
+static int _ftb_no_dupes_cmp(void *not_used __attribute__((unused)),
+                             const void *a, const void *b)
 {
   return CMP_NUM((*((my_off_t*)a)), (*((my_off_t*)b)));
 }

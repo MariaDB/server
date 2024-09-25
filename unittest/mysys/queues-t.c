@@ -19,7 +19,7 @@
 #include <my_rnd.h>
 #include "tap.h"
 
-int cmp(const void *arg __attribute__((unused)), const void *_a,
+int cmp(void *arg __attribute__((unused)), const void *_a,
         const void *_b)
 {
   const uchar *a= (const uchar *) _a;

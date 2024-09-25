@@ -1687,7 +1687,7 @@ static my_bool _ma_ck_write_tree(register MARIA_HA *info, MARIA_KEY *key)
 
 /* typeof(_ma_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(const void *param_, const void *key1_,
+static int keys_compare(void *param_, const void *key1_,
                         const void *key2_)
 {
   const bulk_insert_param *param= param_;

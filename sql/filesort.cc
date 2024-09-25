@@ -2907,12 +2907,12 @@ int SORT_FIELD_ATTR::compare_packed_fixed_size_vals(const uchar *a, size_t *a_le
 
 */
 
-int compare_packed_sort_keys(const void *sort_param,
-                             const void *a_ptr, const void *b_ptr)
+int compare_packed_sort_keys(void *sort_param, const void *a_ptr,
+                             const void *b_ptr)
 {
   int retval= 0;
   size_t a_len, b_len;
-  Sort_param *param= (Sort_param*)sort_param;
+  Sort_param *param= static_cast<Sort_param *>(sort_param);
   Sort_keys *sort_keys= param->sort_keys;
   auto a= *(static_cast<const uchar *const *>(a_ptr));
   auto b= *(static_cast<const uchar *const *>(b_ptr));

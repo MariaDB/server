@@ -38,37 +38,37 @@
 #define MAX_TREEMEM	  8192
 #define MAX_TREE_ELEMENTS 256
 
-int sortcmp2(const void *, const void *a_, const void *b_)
+int sortcmp2(void *, const void *a_, const void *b_)
 {
   const String *a= static_cast<const String*>(a_);
   const String *b= static_cast<const String*>(b_);
   return sortcmp(a,b,a->charset());
 }
 
-int compare_double2(const void *, const void *s_, const void *t_)
+int compare_double2(void *, const void *s_, const void *t_)
 {
   const double *s= static_cast<const double*>(s_);
   const double *t= static_cast<const double*>(t_);
   return compare_double(s,t);
 }
 
-int compare_longlong2(const void *, const void *s_, const void *t_)
+int compare_longlong2(void *, const void *s_, const void *t_)
 {
   const longlong *s= static_cast<const longlong*>(s_);
   const longlong *t= static_cast<const longlong*>(t_);
   return compare_longlong(s,t);
 }
 
-int compare_ulonglong2(const void *, const void *s_, const void *t_)
+int compare_ulonglong2(void *, const void *s_, const void *t_)
 {
   const ulonglong *s= static_cast<const ulonglong*>(s_);
   const ulonglong *t= static_cast<const ulonglong*>(t_);
   return compare_ulonglong(s,t);
 }
 
-int compare_decimal2(const void *_len, const void *s_, const void *t_)
+int compare_decimal2(void *_len, const void *s_, const void *t_)
 {
-  const int *len= static_cast<const int *>(_len);
+  int *len= static_cast<int *>(_len);
   const char *s= static_cast<const char *>(s_);
   const char *t= static_cast<const char *>(t_);
   return memcmp(s, t, *len);

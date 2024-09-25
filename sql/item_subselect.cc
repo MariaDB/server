@@ -6058,11 +6058,11 @@ Ordered_key::cmp_keys_by_row_data(const ha_rows a, const ha_rows b) const
   return 0;
 }
 
-int Ordered_key::cmp_keys_by_row_data_and_rownum(const void *key_,
+int Ordered_key::cmp_keys_by_row_data_and_rownum(void *key_,
                                                  const void *a_,
                                                  const void *b_)
 {
-  const Ordered_key *key= static_cast<const Ordered_key *>(key_);
+  Ordered_key *key= static_cast<Ordered_key *>(key_);
   const rownum_t *a= static_cast<const rownum_t *>(a_);
   const rownum_t *b= static_cast<const rownum_t *>(b_);
   /* The result of comparing the two keys according to their row data. */
@@ -6603,7 +6603,7 @@ int subselect_rowid_merge_engine::cmp_keys_by_null_selectivity(const void *k1_,
 /*
 */
 
-int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(const void *,
+int subselect_rowid_merge_engine::cmp_keys_by_cur_rownum(void *,
                                                          const void *k1_,
                                                          const void *k2_)
 {

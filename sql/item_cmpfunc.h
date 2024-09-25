@@ -1414,7 +1414,8 @@ public:
   /* Compare values number pos1 and pos2 for equality */
   bool compare_elems(uint pos1, uint pos2)
   {
-    return MY_TEST(compare(collation, base + pos1 * size, base + pos2 * size));
+    return MY_TEST(compare(const_cast<charset_info_st *>(collation),
+                           base + pos1 * size, base + pos2 * size));
   }
   virtual const Type_handler *type_handler() const= 0;
 };
@@ -1476,7 +1477,7 @@ public:
   }
   const Type_handler *type_handler() const override { return &type_handler_slonglong; }
 
-  friend int cmp_longlong(const void *cmp_arg, const void *a, const void *b);
+  friend int cmp_longlong(void *cmp_arg, const void *a, const void *b);
 };
 
 
@@ -1510,7 +1511,7 @@ public:
     Item_datetime *dt= static_cast<Item_datetime*>(item);
     dt->set(val->val, type_handler()->mysql_timestamp_type());
   }
-  friend int cmp_longlong(const void *cmp_arg, const void *a, const void *b);
+  friend int cmp_longlong(void *cmp_arg, const void *a, const void *b);
 };
 
 

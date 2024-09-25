@@ -119,9 +119,9 @@ static bool best_extension_by_limited_search(JOIN *join,
                                              uint use_cond_selectivity);
 static uint determine_search_depth(JOIN* join);
 C_MODE_START
-static int join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2);
-static int join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2);
-static int join_tab_cmp_embedded_first(const void *emb, const void* ptr1, const void *ptr2);
+static int join_tab_cmp(void *dummy, const void* ptr1, const void* ptr2);
+static int join_tab_cmp_straight(void *dummy, const void* ptr1, const void* ptr2);
+static int join_tab_cmp_embedded_first(void *emb, const void* ptr1, const void *ptr2);
 C_MODE_END
 static uint cache_record_length(JOIN *join,uint index);
 static store_key *get_store_key(THD *thd,
@@ -8699,7 +8699,7 @@ choose_plan(JOIN *join, table_map join_tables)
      1   -  jt1 > jt2
 */
 
-static int compare_embedding_subqueries(JOIN_TAB *jt1, JOIN_TAB *jt2)
+static int compare_embedding_subqueries(const JOIN_TAB *jt1, const JOIN_TAB *jt2)
 {
   /* Determine if the first table is originally from a subquery */
   TABLE_LIST *tbl1= jt1->table->pos_in_table_list;
@@ -8774,10 +8774,10 @@ static int compare_embedding_subqueries(JOIN_TAB *jt1, JOIN_TAB *jt2)
 */
 
 static int
-join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2)
+join_tab_cmp(void *, const void* ptr1, const void* ptr2)
 {
-  JOIN_TAB *jt1= *(JOIN_TAB**) ptr1;
-  JOIN_TAB *jt2= *(JOIN_TAB**) ptr2;
+  auto jt1= *(static_cast<const JOIN_TAB *const *>(ptr1));
+  auto jt2= *(static_cast<const JOIN_TAB *const *>(ptr2));
   int cmp;
 
   if ((cmp= compare_embedding_subqueries(jt1, jt2)) != 0)
@@ -8804,10 +8804,10 @@ join_tab_cmp(const void *dummy, const void* ptr1, const void* ptr2)
 */
 
 static int
-join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2)
+join_tab_cmp_straight(void *, const void* ptr1, const void* ptr2)
 {
-  JOIN_TAB *jt1= *(JOIN_TAB**) ptr1;
-  JOIN_TAB *jt2= *(JOIN_TAB**) ptr2;
+  auto jt1= *(static_cast<const JOIN_TAB *const *>(ptr1));
+  auto jt2= *(static_cast<const JOIN_TAB *const *>(ptr2));
 
   /*
     We don't do subquery flattening if the parent or child select has
@@ -8835,11 +8835,11 @@ join_tab_cmp_straight(const void *dummy, const void* ptr1, const void* ptr2)
 */
 
 static int
-join_tab_cmp_embedded_first(const void *emb,  const void* ptr1, const void* ptr2)
+join_tab_cmp_embedded_first(void *emb,  const void* ptr1, const void* ptr2)
 {
-  const TABLE_LIST *emb_nest= (TABLE_LIST*) emb;
-  JOIN_TAB *jt1= *(JOIN_TAB**) ptr1;
-  JOIN_TAB *jt2= *(JOIN_TAB**) ptr2;
+  TABLE_LIST *emb_nest= static_cast<TABLE_LIST *>(emb);
+  auto jt1= *(static_cast<const JOIN_TAB *const *>(ptr1));
+  auto jt2= *(static_cast<const JOIN_TAB *const *>(ptr2));
 
   if (jt1->emb_sj_nest == emb_nest && jt2->emb_sj_nest != emb_nest)
     return -1;

@@ -923,8 +923,7 @@ int _mi_ck_write_tree(register MI_INFO *info, uint keynr, uchar *key,
 
 /* typeof(_mi_keys_compare)=qsort_cmp2 */
 
-static int keys_compare(const void *param_, const void *key1_,
-                        const void *key2_)
+static int keys_compare(void *param_, const void *key1_, const void *key2_)
 {
   const bulk_insert_param *param= param_;
   const uchar *key1= key1_;

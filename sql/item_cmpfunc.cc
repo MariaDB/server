@@ -3650,9 +3650,7 @@ static inline int cmp_ulongs (ulonglong a_val, ulonglong b_val)
     0           left argument is equal to the right argument.
     1           left argument is greater than the right argument.
 */
-int cmp_longlong(const void *,
-                 const void *a_,
-                 const void *b_)
+int cmp_longlong(void *, const void *a_, const void *b_)
 {
   auto a= static_cast<const in_longlong::packed_longlong *>(a_);
   auto b= static_cast<const in_longlong::packed_longlong *>(b_);
@@ -3677,14 +3675,14 @@ int cmp_longlong(const void *,
   return cmp_longs(a->val, b->val);
 }
 
-static int cmp_double(const void *, const void *a_, const void *b_)
+static int cmp_double(void *, const void *a_, const void *b_)
 {
   const double *a= static_cast<const double *>(a_);
   const double *b= static_cast<const double *>(b_);
   return *a < *b ? -1 : *a == *b ? 0 : 1;
 }
 
-static int cmp_row(const void *, const void *a_, const void *b_)
+static int cmp_row(void *, const void *a_, const void *b_)
 {
   const cmp_item_row *a= static_cast<const cmp_item_row *>(a_);
   const cmp_item_row *b= static_cast<const cmp_item_row *>(b_);
@@ -3692,7 +3690,7 @@ static int cmp_row(const void *, const void *a_, const void *b_)
 }
 
 
-static int cmp_decimal(const void *, const void *a_, const void *b_)
+static int cmp_decimal(void *, const void *a_, const void *b_)
 {
   my_decimal *a= const_cast<my_decimal *>(static_cast<const my_decimal *>(a_));
   my_decimal *b= const_cast<my_decimal *>(static_cast<const my_decimal *>(b_));
@@ -3718,14 +3716,16 @@ bool in_vector::find(Item *item)
   {
     uint mid=(start+end+1)/2;
     int res;
-    if ((res=(*compare)(collation, base+mid*size, result)) == 0)
+    if ((res= (*compare)(const_cast<charset_info_st *>(collation),
+                         base + mid * size, result)) == 0)
       return true;
     if (res < 0)
       start=mid;
     else
       end=mid-1;
   }
-  return ((*compare)(collation, base+start*size, result) == 0);
+  return ((*compare)(const_cast<charset_info_st *>(collation),
+                     base + start * size, result) == 0);
 }
 
 in_string::in_string(THD *thd, uint elements, qsort2_cmp cmp_func,
@@ -3846,10 +3846,7 @@ Item *in_longlong::create_item(THD *thd)
   return new (thd->mem_root) Item_int(thd, (longlong)0);
 }
 
-
-static int cmp_timestamp(const void *,
-                         const void *a_,
-                         const void *b_)
+static int cmp_timestamp(void *, const void *a_, const void *b_)
 {
 
   auto a= static_cast<const Timestamp_or_zero_datetime *>(a_);

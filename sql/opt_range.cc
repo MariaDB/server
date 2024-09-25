@@ -1749,10 +1749,10 @@ QUICK_ROR_UNION_SELECT::QUICK_ROR_UNION_SELECT(THD *thd_param,
 
 C_MODE_START
 
-static int QUICK_ROR_UNION_SELECT_queue_cmp(const void *arg, const void *val1_,
+static int QUICK_ROR_UNION_SELECT_queue_cmp(void *arg, const void *val1_,
                                             const void *val2_)
 {
-  auto self= static_cast<const QUICK_ROR_UNION_SELECT *>(arg);
+  auto self= static_cast<QUICK_ROR_UNION_SELECT *>(arg);
   auto val1= static_cast<const QUICK_SELECT_I *>(val1_);
   auto val2= static_cast<const QUICK_SELECT_I *>(val2_);
   return self->head->file->cmp_ref(val1->last_rowid,
@@ -3349,9 +3349,9 @@ double records_in_column_ranges(PARAM *param, uint idx,
 */
 
 static
-int cmp_quick_ranges(const void *table_, const void *a_, const void *b_)
+int cmp_quick_ranges(void *table_, const void *a_, const void *b_)
 {
-  const TABLE *table= static_cast<const TABLE *>(table_);
+  TABLE *table= static_cast<TABLE *>(table_);
   const uint *a= static_cast<const uint *>(a_);
   const uint *b= static_cast<const uint *>(b_);
   int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
