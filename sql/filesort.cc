@@ -1863,9 +1863,9 @@ bool merge_buffers(Sort_param *param, IO_CACHE *from_file,
     cmp= param->get_compare_function();
     first_cmp_arg= param->get_compare_argument(&sort_length);
   }
-  if (unlikely(init_queue(&queue, (uint) (Tb-Fb)+1,
-                         offsetof(Merge_chunk,m_current_key), 0,
-                          (queue_compare) cmp, first_cmp_arg, 0, 0)))
+  if (unlikely(init_queue(&queue, (uint) (Tb - Fb) + 1,
+                          offsetof(Merge_chunk, m_current_key), 0, cmp,
+                          first_cmp_arg, 0, 0)))
     DBUG_RETURN(1);                                /* purecov: inspected */
   const size_t chunk_sz = (sort_buffer.size()/((uint) (Tb-Fb) +1));
   for (buffpek= Fb ; buffpek <= Tb ; buffpek++)
