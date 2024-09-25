@@ -2816,6 +2816,7 @@ struct TABLE_LIST
   ulonglong	file_version;		/* version of file's field set */
   ulonglong	mariadb_version;	/* version of server on creation */
   ulonglong     updatable_view;         /* VIEW can be updated */
+  LEX_CSTRING m_sql_path;   /* The session PATH on creation */
   /** 
       @brief The declared algorithm, if this is a view.
       @details One of

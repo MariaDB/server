@@ -936,11 +936,14 @@ connect(con2, localhost, root);
 connect (con1, localhost, root);
 # Need to trigger this sync point at least twice in order to
 # get valgrind test failures without the patch
-SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 2';
+SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 3';
 --echo # Sending:
 --send SHOW CREATE VIEW v1
 
 connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# Increase the sync WAIT count to 3 to account for PATH resolution
+SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';

@@ -3256,7 +3256,7 @@ bool Sql_cmd_call::execute(THD *thd)
     */
     if (!sp_cache_lookup(&thd->sp_proc_cache, m_name))
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
-               ErrConvDQName(m_name).ptr());
+               ErrConvMDQName(thd, m_name).ptr());
     return true;
   }
   else

@@ -6872,7 +6872,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(m_sp == NULL);
   if (!(m_sp= sp))
   {
-    my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
+    my_missing_function_error(m_name->m_name,
+                              ErrConvMDQName(thd, m_name).ptr());
     process_error(thd);
     DBUG_RETURN(TRUE);
   }

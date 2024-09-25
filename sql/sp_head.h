@@ -196,6 +196,11 @@ public:
   Spvar_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
 
   const char *m_tmp_query;	///< Temporary pointer to sub query string
+
+  /*
+    Pusher for routine's embedded PATH
+  */
+  Sql_path_push m_routine_path;
 private:
   /*
     Private to guarantee that m_chistics.comment is properly set to:
@@ -226,6 +231,9 @@ public:
   bool detistic() const { return m_chistics.detistic; }
   enum_sp_data_access daccess() const { return m_chistics.daccess; }
   enum_sp_aggregate_type agg_type() const { return m_chistics.agg_type; }
+  const LEX_CSTRING &path() const { return m_chistics.sql_path; }
+  void set_path(const LEX_CSTRING &path) { m_chistics.sql_path= path; }
+
   /**
     Is this routine being executed?
   */
@@ -1143,6 +1151,11 @@ public:
   uint m_invoked_subroutine_count;
   bool m_is_instantiated;
   bool m_is_cloning_routine;
+
+  /*
+    Pusher for PACKAGE's embedded PATH
+  */
+  Sql_path_push m_package_path;
 
 private:
   sp_package(MEM_ROOT *mem_root,

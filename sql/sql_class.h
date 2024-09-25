@@ -52,6 +52,7 @@
 #include <mysql/psi/mysql_table.h>
 #include <mysql_com_server.h>
 #include "session_tracker.h"
+#include "sql_path.h"
 #include "backup.h"
 #include "xa.h"
 #include "scope.h"
@@ -963,6 +964,7 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
+  Sql_path path;
 } SV;
 
 /**
@@ -3099,7 +3101,8 @@ class THD: public THD_count, /* this must be first */
            public MDL_context_owner,
            public Open_tables_state,
            public Sp_caches,
-           public Statement_rcontext
+           public Statement_rcontext,
+           public Sql_path_stack
 {
 private:
   inline bool is_stmt_prepare() const
@@ -8341,6 +8344,7 @@ public:
 
 class ErrConvDQName: public ErrConv
 {
+protected:
   const Database_qualified_name *m_name;
 public:
   ErrConvDQName(const Database_qualified_name *name)
@@ -8353,6 +8357,26 @@ public:
     return {err_buffer, length};
   }
 };
+
+
+/*
+  Use this class when the m_db of Database_qualified_name might point to NULL.
+  In this case, if thd->db is set, use it as the database name to preserve
+  pre-existing behavior.
+
+  If thd->db is not set, just return the unqualified name.
+*/
+class ErrConvMDQName: public ErrConvDQName
+{
+  THD *m_thd;
+public:
+  ErrConvMDQName(THD *thd, const Database_qualified_name *name)
+   :ErrConvDQName(name),
+    m_thd(thd)
+  { }
+  LEX_CSTRING lex_cstring() const override;
+};
+
 
 class Type_holder: public Sql_alloc,
                    public Item_args,

@@ -3398,6 +3398,8 @@ void plugin_thdvar_cleanup(THD *thd)
   thd->variables.default_master_connection.str= 0;
   thd->variables.default_master_connection.length= 0;
 
+  thd->variables.path.free();
+
   mysql_mutex_lock(&LOCK_plugin);
 
   unlock_variables(thd, &thd->variables);
