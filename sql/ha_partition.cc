@@ -8682,7 +8682,7 @@ int ha_partition::info(uint flag)
     my_qsort2((void*) m_part_ids_sorted_by_num_of_records,
               m_tot_parts,
               sizeof(uint32),
-              (qsort_cmp2) compare_number_of_records,
+              compare_number_of_records,
               this);
 
     file= m_file[handler_instance];

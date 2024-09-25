@@ -249,7 +249,7 @@ FT_INFO *ft_init_nlq_search(MI_INFO *info, uint keynr, uchar *query,
 
   bzero(&wtree,sizeof(wtree));
 
-  init_tree(&aio.dtree,0,0,sizeof(FT_SUPERDOC),(qsort_cmp2)&FT_SUPERDOC_cmp,
+  init_tree(&aio.dtree,0,0,sizeof(FT_SUPERDOC),&FT_SUPERDOC_cmp,
             NULL, NULL, MYF(0));
 
   ft_parse_init(&wtree, aio.charset);
@@ -312,7 +312,7 @@ FT_INFO *ft_init_nlq_search(MI_INFO *info, uint keynr, uchar *query,
 	    &dptr, left_root_right);
 
   if (flags & FT_SORTED)
-    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC), (qsort_cmp2)&FT_DOC_cmp,
+    my_qsort2(dlist->doc, dlist->ndocs, sizeof(FT_DOC), &FT_DOC_cmp,
               0);
 
 err:

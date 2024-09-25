@@ -190,7 +190,7 @@ int heap_create(const char *name, HP_CREATE_INFO *create_info,
 	keyseg++;
 
 	init_tree(&keyinfo->rb_tree, 0, 0, sizeof(uchar*),
-		  (qsort_cmp2)keys_compare, NULL, NULL,
+		  keys_compare, NULL, NULL,
                   MYF((create_info->internal_table ? MY_THREAD_SPECIFIC : 0) |
                       MY_TREE_WITH_DELETE));
 	keyinfo->delete_key= hp_rb_delete_key;
