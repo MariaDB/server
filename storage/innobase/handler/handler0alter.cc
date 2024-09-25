@@ -3234,9 +3234,9 @@ innobase_get_foreign_key_info(
 			continue;
 		}
 
-		const char*	column_names[MAX_NUM_FK_COLUMNS];
+		thread_local const char* column_names[MAX_NUM_FK_COLUMNS];
 		dict_index_t*	index = NULL;
-		const char*	referenced_column_names[MAX_NUM_FK_COLUMNS];
+		thread_local const char* referenced_column_names[MAX_NUM_FK_COLUMNS];
 		dict_index_t*	referenced_index = NULL;
 		ulint		num_col = 0;
 		ulint		referenced_num_col = 0;

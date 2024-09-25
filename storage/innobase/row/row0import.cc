@@ -853,7 +853,7 @@ FetchIndexRootPages::build_row_import(row_import* cfg) const UNIV_NOTHROW
 
 	row_index_t*	cfg_index = cfg->m_indexes;
 
-	char	name[BUFSIZ];
+	thread_local char name[BUFSIZ];
 
 	snprintf(name, sizeof(name), "index" IB_ID_FMT, m_index.m_id);
 
@@ -2656,7 +2656,7 @@ row_import_read_index_data(
 				(void) fseek(file, 0L, SEEK_END););
 
 		if (n_bytes != sizeof(row)) {
-			char	msg[BUFSIZ];
+			thread_local char msg[BUFSIZ];
 
 			snprintf(msg, sizeof(msg),
 				 "while reading index meta-data, expected "
@@ -3659,7 +3659,7 @@ row_import_read_cfg(
 	row_import&	cfg)	/*!< out: contents of the .cfg file */
 {
 	dberr_t		err;
-	char		name[OS_FILE_MAX_PATH];
+	char name[OS_FILE_MAX_PATH];
 
 	cfg.m_table = table;
 
@@ -3668,7 +3668,7 @@ row_import_read_cfg(
 	FILE*	file = fopen(name, "rb");
 
 	if (file == NULL) {
-		char	msg[BUFSIZ];
+		thread_local char msg[BUFSIZ];
 
 		snprintf(msg, sizeof(msg),
 			 "Error opening '%s', will attempt to import"
