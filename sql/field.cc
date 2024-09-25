@@ -4784,16 +4784,12 @@ int Field_float::store(longlong nr, bool unsigned_val)
 double Field_float::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
-  float j;
-  float4get(j,ptr);
-  return ((double) j);
+  return ((double) get_float(ptr));
 }
 
 longlong Field_float::val_int(void)
 {
-  float j;
-  float4get(j,ptr);
-  return Converter_double_to_longlong(j, false).result();
+  return Converter_double_to_longlong(get_float(ptr), false).result();
 }
 
 
