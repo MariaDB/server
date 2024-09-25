@@ -1,0 +1,3637 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo #
+######################################################################################
+#                             Path resolution                                        #
+######################################################################################
+# The path resolution unit test contains 8 kinds of tests.                           #
+# Following listed the types sequence in this test:                                  #
+# type 1: MariaDB Default SQL/PSM mode syntax, unqualified function                  #
+# type 2: MariaDB Default SQL/PSM mode syntax, qualified function, ie: with package  #
+# type 3: MariaDB Default SQL/PSM mode syntax, unqualified procedure                 #
+# type 4: MariaDB Default SQL/PSM mode syntax, qualified procedure, ie: with package #
+# type 5: MariaDB Oracle PL/SQL mode syntax,   unqualified function                  #
+# type 6: MariaDB Oracle PL/SQL mode syntax,   qualified function, ie: with package  #
+# type 7: MariaDB Oracle PL/SQL mode syntax,   unqualified procedure                 #
+# type 8: MariaDB Oracle PL/SQL mode syntax,   qualified procedure, ie: with package #
+#                                                                                    #
+# All the tests start with the following header that contained                       #
+# with 5 attributes delimited with the pipe ('|') symbol.                            #
+#                                                                                    #
+# sql_mode: DEFAULT | function | is unqualified                                      #
+# curr db: X | path set: no                                                          #
+#                                                                                    #
+# 1. sql_mode: To test DEFAULT or ORACLE mode                                        #
+# 2. function / procedure: To test function or procedure routine                     #
+# 3. is unqualified / is qualified: The test is contained unqualified routine only   #
+#                                   or qualified routine or package                  #
+# 4. curr db: Current selected database before execute the test                      #
+# 5. path set: is the system variable, path, set during the test?                    #
+######################################################################################
+
+CREATE DATABASE test2;
+
+--echo #
+--echo # type 1.1
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: X | path set: no
+--echo #
+
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+
+
+--echo #
+--echo # type 1.2
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 1.3
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+
+
+--echo #
+--echo # type 1.4
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 1.5
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+SELECT func();
+SET PATH 'test2,test';
+SELECT func();
+DROP FUNCTION test2.func;
+SELECT func();
+DROP FUNCTION test.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 1.6
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+SELECT func();
+
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+
+SELECT func();
+DROP FUNCTION func;
+SELECT func();
+DROP FUNCTION test.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 1.7
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified function invocation in an unqualified function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+
+USE test;
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
+
+--source include/deselect_db.inc
+SELECT func_call_func();
+
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+
+--source include/deselect_db.inc
+SELECT func_call_func();
+
+DROP FUNCTION test.func;
+SELECT func_call_func();
+DROP FUNCTION test2.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func_call_func();
+
+# subtest finish, deinit
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 1.8
+--echo # sql_mode: DEFAULT | function | is unqualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified function invocation in an unqualified function
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+
+USE test;
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
+
+SELECT func_call_func();
+
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+
+SELECT func_call_func();
+
+DROP FUNCTION func;
+SELECT func_call_func();
+DROP FUNCTION test2.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func_call_func();
+
+# subtest finish, deinit
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.1
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: no
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+
+
+--echo #
+--echo # type 2.2
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.3
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+
+
+--echo #
+--echo # type 2.4
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.5
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+SELECT pack.func();
+SET PATH 'test2,test';
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.6
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+SELECT pack.func();
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.7
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN func_local();
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+USE test;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+DROP FUNCTION test.func_local;
+SELECT pack.func();
+DROP FUNCTION test2.func_local;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.8
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN func_local();
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
+
+SELECT pack.func();
+DROP FUNCTION func_local;
+SELECT pack.func();
+DROP FUNCTION test2.func_local;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.9
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test qualified package function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN pack2.func();
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.10
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test qualified package function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN pack2.func();
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+DELIMITER $$;
+CREATE PACKAGE pack2
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.11
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE pack;
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+
+--source include/deselect_db.inc
+
+# subtest start
+SELECT pack.func();
+# set path
+SET PATH 'sys,test';
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.12
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+
+# subtest start
+USE test;
+SELECT pack.func();
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.13
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+
+# subtest start
+USE test2;
+SELECT pack.func();
+# set path
+SET PATH 'sys,test';
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.14
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # qualified package function invoke internal private function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
+
+USE test;
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_prv';
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  FUNCTION func_pub() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
+
+  FUNCTION func_pub() RETURNS TEXT RETURN func_prv();
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func_pub();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 2.15
+--echo # sql_mode: DEFAULT | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # qualified package function invoke internal private function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+SELECT pack.func_pub();
+
+# subtest finish, deinit
+DROP FUNCTION func_prv;
+USE test;
+DROP FUNCTION func_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.1
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: X | path set: no
+--echo #
+
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+
+
+--echo #
+--echo # type 3.2
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.3
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+
+
+--echo #
+--echo # type 3.4
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.5
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+CALL proc;
+SET PATH 'test2,test';
+CALL proc;
+DROP PROCEDURE test2.proc;
+CALL proc;
+DROP PROCEDURE test.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.6
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+CALL proc;
+
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+
+CALL proc;
+DROP PROCEDURE proc;
+CALL proc;
+DROP PROCEDURE test.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.7
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified procedure invocation in an unqualified procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+
+USE test;
+CREATE PROCEDURE proc_call_proc() CALL proc;
+
+--source include/deselect_db.inc
+CALL proc_call_proc;
+
+USE test;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+
+--source include/deselect_db.inc
+CALL proc_call_proc;
+
+DROP PROCEDURE test.proc;
+CALL proc_call_proc;
+DROP PROCEDURE test2.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc_call_proc;
+
+# subtest finish, deinit
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 3.8
+--echo # sql_mode: DEFAULT | procedure | is unqualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified procedure invocation in an unqualified procedure
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+
+USE test;
+CREATE PROCEDURE proc_call_proc() CALL proc;
+
+CALL proc_call_proc;
+
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+
+CALL proc_call_proc;
+
+DROP PROCEDURE proc;
+CALL proc_call_proc;
+DROP PROCEDURE test2.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc_call_proc;
+
+# subtest finish, deinit
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.1
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: no
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+
+
+--echo #
+--echo # type 4.2
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.3
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+
+
+--echo #
+--echo # type 4.4
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.5
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+CALL pack.proc;
+SET PATH 'test2,test';
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.6
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+CALL pack.proc;
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.7
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL proc_local;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+USE test;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+DROP PROCEDURE test.proc_local;
+CALL pack.proc;
+DROP PROCEDURE test2.proc_local;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.8
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL proc_local;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+
+CALL pack.proc;
+DROP PROCEDURE proc_local;
+CALL pack.proc;
+DROP PROCEDURE test2.proc_local;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.9
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test qualified package procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL pack2.proc;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.10
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test qualified package procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL pack2.proc;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+DELIMITER $$;
+CREATE PACKAGE pack2
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.11
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE pack;
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+
+--source include/deselect_db.inc
+
+# subtest start
+CALL pack.proc;
+# set path
+SET PATH 'sys,test';
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.12
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+
+# subtest start
+USE test;
+CALL pack.proc;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.13
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+
+# subtest start
+USE test2;
+CALL pack.proc;
+# set path
+SET PATH 'sys,test';
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.14
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # qualified package procedure invoke internal private procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
+
+USE test;
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv';
+
+DELIMITER $$;
+CREATE PACKAGE pack
+  PROCEDURE proc_pub();
+END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
+
+  PROCEDURE proc_pub() CALL proc_prv;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc_pub;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 4.15
+--echo # sql_mode: DEFAULT | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # qualified package procedure invoke internal private procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CALL pack.proc_pub;
+
+# subtest finish, deinit
+DROP PROCEDURE proc_prv;
+USE test;
+DROP PROCEDURE proc_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.1
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: X | path set: no
+--echo #
+
+SET sql_mode = ORACLE;
+
+USE test;
+
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+
+
+--echo #
+--echo # type 5.2
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.3
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+
+
+--echo #
+--echo # type 5.4
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.5
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+SELECT func();
+SET PATH 'test2,test';
+SELECT func();
+DROP FUNCTION test2.func;
+SELECT func();
+DROP FUNCTION test.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.6
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+SELECT func();
+
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+SELECT func();
+DROP FUNCTION func;
+SELECT func();
+DROP FUNCTION test.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.7
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified function invocation in an unqualified function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func_call_func()
+  RETURN TEXT AS
+BEGIN
+  RETURN func();
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT func_call_func();
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT func_call_func();
+
+DROP FUNCTION test.func;
+SELECT func_call_func();
+DROP FUNCTION test2.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func_call_func();
+
+# subtest finish, deinit
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 5.8
+--echo # sql_mode: ORACLE | function | is unqualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified function invocation in an unqualified function
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func_call_func()
+  RETURN TEXT AS
+BEGIN
+  RETURN func();
+END;
+$$
+DELIMITER ;$$
+
+SELECT func_call_func();
+
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+SELECT func_call_func();
+
+DROP FUNCTION func;
+SELECT func_call_func();
+DROP FUNCTION test2.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func_call_func();
+
+# subtest finish, deinit
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.1
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: no
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+
+
+--echo #
+--echo # type 6.2
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.3
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+
+
+--echo #
+--echo # type 6.4
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.5
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+SELECT pack.func();
+SET PATH 'test2,test';
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.6
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+SELECT pack.func();
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.7
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func_local()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func_local';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN func_local();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func_local()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func_local';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+DROP FUNCTION test.func_local;
+SELECT pack.func();
+DROP FUNCTION test2.func_local;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.8
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func_local()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func_local';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN func_local();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+DELIMITER $$;
+CREATE FUNCTION func_local()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func_local';
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+DROP FUNCTION func_local;
+SELECT pack.func();
+DROP FUNCTION test2.func_local;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.9
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test qualified package function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN pack2.func();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func();
+
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.10
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test qualified package function invocation in a qualified package function
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN pack2.func();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+SELECT pack.func();
+
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+SELECT pack.func();
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.11
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE pack;
+USE pack;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+SELECT pack.func();
+# set path
+SET PATH 'sys,test';
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.12
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+USE test;
+SELECT pack.func();
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.13
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # resolution priority in between qualified package function vs qualified db function resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+DELIMITER $$;
+CREATE FUNCTION func()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+USE test2;
+SELECT pack.func();
+# set path
+SET PATH 'sys,test';
+SELECT pack.func();
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+DROP FUNCTION pack.func;
+--error ER_SP_DOES_NOT_EXIST
+SELECT pack.func();
+
+# subtest finish, deinit
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.14
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: X | path set: yes
+--echo # qualified package function invoke internal private function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE FUNCTION func_prv()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test2, Rt: func_prv';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE FUNCTION func_prv()
+  RETURN TEXT AS
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func_prv';
+END;
+$$
+
+CREATE PACKAGE pack AS
+  FUNCTION func_pub() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  FUNCTION func_prv() RETURN TEXT AS
+  BEGIN
+    RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
+  END;
+
+  FUNCTION func_pub() RETURN TEXT AS
+  BEGIN
+    RETURN func_prv();
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+SELECT pack.func_pub();
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 6.15
+--echo # sql_mode: ORACLE | function | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # qualified package function invoke internal private function
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+SELECT pack.func_pub();
+
+# subtest finish, deinit
+DROP FUNCTION func_prv;
+USE test;
+DROP FUNCTION func_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.1
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: X | path set: no
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+
+
+--echo #
+--echo # type 7.2
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.3
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+
+
+--echo #
+--echo # type 7.4
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.5
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+CALL proc;
+SET PATH 'test2,test';
+CALL proc;
+DROP PROCEDURE test2.proc;
+CALL proc;
+DROP PROCEDURE test.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.6
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+CALL proc;
+
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+CALL proc;
+DROP PROCEDURE proc;
+CALL proc;
+DROP PROCEDURE test.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.7
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified procedure invocation in an unqualified procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc_call_proc() AS
+BEGIN
+  CALL proc;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL proc_call_proc;
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL proc_call_proc;
+
+DROP PROCEDURE test.proc;
+CALL proc_call_proc;
+DROP PROCEDURE test2.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc_call_proc;
+
+# subtest finish, deinit
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 7.8
+--echo # sql_mode: ORACLE | procedure | is unqualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified procedure invocation in an unqualified procedure
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc_call_proc() AS
+BEGIN
+  CALL proc;
+END;
+$$
+DELIMITER ;$$
+
+CALL proc_call_proc;
+
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+CALL proc_call_proc;
+
+DROP PROCEDURE proc;
+CALL proc_call_proc;
+DROP PROCEDURE test2.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL proc_call_proc;
+
+# subtest finish, deinit
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.1
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: no
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+
+
+--echo #
+--echo # type 8.2
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.3
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test2 | path set: no
+--echo #
+
+# subtest start
+USE test2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+
+
+--echo #
+--echo # type 8.4
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo #
+
+# set path
+SET PATH 'sys,test';
+
+# subtest start
+USE test2;
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.5
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+--echo #
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+--source include/deselect_db.inc
+# set path
+SET PATH 'test,test2';
+CALL pack.proc;
+SET PATH 'test2,test';
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.6
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+--echo #
+
+USE test;
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+# set path
+SET PATH 'CURRENT_SCHEMA,test';
+
+# subtest start
+USE test2;
+CALL pack.proc;
+
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.7
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test unqualified procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc_local';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    CALL proc_local;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc_local';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+DROP PROCEDURE test.proc_local;
+CALL pack.proc;
+DROP PROCEDURE test2.proc_local;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.8
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test unqualified procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc_local';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    CALL proc_local;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+DELIMITER $$;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc_local';
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+DROP PROCEDURE proc_local;
+CALL pack.proc;
+DROP PROCEDURE test2.proc_local;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.9
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # to test qualified package procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    CALL pack2.proc;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc;
+
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.10
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # to test qualified package procedure invocation in a qualified package procedure
+--echo #
+
+# subtest start
+SET PATH 'CURRENT_SCHEMA,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    CALL pack2.proc;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+DELIMITER $$;
+CREATE PACKAGE pack2 AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CALL pack.proc;
+
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+CALL pack.proc;
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.11
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+CREATE DATABASE pack;
+USE pack;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+
+# subtest start
+CALL pack.proc;
+# set path
+SET PATH 'sys,test';
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.12
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+USE test;
+CALL pack.proc;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.13
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # resolution priority in between qualified package procedure vs qualified db procedure resolution
+--echo #
+
+USE test;
+DELIMITER $$;
+CREATE PACKAGE pack AS
+  PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+  END;
+END;
+$$
+DELIMITER ;$$
+
+USE pack;
+DELIMITER $$;
+CREATE PROCEDURE proc() AS
+BEGIN
+  SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+DELIMITER ;$$
+
+# subtest start
+USE test2;
+CALL pack.proc;
+# set path
+SET PATH 'sys,test';
+CALL pack.proc;
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+DROP PROCEDURE pack.proc;
+--error ER_SP_DOES_NOT_EXIST
+CALL pack.proc;
+
+# subtest finish, deinit
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.14
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: X | path set: yes
+--echo # qualified package procedure invoke internal private procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+DELIMITER $$;
+CREATE PROCEDURE proc_prv() AS
+BEGIN
+  SELECT 'Invoke from Db: test2, Rt: proc_prv';
+END;
+$$
+DELIMITER ;$$
+
+USE test;
+DELIMITER $$;
+CREATE PROCEDURE proc_prv() AS
+BEGIN
+  SELECT 'Invoke from Db: test, Rt: proc_prv';
+END;
+$$
+
+CREATE PACKAGE pack AS
+  PROCEDURE proc_pub();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+  PROCEDURE proc_prv() AS
+  BEGIN
+    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
+  END;
+
+  PROCEDURE proc_pub() AS
+  BEGIN
+    CALL proc_prv;
+  END;
+END;
+$$
+DELIMITER ;$$
+
+--source include/deselect_db.inc
+CALL pack.proc_pub;
+
+# subtest finish, deinit
+SET @@path = DEFAULT;
+
+
+
+--echo #
+--echo # type 8.15
+--echo # sql_mode: ORACLE | procedure | is qualified
+--echo # curr db: test2 | path set: yes
+--echo # qualified package procedure invoke internal private procedure
+--echo #
+
+# subtest start
+SET PATH 'test,test2';
+
+USE test2;
+CALL pack.proc_pub;
+
+# subtest finish, deinit
+DROP PROCEDURE proc_prv;
+DROP DATABASE test2;
+USE test;
+DROP PROCEDURE proc_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+
+--echo #
+--echo # Resolution of routines in stored routines should be based on
+--echo # the current path, not the path at the time of creation.
+--echo #
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+
+CREATE DATABASE test3;
+USE test3;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
+
+CREATE DATABASE test2;
+USE test2;
+SET @@path= 'test';
+CREATE FUNCTION func2() RETURNS TEXT RETURN func();
+
+USE test;
+SET @@path= 'test3';
+SELECT test2.func2();
+SET @@path= 'test';
+
+--echo #TODO
+--echo #SELECT test2.func2();
+
+DROP FUNCTION test.func;
+DROP DATABASE test2;
+DROP DATABASE test3;
+
+--echo #
+--echo # Path resolution where database name contains ','
+--echo #
+CREATE DATABASE `a,b`;
+USE `a,b`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
+
+USE test;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+SET @@path= '`a,b`';
+SELECT func();
+
+DROP DATABASE `a,b`;
+USE test;
+
+--echo #
+--echo # Path resolution where database name contains '"'
+--echo #
+CREATE DATABASE `"`;
+USE `"`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
+
+USE test;
+--error ER_SP_DOES_NOT_EXIST
+SELECT func();
+SET @@path= '`"`';
+SELECT func();
+
+DROP DATABASE `"`;
+USE test;
+SET @@path= DEFAULT;
+
+--echo #
+--echo # Modify session path within a stored routine
+--echo # This is not allowed since we invalidate the sp caches when the session
+--echo # path is changed
+--echo #
+DELIMITER $$;
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+  SET @@path= 'sys';
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+--error ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER
+SELECT func();
+
+DROP FUNCTION func;
+
+--echo #
+--echo # Modify global path within a stored routine
+--echo #
+DELIMITER $$;
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+  SET @@global.path= 'sys';
+  RETURN '';
+END;
+$$
+DELIMITER ;$$
+SELECT func();
+
+SET @@global.path= DEFAULT;
+
+DROP FUNCTION func;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
+
+
+--echo #
+--echo # Name shadowing from a package
+--echo #
+delimiter $$;
+create package pkg
+  function f1() returns int;
+end;
+$$
+
+create database pkg$$
+create function pkg.f1() returns int return 2$$
+
+create procedure p1()
+begin
+  select pkg.f1();
+end$$
+delimiter ;$$
+
+--error ER_SP_DOES_NOT_EXIST
+call p1();
+
+drop database pkg;
+drop package pkg;
+drop procedure p1;
+
+
+DELIMITER $$;
+CREATE FUNCTION func() RETURNS TEXT
+PATH 'test,xxx'
+BEGIN
+  RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DELIMITER ;$$
+
+DROP FUNCTION func;
+
+DELIMITER $$;
+CREATE PROCEDURE proc()
+PATH 'test,xxx'
+BEGIN
+  SELECT func();
+END;
+$$
+
+DELIMITER ;$$
+
+# CALL proc;
+
+DROP PROCEDURE proc;
+
+--echo #
+--echo # Prepared statement should not be affected by PATH changed
+--echo # between PREPARE and EXECUTE
+--echo #
+
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func() RETURNS TEXT RETURN 'test2.func()';
+
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func() RETURNS TEXT RETURN 'test3.func()';
+
+SET PATH 'test3';
+PREPARE stmt FROM 'SELECT func()';
+
+SET PATH 'test2';
+SELECT @@path;
+
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP DATABASE test2;
+DROP DATABASE test3;
+
+--echo #
+--echo # Test resolution where DATABASE name contains backtick
+--echo #
+CREATE DATABASE `a``b`;
+CREATE FUNCTION `a``b`.func() RETURNS TEXT RETURN 'a`b.func()';
+SET PATH '`a``b`';
+SELECT func();
+
+DROP DATABASE `a``b`;

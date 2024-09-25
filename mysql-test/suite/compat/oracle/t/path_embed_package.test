@@ -1,0 +1,313 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # Embed PATH to PACKAGE and PACKAGE's routines
+--echo #
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Embed PATH to PACKAGE and PACKAGE's routines in Oracle mode
+--echo #
+
+CREATE DATABASE test2;
+CREATE DATABASE test3;
+DELIMITER $$;
+CREATE FUNCTION test2.func2() RETURN TEXT AS
+BEGIN
+  RETURN 'test2.func2';
+END;
+$$
+CREATE FUNCTION test3.func2() RETURN TEXT AS
+BEGIN
+  RETURN 'test3.func2';
+END;
+$$
+CREATE PROCEDURE test2.proc2(a OUT TEXT) AS
+BEGIN
+  a:='test2.proc2';
+END;
+$$
+CREATE PROCEDURE test3.proc2(a OUT TEXT) AS
+BEGIN
+  a:='test3.proc2';
+END;
+$$
+
+--echo # Path embedded in PACKAGE's routines
+CREATE PACKAGE pkg_r_emb
+AS
+  FUNCTION ff() RETURN TEXT;
+  FUNCTION fp() RETURN TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_r_emb
+AS
+  FUNCTION ff() RETURN TEXT
+  PATH 'test2'
+  AS
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURN TEXT
+  PATH 'test2'
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  PATH 'test2'
+  AS
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  PATH 'test2'
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    SELECT a;
+  END;
+END;
+$$
+
+--echo # Path embedded in a PACKAGE
+CREATE PACKAGE pkg_emb
+PATH 'test2'
+AS
+  FUNCTION ff() RETURN TEXT;
+  FUNCTION fp() RETURN TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb
+PATH 'test2'
+AS
+  a TEXT;
+
+  FUNCTION ff() RETURN TEXT
+  AS
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURN TEXT
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  AS
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    SELECT a;
+  END;
+
+BEGIN
+  CALL proc2(a);
+END;
+$$
+
+--echo # Path embedded in PACKAGE and PACKAGE's routines
+CREATE PACKAGE pkg_emb_r_emb
+PATH 'test3'
+AS
+  FUNCTION ff() RETURN TEXT;
+  FUNCTION fp() RETURN TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb_r_emb
+PATH 'test3'
+AS
+  a TEXT;
+
+  FUNCTION ff() RETURN TEXT
+  PATH 'test2'
+  AS
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURN TEXT
+  PATH 'test2'
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  PATH 'test2'
+  AS
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  PATH 'test2'
+  AS
+    a TEXT;
+  BEGIN
+    CALL proc2(a);
+    SELECT a;
+  END;
+
+BEGIN
+  CALL proc2(a);
+END;
+$$
+CREATE PACKAGE pkg_emb_inner_block
+PATH 'test2'
+AS
+  FUNCTION ff() RETURN TEXT;
+  FUNCTION fp() RETURN TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb_inner_block
+PATH 'test2'
+AS
+  a TEXT;
+
+  FUNCTION ff() RETURN TEXT
+  AS
+    a TEXT;
+  BEGIN
+    BEGIN
+      a:= func2();
+    END;
+    RETURN a;
+  END;
+  FUNCTION fp() RETURN TEXT
+  AS
+    a TEXT;
+  BEGIN
+    BEGIN
+      CALL proc2(a);
+    END;
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  AS
+  BEGIN
+    BEGIN
+      SELECT func2();
+    END;
+  END;
+  PROCEDURE pp()
+  AS
+    a TEXT;
+  BEGIN
+    BEGIN
+      CALL proc2(a);
+    END;
+    SELECT a;
+  END;
+
+BEGIN
+  CALL proc2(a);
+END;
+$$
+DELIMITER ;$$
+
+SELECT pkg_r_emb.ff();
+SELECT pkg_r_emb.fp();
+CALL pkg_r_emb.pf();
+CALL pkg_r_emb.pp();
+
+SELECT pkg_r_emb.ff();
+SELECT pkg_r_emb.fp();
+CALL pkg_r_emb.pf();
+CALL pkg_r_emb.pp();
+
+SELECT pkg_emb.ff();
+SELECT pkg_emb.fp();
+CALL pkg_emb.pf();
+CALL pkg_emb.pp();
+
+SELECT pkg_emb.ff();
+SELECT pkg_emb.fp();
+CALL pkg_emb.pf();
+CALL pkg_emb.pp();
+
+--echo
+--echo # PACKAGE's ROUTINE PATH overrides PACKAGE PATHs
+--echo
+SELECT pkg_emb_r_emb.ff();
+SELECT pkg_emb_r_emb.fp();
+CALL pkg_emb_r_emb.pf();
+CALL pkg_emb_r_emb.pp();
+
+--echo
+--echo # Inner sp-block within PACKAGE routine uses the PACKAGE's PATH
+--echo
+SELECT pkg_emb_inner_block.ff();
+SELECT pkg_emb_inner_block.fp();
+CALL pkg_emb_inner_block.pf();
+CALL pkg_emb_inner_block.pp();
+
+--echo #
+--echo # Parse error when PATH is embedded in a PACKAGE's routine
+--echo #
+DELIMITER $$;
+CREATE PACKAGE pkg_emb_parse_error
+AS
+  FUNCTION f1() RETURN TEXT;
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY pkg_emb_parse_error
+AS
+  FUNCTION f1() RETURN TEXT
+  PATH 'test2'
+  AS
+  BEGIN
+    1;
+  END;
+END;
+$$
+SELECT @@session.path$$
+DROP PACKAGE pkg_emb_parse_error$$
+CREATE PACKAGE pkg_emb_parse_error
+AS
+  PROCEDURE p1();
+END;
+$$
+--error ER_PARSE_ERROR
+CREATE PACKAGE BODY pkg_emb_parse_error
+AS
+  PROCEDURE p1()
+  PATH 'test2'
+  AS
+  BEGIN
+    1;
+  END;
+END;
+$$
+SELECT @@session.path$$
+DROP PACKAGE pkg_emb_parse_error$$
+DELIMITER ;$$
+
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP PACKAGE pkg_r_emb;
+DROP PACKAGE pkg_emb;
+DROP PACKAGE pkg_emb_r_emb;
+DROP PACKAGE pkg_emb_inner_block;
