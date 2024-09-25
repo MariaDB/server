@@ -3964,7 +3964,7 @@ END//
 CREATE VIEW v1 AS SELECT f1() FROM t1;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `f1`() AS `f1()` from `t1`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`f1`() AS `f1()` from `t1`	latin1	latin1_swedish_ci
 Warnings:
 Note	1599	View `test`.`v2` has no creation context
 DROP VIEW v1,v2;
@@ -5445,7 +5445,7 @@ CREATE OR REPLACE VIEW v1 AS select f() from t1 where c1 in (select c2 from t2);
 DROP FUNCTION f;
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `f`() AS `f()` from `t1` where `test`.`t1`.`c1` in (select `test`.`t2`.`c2` from `t2`)	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `test`.`f`() AS `f()` from `t1` where `test`.`t1`.`c1` in (select `test`.`t2`.`c2` from `t2`)	latin1	latin1_swedish_ci
 Warnings:
 Warning	1356	View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 drop view v1;

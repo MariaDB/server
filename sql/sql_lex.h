@@ -1610,6 +1610,7 @@ struct st_sp_chistics
   bool detistic;
   enum enum_sp_data_access daccess;
   enum enum_sp_aggregate_type agg_type;
+  LEX_CSTRING path;
   void init() { bzero(this, sizeof(*this)); }
   void set(const st_sp_chistics &other) { *this= other; }
   bool read_from_mysql_proc_row(THD *thd, TABLE *table);
@@ -3766,7 +3767,7 @@ public:
   }
 
   bool copy_db_to(LEX_CSTRING *to);
-  Lex_ident_db_normalized copy_db_normalized();
+  Lex_ident_db_normalized copy_db_normalized(bool raise_err= true);
 
   void inc_select_stack_outer_barrier()
   {
@@ -3877,6 +3878,7 @@ public:
   sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name);
   sp_name *make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
                                   const Lex_ident_sys_st &name2);
+  sp_name *make_sp_name_sql_path(THD *thd, const Lex_ident_sys_st &name);
   sp_name *make_sp_name_package_routine(THD *thd,
                                         const Lex_ident_sys_st &name);
   sp_lex_local *package_routine_start(THD *thd,

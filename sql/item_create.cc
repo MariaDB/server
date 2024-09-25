@@ -38,6 +38,7 @@
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
 #include <mysql/plugin_function.h>
+#include "sql_path.h"
 
 
 extern "C" const uchar *get_native_fct_hash_key(const void *buff,
@@ -2838,28 +2839,7 @@ Item*
 Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
                           List<Item> *item_list)
 {
-  if (unlikely(! thd->db.str && ! thd->lex->sphead))
-  {
-    /*
-      The proper error message should be in the lines of:
-        Can't resolve <name>() to a function call,
-        because this function:
-        - is not a native function,
-        - is not a user defined function,
-        - can not match a qualified (read: stored) function
-          since no database is selected.
-      Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
-      the case when a default database exist, see Create_sp_func::create().
-    */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             "FUNCTION", name->str);
-    return NULL;
-  }
-
-  Lex_ident_db_normalized db= thd->lex->copy_db_normalized();
-  if (!db.str)
-    return NULL; /*No db or EOM, error was already sent */
-
+  Lex_ident_db_normalized db;
   return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);
 }
 
@@ -2985,7 +2965,7 @@ Create_sp_func::create_with_db(THD *thd,
                                bool use_explicit_name, List<Item> *item_list)
 {
   int arg_count= 0;
-  Item *func= NULL;
+  Item_func_sp *func= NULL;
   LEX *lex= thd->lex;
   sp_name *qname;
   const Sp_handler *sph= &sp_handler_function;
@@ -3009,18 +2989,16 @@ Create_sp_func::create_with_db(THD *thd,
   if (item_list != NULL)
     arg_count= item_list->elements;
 
-  qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               qname, &sph, &pkgname)))
-    return NULL;
-  sph->add_used_routine(lex, thd, qname);
-  if (pkgname.m_name.length)
-    sp_handler_package_body.add_used_routine(lex, thd, &pkgname);
+  qname= new (thd->mem_root) sp_name(db.str ? db :
+                  Lex_ident_db_normalized(nullptr, 0),
+                  name, use_explicit_name);
   Name_resolution_context *ctx= lex->current_context();
   if (arg_count > 0)
     func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph, *item_list);
   else
     func= new (thd->mem_root) Item_func_sp(thd, ctx, qname, sph);
+
+  sph->add_used_routine(thd, lex, thd, qname, func);
 
   lex->safe_to_cache_query= 0;
   return func;

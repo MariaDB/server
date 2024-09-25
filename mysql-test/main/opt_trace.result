@@ -4072,7 +4072,7 @@ select f1(a) from t1	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select f1(t1.a) AS `f1(a)` from t1"
+            "expanded_query": "select test.f1(t1.a) AS `f1(a)` from t1"
           }
         ]
       }
@@ -4189,7 +4189,7 @@ select f2(a) from t1	{
         "select_id": 1,
         "steps": [
           {
-            "expanded_query": "select f2(t1.a) AS `f2(a)` from t1"
+            "expanded_query": "select test.f2(t1.a) AS `f2(a)` from t1"
           }
         ]
       }

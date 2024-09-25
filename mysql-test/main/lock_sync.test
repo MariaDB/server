@@ -947,11 +947,17 @@ connect(con2, localhost, root);
 connect (con1, localhost, root);
 # Need to trigger this sync point at least twice in order to
 # get valgrind test failures without the patch
-SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 2';
+SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 4';
 --echo # Sending:
 --send SHOW CREATE VIEW v1
 
 connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+SET DEBUG_SYNC= 'now SIGNAL dropped';
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+# Increase the count of sync point to 4 from 2 due to the new sql path
+# need to perform the db + routine/package lookup
+SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';

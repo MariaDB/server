@@ -13601,7 +13601,7 @@ EXPLAIN
               "cost": "COST_REPLACED",
               "having_condition": "s + 1 > 10 and a2 > 123",
               "filesort": {
-                "sort_key": "t1.a, f1(t1.a)",
+                "sort_key": "t1.a, test.f1(t1.a)",
                 "temporary_table": {
                   "nested_loop": [
                     {

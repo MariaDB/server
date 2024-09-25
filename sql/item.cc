@@ -2890,24 +2890,27 @@ Item* Item_func_or_sum::do_build_clone(THD *thd) const
 Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
                  sp_name *name_arg) :
   context(context_arg), m_name(name_arg), m_sp(NULL), func_ctx(NULL),
-  sp_result_field(NULL)
+  m_orig_name(NULL), sp_result_field(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+  m_orig_name= new (thd->mem_root) sp_name(*m_name);
 }
 
 Item_sp::Item_sp(THD *thd, Item_sp *item):
          context(item->context), m_name(item->m_name),
-         m_sp(item->m_sp), func_ctx(NULL), sp_result_field(NULL)
+         m_sp(item->m_sp), func_ctx(NULL), m_orig_name(NULL),
+         sp_result_field(NULL)
 {
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
   sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
+  m_orig_name= new (thd->mem_root) sp_name(*item->m_orig_name);
 }
 
 LEX_CSTRING
@@ -2959,6 +2962,10 @@ Item_sp::cleanup()
   m_sp= NULL;
   delete func_ctx;
   func_ctx= NULL;
+
+  //if (m_orig_name)
+  //  *m_name= *m_orig_name;
+
   free_root(&sp_mem_root, MYF(0));
   dummy_table->alias.free();
 }

@@ -1,0 +1,237 @@
+--echo #
+--echo # Embed PATH to PACKAGE and PACKAGE's routines
+--echo #
+
+CREATE DATABASE test2;
+CREATE DATABASE test3;
+DELIMITER $$;
+CREATE FUNCTION test2.func2() RETURNS TEXT
+BEGIN
+  RETURN 'test2.func2';
+END;
+$$
+CREATE FUNCTION test3.func2() RETURNS TEXT
+BEGIN
+  RETURN 'test3.func2';
+END;
+$$
+CREATE PROCEDURE test2.proc2(OUT a TEXT)
+BEGIN
+  SET a:='test2.proc2';
+END;
+$$
+CREATE PACKAGE pkg_r_emb
+  FUNCTION ff() RETURNS TEXT;
+  FUNCTION fp() RETURNS TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_r_emb
+  FUNCTION ff() RETURNS TEXT
+  PATH 'test2'
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURNS TEXT
+  PATH 'test2'
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  PATH 'test2'
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  PATH 'test2'
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    SELECT a;
+  END;
+END;
+$$
+CREATE PACKAGE pkg_emb
+  PATH 'test2'
+  FUNCTION ff() RETURNS TEXT;
+  FUNCTION fp() RETURNS TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb
+  PATH 'test2'
+  DECLARE a TEXT;
+
+  FUNCTION ff() RETURNS TEXT
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURNS TEXT
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    SELECT a;
+  END;
+
+  
+  CALL proc2(a);
+END;
+$$
+CREATE PACKAGE pkg_emb_r_emb
+  PATH 'test2'
+  FUNCTION ff() RETURNS TEXT;
+  FUNCTION fp() RETURNS TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb_r_emb
+  PATH 'test2'
+  DECLARE a TEXT;
+
+  FUNCTION ff() RETURNS TEXT
+  PATH 'test3'
+  BEGIN
+    RETURN func2();
+  END;
+  FUNCTION fp() RETURNS TEXT
+  PATH 'test3'
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  PATH 'test3'
+  BEGIN
+    SELECT func2();
+  END;
+  PROCEDURE pp()
+  PATH 'test3'
+  BEGIN
+    DECLARE a TEXT;
+    CALL proc2(a);
+    SELECT a;
+  END;
+
+  
+  CALL proc2(a);
+END;
+$$
+CREATE PACKAGE pkg_emb_inner_block
+  PATH 'test2'
+  FUNCTION ff() RETURNS TEXT;
+  FUNCTION fp() RETURNS TEXT;
+  PROCEDURE pf();
+  PROCEDURE pp();
+END;
+$$
+CREATE PACKAGE BODY pkg_emb_inner_block
+  PATH 'test2'
+  DECLARE a TEXT;
+
+  FUNCTION ff() RETURNS TEXT
+  BEGIN
+    DECLARE a TEXT;
+    BEGIN
+      SET a:= func2();
+    END;
+    RETURN a;
+  END;
+  FUNCTION fp() RETURNS TEXT
+  BEGIN
+    DECLARE a TEXT;
+    BEGIN
+      CALL proc2(a);
+    END;
+    RETURN a;
+  END;
+
+  PROCEDURE pf()
+  BEGIN
+    BEGIN
+      SELECT func2();
+    END;
+  END;
+  PROCEDURE pp()
+  BEGIN
+    DECLARE a TEXT;
+    BEGIN
+      CALL proc2(a);
+    END;
+    SELECT a;
+  END;
+
+  
+  CALL proc2(a);
+END;
+$$
+DELIMITER ;$$
+
+--source sp-cache-invalidate.inc
+SELECT pkg_r_emb.ff();
+--source sp-cache-invalidate.inc
+SELECT pkg_r_emb.fp();
+--source sp-cache-invalidate.inc
+CALL pkg_r_emb.pf();
+--source sp-cache-invalidate.inc
+CALL pkg_r_emb.pp();
+
+SELECT pkg_r_emb.ff();
+SELECT pkg_r_emb.fp();
+CALL pkg_r_emb.pf();
+CALL pkg_r_emb.pp();
+
+--source sp-cache-invalidate.inc
+SELECT pkg_emb.ff();
+--source sp-cache-invalidate.inc
+SELECT pkg_emb.fp();
+--source sp-cache-invalidate.inc
+CALL pkg_emb.pf();
+--source sp-cache-invalidate.inc
+CALL pkg_emb.pp();
+
+SELECT pkg_emb.ff();
+SELECT pkg_emb.fp();
+CALL pkg_emb.pf();
+CALL pkg_emb.pp();
+
+--echo
+--echo # PACKAGE PATH overrides PACKAGE ROUTINE PATHs
+--echo
+SELECT pkg_emb_r_emb.ff();
+SELECT pkg_emb_r_emb.fp();
+CALL pkg_emb_r_emb.pf();
+CALL pkg_emb_r_emb.pp();
+
+--echo
+--echo # Inner sp-block within PACKAGE ROUTINE uses the PACKAGE's PATH
+--echo
+SELECT pkg_emb_inner_block.ff();
+SELECT pkg_emb_inner_block.fp();
+CALL pkg_emb_inner_block.pf();
+CALL pkg_emb_inner_block.pp();
+
+DROP DATABASE test2;
+DROP DATABASE test3;
+DROP PACKAGE pkg_r_emb;
+DROP PACKAGE pkg_emb;
+DROP PACKAGE pkg_emb_r_emb;
+DROP PACKAGE pkg_emb_inner_block;

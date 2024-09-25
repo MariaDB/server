@@ -5865,6 +5865,8 @@ public:
   MEM_ROOT sp_mem_root;
   Query_arena *sp_query_arena;
 
+  sp_name *m_orig_name;
+
   /*
      The result field of the stored function.
   */

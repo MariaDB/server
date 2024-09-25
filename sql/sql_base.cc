@@ -3826,6 +3826,13 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
       if (rt != (Sroutine_hash_entry*)prelocking_ctx->sroutines_list.first ||
           mdl_type != MDL_key::PROCEDURE)
       {
+        Sql_path_push path_push(thd, &my_charset_utf8mb3_bin,
+                                Lex_cstring(rt->m_sql_path_buffer,
+                                            rt->m_sql_path_length));
+
+        if (rt->sp_resolve(thd))
+          DBUG_RETURN(TRUE);
+
         /*
           TODO: If this is a package routine, we should not put MDL
           TODO: on the routine itself. We should put only the package MDL.
@@ -3869,6 +3876,8 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
       }
       else
       {
+        if (rt->sp_resolve(thd))
+          DBUG_RETURN(TRUE);
         /*
           If it's a top level call, just make sure we have a recent
           version of the routine, if it exists.
@@ -4741,6 +4750,19 @@ restart:
     */
     if (thd->locked_tables_mode <= LTM_LOCK_TABLES && *sroutine_to_open)
     {
+      class Opening
+      {
+        THD *m_thd;
+      public:
+        Opening(THD *thd) : m_thd(thd) 
+        {
+          m_thd->can_path_resolve= true;
+        }
+        ~Opening()
+        {
+          m_thd->can_path_resolve= false;
+        }
+      } opening(thd);
       /*
         Process elements of the prelocking set which are present there
         since parsing stage or were added to it by invocations of

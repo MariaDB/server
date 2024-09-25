@@ -2583,11 +2583,27 @@ sp_head::merge_lex(THD *thd, LEX *oldlex, LEX *sublex)
                       sublex->get_stmt_unsafe_flags()));
   unsafe_flags|= sublex->get_stmt_unsafe_flags();
 
+  Sql_path_push package_path, routine_path;
+  if (thd->can_path_resolve)
+  {
+    /*
+      At this point in time the PACKAGE's path has not been assigned
+      to the routine yet, so manually push the PACKAGE's path if it
+      exists, otherwise push the routine's path.
+    */
+    if (m_parent && m_parent->get_package() && 
+        m_parent->path().str)
+      package_path.push(thd, thd->variables.character_set_client,
+                        m_parent->get_package()->path());
+    else
+      routine_path.push(thd, thd->variables.character_set_client, path());
+  }
+
   /*
     Add routines which are used by statement to respective set for
     this routine.
   */
-  if (sp_update_sp_used_routines(&m_sroutines, &sublex->sroutines))
+  if (sp_update_sp_used_routines(thd, &m_sroutines, &sublex->sroutines))
     DBUG_RETURN(TRUE);
 
   /* If this substatement is a update query, then mark MODIFIES_DATA */
@@ -2852,6 +2868,10 @@ sp_head::set_chistics(const st_sp_chistics &chistics)
     m_chistics.comment.str= strmake_root(mem_root,
                                          m_chistics.comment.str,
                                          m_chistics.comment.length);
+  if (m_chistics.path.length)
+    m_chistics.path.str= strmake_root(mem_root,
+                                      m_chistics.path.str,
+                                      m_chistics.path.length);
 }
 
 

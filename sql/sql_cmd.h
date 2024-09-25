@@ -21,6 +21,7 @@
 #define SQL_CMD_INCLUDED
 
 #include "my_base.h"
+#include "sql_path.h"
 
 /*
   When a command is added here, be sure it's also added in mysqld.cc
@@ -428,7 +429,7 @@ public:
 /**
   Sql_cmd_call represents the CALL statement.
 */
-class Sql_cmd_call : public Sql_cmd
+class Sql_cmd_call : public Sql_cmd, public Sroutine_key_ref
 {
 public:
   class sp_name *m_name;
@@ -451,6 +452,8 @@ public:
   {
     return SQLCOM_CALL;
   }
+
+  void on_resolve_key(const Sp_handler *handler, const MDL_key *key) override;
 };
 
 #endif // SQL_CMD_INCLUDED

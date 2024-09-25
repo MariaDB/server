@@ -4104,7 +4104,7 @@ create view v3 as select bug23491_original.f1();
 use bug23491_restore;
 show create view bug23491_restore.v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `f1`() AS `f1()`	latin1	latin1_swedish_ci
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `bug23491_original`.`f1`() AS `f1()`	latin1	latin1_swedish_ci
 show create view bug23491_restore.v3;
 View	Create View	character_set_client	collation_connection
 v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `bug23491_original`.`f1`() AS `bug23491_original.f1()`	latin1	latin1_swedish_ci

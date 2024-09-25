@@ -3228,7 +3228,8 @@ static bool prepare_db_action(THD *thd, privilege_t want_access,
 bool Sql_cmd_call::execute(THD *thd)
 {
   TABLE_LIST *all_tables= thd->lex->query_tables;
-  sp_head *sp;
+  sp_head *sp= nullptr;
+
   /*
     This will cache all SP and SF and open and lock all tables
     required for execution.
@@ -3238,17 +3239,22 @@ bool Sql_cmd_call::execute(THD *thd)
       open_and_lock_tables(thd, all_tables, TRUE, 0))
    return true;
 
+  bool resolved= !m_name->m_db.is_empty();
+
+  if (resolved)
+    sp= m_handler->sp_find_routine(thd, m_name, true);
+
   /*
     By this moment all needed SPs should be in cache so no need to look
     into DB.
   */
-  if (!(sp= m_handler->sp_find_routine(thd, m_name, true)))
+  if (!sp)
   {
     /*
       If the routine is not found, let's still check EXECUTE_ACL to decide
       whether to return "Access denied" or "Routine does not exist".
     */
-    if (check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
+    if (resolved && check_routine_access(thd, EXECUTE_ACL, &m_name->m_db,
                              &m_name->m_name,
                              &sp_handler_procedure,
                              false))
@@ -3258,9 +3264,9 @@ bool Sql_cmd_call::execute(THD *thd)
       Send message ER_SP_DOES_NOT_EXIST only if procedure is not found in
       cache.
     */
-    if (!sp_cache_lookup(&thd->sp_proc_cache, m_name))
+    if (!resolved || !sp_cache_lookup(&thd->sp_proc_cache, m_name))
       my_error(ER_SP_DOES_NOT_EXIST, MYF(0), "PROCEDURE",
-               ErrConvDQName(m_name).ptr());
+               ErrConvMDQName(thd, m_name).ptr());
     return true;
   }
   else
@@ -3291,6 +3297,16 @@ bool Sql_cmd_call::execute(THD *thd)
       thd->enable_slow_log= 0;
   }
   return false;
+}
+
+
+void Sql_cmd_call::on_resolve_key(const Sp_handler *handler, const MDL_key *key)
+{
+  char qname_buff[NAME_LEN*2+1+1];
+  *m_name= sp_name(key, qname_buff);
+  if (!m_name->m_db.is_empty())
+    m_name->m_explicit_name= true;
+  m_handler= handler;
 }
 
 

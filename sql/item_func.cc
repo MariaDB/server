@@ -6784,14 +6784,18 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   bool res;
   DBUG_ENTER("Item_func_sp::fix_fields");
   DBUG_ASSERT(fixed() == 0);
-  sp_head *sp= m_handler->sp_find_routine(thd, m_name, true);
+
+  sp_head *sp= nullptr;
+  bool resolved= !m_name->m_db.is_empty();
+  if (resolved)
+    sp= m_handler->sp_find_routine(thd, m_name, true);
 
   /* 
     Checking privileges to execute the function while creating view and
     executing the function of select.
    */
-  if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
-      (thd->lex->sql_command == SQLCOM_CREATE_VIEW))
+  if ((!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_VIEW) ||
+      (thd->lex->sql_command == SQLCOM_CREATE_VIEW)) && resolved)
   {
     Security_context *save_security_ctx= thd->security_ctx;
     if (context && context->security_ctx)
@@ -6825,7 +6829,8 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   DBUG_ASSERT(m_sp == NULL);
   if (!(m_sp= sp))
   {
-    my_missing_function_error(m_name->m_name, ErrConvDQName(m_name).ptr());
+    my_missing_function_error(m_name->m_name,
+                              ErrConvMDQName(thd, m_name).ptr());
     process_error(thd);
     DBUG_RETURN(TRUE);
   }
@@ -6906,6 +6911,22 @@ Item_func_sp::fix_fields(THD *thd, Item **ref)
   }
 
   DBUG_RETURN(res);
+}
+
+
+void Item_func_sp::on_resolve_key(const Sp_handler *handler, const MDL_key *key)
+{
+  *m_orig_name= *m_name;
+
+  // Recreate m_name with the resolved key
+  char qname_buff[NAME_LEN*2+1+1];
+  *m_name= sp_name(key, qname_buff);
+
+  if (!m_name->m_db.is_empty())
+  {
+    m_name->m_explicit_name= true;
+  }
+  m_handler= handler;
 }
 
 

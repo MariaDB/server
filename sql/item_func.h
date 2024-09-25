@@ -3992,7 +3992,8 @@ public:
  */
 
 class Item_func_sp :public Item_func,
-                    public Item_sp
+                    public Item_sp,
+                    public Sroutine_key_ref
 {
 private:
   const Sp_handler *m_handler;
@@ -4265,6 +4266,7 @@ public:
   {
     return false;
   }
+  void on_resolve_key(const Sp_handler *handler, const MDL_key *key) override;
 };
 
 

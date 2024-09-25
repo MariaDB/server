@@ -206,6 +206,11 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
     { NULL, 0 }
   },
   {
+    { STRING_WITH_LEN("path") },
+    { STRING_WITH_LEN("text") },
+    { STRING_WITH_LEN("utf8mb") }
+  },
+  {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
     { STRING_WITH_LEN("utf8mb") }
@@ -554,6 +559,8 @@ static TABLE *open_proc_table_for_update(THD *thd)
   @param thd    Thread context
   @param name   Name of routine
   @param table  TABLE object for open mysql.proc table.
+  @param update A flag for handler::ha_index_read_idx_map
+                to update internal data
 
   @retval
     SP_OK             Routine found
@@ -564,7 +571,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
 int
 Sp_handler::db_find_routine_aux(THD *thd,
                                 const Database_qualified_name *name,
-                                TABLE *table) const
+                                TABLE *table, bool update) const
 {
   uchar key[MAX_KEY_LENGTH];	// db, name, optional key length type
   DBUG_ENTER("db_find_routine_aux");
@@ -589,7 +596,8 @@ Sp_handler::db_find_routine_aux(THD *thd,
 
   if (table->file->ha_index_read_idx_map(table->record[0], 0, key,
                                          HA_WHOLE_KEY,
-                                         HA_READ_KEY_EXACT))
+                                         HA_READ_KEY_EXACT,
+                                         update))
     DBUG_RETURN(SP_KEY_NOT_FOUND);
 
   DBUG_RETURN(SP_OK);
@@ -650,6 +658,18 @@ bool st_sp_chistics::read_from_mysql_proc_row(THD *thd, TABLE *table)
   if (table->field[MYSQL_PROC_FIELD_COMMENT]->val_str_nopad(thd->mem_root,
                                                             &comment))
     return true;
+  
+  if (table->field[MYSQL_PROC_FIELD_PATH]->is_null())
+  {
+    path.str= NULL;
+    path.length= 0;
+  }
+  else
+  {
+    if (table->field[MYSQL_PROC_FIELD_PATH]->val_str_nopad(thd->mem_root,
+                                                           &path))
+      return true;
+  }
 
   return false;
 }
@@ -1057,6 +1077,8 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
         DBUG_ASSERT(lex->sphead);
         lex->sphead->set_definer(&definer.user, &definer.host);
         lex->sphead->set_suid(package->suid());
+        if (package->path().str)
+          lex->sphead->set_path(package->path());
         lex->sphead->m_sql_mode= sql_mode;
         lex->sphead->set_creation_ctx(creation_ctx);
         lex->sphead->optimize();
@@ -1466,6 +1488,14 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
           store(sp->comment(), system_charset_info);
     }
 
+    if (sp->path().str)
+    {
+      store_failed= store_failed ||
+        table->field[MYSQL_PROC_FIELD_PATH]->
+          store(sp->path(), system_charset_info);
+      table->field[MYSQL_PROC_FIELD_PATH]->set_notnull();
+    }
+
     if (type() == SP_TYPE_FUNCTION &&
         !trust_function_creators && mysql_bin_log.is_open())
     {
@@ -1592,9 +1622,22 @@ append_comment(String *buf, const LEX_CSTRING &comment)
 
 
 static bool
+append_path(String *buf, const LEX_CSTRING &path)
+{
+  if (!path.length)
+    return false;
+  if (buf->append(STRING_WITH_LEN("    PATH ")))
+    return true;
+  append_unescaped(buf, path.str, path.length);
+  return buf->append('\n');
+}
+
+
+static bool
 append_package_chistics(String *buf, const st_sp_chistics &chistics)
 {
   return append_suid(buf, chistics.suid) ||
+         append_path(buf, chistics.path) ||
          append_comment(buf, chistics.comment);
 }
 
@@ -1749,6 +1792,9 @@ Sp_handler::sp_update_routine(THD *thd, const Database_qualified_name *name,
     if (chistics->comment.str)
       table->field[MYSQL_PROC_FIELD_COMMENT]->store(chistics->comment,
 						    system_charset_info);
+    if (chistics->path.str)
+      table->field[MYSQL_PROC_FIELD_PATH]->store(chistics->path,
+                system_charset_info);
     if (chistics->agg_type != DEFAULT_AGGREGATE)
       table->field[MYSQL_PROC_FIELD_AGGREGATE]->
          store((longlong)chistics->agg_type, TRUE);
@@ -2240,6 +2286,75 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
 
 
 /**
+  Determine the existence of a routine.
+  Note: ONLY for unqualified routines
+
+  @param thd          thread context
+  @param name         name of routine
+
+  @retval
+    Non-0  routine does not exist
+  @retval
+    0      routine exists
+*/
+
+int
+Sp_handler::sp_find_routine_quick(THD *thd,
+                                  const Database_qualified_name *name) const
+{
+  DBUG_ENTER("Sp_handler::sp_find_routine_quick");
+  DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s",
+                       (int) name->m_db.length, name->m_db.str,
+                       (int) name->m_name.length, name->m_name.str,
+                       type_str()));
+
+  Parser_state *oldps= thd->m_parser_state;
+  thd->m_parser_state= NULL;
+
+  sp_cache **cp= get_cache(thd);
+  sp_head *sp;
+
+  if ((sp= sp_cache_lookup(cp, name)))
+  {
+    thd->m_parser_state= oldps;
+    DBUG_RETURN(SP_OK);
+  }
+
+  TABLE *table;
+  int ret;
+  THD::used_t saved_time_zone_used= thd->used & THD::TIME_ZONE_USED;
+
+  start_new_trans new_trans(thd);
+
+  if (!(table= open_proc_table_for_read(thd)))
+  {
+    ret= SP_OPEN_TABLE_FAILED;
+    goto done;
+  }
+
+  if ((ret= db_find_routine_aux(thd, name, table, false)) != SP_OK)
+    goto done;
+
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
+
+done:
+  thd->used= (thd->used & ~THD::TIME_ZONE_USED) | saved_time_zone_used;
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
+}
+
+
+/**
   Find a package routine.
   See sp_cache_routine() for more information on parameters and return value.
 
@@ -2401,18 +2516,27 @@ extern "C" const uchar *sp_sroutine_key(const void *ptr, size_t *plen, my_bool)
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key,
                          const Sp_handler *handler,
-                         TABLE_LIST *belong_to_view)
+                         TABLE_LIST *belong_to_view,
+                         const LEX_CSTRING& sql_path,
+                         List<Sroutine_key_ref> *key_refs,
+                         bool resolved)
 {
   my_hash_init_opt(PSI_INSTRUMENT_ME, &prelocking_ctx->sroutines,
                    Lex_ident_routine::charset_info(),
                    Query_tables_list::START_SROUTINES_HASH_SIZE,
                    0, 0, sp_sroutine_key, 0, 0);
 
-  if (!my_hash_search(&prelocking_ctx->sroutines, key->ptr(), key->length()))
+  Sroutine_hash_entry *rn;
+  bool res= FALSE;
+  bool is_package= (handler->type() == SP_TYPE_PACKAGE || 
+                   handler->type() == SP_TYPE_PACKAGE_BODY);
+  if (!(rn= (Sroutine_hash_entry*)my_hash_search(&prelocking_ctx->sroutines,
+                                                 key->ptr(), key->length())))
   {
-    Sroutine_hash_entry *rn= arena->alloc<Sroutine_hash_entry>(1);
+    rn= arena->alloc<Sroutine_hash_entry>(1);
     if (unlikely(!rn)) // OOM. Error will be reported using fatal_error().
       return FALSE;
+    rn= new (rn) Sroutine_hash_entry();
     MDL_REQUEST_INIT_BY_KEY(&rn->mdl_request, key, MDL_SHARED, MDL_TRANSACTION);
     if (my_hash_insert(&prelocking_ctx->sroutines, (uchar *)rn))
       return FALSE;
@@ -2420,9 +2544,44 @@ bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
     rn->belong_to_view= belong_to_view;
     rn->m_handler= handler;
     rn->m_sp_cache_version= 0;
-    return TRUE;
+    rn->sp_set_path(sql_path);
+
+    res= TRUE;
   }
-  return FALSE;
+
+  /* Early exit for PACKAGEs, we do not resolve them */
+  if (is_package)
+    return res;
+
+  if (key_refs)
+  {
+    // Merge source key refs with destination
+    List_iterator<Sroutine_key_ref> it_src(*key_refs);
+    while (Sroutine_key_ref *src_ref= it_src++)
+    {
+      List_iterator<Sroutine_key_ref> it_dst(rn->m_key_refs);
+      bool found= false;
+      while (Sroutine_key_ref *dst_ref= it_dst++)
+      {
+        if (dst_ref == src_ref)
+        {
+          found= true;
+          break;
+        }
+      }
+
+      if (!found)
+        rn->m_key_refs.push_back(src_ref, arena->mem_root);
+      
+      if (rn->m_resolved) //  && !src_ref->is_resolved()
+        src_ref->on_resolve_key(rn->m_handler, &rn->mdl_request.key);
+    }
+  }
+
+  if (resolved)
+    rn->m_resolved= resolved;
+
+  return res;
 }
 
 
@@ -2478,7 +2637,7 @@ Sp_handler::sp_cache_routine_reentrant(THD *thd,
   unless a fatal error happens.
 */
 
-static bool
+bool
 is_package_public_routine(THD *thd,
                           const Lex_ident_db &db,
                           const LEX_CSTRING &package,
@@ -2710,18 +2869,26 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
   @param arena           Arena in which memory for new element of the set
                          will be allocated
   @param rt              Routine name
+  @param key_ref         Object referencing the key
 
   @note
     Will also add element to end of 'Query_tables_list::sroutines_list' list
     (and will take into account that this is an explicitly used routine).
 */
 
-void Sp_handler::add_used_routine(Query_tables_list *prelocking_ctx,
+void Sp_handler::add_used_routine(THD *thd, Query_tables_list *prelocking_ctx,
                                   Query_arena *arena,
-                                  const Database_qualified_name *rt) const
+                                  const Database_qualified_name *rt,
+                                  Sroutine_key_ref *key_ref) const
 {
   MDL_key key(get_mdl_type(), rt->m_db.str, rt->m_name.str);
-  (void) sp_add_used_routine(prelocking_ctx, arena, &key, this, 0);
+
+  List <Sroutine_key_ref> key_refs;
+  if (key_ref)
+    key_refs.push_back(key_ref);
+  (void) sp_add_used_routine(prelocking_ctx, arena, &key, this, 0,
+                             thd->variables.path.lex_cstring(),
+                             &key_refs, false);
   prelocking_ctx->sroutines_list_own_last= prelocking_ctx->sroutines_list.next;
   prelocking_ctx->sroutines_list_own_elements=
                     prelocking_ctx->sroutines_list.elements;
@@ -2776,11 +2943,13 @@ void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx)
     @return FALSE Success
 */
 
-bool sp_update_sp_used_routines(HASH *dst, HASH *src)
+bool sp_update_sp_used_routines(THD *thd, HASH *dst, HASH *src)
 {
   for (uint i=0 ; i < src->records ; i++)
   {
     Sroutine_hash_entry *rt= (Sroutine_hash_entry *)my_hash_element(src, i);
+    if (thd->can_path_resolve)
+      rt->sp_resolve(thd);
     if (!my_hash_search(dst, (uchar *)rt->mdl_request.key.ptr(),
                         rt->mdl_request.key.length()))
     {
@@ -2821,7 +2990,10 @@ sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                   Query_arena::STMT_SP_QUERY_ARGUMENTS);
     (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
-                              belong_to_view);
+                              belong_to_view,
+                              Lex_cstring(rt->m_sql_path_buffer,
+                                          rt->m_sql_path_length), 
+                              &rt->m_key_refs, rt->m_resolved);
   }
 }
 
@@ -2847,7 +3019,69 @@ void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
   for (Sroutine_hash_entry *rt= src->first; rt; rt= rt->next)
     (void)sp_add_used_routine(prelocking_ctx, thd->active_stmt_arena_to_use(),
                               &rt->mdl_request.key, rt->m_handler,
-                              belong_to_view);
+                              belong_to_view,
+                              Lex_cstring(rt->m_sql_path_buffer,
+                                          rt->m_sql_path_length),
+                              &rt->m_key_refs, rt->m_resolved);
+}
+
+
+int Sroutine_hash_entry::sp_resolve(THD *thd)
+{
+  if (m_resolved)
+  {
+    /*
+      Early exit if it's already resolved (i.e. recursive execution), we just
+      update the references to the hash
+    */
+    sp_update_refs();
+    
+    return 0;
+  }
+
+  char qname_buff[NAME_LEN*2+1+1];
+  sp_name name(&mdl_request.key, qname_buff);
+
+  if (!name.m_db.is_empty())
+    name.m_explicit_name= true;
+
+  Database_qualified_name pkg_name;
+  thd->variables.path.resolve(thd, thd->lex->sphead, &name, (const Sp_handler **)&m_handler, &pkg_name);
+  if (pkg_name.m_name.length)
+    sp_handler_package_body.add_used_routine(thd, thd->lex,
+                                             thd->active_stmt_arena_to_use(),
+                                             &pkg_name, nullptr);
+
+  MDL_key new_key(m_handler->get_mdl_type(), name.m_db.str, name.m_name.str);
+  mdl_request.key.mdl_key_init(&new_key);
+
+  if (name.m_db.str)
+    sp_update_refs();
+
+  m_resolved= true;
+
+  return 0;
+}
+
+
+void Sroutine_hash_entry::sp_update_refs()
+{
+  List_iterator<Sroutine_key_ref> it(m_key_refs);
+
+  while (Sroutine_key_ref *key_ref= it++)
+    key_ref->on_resolve_key(m_handler, &mdl_request.key);
+}
+
+
+bool Sroutine_hash_entry::sp_set_path(const LEX_CSTRING &sql_path)
+{
+  DBUG_ASSERT(sql_path.str);
+
+  memcpy(m_sql_path_buffer, sql_path.str, sql_path.length);
+  m_sql_path_buffer[sql_path.length]= '\0';
+  m_sql_path_length= sql_path.length;
+
+  return false;
 }
 
 
@@ -3101,6 +3335,7 @@ Sp_handler::show_create_sp(THD *thd, String *buf,
     buf->append(STRING_WITH_LEN("    DETERMINISTIC\n"));
   append_suid(buf, chistics.suid);
   append_comment(buf, chistics.comment);
+  append_path(buf, chistics.path);
   buf->append(body.str, body.length);           // Not \0 terminated
   return false;
 }

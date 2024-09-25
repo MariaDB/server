@@ -427,18 +427,17 @@ public:
       are not longer than NAME_LEN. Still we play safe and try to avoid
       buffer overruns.
     */
-    DBUG_ASSERT(strlen(db) <= NAME_LEN);
     DBUG_ASSERT(strlen(name_arg) <= NAME_LEN);
-    m_db_name_length= static_cast<uint16>(strmake(m_ptr + 1, db, NAME_LEN) -
-                                          m_ptr - 1);
+    m_db_name_length= static_cast<uint16>(strmake(m_ptr + 1, db ? db : "",
+                                                  NAME_LEN) - m_ptr - 1);
     m_length= static_cast<uint16>(strmake(m_ptr + m_db_name_length + 2,
                                           name_arg,
                                           NAME_LEN) - m_ptr + 1);
     m_hash_value= my_hash_sort(&my_charset_bin, (uchar*) m_ptr + 1,
                                m_length - 1);
     DBUG_SLOW_ASSERT(mdl_namespace_arg == USER_LOCK ||
-                     Lex_ident_fs(db, m_db_name_length).
-                       ok_for_lower_case_names());
+                     db ? Lex_ident_fs(db, m_db_name_length).
+                       ok_for_lower_case_names() : true);
   }
   void mdl_key_init(const MDL_key *rhs)
   {

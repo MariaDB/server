@@ -3237,7 +3237,7 @@ EXPLAIN
               "cost": 0.011611947,
               "having_condition": "c3 + 1 > 10 and c2 > 123",
               "filesort": {
-                "sort_key": "t1.c1, f1(t1.c2)",
+                "sort_key": "t1.c1, test.f1(t1.c2)",
                 "temporary_table": {
                   "nested_loop": [
                     {

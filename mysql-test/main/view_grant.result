@@ -1512,7 +1512,7 @@ View	Create View	character_set_client	collation_connection
 v_t2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_t2` AS select `mysqltest1`.`t2`.`a` AS `a`,`mysqltest1`.`t2`.`b` AS `b` from `mysqltest1`.`t2`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW mysqltest1.v_f1;
 View	Create View	character_set_client	collation_connection
-v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `f1`() AS `a`	latin1	latin1_swedish_ci
+v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `mysqltest1`.`f1`() AS `a`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW mysqltest1.v_v1;
 View	Create View	character_set_client	collation_connection
 v_v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_v1` AS select `v1`.`a` AS `a` from `mysqltest1`.`v1`	latin1	latin1_swedish_ci
@@ -1548,7 +1548,7 @@ View	Create View	character_set_client	collation_connection
 v_t2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_t2` AS select `mysqltest1`.`t2`.`a` AS `a`,`mysqltest1`.`t2`.`b` AS `b` from `mysqltest1`.`t2`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW mysqltest1.v_f1;
 View	Create View	character_set_client	collation_connection
-v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `f1`() AS `a`	latin1	latin1_swedish_ci
+v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `mysqltest1`.`f1`() AS `a`	latin1	latin1_swedish_ci
 SHOW CREATE VIEW mysqltest1.v_v1;
 View	Create View	character_set_client	collation_connection
 v_v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_v1` AS select `v1`.`a` AS `a` from `mysqltest1`.`v1`	latin1	latin1_swedish_ci
@@ -1585,7 +1585,7 @@ Warnings:
 Warning	1356	View 'mysqltest1.v_t1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 SHOW CREATE VIEW mysqltest1.v_f1;
 View	Create View	character_set_client	collation_connection
-v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `f1`() AS `a`	latin1	latin1_swedish_ci
+v_f1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `mysqltest1`.`v_f1` AS select `mysqltest1`.`f1`() AS `a`	latin1	latin1_swedish_ci
 Warnings:
 Warning	1356	View 'mysqltest1.v_f1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
 SHOW CREATE VIEW mysqltest1.v_v1;

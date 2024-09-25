@@ -44,6 +44,7 @@ struct TABLE;
 struct TABLE_LIST;
 typedef struct st_hash HASH;
 template <typename T> class SQL_I_List;
+class Sroutine_key_ref;
 
 /*
   Values for the type enum. This reflects the order of the enum declaration
@@ -62,6 +63,7 @@ enum enum_sp_type
 
 class Sp_handler
 {
+public:
   bool sp_resolve_package_routine_explicit(THD *thd,
                                            sp_head *caller,
                                            sp_name *name,
@@ -76,7 +78,7 @@ class Sp_handler
                                            const;
 protected:
   int db_find_routine_aux(THD *thd, const Database_qualified_name *name,
-                          TABLE *table) const;
+                          TABLE *table, bool update= true) const;
   int db_find_routine(THD *thd, const Database_qualified_name *name,
                       sp_head **sphp) const;
   int db_find_and_cache_routine(THD *thd,
@@ -186,9 +188,11 @@ public:
   virtual bool add_instr_preturn(THD *thd, sp_head *sp,
                                  sp_pcontext *spcont) const;
 
-  void add_used_routine(Query_tables_list *prelocking_ctx,
+  void add_used_routine(THD *thd,
+                        Query_tables_list *prelocking_ctx,
                         Query_arena *arena,
-                        const Database_qualified_name *name) const;
+                        const Database_qualified_name *name,
+                        Sroutine_key_ref *key_ref) const;
 
   bool sp_resolve_package_routine(THD *thd,
                                   sp_head *caller,
@@ -198,6 +202,8 @@ public:
   virtual sp_head *sp_find_routine(THD *thd,
                                    const Database_qualified_name *name,
                                    bool cache_only) const;
+  int sp_find_routine_quick(THD *thd,
+                            const Database_qualified_name *name) const;
   virtual int sp_cache_routine(THD *thd, const Database_qualified_name *name,
                                sp_head **sp) const;
 
@@ -607,6 +613,7 @@ enum
   MYSQL_PROC_FIELD_CREATED,
   MYSQL_PROC_FIELD_MODIFIED,
   MYSQL_PROC_FIELD_SQL_MODE,
+  MYSQL_PROC_FIELD_PATH,
   MYSQL_PROC_FIELD_COMMENT,
   MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT,
   MYSQL_PROC_FIELD_COLLATION_CONNECTION,
@@ -667,18 +674,31 @@ public:
   */
   ulong m_sp_cache_version;
 
+  bool m_resolved;
+
+  List<Sroutine_key_ref> m_key_refs;
+
+  char m_sql_path_buffer[NAME_LEN * 3 * 16 + 1];
+  size_t m_sql_path_length;
+
   const Sp_handler *m_handler;
 
+  int sp_resolve(THD *thd);
   int sp_cache_routine(THD *thd, sp_head **sp) const;
+  void sp_update_refs();
+  bool sp_set_path(const LEX_CSTRING &sql_path);
 };
 
 
 bool sp_add_used_routine(Query_tables_list *prelocking_ctx, Query_arena *arena,
                          const MDL_key *key,
                          const Sp_handler *handler,
-                         TABLE_LIST *belong_to_view);
+                         TABLE_LIST *belong_to_view,
+                         const LEX_CSTRING &sql_path,
+                         List<Sroutine_key_ref> *key_refs,
+                         bool resolved);
 void sp_remove_not_own_routines(Query_tables_list *prelocking_ctx);
-bool sp_update_sp_used_routines(HASH *dst, HASH *src);
+bool sp_update_sp_used_routines(THD *thd, HASH *dst, HASH *src);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
                                   HASH *src, TABLE_LIST *belong_to_view);
 void sp_update_stmt_used_routines(THD *thd, Query_tables_list *prelocking_ctx,
