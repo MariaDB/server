@@ -6481,7 +6481,7 @@ static int traverse_role_graph_up(ACL_ROLE *role, void *context,
        int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
   return traverse_role_graph_impl(
-      role, context, offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
+      role, context, my_offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
 }
 
 /**

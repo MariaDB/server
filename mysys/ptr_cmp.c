@@ -44,9 +44,9 @@
 
 #include <string.h>
 
-static int native_compare(const void *length_, const void *a_, const void *b_)
+static int native_compare(void *length_, const void *a_, const void *b_)
 {
-  const size_t *length= length_;
+  size_t *length= length_;
   const unsigned char **a= (const unsigned char **) a_;
   const unsigned char **b= (const unsigned char **) b_;
   return memcmp(*a, *b, *length);

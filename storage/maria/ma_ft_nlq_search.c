@@ -52,7 +52,7 @@ typedef struct st_ft_superdoc
 } FT_SUPERDOC;
 
 
-static int FT_SUPERDOC_cmp(const void *cmp_arg __attribute__((unused)),
+static int FT_SUPERDOC_cmp(void *cmp_arg __attribute__((unused)),
                            const void *p1_, const void *p2_)
 {
   const FT_SUPERDOC *p1= p1_;
@@ -219,7 +219,7 @@ static int walk_and_push(void *from_,
 }
 
 
-static int FT_DOC_cmp(const void *unused __attribute__((unused)),
+static int FT_DOC_cmp(void *unused __attribute__((unused)),
                       const void *a_, const void *b_)
 {
   const FT_DOC *a= a_;

@@ -325,7 +325,7 @@ int open_and_lock_tables_derived(THD *thd, TABLE_LIST *tables, bool derived);
 
 extern "C" qsort2_cmp simple_raw_key_cmp;
 extern "C" int count_distinct_walk(void *elem, element_count count, void *arg);
-int simple_str_key_cmp(const void *arg, const void *key1, const void *key2);
+int simple_str_key_cmp(void *arg, const void *key1, const void *key2);
 
 extern Item **not_found_item;
 extern Field *not_found_field;

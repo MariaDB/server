@@ -31,7 +31,7 @@ typedef struct st_my_maria_ft_parser_param
   MEM_ROOT *mem_root;
 } MY_FT_PARSER_PARAM;
 
-static int FT_WORD_cmp(const void *cs_, const void *w1_, const void *w2_)
+static int FT_WORD_cmp(void *cs_, const void *w1_, const void *w2_)
 {
   CHARSET_INFO *cs= cs_;
   const FT_WORD *w1= w1_;

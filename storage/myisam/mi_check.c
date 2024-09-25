@@ -61,7 +61,7 @@ static int sort_one_index(HA_CHECK *, MI_INFO *, MI_KEYDEF *, my_off_t, File);
 static int sort_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_ft_key_read(MI_SORT_PARAM *sort_param,void *key);
 static int sort_get_next_record(MI_SORT_PARAM *sort_param);
-static int sort_key_cmp(const void *sort_param, const void *a, const void *b);
+static int sort_key_cmp(void *sort_param, const void *a, const void *b);
 static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static int sort_key_write(MI_SORT_PARAM *sort_param, const void *a);
 static my_off_t get_record_for_key(MI_INFO *, MI_KEYDEF *, uchar *);
@@ -3805,7 +3805,7 @@ int sort_write_record(MI_SORT_PARAM *sort_param)
 
 	/* Compare two keys from _create_index_by_sort */
 
-static int sort_key_cmp(const void *sort_param_, const void *a, const void *b)
+static int sort_key_cmp(void *sort_param_, const void *a, const void *b)
 {
   const MI_SORT_PARAM *sort_param= sort_param_;
   uint not_used[2];

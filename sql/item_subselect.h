@@ -1292,7 +1292,7 @@ protected:
     indentfied with their row numbers.
   */
   int cmp_keys_by_row_data(const rownum_t a, const rownum_t b) const;
-  static int cmp_keys_by_row_data_and_rownum(const void *key, const void *a,
+  static int cmp_keys_by_row_data_and_rownum(void *key, const void *a,
                                              const void *b);
 
   int cmp_key_with_search_key(rownum_t row_num);
@@ -1515,8 +1515,7 @@ protected:
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(const void *,
-                                    const void *k1, const void *k2);
+  static int cmp_keys_by_cur_rownum(void *, const void *k1, const void *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
