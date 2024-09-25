@@ -1,0 +1,2895 @@
+#
+# MDEV-34391 Path resolution
+#
+CREATE DATABASE test2;
+#
+# type 1.1
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: X | path set: no
+#
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func();
+ERROR 42000: FUNCTION func does not exist
+#
+# type 1.2
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET @@path = DEFAULT;
+#
+# type 1.3
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: test2 | path set: no
+#
+USE test2;
+SELECT func();
+ERROR 42000: FUNCTION test2.func does not exist
+#
+# type 1.4
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET @@path = DEFAULT;
+#
+# type 1.5
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: X | path set: yes
+# lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET PATH 'test2,test';
+SELECT func();
+func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func();
+ERROR 42000: FUNCTION func does not exist
+SET @@path = DEFAULT;
+#
+# type 1.6
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: test2 | path set: yes
+# lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+#
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+SELECT func();
+func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION func;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func();
+ERROR 42000: FUNCTION test2.func does not exist
+SET @@path = DEFAULT;
+#
+# type 1.7
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: X | path set: yes
+# to test unqualified function invocation in an unqualified function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+USE test;
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func_call_func();
+ERROR 42000: FUNCTION test.func does not exist
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+#
+# type 1.8
+# sql_mode: DEFAULT | function | is unqualified
+# curr db: test | path set: yes
+# to test unqualified function invocation in an unqualified function
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
+USE test;
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION func;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func_call_func();
+ERROR 42000: FUNCTION test.func does not exist
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+#
+# type 2.1
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: no
+#
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+#
+# type 2.2
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET @@path = DEFAULT;
+#
+# type 2.3
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test2 | path set: no
+#
+USE test2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+#
+# type 2.4
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET @@path = DEFAULT;
+#
+# type 2.5
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+# lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET PATH 'test2,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack, Rt: func
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 2.6
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test2 | path set: yes
+# lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack, Rt: func
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 2.7
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+# to test unqualified function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN func_local();
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+USE test;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Rt: func_local
+DROP FUNCTION test.func_local;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+DROP FUNCTION test2.func_local;
+SELECT pack.func();
+ERROR 42000: FUNCTION test.func_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 2.8
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test | path set: yes
+# to test unqualified function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN func_local();
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Rt: func_local
+DROP FUNCTION func_local;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+DROP FUNCTION test2.func_local;
+SELECT pack.func();
+ERROR 42000: FUNCTION test.func_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 2.9
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+# to test qualified package function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PACKAGE pack2
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+$$
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN pack2.func();
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+USE test;
+CREATE PACKAGE pack2
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack2, Rt: func
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack2.func does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 2.10
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test | path set: yes
+# to test qualified package function invocation in a qualified package function
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PACKAGE pack2
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+$$
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN pack2.func();
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+CREATE PACKAGE pack2
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack2, Rt: func
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack2.func does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 2.11
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+CREATE DATABASE pack;
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 2.12
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+USE test;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 2.13
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test2 | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack
+FUNCTION func() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+$$
+USE pack;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+#
+# type 2.14
+# sql_mode: DEFAULT | function | is qualified
+# curr db: X | path set: yes
+# qualified package function invoke internal private function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
+USE test;
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_prv';
+CREATE PACKAGE pack
+FUNCTION func_pub() RETURNS TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack
+FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
+FUNCTION func_pub() RETURNS TEXT RETURN func_prv();
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func_pub();
+pack.func_pub()
+Invoke from Db: test, Pack: pack, Rt: func_prv
+SET @@path = DEFAULT;
+#
+# type 2.15
+# sql_mode: DEFAULT | function | is qualified
+# curr db: test2 | path set: yes
+# qualified package function invoke internal private function
+#
+SET PATH 'test,test2';
+USE test2;
+SELECT pack.func_pub();
+pack.func_pub()
+Invoke from Db: test, Pack: pack, Rt: func_prv
+DROP FUNCTION func_prv;
+USE test;
+DROP FUNCTION func_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 3.1
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: X | path set: no
+#
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc;
+ERROR 42000: PROCEDURE proc does not exist
+#
+# type 3.2
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 3.3
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: test2 | path set: no
+#
+USE test2;
+CALL proc;
+ERROR 42000: PROCEDURE test2.proc does not exist
+#
+# type 3.4
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 3.5
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: X | path set: yes
+# lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET PATH 'test2,test';
+CALL proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc;
+ERROR 42000: PROCEDURE proc does not exist
+SET @@path = DEFAULT;
+#
+# type 3.6
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: test2 | path set: yes
+# lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+CALL proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE proc;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc;
+ERROR 42000: PROCEDURE test2.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 3.7
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: X | path set: yes
+# to test unqualified procedure invocation in an unqualified procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+USE test;
+CREATE PROCEDURE proc_call_proc() CALL proc;
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+USE test;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc_call_proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc_call_proc;
+ERROR 42000: PROCEDURE test.proc does not exist
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+#
+# type 3.8
+# sql_mode: DEFAULT | procedure | is unqualified
+# curr db: test | path set: yes
+# to test unqualified procedure invocation in an unqualified procedure
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
+USE test;
+CREATE PROCEDURE proc_call_proc() CALL proc;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
+CALL proc_call_proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE proc;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc_call_proc;
+ERROR 42000: PROCEDURE test.proc does not exist
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+#
+# type 4.1
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: no
+#
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+#
+# type 4.2
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 4.3
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test2 | path set: no
+#
+USE test2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+#
+# type 4.4
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 4.5
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+# lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET PATH 'test2,test';
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack, Rt: proc
+Invoke from Db: test2, Pack: pack, Rt: proc
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 4.6
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test2 | path set: yes
+# lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack, Rt: proc
+Invoke from Db: test2, Pack: pack, Rt: proc
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 4.7
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+# to test unqualified procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() CALL proc_local;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+USE test;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test, Rt: proc_local
+Invoke from Db: test, Rt: proc_local
+DROP PROCEDURE test.proc_local;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+DROP PROCEDURE test2.proc_local;
+CALL pack.proc;
+ERROR 42000: PROCEDURE test.proc_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 4.8
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test | path set: yes
+# to test unqualified procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() CALL proc_local;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
+CALL pack.proc;
+Invoke from Db: test, Rt: proc_local
+Invoke from Db: test, Rt: proc_local
+DROP PROCEDURE proc_local;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+DROP PROCEDURE test2.proc_local;
+CALL pack.proc;
+ERROR 42000: PROCEDURE test.proc_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 4.9
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+# to test qualified package procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PACKAGE pack2
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+$$
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() CALL pack2.proc;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+USE test;
+CREATE PACKAGE pack2
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack2, Rt: proc
+Invoke from Db: test, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack2.proc does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 4.10
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test | path set: yes
+# to test qualified package procedure invocation in a qualified package procedure
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PACKAGE pack2
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+$$
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() CALL pack2.proc;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+CREATE PACKAGE pack2
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test, Pack: pack2, Rt: proc
+Invoke from Db: test, Pack: pack2, Rt: proc
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack2.proc does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 4.11
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+CREATE DATABASE pack;
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 4.12
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+USE test;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 4.13
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test2 | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+$$
+USE pack;
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
+USE test2;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+#
+# type 4.14
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: X | path set: yes
+# qualified package procedure invoke internal private procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
+USE test;
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv';
+CREATE PACKAGE pack
+PROCEDURE proc_pub();
+END;
+$$
+CREATE PACKAGE BODY pack
+PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
+PROCEDURE proc_pub() CALL proc_prv;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc_pub;
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+SET @@path = DEFAULT;
+#
+# type 4.15
+# sql_mode: DEFAULT | procedure | is qualified
+# curr db: test2 | path set: yes
+# qualified package procedure invoke internal private procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CALL pack.proc_pub;
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+DROP PROCEDURE proc_prv;
+USE test;
+DROP PROCEDURE proc_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 5.1
+# sql_mode: ORACLE | function | is unqualified
+# curr db: X | path set: no
+#
+SET sql_mode = ORACLE;
+USE test;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func();
+ERROR 42000: FUNCTION func does not exist
+#
+# type 5.2
+# sql_mode: ORACLE | function | is unqualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET @@path = DEFAULT;
+#
+# type 5.3
+# sql_mode: ORACLE | function | is unqualified
+# curr db: test2 | path set: no
+#
+USE test2;
+SELECT func();
+ERROR 42000: FUNCTION test2.func does not exist
+#
+# type 5.4
+# sql_mode: ORACLE | function | is unqualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET @@path = DEFAULT;
+#
+# type 5.5
+# sql_mode: ORACLE | function | is unqualified
+# curr db: X | path set: yes
+# lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+SET PATH 'test2,test';
+SELECT func();
+func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func();
+ERROR 42000: FUNCTION func does not exist
+SET @@path = DEFAULT;
+#
+# type 5.6
+# sql_mode: ORACLE | function | is unqualified
+# curr db: test2 | path set: yes
+# lookup in between 2 unqualified functions with exactly the same name in different 2 databases
+#
+USE test;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+SELECT func();
+func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION func;
+SELECT func();
+func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func();
+ERROR 42000: FUNCTION test2.func does not exist
+SET @@path = DEFAULT;
+#
+# type 5.7
+# sql_mode: ORACLE | function | is unqualified
+# curr db: X | path set: yes
+# to test unqualified function invocation in an unqualified function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+USE test;
+CREATE FUNCTION func_call_func()
+RETURN TEXT AS
+BEGIN
+RETURN func();
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+USE test;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION test.func;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func_call_func();
+ERROR 42000: FUNCTION test.func does not exist
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+#
+# type 5.8
+# sql_mode: ORACLE | function | is unqualified
+# curr db: test | path set: yes
+# to test unqualified function invocation in an unqualified function
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func';
+END;
+$$
+USE test;
+CREATE FUNCTION func_call_func()
+RETURN TEXT AS
+BEGIN
+RETURN func();
+END;
+$$
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test, Rt: func
+DROP FUNCTION func;
+SELECT func_call_func();
+func_call_func()
+Invoke from Db: test2, Rt: func
+DROP FUNCTION test2.func;
+SELECT func_call_func();
+ERROR 42000: FUNCTION test.func does not exist
+USE test;
+DROP FUNCTION func_call_func;
+SET @@path = DEFAULT;
+#
+# type 6.1
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: no
+#
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+#
+# type 6.2
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET @@path = DEFAULT;
+#
+# type 6.3
+# sql_mode: ORACLE | function | is qualified
+# curr db: test2 | path set: no
+#
+USE test2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+#
+# type 6.4
+# sql_mode: ORACLE | function | is qualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET @@path = DEFAULT;
+#
+# type 6.5
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+# lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+SET PATH 'test2,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack, Rt: func
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 6.6
+# sql_mode: ORACLE | function | is qualified
+# curr db: test2 | path set: yes
+# lookup in between 2 qualified packages function with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
+END;
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack, Rt: func
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 6.7
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+# to test unqualified function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_local()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func_local';
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN func_local();
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+USE test;
+CREATE FUNCTION func_local()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func_local';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Rt: func_local
+DROP FUNCTION test.func_local;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+DROP FUNCTION test2.func_local;
+SELECT pack.func();
+ERROR 42000: FUNCTION test.func_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 6.8
+# sql_mode: ORACLE | function | is qualified
+# curr db: test | path set: yes
+# to test unqualified function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_local()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func_local';
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN func_local();
+END;
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+CREATE FUNCTION func_local()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func_local';
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Rt: func_local
+DROP FUNCTION func_local;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Rt: func_local
+DROP FUNCTION test2.func_local;
+SELECT pack.func();
+ERROR 42000: FUNCTION test.func_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 6.9
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+# to test qualified package function invocation in a qualified package function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PACKAGE pack2 AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN pack2.func();
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+USE test;
+CREATE PACKAGE pack2 AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack2, Rt: func
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack2.func does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 6.10
+# sql_mode: ORACLE | function | is qualified
+# curr db: test | path set: yes
+# to test qualified package function invocation in a qualified package function
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PACKAGE pack2 AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
+END;
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN pack2.func();
+END;
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+CREATE PACKAGE pack2 AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
+END;
+END;
+$$
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack2, Rt: func
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test2, Pack: pack2, Rt: func
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack2.func does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 6.11
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+END;
+$$
+CREATE DATABASE pack;
+USE pack;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 6.12
+# sql_mode: ORACLE | function | is qualified
+# curr db: test | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+END;
+$$
+USE pack;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+USE test;
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+SET @@path = DEFAULT;
+#
+# type 6.13
+# sql_mode: ORACLE | function | is qualified
+# curr db: test2 | path set: yes
+# resolution priority in between qualified package function vs qualified db function resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+FUNCTION func() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
+END;
+END;
+$$
+USE pack;
+CREATE FUNCTION func()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: pack, Rt: func';
+END;
+$$
+USE test2;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+SET PATH 'sys,test';
+SELECT pack.func();
+pack.func()
+Invoke from Db: test, Pack: pack, Rt: func
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+SELECT pack.func();
+pack.func()
+Invoke from Db: pack, Rt: func
+DROP FUNCTION pack.func;
+SELECT pack.func();
+ERROR 42000: FUNCTION pack.func does not exist
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+#
+# type 6.14
+# sql_mode: ORACLE | function | is qualified
+# curr db: X | path set: yes
+# qualified package function invoke internal private function
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE FUNCTION func_prv()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test2, Rt: func_prv';
+END;
+$$
+USE test;
+CREATE FUNCTION func_prv()
+RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func_prv';
+END;
+$$
+CREATE PACKAGE pack AS
+FUNCTION func_pub() RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pack AS
+FUNCTION func_prv() RETURN TEXT AS
+BEGIN
+RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
+END;
+FUNCTION func_pub() RETURN TEXT AS
+BEGIN
+RETURN func_prv();
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SELECT pack.func_pub();
+pack.func_pub()
+Invoke from Db: test, Pack: pack, Rt: func_prv
+SET @@path = DEFAULT;
+#
+# type 6.15
+# sql_mode: ORACLE | function | is qualified
+# curr db: test2 | path set: yes
+# qualified package function invoke internal private function
+#
+SET PATH 'test,test2';
+USE test2;
+SELECT pack.func_pub();
+pack.func_pub()
+Invoke from Db: test, Pack: pack, Rt: func_prv
+DROP FUNCTION func_prv;
+USE test;
+DROP FUNCTION func_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 7.1
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: X | path set: no
+#
+USE test;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc;
+ERROR 42000: PROCEDURE proc does not exist
+#
+# type 7.2
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 7.3
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: test2 | path set: no
+#
+USE test2;
+CALL proc;
+ERROR 42000: PROCEDURE test2.proc does not exist
+#
+# type 7.4
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 7.5
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: X | path set: yes
+# lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+SET PATH 'test2,test';
+CALL proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc;
+ERROR 42000: PROCEDURE proc does not exist
+SET @@path = DEFAULT;
+#
+# type 7.6
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: test2 | path set: yes
+# lookup in between 2 unqualified procedures with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+CALL proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE proc;
+CALL proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc;
+ERROR 42000: PROCEDURE test2.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 7.7
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: X | path set: yes
+# to test unqualified procedure invocation in an unqualified procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+USE test;
+CREATE PROCEDURE proc_call_proc() AS
+BEGIN
+CALL proc;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+USE test;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL proc_call_proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE test.proc;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc_call_proc;
+ERROR 42000: PROCEDURE test.proc does not exist
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+#
+# type 7.8
+# sql_mode: ORACLE | procedure | is unqualified
+# curr db: test | path set: yes
+# to test unqualified procedure invocation in an unqualified procedure
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc';
+END;
+$$
+USE test;
+CREATE PROCEDURE proc_call_proc() AS
+BEGIN
+CALL proc;
+END;
+$$
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc';
+END;
+$$
+CALL proc_call_proc;
+Invoke from Db: test, Rt: proc
+Invoke from Db: test, Rt: proc
+DROP PROCEDURE proc;
+CALL proc_call_proc;
+Invoke from Db: test2, Rt: proc
+Invoke from Db: test2, Rt: proc
+DROP PROCEDURE test2.proc;
+CALL proc_call_proc;
+ERROR 42000: PROCEDURE test.proc does not exist
+USE test;
+DROP PROCEDURE proc_call_proc;
+SET @@path = DEFAULT;
+#
+# type 8.1
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: no
+#
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+#
+# type 8.2
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+#
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 8.3
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test2 | path set: no
+#
+USE test2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+#
+# type 8.4
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test2 | path set: yes
+#
+SET PATH 'sys,test';
+USE test2;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET @@path = DEFAULT;
+#
+# type 8.5
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+# lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+#
+USE test2;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+SET PATH 'test,test2';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+SET PATH 'test2,test';
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack, Rt: proc
+Invoke from Db: test2, Pack: pack, Rt: proc
+DROP PACKAGE BODY test2.pack;
+DROP PACKAGE test2.pack;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 8.6
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test2 | path set: yes
+# lookup in between 2 qualified packages procedure with exactly the same name in different 2 databases
+#
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+END;
+$$
+SET PATH 'CURRENT_SCHEMA,test';
+USE test2;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
+END;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack, Rt: proc
+Invoke from Db: test2, Pack: pack, Rt: proc
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 8.7
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+# to test unqualified procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc_local';
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+CALL proc_local;
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+USE test;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc_local';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test, Rt: proc_local
+Invoke from Db: test, Rt: proc_local
+DROP PROCEDURE test.proc_local;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+DROP PROCEDURE test2.proc_local;
+CALL pack.proc;
+ERROR 42000: PROCEDURE test.proc_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 8.8
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test | path set: yes
+# to test unqualified procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_local() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc_local';
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+CALL proc_local;
+END;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+CREATE PROCEDURE proc_local() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc_local';
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test, Rt: proc_local
+Invoke from Db: test, Rt: proc_local
+DROP PROCEDURE proc_local;
+CALL pack.proc;
+Invoke from Db: test2, Rt: proc_local
+Invoke from Db: test2, Rt: proc_local
+DROP PROCEDURE test2.proc_local;
+CALL pack.proc;
+ERROR 42000: PROCEDURE test.proc_local does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 8.9
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+# to test qualified package procedure invocation in a qualified package procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PACKAGE pack2 AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+CALL pack2.proc;
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+USE test;
+CREATE PACKAGE pack2 AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack2, Rt: proc
+Invoke from Db: test, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test.pack2;
+DROP PACKAGE test.pack2;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack2.proc does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 8.10
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test | path set: yes
+# to test qualified package procedure invocation in a qualified package procedure
+#
+SET PATH 'CURRENT_SCHEMA,test2';
+USE test2;
+CREATE PACKAGE pack2 AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
+END;
+END;
+$$
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+CALL pack2.proc;
+END;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+CREATE PACKAGE pack2 AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack2 AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
+END;
+END;
+$$
+CALL pack.proc;
+Invoke from Db: test, Pack: pack2, Rt: proc
+Invoke from Db: test, Pack: pack2, Rt: proc
+DROP PACKAGE BODY pack2;
+DROP PACKAGE pack2;
+CALL pack.proc;
+Invoke from Db: test2, Pack: pack2, Rt: proc
+Invoke from Db: test2, Pack: pack2, Rt: proc
+DROP PACKAGE BODY test2.pack2;
+DROP PACKAGE test2.pack2;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack2.proc does not exist
+USE test;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# type 8.11
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+END;
+$$
+CREATE DATABASE pack;
+USE pack;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 8.12
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+END;
+$$
+USE pack;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+USE test;
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+SET @@path = DEFAULT;
+#
+# type 8.13
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test2 | path set: yes
+# resolution priority in between qualified package procedure vs qualified db procedure resolution
+#
+USE test;
+CREATE PACKAGE pack AS
+PROCEDURE proc();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
+END;
+END;
+$$
+USE pack;
+CREATE PROCEDURE proc() AS
+BEGIN
+SELECT 'Invoke from Db: pack, Rt: proc';
+END;
+$$
+USE test2;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+SET PATH 'sys,test';
+CALL pack.proc;
+Invoke from Db: test, Pack: pack, Rt: proc
+Invoke from Db: test, Pack: pack, Rt: proc
+DROP PACKAGE BODY test.pack;
+DROP PACKAGE test.pack;
+CALL pack.proc;
+Invoke from Db: pack, Rt: proc
+Invoke from Db: pack, Rt: proc
+DROP PROCEDURE pack.proc;
+CALL pack.proc;
+ERROR 42000: PROCEDURE pack.proc does not exist
+DROP DATABASE pack;
+SET @@path = DEFAULT;
+#
+# type 8.14
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: X | path set: yes
+# qualified package procedure invoke internal private procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CREATE PROCEDURE proc_prv() AS
+BEGIN
+SELECT 'Invoke from Db: test2, Rt: proc_prv';
+END;
+$$
+USE test;
+CREATE PROCEDURE proc_prv() AS
+BEGIN
+SELECT 'Invoke from Db: test, Rt: proc_prv';
+END;
+$$
+CREATE PACKAGE pack AS
+PROCEDURE proc_pub();
+END;
+$$
+CREATE PACKAGE BODY pack AS
+PROCEDURE proc_prv() AS
+BEGIN
+SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
+END;
+PROCEDURE proc_pub() AS
+BEGIN
+CALL proc_prv;
+END;
+END;
+$$
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL pack.proc_pub;
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+SET @@path = DEFAULT;
+#
+# type 8.15
+# sql_mode: ORACLE | procedure | is qualified
+# curr db: test2 | path set: yes
+# qualified package procedure invoke internal private procedure
+#
+SET PATH 'test,test2';
+USE test2;
+CALL pack.proc_pub;
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+Invoke from Db: test, Pack: pack, Rt: proc_prv
+DROP PROCEDURE proc_prv;
+DROP DATABASE test2;
+USE test;
+DROP PROCEDURE proc_prv;
+DROP PACKAGE BODY pack;
+DROP PACKAGE pack;
+SET @@path = DEFAULT;
+#
+# Resolution of routines in stored routines should be based on
+# the current path, not the path at the time of creation.
+#
+SET @@path= DEFAULT;
+SET sql_mode= DEFAULT;
+USE test;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
+CREATE DATABASE test3;
+USE test3;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test3, Rt: func';
+CREATE DATABASE test2;
+USE test2;
+SET @@path= 'test';
+CREATE FUNCTION func2() RETURNS TEXT RETURN func();
+USE test;
+SET @@path= 'test3';
+SELECT test2.func2();
+test2.func2()
+Invoke from Db: test3, Rt: func
+SET @@path= 'test';
+#TODO
+#SELECT test2.func2();
+DROP FUNCTION test.func;
+DROP DATABASE test2;
+DROP DATABASE test3;
+#
+# Path resolution where database name contains ','
+#
+CREATE DATABASE `a,b`;
+USE `a,b`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \"a,b\", Rt: func';
+USE test;
+SELECT func();
+ERROR 42000: FUNCTION test.func does not exist
+SET @@path= '`a,b`';
+SELECT func();
+func()
+Invoke from Db: "a,b", Rt: func
+DROP DATABASE `a,b`;
+USE test;
+#
+# Path resolution where database name contains '"'
+#
+CREATE DATABASE `"`;
+USE `"`;
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: \", Rt: func';
+USE test;
+SELECT func();
+ERROR 42000: FUNCTION test.func does not exist
+SET @@path= '`"`';
+SELECT func();
+func()
+Invoke from Db: ", Rt: func
+DROP DATABASE `"`;
+USE test;
+SET @@path= DEFAULT;
+#
+# Modify session path within a stored routine
+# This is not allowed since we invalidate the sp caches when the session
+# path is changed
+#
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+SET @@path= 'sys';
+RETURN '';
+END;
+$$
+SELECT func();
+ERROR HY000: The system variable path cannot be set in stored functions or triggers
+DROP FUNCTION func;
+#
+# Modify global path within a stored routine
+#
+CREATE FUNCTION func() RETURNS TEXT
+BEGIN
+SET @@global.path= 'sys';
+RETURN '';
+END;
+$$
+SELECT func();
+func()
+
+SET @@global.path= DEFAULT;
+DROP FUNCTION func;
+#
+# End of 11.8 tests
+#
+#
+# Name shadowing from a package
+#
+create package pkg
+function f1() returns int;
+end;
+$$
+create database pkg$$
+create function pkg.f1() returns int return 2$$
+create procedure p1()
+begin
+select pkg.f1();
+end$$
+call p1();
+ERROR 42000: FUNCTION test.pkg.f1 does not exist
+drop database pkg;
+drop package pkg;
+drop procedure p1;
+CREATE FUNCTION func() RETURNS TEXT
+PATH 'test,xxx'
+BEGIN
+RETURN 'Invoke from Db: test, Rt: func';
+END;
+$$
+DROP FUNCTION func;
+CREATE PROCEDURE proc()
+PATH 'test,xxx'
+BEGIN
+SELECT func();
+END;
+$$
+DROP PROCEDURE proc;
+#
+# Prepared statement should not be affected by PATH changed
+# between PREPARE and EXECUTE
+#
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func() RETURNS TEXT RETURN 'test2.func()';
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func() RETURNS TEXT RETURN 'test3.func()';
+SET PATH 'test3';
+PREPARE stmt FROM 'SELECT func()';
+SET PATH 'test2';
+SELECT @@path;
+@@path
+`test2`
+EXECUTE stmt;
+func()
+test3.func()
+DEALLOCATE PREPARE stmt;
+DROP DATABASE test2;
+DROP DATABASE test3;
+#
+# Test resolution where DATABASE name contains backtick
+#
+CREATE DATABASE `a``b`;
+CREATE FUNCTION `a``b`.func() RETURNS TEXT RETURN 'a`b.func()';
+SET PATH '`a``b`';
+SELECT func();
+func()
+a`b.func()
+DROP DATABASE `a``b`;

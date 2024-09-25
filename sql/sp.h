@@ -62,6 +62,7 @@ enum enum_sp_type
 
 class Sp_handler
 {
+public:
   bool sp_resolve_package_routine_explicit(THD *thd,
                                            sp_head *caller,
                                            sp_name *name,
@@ -198,6 +199,8 @@ public:
   virtual sp_head *sp_find_routine(THD *thd,
                                    const Database_qualified_name *name,
                                    bool cache_only) const;
+  int sp_routine_exists(THD *thd,
+                        const Database_qualified_name *name) const;
   virtual int sp_cache_routine(THD *thd, const Database_qualified_name *name,
                                sp_head **sp) const;
 
@@ -607,6 +610,7 @@ enum
   MYSQL_PROC_FIELD_CREATED,
   MYSQL_PROC_FIELD_MODIFIED,
   MYSQL_PROC_FIELD_SQL_MODE,
+  MYSQL_PROC_FIELD_PATH,
   MYSQL_PROC_FIELD_COMMENT,
   MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT,
   MYSQL_PROC_FIELD_COLLATION_CONNECTION,
