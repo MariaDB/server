@@ -94,3 +94,12 @@ select vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') as
 e
 insert into t values (x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
 drop table t;
+#
+# MDEV-35006 Using varbinary as vector-storing column results in assertion failures
+#
+create table t (pk int primary key, v varbinary(1024) not null, vector key(v)) engine=InnoDB;
+insert into t values (1, x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
+select pk,hex(v) from t;
+pk	hex(v)
+1	B047263C9F87233FCFD27E3EAE493E3F0329F43E
+drop table t;

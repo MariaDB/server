@@ -3136,8 +3136,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       }
  
       key_part= keyinfo->key_part;
-      uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
-	                                    keyinfo->user_defined_key_parts;
+      uint key_parts= share->use_ext_keys && key < share->keys
+                  ? keyinfo->ext_key_parts : keyinfo->user_defined_key_parts;
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
         key_parts++;
       if (keyinfo->algorithm == HA_KEY_ALG_UNDEF) // old .frm
@@ -3191,7 +3191,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (i == 0)
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
-            !(field->flags & BLOB_FLAG) &&
+            !(field->flags & BLOB_FLAG) && key < share->keys &&
             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
