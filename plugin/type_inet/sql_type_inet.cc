@@ -1293,7 +1293,7 @@ public:
 class in_inet6 :public in_vector
 {
   Inet6 m_value;
-  static int cmp_inet6(const void *, const void *a_, const void *b_)
+  static int cmp_inet6(void *, const void *a_, const void *b_)
   {
     const Inet6 *a= static_cast<const Inet6*>(a_);
     const Inet6 *b= static_cast<const Inet6*>(b_);

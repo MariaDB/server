@@ -1732,7 +1732,7 @@ public:
 
 
 static
-int simple_ulonglong_key_cmp(const void*, const void* key1, const void* key2)
+int simple_ulonglong_key_cmp(void*, const void* key1, const void* key2)
 {
   const ulonglong *val1= static_cast<const ulonglong *>(key1);
   const ulonglong *val2= static_cast<const ulonglong *>(key2);

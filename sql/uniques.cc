@@ -437,7 +437,7 @@ Unique::reset()
 
 C_MODE_START
 
-static int buffpek_compare(const void *arg, const void *key_ptr1,
+static int buffpek_compare(void *arg, const void *key_ptr1,
                            const void *key_ptr2)
 {
   auto ctx= static_cast<const BUFFPEK_COMPARE_CONTEXT *>(arg);

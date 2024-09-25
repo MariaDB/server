@@ -67,8 +67,7 @@
 
 extern "C" int event_queue_element_compare_q(void *, uchar *, uchar *);
 
-int event_queue_element_compare_q(const void *vptr, const void *a,
-                                  const void *b)
+int event_queue_element_compare_q(void *, const void *a, const void *b)
 {
   auto left= static_cast<const Event_queue_element *>(a);
   auto right= static_cast<const Event_queue_element *>(b);
