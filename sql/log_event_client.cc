@@ -632,10 +632,8 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       if (!ptr)
         goto return_null;
 
-      float fl;
-      float4get(fl, ptr);
       char tmp[320];
-      sprintf(tmp, "%-20g", (double) fl);
+      sprintf(tmp, "%-20g", (double) get_float(ptr));
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
