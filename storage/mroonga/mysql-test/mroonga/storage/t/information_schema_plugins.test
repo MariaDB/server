@@ -16,7 +16,7 @@
 
 --source ../../include/mroonga/have_mroonga.inc
 
-select PLUGIN_NAME, PLUGIN_VERSION, PLUGIN_TYPE
+select PLUGIN_NAME, PLUGIN_TYPE
        from information_schema.plugins where plugin_name = "Mroonga";
 
 --source ../../include/mroonga/have_mroonga_deinit.inc
