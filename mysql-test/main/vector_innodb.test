@@ -79,3 +79,11 @@ create table t (v blob not null, vector key(v)) engine=InnoDB;
 select vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') as e from t order by e limit 1;
 insert into t values (x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
 drop table t;
+
+--echo #
+--echo # MDEV-35006 Using varbinary as vector-storing column results in assertion failures
+--echo #
+create table t (pk int primary key, v varbinary(1024) not null, vector key(v)) engine=InnoDB;
+insert into t values (1, x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
+select pk,hex(v) from t;
+drop table t;
