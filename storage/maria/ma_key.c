@@ -284,9 +284,7 @@ MARIA_KEY *_ma_make_key(MARIA_HA *info, MARIA_KEY *int_key, uint keynr,
     {						/* Numerical column */
       if (type == HA_KEYTYPE_FLOAT)
       {
-	float nr;
-	float4get(nr,pos);
-	if (isnan(nr))
+	if (isnan(get_float(pos)))
 	{
 	  /* Replace NAN with zero */
 	  bzero(key,length);
