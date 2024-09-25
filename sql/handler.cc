@@ -3848,7 +3848,8 @@ int handler::ha_index_read_map(uchar *buf, const uchar *key,
 
 int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
                                           key_part_map keypart_map,
-                                          enum ha_rkey_function find_flag)
+                                          enum ha_rkey_function find_flag,
+                                          bool update)
 {
   int result;
   DBUG_ASSERT(inited==NONE);
@@ -3857,19 +3858,22 @@ int handler::ha_index_read_idx_map(uchar *buf, uint index, const uchar *key,
   DBUG_ASSERT(end_range == NULL);
   TABLE_IO_WAIT(tracker, PSI_TABLE_FETCH_ROW, index, result,
     { result= index_read_idx_map(buf, index, key, keypart_map, find_flag); })
-  increment_statistics(&SSV::ha_read_key_count);
-  if (!result)
+  if (update)
   {
-    rows_stats.key_read_hit++;
-    update_rows_read();
-    index_rows_read[index]++;
-    if (table->vfield && buf == table->record[0])
-      table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
-  }
-  else
-  {
-    status_var_increment(table->in_use->status_var.ha_read_key_miss);
-    rows_stats.key_read_miss++;
+    increment_statistics(&SSV::ha_read_key_count);
+    if (!result)
+    {
+      rows_stats.key_read_hit++;
+      update_rows_read();
+      index_rows_read[index]++;
+      if (table->vfield && buf == table->record[0])
+        table->update_virtual_fields(this, VCOL_UPDATE_FOR_READ);
+    }
+    else
+    {
+      status_var_increment(table->in_use->status_var.ha_read_key_miss);
+      rows_stats.key_read_miss++;
+    }
   }
   table->status=result ? STATUS_NOT_FOUND: 0;
   return result;

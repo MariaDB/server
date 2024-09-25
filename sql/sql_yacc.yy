@@ -16181,6 +16181,7 @@ keyword_set_special_case:
           NAMES_SYM
         | ROLE_SYM
         | PASSWORD_SYM
+        | PATH_SYM
         ;
 
 keyword_sysvar_type:
@@ -16426,7 +16427,6 @@ keyword_func_sp_var_and_label:
         | PARTIAL
         | PARTITIONING_SYM
         | PARTITIONS_SYM
-        | PATH_SYM
         | PERSISTENT_SYM
         | PHASE_SYM
         | PLUGIN_SYM
@@ -17261,6 +17261,20 @@ option_value_no_option_type:
           {
             if (unlikely(Lex->sp_create_set_password_instr(thd, $4, $6,
                                                            yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
+        | PATH_SYM
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          set_expr_or_default
+          {
+            Lex_ident_sys tmp(thd, &$1);
+
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $3.expr, $3.expr_str)) ||
+                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
               MYSQL_YYABORT;
           }
         ;

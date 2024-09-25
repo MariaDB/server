@@ -12289,3 +12289,5 @@ ER_VECTOR_BINARY_FORMAT_INVALID
         eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
 ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
+ER_INVALID_SCHEMA_NAME_LIST_SPEC
+        eng "Invalid schema list specification"

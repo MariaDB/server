@@ -41,6 +41,7 @@
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #endif
+#include "sql_path.h"
 
 void LEX::parse_error(uint err_number)
 {
@@ -4331,7 +4332,7 @@ bool LEX::copy_db_to(LEX_CSTRING *to)
 }
 
 
-Lex_ident_db_normalized LEX::copy_db_normalized()
+Lex_ident_db_normalized LEX::copy_db_normalized(bool f_raise_err)
 {
   if (sphead && sphead->m_name.str)
   {
@@ -4339,7 +4340,7 @@ Lex_ident_db_normalized LEX::copy_db_normalized()
     DBUG_ASSERT(sphead->m_db.length);
     return thd->to_ident_db_normalized_with_error(sphead->m_db);
   }
-  return thd->copy_db_normalized();
+  return thd->copy_db_normalized(f_raise_err);
 }
 
 
@@ -7575,6 +7576,36 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 }
 
 
+sp_name *LEX::make_sp_name_sql_path(THD *thd, const Lex_ident_sys_st &name)
+{
+  if (unlikely(Lex_ident_routine::check_name_with_error(name)))
+    return NULL;
+
+  Lex_ident_db_normalized db;
+  sp_name *res= NULL;
+
+  db= copy_db_normalized(false);
+  if (!db.str)
+  {
+    if (thd->sql_path.find_db_unqualified(thd, name, &sp_handler_procedure,
+                                          NULL, &res))
+      return NULL;
+
+    if (!res)
+    {
+      if (!thd->lex->with_cte_resolution)
+        my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+
+      return NULL;
+    }
+  }
+  else
+    res= new (thd->mem_root) sp_name(db, name, false);
+
+  return res;
+}
+
+
 sp_lex_local *LEX::package_routine_start(THD *thd,
                                          const Sp_handler *sph,
                                          const Lex_ident_sys_st &name)
@@ -9482,8 +9513,8 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
   value_list.empty();
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               name, &sph, &pkgname)))
+  if (unlikely(sph->sp_resolve_package_routine_sql_path(thd, thd->lex->sphead,
+                                                        name, &sph, &pkgname)))
     return true;
   if (unlikely(!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph))))
     return true;
@@ -9496,7 +9527,7 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
-  sp_name *spname= make_sp_name(thd, *name);
+  sp_name *spname= make_sp_name_sql_path(thd, *name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 

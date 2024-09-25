@@ -563,7 +563,7 @@ static TABLE *open_proc_table_for_update(THD *thd)
 int
 Sp_handler::db_find_routine_aux(THD *thd,
                                 const Database_qualified_name *name,
-                                TABLE *table) const
+                                TABLE *table, bool update) const
 {
   uchar key[MAX_KEY_LENGTH];	// db, name, optional key length type
   DBUG_ENTER("db_find_routine_aux");
@@ -588,7 +588,8 @@ Sp_handler::db_find_routine_aux(THD *thd,
 
   if (table->file->ha_index_read_idx_map(table->record[0], 0, key,
                                          HA_WHOLE_KEY,
-                                         HA_READ_KEY_EXACT))
+                                         HA_READ_KEY_EXACT,
+                                         update))
     DBUG_RETURN(SP_KEY_NOT_FOUND);
 
   DBUG_RETURN(SP_OK);
@@ -2238,6 +2239,63 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
 }
 
 
+int
+Sp_handler::sp_find_routine_quick(THD *thd,
+                                  const Database_qualified_name *name) const
+{
+  DBUG_ENTER("Sp_handler::sp_find_routine_quick");
+  DBUG_PRINT("enter", ("name:  %.*s.%.*s  type: %s",
+                       (int) name->m_db.length, name->m_db.str,
+                       (int) name->m_name.length, name->m_name.str,
+                       type_str()));
+
+  Parser_state *oldps;
+  oldps= thd->m_parser_state;
+  thd->m_parser_state= NULL;
+
+  sp_cache **cp= get_cache(thd);
+  sp_head *sp;
+
+  if ((sp= sp_cache_lookup(cp, name)))
+  {
+    thd->m_parser_state= oldps;
+    DBUG_RETURN(SP_OK);
+  }
+
+  TABLE *table;
+  int ret;
+  THD::used_t saved_time_zone_used= thd->used & THD::TIME_ZONE_USED;
+
+  start_new_trans new_trans(thd);
+
+  if (!(table= open_proc_table_for_read(thd)))
+  {
+    ret= SP_OPEN_TABLE_FAILED;
+    goto done;
+  }
+
+  if ((ret= db_find_routine_aux(thd, name, table, false)) != SP_OK)
+    goto done;
+
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
+
+done:
+  thd->used= (thd->used & ~THD::TIME_ZONE_USED) | saved_time_zone_used;
+  if (table)
+    thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
+
+  thd->m_parser_state= oldps;
+
+  DBUG_RETURN(ret);
+}
+
+
 /**
   Find a package routine.
   See sp_cache_routine() for more information on parameters and return value.
@@ -2494,6 +2552,25 @@ is_package_public_routine(THD *thd,
 }
 
 
+static bool
+is_package_public_routine_with_body(THD *thd,
+                                    const Lex_ident_db &db,
+                                    const LEX_CSTRING &package,
+                                    const LEX_CSTRING &routine,
+                                    enum_sp_type type)
+{
+  if (!is_package_public_routine(thd, db, package, routine, type))
+    return false;
+
+  sp_head *sp= NULL;
+  Database_qualified_name tmp(db, package);
+  bool ret= sp_handler_package_body.
+              sp_cache_routine_reentrant(thd, &tmp, &sp);
+  sp_package *spec= (!ret && sp) ? sp->get_package() : NULL;
+  return spec && spec->m_routine_implementations.find(routine, type);
+}
+
+
 /**
   Check if a routine has a declaration in the CREATE PACKAGE statement
   by looking up in sp_package_spec_cache.
@@ -2692,6 +2769,76 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
                                              pkg_routine_handler, pkgname) :
          sp_resolve_package_routine_implicit(thd, caller, name,
                                              pkg_routine_handler, pkgname);
+}
+
+
+bool
+Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
+                                       sp_head *caller,
+                                       sp_name *name,
+                                       const Sp_handler **pkg_routine_handler,
+                                       Database_qualified_name *pkgname) const
+{
+  bool ret= false;
+  sp_name *qname= NULL;
+
+  if (!thd->db.length)
+  {
+    if (name->m_explicit_name)
+      ret= thd->sql_path.find_db_qualified(thd, name, pkg_routine_handler, pkgname);
+    else
+    {
+      if (thd->lex->sphead && thd->lex->sphead->m_name.str)
+      {
+        if ((*pkg_routine_handler)->sp_find_routine_quick(thd, name))
+        {
+          ret= thd->sql_path.find_db_unqualified(thd, name->m_name, *pkg_routine_handler, NULL, &qname);
+          if (!ret && qname)
+            *name= *qname;
+        }
+      }
+    }
+
+    return ret;
+  }
+
+  if (name->m_explicit_name)
+  {
+    ret= sp_resolve_package_routine_explicit(thd, caller, name,
+                                             pkg_routine_handler, pkgname);
+
+    if (!ret && !pkgname->m_name.length)
+    {
+      if ((*pkg_routine_handler)->sp_find_qualified_routine(thd, name->m_db, name))
+        ret= thd->sql_path.find_db_qualified(thd, name, pkg_routine_handler, pkgname);
+    }
+  }
+  else
+  {
+    ret= sp_resolve_package_routine_implicit(thd, caller, name,
+                                             pkg_routine_handler, pkgname);
+
+    if (!ret && !pkgname->m_name.length)
+    {
+      if ((*pkg_routine_handler)->sp_find_routine_quick(thd, name))
+      {
+        ret= thd->sql_path.find_db_unqualified(thd, name->m_name, *pkg_routine_handler, NULL, &qname);
+        if (!ret && qname)
+          *name= *qname;
+      }
+    }
+  }
+
+  return ret;
+}
+
+
+bool Sp_handler::sp_find_qualified_routine(THD *thd,
+                                           const Lex_ident_db &tmpdb,
+                                           sp_name *name) const
+{
+  return !(is_package_public_routine_with_body(thd, tmpdb, name->m_db,
+                                               name->m_name, type()));
 }
 
 

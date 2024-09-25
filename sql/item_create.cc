@@ -38,6 +38,7 @@
 #include "sql_type_geom.h"
 #include "item_vectorfunc.h"
 #include <mysql/plugin_function.h>
+#include "sql_path.h"
 
 
 extern "C" uchar*
@@ -2839,6 +2840,8 @@ Item*
 Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
                           List<Item> *item_list)
 {
+  Lex_ident_db_normalized db;
+
   if (unlikely(! thd->db.str && ! thd->lex->sphead))
   {
     /*
@@ -2852,14 +2855,36 @@ Create_qfunc::create_func(THD *thd, const LEX_CSTRING *name,
       Reusing ER_SP_DOES_NOT_EXIST have a message consistent with
       the case when a default database exist, see Create_sp_func::create().
     */
-    my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
-             "FUNCTION", name->str);
-    return NULL;
+
+    if (thd->sql_path.find_db_unqualified(thd, *name, &sp_handler_function,
+                                          &db, NULL))
+      return NULL;
+
+    if (!db.str)
+    {
+      my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+               "FUNCTION", name->str);
+      return NULL;
+    }
   }
 
-  Lex_ident_db_normalized db= thd->lex->copy_db_normalized();
   if (!db.str)
-    return NULL; /*No db or EOM, error was already sent */
+  {
+    db= thd->lex->copy_db_normalized(false);
+    if (!db.str)
+    {
+      if (thd->sql_path.find_db_unqualified(thd, *name, &sp_handler_function,
+                                            &db, NULL))
+        return NULL;
+
+      if (!db.str)
+      {
+        my_error(ER_SP_DOES_NOT_EXIST, MYF(0),
+                "FUNCTION", name->str);
+        return NULL;
+      }
+    }
+  }
 
   return create_with_db(thd, db, Lex_ident_routine(*name), false, item_list);
 }
@@ -3011,8 +3036,8 @@ Create_sp_func::create_with_db(THD *thd,
     arg_count= item_list->elements;
 
   qname= new (thd->mem_root) sp_name(db, name, use_explicit_name);
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               qname, &sph, &pkgname)))
+  if (unlikely(sph->sp_resolve_package_routine_sql_path(thd, thd->lex->sphead,
+                                                        qname, &sph, &pkgname)))
     return NULL;
   sph->add_used_routine(lex, thd, qname);
   if (pkgname.m_name.length)

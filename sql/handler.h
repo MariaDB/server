@@ -4270,7 +4270,8 @@ public:
                         enum ha_rkey_function find_flag);
   int ha_index_read_idx_map(uchar * buf, uint index, const uchar * key,
                             key_part_map keypart_map,
-                            enum ha_rkey_function find_flag);
+                            enum ha_rkey_function find_flag,
+                            bool update=true);
   int ha_index_next(uchar * buf);
   int ha_index_prev(uchar * buf);
   int ha_index_first(uchar * buf);
