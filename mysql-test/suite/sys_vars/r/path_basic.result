@@ -1,0 +1,540 @@
+SET NAMES utf8;
+SELECT @@session.path;
+@@session.path
+`CURRENT_SCHEMA`
+SELECT @@global.path;
+@@global.path
+`CURRENT_SCHEMA`
+SET @@global.path= '.,sys';
+SET @@session.path= DEFAULT;
+SET @start_global_value = @@global.path;
+SELECT @start_global_value;
+@start_global_value
+`.`,`sys`
+SET @start_session_value = @@session.path;
+SELECT @start_session_value;
+@start_session_value
+`.`,`sys`
+'#'
+'#--- Test Variable access and assignment with and without @@ ---#'
+'#'
+SELECT path;
+ERROR 42S22: Unknown column 'path' in 'SELECT'
+SELECT session.path;
+ERROR 42S02: Unknown table 'session' in SELECT
+SELECT session path;
+ERROR 42S22: Unknown column 'session' in 'SELECT'
+SELECT @@session path;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'path' at line 1
+SELECT global.path;
+ERROR 42S02: Unknown table 'global' in SELECT
+SELECT global path;
+ERROR 42S22: Unknown column 'global' in 'SELECT'
+SELECT @@global path;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'path' at line 1
+SELECT @@path;
+@@path
+`.`,`sys`
+SELECT @@session.path;
+@@session.path
+`.`,`sys`
+SELECT @@global.path;
+@@global.path
+`.`,`sys`
+SET @@session.path='aaa';
+SELECT @@session.path;
+@@session.path
+`aaa`
+SET session path='bbb';
+SELECT @@session.path;
+@@session.path
+`bbb`
+SET @@global.path='ccc';
+SELECT @@global.path;
+@@global.path
+`ccc`
+SET global path='ddd';
+SELECT @@global.path;
+@@global.path
+`ddd`
+'#'
+'#--- Check the DEFAULT value of path ---#'
+'#'
+SET @@global.path = 'aaa';
+SET @@global.path = DEFAULT;
+SELECT @@global.path;
+@@global.path
+`CURRENT_SCHEMA`
+SET @@global.path= '.,sys';
+SET @@session.path = 'abc';
+SET @@session.path = DEFAULT;
+SELECT @@session.path;
+@@session.path
+`.`,`sys`
+SET @@path = 'def';
+SET @@path = DEFAULT;
+SELECT @@path;
+@@path
+`.`,`sys`
+'#'
+'#--- Change the value of path to a valid value ---#'
+'#'
+SET PATH '.';
+SELECT @@path;
+@@path
+`.`
+SET PATH '  a   ';
+SELECT @@path;
+@@path
+`a`
+SET PATH '`c`';
+SELECT @@path;
+@@path
+`c`
+SET sql_mode=ORACLE;
+SET PATH '"d"';
+SELECT @@path;
+@@path
+`d`
+SET sql_mode=DEFAULT;
+SET PATH ',e';
+SELECT @@path;
+@@path
+`e`
+SET PATH ',,f';
+SELECT @@path;
+@@path
+`f`
+SET PATH ',,,g';
+SELECT @@path;
+@@path
+`g`
+SET PATH 'h,';
+SELECT @@path;
+@@path
+`h`
+SET PATH 'i,,';
+SELECT @@path;
+@@path
+`i`
+SET PATH 'j,,,';
+SELECT @@path;
+@@path
+`j`
+SET PATH 'a,b';
+SELECT @@path;
+@@path
+`a`,`b`
+SET PATH 'b,cd';
+SELECT @@path;
+@@path
+`b`,`cd`
+SET PATH 'bc,d';
+SELECT @@path;
+@@path
+`bc`,`d`
+SET PATH 'b,,e';
+SELECT @@path;
+@@path
+`b`,`e`
+SET PATH 'bc,,e';
+SELECT @@path;
+@@path
+`bc`,`e`
+SET PATH 'b,,ef';
+SELECT @@path;
+@@path
+`b`,`ef`
+SET PATH 'aaa';
+SELECT @@path;
+@@path
+`aaa`
+SET PATH '`abc`';
+SELECT @@path;
+@@path
+`abc`
+SET sql_mode=ORACLE;
+SET PATH '"bbb"';
+SELECT @@path;
+@@path
+`bbb`
+SET sql_mode=DEFAULT;
+SET PATH 'ccc,';
+SELECT @@path;
+@@path
+`ccc`
+SET PATH 'ddd,,';
+SELECT @@path;
+@@path
+`ddd`
+SET PATH 'eee,,,';
+SELECT @@path;
+@@path
+`eee`
+SET PATH ',ccc';
+SELECT @@path;
+@@path
+`ccc`
+SET PATH ',,ddd';
+SELECT @@path;
+@@path
+`ddd`
+SET PATH ',,,eee';
+SELECT @@path;
+@@path
+`eee`
+SET PATH ',aaa,';
+SELECT @@path;
+@@path
+`aaa`
+SET PATH ',bbb,,';
+SELECT @@path;
+@@path
+`bbb`
+SET PATH ',,ccc,';
+SELECT @@path;
+@@path
+`ccc`
+SET PATH 'z,aaa';
+SELECT @@path;
+@@path
+`z`,`aaa`
+SET PATH 'aaa,z';
+SELECT @@path;
+@@path
+`aaa`,`z`
+SET PATH '`z`,aaa';
+SELECT @@path;
+@@path
+`z`,`aaa`
+SET PATH 'aaa,`z`';
+SELECT @@path;
+@@path
+`aaa`,`z`
+SET PATH '  hello   ';
+SELECT @@path;
+@@path
+`hello`
+SET PATH 'aaa,bbb';
+SELECT @@path;
+@@path
+`aaa`,`bbb`
+SET PATH '   bbb,ccc  ';
+SELECT @@path;
+@@path
+`bbb`,`ccc`
+SET PATH '`ccc`,ddd';
+SELECT @@path;
+@@path
+`ccc`,`ddd`
+SET PATH 'ddd,`eee`';
+SELECT @@path;
+@@path
+`ddd`,`eee`
+SET PATH '`eee`,`fff`';
+SELECT @@path;
+@@path
+`eee`,`fff`
+SET PATH '    `fff`,`ggg`    ';
+SELECT @@path;
+@@path
+`fff`,`ggg`
+SET sql_mode=ORACLE;
+SET PATH '"bbb"';
+SELECT @@path;
+@@path
+`bbb`
+SET PATH '"ggg",hhh';
+SELECT @@path;
+@@path
+`ggg`,`hhh`
+SET PATH 'hhh,`iii`,jjj,"kkk",lll';
+SELECT @@path;
+@@path
+`hhh`,`iii`,`jjj`,`kkk`,`lll`
+SET PATH 'test,sys,ccc,ddd,eee,fff,ggg,hhh';
+SELECT @@path;
+@@path
+`test`,`sys`,`ccc`,`ddd`,`eee`,`fff`,`ggg`,`hhh`
+SET PATH ',,,test,,,sys,,,';
+SELECT @@path;
+@@path
+`test`,`sys`
+SET PATH '  ,,,aaa,,,bbb,,,  ';
+SELECT @@path;
+@@path
+`aaa`,`bbb`
+SET PATH 'hello,world,deadpool,wolverine,aaa,ccc';
+SELECT @@path;
+@@path
+`hello`,`world`,`deadpool`,`wolverine`,`aaa`,`ccc`
+SET PATH '`a,b`,c';
+SELECT @@path;
+@@path
+`a,b`,`c`
+SET PATH 'ß';
+SELECT @@path;
+@@path
+`ß`
+SET PATH '`Œ`';
+SELECT @@path;
+@@path
+`Œ`
+SET PATH '"Ɣ"';
+SELECT @@path;
+@@path
+`Ɣ`
+SET PATH ',ß';
+SELECT @@path;
+@@path
+`ß`
+SET PATH ',,Œ';
+SELECT @@path;
+@@path
+`Œ`
+SET PATH ',,,Ɣ';
+SELECT @@path;
+@@path
+`Ɣ`
+SET PATH 'ß,';
+SELECT @@path;
+@@path
+`ß`
+SET PATH 'Œ,,';
+SELECT @@path;
+@@path
+`Œ`
+SET PATH 'Ɣ,,,';
+SELECT @@path;
+@@path
+`Ɣ`
+SET PATH ',ß,';
+SELECT @@path;
+@@path
+`ß`
+SET PATH 'a,ß';
+SELECT @@path;
+@@path
+`a`,`ß`
+SET PATH 'ß,c';
+SELECT @@path;
+@@path
+`ß`,`c`
+SET PATH 'ã,ß';
+SELECT @@path;
+@@path
+`ã`,`ß`
+SET PATH ',Œ,Ɣ,';
+SELECT @@path;
+@@path
+`Œ`,`Ɣ`
+SET PATH ',ã,ß';
+SELECT @@path;
+@@path
+`ã`,`ß`
+SET PATH 'Œ,Ɣ,';
+SELECT @@path;
+@@path
+`Œ`,`Ɣ`
+SET PATH 'aß';
+SELECT @@path;
+@@path
+`aß`
+SET PATH 'ßc';
+SELECT @@path;
+@@path
+`ßc`
+SET PATH 'ßĉ';
+SELECT @@path;
+@@path
+`ßĉ`
+SET PATH 'abc';
+SELECT @@path;
+@@path
+`abc`
+SET PATH 'ãbc';
+SELECT @@path;
+@@path
+`ãbc`
+SET PATH 'ãßc';
+SELECT @@path;
+@@path
+`ãßc`
+SET PATH 'ãßĉ';
+SELECT @@path;
+@@path
+`ãßĉ`
+SET PATH 'aßc';
+SELECT @@path;
+@@path
+`aßc`
+SET PATH 'aßĉ';
+SELECT @@path;
+@@path
+`aßĉ`
+SET PATH 'abĉ';
+SELECT @@path;
+@@path
+`abĉ`
+SET PATH 'ãbĉ';
+SELECT @@path;
+@@path
+`ãbĉ`
+SET PATH 'ãßĉ,';
+SELECT @@path;
+@@path
+`ãßĉ`
+SET PATH 'a,ãßĉ';
+SELECT @@path;
+@@path
+`a`,`ãßĉ`
+SET PATH 'ãßĉ,d';
+SELECT @@path;
+@@path
+`ãßĉ`,`d`
+SET PATH ',ãßĉ,';
+SELECT @@path;
+@@path
+`ãßĉ`
+SET PATH 'a,ãßĉ,d';
+SELECT @@path;
+@@path
+`a`,`ãßĉ`,`d`
+SET PATH 'a,ãßĉ,Œ';
+SELECT @@path;
+@@path
+`a`,`ãßĉ`,`Œ`
+SET PATH 'Ɣ,ãßĉ,d';
+SELECT @@path;
+@@path
+`Ɣ`,`ãßĉ`,`d`
+SET PATH 'Ɣ,ãßĉ,Œ';
+SELECT @@path;
+@@path
+`Ɣ`,`ãßĉ`,`Œ`
+'#'
+'#--- Change the value of path to an invalid value ---#'
+'#'
+SET sql_mode=DEFAULT;
+SET @@session.path = @start_session_value;
+SELECT @@session.path;
+@@session.path
+`.`,`sys`
+SET @@global.path = @start_global_value;
+SELECT @@global.path;
+@@global.path
+`.`,`sys`
+SET PATH '`';
+ERROR 42000: Variable 'path' can't be set to the value of '`'
+SET PATH '"';
+ERROR 42000: Variable 'path' can't be set to the value of '"'
+SET PATH '`a';
+ERROR 42000: Variable 'path' can't be set to the value of '`a'
+SET PATH '"a';
+ERROR 42000: Variable 'path' can't be set to the value of '"a'
+SET PATH 'a`';
+ERROR 42000: Variable 'path' can't be set to the value of 'a`'
+SET PATH 'a"';
+ERROR 42000: Variable 'path' can't be set to the value of 'a"'
+SET PATH '"d"';
+ERROR 42000: Variable 'path' can't be set to the value of '"d"'
+SET PATH '`aaa';
+ERROR 42000: Variable 'path' can't be set to the value of '`aaa'
+SET PATH 'aaa`';
+ERROR 42000: Variable 'path' can't be set to the value of 'aaa`'
+SET PATH '"aaa';
+ERROR 42000: Variable 'path' can't be set to the value of '"aaa'
+SET PATH 'aaa"';
+ERROR 42000: Variable 'path' can't be set to the value of 'aaa"'
+SET PATH '`aaa"';
+ERROR 42000: Variable 'path' can't be set to the value of '`aaa"'
+SET PATH '"aaa`';
+ERROR 42000: Variable 'path' can't be set to the value of '"aaa`'
+SET PATH '"ggg,hhh';
+ERROR 42000: Variable 'path' can't be set to the value of '"ggg,hhh'
+SET PATH 'ggg",hhh';
+ERROR 42000: Variable 'path' can't be set to the value of 'ggg",hhh'
+SET PATH '"ggg",hhh';
+ERROR 42000: Variable 'path' can't be set to the value of '"ggg",hhh'
+SET PATH 'hhh,`iii`,jjj,"kkk",lll';
+ERROR 42000: Variable 'path' can't be set to the value of 'hhh,`iii`,jjj,"kkk",lll'
+SET PATH 'hello,world,deadpool,wolverine,aaa,deadpool,ccc';
+ERROR 42000: Variable 'path' can't be set to the value of 'deadpool'
+SET PATH '`,Ɣ';
+ERROR 42000: Variable 'path' can't be set to the value of '`,Ɣ'
+SET PATH '",Ɣ';
+ERROR 42000: Variable 'path' can't be set to the value of '",Ɣ'
+SET PATH 'Ɣ,`';
+ERROR 42000: Variable 'path' can't be set to the value of 'Ɣ,`'
+SET PATH 'Ɣ,"';
+ERROR 42000: Variable 'path' can't be set to the value of 'Ɣ,"'
+SET PATH '`Œ';
+ERROR 42000: Variable 'path' can't be set to the value of '`Œ'
+SET PATH '"c';
+ERROR 42000: Variable 'path' can't be set to the value of '"c'
+SET PATH 'Œ`';
+ERROR 42000: Variable 'path' can't be set to the value of 'Œ`'
+SET PATH 'Œ"';
+ERROR 42000: Variable 'path' can't be set to the value of 'Œ"'
+SET PATH '`Œ"';
+ERROR 42000: Variable 'path' can't be set to the value of '`Œ"'
+SET PATH '"Œ`';
+ERROR 42000: Variable 'path' can't be set to the value of '"Œ`'
+SET PATH '"Ɣ"';
+ERROR 42000: Variable 'path' can't be set to the value of '"Ɣ"'
+SELECT @@path;
+@@path
+`.`,`sys`
+#
+#--- Set path to empty string ---#
+#
+SET PATH ' ';
+SET PATH '    ';
+SET PATH ',';
+SET PATH '``';
+SET sql_mode=ANSI_QUOTES;
+SET PATH '""';
+SET sql_mode=DEFAULT;
+#
+# Escaping backticks
+#
+SET PATH '```a`';
+SELECT @@path;
+@@path
+```a`
+SET PATH '`a```';
+SELECT @@path;
+@@path
+`a```
+SET PATH '``a`';
+ERROR 42000: Variable 'path' can't be set to the value of '``a`'
+SET PATH '`a``';
+ERROR 42000: Variable 'path' can't be set to the value of '`a``'
+SET GLOBAL PATH=DEFAULT;
+SET @@path=DEFAULT;
+#
+# path max limit (16 schemas)
+#
+SET PATH 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p';
+SELECT @@path;
+@@path
+`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`i`,`j`,`k`,`l`,`m`,`n`,`o`,`p`
+SET PATH 'a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q';
+ERROR HY000: Too long value for 'path'
+SELECT @@path;
+@@path
+`a`,`b`,`c`,`d`,`e`,`f`,`g`,`h`,`i`,`j`,`k`,`l`,`m`,`n`,`o`,`p`
+#
+# CURRENT_PATH
+#
+SET PATH 'a,b';
+SELECT CURRENT_PATH();
+CURRENT_PATH()
+`a`,`b`
+SELECT CURRENT_PATH;
+CURRENT_PATH
+`a`,`b`
+SET PATH DEFAULT;
+SELECT CURRENT_PATH;
+CURRENT_PATH
+`CURRENT_SCHEMA`

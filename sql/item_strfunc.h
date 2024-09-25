@@ -1298,6 +1298,34 @@ public:
   { return get_item_copy<Item_func_current_user>(thd, this); }
 };
 
+
+class Item_func_current_path :public Item_func_sysconst
+{
+public:
+  Item_func_current_path(THD *thd): Item_func_sysconst(thd) {}
+  String *val_str(String *) override;
+  bool fix_length_and_dec(THD *thd) override
+  {
+    max_length=32767;
+    return FALSE;
+  }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("current_path") };
+    return name;
+  }
+  const Lex_ident_routine fully_qualified_func_name() const override
+  { return Lex_ident_routine("current_path()"_LEX_CSTRING); }
+  bool check_vcol_func_processor(void *arg) override
+  {
+    return mark_unsupported_function(fully_qualified_func_name().str, arg,
+                                     VCOL_SESSION_FUNC);
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_func_current_path>(thd, this); }
+};
+
+
 class Item_func_session_user :public Item_func_user
 {
 public:

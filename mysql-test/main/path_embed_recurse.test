@@ -1,0 +1,63 @@
+# --ps-protocol options together will SIG_ABRT, can be reproduced
+# without PATH implementation
+--source include/no_protocol.inc
+
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # Path embedding with recursive routines
+--echo #
+
+CREATE DATABASE test2;
+DELIMITER /;
+CREATE FUNCTION test2.func2(val INT, t TEXT) RETURNS TEXT
+BEGIN
+  SET val:= val - 1;
+  IF val = 0 THEN
+    RETURN CONCAT(t, CAST(val AS CHAR(4)));
+  END IF;
+  RETURN func2(val, CONCAT(t, CAST(val AS CHAR(4))));
+END;
+/
+CREATE PROCEDURE test2.proc2(val INT, t TEXT)
+BEGIN
+  SET val:= val - 1;
+  IF val = 0 THEN
+    SELECT CONCAT(t, CAST(val AS CHAR(4)));
+  ELSE
+    CALL proc2(val, CONCAT(t, CAST(val AS CHAR(4))));
+  END IF;
+END;
+/
+CREATE FUNCTION ff() RETURNS TEXT
+PATH 'test2'
+BEGIN
+  RETURN func2(5, '');
+END;
+/
+CREATE PROCEDURE pp()
+PATH 'test2'
+BEGIN
+  CALL proc2(5, '');
+END;
+/
+DELIMITER ;/
+
+--error ER_SP_NO_RECURSION
+SELECT ff();
+
+#TODO this causes SIG_ABRT, can be reproduced with PATH implementation
+#--error ER_SP_NO_RECURSION
+#SELECT ff();
+
+--error ER_SP_RECURSION_LIMIT
+CALL pp();
+--error ER_SP_RECURSION_LIMIT
+CALL pp();
+
+SET max_sp_recursion_depth=10;
+CALL pp();
+CALL pp();
+
+DROP FUNCTION ff;
+DROP PROCEDURE pp;
+DROP DATABASE test2;
