@@ -1,0 +1,126 @@
+
+--echo #
+--echo # Package's routine resolution shadowed by schema
+--echo #
+SET PATH 'pkg, test';
+CREATE DATABASE pkg;
+DELIMITER /;
+CREATE PROCEDURE pkg.p1(a TEXT)
+BEGIN
+  SELECT CONCAT(a, 'pkg.p1()');
+END;
+/
+CREATE FUNCTION pkg.f1(a TEXT) RETURNS TEXT
+BEGIN
+  RETURN CONCAT(a, 'pkg.f1');
+END;
+/
+
+CREATE OR REPLACE PACKAGE pkg
+  PROCEDURE p1(a TEXT);
+  FUNCTION f1(a TEXT) RETURNS TEXT;
+
+  PROCEDURE pub_p1_priv(a TEXT);
+  FUNCTION pub_f1_explicit_priv(a TEXT) RETURNS TEXT;
+  FUNCTION pub_f1_schema_implicit_priv(a TEXT) RETURNS TEXT;
+  FUNCTION pub_f1_implicit_priv(a TEXT) RETURNS TEXT;
+END;
+/
+CREATE OR REPLACE PACKAGE BODY pkg
+  PROCEDURE p1(a TEXT)
+  BEGIN
+    SELECT CONCAT(a, 'test.pkg.p1()');
+  END;
+  FUNCTION f1(a TEXT) RETURNS TEXT
+  BEGIN
+    RETURN CONCAT(a, 'test.pkg.f1()');
+  END;
+
+  PROCEDURE priv_p1(a TEXT);
+
+  PROCEDURE priv_p1(a TEXT)
+  BEGIN
+    SELECT CONCAT(a, 'test.pkg.priv_p1()');
+  END;
+
+  FUNCTION priv_f1(a TEXT) RETURNS TEXT;
+
+  FUNCTION priv_f1(a TEXT) RETURNS TEXT
+  BEGIN
+    RETURN CONCAT(a, 'test.pkg.priv_f1()');
+  END;
+
+  PROCEDURE pub_p1_priv(a TEXT)
+  BEGIN
+    CALL test.pkg.priv_p1(CONCAT(a, 'explicit_priv->'));
+    CALL pkg.priv_p1(CONCAT(a, 'schema_implicit_priv->'));
+    CALL priv_p1(CONCAT(a, 'implicit_priv->'));
+  END;
+
+  FUNCTION pub_f1_explicit_priv(a TEXT) RETURNS TEXT
+  BEGIN
+    RETURN test.pkg.priv_f1(CONCAT(a, 'explicit_priv->'));
+  END;
+
+  FUNCTION pub_f1_schema_implicit_priv(a TEXT) RETURNS TEXT
+  BEGIN
+    RETURN pkg.priv_f1(CONCAT(a, 'schema_implicit_priv->'));
+  END;
+
+  FUNCTION pub_f1_implicit_priv(a TEXT) RETURNS TEXT
+  BEGIN
+    RETURN priv_f1(CONCAT(a, 'implicit_priv->'));
+  END;
+  
+  CALL test.pkg.p1('explicit_init->');
+  CALL pkg.p1('schema_implicit_init->');
+  CALL p1('implicit_init->');
+  
+  SELECT test.pkg.f1('explicit_init->');
+  SELECT pkg.f1('schema_implicit_init->');
+  SELECT f1('implicit_init->');
+
+  CALL test.pkg.priv_p1('explicit_init->');
+  CALL pkg.priv_p1('schema_implicit_init->');
+  CALL priv_p1('implicit_init->');
+
+  SELECT test.pkg.priv_f1('explicit_init->');
+  SELECT pkg.priv_f1('schema_implicit_init->');
+  SELECT priv_f1('implicit_init->');
+END;
+/
+DELIMITER ;/
+
+CALL test.pkg.p1('explicit_stmt->');
+SELECT test.pkg.f1('explicit_stmt->');
+
+--echo # TODO, this should resolve to `pkg` schema's standalone routines?
+--echo # now it resolves to `test.pkg.p1` instead..
+CALL pkg.p1('schema_implicit_stmt->');
+SELECT pkg.f1('schema_implicit_stmt->');
+
+CALL p1('implicit_stmt->');
+SELECT f1('implicit_stmt->');
+
+CALL test.pkg.pub_p1_priv('explicit_pub_stmt->');
+SELECT test.pkg.pub_f1_explicit_priv('explicit_pub_stmt->');
+SELECT test.pkg.pub_f1_schema_implicit_priv('explicit_pub_stmt->');
+SELECT test.pkg.pub_f1_implicit_priv('explicit_pub_stmt->');
+
+CALL pkg.pub_p1_priv('schema_implicit_pub_stmt->');
+
+--source include/deselect_db.inc
+CALL test.pkg.p1('explicit_stmt->');
+SELECT test.pkg.f1('explicit_stmt->');
+
+--echo # TODO, this should resolve to `pkg` schema's standalone routines?
+--echo # now it resolves to `test.pkg.p1` instead..
+CALL pkg.p1('schema_implicit_stmt->');
+SELECT pkg.f1('schema_implicit_stmt->');
+
+CALL p1('implicit_stmt->');
+SELECT f1('implicit_stmt->');
+
+USE test;
+DROP PACKAGE pkg;
+DROP DATABASE pkg;

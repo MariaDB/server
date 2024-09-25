@@ -2002,7 +2002,7 @@ DROP DATABASE mysqltest;
 # Both ER_SP_DOES_NOT_EXIST and ER_PARSE_ERROR are valid here,
 # the result is implementation dependent:
 # See Bug#29816 for details
---error ER_SP_DOES_NOT_EXIST
+--error ER_PARSE_ERROR
 SELECT inexistent(), 1 + ,;
 --error ER_SP_DOES_NOT_EXIST
 SELECT inexistent();

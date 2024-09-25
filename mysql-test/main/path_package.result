@@ -1,0 +1,168 @@
+#
+# Package's routine resolution shadowed by schema
+#
+SET PATH 'pkg, test';
+CREATE DATABASE pkg;
+CREATE PROCEDURE pkg.p1(a TEXT)
+BEGIN
+SELECT CONCAT(a, 'pkg.p1()');
+END;
+/
+CREATE FUNCTION pkg.f1(a TEXT) RETURNS TEXT
+BEGIN
+RETURN CONCAT(a, 'pkg.f1');
+END;
+/
+CREATE OR REPLACE PACKAGE pkg
+PROCEDURE p1(a TEXT);
+FUNCTION f1(a TEXT) RETURNS TEXT;
+PROCEDURE pub_p1_priv(a TEXT);
+FUNCTION pub_f1_explicit_priv(a TEXT) RETURNS TEXT;
+FUNCTION pub_f1_schema_implicit_priv(a TEXT) RETURNS TEXT;
+FUNCTION pub_f1_implicit_priv(a TEXT) RETURNS TEXT;
+END;
+/
+CREATE OR REPLACE PACKAGE BODY pkg
+PROCEDURE p1(a TEXT)
+BEGIN
+SELECT CONCAT(a, 'test.pkg.p1()');
+END;
+FUNCTION f1(a TEXT) RETURNS TEXT
+BEGIN
+RETURN CONCAT(a, 'test.pkg.f1()');
+END;
+PROCEDURE priv_p1(a TEXT);
+PROCEDURE priv_p1(a TEXT)
+BEGIN
+SELECT CONCAT(a, 'test.pkg.priv_p1()');
+END;
+FUNCTION priv_f1(a TEXT) RETURNS TEXT;
+FUNCTION priv_f1(a TEXT) RETURNS TEXT
+BEGIN
+RETURN CONCAT(a, 'test.pkg.priv_f1()');
+END;
+PROCEDURE pub_p1_priv(a TEXT)
+BEGIN
+CALL test.pkg.priv_p1(CONCAT(a, 'explicit_priv->'));
+CALL pkg.priv_p1(CONCAT(a, 'schema_implicit_priv->'));
+CALL priv_p1(CONCAT(a, 'implicit_priv->'));
+END;
+FUNCTION pub_f1_explicit_priv(a TEXT) RETURNS TEXT
+BEGIN
+RETURN test.pkg.priv_f1(CONCAT(a, 'explicit_priv->'));
+END;
+FUNCTION pub_f1_schema_implicit_priv(a TEXT) RETURNS TEXT
+BEGIN
+RETURN pkg.priv_f1(CONCAT(a, 'schema_implicit_priv->'));
+END;
+FUNCTION pub_f1_implicit_priv(a TEXT) RETURNS TEXT
+BEGIN
+RETURN priv_f1(CONCAT(a, 'implicit_priv->'));
+END;
+CALL test.pkg.p1('explicit_init->');
+CALL pkg.p1('schema_implicit_init->');
+CALL p1('implicit_init->');
+SELECT test.pkg.f1('explicit_init->');
+SELECT pkg.f1('schema_implicit_init->');
+SELECT f1('implicit_init->');
+CALL test.pkg.priv_p1('explicit_init->');
+CALL pkg.priv_p1('schema_implicit_init->');
+CALL priv_p1('implicit_init->');
+SELECT test.pkg.priv_f1('explicit_init->');
+SELECT pkg.priv_f1('schema_implicit_init->');
+SELECT priv_f1('implicit_init->');
+END;
+/
+CALL test.pkg.p1('explicit_stmt->');
+CONCAT(a, 'test.pkg.p1()')
+explicit_init->test.pkg.p1()
+CONCAT(a, 'test.pkg.p1()')
+schema_implicit_init->test.pkg.p1()
+CONCAT(a, 'test.pkg.p1()')
+implicit_init->test.pkg.p1()
+test.pkg.f1('explicit_init->')
+explicit_init->test.pkg.f1()
+pkg.f1('schema_implicit_init->')
+schema_implicit_init->test.pkg.f1()
+f1('implicit_init->')
+implicit_init->test.pkg.f1()
+CONCAT(a, 'test.pkg.priv_p1()')
+explicit_init->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+schema_implicit_init->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+implicit_init->test.pkg.priv_p1()
+test.pkg.priv_f1('explicit_init->')
+explicit_init->test.pkg.priv_f1()
+pkg.priv_f1('schema_implicit_init->')
+schema_implicit_init->test.pkg.priv_f1()
+priv_f1('implicit_init->')
+implicit_init->test.pkg.priv_f1()
+CONCAT(a, 'test.pkg.p1()')
+explicit_stmt->test.pkg.p1()
+SELECT test.pkg.f1('explicit_stmt->');
+test.pkg.f1('explicit_stmt->')
+explicit_stmt->test.pkg.f1()
+# TODO, this should resolve to `pkg` schema's standalone routines?
+# now it resolves to `test.pkg.p1` instead..
+CALL pkg.p1('schema_implicit_stmt->');
+CONCAT(a, 'test.pkg.p1()')
+schema_implicit_stmt->test.pkg.p1()
+SELECT pkg.f1('schema_implicit_stmt->');
+pkg.f1('schema_implicit_stmt->')
+schema_implicit_stmt->test.pkg.f1()
+CALL p1('implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+implicit_stmt->pkg.p1()
+SELECT f1('implicit_stmt->');
+f1('implicit_stmt->')
+implicit_stmt->pkg.f1
+CALL test.pkg.pub_p1_priv('explicit_pub_stmt->');
+CONCAT(a, 'test.pkg.priv_p1()')
+explicit_pub_stmt->explicit_priv->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+explicit_pub_stmt->schema_implicit_priv->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+explicit_pub_stmt->implicit_priv->test.pkg.priv_p1()
+SELECT test.pkg.pub_f1_explicit_priv('explicit_pub_stmt->');
+test.pkg.pub_f1_explicit_priv('explicit_pub_stmt->')
+explicit_pub_stmt->explicit_priv->test.pkg.priv_f1()
+SELECT test.pkg.pub_f1_schema_implicit_priv('explicit_pub_stmt->');
+test.pkg.pub_f1_schema_implicit_priv('explicit_pub_stmt->')
+explicit_pub_stmt->schema_implicit_priv->test.pkg.priv_f1()
+SELECT test.pkg.pub_f1_implicit_priv('explicit_pub_stmt->');
+test.pkg.pub_f1_implicit_priv('explicit_pub_stmt->')
+explicit_pub_stmt->implicit_priv->test.pkg.priv_f1()
+CALL pkg.pub_p1_priv('schema_implicit_pub_stmt->');
+CONCAT(a, 'test.pkg.priv_p1()')
+schema_implicit_pub_stmt->explicit_priv->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+schema_implicit_pub_stmt->schema_implicit_priv->test.pkg.priv_p1()
+CONCAT(a, 'test.pkg.priv_p1()')
+schema_implicit_pub_stmt->implicit_priv->test.pkg.priv_p1()
+CREATE DATABASE deselect_db;
+USE deselect_db;
+DROP DATABASE deselect_db;
+CALL test.pkg.p1('explicit_stmt->');
+CONCAT(a, 'test.pkg.p1()')
+explicit_stmt->test.pkg.p1()
+SELECT test.pkg.f1('explicit_stmt->');
+test.pkg.f1('explicit_stmt->')
+explicit_stmt->test.pkg.f1()
+# TODO, this should resolve to `pkg` schema's standalone routines?
+# now it resolves to `test.pkg.p1` instead..
+CALL pkg.p1('schema_implicit_stmt->');
+CONCAT(a, 'test.pkg.p1()')
+schema_implicit_stmt->test.pkg.p1()
+SELECT pkg.f1('schema_implicit_stmt->');
+pkg.f1('schema_implicit_stmt->')
+schema_implicit_stmt->test.pkg.f1()
+CALL p1('implicit_stmt->');
+CONCAT(a, 'pkg.p1()')
+implicit_stmt->pkg.p1()
+SELECT f1('implicit_stmt->');
+f1('implicit_stmt->')
+implicit_stmt->pkg.f1
+USE test;
+DROP PACKAGE pkg;
+DROP DATABASE pkg;

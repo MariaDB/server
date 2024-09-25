@@ -1,0 +1,17 @@
+--source include/have_lowercase1.inc
+
+--echo #
+--echo # MDEV-34391 Path resolution when lower_case_table_names=1
+--echo # and db name and path have different cases
+--echo #
+
+SELECT @@lower_case_table_names;
+SELECT CURRENT_PATH();
+
+CREATE DATABASE teST2;
+CREATE FUNCTION teST2.func() RETURNS TEXT RETURN 'teST2.func';
+
+SET PATH 'test2';
+SELECT CURRENT_PATH(), func();
+
+DROP DATABASE teST2;

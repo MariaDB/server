@@ -740,10 +740,12 @@ CREATE VIEW v1 AS SELECT * FROM t1 WHERE f1() = 1;
 DROP FUNCTION f1;
 connect con2, localhost, root;
 connect  con1, localhost, root;
-SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 2';
+SET DEBUG_SYNC= 'open_tables_after_open_and_process_table SIGNAL opened WAIT_FOR dropped EXECUTE 3';
 # Sending:
 SHOW CREATE VIEW v1;
 connection con2;
+SET DEBUG_SYNC= 'now WAIT_FOR opened';
+SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';
 SET DEBUG_SYNC= 'now SIGNAL dropped';
 SET DEBUG_SYNC= 'now WAIT_FOR opened';

@@ -1,0 +1,183 @@
+--echo #
+--echo # MDEV-34391 Path resolution
+--echo # View tests with embedded PATH
+--echo #
+
+CREATE DATABASE test2;
+CREATE FUNCTION test2.func(a INT) RETURNS TEXT RETURN a * 2;
+CREATE FUNCTION test2.func2(a INT) RETURNS TEXT RETURN a + 10;
+CREATE FUNCTION test2.func4(a INT) RETURNS TEXT RETURN func(a) + 5;
+CREATE FUNCTION test2.cross_schema(a INT) RETURNS TEXT RETURN func3(a) + 5;
+
+CREATE DATABASE test3;
+CREATE FUNCTION test3.func(a INT) RETURNS TEXT RETURN a + 16;
+CREATE FUNCTION test3.func3(a INT) RETURNS TEXT RETURN a + 20;
+
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES(1);
+INSERT INTO t1 VALUES(2);
+
+--echo #
+--echo # View with function call and embedded PATH
+--echo #
+SET PATH 'test2';
+CREATE VIEW v1 AS SELECT func(1);
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+
+--echo #
+--echo # View with function call and embedded PATH, using a table
+--echo # from CURRENT_SCHEMA's database
+--echo #
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Session PATH does not impact view's routine resolution
+--echo #
+SET PATH 'test4';
+SELECT * FROM v1;
+SELECT * FROM v2;
+
+--echo #
+--echo # Altered view should use the new embedded PATH
+--echo #
+SET PATH 'test3';
+ALTER VIEW v1 AS SELECT func(1);
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+
+--echo #
+--echo # Renaming a view should not change it's embedded PATH
+--echo #
+SET PATH 'CURRENT_SCHEMA';
+RENAME TABLE v1 TO v4;
+SELECT * FROM v4;
+
+DROP VIEW v4;
+
+--echo #
+--echo # Specify ALGORITHM= MERGE together with the embedded PATH when
+--echo # CREATEing a view
+--echo #
+DROP VIEW v2;
+SET PATH 'test2';
+CREATE ALGORITHM=MERGE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Specify ALGORITHM= TEMPTABLE together with the embedded PATH when
+--echo # CREATEing a view
+--echo #
+DROP VIEW v2;
+SET PATH 'test2';
+CREATE ALGORITHM=TEMPTABLE VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Specify ALGORITHM= MERGE together with the embedded PATH when
+--echo # ALTERing a view
+--echo #
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Specify ALGORITHM= TEMPTABLE together with the embedded PATH when
+--echo # ALTERing a view
+--echo #
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Chaining function calls in a view with an embedded PATH
+--echo #
+SET PATH 'test2';
+ALTER VIEW v2 AS SELECT a, func2(func(a)) AS b FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+--echo #
+--echo # Chaining views with different embedded PATHs
+--echo #
+SET PATH 'test3';
+CREATE VIEW v1 AS SELECT a, b, func3(b) FROM v2;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v1;
+
+--echo #
+--echo # Chaining function calls in a view with an embedded PATH in different
+--echo # schemas
+--echo #
+SET PATH 'test2,test3';
+ALTER VIEW v2 AS SELECT a, func3(func2(a)) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+DROP VIEW v2;
+
+--echo #
+--echo # CREATE VIEW with wrong PATH while referring to a function
+--echo #
+SET PATH 'test4';
+--error ER_SP_DOES_NOT_EXIST
+CREATE VIEW v2 AS SELECT a, func(a) FROM t1;
+
+--echo #
+--echo # CREATE VIEW using a function that calls another function in the same schema
+--echo #
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, func4(a) FROM t1;
+SET PATH 'CURRENT_SCHEMA';
+SELECT * FROM v2;
+
+DROP VIEW v2;
+
+--echo #
+--echo # CREATE VIEW using a function that calls another function in a different schema
+--echo #
+SET PATH 'test2';
+CREATE VIEW v2 AS SELECT a, cross_schema(a) FROM t1;
+SET PATH 'test3';
+SELECT * FROM v2;
+
+DROP VIEW v2;
+
+--echo #
+--echo # Shadow SCHEMA with incomplete PACKAGE and qualified function call
+--echo #
+
+SET PATH 'CURRENT_SCHEMA';
+CREATE VIEW v2 AS SELECT a, test2.func(a) FROM t1;
+
+DELIMITER /;
+CREATE PACKAGE test2
+  FUNCTION func(a INT) RETURNS INT;
+END;
+/
+DELIMITER ;/
+
+SET PATH 'CURRENT_SCHEMA';
+--error ER_VIEW_INVALID
+SELECT * FROM v2;
+
+SET PATH 'test2';
+--error ER_VIEW_INVALID
+SELECT * FROM v2;
+
+DROP PACKAGE test2;
+
+DROP VIEW v2;
+DROP VIEW v1;
+
+DROP TABLE t1;
+
+DROP DATABASE test3;
+DROP DATABASE test2;

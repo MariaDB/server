@@ -33,6 +33,7 @@
 #include "debug_sync.h"
 #include "sql_acl.h"    // check_global_access()
 #include "optimizer_defaults.h"   // create_optimizer_costs
+#include "sp_cache.h"
 
 /*
   a set of mostly trivial (as in f(X)=X) defines below to make system variable
@@ -3061,5 +3062,122 @@ private:
   {
     return make_value_ptr(thd, global_system_variables.
                                  character_set_collations);
+  }
+};
+
+
+class Sys_var_path: public sys_var
+{
+public:
+  Sys_var_path(const char *name_arg, const char *comment,
+               int flag_args, ptrdiff_t off, size_t size,
+               CMD_LINE getopt,
+               enum binlog_status_enum binlog_status_arg)
+   :sys_var(&all_sys_vars, name_arg, comment,
+            flag_args, off, getopt.id, getopt.arg_type,
+            SHOW_CHAR,
+            DEFAULT(0), nullptr, binlog_status_arg,
+            nullptr, nullptr, nullptr)
+  {
+    option.var_type|= GET_STR;
+  }
+
+private:
+
+  static bool st_from_item(THD *thd, Sql_path *path,
+                           Item *item)
+  {
+    String *value, buffer;
+    if (!(value= item->val_str_ascii(&buffer)))
+      return true;
+    return path->from_text(thd, value->charset(), value->to_lex_cstring());
+  }
+
+  static const uchar *make_value_ptr(THD *thd,
+                                     const Sql_path &path)
+  {
+    size_t nbytes= path.text_format_nbytes_needed(thd, false);
+    char *buf= thd->alloc(nbytes + 1);
+    size_t length= path.print(thd, false, buf, nbytes);
+    buf[length]= '\0';
+    return (uchar *) buf;
+  }
+
+private:
+  bool do_check(THD *thd, set_var *var) override
+  {
+    Sql_path *path= new (thd->alloc<Sql_path>(1)) Sql_path();
+    if (!path || st_from_item(thd, path, var->value))
+    {
+      path->free();
+      return true;
+    }
+
+    var->save_result.ptr= path;
+    return false;
+  }
+
+  void session_save_default(THD *thd, set_var *var) override
+  {
+    thd->variables.path.set(thd, global_system_variables.path);
+  }
+
+  void global_save_default(THD *thd, set_var *var) override
+  {
+    global_system_variables.path.init();
+  }
+
+  bool session_update(THD *thd, set_var *var) override
+  {
+    if (thd->spcont)
+    {
+      /*
+        Because we invalidate the sp caches, we can't set the session path
+        in a stored function.
+      */
+      my_error(ER_VARIABLE_NOT_SETTABLE_IN_SF_OR_TRIGGER, MYF(0), name.str);
+      if (var->save_result.ptr)
+        ((Sql_path*) var->save_result.ptr)->free();
+      
+      return true;
+    }
+
+    if (!var->value)
+    {
+      session_save_default(thd, var);
+      return false;
+    }
+    thd->variables.path.set(std::move(*(Sql_path*) var->save_result.ptr));
+    
+    /*
+      Invalidate the sp caches, as the path has changed and the caches
+      may contain entries that needs to be resolved again
+    */
+    sp_cache_invalidate();
+    return false;
+  }
+
+  bool global_update(THD *thd, set_var *var) override
+  {
+    if (!var->value)
+    {
+      global_save_default(thd, var);
+      return false;
+    }
+
+    global_system_variables.path= std::move(*(Sql_path*) var->save_result.ptr);
+    return false;
+  }
+
+  const uchar *
+  session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, thd->variables.path);
+  }
+
+  const uchar *
+  global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
+  {
+    return make_value_ptr(thd, global_system_variables.path);
   }
 };

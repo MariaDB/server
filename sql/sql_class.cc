@@ -692,6 +692,7 @@ const char *thd_where(THD *thd)
 THD::THD(my_thread_id id, bool is_wsrep_applier)
   :Statement(&main_lex, &main_mem_root, STMT_CONVENTIONAL_EXECUTION,
              /* statement id */ 0),
+   Sql_path_stack(this),
    rli_fake(0), rgi_fake(0), rgi_slave(NULL),
    protocol_text(this), protocol_binary(this), initial_status_var(0),
    m_current_stage_key(0), m_psi(0), start_time(0), start_time_sec_part(0),
@@ -789,7 +790,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
    wsrep_wfc()
 #endif /*WITH_WSREP */
 {
-  bzero(&variables, sizeof(variables));
+  variables= {};
 
   /*
     We set THR_THD to temporally point to this THD to register all the
@@ -1899,6 +1900,7 @@ THD::~THD()
 #if defined(ENABLED_DEBUG_SYNC)
   debug_sync_end_thread(this);
 #endif
+  variables.path.free();
   /* Ensure everything is freed */
   status_var.local_memory_used-= sizeof(THD);
 
@@ -9108,4 +9110,28 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
 {
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
+}
+
+
+LEX_CSTRING ErrConvMDQName::lex_cstring() const
+{
+  if (m_name->m_db.length)
+  {
+    DBUG_ASSERT(m_name->m_db.str);
+
+    size_t length= m_name->to_identifier_chain2().make_qname(err_buffer,
+                                                          sizeof(err_buffer));
+    return {err_buffer, length};
+  }
+
+  if (m_thd->db.str)
+  {
+    Database_qualified_name name(*m_name);
+    m_thd->copy_db_to(&name.m_db);
+    size_t length= name.to_identifier_chain2().make_qname(err_buffer,
+                                                          sizeof(err_buffer));
+    return {err_buffer, length};
+  }
+  
+  return {m_name->m_name.str, m_name->m_name.length};
 }

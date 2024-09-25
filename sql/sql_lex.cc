@@ -7880,6 +7880,33 @@ sp_name *LEX::make_sp_name(THD *thd, const Lex_ident_sys_st &name1,
 }
 
 
+sp_name *LEX::make_sp_name_sql_path(THD *thd, const Lex_ident_sys_st &name)
+{
+  if (unlikely(Lex_ident_routine::check_name_with_error(name)))
+    return NULL;
+
+  Lex_ident_db_normalized db;
+  sp_name *res= NULL;
+
+  if (thd->lex->sphead || thd->db.str)
+    db= copy_db_normalized();
+
+  if (!db.str)
+  {
+    res= new (thd->mem_root) sp_name(db, name, false);
+    if (!res)
+    {
+      my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+      return NULL;
+    }
+  }
+  else
+    res= new (thd->mem_root) sp_name(db, name, false);
+
+  return res;
+}
+
+
 sp_lex_local *LEX::package_routine_start(THD *thd,
                                          const Sp_handler *sph,
                                          const Lex_ident_sys_st &name)
@@ -10097,23 +10124,31 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
 {
   Database_qualified_name pkgname;
   const Sp_handler *sph= &sp_handler_procedure;
+  Sql_cmd_call *cmd_call= nullptr;
   sql_command= SQLCOM_CALL;
   value_list.empty();
-  if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
-                                               name, &sph, &pkgname)))
+
+  thd->variables.path.resolve(thd, sphead, name, &sph, &pkgname);
+
+  if (unlikely(!(cmd_call= new (thd->mem_root) Sql_cmd_call(name, sph))))
     return true;
-  if (unlikely(!(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(name, sph))))
-    return true;
-  sph->add_used_routine(this, thd, name);
-  if (pkgname.m_name.length)
-    sp_handler_package_body.add_used_routine(this, thd, &pkgname);
+  
+  // Only add to used routines if we have a valid database name
+  if (name->m_db.str)
+  {
+    sph->add_used_routine(this, thd, name);
+    if (pkgname.m_name.length)
+      sp_handler_package_body.add_used_routine(this, thd, &pkgname);
+  }
+
+  m_sql_cmd= cmd_call;
   return false;
 }
 
 
 bool LEX::call_statement_start(THD *thd, const Lex_ident_sys_st *name)
 {
-  sp_name *spname= make_sp_name(thd, *name);
+  sp_name *spname= make_sp_name_sql_path(thd, *name);
   return unlikely(!spname) || call_statement_start(thd, spname);
 }
 

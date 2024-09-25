@@ -492,6 +492,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> CROSS                         /* SQL-2003-R */
 %token  <kwd> CUME_DIST_SYM
 %token  <kwd> CURDATE                       /* MYSQL-FUNC */
+%token  <kwd> CURRENT_PATH                  /* SQL-2003-R */
 %token  <kwd> CURRENT_ROLE                  /* SQL-2003-R */
 %token  <kwd> CURRENT_USER                  /* SQL-2003-R */
 %token  <kwd> CURSOR_SYM                    /* SQL-2003-R */
@@ -1910,6 +1911,7 @@ rule:
 %type <plsql_cursor_attr> plsql_cursor_attr
 %type <sp_suid> sp_suid
 %type <sp_aggregate_type> opt_aggregate
+%type <lex_str> sp_path
 
 %type <num> sp_decl_idents sp_decl_idents_init_vars
 %type <num> sp_handler_type sp_hcond_list
@@ -3339,6 +3341,8 @@ sp_chistic:
           { Lex->sp_chistics.daccess= SP_MODIFIES_SQL_DATA; }
         | sp_suid
           { Lex->sp_chistics.suid= $1; }
+        | sp_path
+          { Lex->sp_chistics.sql_path= $1; }
         ;
 
 /* Create characteristics */
@@ -3350,6 +3354,11 @@ sp_c_chistic:
 sp_suid:
           SQL_SYM SECURITY_SYM DEFINER_SYM { $$= SP_IS_SUID; }
         | SQL_SYM SECURITY_SYM INVOKER_SYM { $$= SP_IS_NOT_SUID; }
+        ;
+
+sp_path:
+          PATH_SYM TEXT_STRING_literal
+          { $$= $2; }
         ;
 
 call:
@@ -10512,6 +10521,14 @@ function_call_keyword:
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
+        | CURRENT_PATH optional_braces
+          {
+            $$= new (thd->mem_root) Item_func_current_path(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
+            Lex->safe_to_cache_query= 0;
+          }
         | CURRENT_USER optional_braces
           {
             $$= new (thd->mem_root) Item_func_current_user(thd,
@@ -16209,6 +16226,7 @@ ident_cli_func:
         | IDENT_QUOTED
         | keyword_func_sp_var_and_label  { $$= $1; }
         | keyword_func_sp_var_not_label  { $$= $1; }
+        | PATH_SYM                       { $$= $1; }
         ;
 
 TEXT_STRING_sys:
@@ -16371,6 +16389,7 @@ keyword_ident:
 %ifdef ORACLE
         | TYPE_SYM
 %endif
+        | PATH_SYM
         ;
 
 keyword_sysvar_name:
@@ -16387,6 +16406,7 @@ keyword_sysvar_name:
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
         | OFFSET_SYM
+        | PATH_SYM
         ;
 
 keyword_set_usual_case:
@@ -16414,6 +16434,7 @@ non_reserved_keyword_udt:
         | keyword_sysvar_type
         | keyword_sp_var_and_label
         | OFFSET_SYM
+        | PATH_SYM
         ;
 
 /*
@@ -16791,7 +16812,6 @@ keyword_func_sp_var_and_label:
         | PARTIAL
         | PARTITIONING_SYM
         | PARTITIONS_SYM
-        | PATH_SYM
         | PERSISTENT_SYM
         | PHASE_SYM
         | PLUGIN_SYM
@@ -16981,6 +17001,7 @@ reserved_keyword_udt_not_param_type:
         | CROSS
         | CUME_DIST_SYM
         | CURDATE
+        | CURRENT_PATH
         | CURRENT_USER
         | CURRENT_ROLE
         | CURTIME
@@ -17251,7 +17272,21 @@ set_param:
             if (Lex->check_main_unit_semantics())
               MYSQL_YYABORT;
           }
-          FOR_SYM directly_executable_statement
+          FOR_SYM directly_executable_statement        
+        | PATH_SYM
+          {
+            if (sp_create_assignment_lex(thd, $1.pos()))
+              MYSQL_YYABORT;
+          }
+          set_expr_or_default
+          {
+            Lex_ident_sys tmp(thd, &$1);
+
+            if (unlikely(!tmp.str) ||
+                unlikely(Lex->set_variable(&tmp, $3.expr, $3.expr_str)) ||
+                unlikely(sp_create_assignment_instr(thd, yychar == YYEMPTY)))
+              MYSQL_YYABORT;
+          }
         ;
 
 set_stmt_option_list:
@@ -18820,6 +18855,8 @@ create_package_chistic:
           { Lex->sp_chistics.comment= $2; }
         | sp_suid
           { Lex->sp_chistics.suid= $1; }
+        | sp_path
+          { Lex->sp_chistics.sql_path= $1; }
         ;
 
 create_package_chistics:
@@ -19141,6 +19178,7 @@ keyword_sp_decl:
         | FUNCTION_SYM
         | WINDOW_SYM
         | IGNORED_SYM
+        | PATH_SYM
         ;
 
 opt_truncate_table_storage_clause:
@@ -19289,9 +19327,12 @@ sf_c_chistics_and_body_standalone:
             LEX *lex= thd->lex;
             lex->sphead->set_c_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+            lex->sphead->m_routine_path.push(thd, &my_charset_utf8mb3_bin,
+                                           lex->sphead->path());
           }
           sp_proc_stmt_in_returns_clause force_lookahead
           {
+            thd->lex->sphead->m_routine_path.pop();
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;
           }
@@ -19310,9 +19351,13 @@ sp_tail_standalone:
           {
             Lex->sphead->set_c_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+
+            Lex->sphead->m_routine_path.push(thd, &my_charset_utf8mb3_bin, 
+                                            Lex->sphead->path());
           }
           sp_proc_stmt force_lookahead
           {
+            Lex->sphead->m_routine_path.pop();
             if (unlikely(Lex->sp_body_finalize_procedure(thd)))
               MYSQL_YYABORT;
           }
@@ -19616,6 +19661,7 @@ keyword_sp_decl:
         | keyword_verb_clause
         | WINDOW_SYM
         | IGNORED_SYM
+        | PATH_SYM
         ;
 
 opt_truncate_table_storage_clause:
@@ -20072,9 +20118,13 @@ package_implementation_function_body:
             sp->reset_thd_mem_root(thd);
             sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
+
+            pkg->m_package_path.push(thd, &my_charset_utf8mb3_bin, sp->path());
           }
           sp_package_function_body opt_package_routine_end_name
           {
+            sp_package *pkg= $2->get_sp_package();
+            pkg->m_package_path.pop();
             if (unlikely(thd->lex->sp_body_finalize_function(thd) ||
                          thd->lex->sphead->check_package_routine_end_name($5)))
               MYSQL_YYABORT;
@@ -20091,9 +20141,14 @@ package_implementation_procedure_body:
             sp->reset_thd_mem_root(thd);
             sp->set_c_chistics(thd->lex->sp_chistics);
             sp->set_body_start(thd, YYLIP->get_cpp_tok_start());
+
+            pkg->m_package_path.push(thd, &my_charset_utf8mb3_bin, sp->path());
           }
           sp_package_procedure_body opt_package_routine_end_name
           {
+            sp_package *pkg= $2->get_sp_package();
+            pkg->m_package_path.pop();
+            
             if (unlikely(thd->lex->sp_body_finalize_procedure(thd) ||
                          thd->lex->sphead->check_package_routine_end_name($5)))
               MYSQL_YYABORT;
@@ -20205,9 +20260,13 @@ sf_c_chistics_and_body_standalone:
             LEX *lex= thd->lex;
             lex->sphead->set_c_chistics(lex->sp_chistics);
             lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+
+            lex->sphead->m_routine_path.push(thd, &my_charset_utf8mb3_bin,
+                                           lex->sphead->path());
           }
           sp_tail_is sp_body force_lookahead
           {
+            thd->lex->sphead->m_routine_path.pop();
             if (unlikely(Lex->sp_body_finalize_function(thd)))
               MYSQL_YYABORT;
           }
@@ -20226,11 +20285,15 @@ sp_tail_standalone:
           {
             Lex->sphead->set_c_chistics(Lex->sp_chistics);
             Lex->sphead->set_body_start(thd, YYLIP->get_cpp_tok_start());
+
+            Lex->sphead->m_routine_path.push(thd, &my_charset_utf8mb3_bin,
+                                            Lex->sphead->path());
           }
           sp_tail_is
           sp_body
           opt_trailing_sp_name
           {
+            Lex->sphead->m_routine_path.pop();
             if (unlikely(Lex->sp_body_finalize_procedure_standalone(thd, $8)))
               MYSQL_YYABORT;
           }
