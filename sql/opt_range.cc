@@ -3446,9 +3446,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     if (table->opt_range_keys.is_set(keynr))
       optimal_key_order[ranges++]= keynr;
 
-  my_qsort2(optimal_key_order, ranges,
-            sizeof(optimal_key_order[0]),
-            (qsort_cmp2) cmp_quick_ranges, table);
+  my_qsort2(optimal_key_order, ranges, sizeof(optimal_key_order[0]),
+            cmp_quick_ranges, table);
 
   for (range_index= 0 ; range_index < ranges ; range_index++)
   {

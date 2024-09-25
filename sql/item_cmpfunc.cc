@@ -3783,7 +3783,7 @@ in_row::in_row(THD *thd, uint elements, Item * item)
 {
   base= (char*) new (thd->mem_root) cmp_item_row[count= elements];
   size= sizeof(cmp_item_row);
-  compare= (qsort_cmp2) cmp_row;
+  compare= cmp_row;
   /*
     We need to reset these as otherwise we will call sort() with
     uninitialized (even if not used) elements
@@ -3815,8 +3815,7 @@ bool in_row::set(uint pos, Item *item)
 }
 
 in_longlong::in_longlong(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(packed_longlong),
-             (qsort_cmp2) cmp_longlong, 0)
+    : in_vector(thd, elements, sizeof(packed_longlong), cmp_longlong, 0)
 {}
 
 bool in_longlong::set(uint pos, Item *item)
@@ -3856,7 +3855,7 @@ static int cmp_timestamp(void *, const void *a_, const void *b_)
 
 
 in_timestamp::in_timestamp(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(Value), (qsort_cmp2) cmp_timestamp, 0)
+  :in_vector(thd, elements, sizeof(Value), cmp_timestamp, 0)
 {}
 
 
@@ -3940,7 +3939,7 @@ Item *in_temporal::create_item(THD *thd)
 
 
 in_double::in_double(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(double), (qsort_cmp2) cmp_double, 0)
+  :in_vector(thd, elements, sizeof(double), cmp_double, 0)
 {}
 
 bool in_double::set(uint pos, Item *item)
@@ -3964,7 +3963,7 @@ Item *in_double::create_item(THD *thd)
 
 
 in_decimal::in_decimal(THD *thd, uint elements)
-  :in_vector(thd, elements, sizeof(my_decimal), (qsort_cmp2) cmp_decimal, 0)
+  :in_vector(thd, elements, sizeof(my_decimal), cmp_decimal, 0)
 {}
 
 

@@ -261,8 +261,8 @@ void maria_ft_parse_init(TREE *wtree, CHARSET_INFO *cs)
 {
   DBUG_ENTER("maria_ft_parse_init");
   if (!is_tree_inited(wtree))
-    init_tree(wtree,0,0,sizeof(FT_WORD),(qsort_cmp2)&FT_WORD_cmp, NULL,
-              (void*) cs, MYF(0));
+    init_tree(wtree, 0, 0, sizeof(FT_WORD), &FT_WORD_cmp, NULL, (void *) cs,
+              MYF(0));
   DBUG_VOID_RETURN;
 }
 

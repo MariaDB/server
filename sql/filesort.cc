@@ -2787,7 +2787,7 @@ void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
 
 qsort_cmp2 get_packed_keys_compare_ptr()
 {
-  return (qsort_cmp2) compare_packed_sort_keys;
+  return compare_packed_sort_keys;
 }
 
 

@@ -114,8 +114,10 @@ public:
     max_arg("",default_charset_info), sum(0),
     must_be_blob(0), was_zero_fill(0),
     was_maybe_zerofill(0), can_be_still_num(1)
-    { init_tree(&tree, 0, 0, sizeof(String), (qsort_cmp2) sortcmp2,
-		free_string, NULL, MYF(MY_THREAD_SPECIFIC)); };
+  {
+    init_tree(&tree, 0, 0, sizeof(String), sortcmp2, free_string, NULL,
+              MYF(MY_THREAD_SPECIFIC));
+  };
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -153,8 +155,8 @@ public:
   field_decimal(Item* a, analyse* b) :field_info(a,b)
   {
     bin_size= my_decimal_get_binary_size(a->max_length, a->decimals);
-    init_tree(&tree, 0, 0, bin_size, (qsort_cmp2)compare_decimal2,
-              0, (void *)&bin_size, MYF(MY_THREAD_SPECIFIC));
+    init_tree(&tree, 0, 0, bin_size, compare_decimal2, 0, (void *) &bin_size,
+              MYF(MY_THREAD_SPECIFIC));
   };
 
   void	 add() override;
@@ -181,9 +183,10 @@ class field_real: public field_info
 public:
   field_real(Item* a, analyse* b) :field_info(a,b),
     min_arg(0), max_arg(0),  sum(0), sum_sqr(0), max_notzero_dec_len(0)
-    { init_tree(&tree, 0, 0, sizeof(double),
-		(qsort_cmp2) compare_double2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+    {
+      init_tree(&tree, 0, 0, sizeof(double), compare_double2, NULL, NULL,
+                MYF(MY_THREAD_SPECIFIC));
+    }
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -235,9 +238,10 @@ class field_longlong: public field_info
 public:
   field_longlong(Item* a, analyse* b) :field_info(a,b), 
     min_arg(0), max_arg(0), sum(0), sum_sqr(0)
-    { init_tree(&tree, 0, 0, sizeof(longlong),
-		(qsort_cmp2) compare_longlong2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+  {
+    init_tree(&tree, 0, 0, sizeof(longlong), compare_longlong2, NULL, NULL,
+              MYF(MY_THREAD_SPECIFIC));
+  }
 
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
@@ -280,9 +284,10 @@ class field_ulonglong: public field_info
 public:
   field_ulonglong(Item* a, analyse * b) :field_info(a,b),
     min_arg(0), max_arg(0), sum(0),sum_sqr(0)
-    { init_tree(&tree, 0, 0, sizeof(ulonglong),
-		(qsort_cmp2) compare_ulonglong2, NULL, NULL,
-                MYF(MY_THREAD_SPECIFIC)); }
+  {
+    init_tree(&tree, 0, 0, sizeof(ulonglong), compare_ulonglong2, NULL, NULL,
+              MYF(MY_THREAD_SPECIFIC));
+  }
   void	 add() override;
   void	 get_opt_type(String*, ha_rows) override;
   String *get_min_arg(String *s) override { s->set(min_arg,my_thd_charset); return s; }
