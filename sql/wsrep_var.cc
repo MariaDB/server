@@ -365,13 +365,11 @@ bool wsrep_start_position_check (sys_var *self, THD* thd, set_var* var)
          var->save_result.string_value.length);
   start_pos_buf[var->save_result.string_value.length]= 0;
 
-
   WSREP_DEBUG("SST wsrep_start_position check for new position %s old %s",
-	     start_pos_buf, wsrep_start_position);
+              start_pos_buf, wsrep_start_position);
 
   // Verify the format.
   if (wsrep_start_position_verify(start_pos_buf)) return true;
-
 
   // Give error if position is updated when wsrep is not enabled or
   // provider is not loaded.
@@ -679,7 +677,7 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   {
     wsrep_create_rollbacker();
     WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
-	    wsrep_slave_threads, wsrep_running_applier_threads);
+                wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
   }
   mysql_mutex_unlock(&LOCK_wsrep_cluster_config);
@@ -783,7 +781,7 @@ static void wsrep_slave_count_change_update ()
 {
   wsrep_slave_count_change = (wsrep_slave_threads - wsrep_running_applier_threads);
   WSREP_DEBUG("Change on slave threads: New %ld old %lu difference %d",
-	  wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
+              wsrep_slave_threads, wsrep_running_applier_threads, wsrep_slave_count_change);
 }
 
 bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
@@ -808,9 +806,9 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
     // Thread creation and execution is asyncronous, therefore we need
     // wait them to be started or error produced
     while (wsrep_running_applier_threads != (ulong)wsrep_slave_threads &&
-	   !wsrep_thread_create_failed.load(std::memory_order_relaxed))
+           !wsrep_thread_create_failed.load(std::memory_order_relaxed))
     {
-	    my_sleep(1000);
+      my_sleep(1000);
     }
 
     mysql_mutex_lock(&LOCK_global_system_variables);
@@ -1129,12 +1127,6 @@ bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
 {
   bool new_replicate_myisam= (bool)var->save_result.ulonglong_value;
 
-  if (new_replicate_myisam && !WSREP_ON_)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_replicate_myisam=ON can't be enabled "
-               "if wsrep_on=OFF", MYF(0));
-    return true;
-  }
   if (new_replicate_myisam &&
       !(wsrep_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
         wsrep_forced_binlog_format == BINLOG_FORMAT_ROW))
@@ -1149,12 +1141,6 @@ bool wsrep_replicate_myisam_check(sys_var *self, THD* thd, set_var* var)
 bool wsrep_forced_binlog_format_check(sys_var *self, THD* thd, set_var* var)
 {
   ulonglong new_forced_binlog_format= var->save_result.ulonglong_value;
-  if (new_forced_binlog_format != BINLOG_FORMAT_UNSPEC && !WSREP_ON)
-  {
-    my_message(ER_WRONG_ARGUMENTS, "wsrep_forced_binlog_format can't be set "
-               "if wsrep_on=OFF", MYF(0));
-    return true;
-  }
   if (!(new_forced_binlog_format == BINLOG_FORMAT_UNSPEC ||
         new_forced_binlog_format == BINLOG_FORMAT_ROW))
   {

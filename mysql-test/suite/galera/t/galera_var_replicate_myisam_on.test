@@ -236,4 +236,3 @@ DROP TABLE t1;
 --disable_query_log
 --eval SET GLOBAL wsrep_replicate_myisam = $wsrep_replicate_myisam_orig
 --enable_query_log
-
