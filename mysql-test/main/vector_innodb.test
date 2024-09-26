@@ -72,6 +72,32 @@ select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c92
 --replace_regex /(\.\d{5})\d+/\1/
 select id,vec_distance_euclidean(v, x'f618663f256be73e62cd453f8bcdbf3e16ae503c3858313f') d from t2 order by d limit 5;
 
+### streaming
+
+connect con2, localhost, root;
+--disable_ps2_protocol
+select get_lock('a:5', 10);
+--enable_ps2_protocol
+
+connection default;
+#set innodb_snapshot_isolation=ON;
+send select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1
+  where get_lock(concat('a:', id), 10)+id < 11 order by d limit 3;
+
+connection con2;
+let $wait_condition= select count(*) = 1 from information_schema.processlist where state = 'user lock';
+source include/wait_condition.inc;
+
+delete from t1 where id=2;
+
+--disable_ps2_protocol
+select release_all_locks();
+--enable_ps2_protocol
+
+connection default;
+--replace_regex /(\.\d{5})\d+/\1/
+reap;
+
 drop table t1, t2;
 
 --echo #

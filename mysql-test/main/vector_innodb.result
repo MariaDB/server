@@ -85,6 +85,23 @@ id	d
 6	0.69420
 2	0.79716
 9	0.82985
+connect con2, localhost, root;
+select get_lock('a:5', 10);
+get_lock('a:5', 10)
+1
+connection default;
+select id,vec_distance_euclidean(v, x'1f4d053f7056493f937da03dd8c97a3f220cbb3c926c1c3facca213ec0618a3e') d from t1
+where get_lock(concat('a:', id), 10)+id < 11 order by d limit 3;
+connection con2;
+delete from t1 where id=2;
+select release_all_locks();
+release_all_locks()
+1
+connection default;
+id	d
+6	0.93093
+5	0.97063
+2	1.09071
 drop table t1, t2;
 #
 # MDEV-34989 After selecting from empty table with vector key the next insert hangs
