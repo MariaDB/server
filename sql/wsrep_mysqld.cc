@@ -1349,84 +1349,114 @@ static void wsrep_keys_free(wsrep_key_arr_t* key_arr)
 
  * @return 0 if parent table append was successful, non-zero otherwise.
 */
-bool
-wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
+bool wsrep_append_fk_parent_table(THD *thd, TABLE_LIST *tables,
+                                  wsrep::key_array *keys)
 {
-    bool fail= false;
-    TABLE_LIST *table;
+  assert(wsrep_thd_is_local(thd));
 
-    for (table= tables; table; table= table->next_local)
+  bool fail= false;
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL);
+
+  for (TABLE_LIST *table= tables; table; table= table->next_local)
+  {
+    if (!table->table)
     {
-      if (is_temporary_table(table))
+      TABLE_LIST *save_next_global= table->next_global;
+      TABLE_LIST::enum_open_strategy save_open_strategy= table->open_strategy;
+      table->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
+
+      Diagnostics_area *da= thd->get_stmt_da();
+      Warning_info tmp_wi(thd->query_id, false, true);
+      da->push_warning_info(&tmp_wi);
+
+      if (open_table(thd, table, &ot_ctx))
       {
-        WSREP_DEBUG("Temporary table %s.%s already opened query=%s", table->db.str,
-                    table->table_name.str, wsrep_thd_query(thd));
-	return false;
-      }
-    }
-
-    thd->release_transactional_locks();
-    uint counter;
-    MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
-
-    if (open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
-    {
-      WSREP_DEBUG("Unable to open table for FK checks for %s", wsrep_thd_query(thd));
-      fail= true;
-      goto exit;
-    }
-
-    for (table= tables; table; table= table->next_local)
-    {
-      if (!is_temporary_table(table) && table->table)
-      {
-        FOREIGN_KEY_INFO *f_key_info;
-        List<FOREIGN_KEY_INFO> f_key_list;
-
-        table->table->file->get_foreign_key_list(thd, &f_key_list);
-        List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
-        while ((f_key_info=it++))
+        if (da->is_error() && da->sql_errno() == ER_UNKNOWN_STORAGE_ENGINE)
         {
-          WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-          keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db->str,
-                                                    f_key_info->referenced_table->str,
-                                                    wsrep::key::shared));
+          thd->get_stmt_da()->reset_diagnostics_area();
+        }
+        else
+        {
+          fail= true;
         }
       }
+
+      da->pop_warning_info();
+      table->next_global= save_next_global;
+      table->open_strategy= save_open_strategy;
+
+      if (fail)
+      {
+        WSREP_DEBUG("Unable to open table for FK checks for %s",
+                    wsrep_thd_query(thd));
+        goto exit;
+      }
     }
+
+    if (table->table && !is_temporary_table(table))
+    {
+      FOREIGN_KEY_INFO *f_key_info;
+      List<FOREIGN_KEY_INFO> f_key_list;
+
+      table->table->file->get_foreign_key_list(thd, &f_key_list);
+      List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
+      while ((f_key_info= it++))
+      {
+        WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
+        keys->push_back(wsrep_prepare_key_for_toi(
+            f_key_info->referenced_db->str, f_key_info->referenced_table->str,
+            wsrep::key::shared));
+      }
+    }
+  }
 
 exit:
-    DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
+  DEBUG_SYNC(thd, "wsrep_append_fk_toi_keys_before_close_tables");
 
-    /* close the table and release MDL locks */
-    close_thread_tables(thd);
-    thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
-    for (table= tables; table; table= table->next_local)
+  /* close the table and release MDL locks */
+  close_thread_tables(thd);
+  thd->mdl_context.rollback_to_savepoint(ot_ctx.start_of_statement_svp());
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    table->table= NULL;
+    table->mdl_request.ticket= NULL;
+  }
+
+  /*
+    Reopen temporary tables if necessary.
+    DROP TABLE pre-opens temporary tables, but the corresponding
+    command does not have the CF_PREOPEN_TMP_TABLES flag set.
+  */
+  const bool preopen_tmp_tables=
+      thd->lex->sql_command == SQLCOM_DROP_TABLE ||
+      (sql_command_flags[thd->lex->sql_command] & CF_PREOPEN_TMP_TABLES);
+
+  if (preopen_tmp_tables && thd->open_temporary_tables(tables))
+  {
+    WSREP_INFO("Unable to reopen temporary tables after FK checks");
+    fail= true;
+  }
+
+  /*
+    MDEV-32938: Check if DDL operation has been killed before.
+
+    It may be that during collecting foreign keys this operation gets
+    BF-aborted by another already-running TOI operation because it got MDL
+    locks on the same table for checking foreign keys. After
+    `close_thread_tables()` has been called it's safe to assume that no-one can
+    BF-abort this operation as it's not holding any MDL locks any more.
+  */
+  if (!fail)
+  {
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
+    if (thd->killed)
     {
-      table->table= NULL;
-      table->next_global= NULL;
-      table->mdl_request.ticket= NULL;
+      fail= true;
     }
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  }
 
-    /*
-      MDEV-32938: Check if DDL operation has been killed before.
-
-      It may be that during collecting foreign keys this operation gets BF-aborted
-      by another already-running TOI operation because it got MDL locks on the same
-      table for checking foreign keys.
-      After `close_thread_tables()` has been called it's safe to assume that no-one
-      can BF-abort this operation as it's not holding any MDL locks any more.
-    */
-    if (!fail)
-    {
-      mysql_mutex_lock(&thd->LOCK_thd_kill);
-      if (thd->killed)
-      {
-        fail= true;
-      }
-      mysql_mutex_unlock(&thd->LOCK_thd_kill);
-    }
-    return fail;
+  return fail;
 }
 
 bool wsrep_reload_ssl()
@@ -3525,4 +3555,16 @@ void wsrep_commit_empty(THD* thd, bool all)
                   wsrep::to_c_string(thd->wsrep_cs().current_error()));
   }
   DBUG_VOID_RETURN;
+}
+
+bool wsrep_table_list_has_non_temp_tables(THD *thd, TABLE_LIST *tables)
+{
+  for (TABLE_LIST *table= tables; table; table= table->next_global)
+  {
+    if (!thd->find_temporary_table(table))
+    {
+      return true;
+    }
+  }
+  return false;
 }
