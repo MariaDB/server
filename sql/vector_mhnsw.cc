@@ -63,7 +63,7 @@ enum Graph_table_indices {
   IDX_TREF, IDX_LAYER
 };
 
-class MHNSW_Context;
+class MHNSW_Share;
 class FVectorNode;
 
 /*
@@ -216,7 +216,7 @@ struct FVector
   It's mainly used to store all neighbors of a given node on a given layer.
 
   An array is fixed size, 2*M for the zero layer, M for other layers
-  see MHNSW_Context::max_neighbors().
+  see MHNSW_Share::max_neighbors().
 
   Number of neighbors is zero-padded to multiples of 8 (for SIMD Bloom filter).
 
@@ -263,7 +263,7 @@ struct Neighborhood: public Sql_alloc
 class FVectorNode
 {
 private:
-  MHNSW_Context *ctx;
+  MHNSW_Share *ctx;
 
   const FVector *make_vec(const void *v);
   int alloc_neighborhood(uint8_t layer);
@@ -273,8 +273,8 @@ public:
   uint8_t max_layer;
   bool stored:1, deleted:1;
 
-  FVectorNode(MHNSW_Context *ctx_, const void *gref_);
-  FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
+  FVectorNode(MHNSW_Share *ctx_, const void *gref_);
+  FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
               const void *vec_);
   float distance_to(const FVector *other) const;
   int load(TABLE *graph);
@@ -294,7 +294,7 @@ public:
   Shared algorithm context. The graph.
 
   Stored in TABLE_SHARE and on TABLE_SHARE::mem_root.
-  Stores the complete graph in MHNSW_Context::root,
+  Stores the complete graph in MHNSW_Share::root,
   The mapping gref->FVectorNode is in the node_cache.
   Both root and node_cache are protected by a cache_lock, but it's
   needed when loading nodes and is not used when the whole graph is in memory.
@@ -307,7 +307,7 @@ public:
   MyISAM automatically gets exclusive write access because of the TL_WRITE,
   but InnoDB has to use a dedicated ctx->commit_lock for that
 */
-class MHNSW_Context : public Sql_alloc
+class MHNSW_Share : public Sql_alloc
 {
   std::atomic<uint> refcnt{0};
   mysql_mutex_t cache_lock;
@@ -340,7 +340,7 @@ public:
   const uint M;
   metric_type metric;
 
-  MHNSW_Context(TABLE *t)
+  MHNSW_Share(TABLE *t)
     : tref_len(t->file->ref_length),
       gref_len(t->hlindex->file->ref_length),
       M(static_cast<uint>(t->s->key_info[t->s->keys].option_struct->M)),
@@ -353,7 +353,7 @@ public:
     init_alloc_root(PSI_INSTRUMENT_MEM, &root, 1024*1024, 0, MYF(0));
   }
 
-  virtual ~MHNSW_Context()
+  virtual ~MHNSW_Share()
   {
     free_root(&root, MYF(0));
     mysql_rwlock_destroy(&commit_lock);
@@ -387,13 +387,13 @@ public:
     vec_len= len / sizeof(float);
   }
 
-  static int acquire(MHNSW_Context **ctx, TABLE *table, bool for_update);
-  static MHNSW_Context *get_from_share(TABLE_SHARE *share, TABLE *table);
+  static int acquire(MHNSW_Share **ctx, TABLE *table, bool for_update);
+  static MHNSW_Share *get_from_share(TABLE_SHARE *share, TABLE *table);
 
   virtual void reset(TABLE_SHARE *share)
   {
     share->lock_share();
-    if (static_cast<MHNSW_Context*>(share->hlindex->hlindex_data) == this)
+    if (static_cast<MHNSW_Share*>(share->hlindex->hlindex_data) == this)
     {
       share->hlindex->hlindex_data= nullptr;
       --refcnt;
@@ -413,7 +413,7 @@ public:
     if (root_size(&root) > mhnsw_cache_size)
       reset(share);
     if (--refcnt == 0)
-      this->~MHNSW_Context(); // XXX reuse
+      this->~MHNSW_Share(); // XXX reuse
   }
 
   FVectorNode *get_node(const void *gref)
@@ -475,14 +475,14 @@ public:
   one instance of trx per TABLE_SHARE and allocated on the
   thd->transaction->mem_root
 */
-class MHNSW_Trx : public MHNSW_Context
+class MHNSW_Trx : public MHNSW_Share
 {
 public:
   TABLE_SHARE *table_share;
   bool list_of_nodes_is_lost= false;
   MHNSW_Trx *next= nullptr;
 
-  MHNSW_Trx(TABLE *table) : MHNSW_Context(table), table_share(table->s) {}
+  MHNSW_Trx(TABLE *table) : MHNSW_Share(table), table_share(table->s) {}
   void reset(TABLE_SHARE *) override
   {
     node_cache.clear();
@@ -552,7 +552,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
        trx; trx= trx_next)
   {
     trx_next= trx->next;
-    auto ctx= MHNSW_Context::get_from_share(trx->table_share, nullptr);
+    auto ctx= MHNSW_Share::get_from_share(trx->table_share, nullptr);
     if (ctx)
     {
       mysql_rwlock_wrlock(&ctx->commit_lock);
@@ -601,13 +601,13 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
   return trx;
 }
 
-MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
+MHNSW_Share *MHNSW_Share::get_from_share(TABLE_SHARE *share, TABLE *table)
 {
   share->lock_share();
-  auto ctx= static_cast<MHNSW_Context*>(share->hlindex->hlindex_data);
+  auto ctx= static_cast<MHNSW_Share*>(share->hlindex->hlindex_data);
   if (!ctx && table)
   {
-    ctx= new (&share->hlindex->mem_root) MHNSW_Context(table);
+    ctx= new (&share->hlindex->mem_root) MHNSW_Share(table);
     if (!ctx) return nullptr;
     share->hlindex->hlindex_data= ctx;
     ctx->refcnt++;
@@ -618,13 +618,13 @@ MHNSW_Context *MHNSW_Context::get_from_share(TABLE_SHARE *share, TABLE *table)
   return ctx;
 }
 
-int MHNSW_Context::acquire(MHNSW_Context **ctx, TABLE *table, bool for_update)
+int MHNSW_Share::acquire(MHNSW_Share **ctx, TABLE *table, bool for_update)
 {
   TABLE *graph= table->hlindex;
 
   if (!(*ctx= MHNSW_Trx::get_from_thd(table, for_update)))
   {
-    *ctx= MHNSW_Context::get_from_share(table->s, table);
+    *ctx= MHNSW_Share::get_from_share(table->s, table);
     if (table->file->has_transactions())
       mysql_rwlock_rdlock(&(*ctx)->commit_lock);
   }
@@ -652,13 +652,13 @@ const FVector *FVectorNode::make_vec(const void *v)
   return FVector::create(ctx->metric, tref() + tref_len(), v, ctx->byte_len);
 }
 
-FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *gref_)
+FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *gref_)
   : ctx(ctx_), stored(true), deleted(false)
 {
   memcpy(gref(), gref_, gref_len());
 }
 
-FVectorNode::FVectorNode(MHNSW_Context *ctx_, const void *tref_, uint8_t layer,
+FVectorNode::FVectorNode(MHNSW_Share *ctx_, const void *tref_, uint8_t layer,
                          const void *vec_)
   : ctx(ctx_), stored(false), deleted(false)
 {
@@ -832,7 +832,7 @@ class VisitedSet
   one extra candidate is specified separately to avoid appending it to
   the Neighborhood candidates, which might be already at its max size.
 */
-static int select_neighbors(MHNSW_Context *ctx, TABLE *graph, size_t layer,
+static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
                             FVectorNode &target, const Neighborhood &candidates,
                             FVectorNode *extra_candidate,
                             size_t max_neighbor_connections)
@@ -935,7 +935,7 @@ int FVectorNode::save(TABLE *graph)
   return err;
 }
 
-static int update_second_degree_neighbors(MHNSW_Context *ctx, TABLE *graph,
+static int update_second_degree_neighbors(MHNSW_Share *ctx, TABLE *graph,
                                           size_t layer, FVectorNode *node)
 {
   const uint max_neighbors= ctx->max_neighbors(layer);
@@ -968,7 +968,7 @@ static inline float generous_furthest(const Queue<Visited> &q, float maxd, float
   return d*(1 + (g - 1)/2 * (1 - sigmoid));
 }
 
-static int search_layer(MHNSW_Context *ctx, TABLE *graph, const FVector *target,
+static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
                         Neighborhood *start_nodes, uint result_size,
                         size_t layer, Neighborhood *result, bool construction)
 {
@@ -1096,7 +1096,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   Field *vec_field= keyinfo->key_part->field;
   String buf, *res= vec_field->val_str(&buf);
-  MHNSW_Context *ctx;
+  MHNSW_Share *ctx;
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
@@ -1116,7 +1116,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   table->file->position(table->record[0]);
 
-  int err= MHNSW_Context::acquire(&ctx, table, true);
+  int err= MHNSW_Share::acquire(&ctx, table, true);
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
   if (err)
   {
@@ -1205,12 +1205,12 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   DBUG_ASSERT(fun);
 
   String buf, *res= fun->get_const_arg()->val_str(&buf);
-  MHNSW_Context *ctx;
+  MHNSW_Share *ctx;
 
   if (int err= table->file->ha_rnd_init(0))
     return err;
 
-  int err= MHNSW_Context::acquire(&ctx, table, false);
+  int err= MHNSW_Share::acquire(&ctx, table, false);
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
   if (err)
     return err;
@@ -1293,7 +1293,7 @@ void mhnsw_free(TABLE_SHARE *share)
   if (!graph_share->hlindex_data)
     return;
 
-  static_cast<MHNSW_Context*>(graph_share->hlindex_data)->~MHNSW_Context();
+  static_cast<MHNSW_Share*>(graph_share->hlindex_data)->~MHNSW_Share();
   graph_share->hlindex_data= 0;
 }
 
@@ -1301,8 +1301,8 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
 {
   TABLE *graph= table->hlindex;
   handler *h= table->file;
-  MHNSW_Context *ctx;
-  bool use_ctx= !MHNSW_Context::acquire(&ctx, table, true);
+  MHNSW_Share *ctx;
+  bool use_ctx= !MHNSW_Share::acquire(&ctx, table, true);
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
 
   /* metadata are checked on open */
@@ -1352,8 +1352,8 @@ int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate)
                         : graph->file->delete_all_rows())
    return err;
 
-  MHNSW_Context *ctx;
-  if (!MHNSW_Context::acquire(&ctx, table, true))
+  MHNSW_Share *ctx;
+  if (!MHNSW_Share::acquire(&ctx, table, true))
   {
     ctx->reset(table->s);
     ctx->release(table);
