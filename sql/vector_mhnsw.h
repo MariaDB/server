@@ -29,6 +29,7 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length);
 int mhnsw_insert(TABLE *table, KEY *keyinfo);
 int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit);
 int mhnsw_read_next(TABLE *table);
+int mhnsw_read_end(TABLE *table);
 int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo);
 int mhnsw_delete_all(TABLE *table, KEY *keyinfo, bool truncate);
 void mhnsw_free(TABLE_SHARE *share);

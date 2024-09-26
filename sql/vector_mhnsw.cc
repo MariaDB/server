@@ -24,6 +24,9 @@
 #include <my_atomic_wrapper.h>
 #include "bloom_filters.h"
 
+// distance can be a little bit < 0 because of fast math
+static constexpr float NEAREST = -1.0f;
+
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
 static constexpr uint ef_construction= 10;
@@ -329,6 +332,7 @@ protected:
   Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
 
 public:
+  ulonglong version= 0;                 // protected by commit_lock
   mysql_rwlock_t commit_lock;
   size_t vec_len= 0;
   size_t byte_len= 0;
@@ -416,6 +420,14 @@ public:
       this->~MHNSW_Share(); // XXX reuse
   }
 
+  virtual MHNSW_Share *dup(bool can_commit)
+  {
+    refcnt++;
+    if (can_commit)
+      mysql_rwlock_rdlock(&commit_lock);
+    return this;
+  }
+
   FVectorNode *get_node(const void *gref)
   {
     mysql_mutex_lock(&cache_lock);
@@ -496,6 +508,8 @@ public:
       reset(nullptr);
   }
 
+  virtual MHNSW_Share *dup(bool) override { return this; }
+
   static MHNSW_Trx *get_from_thd(TABLE *table, bool for_update);
 
   // it's okay in a transaction-local cache, there's no concurrent access
@@ -556,6 +570,7 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
     if (ctx)
     {
       mysql_rwlock_wrlock(&ctx->commit_lock);
+      ctx->version++;
       if (trx->list_of_nodes_is_lost)
         ctx->reset(trx->table_share);
       else
@@ -972,7 +987,7 @@ static inline float generous_furthest(const Queue<Visited> &q, float maxd, float
   @param[in/out] inout    in: start nodes, out: result nodes
 */
 static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
-                        uint result_size,
+                        float threshold, uint result_size,
                         size_t layer, Neighborhood *inout, bool construction)
 {
   DBUG_ASSERT(inout->num > 0);
@@ -1011,7 +1026,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
     Visited *v= visited.create(inout->links[i]);
     max_distance= std::max(max_distance, v->distance_to_target);
     candidates.push(v);
-    if (skip_deleted && v->node->deleted)
+    if ((skip_deleted && v->node->deleted) || threshold > NEAREST)
       continue;
     best.push(v);
   }
@@ -1041,6 +1056,8 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
         if (int err= links[i]->load(graph))
           return err;
         Visited *v= visited.create(links[i]);
+        if (v->distance_to_target <= threshold)
+          continue;
         if (!best.is_full())
         {
           max_distance= std::max(max_distance, v->distance_to_target);
@@ -1161,7 +1178,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (cur_layer= max_layer; cur_layer > target_layer; cur_layer--)
   {
-    if (int err= search_layer(ctx, graph, target->vec,
+    if (int err= search_layer(ctx, graph, target->vec, NEAREST,
                               1, cur_layer, &candidates, false))
       return err;
   }
@@ -1169,7 +1186,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   for (; cur_layer >= 0; cur_layer--)
   {
     uint max_neighbors= ctx->max_neighbors(cur_layer);
-    if (int err= search_layer(ctx, graph, target->vec,
+    if (int err= search_layer(ctx, graph, target->vec, NEAREST,
                               max_neighbors, cur_layer, &candidates, true))
       return err;
 
@@ -1194,6 +1211,19 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   return 0;
 }
+
+
+struct Search_context: public Sql_alloc
+{
+  Neighborhood found;
+  MHNSW_Share *ctx;
+  const FVector *target;
+  ulonglong ctx_version;
+  size_t pos= 0;
+  float threshold= NEAREST/2;
+  Search_context(Neighborhood *n, MHNSW_Share *s, const FVector *v)
+    : found(*n), ctx(s->dup(false)), target(v), ctx_version(ctx->version) {}
+};
 
 
 int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
@@ -1241,47 +1271,82 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   if (int err= graph->file->ha_rnd_init(0))
     return err;
-  SCOPE_EXIT([graph](){ graph->file->ha_rnd_end(); });
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
-    if (int err= search_layer(ctx, graph, target,
+    if (int err= search_layer(ctx, graph, target, NEAREST,
                               1, cur_layer, &candidates, false))
       return err;
   }
 
-  if (int err= search_layer(ctx, graph, target,
+  if (int err= search_layer(ctx, graph, target, NEAREST,
                             static_cast<uint>(limit), 0, &candidates, false))
     return err;
 
-  if (limit > candidates.num)
-    limit= candidates.num;
-  size_t context_size= limit * ctx->tref_len + sizeof(ulonglong);
-  char *context= thd->alloc(context_size);
-  graph->context= context;
-
-  *(ulonglong*)context= limit;
-  context+= context_size;
-
-  for (size_t i=0; limit--; i++)
-  {
-    context-= ctx->tref_len;
-    memcpy(context, candidates.links[i]->tref(), ctx->tref_len);
-  }
-  DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
+  auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
+  graph->context= result;
 
   return mhnsw_read_next(table);
 }
 
 int mhnsw_read_next(TABLE *table)
 {
-  uchar *ref= (uchar*)(table->hlindex->context);
-  if (ulonglong *limit= (ulonglong*)ref)
+  auto result= static_cast<Search_context*>(table->hlindex->context);
+  if (result->pos < result->found.num)
   {
-    ref+= sizeof(ulonglong) + (--*limit) * table->file->ref_length;
+    uchar *ref= result->found.links[result->pos++]->tref();
     return table->file->ha_rnd_pos(table->record[0], ref);
   }
-  return my_errno= HA_ERR_END_OF_FILE;
+  if (!result->found.num)
+    return my_errno= HA_ERR_END_OF_FILE;
+
+  TABLE *graph= table->hlindex;
+  MHNSW_Share *ctx= result->ctx->dup(table->file->has_transactions());
+  SCOPE_EXIT([&ctx, table](){ ctx->release(table); });
+
+  if (ctx->version != result->ctx_version)
+  {
+    // oops, shared ctx was modified, need to switch to MHNSW_Trx
+    MHNSW_Share *trx;
+    graph->file->ha_rnd_end();
+    int err= MHNSW_Share::acquire(&trx, table, true);
+    SCOPE_EXIT([&trx, table](){ trx->release(table); });
+    if (int err2= graph->file->ha_rnd_init(0))
+      err= err ?  err :  err2;
+    if (err)
+      return err;
+    for (size_t i=0; i < result->found.num; i++)
+    {
+      FVectorNode *node= trx->get_node(result->found.links[i]->gref());
+      if (!node)
+        return my_errno= HA_ERR_OUT_OF_MEM;
+      if ((err= node->load(graph)))
+        return err;
+      result->found.links[i]= node;
+    }
+    ctx->release(false, table->s);      // release shared ctx
+    result->ctx= trx;                   // replace it with trx
+    result->ctx_version= trx->version; 
+    std::swap(trx, ctx);        // free shared ctx in this scope, keep trx
+  }
+
+  float new_threshold= result->found.links[result->found.num-1]->distance_to(result->target);
+
+  if (int err= search_layer(ctx, graph, result->target, result->threshold,
+                   static_cast<uint>(result->pos), 0, &result->found, false))
+    return err;
+  result->pos= 0;
+  result->threshold= new_threshold;
+  return mhnsw_read_next(table);
+}
+
+int mhnsw_read_end(TABLE *table)
+{
+  auto result= static_cast<Search_context*>(table->hlindex->context);
+  result->ctx->release(false, table->s);
+  table->hlindex->context= 0;
+  table->hlindex->file->ha_rnd_end();
+  return 0;
 }
 
 void mhnsw_free(TABLE_SHARE *share)
