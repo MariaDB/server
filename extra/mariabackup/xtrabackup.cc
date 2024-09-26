@@ -205,6 +205,8 @@ lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;
 /** whether log_copying_thread() is active; protected by recv_sys.mutex */
 static bool log_copying_running;
+/** for --backup, target LSN to copy the log to; protected by recv_sys.mutex */
+lsn_t metadata_to_lsn;
 
 uint xtrabackup_parallel;
 
@@ -236,7 +238,6 @@ my_bool opt_encrypted_backup;
 #define XTRABACKUP_METADATA_FILENAME "xtrabackup_checkpoints"
 char metadata_type[30] = ""; /*[full-backuped|log-applied|incremental]*/
 static lsn_t metadata_from_lsn;
-lsn_t metadata_to_lsn;
 static lsn_t metadata_last_lsn;
 
 static ds_file_t*	dst_log_file;
@@ -281,9 +282,6 @@ my_bool xtrabackup_incremental_force_scan = FALSE;
  * by "innobackupex" as a command line argument).
  */
 ulong xtrabackup_innodb_force_recovery = 0;
-
-/* The flushed lsn which is read from data files */
-lsn_t	flushed_lsn= 0;
 
 ulong xb_open_files_limit= 0;
 char *xb_plugin_dir;
@@ -1329,6 +1327,9 @@ enum options_xtrabackup
   OPT_INNODB_BUFFER_POOL_FILENAME,
   OPT_INNODB_LOCK_WAIT_TIMEOUT,
   OPT_INNODB_LOG_BUFFER_SIZE,
+#ifdef HAVE_INNODB_MMAP
+  OPT_INNODB_LOG_FILE_MMAP,
+#endif
 #if defined __linux__ || defined _WIN32
   OPT_INNODB_LOG_FILE_BUFFERING,
 #endif
@@ -1890,6 +1891,13 @@ struct my_option xb_server_options[] =
    (G_PTR*) &log_sys.buf_size, (G_PTR*) &log_sys.buf_size, 0,
    GET_UINT, REQUIRED_ARG, 2U << 20,
    2U << 20, log_sys.buf_size_max, 0, 4096, 0},
+#ifdef HAVE_INNODB_MMAP
+  {"innodb_log_file_mmap", OPT_INNODB_LOG_FILE_SIZE,
+   "Whether ib_logfile0 should be memory-mapped",
+   (G_PTR*) &log_sys.log_mmap,
+   (G_PTR*) &log_sys.log_mmap, 0, GET_BOOL, NO_ARG,
+   log_sys.log_mmap_default, 0, 0, 0, 0, 0},
+#endif
 #if defined __linux__ || defined _WIN32
   {"innodb_log_file_buffering", OPT_INNODB_LOG_FILE_BUFFERING,
    "Whether the file system cache for ib_logfile0 is enabled during --backup",
@@ -3368,8 +3376,108 @@ skip:
 	return(FALSE);
 }
 
+#ifdef HAVE_INNODB_MMAP
+static int
+xtrabackup_copy_mmap_snippet(ds_file_t *ds, const byte *start, const byte *end)
+{
+  if (UNIV_UNLIKELY(start > end))
+  {
+    if (int r= ds_write(ds, start, log_sys.buf + log_sys.file_size - start))
+      return r;
+    start= log_sys.buf + log_sys.START_OFFSET;
+  }
+  return ds_write(ds, start, end - start);
+}
+
+/** Copy memory-mapped log until the end of the log is reached
+or the log_copying_stop signal is received
+@return whether the operation failed */
+static bool xtrabackup_copy_mmap_logfile()
+{
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+  recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
+  recv_sys.len= size_t(log_sys.file_size);
+  const size_t seq_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
+  const char one{'\1'};
+
+  for (unsigned retry_count{0};;)
+  {
+    recv_sys_t::parse_mtr_result r;
+    const byte *start= &log_sys.buf[recv_sys.offset];
+
+    if (recv_sys.parse_mmap<false>(false) == recv_sys_t::OK)
+    {
+      const byte *end;
+
+      do
+      {
+        /* Set the sequence bit (the backed-up log will not wrap around) */
+        size_t seqo= recv_sys.offset - seq_offset;
+        if (seqo < log_sys.START_OFFSET)
+          seqo+= log_sys.file_size - log_sys.START_OFFSET;
+        const byte *seq= &log_sys.buf[seqo];
+        ut_ad(*seq == log_sys.get_sequence_bit(recv_sys.lsn - seq_offset));
+        if (!*seq)
+        {
+          if (xtrabackup_copy_mmap_snippet(dst_log_file, start, seq) ||
+              ds_write(dst_log_file, &one, 1))
+            goto write_error;
+          start = seq + 1;
+        }
+      }
+      while ((r= recv_sys.parse_mmap<false>(false)) == recv_sys_t::OK);
+
+      end= &log_sys.buf[recv_sys.offset];
+
+      if (xtrabackup_copy_mmap_snippet(dst_log_file, start, end))
+      {
+      write_error:
+        msg("Error: write to ib_logfile0 failed");
+        return true;
+      }
+
+      start= end;
+
+      pthread_cond_broadcast(&scanned_lsn_cond);
+
+      if (r == recv_sys_t::GOT_EOF)
+        break;
+
+      retry_count= 0;
+    }
+    else
+    {
+      if (metadata_to_lsn)
+      {
+        if (metadata_to_lsn <= recv_sys.lsn)
+          return false;
+      }
+      else if (xtrabackup_throttle && io_ticket-- < 0)
+        mysql_cond_wait(&wait_throttle, &recv_sys.mutex);
+
+      if (!retry_count++)
+        msg("Retrying read of log at LSN=" LSN_PF, recv_sys.lsn);
+      else if (retry_count == 100)
+        break;
+      else
+      {
+        timespec abstime;
+        set_timespec_nsec(abstime, 1000000ULL /* 1 ms */);
+        if (!mysql_cond_timedwait(&log_copying_stop, &recv_sys.mutex,
+                                  &abstime))
+          return true;
+      }
+    }
+  }
+
+  if (verbose)
+    msg(">> log scanned up to (" LSN_PF ")", recv_sys.lsn);
+  return false;
+}
+#endif
+
 /** Copy redo log until the current end of the log is reached
-@return	whether the operation failed */
+@return whether the operation failed */
 static bool xtrabackup_copy_logfile()
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
@@ -3377,16 +3485,17 @@ static bool xtrabackup_copy_logfile()
 
   ut_a(dst_log_file);
   ut_ad(recv_sys.is_initialised());
+
+#ifdef HAVE_INNODB_MMAP
+  if (log_sys.is_mmap())
+    return xtrabackup_copy_mmap_logfile();
+#endif
   const size_t sequence_offset{log_sys.is_encrypted() ? 8U + 5U : 5U};
   const size_t block_size_1{log_sys.write_size - 1};
 
-  ut_ad(!log_sys.is_pmem());
-
-  {
-    recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
-      block_size_1;
-    recv_sys.len= 0;
-  }
+  recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
+    block_size_1;
+  recv_sys.len= 0;
 
   for (unsigned retry_count{0};;)
   {
@@ -5376,9 +5485,8 @@ fail:
 		goto fail;
 	}
 
-	if (!log_sys.create()) {
-		goto fail;
-	}
+	log_sys.create();
+
 	/* get current checkpoint_lsn */
 	{
 		log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -6730,9 +6838,7 @@ error:
 		}
 
 		recv_sys.create();
-		if (!log_sys.create()) {
-			goto error;
-		}
+		log_sys.create();
 		recv_sys.recovery_on = true;
 
 		xb_fil_io_init();

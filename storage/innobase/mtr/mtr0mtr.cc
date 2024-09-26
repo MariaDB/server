@@ -42,6 +42,7 @@ Created 11/26/1995 Heikki Tuuri
 #ifdef HAVE_PMEM
 void (*mtr_t::commit_logger)(mtr_t *, std::pair<lsn_t,page_flush_ahead>);
 #endif
+
 std::pair<lsn_t,mtr_t::page_flush_ahead> (*mtr_t::finisher)(mtr_t *, size_t);
 unsigned mtr_t::spin_wait_delay;
 
@@ -49,7 +50,7 @@ void mtr_t::finisher_update()
 {
   ut_ad(log_sys.latch_have_wr());
 #ifdef HAVE_PMEM
-  if (log_sys.is_pmem())
+  if (log_sys.is_mmap())
   {
     commit_logger= mtr_t::commit_log<true>;
     finisher= spin_wait_delay
@@ -351,11 +352,11 @@ inline lsn_t log_t::get_write_target() const
   return write_lsn + max_buf_free / 2;
 }
 
-template<bool pmem>
+template<bool mmap>
 void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
 {
   size_t modified= 0;
-  const lsn_t write_lsn= pmem ? 0 : log_sys.get_write_target();
+  const lsn_t write_lsn= mmap ? 0 : log_sys.get_write_target();
 
   if (mtr->m_made_dirty)
   {
@@ -475,7 +476,7 @@ void mtr_t::commit_log(mtr_t *mtr, std::pair<lsn_t,page_flush_ahead> lsns)
   if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
     buf_flush_ahead(mtr->m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
 
-  if (!pmem && UNIV_UNLIKELY(write_lsn != 0))
+  if (!mmap && UNIV_UNLIKELY(write_lsn != 0))
     log_write_up_to(write_lsn, false);
 }
 
@@ -1011,7 +1012,7 @@ ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
   else
     latch.rd_unlock();
 
-  log_write_up_to(lsn, is_pmem());
+  log_write_up_to(lsn, is_mmap());
 
   if (ex)
     latch.wr_lock(SRW_LOCK_CALL);
@@ -1027,16 +1028,16 @@ ATTRIBUTE_COLD size_t log_t::append_prepare_wait(size_t b, bool ex, lsn_t lsn)
 
 /** Reserve space in the log buffer for appending data.
 @tparam spin  whether to use the spin-only lock_lsn()
-@tparam pmem  log_sys.is_pmem()
+@tparam mmap  log_sys.is_mmap()
 @param size   total length of the data to append(), in bytes
 @param ex     whether log_sys.latch is exclusively locked
 @return the start LSN and the buffer position for append() */
-template<bool spin,bool pmem>
+template<bool spin,bool mmap>
 inline
 std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 {
   ut_ad(ex ? latch_have_wr() : latch_have_rd());
-  ut_ad(pmem == is_pmem());
+  ut_ad(mmap == is_mmap());
   if (!spin)
     lsn_lock.wr_lock();
   size_t b{spin ? lock_lsn() : buf_free.load(std::memory_order_relaxed)};
@@ -1044,7 +1045,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
 
   lsn_t l{lsn.load(std::memory_order_relaxed)}, end_lsn{l + size};
 
-  if (UNIV_UNLIKELY(pmem
+  if (UNIV_UNLIKELY(mmap
                     ? (end_lsn -
                        get_flushed_lsn(std::memory_order_relaxed)) > capacity()
                     : b + size >= buf_size))
@@ -1057,7 +1058,7 @@ std::pair<lsn_t,byte*> log_t::append_prepare(size_t size, bool ex) noexcept
   }
 
   size_t new_buf_free= b + size;
-  if (pmem && new_buf_free >= file_size)
+  if (mmap && new_buf_free >= file_size)
     new_buf_free-= size_t(capacity());
 
   lsn.store(end_lsn, std::memory_order_relaxed);
@@ -1213,10 +1214,10 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
     end-= len;
     size_t s;
 
-#ifdef HAVE_PMEM
+#ifdef HAVE_INNODB_MMAP
     if (!resize_flush_buf)
     {
-      ut_ad(is_pmem());
+      ut_ad(is_mmap());
       lsn_lock.wr_lock();
       const size_t resize_capacity{resize_target - START_OFFSET};
       {
@@ -1236,7 +1237,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
           cannot overlap, that is, our entire log must be discarded.
           Besides, incomplete mini-transactions cannot be parsed anyway. */
           ut_ad(resizing >= lsn + len);
-          goto pmem_done;
+          goto mmap_done;
         }
 
         s= START_OFFSET;
@@ -1277,7 +1278,7 @@ inline void log_t::resize_write(lsn_t lsn, const byte *end, size_t len,
       we will advance resize_lsn. */
       ut_ad(resize_buf[s] <= 1);
       resize_buf[s]= 1;
-    pmem_done:
+    mmap_done:
       lsn_lock.wr_unlock();
     }
     else
@@ -1300,12 +1301,12 @@ inline void log_t::append(byte *&d, const void *s, size_t size) noexcept
 {
   ut_ad(log_sys.latch_have_any());
   ut_ad(d + size <= log_sys.buf +
-        (log_sys.is_pmem() ? log_sys.file_size : log_sys.buf_size));
+        (log_sys.is_mmap() ? log_sys.file_size : log_sys.buf_size));
   memcpy(d, s, size);
   d+= size;
 }
 
-template<bool spin,bool pmem>
+template<bool spin,bool mmap>
 std::pair<lsn_t,mtr_t::page_flush_ahead>
 mtr_t::finish_writer(mtr_t *mtr, size_t len)
 {
@@ -1316,16 +1317,14 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
 
   const size_t size{mtr->m_commit_lsn ? 5U + 8U : 5U};
   std::pair<lsn_t, byte*> start=
-    log_sys.append_prepare<spin,pmem>(len, mtr->m_latch_ex);
+    log_sys.append_prepare<spin,mmap>(len, mtr->m_latch_ex);
 
-  if (!pmem)
+  if (!mmap)
   {
     mtr->m_log.for_each_block([&start](const mtr_buf_t::block_t *b)
     { log_sys.append(start.second, b->begin(), b->used()); return true; });
 
-#ifdef HAVE_PMEM
   write_trailer:
-#endif
     *start.second++= log_sys.get_sequence_bit(start.first + len - size);
     if (mtr->m_commit_lsn)
     {
@@ -1336,7 +1335,6 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
     mach_write_to_4(start.second, mtr->m_crc);
     start.second+= 4;
   }
-#ifdef HAVE_PMEM
   else
   {
     if (UNIV_LIKELY(start.second + len <= &log_sys.buf[log_sys.file_size]))
@@ -1384,9 +1382,6 @@ mtr_t::finish_writer(mtr_t *mtr, size_t len)
       ((size >= size_left) ? log_sys.START_OFFSET : log_sys.file_size) +
       (size - size_left);
   }
-#else
-  static_assert(!pmem, "");
-#endif
 
   log_sys.resize_write(start.first, start.second, len, size);
 
