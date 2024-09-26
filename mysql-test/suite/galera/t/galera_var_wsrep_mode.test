@@ -22,7 +22,7 @@ SET GLOBAL wsrep_mode='A';
 --error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL wsrep_mode=NULL;
 --error ER_WRONG_VALUE_FOR_VAR
-SET GLOBAL wsrep_mode=128;
+SET GLOBAL wsrep_mode=256;
 --error ER_PARSE_ERROR
 SET GLOBAL wsrep_mode=REQUIRED_PRIMARY_KEY,REPLICATE_MYISAM;
 #
@@ -57,9 +57,3 @@ SELECT @@wsrep_mode;
 
 # reset
 SET GLOBAL wsrep_mode=DEFAULT;
-
-
-
-
-
-
