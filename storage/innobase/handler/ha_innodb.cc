@@ -16150,6 +16150,8 @@ ha_innobase::external_lock(
 	}
 
 	/* MySQL is releasing a table lock */
+	m_prebuilt->select_lock_type = LOCK_NONE;
+	m_prebuilt->stored_select_lock_type = LOCK_NONE;
 
 	trx->n_mysql_tables_in_use--;
 	m_mysql_has_locked = false;
