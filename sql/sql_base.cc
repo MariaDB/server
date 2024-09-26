@@ -9896,7 +9896,8 @@ int TABLE::hlindex_open(uint nr)
     return 0;
   hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
-  return hlindex->file->ha_external_lock(in_use, F_WRLCK);
+  return hlindex->file->ha_external_lock(in_use,
+           reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
 }
 
 int TABLE::open_hlindexes_for_write()
@@ -9977,4 +9978,9 @@ int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
 int TABLE::hlindex_read_next()
 {
   return mhnsw_read_next(this);
+}
+
+int TABLE::hlindex_read_end()
+{
+  return mhnsw_read_end(this);
 }
