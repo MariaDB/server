@@ -398,19 +398,18 @@ private:
   ATTRIBUTE_COLD void report_progress() const;
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
-  handling log_sys.is_pmem() buffer wrap-around.
+  without handling any log_sys.is_mmap() buffer wrap-around.
   @tparam store     whether to store the records
   @param  if_exists if store: whether to check if the tablespace exists */
   template<bool store>
   static parse_mtr_result parse_mtr(bool if_exists) noexcept;
-
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
-  handling log_sys.is_pmem() buffer wrap-around.
+  handling log_sys.is_mmap() buffer wrap-around.
   @tparam store     whether to store the records
   @param  if_exists if store: whether to check if the tablespace exists */
   template<bool store>
-  static parse_mtr_result parse_pmem(bool if_exists) noexcept
-#ifdef HAVE_PMEM
+  static parse_mtr_result parse_mmap(bool if_exists) noexcept
+#ifdef HAVE_INNODB_MMAP
     ;
 #else
   { return parse_mtr<store>(if_exists); }

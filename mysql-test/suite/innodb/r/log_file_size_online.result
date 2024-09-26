@@ -19,6 +19,12 @@ SHOW VARIABLES LIKE 'innodb_log_file_size';
 Variable_name	Value
 innodb_log_file_size	4194304
 FOUND 1 /InnoDB: Resized log to 4\.000MiB/ in mysqld.1.err
+SET @save=@@GLOBAL.innodb_log_file_buffering;
+SET GLOBAL innodb_log_file_buffering=OFF;
+SET GLOBAL innodb_log_file_buffering=ON;
+SET GLOBAL innodb_log_file_buffering=@save;
+SET GLOBAL innodb_log_file_mmap=OFF;
+Got one of the listed errors
 SET GLOBAL innodb_log_file_size=5242880;
 connect con1,localhost,root;
 UPDATE t SET b='' WHERE a<10;

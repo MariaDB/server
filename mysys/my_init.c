@@ -157,9 +157,7 @@ my_bool my_init(void)
   my_umask= 0660;                       /* Default umask for new files */
   my_umask_dir= 0700;                   /* Default umask for new directories */
   my_global_flags= 0;
-#ifdef _SC_PAGESIZE
-  my_system_page_size= sysconf(_SC_PAGESIZE);
-#endif
+  my_system_page_size= my_getpagesize();
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)
