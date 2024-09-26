@@ -16399,6 +16399,8 @@ void JOIN_TAB::cleanup()
     table->file->ha_end_keyread();
     if (type == JT_FT)
       table->file->ha_ft_end();
+    else if (table->hlindex && table->hlindex->context)
+      table->hlindex_read_end();
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;

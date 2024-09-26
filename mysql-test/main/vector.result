@@ -228,6 +228,24 @@ id1	id2	vec_distance_euclidean(t1.v, t2.v)
 9	8	1.25752
 7	8	1.28823
 8	7	1.28823
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 order by d limit 9;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+7	0.73444
+5	0.76710
+1	0.86251
+2	0.87503
+4	1.15881
+6	1.22844
+select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
+from t1 where id % 3 = 0 order by d limit 3;
+id	d
+9	0.47199
+3	0.58656
+6	1.22844
 select * from (
 select id,vec_distance_euclidean(v, x'b047263C9F87233fcfd27e3eae493e3f0329f43e') d
 from t1 where id < 10
@@ -235,6 +253,7 @@ from t1 where id < 10
 id	d
 9	0.47199
 3	0.58656
+7	0.73444
 flush session status;
 select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from t1 order by d limit 3;
 id	d
