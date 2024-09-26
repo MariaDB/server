@@ -17,13 +17,28 @@ SET SESSION wsrep_sync_wait=0;
 --connection node_1b
 SET SESSION wsrep_sync_wait=0;
 
---let $table_admin_command = ALTER
+--let $table_admin_command = ALTER TABLE
 --let $table_admin_command_end = ENGINE=INNODB
 --source galera_ddl_fk_conflict.inc
 
---let $table_admin_command = TRUNCATE
---let $table_admin_command_end = 
+--let $table_admin_command = TRUNCATE TABLE
+--let $table_admin_command_end =
 --source galera_ddl_fk_conflict.inc
+
+--let $table_admin_command = DROP TABLE
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+--let $table_admin_command = DROP TABLE IF EXISTS
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
+
+--let $table_admin_command = DROP TABLE IF EXISTS nonexisting,
+--let $table_admin_command_end =
+--source galera_ddl_fk_conflict.inc
+--source galera_ddl_fk_conflict_with_tmp.inc
 
 # CHECK and ANALYZE are not affected
 
