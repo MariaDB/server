@@ -169,6 +169,9 @@ using the call command. */
 #define UNIV_INLINE static inline
 
 #define UNIV_WORD_SIZE		SIZEOF_SIZE_T
+#if SIZEOF_SIZE_T == 8
+# define HAVE_INNODB_MMAP
+#endif
 
 /** The following alignment is used in memory allocations in memory heap
 management to ensure correct alignment for doubles etc. */
@@ -198,7 +201,7 @@ and 2 bits for flags. This limits the uncompressed page size to 16k.
 /* Define the Min, Max, Default page sizes. */
 /** Minimum Page Size Shift (power of 2) */
 #define UNIV_PAGE_SIZE_SHIFT_MIN	12U
-/** log2 of largest page size (1<<16 == 64436 bytes). */
+/** log2 of largest page size (1<<16 == 65536 bytes). */
 /** Maximum Page Size Shift (power of 2) */
 #define UNIV_PAGE_SIZE_SHIFT_MAX	16U
 /** log2 of default page size (1<<14 == 16384 bytes). */

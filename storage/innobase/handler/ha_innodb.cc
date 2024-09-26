@@ -18557,7 +18557,10 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
 
   if (high_level_read_only)
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
-  else if (!log_sys.is_pmem() &&
+  else if (
+#ifdef HAVE_PMEM
+          !log_sys.is_mmap() &&
+#endif
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
@@ -18598,7 +18601,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (start > log_sys.get_lsn())
         {
-          ut_ad(!log_sys.is_pmem());
+          ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
           log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -19425,6 +19428,19 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   "Redo log buffer size in bytes",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
+#ifdef HAVE_INNODB_MMAP
+  static constexpr const char *innodb_log_file_mmap_description=
+    "Whether ib_logfile0"
+# ifdef HAVE_PMEM
+    " resides in persistent memory or"
+# endif
+    " should initially be memory-mapped";
+static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  innodb_log_file_mmap_description,
+  nullptr, nullptr, log_sys.log_mmap_default);
+#endif
+
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
   PLUGIN_VAR_OPCMDARG,
@@ -19882,6 +19898,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
+#ifdef HAVE_INNODB_MMAP
+  MYSQL_SYSVAR(log_file_mmap),
+#endif
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif
