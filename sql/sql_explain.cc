@@ -18,6 +18,17 @@
 #pragma implementation				// gcc: Class implementation
 #endif
 
+#ifdef __linux__
+#include <linux/perf_event.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <sys/types.h>
+#include <unistd.h>
+#endif
+
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_select.h"
@@ -48,11 +59,55 @@ Explain_query::Explain_query(THD *thd_arg, MEM_ROOT *root) :
   operations(0)
 {
   optimization_time_tracker.start_tracking(stmt_thd);
+  perf_fd= 0;
   if (thd_arg->profiling.is_enabled())
   {
     if ((start_profile= (PROFILE_STATS*) alloc_root(mem_root,
                                                     sizeof(PROFILE_STATS))))
       start_profile->collect();
+#ifdef _LINUX_PERF_EVENT_H
+   memset(&perf_event_attribute, 0, sizeof(perf_event_attribute));
+   perf_event_attribute.type = PERF_TYPE_HARDWARE;
+   perf_event_attribute.size = sizeof(perf_event_attribute);
+   perf_event_attribute.config = PERF_COUNT_HW_INSTRUCTIONS;
+   perf_event_attribute.disabled = 1;
+   perf_event_attribute.exclude_kernel = 1;
+   perf_event_attribute.exclude_hv = 1;
+
+   /*
+    int perf_event_open(struct perf_event_attr *hw,
+                        pid_t pid,
+                        int cpu,
+                        int grp,
+                        int flags)
+
+    hw    describes event and sampling configuration
+    pid   target thread, 0=self, -1=cpu-wide mode
+    cpu   CPU to monitor (can be used in per-thread mode)
+    flags provision to extend the number of parameters
+    grp   file descriptor of group leader even
+   */
+   perf_fd= syscall(__NR_perf_event_open, &perf_event_attribute, 0, -1, -1, 0);
+
+   if (perf_fd > 0)
+   {
+     // SIGIO must go to thread where the event occurred
+     struct f_owner_ex fown;
+
+     fown.type= F_OWNER_TID;
+     fown.pid= thd_arg->os_thread_id;
+     fcntl(perf_fd, F_SETOWN_EX, &fown);
+     ioctl(perf_fd, PERF_EVENT_IOC_RESET, 0);
+     ioctl(perf_fd, PERF_EVENT_IOC_ENABLE, 0);
+   }
+   else
+   {
+     sql_perror( "syscall perf_event_open failed" );
+     //TODO: can't fail an assertion: DBUG_ASSERT(0);
+     push_warning(thd_arg, Sql_condition::WARN_LEVEL_NOTE,
+                  ER_CANT_OPEN_FILE, "syscall perf_event_open failed");
+   }
+#endif
   }
 }
 
@@ -81,6 +136,13 @@ Explain_query::~Explain_query()
     delete unions.at(i);
   for (i= 0 ; i < selects.elements(); i++)
     delete selects.at(i);
+
+#ifdef _LINUX_PERF_EVENT_H
+// TODO: in case of query error, we will never make a call with
+// PERF_EVENT_IOC_DISABLE. Is this ok?
+  if (perf_fd > 0)
+    close(perf_fd);
+#endif
 }
 
 
@@ -290,6 +352,22 @@ int Explain_query::print_explain_json(select_result_sink *output,
     writer.add_member("r_profile_stats");
     Json_writer_object obj(&writer);
     endp.write_increment_json(&obj, start_profile);
+
+#ifdef _LINUX_PERF_EVENT_H
+    if (perf_fd > 0)
+    {
+      //TODO: make this work for SHOW ANALYZE. 
+      // In SHOW ANALYZE FORMAT=JSON, this may be called multiple times.
+      // We should take measurement from query start to the current point
+      // and then continue counting.
+      long long count_hw_instructions;
+      ioctl(perf_fd, PERF_EVENT_IOC_DISABLE, 0);
+      ssize_t size= sizeof(count_hw_instructions);
+      if (size == read(perf_fd, &count_hw_instructions, size))
+        obj.add("r_count_hw_instructions", count_hw_instructions);
+    }
+#endif
+
   }
 
   bool plan_found = print_query_blocks_json(&writer, is_analyze);

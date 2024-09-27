@@ -55,6 +55,12 @@ it into the slow query log.
 
 #include "sql_profile.h"  /* for PROFILE_STATS */
 
+#ifdef __linux__ 
+#include <unistd.h>
+#  include <linux/perf_event.h>
+#  include <linux/hw_breakpoint.h>
+#endif
+
 class String_list: public List<char>
 {
 public:
@@ -543,6 +549,11 @@ private:
     the counters taken at the query start.
   */
   PROFILE_STATS *start_profile= nullptr;
+
+#ifdef _LINUX_PERF_EVENT_H
+  struct perf_event_attr perf_event_attribute;
+  int perf_fd;
+#endif
 };
 
 

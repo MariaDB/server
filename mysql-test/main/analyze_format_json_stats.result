@@ -1,0 +1,14 @@
+create table t1 (a int, b int);
+insert into t1 select seq, seq from seq_1_to_1000;
+set profiling=1;
+set @js='$js';
+select json_detailed(json_query(@js, '$.r_profile_stats')) as JS;
+JS
+{
+    "r_user_time_ms": "number",
+    "r_system_time_ms": "number",
+    "r_context_voluntary": "number",
+    "r_context_involuntary": "number",
+    "r_count_hw_instructions": "number"
+}
+drop table t1;

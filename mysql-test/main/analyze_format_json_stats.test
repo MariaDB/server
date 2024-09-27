@@ -1,0 +1,16 @@
+# Test for r_profile stats output in ANALYZE.
+--source include/have_sequence.inc
+--source include/linux.inc
+
+create table t1 (a int, b int);
+insert into t1 select seq, seq from seq_1_to_1000;
+
+set profiling=1;
+let $js=`analyze format=json select * from t1 where a>=b and b < a`;
+evalp set @js='$js';
+
+--replace_regex /("(r_[a-z_]*)"): [0-9.]+/\1: "number"/
+select json_detailed(json_query(@js, '$.r_profile_stats')) as JS;
+
+drop table t1;
+
