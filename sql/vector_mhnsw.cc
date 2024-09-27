@@ -968,12 +968,14 @@ static inline float generous_furthest(const Queue<Visited> &q, float maxd, float
   return d*(1 + (g - 1)/2 * (1 - sigmoid));
 }
 
+/*
+  @param[in/out] inout    in: start nodes, out: result nodes
+*/
 static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
-                        Neighborhood *start_nodes, uint result_size,
-                        size_t layer, Neighborhood *result, bool construction)
+                        uint result_size,
+                        size_t layer, Neighborhood *inout, bool construction)
 {
-  DBUG_ASSERT(start_nodes->num > 0);
-  result->num= 0;
+  DBUG_ASSERT(inout->num > 0);
 
   MEM_ROOT * const root= graph->in_use->mem_root;
   Queue<Visited> candidates, best;
@@ -1002,11 +1004,11 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   candidates.init(10000, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
 
-  DBUG_ASSERT(start_nodes->num <= result_size);
+  DBUG_ASSERT(inout->num <= result_size);
   float max_distance= ctx->diameter;
-  for (size_t i=0; i < start_nodes->num; i++)
+  for (size_t i=0; i < inout->num; i++)
   {
-    Visited *v= visited.create(start_nodes->links[i]);
+    Visited *v= visited.create(inout->links[i]);
     max_distance= std::max(max_distance, v->distance_to_target);
     candidates.push(v);
     if (skip_deleted && v->node->deleted)
@@ -1072,8 +1074,8 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   while (best.elements() > result_size)
     best.pop();
 
-  result->num= best.elements();
-  for (FVectorNode **links= result->links + result->num; best.elements();)
+  inout->num= best.elements();
+  for (FVectorNode **links= inout->links + inout->num; best.elements();)
     *--links= best.pop()->node;
 
   return 0;
@@ -1140,14 +1142,13 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   SCOPE_EXIT([memroot_sv](){ root_free_to_savepoint(&memroot_sv); });
 
   const size_t max_found= ctx->max_neighbors(0);
-  Neighborhood candidates, start_nodes;
+  Neighborhood candidates;
   candidates.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
-  start_nodes.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
-  start_nodes.links[start_nodes.num++]= ctx->start;
+  candidates.links[candidates.num++]= ctx->start;
 
   const double NORMALIZATION_FACTOR= 1 / std::log(ctx->M);
   double log= -std::log(my_rnd(&thd->rand)) * NORMALIZATION_FACTOR;
-  const uint8_t max_layer= start_nodes.links[0]->max_layer;
+  const uint8_t max_layer= candidates.links[0]->max_layer;
   uint8_t target_layer= std::min<uint8_t>(static_cast<uint8_t>(std::floor(log)), max_layer + 1);
   int cur_layer;
 
@@ -1160,23 +1161,21 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   for (cur_layer= max_layer; cur_layer > target_layer; cur_layer--)
   {
-    if (int err= search_layer(ctx, graph, target->vec, &start_nodes, 1,
-                              cur_layer, &candidates, false))
+    if (int err= search_layer(ctx, graph, target->vec,
+                              1, cur_layer, &candidates, false))
       return err;
-    std::swap(start_nodes, candidates);
   }
 
   for (; cur_layer >= 0; cur_layer--)
   {
     uint max_neighbors= ctx->max_neighbors(cur_layer);
-    if (int err= search_layer(ctx, graph, target->vec, &start_nodes,
+    if (int err= search_layer(ctx, graph, target->vec,
                               max_neighbors, cur_layer, &candidates, true))
       return err;
 
     if (int err= select_neighbors(ctx, graph, cur_layer, *target, candidates,
                                   0, max_neighbors))
       return err;
-    std::swap(start_nodes, candidates);
   }
 
   if (int err= target->save(graph))
@@ -1215,13 +1214,12 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   if (err)
     return err;
 
-  Neighborhood candidates, start_nodes;
+  Neighborhood candidates;
   candidates.init(thd->alloc<FVectorNode*>(limit + 7), limit);
-  start_nodes.init(thd->alloc<FVectorNode*>(limit + 7), limit);
 
-  // one could put all max_layer nodes in start_nodes
+  // one could put all max_layer nodes in candidates
   // but it has no effect on the recall or speed
-  start_nodes.links[start_nodes.num++]= ctx->start;
+  candidates.links[candidates.num++]= ctx->start;
 
   /*
     if the query vector is NULL or invalid, VEC_DISTANCE will return
@@ -1237,7 +1235,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
       ((float*)buf.ptr())[i]= i == 0;
   }
 
-  const longlong max_layer= start_nodes.links[0]->max_layer;
+  const longlong max_layer= candidates.links[0]->max_layer;
   auto target= FVector::create(ctx->metric, thd->alloc(FVector::alloc_size(ctx->vec_len)),
                                res->ptr(), res->length());
 
@@ -1247,13 +1245,12 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 
   for (size_t cur_layer= max_layer; cur_layer > 0; cur_layer--)
   {
-    if (int err= search_layer(ctx, graph, target, &start_nodes, 1, cur_layer,
-                              &candidates, false))
+    if (int err= search_layer(ctx, graph, target,
+                              1, cur_layer, &candidates, false))
       return err;
-    std::swap(start_nodes, candidates);
   }
 
-  if (int err= search_layer(ctx, graph, target, &start_nodes,
+  if (int err= search_layer(ctx, graph, target,
                             static_cast<uint>(limit), 0, &candidates, false))
     return err;
 
