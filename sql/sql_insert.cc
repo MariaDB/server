@@ -4524,9 +4524,6 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
-  if (create_info->fix_create_fields(thd, alter_info, *create_table))
-    DBUG_RETURN(NULL);
-
   while ((item=it++))
   {
     Field *tmp_field= item->create_field_for_create_select(thd->mem_root,
@@ -4563,6 +4560,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
+
+  if (create_info->fix_create_fields(thd, alter_info, *create_table))
+    DBUG_RETURN(NULL);
 
   /*
     Item*::type_handler() always returns pointers to

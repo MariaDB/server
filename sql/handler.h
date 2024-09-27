@@ -5307,4 +5307,7 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
+
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned);
 #endif /* HANDLER_INCLUDED */
