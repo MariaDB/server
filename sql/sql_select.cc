@@ -13904,13 +13904,6 @@ void JOIN_TAB::cleanup()
     delete filesort->select;
   delete filesort;
   filesort= NULL;
-  /* Skip non-existing derived tables/views result tables */
-  if (table &&
-      (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
-  {
-    table->file->ha_end_keyread();
-    table->file->ha_index_or_rnd_end();
-  }
   if (table)
   {
     table->file->ha_end_keyread();
@@ -13919,8 +13912,7 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
-    if (table->pos_in_table_list && 
-        table->pos_in_table_list->jtbm_subselect)
+    if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
       {

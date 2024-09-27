@@ -15929,9 +15929,9 @@ ha_innobase::external_lock(
 		}
 
 		DBUG_RETURN(0);
-	} else {
-		DEBUG_SYNC_C("ha_innobase_end_statement");
 	}
+
+	DEBUG_SYNC_C("ha_innobase_end_statement");
 
 	/* MySQL is releasing a table lock */
 
@@ -15957,14 +15957,6 @@ ha_innobase::external_lock(
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 			trx->read_view.close();
 		}
-	}
-
-	if (!trx_is_started(trx)
-	    && lock_type != F_UNLCK
-	    && (m_prebuilt->select_lock_type != LOCK_NONE
-		|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
-
-		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(0);
