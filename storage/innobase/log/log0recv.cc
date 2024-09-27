@@ -2761,7 +2761,7 @@ restart:
                                    last_offset)
                 : file_name_t::initial_flags;
               if (it == recv_spaces.end())
-                ut_ad(!file_checkpoint || space_id == TRX_SYS_SPACE ||
+                ut_ad(!store || space_id == TRX_SYS_SPACE ||
                       srv_is_undo_tablespace(space_id));
               else if (!it->second.space)
               {
