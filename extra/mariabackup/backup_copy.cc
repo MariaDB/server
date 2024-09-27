@@ -756,7 +756,7 @@ directory_exists_and_empty(const char *dir, const char *comment)
 {
 	os_file_dir_t os_dir;
 	dberr_t err;
-	os_file_stat_t info;
+	thread_local os_file_stat_t info;
 	bool empty;
 
 	if (!directory_exists(dir, true)) {
@@ -2213,7 +2213,7 @@ static bool backup_files_from_datadir(ds_ctxt_t *ds_data,
 	os_file_dir_t dir = os_file_opendir(dir_path);
 	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
 
-	os_file_stat_t info;
+	thread_local os_file_stat_t info;
 	bool ret = true;
 	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
 

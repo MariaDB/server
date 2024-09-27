@@ -554,8 +554,8 @@ opt_search_plan_for_table(
 	dict_index_t*	index;
 	ulint		n_fields;
 	ulint		best_last_op;
-	que_node_t*	index_plan[256];
-	que_node_t*	best_index_plan[256];
+	thread_local que_node_t* index_plan[256];
+	thread_local que_node_t* best_index_plan[256];
 
 	plan = sel_node_get_nth_plan(sel_node, i);
 

@@ -734,9 +734,9 @@ innodb_tmpdir_validate(
 
 	char*	alter_tmp_dir;
 	char*	innodb_tmp_dir;
-	char	buff[OS_FILE_MAX_PATH];
+	thread_local char buff[OS_FILE_MAX_PATH];
 	int	len = sizeof(buff);
-	char	tmp_abs_path[FN_REFLEN + 2];
+	thread_local char tmp_abs_path[FN_REFLEN + 2];
 
 	ut_ad(save != NULL);
 	ut_ad(value != NULL);
@@ -2670,7 +2670,7 @@ innobase_raw_format(
 	/* XXX we use a hard limit instead of allocating
 	but_size bytes from the heap */
 	CHARSET_INFO*	data_cs;
-	char		buf_tmp[8192];
+	thread_local char buf_tmp[8192];
 	ulint		buf_tmp_used;
 	uint		num_errors;
 
@@ -8480,7 +8480,7 @@ wsrep_calc_row_hash(
 					dictionary */
 	row_prebuilt_t*	prebuilt)	/*!< in: InnoDB prebuilt struct */
 {
-	void *ctx = alloca(my_md5_context_size());
+	void *ctx = ut_malloc_nokey(my_md5_context_size());
 	my_md5_init(ctx);
 
 	for (uint i = 0; i < table->s->fields; i++) {
@@ -8536,7 +8536,7 @@ wsrep_calc_row_hash(
 	}
 
 	my_md5_result(ctx, digest);
-
+	ut_free(ctx);
 	return(0);
 }
 
@@ -9613,7 +9613,7 @@ ha_innobase::ft_init_ext(
 	NEW_FT_INFO*		fts_hdl = NULL;
 	dict_index_t*		index;
 	fts_result_t*		result;
-	char			buf_tmp[8192];
+	thread_local char	buf_tmp[8192];
 	ulint			buf_tmp_used;
 	uint			num_errors;
 	ulint			query_len = key->length();
@@ -10041,7 +10041,7 @@ wsrep_append_foreign_key(
 		return DB_ERROR;
 	}
 
-	byte  key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+	thread_local byte key[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ?
@@ -10269,7 +10269,7 @@ ha_innobase::wsrep_append_keys(
 	}
 
 	if (wsrep_protocol_version == 0) {
-		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+		thread_local char keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
 		char 	*key 		= &keyval[0];
 		bool    is_null;
 
@@ -10311,8 +10311,8 @@ ha_innobase::wsrep_append_keys(
 			/* keyval[] shall contain an ordinal number at byte 0
 			   and the actual key data shall be written at byte 1.
 			   Hence the total data length is the key length + 1 */
-			char keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
-			char keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			thread_local char keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			thread_local char keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
 			keyval0[0] = (char)i;
 			keyval1[0] = (char)i;
 			char* key0 = &keyval0[1];
@@ -12321,8 +12321,8 @@ create_table_info_t::create_foreign_keys()
 	dberr_t		      error;
 	ulint		      number	      = 1;
 	static const unsigned MAX_COLS_PER_FK = 500;
-	const char*	      column_names[MAX_COLS_PER_FK];
-	const char*	      ref_column_names[MAX_COLS_PER_FK];
+	thread_local const char*column_names[MAX_COLS_PER_FK];
+	thread_local const char*ref_column_names[MAX_COLS_PER_FK];
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
 	dict_index_t*	      index	  = NULL;
@@ -14730,7 +14730,7 @@ ha_innobase::info_low(
 	dict_table_t*	ib_table;
 	ib_uint64_t	n_rows;
 	char		path[FN_REFLEN];
-	os_file_stat_t	stat_info;
+	thread_local os_file_stat_t stat_info;
 
 	DBUG_ENTER("info");
 

@@ -166,7 +166,7 @@ srv_file_check_mode(
 /*================*/
 	const char*	name)		/*!< in: filename to check */
 {
-	os_file_stat_t	stat;
+	thread_local os_file_stat_t	stat;
 
 	memset(&stat, 0x0, sizeof(stat));
 
@@ -594,7 +594,7 @@ srv_check_undo_redo_logs_exists()
 {
 	bool		ret;
 	pfs_os_file_t	fh;
-	char	name[OS_FILE_MAX_PATH];
+	thread_local char name[OS_FILE_MAX_PATH];
 
 	/* Check if any undo tablespaces exist */
 	for (ulint i = 1; i <= srv_undo_tablespaces; ++i) {
@@ -656,7 +656,7 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
 
   for (ulint i= 0; i < n_undo; ++i)
   {
-    char name[OS_FILE_MAX_PATH];
+    thread_local char name[OS_FILE_MAX_PATH];
     snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i + 1);
     ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
     switch (space_id) {
@@ -688,7 +688,7 @@ unused_undo:
   for (ulint i= prev_id + 1; i < srv_undo_space_id_start + TRX_SYS_N_RSEGS;
        ++i)
   {
-     char name[OS_FILE_MAX_PATH];
+     thread_local char name[OS_FILE_MAX_PATH];
      snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i);
      ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
      if (!space_id || space_id == ULINT_UNDEFINED)
@@ -723,7 +723,7 @@ srv_undo_tablespaces_init(bool create_new_db)
 
     for (ulint i= 0; i < srv_undo_tablespaces; ++i)
     {
-      char name[OS_FILE_MAX_PATH];
+      thread_local char name[OS_FILE_MAX_PATH];
       snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i + 1);
       if (dberr_t err= srv_undo_tablespace_create(name))
       {
@@ -990,7 +990,7 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
   log_file_found= false;
 
   auto logfile0= get_log_file_path();
-  os_file_stat_t stat_info;
+  thread_local os_file_stat_t stat_info;
   const dberr_t err= os_file_get_status(logfile0.c_str(), &stat_info, false,
                                         srv_read_only_mode);
 

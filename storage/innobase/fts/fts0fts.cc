@@ -1904,8 +1904,8 @@ fts_create_common_tables(
 	mem_heap_t*	heap = mem_heap_create(1024);
 	pars_info_t*	info;
 	char		fts_name[MAX_FULL_NAME_LEN];
-	char		full_name[sizeof(fts_common_tables) / sizeof(char*)]
-				[MAX_FULL_NAME_LEN];
+	thread_local char full_name[sizeof(fts_common_tables) / sizeof(char*)]
+				   [MAX_FULL_NAME_LEN];
 
 	dict_index_t*					index = NULL;
 

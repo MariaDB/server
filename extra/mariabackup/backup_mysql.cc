@@ -1685,10 +1685,11 @@ operator<<(std::ostream& s, const escape_and_quote& eq)
 		return s << "NULL";
 	s << '\'';
 	size_t len = strlen(eq.str);
-	char* escaped = (char *)alloca(2 * len + 1);
+	char* escaped = (char *)malloc(2 * len + 1);
 	len = mysql_real_escape_string(eq.mysql, escaped, eq.str, (ulong)len);
 	s << std::string(escaped, len);
 	s << '\'';
+	free(escaped);
 	return s;
 }
 
