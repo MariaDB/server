@@ -24759,8 +24759,8 @@ join_read_first(JOIN_TAB *tab)
     DBUG_ASSERT(tab->join->order->next == NULL);
     DBUG_ASSERT(tab->join->select_limit < HA_POS_ERROR);
     tab->read_record.read_record_func= join_hlindex_read_next;
-    error= tab->table->hlindex_first(tab->index, *tab->join->order->item,
-                                     tab->join->select_limit);
+    error= tab->table->hlindex_read_first(tab->index, *tab->join->order->item,
+                                          tab->join->select_limit);
   }
   else
   {
@@ -24795,7 +24795,7 @@ join_read_next(READ_RECORD *info)
 
 static int join_hlindex_read_next(READ_RECORD *info)
 {
-  if (int error= info->table->hlindex_next())
+  if (int error= info->table->hlindex_read_next())
     return report_error(info->table, error);
   return 0;
 }

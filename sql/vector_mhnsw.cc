@@ -1197,7 +1197,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 }
 
 
-int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
+int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
 {
   THD *thd= table->in_use;
   TABLE *graph= table->hlindex;
@@ -1272,10 +1272,10 @@ int mhnsw_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   }
   DBUG_ASSERT(context - sizeof(ulonglong) == graph->context);
 
-  return mhnsw_next(table);
+  return mhnsw_read_next(table);
 }
 
-int mhnsw_next(TABLE *table)
+int mhnsw_read_next(TABLE *table)
 {
   uchar *ref= (uchar*)(table->hlindex->context);
   if (ulonglong *limit= (ulonglong*)ref)

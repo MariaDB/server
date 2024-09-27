@@ -1794,8 +1794,8 @@ public:
   inline ha_rows stat_records() { return used_stat_records; }
 
   int hlindex_open(uint nr);
-  int hlindex_first(uint nr, Item *item, ulonglong limit);
-  int hlindex_next();
+  int hlindex_read_first(uint nr, Item *item, ulonglong limit);
+  int hlindex_read_next();
 
   int open_hlindexes_for_write();
   int hlindexes_on_insert();
