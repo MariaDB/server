@@ -87,3 +87,12 @@ create table t (pk int primary key, v varbinary(1024) not null, vector key(v)) e
 insert into t values (1, x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
 select pk,hex(v) from t;
 drop table t;
+
+--echo #
+--echo # MDEV-35039 Number of indexes inside InnoDB differs from that defined in MariaDB after altering table with vector key
+--echo #
+create table t (v blob not null, vector index (v)) row_format=compressed engine=innodb;
+alter table t add f int;
+insert into t values (x'00000000',1);
+show create table t;
+drop table t;
