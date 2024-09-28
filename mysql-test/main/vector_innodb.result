@@ -103,3 +103,17 @@ select pk,hex(v) from t;
 pk	hex(v)
 1	B047263C9F87233FCFD27E3EAE493E3F0329F43E
 drop table t;
+#
+# MDEV-35039 Number of indexes inside InnoDB differs from that defined in MariaDB after altering table with vector key
+#
+create table t (v blob not null, vector index (v)) row_format=compressed engine=innodb;
+alter table t add f int;
+insert into t values (x'00000000',1);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `v` blob NOT NULL,
+  `f` int(11) DEFAULT NULL,
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED
+drop table t;
