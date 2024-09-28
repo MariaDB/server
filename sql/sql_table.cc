@@ -7292,10 +7292,17 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     Adding/dropping any indexes in a table that already has high-level indexes
     may shift high-level indexes numbers. And thus require high-level indexes
     rename, which algorithm=inplace (storage engines) shouldn't do.
+
+    If we aren't adding/dropping indexes, ha_alter_info->key_count is
+    table->s->total_keys, but must be table->s->keys to not confuse the engine.
   */
-  if (table->s->keys < table->s->total_keys &&
-      (ha_alter_info->index_drop_count || ha_alter_info->index_add_count))
-    ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+  if (table->s->keys < table->s->total_keys)
+  {
+    if (ha_alter_info->index_drop_count || ha_alter_info->index_add_count)
+      ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
+    else
+      ha_alter_info->key_count= table->s->keys;
+  }
 
   DBUG_PRINT("exit", ("handler_flags: %llu", ha_alter_info->handler_flags));
   DBUG_RETURN(false);
