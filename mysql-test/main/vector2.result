@@ -10,3 +10,17 @@ Table	Op	Msg_type	Msg_text
 test.t	analyze	status	Engine-independent statistics collected
 test.t	analyze	status	Table is already up to date
 drop table t;
+#
+# MDEV-35033 LeakSanitizer errors in my_malloc / safe_mutex_lazy_init_deadlock_detection / MHNSW_Context::alloc_node and alike
+#
+call mtr.add_suppression('mariadbd: Can''t find record in ''t''');
+create table t (a int, v blob not null, vector index (v));
+insert into t values (1,vec_fromtext('[0]'));
+update t set v = vec_fromtext('[0,0]');
+ERROR 22007: Incorrect vector value: '...' for column `test`.`t`.`v` at row 1
+update t set a = 2;
+ERROR HY000: Can't find record in 't'
+set global mhnsw_cache_size = 1048576;
+insert into t  values (2,x'00000000');
+drop table t;
+set global mhnsw_cache_size = default;
