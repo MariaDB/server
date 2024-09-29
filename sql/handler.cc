@@ -3737,6 +3737,28 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(result);
 }
 
+
+int handler::ha_index_init(uint idx, bool sorted)
+{
+  DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
+  int result;
+  DBUG_ENTER("ha_index_init");
+  DBUG_ASSERT(inited==NONE);
+  if (!(result= index_init(idx, sorted)))
+  {
+    inited=       INDEX;
+    active_index= idx;
+    end_range= NULL;
+  }
+  /*
+    Do not allow reads from UNIQUE HASH indexes.
+  */
+  DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
+
+  DBUG_RETURN(result);
+}
+
+
 int handler::ha_index_read_map(uchar *buf, const uchar *key,
                                       key_part_map keypart_map,
                                       enum ha_rkey_function find_flag)
