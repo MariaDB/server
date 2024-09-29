@@ -148,15 +148,14 @@ int ha_blackhole::rnd_next(uchar *buf)
 int ha_blackhole::rnd_pos(uchar * buf, uchar *pos)
 {
   DBUG_ENTER("ha_blackhole::rnd_pos");
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
+  DBUG_RETURN(HA_ERR_END_OF_FILE);
 }
 
 
 void ha_blackhole::position(const uchar *record)
 {
   DBUG_ENTER("ha_blackhole::position");
-  DBUG_ASSERT(0);
+  bzero(ref, ref_length);
   DBUG_VOID_RETURN;
 }
 
