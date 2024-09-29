@@ -1,3 +1,12 @@
 # Aria doesn't support VECTOR yet
 create table t1(v blob not null, vector index(v)) engine=aria;
 ERROR HY000: Table storage engine 'Aria' does not support the create option 'VECTOR'
+#
+# MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
+#
+create table t (a int, v blob not null, vector index (v));
+analyze table t persistent for columns() indexes (v);
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	Table is already up to date
+drop table t;
