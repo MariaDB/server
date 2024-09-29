@@ -2965,12 +2965,12 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   /* Update the statistical table index_stats */
   stat_table= tables[INDEX_STAT].table;
-  uint key;
-  key_map::Iterator it(table->keys_in_use_for_query);
   Index_stat index_stat(stat_table, table);
 
-  while ((key= it++) != key_map::Iterator::BITMAP_END)
+  for (uint key= 0; key < table->s->keys; key++)
   {
+    if (!table->keys_in_use_for_query.is_set(key))
+      continue;
     KEY *key_info= table->key_info+key;
     uint key_parts= table->actual_n_key_parts(key_info);
     for (i= 0; i < key_parts; i++)
