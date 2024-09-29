@@ -117,3 +117,19 @@ t	CREATE TABLE `t` (
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED
 drop table t;
+#
+# MDEV-35020 After a failed attempt to create vector index temporary file remains and prevents further operation
+#
+create table t (a int) engine=innodb;
+insert into t values (1);
+alter table t add v blob not null, add vector index (v);
+ERROR 22007: Incorrect vector value: '...' for column `test`.`t`.`v` at row 1
+alter table t add v blob not null default x'00000000', add vector index (v);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` blob NOT NULL DEFAULT X'00000000',
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;

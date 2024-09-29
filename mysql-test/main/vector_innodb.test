@@ -1,5 +1,7 @@
 source include/have_innodb.inc;
 
+let $datadir= `select @@datadir`;
+
 create table t1 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
 show create table t1;
 # print unpack("H*",pack("f*",map{rand}1..8))
@@ -94,5 +96,17 @@ drop table t;
 create table t (v blob not null, vector index (v)) row_format=compressed engine=innodb;
 alter table t add f int;
 insert into t values (x'00000000',1);
+show create table t;
+drop table t;
+
+--echo #
+--echo # MDEV-35020 After a failed attempt to create vector index temporary file remains and prevents further operation
+--echo #
+create table t (a int) engine=innodb;
+insert into t values (1);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+alter table t add v blob not null, add vector index (v);
+--list_files $datadir/test/ #*
+alter table t add v blob not null default x'00000000', add vector index (v);
 show create table t;
 drop table t;
