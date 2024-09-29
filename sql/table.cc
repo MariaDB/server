@@ -9078,6 +9078,8 @@ void TABLE::vers_update_end()
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
   vers_end_field()->set_has_explicit_value();
+  if (vfield)
+    update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
 }
 
 /**
