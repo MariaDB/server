@@ -5,3 +5,10 @@
 --echo # Aria doesn't support VECTOR yet
 --error ER_ILLEGAL_HA_CREATE_OPTION
 create table t1(v blob not null, vector index(v)) engine=aria;
+
+--echo #
+--echo # MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
+--echo #
+create table t (a int, v blob not null, vector index (v));
+analyze table t persistent for columns() indexes (v);
+drop table t;
