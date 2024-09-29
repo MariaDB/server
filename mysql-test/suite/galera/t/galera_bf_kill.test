@@ -155,6 +155,8 @@ select * from t1;
 
 --connection node_1
 
+source include/maybe_debug.inc;
+if ($have_debug) {
 #
 # Test case 7: Start a transaction on node_2 and use KILL to abort
 # a query in connection node_2a
@@ -219,6 +221,10 @@ select * from t1;
 SET DEBUG_SYNC= 'RESET';
 SET GLOBAL debug_dbug = "";
 
-drop table t1;
 --disconnect node_2a
 --disconnect node_2b
+
+--connection node_1
+}
+
+drop table t1;
