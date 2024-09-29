@@ -31,3 +31,13 @@ insert into t  values (2,x'00000000');
 
 drop table t;
 set global mhnsw_cache_size = default;
+
+--echo #
+--echo # MDEV-35029 ASAN errors in Lex_ident<Compare_ident_ci>::is_valid_ident upon DDL on table with vector index
+--echo #
+create table t (a int, v blob not null, vector key (v) distance_function=euclidean);
+show create table t;
+set session mhnsw_max_edges_per_node = @@mhnsw_max_edges_per_node + 1;
+create table t2 like t;
+alter table t force;
+drop table t, t2;
