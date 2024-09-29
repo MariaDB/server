@@ -1303,6 +1303,7 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   handler *h= table->file;
   MHNSW_Context *ctx;
   bool use_ctx= !MHNSW_Context::acquire(&ctx, table, true);
+  SCOPE_EXIT([ctx, table](){ ctx->release(table); });
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
@@ -1333,7 +1334,6 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
     graph->file->position(graph->record[0]);
     FVectorNode *node= ctx->get_node(graph->file->ref);
     node->deleted= true;
-    ctx->release(table);
   }
 
   return 0;
