@@ -12,3 +12,22 @@ create table t1(v blob not null, vector index(v)) engine=aria;
 create table t (a int, v blob not null, vector index (v));
 analyze table t persistent for columns() indexes (v);
 drop table t;
+
+--echo #
+--echo # MDEV-35033 LeakSanitizer errors in my_malloc / safe_mutex_lazy_init_deadlock_detection / MHNSW_Context::alloc_node and alike
+--echo #
+call mtr.add_suppression('mariadbd: Can''t find record in ''t''');
+create table t (a int, v blob not null, vector index (v));
+insert into t values (1,vec_fromtext('[0]'));
+
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+update t set v = vec_fromtext('[0,0]');
+
+--error ER_KEY_NOT_FOUND
+update t set a = 2;
+
+set global mhnsw_cache_size = 1048576;
+insert into t  values (2,x'00000000');
+
+drop table t;
+set global mhnsw_cache_size = default;
