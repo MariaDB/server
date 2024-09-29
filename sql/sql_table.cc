@@ -8348,6 +8348,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   List<Key> new_key_list;
   List<FOREIGN_KEY_INFO> fk_list;
   List<Alter_rename_key> rename_key_list(alter_info->alter_rename_key_list);
+  MEM_ROOT *root= thd->mem_root;
 
   /*
     Create a deep copy of the list of visibility for indexes, as it will be
@@ -8355,9 +8356,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
   */
   List<Alter_index_ignorability>
          alter_index_ignorability_list(alter_info->alter_index_ignorability_list,
-                                       thd->mem_root);
+                                       root);
 
-  list_copy_and_replace_each_value(alter_index_ignorability_list, thd->mem_root);
+  list_copy_and_replace_each_value(alter_index_ignorability_list, root);
 
   List_iterator<Alter_drop> drop_it(alter_info->drop_list);
   List_iterator<Create_field> def_it(alter_info->create_list);
@@ -8436,7 +8437,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   column_rename_param.db_name=       table->s->db;
   column_rename_param.table_name=    table->s->table_name;
-  if (column_rename_param.fields.copy(&alter_info->create_list, thd->mem_root))
+  if (column_rename_param.fields.copy(&alter_info->create_list, root))
     DBUG_RETURN(1);                             // OOM
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
@@ -8448,7 +8449,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     DBUG_RETURN(1);
 
   if (merge_engine_options(table->s->option_list, create_info->option_list,
-                           &create_info->option_list, thd->mem_root))
+                           &create_info->option_list, root))
     DBUG_RETURN(1);
 
   table->file->get_foreign_key_list(thd, &fk_list);
@@ -8491,7 +8492,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       }
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
-        if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+        if (alter_info->drop_stat_fields.push_back(field, root))
           DBUG_RETURN(true);
       }
       dropped_sys_vers_fields|= field->flags;
@@ -8515,7 +8516,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
-        if (alter_info->drop_stat_fields.push_back(field, thd->mem_root))
+        if (alter_info->drop_stat_fields.push_back(field, root))
           DBUG_RETURN(true);
       }
       continue;
@@ -8536,7 +8537,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         Note that columns with AFTER clauses are added to the end
         of the list for now. Their positions will be corrected later.
       */
-      new_create_list.push_back(def, thd->mem_root);
+      new_create_list.push_back(def, root);
       if (field->stored_in_db() != def->stored_in_db())
       {
         my_error(ER_UNSUPPORTED_ACTION_ON_GENERATED_COLUMN, MYF(0));
@@ -8568,7 +8569,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
              !(alter_info->flags & ALTER_DROP_SYSTEM_VERSIONING))
     {
       /* "dropping" a versioning field only hides it from the user */
-      def= new (thd->mem_root) Create_field(thd, field, field);
+      def= new (root) Create_field(thd, field, field);
       def->invisible= INVISIBLE_SYSTEM;
       alter_info->flags|= ALTER_CHANGE_COLUMN;
       if (field->flags & VERS_ROW_START)
@@ -8580,7 +8581,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         create_info->vers_info.period.end=
           create_info->vers_info.as_row.end=
           def->field_name= Vers_parse_info::default_end;
-      new_create_list.push_back(def, thd->mem_root);
+      new_create_list.push_back(def, root);
       dropped_sys_vers_fields|= field->flags;
       drop_it.remove();
     }
@@ -8591,8 +8592,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         This field was not dropped and not changed, add it to the list
         for the new table.
       */
-      def= new (thd->mem_root) Create_field(thd, field, field);
-      new_create_list.push_back(def, thd->mem_root);
+      def= new (root) Create_field(thd, field, field);
+      new_create_list.push_back(def, root);
       alter_it.rewind();			// Change default if ALTER
       Alter_column *alter;
       while ((alter=alter_it++))
@@ -8640,8 +8641,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     else
     {
       DBUG_ASSERT(field->invisible == INVISIBLE_SYSTEM);
-      def= new (thd->mem_root) Create_field(thd, field, field);
-      new_create_tail.push_back(def, thd->mem_root);
+      def= new (root) Create_field(thd, field, field);
+      new_create_tail.push_back(def, root);
     }
   }
 
@@ -8700,11 +8701,11 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           } /* if (def->change.str) */
         } /* while (def) */
       } /* if (part_field_list || subpart_field_list) */
-      // Force reopen because new column name is on thd->mem_root
+      // Force reopen because new column name is on root
       table->mark_table_for_reopen();
     } /* if (part_info) */
 #endif
-    // Force reopen because new column name is on thd->mem_root
+    // Force reopen because new column name is on root
     table->mark_table_for_reopen();
   }
 
@@ -8768,7 +8769,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         alter_ctx->error_if_not_empty= TRUE;
     }
     if (!def->after.str)
-      new_create_list.push_back(def, thd->mem_root);
+      new_create_list.push_back(def, root);
     else
     {
       if (def->change.str)
@@ -8795,7 +8796,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
       if (def->after.str == first_keyword)
-        new_create_list.push_front(def, thd->mem_root);
+        new_create_list.push_front(def, root);
       else
       {
         find_it.rewind();
@@ -8876,7 +8877,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (table->s->tmp_table == NO_TMP_TABLE)
       {
-        if (alter_info->add_stat_drop_index(key_info, FALSE, thd->mem_root))
+        if (alter_info->add_stat_drop_index(key_info, FALSE, root))
           DBUG_RETURN(true);
         if (primary_key)
 	{
@@ -8887,8 +8888,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
                 tab_key_info->user_defined_key_parts !=
                 tab_key_info->ext_key_parts)
             {
-              if (alter_info->add_stat_drop_index(tab_key_info, TRUE,
-                                                  thd->mem_root))
+              if (alter_info->add_stat_drop_index(tab_key_info, TRUE, root))
                 DBUG_RETURN(true);
             }
           }
@@ -8932,8 +8932,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (cmp(&rename_key->old_name, &rename_key->new_name))
         {
           /* Key was renamed */
-          alter_info->add_stat_rename_index(key_info, &rename_key->new_name,
-                                            thd->mem_root);
+          alter_info->add_stat_rename_index(key_info, &rename_key->new_name, root);
         }
         rename_key_it.remove();
 
@@ -9035,10 +9034,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 	  key_part_length= 0;			// Use whole field
       }
       key_part_length /= kfield->charset()->mbmaxlen;
-      Key_part_spec *kps= new (thd->mem_root) Key_part_spec(&cfield->field_name,
+      Key_part_spec *kps= new (root) Key_part_spec(&cfield->field_name,
                                                             key_part_length, true);
       kps->asc= !(key_part->key_part_flag & HA_REVERSE_SORT);
-      key_parts.push_back(kps, thd->mem_root);
+      key_parts.push_back(kps, root);
       if (!(cfield->invisible == INVISIBLE_SYSTEM && cfield->vers_sys_field()))
         user_keyparts= true;
     }
@@ -9046,14 +9045,13 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
     {
       if (delete_index_stat) 
       {
-        if (alter_info->add_stat_drop_index(key_info, FALSE, thd->mem_root))
+        if (alter_info->add_stat_drop_index(key_info, FALSE, root))
           DBUG_RETURN(true);
       }
       else if (alter_ctx->modified_primary_key &&
                key_info->user_defined_key_parts != key_info->ext_key_parts)
       {
-        if (alter_info->add_stat_drop_index(key_info, FALSE,
-                                               thd->mem_root))
+        if (alter_info->add_stat_drop_index(key_info, FALSE, root))
           DBUG_RETURN(true);
       }
     }
@@ -9072,6 +9070,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       Key *key;
       enum Key::Keytype key_type;
       LEX_CSTRING tmp_name;
+      engine_option_value *option_list;
+
       bzero((char*) &key_create_info, sizeof(key_create_info));
       if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
         key_info->algorithm= HA_KEY_ALG_UNDEF;
@@ -9131,15 +9131,18 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         }
       }
 
+      if (merge_engine_options(key_info->option_list, 0, &option_list, root))
+        goto err;
+
       tmp_name= key_name;
       /* We dont need LONG_UNIQUE_HASH_FIELD flag because it will be autogenerated */
-      key= new (thd->mem_root) Key(key_type, &tmp_name, &key_create_info,
-                   key_info->flags & HA_GENERATED_KEY,
-                   &key_parts, key_info->option_list, DDL_options());
+      key= new (root) Key(key_type, &tmp_name, &key_create_info,
+                          key_info->flags & HA_GENERATED_KEY, &key_parts,
+                          option_list, DDL_options());
       key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
       key->old= true;
-      new_key_list.push_back(key, thd->mem_root);
+      new_key_list.push_back(key, root);
     }
     if (long_hash_key)
     {
@@ -9160,15 +9163,15 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         continue;
       List<Key_part_spec> cols, ref_cols;
       for (LEX_CSTRING &c : fk.foreign_fields)
-        cols.push_back(new (thd->mem_root) Key_part_spec(&c, 0));
+        cols.push_back(new (root) Key_part_spec(&c, 0));
       for (LEX_CSTRING &c : fk.referenced_fields)
-        ref_cols.push_back(new (thd->mem_root) Key_part_spec(&c, 0));
-      auto key= new (thd->mem_root)
+        ref_cols.push_back(new (root) Key_part_spec(&c, 0));
+      auto key= new (root)
         Foreign_key(fk.foreign_id, &cols, fk.foreign_id, fk.referenced_db,
           fk.referenced_table, &ref_cols, fk.delete_method, fk.update_method,
           Foreign_key::FK_MATCH_UNDEF, DDL_options());
       key->old= true;
-      new_key_list.push_back(key, thd->mem_root);
+      new_key_list.push_back(key, root);
     }
   }
   {
@@ -9178,7 +9181,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       if (key->type == Key::FOREIGN_KEY &&
           ((Foreign_key *)key)->validate(new_create_list))
         goto err;
-      new_key_list.push_back(key, thd->mem_root);
+      new_key_list.push_back(key, root);
       if (key->name.str &&
           key->name.streq(primary_key_name))
       {
@@ -9283,10 +9286,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         {
           check->expr->walk(&Item::rename_fields_processor, 1,
                             &column_rename_param);
-          // Force reopen because new column name is on thd->mem_root
+          // Force reopen because new column name is on root
           table->mark_table_for_reopen();
         }
-        new_constraint_list.push_back(check, thd->mem_root);
+        new_constraint_list.push_back(check, root);
       }
     }
   }
