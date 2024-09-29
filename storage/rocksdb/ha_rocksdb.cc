@@ -7827,6 +7827,12 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
   DBUG_ASSERT(table_arg != nullptr);
   DBUG_ASSERT(create_info != nullptr);
 
+  if (table_arg->s->total_keys > table_arg->s->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "RocksDB", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   if (create_info->data_file_name) {
     // DATA DIRECTORY is used to create tables under a specific location
     // outside the MySQL data directory. We don't support this for MyRocks.
