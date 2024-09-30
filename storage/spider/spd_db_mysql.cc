@@ -6278,7 +6278,9 @@ int spider_db_mbase_util::append_table_list(spider_fields *fields,
     if (int error_num= db_share->append_table_name(
           str, spd->conn_link_idx[dbton_hdl->first_link_idx]))
       DBUG_RETURN(error_num);
-  if (str->append(" ") ||
+  if (str->append((table->vers_conditions.orig_type == SYSTEM_TIME_ALL ||
+                   table->vers_conditions.type == SYSTEM_TIME_ALL) ?
+                  " for system_time all " : " ") ||
       str->append(table_holder->alias->ptr(),
                   /* Don't append the trailing dot */
                   table_holder->alias->length() - 1))
@@ -8518,6 +8520,14 @@ int spider_mbase_handler::append_delete(
   if (str->reserve(SPIDER_SQL_DELETE_LEN))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   str->q_append(SPIDER_SQL_DELETE_STR, SPIDER_SQL_DELETE_LEN);
+  const bool delete_history=
+    spider->get_table()->pos_in_table_list->vers_conditions.delete_history;
+  if (delete_history)
+  {
+    str->append("history");
+    DBUG_RETURN(0);
+  }
+
   if (spider->wide_handler->low_priority)
   {
     if (str->reserve(SPIDER_SQL_LOW_PRIORITY_LEN))
@@ -11413,6 +11423,16 @@ int spider_mbase_handler::append_insert_values(
   str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
   for (field = table->field; *field; field++)
   {
+    /*
+        Note: as of MDEV-16546 this condition should look like:
+
+        if ((*field)->invisible >= INVISIBLE_SYSTEM)
+          continue;
+
+        But @@system_versioning_insert_history=1 must be propagated for the above.
+    */
+    if ((*field)->vers_sys_field())
+      continue;
     DBUG_PRINT("info",("spider field_index=%u", (*field)->field_index));
     if (
       bitmap_is_set(table->write_set, (*field)->field_index) ||
@@ -11516,6 +11536,9 @@ int spider_mbase_handler::append_into(
   str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
   for (field = table->field; *field; field++)
   {
+    /* Note: see above comment for MDEV-16546 */
+    if ((*field)->vers_sys_field())
+      continue;
     if (
       bitmap_is_set(table->write_set, (*field)->field_index) ||
       bitmap_is_set(table->read_set, (*field)->field_index)

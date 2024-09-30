@@ -413,6 +413,7 @@ public:
     uint32 arg_length,
     const String &to
   );
+  // FIXME: not defined inline?
   inline bool append(
     char chr
   );
