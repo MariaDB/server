@@ -39,3 +39,8 @@ set session mhnsw_max_edges_per_node = @@mhnsw_max_edges_per_node + 1;
 create table t2 like t;
 alter table t force;
 drop table t, t2;
+#
+# MDEV-35043 Unsuitable error upon an attempt to create MEMORY table with vector key
+#
+create table t (v binary(255) not null, vector index(v)) engine=memory;
+ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'VECTOR'
