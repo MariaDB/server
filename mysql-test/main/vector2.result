@@ -44,3 +44,10 @@ drop table t, t2;
 #
 create table t (v binary(255) not null, vector index(v)) engine=memory;
 ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'VECTOR'
+#
+# MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+#
+create table t (a int, v blob not null, vector index(v)) engine=myisam;
+create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
+ERROR HY000: Table storage engine 'MERGE' does not support the create option 'VECTOR'
+drop table t;
