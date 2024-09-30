@@ -1515,9 +1515,8 @@ int spider_db_append_key_where_internal(
 ) {
   SPIDER_RESULT_LIST *result_list = &spider->result_list;
   SPIDER_SHARE *share = spider->share;
-#ifndef DBUG_OFF
   TABLE *table = spider->get_table();
-#endif
+  const auto &vers_conditions= table->pos_in_table_list->vers_conditions;
   KEY *key_info = result_list->key_info;
   int error_num;
   uint key_name_length;
@@ -1538,6 +1537,22 @@ int spider_db_append_key_where_internal(
   spider_db_handler *dbton_hdl = spider->dbton_handler[dbton_id];
   spider_db_share *dbton_share = share->dbton_share[dbton_id];
   DBUG_ENTER("spider_db_append_key_where_internal");
+  if (sql_type == SPIDER_SQL_TYPE_DELETE_SQL &&
+      vers_conditions.delete_history)
+  {
+    if (vers_conditions.orig_type == SYSTEM_TIME_BEFORE)
+    {
+      auto *start= vers_conditions.start.item->val_str();
+      if (str->append(" before system_time '"))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      if (str->append(*start))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      if (str->append("'"))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    DBUG_RETURN(0);
+  }
+
   switch (sql_type)
   {
     case SPIDER_SQL_TYPE_HANDLER:

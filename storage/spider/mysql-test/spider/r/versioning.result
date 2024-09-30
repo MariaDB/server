@@ -1,0 +1,142 @@
+install plugin spider soname 'ha_spider';
+set spider_same_server_link= on;
+create server s foreign data wrapper mysql options
+(host '127.0.0.1', database 'test', user 'root', port MASTER_1_MYPORT);
+create table t1 (
+x int, y int
+) with system versioning;
+create table t2 (
+x int, y int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end)
+) with system versioning;
+create or replace table t1_sp (
+x int, y int)
+engine=spider comment='wrapper "mysql", srv "s", table "t1"'
+with system versioning;
+create or replace table t2_sp (
+x int, y int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time (row_start, row_end))
+engine=spider comment='wrapper "mysql", srv "s", table "t2"'
+with system versioning;
+# Timestamps are not propagated (subject of MDEV-16546, but not for implicit system fields)
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+insert into t1_sp values (1, 1), (2, 2);
+insert into t2_sp values (1, 1), (2, 2);
+set timestamp= unix_timestamp('2000-01-01 00:11:11');
+# check dml generating history
+delete from t1_sp where x = 1;
+delete from t2_sp where x = 1;
+select row_end into @t1 from t2 for system_time all where x = 1;
+update t1_sp set y= y + 1;
+select row_start into @t2 from t1 where x = 2;
+update t2_sp set y= y + 1;
+select * from t1_sp;
+x	y
+2	3
+select * from t2_sp;
+x	y
+2	3
+select * from t1_sp for system_time as of timestamp @t1;
+x	y
+2	2
+select * from t2_sp for system_time as of timestamp @t1;
+x	y
+2	2
+select * from t1_sp for system_time as of timestamp @t2;
+x	y
+2	3
+select * from t2_sp for system_time as of timestamp @t2;
+x	y
+2	2
+select * from t1_sp for system_time from timestamp @t1 to timestamp @t2;
+x	y
+2	2
+select * from t2_sp for system_time from timestamp @t1 to timestamp @t2;
+x	y
+2	2
+select * from t1_sp for system_time between timestamp @t1 and timestamp @t2;
+x	y
+2	3
+2	2
+select * from t2_sp for system_time between timestamp @t1 and timestamp @t2;
+x	y
+2	2
+# spider cannot call functions, it fails in spider_create_group_by_handler()
+# but somehow it doesn't fail the query and continues without FOR SYSTEM_TIME ALL clause
+select *, check_row(row_start, row_end) from t1_sp for system_time all order by row_end, y, x;
+x	y	check_row(row_start, row_end)
+2	3	CURRENT ROW
+select *, check_row(row_start, row_end) from t2_sp for system_time all order by row_end, y, x;
+x	y	check_row(row_start, row_end)
+2	3	CURRENT ROW
+# SELECT from base table works as usual:
+select *, check_row(row_start, row_end) from t1 for system_time all order by row_end, y, x;
+x	y	check_row(row_start, row_end)
+1	1	HISTORICAL ROW
+2	2	HISTORICAL ROW
+2	3	CURRENT ROW
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end, y, x;
+x	y	check_row(row_start, row_end)
+1	1	HISTORICAL ROW
+2	2	HISTORICAL ROW
+2	3	CURRENT ROW
+# here it works nice (append_table_list() has the chance to add FOR SYSTEM_TIME ALL)
+select *, row_start, row_end from t1_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+1	1	TIMESTAMP	TIMESTAMP
+2	2	TIMESTAMP	TIMESTAMP
+2	3	TIMESTAMP	TIMESTAMP
+select *, row_start, row_end from t2_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+1	1	TIMESTAMP	TIMESTAMP
+2	2	TIMESTAMP	TIMESTAMP
+2	3	TIMESTAMP	TIMESTAMP
+delete history from t1_sp before system_time @t1;
+delete history from t2_sp before system_time @t1;
+select *, row_start, row_end from t1_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+2	2	TIMESTAMP	TIMESTAMP
+2	3	TIMESTAMP	TIMESTAMP
+select *, row_start, row_end from t2_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+1	1	TIMESTAMP	TIMESTAMP
+2	2	TIMESTAMP	TIMESTAMP
+2	3	TIMESTAMP	TIMESTAMP
+select * from t1 for system_time all;
+x	y
+2	3
+2	2
+select * from t2 for system_time all;
+x	y
+1	1
+2	3
+2	2
+delete history from t1_sp;
+delete history from t2_sp;
+select *, row_start, row_end from t1_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+2	3	TIMESTAMP	TIMESTAMP
+select *, row_start, row_end from t2_sp for system_time all order by row_end, y, x;
+x	y	row_start	row_end
+2	3	TIMESTAMP	TIMESTAMP
+select * from t1 for system_time all;
+x	y
+2	3
+select * from t2 for system_time all;
+x	y
+2	3
+drop tables t1, t2, t1_sp, t2_sp;
+set timestamp= default;
+uninstall plugin spider;
+Warnings:
+Warning	1620	Plugin is busy and will be uninstalled on shutdown
+drop table mysql.spider_link_failed_log, mysql.spider_link_mon_servers, mysql.spider_tables, mysql.spider_table_crd, mysql.spider_table_position_for_recovery, mysql.spider_table_sts, mysql.spider_xa, mysql.spider_xa_failed_log, mysql.spider_xa_member;
+drop function spider_direct_sql;
+drop function spider_bg_direct_sql;
+drop function spider_ping_table;
+drop function spider_copy_tables;
+drop function spider_flush_table_mon_cache;
