@@ -47,3 +47,11 @@ drop table t, t2;
 --echo #
 --error ER_ILLEGAL_HA_CREATE_OPTION
 create table t (v binary(255) not null, vector index(v)) engine=memory;
+
+--echo #
+--echo # MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+--echo #
+create table t (a int, v blob not null, vector index(v)) engine=myisam;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
+drop table t;
