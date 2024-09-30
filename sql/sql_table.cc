@@ -11575,7 +11575,7 @@ alter_copy:
   new_table= thd->create_and_open_tmp_table(&frm, alter_ctx.get_tmp_path(),
                                             alter_ctx.new_db,
                                             alter_ctx.new_name, true);
-  if (!new_table)
+  if (!new_table || new_table->open_hlindexes_for_write())
     goto err_new_table_cleanup;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
