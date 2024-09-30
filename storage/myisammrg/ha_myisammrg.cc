@@ -1555,6 +1555,11 @@ int ha_myisammrg::create(const char *name, TABLE *form,
 {
   char buff[FN_REFLEN];
   DBUG_ENTER("ha_myisammrg::create");
+  if (form->s->total_keys > form->s->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MERGE", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
   fn_format(buff, name, "", MYRG_NAME_EXT, MY_UNPACK_FILENAME | MY_APPEND_EXT);
   int res= create_mrg(buff, create_info);
   DBUG_RETURN(res);
