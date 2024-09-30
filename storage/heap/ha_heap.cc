@@ -651,6 +651,12 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
 
   bzero(hp_create_info, sizeof(*hp_create_info));
 
+  if (share->total_keys > keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MEMORY", "VECTOR");
+    return HA_ERR_UNSUPPORTED;
+  }
+
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;
 
