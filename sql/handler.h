@@ -2980,12 +2980,19 @@ uint calculate_key_len(TABLE *, uint, const uchar *, key_part_map);
   bitmap with first N+1 bits set
   (keypart_map for a key prefix of [0..N] keyparts)
 */
-#define make_keypart_map(N) (((key_part_map)2 << (N)) - 1)
+inline key_part_map make_keypart_map(uint N)
+{
+  return ((key_part_map)2 << (N)) - 1;
+}
+
 /*
   bitmap with first N bits set
   (keypart_map for a key prefix of [0..N-1] keyparts)
 */
-#define make_prev_keypart_map(N) (((key_part_map)1 << (N)) - 1)
+inline key_part_map make_prev_keypart_map(uint N)
+{
+  return ((key_part_map)1 << (N)) - 1;
+}
 
 
 /** Base class to be used by handlers different shares */
