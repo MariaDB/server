@@ -332,6 +332,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum vers_kind_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
+  enum Alter_info::enum_alter_table_algorithm alter_table_algo_val;
   privilege_t privilege;
   struct
   {
@@ -1466,7 +1467,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
 
-%type <num> alter_algorithm_option_is_kwd
+%type <alter_table_algo_val> alter_algorithm_option_is_kwd
 
 %type <object_ddl_options>
         create_or_replace
@@ -7943,27 +7944,14 @@ opt_index_lock_algorithm:
         ;
 
 alter_algorithm_option_is_kwd:
-           DEFAULT    { $$ = 0; }
-        |  NOCOPY_SYM { $$ = 1; }
+           DEFAULT    { $$ = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT; }
+        |  NOCOPY_SYM { $$ = Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY; }
         ;
-
 
 alter_algorithm_option:
           ALGORITHM_SYM opt_equal alter_algorithm_option_is_kwd
           {
-            Alter_info::enum_alter_table_algorithm algoType;
-            switch ($3) {
-            case 0:
-              algoType = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
-              break;
-            case 1:
-              algoType = Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY;
-              break;
-            default:
-              algoType = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT;
-            }
-
-            Lex->alter_info.set_requested_algorithm(algoType);
+            Lex->alter_info.set_requested_algorithm($3);
           }
         | ALGORITHM_SYM opt_equal ident
           {
