@@ -44,3 +44,10 @@ drop table t, t2;
 #
 create table t (v binary(255) not null, vector index(v)) engine=memory;
 ERROR HY000: Table storage engine 'MEMORY' does not support the create option 'VECTOR'
+#
+# MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
+#
+create table t (a int primary key, v blob not null, vector index(v));
+alter table t modify a int auto_increment, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+drop table t;
