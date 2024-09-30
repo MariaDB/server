@@ -56,3 +56,10 @@ create table t (a int primary key, v blob not null, vector index(v));
 alter table t modify a int auto_increment, lock=none;
 drop table t;
 
+--echo #
+--echo # MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+--echo #
+create table t (a int, v blob not null, vector index(v)) engine=myisam;
+--error ER_ILLEGAL_HA_CREATE_OPTION
+create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
+drop table t;
