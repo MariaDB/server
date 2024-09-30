@@ -3347,7 +3347,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	my_error(ER_TABLE_CANT_HANDLE_SPKEYS, MYF(0), file->table_type());
         DBUG_RETURN(TRUE);
       }
-      if (key_info->user_defined_key_parts != 1)
+      if (key->type != Key::SPATIAL || key_info->user_defined_key_parts != 1)
       {
 	my_error(ER_WRONG_ARGUMENTS, MYF(0), "RTREE INDEX");
 	DBUG_RETURN(TRUE);
