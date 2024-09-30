@@ -45,6 +45,7 @@ Created 12/9/1995 Heikki Tuuri
 #include "buf0dump.h"
 #include "log0sync.h"
 #include "log.h"
+#include "tpool.h"
 
 /*
 General philosophy of InnoDB redo-logs:
@@ -131,18 +132,57 @@ __attribute__((warn_unused_result))
 dberr_t log_file_t::read(os_offset_t offset, span<byte> buf) noexcept
 {
   ut_ad(is_opened());
-  return os_file_read(IORequestRead, m_file, buf.data(), offset, buf.size(),
-                      nullptr);
+  byte *data= buf.data();
+  size_t size= buf.size();
+  ut_ad(size);
+  ssize_t s;
+
+  for (;;)
+  {
+    s= IF_WIN(tpool::pread(m_file, data, size, offset),
+              pread(m_file, data, size, offset));
+    if (UNIV_UNLIKELY(s <= 0))
+      break;
+    size-= size_t(s);
+    if (!size)
+      return DB_SUCCESS;
+    offset+= s;
+    data+= s;
+    ut_a(size < buf.size());
+  }
+
+  sql_print_error("InnoDB: pread(\"ib_logfile0\") returned %zd,"
+                  " operating system error %u",
+                  s, unsigned(IF_WIN(GetLastError(), errno)));
+  return DB_IO_ERROR;
 }
 
 void log_file_t::write(os_offset_t offset, span<const byte> buf) noexcept
 {
   ut_ad(is_opened());
-  if (dberr_t err= os_file_write_func(IORequestWrite, "ib_logfile0", m_file,
-                                      buf.data(), offset, buf.size()))
-    ib::fatal() << "write(\"ib_logfile0\") returned " << err
-                << ". Operating system error number "
-                << IF_WIN(GetLastError(), errno) << ".";
+  const byte *data= buf.data();
+  size_t size= buf.size();
+  ut_ad(size);
+  ssize_t s;
+
+  for (;;)
+  {
+    s= IF_WIN(tpool::pwrite(m_file, data, size, offset),
+              pwrite(m_file, data, size, offset));
+    if (UNIV_UNLIKELY(s <= 0))
+      break;
+    size-= size_t(s);
+    if (!size)
+      return;
+    offset+= s;
+    data+= s;
+    ut_a(size < buf.size());
+  }
+
+  sql_print_error("[FATAL] InnoDB: pwrite(\"ib_logfile0\") returned %zd,"
+                  " operating system error %u",
+                  s, unsigned(IF_WIN(GetLastError(), errno)));
+  abort();
 }
 
 #ifdef HAVE_INNODB_MMAP
