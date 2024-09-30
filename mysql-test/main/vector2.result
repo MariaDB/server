@@ -51,3 +51,10 @@ create table t (a int primary key, v blob not null, vector index(v));
 alter table t modify a int auto_increment, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
 drop table t;
+#
+# MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
+#
+create table t (a int, v blob not null, vector index(v)) engine=myisam;
+create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
+ERROR HY000: Table storage engine 'MERGE' does not support the create option 'VECTOR'
+drop table t;
