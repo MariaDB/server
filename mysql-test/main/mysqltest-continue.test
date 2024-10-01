@@ -1,0 +1,103 @@
+#
+# MDEV-12130 improve mysqltest language
+#
+# test "continue" statement
+#
+
+#Continue test
+
+let $cnt=5;
+
+while ($cnt > 1)
+{
+  dec $cnt;
+  if ($cnt == 2)
+  {
+    continue;
+  }
+  --echo $cnt
+}
+
+--echo  ------------------------------------
+
+#Continue effect on outer loop test
+
+let $outer=5;
+
+while ($outer > 1)
+{
+let $inner=5;
+--echo outer=$outer
+while ($inner > 1)
+  {
+    dec $inner;
+    if ($inner == 2)
+    {
+      continue;
+    }
+    --echo inner=$inner
+}
+dec $outer;
+}
+
+--echo ----------------------------------
+
+#Continue effect on inner loop test
+
+let $outer=5;
+
+while ($outer > 1)
+{
+let $inner=5;
+--echo outer=$outer
+dec $outer;
+if ($outer == 2)
+    {
+      continue;
+    }
+while ($inner > 1)
+  {
+    dec $inner;
+    --echo inner=$inner
+  }
+}
+
+--echo ----------------------------------
+
+#Continue in the last iteration of loop
+
+let $cnt=5;
+
+while ($cnt > 1)
+{
+  dec $cnt;
+  if ($cnt == 1)
+  {
+    continue;
+  }
+  --echo $cnt
+}
+
+--echo ----------------------------------
+
+#Continue skips last iteration
+
+let $cnt=5;
+let $test=0;
+
+while ($cnt > 0)
+{
+  dec $cnt;
+    if ($cnt == 0)
+    {
+      continue;
+    }
+  --echo $cnt
+}
+
+--echo ----------------------------------
+
+#Stray continue
+
+--error 1
+--exec echo "continue;" | $MYSQL_TEST 2>&1
