@@ -94,6 +94,7 @@ delete from t1 where id=2;
 select release_all_locks();
 --enable_ps2_protocol
 
+disconnect con2;
 connection default;
 --replace_regex /(\.\d{5})\d+/\1/
 reap;
@@ -135,4 +136,17 @@ alter table t add v blob not null, add vector index (v);
 --list_files $datadir/test/ #*
 alter table t add v blob not null default x'00000000', add vector index (v);
 show create table t;
+drop table t;
+
+--echo #
+--echo # MDEV-35055 ASAN errors in TABLE_SHARE::lock_share upon committing transaction after FLUSH on table with vector key
+--echo #
+create table t (pk int primary key, v blob not null, vector index(v)) engine=innodb;
+start transaction;
+insert into t values (1,vec_fromtext('[1,2,3]'));
+connect con1,localhost,root;
+flush tables;
+disconnect con1;
+connection default;
+commit;
 drop table t;
