@@ -609,14 +609,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static const uchar *
-db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
-                     my_bool __attribute__((unused)))
+static const void *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                        my_bool)
 {
-  LEX_CSTRING *e= (LEX_CSTRING *) data;
+  auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return static_cast<const uchar *>(static_cast<const void *>(e->str));
+  return e->str;
 }
 
 

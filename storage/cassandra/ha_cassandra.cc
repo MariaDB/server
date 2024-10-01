@@ -203,9 +203,10 @@ Cassandra_status_vars cassandra_counters;
   Function we use in the creation of our hash to get key.
 */
 
-static const uchar *cassandra_get_key(CASSANDRA_SHARE *share, size_t *length,
-                                      my_bool not_used __attribute__((unused)))
+static const uchar *cassandra_get_key(const void *share_, size_t *length,
+                                      my_bool)
 {
+  auto share= static_cast<const CASSANDRA_SHARE *>(share_);
   *length=share->table_name_length;
   return static_cast<const uchar *>(
       static_cast<const void *>(share->table_name));

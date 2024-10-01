@@ -105,57 +105,53 @@ ulong spider_open_connections_line_no;
 pthread_mutex_t spider_conn_mutex;
 
 /* for spider_open_connections and trx_conn_hash */
-const uchar *spider_conn_get_key(
-  const uchar *conn_,
+const void *spider_conn_get_key(
+  const void *conn_,
   size_t *length,
   my_bool
 ) {
-  auto conn= reinterpret_cast<const SPIDER_CONN *>(conn_);
+  auto conn= static_cast<const SPIDER_CONN *>(conn_);
   DBUG_ENTER("spider_conn_get_key");
   *length = conn->conn_key_length;
   DBUG_PRINT("info",("spider conn_kind=%u", conn->conn_kind));
 #ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
-  DBUG_RETURN(
-      static_cast<const uchar *>(static_cast<const void *>(conn->conn_key)));
+  DBUG_RETURN(conn->conn_key);
 }
 
-const uchar *spider_ipport_conn_get_key(
-   const uchar *ip_port_,
+const void *spider_ipport_conn_get_key(
+   const void *ip_port_,
    size_t *length,
    my_bool
 )
 {
-  auto ip_port= reinterpret_cast<const SPIDER_IP_PORT_CONN *>(ip_port_);
+  auto ip_port= static_cast<const SPIDER_IP_PORT_CONN *>(ip_port_);
   DBUG_ENTER("spider_ipport_conn_get_key");
   *length = ip_port->key_len;
-  DBUG_RETURN(
-      static_cast<const uchar *>(static_cast<const void *>(ip_port->key)));
+  DBUG_RETURN(ip_port->key);
 }
 
-static const uchar *spider_loop_check_full_get_key(
-  const uchar *ptr_,
+static const void *spider_loop_check_full_get_key(
+  const void *ptr_,
   size_t *length,
   my_bool
 ) {
-  auto ptr= reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
+  auto ptr= static_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_full_get_key");
   *length = ptr->full_name.length;
-  DBUG_RETURN(static_cast<const uchar *>(
-      static_cast<const void *>(ptr->full_name.str)));
+  DBUG_RETURN(ptr->full_name.str);
 }
 
-static const uchar *spider_loop_check_to_get_key(
-  const uchar *ptr_,
+static const void *spider_loop_check_to_get_key(
+  const void *ptr_,
   size_t *length,
   my_bool
 ) {
-  auto ptr= reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
+  auto ptr= static_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_to_get_key");
   *length = ptr->to_name.length;
-  DBUG_RETURN(
-      static_cast<const uchar *>(static_cast<const void *>(ptr->to_name.str)));
+  DBUG_RETURN(ptr->to_name.str);
 }
 
 int spider_conn_init(

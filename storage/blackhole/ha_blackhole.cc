@@ -360,13 +360,11 @@ static void blackhole_free_key(void *share)
   my_free(share);
 }
 
-static const uchar *blackhole_get_key(const uchar *share_, size_t *length,
-                                      my_bool)
+static const void *blackhole_get_key(const void *share_, size_t *length, my_bool)
 {
-  auto share= reinterpret_cast<const st_blackhole_share *>(share_);
+  auto share= static_cast<const st_blackhole_share *>(share_);
   *length= share->table_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(share->table_name));
+  return share->table_name;
 }
 
 #ifdef HAVE_PSI_INTERFACE

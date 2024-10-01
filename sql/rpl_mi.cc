@@ -850,15 +850,12 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-const uchar *get_key_master_info(const uchar *mi_, size_t *length,
-                                 my_bool not_used __attribute__((unused)))
+const void *get_key_master_info(const void *mi_, size_t *length, my_bool)
 {
-  const Master_info *mi=
-      static_cast<const Master_info *>(static_cast<const void *>(mi_));
+  auto mi= static_cast<const Master_info *>(mi_);
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(mi->cmp_connection_name.str));
+  return mi->cmp_connection_name.str;
 }
 
 /*

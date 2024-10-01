@@ -107,12 +107,11 @@ int sort_set (const void *a_, const void *b_)
   return ( a->begin > b->begin ? 1 : ( a->begin < b->begin ? -1 : 0 ) );
 }
 
-static const uchar *tina_get_key(const uchar *share_, size_t *length, my_bool)
+static const void *tina_get_key(const void *share_, size_t *length, my_bool)
 {
-  const TINA_SHARE *share= reinterpret_cast<const TINA_SHARE*>(share_);
+  const TINA_SHARE *share= static_cast<const TINA_SHARE *>(share_);
   *length=share->table_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(share->table_name));
+  return share->table_name;
 }
 
 static PSI_memory_key csv_key_memory_tina_share;

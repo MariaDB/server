@@ -720,12 +720,12 @@ typedef size_t GetKeyLength_t;
 typedef uint GetKeyLength_t;
 #endif
 
-static const byte * sphinx_get_key ( const byte * pSharePtr, GetKeyLength_t * pLength, my_bool )
+static const void *sphinx_get_key(const void *pSharePtr,
+                                  GetKeyLength_t *pLength, my_bool)
 {
-	CSphSEShare * pShare = (CSphSEShare *) pSharePtr;
-	*pLength = (size_t) pShare->m_iTableNameLen;
-        return static_cast<const byte *>(
-            static_cast<const void *>(pShare->m_sTable));
+  const CSphSEShare *pShare= static_cast<const CSphSEShare *>(pSharePtr);
+  *pLength= (size_t) pShare->m_iTableNameLen;
+  return pShare->m_sTable;
 }
 
 #if MYSQL_VERSION_ID<50100

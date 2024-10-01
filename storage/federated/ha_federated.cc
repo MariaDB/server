@@ -430,13 +430,12 @@ static handler *federated_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static const uchar *federated_get_key(const uchar *share_, size_t *length,
-                                      my_bool)
+static const void *federated_get_key(const void *share_, size_t *length,
+                                     my_bool)
 {
-  auto share= reinterpret_cast<const FEDERATED_SHARE *>(share_);
+  auto share= static_cast<const FEDERATED_SHARE *>(share_);
   *length= share->share_key_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(share->share_key));
+  return share->share_key;
 }
 
 #ifdef HAVE_PSI_INTERFACE

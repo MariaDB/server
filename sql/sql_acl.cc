@@ -537,23 +537,20 @@ public:
   char key[1];					// Key will be stored here
 };
 
-static const uchar *acl_entry_get_key(const uchar *entry_, size_t *length,
-                                      my_bool)
-{
-  auto entry=
-      static_cast<const acl_entry *>(static_cast<const void *>(entry_));
-  *length=(uint) entry->length;
-  return static_cast<const uchar *>(static_cast<const void *>(entry->key));
-}
-
-static const uchar *acl_role_get_key(const uchar *entry_, size_t *length,
+static const void *acl_entry_get_key(const void *entry_, size_t *length,
                                      my_bool)
 {
-  auto entry=
-      static_cast<const ACL_ROLE *>(static_cast<const void *>(entry_));
+  auto entry= static_cast<const acl_entry *>(entry_);
+  *length=(uint) entry->length;
+  return entry->key;
+}
+
+static const void *acl_role_get_key(const void *entry_, size_t *length,
+                                    my_bool)
+{
+  auto entry= static_cast<const ACL_ROLE *>(entry_);
   *length=(uint) entry->user.length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(entry->user.str));
+  return entry->user.str;
 }
 
 struct ROLE_GRANT_PAIR : public Sql_alloc
@@ -568,14 +565,12 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
             const char *rolename, bool with_admin_option);
 };
 
-static const uchar *acl_role_map_get_key(const uchar *entry_, size_t *length,
-                                         my_bool)
+static const void *acl_role_map_get_key(const void *entry_, size_t *length,
+                                        my_bool)
 {
-  auto entry=
-      static_cast<const ROLE_GRANT_PAIR *>(static_cast<const void *>(entry_));
+  auto entry= static_cast<const ROLE_GRANT_PAIR *>(entry_);
   *length=(uint) entry->hashkey.length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(entry->hashkey.str));
+  return entry->hashkey.str;
 }
 
 bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
@@ -3423,13 +3418,11 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static const uchar *check_get_key(const uchar *buff_, size_t *length, my_bool)
+static const void *check_get_key(const void *buff_, size_t *length, my_bool)
 {
-  auto buff=
-      static_cast<const ACL_USER *>(static_cast<const void *>(buff_));
+  auto buff= static_cast<const ACL_USER *>(buff_);
   *length=buff->hostname_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(buff->host.hostname));
+  return buff->host.hostname;
 }
 
 
@@ -5337,12 +5330,12 @@ public:
     rights (source->rights), init_rights(NO_ACL), key_length(source->key_length) { }
 };
 
-static const uchar *get_key_column(const uchar *buff_, size_t *length, my_bool)
+static const void *get_key_column(const void *buff_, size_t *length, my_bool)
 {
   auto buff=
-      static_cast<const GRANT_COLUMN *>(static_cast<const void *>(buff_));
+      static_cast<const GRANT_COLUMN *>(buff_);
   *length=buff->key_length;
-  return static_cast<const uchar *>(static_cast<const void *>(buff->column));
+  return buff->column;
 }
 
 class GRANT_NAME :public Sql_alloc
@@ -5568,13 +5561,11 @@ GRANT_TABLE::~GRANT_TABLE()
   my_hash_free(&hash_columns);
 }
 
-static const uchar *get_grant_table(const uchar *buff_, size_t *length,
-                                    my_bool)
+static const void *get_grant_table(const void *buff_, size_t *length, my_bool)
 {
-  auto buff=
-      static_cast<const GRANT_NAME *>(static_cast<const void *>(buff_));
+  auto buff= static_cast<const GRANT_NAME *>(buff_);
   *length=buff->key_length;
-  return static_cast<const uchar *>(static_cast<const void *>(buff->hash_key));
+  return buff->hash_key;
 }
 
 
@@ -6503,11 +6494,11 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static const uchar *role_key(const uchar *role_, size_t *klen, my_bool)
+static const void *role_key(const void *role_, size_t *klen, my_bool)
 {
-  auto role= static_cast<const ACL_ROLE *>(static_cast<const void *>(role_));
+  auto role= static_cast<const ACL_ROLE *>(role_);
   *klen= role->user.length;
-  return static_cast<const uchar *>(static_cast<const void *>(role->user.str));
+  return role->user.str;
 }
 typedef Hash_set<ACL_ROLE> role_hash_t;
 

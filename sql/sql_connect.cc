@@ -305,12 +305,11 @@ end:
   started with corresponding variable that is greater then 0.
 */
 
-extern "C" const uchar *get_key_conn(const uchar *buff_, size_t *length, my_bool)
+extern "C" const void *get_key_conn(const void *buff_, size_t *length, my_bool)
 {
-  auto buff=
-      static_cast<const user_conn *>(static_cast<const void *>(buff_));
+  auto buff= static_cast<const user_conn *>(buff_);
   *length= buff->len;
-  return  static_cast<const uchar *>(static_cast<const void *>(buff->user));
+  return buff->user;
 }
 
 
@@ -398,14 +397,12 @@ static const char *get_client_host(THD *client)
     client->security_ctx->host ? client->security_ctx->host : "";
 }
 
-extern "C" const uchar *get_key_user_stats(const uchar *user_stats_,
-                                           size_t *length, my_bool)
+extern "C" const void *get_key_user_stats(const void *user_stats_,
+                                          size_t *length, my_bool)
 {
-  auto *user_stats=
-      static_cast<const USER_STATS *>(static_cast<const void *>(user_stats_));
+  auto user_stats= static_cast<const USER_STATS *>(user_stats_);
   *length= user_stats->user_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(user_stats->user));
+  return user_stats->user;
 }
 
 void init_user_stats(USER_STATS *user_stats,
@@ -486,14 +483,12 @@ void init_global_client_stats(void)
                max_connections, 0, 0, get_key_user_stats, my_free, 0);
 }
 
-extern "C" const uchar *get_key_table_stats(const uchar *table_stats_,
-                                            size_t *length, my_bool)
+extern "C" const void *get_key_table_stats(const void *table_stats_,
+                                           size_t *length, my_bool)
 {
-  auto table_stats= static_cast<const TABLE_STATS *>(
-      static_cast<const void *>(table_stats_));
+  auto table_stats= static_cast<const TABLE_STATS *>(table_stats_);
   *length= table_stats->table_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(table_stats->table));
+  return table_stats->table;
 }
 
 void init_global_table_stats(void)
@@ -503,16 +498,12 @@ void init_global_table_stats(void)
                get_key_table_stats, my_free, 0);
 }
 
-extern "C" const uchar *get_key_index_stats(const uchar *index_stats_,
-                                            size_t *length,
-                                            my_bool not_used
-                                            __attribute__((unused)))
+extern "C" const void *get_key_index_stats(const void *index_stats_,
+                                           size_t *length, my_bool)
 {
-  auto index_stats= static_cast<const INDEX_STATS *>(
-      static_cast<const void *>(index_stats_));
+  auto index_stats= static_cast<const INDEX_STATS *>(index_stats_);
   *length= index_stats->index_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(index_stats->index));
+  return index_stats->index;
 }
 
 void init_global_index_stats(void)

@@ -840,13 +840,13 @@ void Query_cache_block::destroy()
   DBUG_VOID_RETURN;
 }
 
-uint Query_cache_block::headers_len()
+uint Query_cache_block::headers_len() const
 {
   return (ALIGN_SIZE(sizeof(Query_cache_block_table)*n_tables) +
 	  ALIGN_SIZE(sizeof(Query_cache_block)));
 }
 
-uchar* Query_cache_block::data(void)
+uchar* Query_cache_block::data(void) const
 {
   return (uchar*)( ((uchar*)this) + headers_len() );
 }
@@ -893,11 +893,10 @@ Query_cache_block_table * Query_cache_block::table(TABLE_COUNTER_TYPE n)
 
 extern "C"
 {
-  const uchar *query_cache_table_get_key(const uchar *record, size_t *length,
-                                         my_bool not_used
-                                         __attribute__((unused)))
+  const void *query_cache_table_get_key(const void *record, size_t *length,
+                                        my_bool)
   {
-    Query_cache_block *table_block= (Query_cache_block *) record;
+    auto table_block= static_cast<const Query_cache_block *>(record);
     *length= (table_block->used - table_block->headers_len() -
               ALIGN_SIZE(sizeof(Query_cache_table)));
     return ((table_block->data()) + ALIGN_SIZE(sizeof(Query_cache_table)));
@@ -991,10 +990,10 @@ void Query_cache_query::unlock_n_destroy()
 
 extern "C"
 {
-  const uchar *query_cache_query_get_key(const uchar *record, size_t *length,
-                                         my_bool not_used)
+  const void *query_cache_query_get_key(const void *record, size_t *length,
+                                        my_bool)
   {
-    Query_cache_block *query_block= (Query_cache_block *) record;
+    auto query_block= static_cast<const Query_cache_block *>(record);
     *length= (query_block->used - query_block->headers_len() -
               ALIGN_SIZE(sizeof(Query_cache_query)));
     return ((query_block->data()) + ALIGN_SIZE(sizeof(Query_cache_query)));

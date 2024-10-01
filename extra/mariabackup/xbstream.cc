@@ -357,13 +357,12 @@ err:
 	return NULL;
 }
 
-static const uchar *get_file_entry_key(const uchar *entry_, size_t *length,
-                                       my_bool)
+static const void *get_file_entry_key(const void *entry_, size_t *length,
+                                      my_bool)
 {
 	const file_entry_t *entry= reinterpret_cast<const file_entry_t*>(entry_);
 	*length = entry->pathlen;
-        return static_cast<const uchar *>(
-            static_cast<const void *>(entry->path));
+	return entry->path;
 }
 
 static

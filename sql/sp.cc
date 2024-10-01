@@ -2280,10 +2280,9 @@ Sp_handler::sp_exist_routines(THD *thd, TABLE_LIST *routines) const
   DBUG_RETURN(FALSE);
 }
 
-extern "C" const uchar *sp_sroutine_key(const uchar *ptr, size_t *plen,
-                                        my_bool first)
+extern "C" const void *sp_sroutine_key(const void *ptr, size_t *plen, my_bool)
 {
-  Sroutine_hash_entry *rn= (Sroutine_hash_entry *)ptr;
+  auto rn= static_cast<const Sroutine_hash_entry *>(ptr);
   *plen= rn->mdl_request.key.length();
   return rn->mdl_request.key.ptr();
 }
