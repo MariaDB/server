@@ -88,10 +88,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       allocate temporary THD for execution of acl_reload()/grant_reload().
     */
     if (unlikely(!thd) && (thd= (tmp_thd= new THD(0))))
-    {
-      thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();
-    }
 
     if (likely(thd))
     {

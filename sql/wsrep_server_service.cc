@@ -34,7 +34,7 @@
 #include "sql_base.h" /* close_thread_tables */
 #include "debug_sync.h"
 
-static void init_service_thd(THD* thd, char* thread_stack)
+static void init_service_thd(THD* thd, void* thread_stack)
 {
   thd->thread_stack= thread_stack;
   thd->real_id= pthread_self();

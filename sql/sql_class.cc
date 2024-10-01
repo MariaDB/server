@@ -2202,12 +2202,6 @@ void THD::reset_killed()
 
 void THD::store_globals()
 {
-  /*
-    Assert that thread_stack is initialized: it's necessary to be able
-    to track stack overrun.
-  */
-  DBUG_ASSERT(thread_stack);
-
   set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2239,8 +2233,11 @@ void THD::store_globals()
   os_thread_id= 0;
 #endif
   real_id= pthread_self();                      // For debugging
-  mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
-                              STACK_DIRECTION * (long)my_thread_stack_size;
+
+  /* Set stack start and stack end */
+  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
+                      thread_stack, my_thread_stack_size);
+
   if (net.vio)
   {
     net.thd= this;
@@ -2251,6 +2248,7 @@ void THD::store_globals()
   */
   thr_lock_info_init(&lock_info, mysys_var);
 }
+
 
 /**
    Untie THD from current thread
@@ -5018,7 +5016,6 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_thd()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -5095,7 +5092,6 @@ void *thd_attach_thd(MYSQL_THD thd)
 
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
   pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
-  thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
 }

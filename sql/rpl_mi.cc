@@ -1111,7 +1111,6 @@ bool Master_info_index::init_all_master_info()
   }
 
   thd= new THD(next_thread_id());  /* Needed by start_slave_threads */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   reinit_io_cache(&index_file, READ_CACHE, 0L,0,0);

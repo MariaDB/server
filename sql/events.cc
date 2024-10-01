@@ -901,12 +901,6 @@ Events::init(THD *thd, bool opt_noacl_or_bootstrap)
       res= TRUE;
       goto end;
     }
-    /*
-      The thread stack does not start from this function but we cannot
-      guess the real value. So better some value that doesn't assert than
-      no value.
-    */
-    thd->thread_stack= (char*) &thd;
     thd->store_globals();
     /*
       Set current time for the thread that handles events.
