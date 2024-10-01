@@ -1764,6 +1764,7 @@ typedef struct st_spider_result_list
   volatile
 #endif
     SPIDER_RESULT         *current;
+  MY_BITMAP               skip;
   KEY                     *key_info;
   int                     key_order;
   spider_string           *sqls;

@@ -342,6 +342,15 @@ SPIDER_DBTON spider_dbton_mariadb = {
   SPIDER_MATURITY_STABLE
 };
 
+void spider_db_mbase_row::skip(MY_BITMAP *map)
+{
+  for (uint i= 0, j= 0; j < field_count; j++)
+  {
+    if (!bitmap_is_set(map, j))
+      row[i++]= row[j];
+  }
+}
+
 spider_db_mbase_row::spider_db_mbase_row(
   uint dbton_id
 ) : spider_db_row(dbton_id),
@@ -13975,8 +13984,15 @@ int spider_mbase_handler::append_list_item_select(
   DBUG_ENTER("spider_mbase_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
   begin = str->length();
+  uint i= -1;
   while ((item = it++))
   {
+    i++;
+    if (item->const_item())
+    {
+      bitmap_set_bit(&spider->result_list.skip, i);
+      continue;
+    }
     if (skip > 0)
     {
       str->reserve(2);
