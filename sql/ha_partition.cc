@@ -3368,8 +3368,7 @@ bool ha_partition::get_from_handler_file(const char *name, MEM_ROOT *mem_root,
   @return Partition name
 */
 
-static uchar *get_part_name(const uchar *part_, size_t *length,
-                            my_bool not_used __attribute__((unused)))
+static const uchar *get_part_name(const void *part_, size_t *length, my_bool)
 {
   auto part= reinterpret_cast<const PART_NAME_DEF *>(part_);
   *length= part->length;
@@ -3457,8 +3456,7 @@ bool ha_partition::populate_partition_name_hash()
   tot_names= m_is_sub_partitioned ? m_tot_parts + num_parts : num_parts;
   if (my_hash_init(key_memory_Partition_share,
                    &part_share->partition_name_hash, system_charset_info,
-                   tot_names, 0, 0, (my_hash_get_key) get_part_name, my_free,
-                   HASH_UNIQUE))
+                   tot_names, 0, 0, get_part_name, my_free, HASH_UNIQUE))
   {
     unlock_shared_ha_data();
     DBUG_RETURN(TRUE);

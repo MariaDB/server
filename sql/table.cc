@@ -241,12 +241,11 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 
 /* Get column name from column hash */
 
-static uchar *get_field_name(const uchar *buff_, size_t *length, my_bool)
+static const uchar *get_field_name(const void *buff_, size_t *length, my_bool)
 {
-  auto buff=
-      static_cast<const Field *const *>(static_cast<const void *>(buff_));
-  *length= (uint) (*buff)->field_name.length;
-  return (uchar*) (*buff)->field_name.str;
+  auto buff= static_cast<const Field *const *>(buff_);
+  *length= static_cast<uint>((*buff)->field_name.length);
+  return reinterpret_cast<const uchar *>((*buff)->field_name.str);
 }
 
 
@@ -2252,7 +2251,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   if (use_hash)
     use_hash= !my_hash_init(PSI_INSTRUMENT_ME, &share->name_hash,
                             system_charset_info, share->fields, 0, 0,
-                            (my_hash_get_key) get_field_name, 0, 0);
+                            get_field_name, 0, 0);
 
   if (share->mysql_version >= 50700 && share->mysql_version < 100000 &&
       vcol_screen_length)
