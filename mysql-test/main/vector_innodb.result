@@ -97,6 +97,7 @@ delete from t1 where id=2;
 select release_all_locks();
 release_all_locks()
 1
+disconnect con2;
 connection default;
 id	d
 6	0.93093
@@ -149,4 +150,16 @@ t	CREATE TABLE `t` (
   `v` blob NOT NULL DEFAULT X'00000000',
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+#
+# MDEV-35055 ASAN errors in TABLE_SHARE::lock_share upon committing transaction after FLUSH on table with vector key
+#
+create table t (pk int primary key, v blob not null, vector index(v)) engine=innodb;
+start transaction;
+insert into t values (1,vec_fromtext('[1,2,3]'));
+connect con1,localhost,root;
+flush tables;
+disconnect con1;
+connection default;
+commit;
 drop table t;
