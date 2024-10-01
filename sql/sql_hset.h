@@ -32,7 +32,7 @@ public:
     the first insert. Thus does not cause or return errors.
   */
   Hash_set(PSI_memory_key psi_key,
-           const uchar *(*K)(const uchar *, size_t *, my_bool),
+           const void *(*K)(const void *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
     my_hash_clear(&m_hash);

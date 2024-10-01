@@ -4324,9 +4324,9 @@ my_bool Query_cache::move_by_type(uchar **border,
 		      *new_block =(Query_cache_block *) *border;
     size_t tablename_offset = block->table()->table() - block->table()->db();
     char *data = (char*) block->data();
-    const uchar *key;
+    const void *key;
     size_t key_length;
-    key=query_cache_table_get_key((uchar*) block, &key_length, 0);
+    key=query_cache_table_get_key( block, &key_length, 0);
     my_hash_first(&tables, (uchar*) key, key_length, &record_idx);
 
     block->destroy();
@@ -4384,9 +4384,9 @@ my_bool Query_cache::move_by_type(uchar **border,
     char *data = (char*) block->data();
     Query_cache_block *first_result_block = ((Query_cache_query *)
 					     block->data())->result();
-    const uchar *key;
+    const void *key;
     size_t key_length;
-    key=query_cache_query_get_key((uchar*) block, &key_length, 0);
+    key=query_cache_query_get_key( block, &key_length, 0);
     my_hash_first(&queries, (uchar*) key, key_length, &record_idx);
     block->query()->unlock_n_destroy();
     block->destroy();
@@ -5041,7 +5041,8 @@ my_bool Query_cache::check_integrity(bool locked)
       DBUG_PRINT("qcache", ("block %p, type %u...", 
 			    block, (uint) block->type));
       size_t length;
-      const uchar *key= query_cache_query_get_key((uchar *) block, &length, 0);
+      const uchar *key= static_cast<const uchar *>(
+          query_cache_query_get_key(block, &length, 0));
       uchar* val = my_hash_search(&queries, key, length);
       if (((uchar*)block) != val)
       {
@@ -5076,7 +5077,8 @@ my_bool Query_cache::check_integrity(bool locked)
       DBUG_PRINT("qcache", ("block %p, type %u...", 
 			    block, (uint) block->type));
       size_t length;
-      const uchar *key = query_cache_table_get_key((uchar*) block, &length, 0);
+      const uchar *key= static_cast<const uchar *>(
+          query_cache_table_get_key((uchar *) block, &length, 0));
       uchar* val = my_hash_search(&tables, key, length);
       if (((uchar*)block) != val)
       {
