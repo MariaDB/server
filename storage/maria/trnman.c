@@ -125,12 +125,11 @@ default_trnman_end_trans_hook(TRN *trn __attribute__ ((unused)),
   return 0;
 }
 
-
-static uchar *trn_get_hash_key(const uchar *trn, size_t *len,
-                              my_bool unused __attribute__ ((unused)))
+static const uchar *trn_get_hash_key(const uchar *trn, size_t *len,
+                                     my_bool unused __attribute__((unused)))
 {
   *len= sizeof(TrID);
-  return (uchar *) & ((*((TRN **)trn))->trid);
+  return (const uchar *) & ((*((TRN **)trn))->trid);
 }
 
 

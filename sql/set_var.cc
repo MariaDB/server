@@ -48,12 +48,12 @@ static ulonglong system_variable_hash_version= 0;
   Return variable name and length for hashing of variables.
 */
 
-static uchar *get_sys_var_length(const uchar *_var, size_t *length,
+static const uchar *get_sys_var_length(const uchar *_var, size_t *length,
                                  my_bool first)
 {
   const sys_var *var= reinterpret_cast<const sys_var *>(_var);
   *length= var->name.length;
-  return (uchar*) var->name.str;
+  return static_cast<const uchar *>(static_cast<const void *>(var->name.str));
 }
 
 sys_var_chain all_sys_vars = { NULL, NULL };
@@ -65,8 +65,9 @@ int sys_var_init()
   /* Must be already initialized. */
   DBUG_ASSERT(system_charset_info != NULL);
 
-  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash, system_charset_info, 700, 0,
-                   0, (my_hash_get_key) get_sys_var_length, 0, HASH_UNIQUE))
+  if (my_hash_init(PSI_INSTRUMENT_ME, &system_variable_hash,
+                   system_charset_info, 700, 0, 0, get_sys_var_length, 0,
+                   HASH_UNIQUE))
     goto error;
 
   if (mysql_add_sys_var_chain(all_sys_vars.first))

@@ -105,7 +105,7 @@ ulong spider_open_connections_line_no;
 pthread_mutex_t spider_conn_mutex;
 
 /* for spider_open_connections and trx_conn_hash */
-uchar *spider_conn_get_key(
+const uchar *spider_conn_get_key(
   const uchar *conn_,
   size_t *length,
   my_bool
@@ -117,10 +117,11 @@ uchar *spider_conn_get_key(
 #ifdef DBUG_TRACE
   spider_print_keys(conn->conn_key, conn->conn_key_length);
 #endif
-  DBUG_RETURN((uchar*) conn->conn_key);
+  DBUG_RETURN(
+      static_cast<const uchar *>(static_cast<const void *>(conn->conn_key)));
 }
 
-uchar *spider_ipport_conn_get_key(
+const uchar *spider_ipport_conn_get_key(
    const uchar *ip_port_,
    size_t *length,
    my_bool
@@ -129,10 +130,11 @@ uchar *spider_ipport_conn_get_key(
   auto ip_port= reinterpret_cast<const SPIDER_IP_PORT_CONN *>(ip_port_);
   DBUG_ENTER("spider_ipport_conn_get_key");
   *length = ip_port->key_len;
-  DBUG_RETURN((uchar*) ip_port->key);
+  DBUG_RETURN(
+      static_cast<const uchar *>(static_cast<const void *>(ip_port->key)));
 }
 
-static uchar *spider_loop_check_full_get_key(
+static const uchar *spider_loop_check_full_get_key(
   const uchar *ptr_,
   size_t *length,
   my_bool
@@ -140,10 +142,11 @@ static uchar *spider_loop_check_full_get_key(
   auto ptr= reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_full_get_key");
   *length = ptr->full_name.length;
-  DBUG_RETURN((uchar*) ptr->full_name.str);
+  DBUG_RETURN(static_cast<const uchar *>(
+      static_cast<const void *>(ptr->full_name.str)));
 }
 
-static uchar *spider_loop_check_to_get_key(
+static const uchar *spider_loop_check_to_get_key(
   const uchar *ptr_,
   size_t *length,
   my_bool
@@ -151,7 +154,8 @@ static uchar *spider_loop_check_to_get_key(
   auto ptr= reinterpret_cast<const SPIDER_CONN_LOOP_CHECK *>(ptr_);
   DBUG_ENTER("spider_loop_check_to_get_key");
   *length = ptr->to_name.length;
-  DBUG_RETURN((uchar*) ptr->to_name.str);
+  DBUG_RETURN(
+      static_cast<const uchar *>(static_cast<const void *>(ptr->to_name.str)));
 }
 
 int spider_conn_init(
@@ -164,10 +168,10 @@ int spider_conn_init(
   {
     goto error_loop_check_mutex_init;
   }
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_checked, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_loop_check_full_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_checked,
+                   spd_charset_utf8mb3_bin, 32, 0, 0,
+                   spider_loop_check_full_get_key, 0, 0))
+  {
     goto error_loop_checked_hash_init;
   }
   spider_alloc_calc_mem_init(conn->loop_checked, 268);
@@ -175,10 +179,10 @@ int spider_conn_init(
     conn->loop_checked,
     conn->loop_checked.array.max_element *
     conn->loop_checked.array.size_of_element);
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_check_queue, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_loop_check_to_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &conn->loop_check_queue,
+                   spd_charset_utf8mb3_bin, 32, 0, 0,
+                   spider_loop_check_to_get_key, 0, 0))
+  {
     goto error_loop_check_queue_hash_init;
   }
   spider_alloc_calc_mem_init(conn->loop_check_queue, 269);

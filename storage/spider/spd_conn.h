@@ -84,13 +84,13 @@ typedef struct st_spider_conn_loop_check
   LEX_CSTRING        merged_value;
 } SPIDER_CONN_LOOP_CHECK;
 
-uchar *spider_conn_get_key(
+const uchar *spider_conn_get_key(
   const uchar *conn,
   size_t *length,
   my_bool
 );
 
-uchar *spider_ipport_conn_get_key(
+const uchar *spider_ipport_conn_get_key(
   const uchar *ip_port,
   size_t *length,
   my_bool

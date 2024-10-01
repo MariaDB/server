@@ -537,20 +537,23 @@ public:
   char key[1];					// Key will be stored here
 };
 
-static uchar *acl_entry_get_key(const uchar *entry_, size_t *length, my_bool)
+static const uchar *acl_entry_get_key(const uchar *entry_, size_t *length,
+                                      my_bool)
 {
   auto entry=
       static_cast<const acl_entry *>(static_cast<const void *>(entry_));
   *length=(uint) entry->length;
-  return (uchar*) entry->key;
+  return static_cast<const uchar *>(static_cast<const void *>(entry->key));
 }
 
-static uchar *acl_role_get_key(const uchar *entry_, size_t *length, my_bool)
+static const uchar *acl_role_get_key(const uchar *entry_, size_t *length,
+                                     my_bool)
 {
   auto entry=
       static_cast<const ACL_ROLE *>(static_cast<const void *>(entry_));
   *length=(uint) entry->user.length;
-  return (uchar*) entry->user.str;
+  return static_cast<const uchar *>(
+      static_cast<const void *>(entry->user.str));
 }
 
 struct ROLE_GRANT_PAIR : public Sql_alloc
@@ -565,13 +568,14 @@ struct ROLE_GRANT_PAIR : public Sql_alloc
             const char *rolename, bool with_admin_option);
 };
 
-static uchar *acl_role_map_get_key(const uchar *entry_, size_t *length,
-                                   my_bool)
+static const uchar *acl_role_map_get_key(const uchar *entry_, size_t *length,
+                                         my_bool)
 {
   auto entry=
       static_cast<const ROLE_GRANT_PAIR *>(static_cast<const void *>(entry_));
   *length=(uint) entry->hashkey.length;
-  return (uchar*) entry->hashkey.str;
+  return static_cast<const uchar *>(
+      static_cast<const void *>(entry->hashkey.str));
 }
 
 bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
@@ -2472,10 +2476,9 @@ bool acl_init(bool dont_read_acl_tables)
   bool return_val;
   DBUG_ENTER("acl_init");
 
-  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0, 0,
-                           (my_hash_get_key) acl_entry_get_key,
-                           (my_hash_free_key) my_free,
-                           &my_charset_utf8mb3_bin);
+  acl_cache= new Hash_filo<acl_entry>(key_memory_acl_cache, ACL_CACHE_SIZE, 0,
+                                      0, acl_entry_get_key, my_free,
+                                      &my_charset_utf8mb3_bin);
 
   /*
     cache built-in native authentication plugins,
@@ -2916,12 +2919,12 @@ bool acl_reload(THD *thd)
   my_init_dynamic_array(key_memory_acl_mem, &acl_users, sizeof(ACL_USER), 50, 100, MYF(0));
   acl_dbs.init(key_memory_acl_mem, 50, 100);
   my_init_dynamic_array(key_memory_acl_mem, &acl_proxy_users, sizeof(ACL_PROXY_USER), 50, 100, MYF(0));
-  my_hash_init2(key_memory_acl_mem, &acl_roles,50, &my_charset_utf8mb3_bin,
-                0, 0, 0, (my_hash_get_key) acl_role_get_key, 0,
-                (void (*)(void *))free_acl_role, 0);
+  my_hash_init2(key_memory_acl_mem, &acl_roles, 50, &my_charset_utf8mb3_bin, 0,
+                0, 0, acl_role_get_key, 0, (void (*)(void *)) free_acl_role,
+                0);
   my_hash_init2(key_memory_acl_mem, &acl_roles_mappings, 50,
-                &my_charset_utf8mb3_bin, 0, 0, 0, (my_hash_get_key)
-                acl_role_map_get_key, 0, 0, 0);
+                &my_charset_utf8mb3_bin, 0, 0, 0, acl_role_map_get_key, 0, 0,
+                0);
   old_mem= acl_memroot;
   delete_dynamic(&acl_wild_hosts);
   my_hash_free(&acl_check_hosts);
@@ -3420,12 +3423,13 @@ int acl_setrole(THD *thd, const char *rolename, privilege_t access)
   return 0;
 }
 
-static uchar *check_get_key(const uchar *buff_, size_t *length, my_bool)
+static const uchar *check_get_key(const uchar *buff_, size_t *length, my_bool)
 {
   auto buff=
       static_cast<const ACL_USER *>(static_cast<const void *>(buff_));
   *length=buff->hostname_length;
-  return (uchar*) buff->host.hostname;
+  return static_cast<const uchar *>(
+      static_cast<const void *>(buff->host.hostname));
 }
 
 
@@ -3737,9 +3741,9 @@ static void init_check_host(void)
   (void) my_init_dynamic_array(key_memory_acl_mem, &acl_wild_hosts,
                                sizeof(struct acl_host_and_ip),
                                acl_users.elements, 1, MYF(0));
-  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,system_charset_info,
-                      acl_users.elements, 0, 0,
-                      (my_hash_get_key) check_get_key, 0, 0);
+  (void) my_hash_init(key_memory_acl_mem, &acl_check_hosts,
+                      system_charset_info, acl_users.elements, 0, 0,
+                      check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
     for (uint i=0 ; i < acl_users.elements ; i++)
@@ -5333,12 +5337,12 @@ public:
     rights (source->rights), init_rights(NO_ACL), key_length(source->key_length) { }
 };
 
-static uchar *get_key_column(const uchar *buff_, size_t *length, my_bool)
+static const uchar *get_key_column(const uchar *buff_, size_t *length, my_bool)
 {
   auto buff=
       static_cast<const GRANT_COLUMN *>(static_cast<const void *>(buff_));
   *length=buff->key_length;
-  return (uchar*) buff->column;
+  return static_cast<const uchar *>(static_cast<const void *>(buff->column));
 }
 
 class GRANT_NAME :public Sql_alloc
@@ -5382,7 +5386,7 @@ public:
   void init_hash()
   {
     my_hash_init2(key_memory_acl_memex, &hash_columns, 4, system_charset_info,
-                  0, 0, 0, (my_hash_get_key) get_key_column, 0, 0, 0);
+                  0, 0, 0, get_key_column, 0, 0, 0);
   }
 };
 
@@ -5564,12 +5568,13 @@ GRANT_TABLE::~GRANT_TABLE()
   my_hash_free(&hash_columns);
 }
 
-static uchar *get_grant_table(const uchar *buff_, size_t *length, my_bool)
+static const uchar *get_grant_table(const uchar *buff_, size_t *length,
+                                    my_bool)
 {
   auto buff=
       static_cast<const GRANT_NAME *>(static_cast<const void *>(buff_));
   *length=buff->key_length;
-  return (uchar*) buff->hash_key;
+  return static_cast<const uchar *>(static_cast<const void *>(buff->hash_key));
 }
 
 
@@ -6498,11 +6503,11 @@ static int traverse_role_graph_down(ACL_USER_BASE *user, void *context,
   entries using the role hash. We put all these "interesting"
   entries in a (suposedly small) dynamic array and them use it for merging.
 */
-static uchar* role_key(const uchar *role_, size_t *klen, my_bool)
+static const uchar *role_key(const uchar *role_, size_t *klen, my_bool)
 {
   auto role= static_cast<const ACL_ROLE *>(static_cast<const void *>(role_));
   *klen= role->user.length;
-  return (uchar*) role->user.str;
+  return static_cast<const uchar *>(static_cast<const void *>(role->user.str));
 }
 typedef Hash_set<ACL_ROLE> role_hash_t;
 
@@ -7982,20 +7987,16 @@ static bool grant_load(THD *thd,
   Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
 
   (void) my_hash_init(key_memory_acl_memex, &column_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, (my_hash_free_key) free_grant_table, 0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table,
+                      free_grant_table, 0);
   (void) my_hash_init(key_memory_acl_memex, &proc_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &func_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_spec_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   (void) my_hash_init(key_memory_acl_memex, &package_body_priv_hash,
-                      &my_charset_utf8mb3_bin, 0,0,0, (my_hash_get_key)
-                      get_grant_table, 0,0);
+                      &my_charset_utf8mb3_bin, 0, 0, 0, get_grant_table, 0, 0);
   init_sql_alloc(key_memory_acl_mem, &grant_memroot, ACL_ALLOC_BLOCK_SIZE, 0, MYF(0));
 
   t_table= tables_priv.table();

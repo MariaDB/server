@@ -703,13 +703,13 @@ static MDL_map mdl_locks;
 
 extern "C"
 {
-static uchar *
+static const uchar *
 mdl_locks_key(const uchar *record, size_t *length,
               my_bool not_used __attribute__((unused)))
 {
   MDL_lock *lock=(MDL_lock*) record;
   *length= lock->key.length();
-  return (uchar*) lock->key.ptr();
+  return lock->key.ptr();
 }
 } /* extern "C" */
 

@@ -332,12 +332,11 @@ static void usage(void)
   my_print_variables(my_long_options);
 }
 
-
-static uchar* my_hash_get_string(const uchar *record, size_t *length,
-                                my_bool first __attribute__ ((unused)))
+static const uchar *my_hash_get_string(const uchar *record, size_t *length,
+                                       my_bool first __attribute__((unused)))
 {
   *length= (size_t) (strcend((const char*) record,',')- (const char*) record);
-  return (uchar*) record;
+  return record;
 }
 
 
