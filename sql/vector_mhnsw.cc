@@ -18,6 +18,7 @@
 #include <my_global.h>
 #include "key.h"                                // key_copy()
 #include "create_options.h"
+#include "table_cache.h"
 #include "vector_mhnsw.h"
 #include "item_vectorfunc.h"
 #include <scope.h>
@@ -490,11 +491,11 @@ public:
 class MHNSW_Trx : public MHNSW_Share
 {
 public:
-  TABLE_SHARE *table_share;
+  MDL_ticket *table_id;
   bool list_of_nodes_is_lost= false;
   MHNSW_Trx *next= nullptr;
 
-  MHNSW_Trx(TABLE *table) : MHNSW_Share(table), table_share(table->s) {}
+  MHNSW_Trx(TABLE *table) : MHNSW_Share(table), table_id(table->mdl_ticket) {}
   void reset(TABLE_SHARE *) override
   {
     node_cache.clear();
@@ -566,24 +567,38 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
        trx; trx= trx_next)
   {
     trx_next= trx->next;
-    auto ctx= MHNSW_Share::get_from_share(trx->table_share, nullptr);
-    if (ctx)
+    if (trx->table_id)
     {
-      mysql_rwlock_wrlock(&ctx->commit_lock);
-      ctx->version++;
-      if (trx->list_of_nodes_is_lost)
-        ctx->reset(trx->table_share);
-      else
+      MDL_key *key= trx->table_id->get_key();
+      LEX_CSTRING db=  {key->db_name(), key->db_name_length()},
+                  tbl= {key->name(), key->name_length()};
+      TABLE_LIST tl;
+      tl.init_one_table(&db, &tbl, nullptr, TL_IGNORE);
+      TABLE_SHARE *share= tdc_acquire_share(thd, &tl, GTS_TABLE, nullptr);
+      if (share)
       {
-        // consider copying nodes from trx to shared cache when it makes sense
-        // for ann_benchmarks it does not
-        // also, consider flushing only changed nodes (a flag in the node)
-        for (FVectorNode &from : trx->get_cache())
-          if (FVectorNode *node= ctx->find_node(from.gref()))
-            node->vec= nullptr;
-        ctx->start= nullptr;
+        auto ctx= share->hlindex ? MHNSW_Share::get_from_share(share, nullptr)
+                                 : nullptr;
+        if (ctx)
+        {
+          mysql_rwlock_wrlock(&ctx->commit_lock);
+          ctx->version++;
+          if (trx->list_of_nodes_is_lost)
+            ctx->reset(share);
+          else
+          {
+            // consider copying nodes from trx to shared cache when it makes
+            // sense. for ann_benchmarks it does not.
+            // also, consider flushing only changed nodes (a flag in the node)
+            for (FVectorNode &from : trx->get_cache())
+              if (FVectorNode *node= ctx->find_node(from.gref()))
+                node->vec= nullptr;
+            ctx->start= nullptr;
+          }
+          ctx->release(true, share);
+        }
+        tdc_release_share(share);
       }
-      ctx->release(true, trx->table_share);
     }
     trx->~MHNSW_Trx();
   }
@@ -601,7 +616,9 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
   if (!for_update && !trx)
     return NULL;
 
-  while (trx && trx->table_share != table->s) trx= trx->next;
+  DBUG_ASSERT(!table->mdl_ticket ||
+              table->mdl_ticket->m_duration == MDL_TRANSACTION);
+  while (trx && trx->table_id != table->mdl_ticket) trx= trx->next;
   if (!trx)
   {
     trx= new (&thd->transaction->mem_root) MHNSW_Trx(table);
