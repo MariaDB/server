@@ -29,7 +29,7 @@ C_MODE_START
 #include <stdarg.h>
 #include <typelib.h>
 #include <my_alloca.h>
-#include <my_global.h>
+#include <my_cmp.h>
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
 
