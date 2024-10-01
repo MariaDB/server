@@ -18,7 +18,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "my_base.h"                            /* ha_rows */
-#include <my_global.h>                             /* qsort_cmp2 */
+#include <my_cmp.h>
 #include "queues.h"
 #include "sql_string.h"
 #include "sql_class.h"

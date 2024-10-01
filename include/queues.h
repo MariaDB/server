@@ -35,7 +35,7 @@
 extern "C" {
 #endif
 
-#include "my_global.h"
+#include "my_cmp.h"
 
 typedef struct st_queue {
   uchar **root;
