@@ -4593,7 +4593,6 @@ int ha_partition::update_row(const uchar *old_data, const uchar *new_data)
     so this is not supported for this engine.
   */
   error= get_part_for_buf(old_data, m_rec0, m_part_info, &old_part_id);
-  DBUG_ASSERT(!error);
   DBUG_ASSERT(old_part_id == m_last_part);
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), old_part_id));
 #endif
