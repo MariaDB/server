@@ -357,11 +357,12 @@ err:
 	return NULL;
 }
 
-static uchar *get_file_entry_key(const uchar *entry_, size_t *length, my_bool)
+static const uchar *get_file_entry_key(const void *entry_, size_t *length,
+                                       my_bool)
 {
-	const file_entry_t *entry= reinterpret_cast<const file_entry_t*>(entry_);
-	*length = entry->pathlen;
-	return (uchar *) entry->path;
+  const file_entry_t *entry= static_cast<const file_entry_t *>(entry_);
+  *length= entry->pathlen;
+  return reinterpret_cast<const uchar *>(entry->path);
 }
 
 static
@@ -493,13 +494,14 @@ mode_extract(int n_threads, int argc __attribute__((unused)),
 	int			ret = 0;
 
         if (my_hash_init(PSI_NOT_INSTRUMENTED, &filehash, &my_charset_bin,
-                         START_FILE_HASH_SIZE, 0, 0, (my_hash_get_key) get_file_entry_key,
-			  (my_hash_free_key) file_entry_free, MYF(0))) {
-		msg("%s: failed to initialize file hash.", my_progname);
-		return 1;
-	}
+                         START_FILE_HASH_SIZE, 0, 0, get_file_entry_key,
+                         file_entry_free, MYF(0)))
+        {
+          msg("%s: failed to initialize file hash.", my_progname);
+          return 1;
+        }
 
-	if (pthread_mutex_init(&mutex, NULL)) {
+        if (pthread_mutex_init(&mutex, NULL)) {
 		msg("%s: failed to initialize mutex.", my_progname);
 		my_hash_free(&filehash);
 		return 1;

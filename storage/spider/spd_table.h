@@ -47,20 +47,20 @@ typedef struct st_spider_param_string_parse
   bool locate_param_def(char*& start_param);
 } SPIDER_PARAM_STRING_PARSE;
 
-uchar *spider_tbl_get_key(
-  const uchar *share,
+const uchar *spider_tbl_get_key(
+  const void *share,
   size_t *length,
   my_bool
 );
 
-uchar *spider_wide_share_get_key(
-  const uchar *share,
+const uchar *spider_wide_share_get_key(
+  const void *share,
   size_t *length,
   my_bool
 );
 
-uchar *spider_link_get_key(
-  const uchar *link_for_hash,
+const uchar *spider_link_get_key(
+  const void *link_for_hash,
   size_t *length,
   my_bool
 );
