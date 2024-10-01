@@ -1686,7 +1686,6 @@ void execute_ddl_log_recovery()
   */
   if (!(thd=new THD(0)))
     DBUG_VOID_RETURN;
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->set_query(recover_query_string, strlen(recover_query_string));

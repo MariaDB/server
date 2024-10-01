@@ -6133,7 +6133,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &result;
+    p->thd->thread_stack= (void*) &result;      // Big stack
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
@@ -6313,7 +6313,6 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
     new_thd= new THD(0);
     local_connection_thread_count++;
-    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;

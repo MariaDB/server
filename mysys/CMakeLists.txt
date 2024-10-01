@@ -36,7 +36,7 @@ SET(MYSYS_SOURCES  array.c charset-def.c charset.c my_default.c
 				my_basename.c
 				my_write.c ptr_cmp.c queues.c stacktrace.c
 				string.c thr_alarm.c thr_lock.c thr_mutex.c
-				thr_rwlock.c thr_timer.c
+				thr_rwlock.c thr_timer.c my_stack.c
                                 tree.c typelib.c base64.c my_memmem.c
                                 my_getpagesize.c
                                 guess_malloc_library.c

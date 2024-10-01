@@ -2526,7 +2526,7 @@ public:
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
   */
-  char	  *thread_stack;
+  void *thread_stack;
 
   /**
     Currently selected catalog.
@@ -3596,6 +3596,10 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void reset_stack()
+  {
+    thread_stack= 0;
+  }
   void reset_globals();
   bool trace_started()
   {
