@@ -93,7 +93,7 @@ TRANSACTIONAL_TARGET bool xbegin() noexcept;
 TRANSACTIONAL_TARGET void xabort() noexcept;
 TRANSACTIONAL_TARGET void xend() noexcept;
 #  ifdef UNIV_DEBUG
-bool xtest();
+bool xtest() noexcept;
 #  endif
 
 # endif
