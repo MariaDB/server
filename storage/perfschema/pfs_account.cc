@@ -67,19 +67,19 @@ void cleanup_account(void)
 }
 
 C_MODE_START
-static uchar *account_hash_get_key(const uchar *entry, size_t *length,
-                                my_bool)
+static const uchar *account_hash_get_key(const void *entry, size_t *length,
+                                         my_bool)
 {
   const PFS_account * const *typed_entry;
   const PFS_account *account;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_account* const *> (entry);
+  typed_entry= static_cast<const PFS_account* const *> (entry);
   assert(typed_entry != NULL);
   account= *typed_entry;
   assert(account != NULL);
   *length= account->m_key.m_key_length;
   result= account->m_key.m_hash_key;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

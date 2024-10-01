@@ -112,13 +112,12 @@ SQL_HANDLER::~SQL_HANDLER()
     Pointer to the TABLE_LIST struct.
 */
 
-static uchar *mysql_ha_hash_get_key(const uchar *table_, size_t *key_len,
-                                    my_bool)
+static const uchar *mysql_ha_hash_get_key(const void *table_, size_t *key_len,
+                                          my_bool)
 {
-  auto table=
-      static_cast<const SQL_HANDLER *>(static_cast<const void *>(table_));
+  auto table= static_cast<const SQL_HANDLER *>(table_);
   *key_len= table->handler_name.length + 1 ; /* include '\0' in comparisons */
-  return (uchar*) table->handler_name.str;
+  return reinterpret_cast<const uchar *>(table->handler_name.str);
 }
 
 
@@ -293,8 +292,7 @@ bool mysql_ha_open(THD *thd, TABLE_LIST *tables, SQL_HANDLER *reopen)
     */
     if (my_hash_init(key_memory_THD_handler_tables_hash,
                      &thd->handler_tables_hash, &my_charset_latin1,
-                     HANDLER_TABLES_HASH_SIZE, 0, 0, (my_hash_get_key)
-                     mysql_ha_hash_get_key,(my_hash_free_key)
+                     HANDLER_TABLES_HASH_SIZE, 0, 0, mysql_ha_hash_get_key,
                      mysql_ha_hash_free, 0))
     {
       DBUG_PRINT("exit",("ERROR"));
