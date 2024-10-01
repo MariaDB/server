@@ -1334,7 +1334,7 @@ int mhnsw_read_next(TABLE *table)
   float new_threshold= result->found.links[result->found.num-1]->distance_to(result->target);
 
   if (int err= search_layer(ctx, graph, result->target, result->threshold,
-                   result->pos, 0, &result->found, false))
+                   static_cast<uint>(result->pos), 0, &result->found, false))
     return err;
   result->pos= 0;
   result->threshold= new_threshold;
