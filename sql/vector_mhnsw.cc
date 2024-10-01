@@ -1261,6 +1261,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   {
     res= &buf;
     buf.alloc(ctx->byte_len);
+    buf.length(ctx->byte_len);
     for (size_t i=0; i < ctx->vec_len; i++)
       ((float*)buf.ptr())[i]= i == 0;
   }
