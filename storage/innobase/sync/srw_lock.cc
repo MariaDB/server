@@ -269,44 +269,10 @@ template void ssux_lock_impl<false>::wake() noexcept;
 template void srw_mutex_impl<true>::wake() noexcept;
 template void ssux_lock_impl<true>::wake() noexcept;
 
-/*
-
-Unfortunately, compilers targeting IA-32 or AMD64 currently cannot
-translate the following single-bit operations into Intel 80386 instructions:
-
-     m.fetch_or(1<<b) & 1<<b       LOCK BTS b, m
-     m.fetch_and(~(1<<b)) & 1<<b   LOCK BTR b, m
-     m.fetch_xor(1<<b) & 1<<b      LOCK BTC b, m
-
-Hence, we will manually translate fetch_or() using GCC-style inline
-assembler code or a Microsoft intrinsic function.
-
-*/
-
-#if defined __clang_major__ && __clang_major__ < 10
-/* Only clang-10 introduced support for asm goto */
-#elif defined __APPLE__
-/* At least some versions of Apple Xcode do not support asm goto */
-#elif defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-# define IF_FETCH_OR_GOTO(mem, bit, label)				\
-  __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
-               "jc %l1" : : "m" (mem) : "cc", "memory" : label);
-# define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
-  __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
-               "jnc %l1" : : "m" (mem) : "cc", "memory" : label);
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-# define IF_FETCH_OR_GOTO(mem, bit, label)				\
-  if (_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit)) \
-    goto label;
-# define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
-  if (!_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit))\
-    goto label;
-#endif
-
 template<bool spinloop>
 void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
 {
-  uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
+  uint32_t lk= WAITER + lock.fetch_add(WAITER, std::memory_order_relaxed);
 
   if (spinloop)
   {
@@ -318,10 +284,16 @@ void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
       lk= lock.load(std::memory_order_relaxed);
       if (!(lk & HOLDER))
       {
-#ifdef IF_NOT_FETCH_OR_GOTO
-        static_assert(HOLDER == (1U << 31), "compatibility");
-        IF_NOT_FETCH_OR_GOTO(*this, 31, acquired);
-        lk|= HOLDER;
+#if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
+        lk |= HOLDER;
+# ifdef _MSC_VER
+        static_assert(HOLDER == (1U << 0), "compatibility");
+        if (!_interlockedbittestandset
+            (reinterpret_cast<volatile long*>(&lock), 0))
+# else
+        if (!(lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER))
+# endif
+          goto acquired;
 #else
         if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER))
           goto acquired;
@@ -339,16 +311,22 @@ void srw_mutex_impl<spinloop>::wait_and_lock() noexcept
     if (lk & HOLDER)
     {
       wait(lk);
-#ifdef IF_FETCH_OR_GOTO
+#if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
 reload:
 #endif
       lk= lock.load(std::memory_order_relaxed);
     }
     else
     {
-#ifdef IF_FETCH_OR_GOTO
-      static_assert(HOLDER == (1U << 31), "compatibility");
-      IF_FETCH_OR_GOTO(*this, 31, reload);
+#if defined __i386__||defined __x86_64__||defined _M_IX86||defined _M_X64
+# ifdef _MSC_VER
+      static_assert(HOLDER == (1U << 0), "compatibility");
+      if (_interlockedbittestandset
+          (reinterpret_cast<volatile long*>(&lock), 0))
+# else
+      if (lock.fetch_or(HOLDER, std::memory_order_relaxed) & HOLDER)
+# endif
+        goto reload;
 #else
       if ((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER)
         continue;
@@ -416,7 +394,8 @@ void ssux_lock_impl<spinloop>::rd_wait() noexcept
 
   /* Subscribe to writer.wake() or write.wake_all() calls by
   concurrently executing rd_wait() or writer.wr_unlock(). */
-  uint32_t wl= 1 + writer.lock.fetch_add(1, std::memory_order_acquire);
+  uint32_t wl= writer.WAITER +
+    writer.lock.fetch_add(writer.WAITER, std::memory_order_acquire);
 
   for (;;)
   {
@@ -440,13 +419,13 @@ void ssux_lock_impl<spinloop>::rd_wait() noexcept
   }
 
   /* Unsubscribe writer.wake() and writer.wake_all(). */
-  wl= writer.lock.fetch_sub(1, std::memory_order_release);
+  wl= writer.lock.fetch_sub(writer.WAITER, std::memory_order_release);
   ut_ad(wl);
 
   /* Wake any other threads that may be blocked in writer.wait().
   All other waiters than this rd_wait() would end up acquiring writer.lock
   and waking up other threads on unlock(). */
-  if (wl > 1)
+  if (wl > writer.WAITER)
     writer.wake_all();
 }
 

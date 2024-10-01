@@ -1030,8 +1030,7 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
       return 1;
     case Json_table_column::RESPONSE_DEFAULT:
       f->set_notnull();
-      f->store(m_default.str,
-          m_default.length, jc->m_defaults_cs);
+      m_default->save_in_field(f, TRUE);
       break;
   }
   return 0;
@@ -1041,7 +1040,11 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
 int Json_table_column::On_response::print(const char *name, String *str) const
 {
   LEX_CSTRING resp;
-  const LEX_CSTRING *ds= NULL;
+
+  char valbuf[512];
+  String val(valbuf, sizeof(valbuf), str->charset());
+  String *ds= NULL;
+
   if (m_response == Json_table_column::RESPONSE_NOT_SPECIFIED)
     return 0;
 
@@ -1056,7 +1059,7 @@ int Json_table_column::On_response::print(const char *name, String *str) const
     case Json_table_column::RESPONSE_DEFAULT:
     {
       lex_string_set3(&resp, STRING_WITH_LEN("DEFAULT"));
-      ds= &m_default;
+      ds= m_default->val_str(&val);
       break;
     }
     default:
@@ -1065,9 +1068,14 @@ int Json_table_column::On_response::print(const char *name, String *str) const
   }
 
   return (str->append(' ') || str->append(resp)  ||
-          (ds && (str->append(STRING_WITH_LEN(" '")) ||
-                  str->append_for_single_quote(ds->str, ds->length) ||
-                  str->append('\''))) ||
+          (ds &&
+            (str->append(' ') ||
+             (m_default->result_type()==STRING_RESULT && str->append('\''))||
+
+             str->append_for_single_quote(ds) ||
+
+             (m_default->result_type()==STRING_RESULT && str->append('\''))))||
+
           str->append(STRING_WITH_LEN(" ON ")) ||
           str->append(name, strlen(name)));
 }
