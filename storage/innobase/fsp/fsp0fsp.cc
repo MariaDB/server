@@ -52,6 +52,7 @@ Created 11/29/1995 Heikki Tuuri
 #include <unordered_set>
 #include "trx0undo.h"
 #include "trx0trx.h"
+#include "rpl_gtid_base.h"
 
 /** Returns the first extent descriptor for a segment.
 We think of the extent lists of the segment catenated in the order
