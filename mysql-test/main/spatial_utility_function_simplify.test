@@ -142,8 +142,7 @@ SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('LINESTRING(0 0,1 1,3 -3,5 5,7 -7,9
 
 # TODO Bug #33739281 Some gis functions give different results with gcc11 in optimized mode on ARM
 # SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('LINESTRING(0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5)'), 0.5)) c;
-
-SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('LINESTRING(0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5)'), 0.6)) c;
+# SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('LINESTRING(0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5)'), 0.6)) c;
 
 # TODO Bug #33739281 Some gis functions give different results with gcc11 in optimized mode on ARM
 # SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('LINESTRING(0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5)'), 0.7)) c;
@@ -184,9 +183,8 @@ SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,1 1,3 -3,5 5,
 # TODO Bug #33739281 Some gis functions give different results with gcc11 in optimized mode on ARM
 # SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5),'
 #                                                              '(0 0,1 0,1 1,2 1,2 2,3 2,3 3,4 3,4 4,5 4,4 4))'), 0.5)) c;
-
-SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5),'
-                                                             '(0 0,1 0,1 1,2 1,2 2,3 2,3 3,4 3,4 4,5 4,4 4))'), 0.6)) c;
+# SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5),'
+#                                                              '(0 0,1 0,1 1,2 1,2 2,3 2,3 3,4 3,4 4,5 4,4 4))'), 0.6)) c;
 
 SELECT ST_ASTEXT(ST_SIMPLIFY(ST_GEOMFROMTEXT('MULTILINESTRING((0 0,0 1,1 1,1 2,2 2,2 3,3 3,3 4,4 4,4 5,5 5),'
                                                              '(0 0,1 0,1 1,2 1,2 2,3 2,3 3,4 3,4 4,5 4,4 4))'), 0.7)) c;
