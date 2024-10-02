@@ -425,17 +425,6 @@ const uchar *spider_link_get_key(
   DBUG_RETURN(reinterpret_cast<const uchar *>(link_for_hash->db_table_str->ptr()));
 }
 
-uchar *spider_ha_get_key(
-  const uchar *spider_,
-  size_t *length,
-  my_bool
-) {
-  auto spider= reinterpret_cast<const ha_spider *>(spider_);
-  DBUG_ENTER("spider_ha_get_key");
-  *length = spider->share->table_name_length;
-  DBUG_RETURN((uchar*) spider->share->table_name);
-}
-
 const uchar *spider_udf_tbl_mon_list_key(
   const void *table_mon_list_,
   size_t *length,
