@@ -77,4 +77,30 @@ replace into t1 values (1),(2);
 
 drop table t1;
 
+--echo #
+--echo # MDEV-15330 Server crash or assertion `table->insert_values' failure in write_record upon LOAD DATA
+--echo #
+if ($default_engine == MEMORY)
+{
+  --disable_query_log
+  set default_storage_engine= myisam;
+  --enable_query_log
+}
+create table t1 (a int, b int, c int, vc int as (c), unique(a), unique(b)) with system versioning;
+insert ignore into t1 (a,b,c) values (1,2,3);
+
+--disable_cursor_protocol
+--disable_ps2_protocol
+select a, b, c into outfile '15330.data' from t1;
+--enable_ps2_protocol
+--enable_cursor_protocol
+load data infile '15330.data' ignore into table t1 (a,b,c);
+load data infile '15330.data' replace into table t1 (a,b,c);
+
+# cleanup
+drop table t1;
+--disable_query_log
+eval set default_storage_engine= $default_engine;
+--enable_query_log
+
 --source suite/versioning/common_finish.inc
