@@ -79,6 +79,51 @@ struct rpl_binlog_state_base
   int get_gtid_list_nolock(rpl_gtid *gtid_list, uint32 list_size);
   rpl_gtid *find_nolock(uint32 domain_id, uint32 server_id);
   bool is_before_pos(slave_connection_state *pos);
+
+  /*
+    Inline iterator over a binlog state, most recent GTID comes last for each
+    domain just like get_gtid_list_nolock().
+
+    The ITERATOR_FUNC should have signature bool f(const rpl_gtid *), and
+    return true in case of error (in which case iterate() aborts and also
+    returns true).
+
+    Intended to do custom GTID state processing without requiring the overhead
+    of an intermediate list, and where the extra code generation is justified.
+  */
+  template <typename F> bool iterate(F iterator_func)
+  {
+    uint32 i, j;
+    ulong outer_records= hash.records;
+
+    for (i= 0; i < outer_records; ++i)
+    {
+      element *e= (element *)my_hash_element(&hash, i);
+      ulong inner_records= e->hash.records;
+      const rpl_gtid *last_gtid= e->last_gtid;
+      if (unlikely(!last_gtid))
+      {
+        DBUG_ASSERT(inner_records==0);
+        continue;
+      }
+      for (j= 0; j <= inner_records; ++j)
+      {
+        const rpl_gtid *gtid;
+        if (j < inner_records)
+        {
+          gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
+          if (gtid == last_gtid)
+            continue;
+        }
+        else
+          gtid= e->last_gtid;
+        if (iterator_func(gtid))
+          return true;
+      }
+    }
+
+    return false;  // No error
+  }
 };
 
 
