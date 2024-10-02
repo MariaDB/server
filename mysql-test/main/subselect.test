@@ -5780,9 +5780,12 @@ DROP TABLE t1;
 CREATE TABLE t1 (f1 char(2), PRIMARY KEY (f1)) ENGINE=MyISAM;
 INSERT INTO t1 VALUES ('u1'),('u2');
 
+#Check and enable after fix MDEV-34895
+--disable_ps2_protocol
 SELECT a.* FROM t1 a WHERE ( SELECT EXISTS ( SELECT 1 FROM t1 b WHERE b.f1 = a.f1 ) );
 FLUSH TABLES;
 SELECT a.* FROM t1 a WHERE ( SELECT EXISTS ( SELECT 1 FROM t1 b WHERE b.f1 = a.f1 ) );
+--enable_ps2_protocol
 
 # Cleanup
 DROP TABLE t1;

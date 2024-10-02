@@ -3,7 +3,7 @@
 set -ue
 
 # Copyright (C) 2009-2015 Codership Oy
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,25 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for mysqldump-based state snapshot tansfer
+# This is a reference script for mariadb-dump-based state snapshot tansfer.
 
 . $(dirname "$0")/wsrep_sst_common
+
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
+else
+    MYSQL_CLIENT=$(commandex 'mariadb')
+fi
+
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
+else
+    MYSQLDUMP=$(commandex 'mariadb-dump')
+fi
+
+wait_previous_sst
 
 EINVAL=22
 
@@ -35,7 +51,8 @@ if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED" && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
     wsrep_log_error \
-    "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT' matches source address."
+        "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT'" \
+        "matches source address."
     exit $EINVAL
 fi
 

@@ -10597,6 +10597,16 @@ commit_try_norebuild(
 	dict_index_t* index;
 	const char *op = "rename index to add";
 	ulint num_fts_index = 0;
+	const bool statistics_drop = statistics_exist
+		&& ((HA_OPTION_NO_STATS_PERSISTENT |
+		    HA_OPTION_STATS_PERSISTENT)
+		    & (old_table->s->db_create_options
+		       ^ altered_table->s->db_create_options))
+		&& ((altered_table->s->db_create_options
+		     & HA_OPTION_NO_STATS_PERSISTENT)
+		    || (!(altered_table->s->db_create_options
+			  & HA_OPTION_STATS_PERSISTENT)
+			&& !srv_stats_persistent));
 
 	/* We altered the table in place. Mark the indexes as committed. */
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
@@ -10619,7 +10629,8 @@ commit_try_norebuild(
 	}
 
 	char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
-	if (ctx->num_to_drop_index) {
+
+	if (statistics_exist && (statistics_drop || ctx->num_to_drop_index)) {
 		dict_fs2utf8(ctx->old_table->name.m_name,
 			     db, sizeof db, table, sizeof table);
 	}
@@ -10654,7 +10665,7 @@ commit_try_norebuild(
 			goto handle_error;
 		}
 
-		if (!statistics_exist) {
+		if (!statistics_exist || statistics_drop) {
 			continue;
 		}
 
@@ -10670,6 +10681,25 @@ commit_try_norebuild(
 	}
 
 	if (!statistics_exist) {
+	} else if (statistics_drop) {
+		error = dict_stats_delete_from_table_stats(db, table, trx);
+		switch (error) {
+		case DB_SUCCESS:
+		case DB_STATS_DO_NOT_EXIST:
+			break;
+		default:
+			goto handle_error;
+		}
+		error = dict_stats_delete_from_index_stats(db, table, trx);
+		switch (error) {
+		case DB_STATS_DO_NOT_EXIST:
+			error = DB_SUCCESS;
+			/* fall through */
+		case DB_SUCCESS:
+			break;
+		default:
+			goto handle_error;
+		}
 	} else if (const size_t size = ha_alter_info->rename_keys.size()) {
 		char tmp_name[5];
 		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];

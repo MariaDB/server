@@ -34,7 +34,7 @@ TABLE_NAME	varchar(64)	NO		NULL
 NON_UNIQUE	bigint(1)	NO		NULL	
 INDEX_SCHEMA	varchar(64)	NO		NULL	
 INDEX_NAME	varchar(64)	NO		NULL	
-SEQ_IN_INDEX	bigint(2)	NO		NULL	
+SEQ_IN_INDEX	int(2) unsigned	NO		NULL	
 COLUMN_NAME	varchar(64)	NO		NULL	
 COLLATION	varchar(1)	YES		NULL	
 CARDINALITY	bigint(21)	YES		NULL	
@@ -54,7 +54,7 @@ STATISTICS	CREATE TEMPORARY TABLE `STATISTICS` (
   `NON_UNIQUE` bigint(1) NOT NULL,
   `INDEX_SCHEMA` varchar(64) NOT NULL,
   `INDEX_NAME` varchar(64) NOT NULL,
-  `SEQ_IN_INDEX` bigint(2) NOT NULL,
+  `SEQ_IN_INDEX` int(2) unsigned NOT NULL,
   `COLUMN_NAME` varchar(64) NOT NULL,
   `COLLATION` varchar(1),
   `CARDINALITY` bigint(21),
@@ -74,7 +74,7 @@ TABLE_NAME	varchar(64)	NO		NULL
 NON_UNIQUE	bigint(1)	NO		NULL	
 INDEX_SCHEMA	varchar(64)	NO		NULL	
 INDEX_NAME	varchar(64)	NO		NULL	
-SEQ_IN_INDEX	bigint(2)	NO		NULL	
+SEQ_IN_INDEX	int(2) unsigned	NO		NULL	
 COLUMN_NAME	varchar(64)	NO		NULL	
 COLLATION	varchar(1)	YES		NULL	
 CARDINALITY	bigint(21)	YES		NULL	

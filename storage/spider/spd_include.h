@@ -90,8 +90,6 @@
 #define SPIDER_ENGINE_CONDITION_PUSHDOWN_IS_ALWAYS_ON
 #define SPIDER_XID_USES_xid_cache_iterate
 
-#define SPIDER_Item_args_arg_count_IS_PROTECTED
-
 #define SPIDER_Item_func_conv_charset_conv_charset collation.collation
 
 #define SPIDER_WITHOUT_HA_STATISTIC_INCREMENT
@@ -111,7 +109,6 @@
 
 #define SPIDER_read_record_read_record(A) read_record()
 #define SPIDER_has_Item_with_subquery
-#define SPIDER_use_LEX_CSTRING_for_KEY_Field_name
 #define SPIDER_use_LEX_CSTRING_for_Field_blob_constructor
 #define SPIDER_use_LEX_CSTRING_for_database_tablename_alias
 #define SPIDER_THD_db_str(A) (A)->db.str
@@ -127,8 +124,6 @@
 #define SPIDER_item_name_str(A) (A)->name.str
 #define SPIDER_item_name_length(A) (A)->name.length
 const LEX_CSTRING SPIDER_empty_string = {"", 0};
-
-#define SPIDER_HAS_HASH_VALUE_TYPE
 
 #define SPIDER_date_mode_t(A) date_mode_t(A)
 #define SPIDER_str_to_datetime(A,B,C,D,E) str_to_datetime_or_date(A,B,C,D,E)
@@ -457,11 +452,6 @@ enum spider_malloc_id {
 #define SPIDER_CONN_RESTORE_DASTATUS_AND_RESET_TMP_ERROR_NUM \
   if (thd && conn->error_mode) {SPIDER_RESTORE_DASTATUS; tmp_error_num = 0;}
 
-#define SPIDER_SET_FILE_POS(A) \
-  {(A)->thd = current_thd; (A)->func_name = __func__; (A)->file_name = __FILE__; (A)->line_no = __LINE__;}
-#define SPIDER_CLEAR_FILE_POS(A) \
-  {DBUG_PRINT("info", ("spider thd=%p func_name=%s file_name=%s line_no=%lu", (A)->thd, (A)->func_name ? (A)->func_name : "NULL", (A)->file_name ? (A)->file_name : "NULL", (A)->line_no)); (A)->thd = NULL; (A)->func_name = NULL; (A)->file_name = NULL; (A)->line_no = 0;}
-
 class ha_spider;
 typedef struct st_spider_share SPIDER_SHARE;
 typedef struct st_spider_table_mon_list SPIDER_TABLE_MON_LIST;
@@ -485,22 +475,12 @@ typedef struct st_spider_thread
 } SPIDER_THREAD;
 #endif
 
-typedef struct st_spider_file_pos
-{
-  THD                *thd;
-  const char         *func_name;
-  const char         *file_name;
-  ulong              line_no;
-} SPIDER_FILE_POS;
-
 typedef struct st_spider_link_for_hash
 {
   ha_spider          *spider;
   int                link_idx;
   spider_string      *db_table_str;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type db_table_str_hash_value;
-#endif
 } SPIDER_LINK_FOR_HASH;
 
 /* alter table */
@@ -510,9 +490,7 @@ typedef struct st_spider_alter_table
   char               *table_name;
   uint               table_name_length;
   char               *tmp_char;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
-#endif
   longlong           tmp_priority;
   uint               link_count;
   uint               all_link_count;
@@ -614,9 +592,7 @@ typedef struct st_spider_conn
   uint               conn_kind;
   char               *conn_key;
   uint               conn_key_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type conn_key_hash_value;
-#endif
   int                link_idx;
   spider_db_conn     *db_conn;
   uint               opened_handlers;
@@ -628,7 +604,6 @@ typedef struct st_spider_conn
   pthread_mutex_t    mta_conn_mutex;
   volatile bool      mta_conn_mutex_lock_already;
   volatile bool      mta_conn_mutex_unlock_later;
-  SPIDER_FILE_POS    mta_conn_mutex_file_pos;
   uint               join_trx;
   int                trx_isolation;
   bool               semi_trx_isolation_chk;
@@ -781,12 +756,6 @@ typedef struct st_spider_conn
   Time_zone          *queued_time_zone_val;
   XID                *queued_xa_start_xid;
 
-#ifdef HA_CAN_BULK_ACCESS
-  uint               bulk_access_requests;
-  uint               bulk_access_sended;
-  int                bulk_access_error_num;
-  st_spider_conn     *bulk_access_next;
-#endif
 
   bool               disable_connect_retry;  /* TRUE if it is unnecessary to
                                                 retry to connect after a
@@ -829,9 +798,7 @@ typedef struct st_spider_lgtm_tblhnd_share
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_path_hash_value;
-#endif
   pthread_mutex_t    auto_increment_mutex;
   volatile bool      auto_increment_init;
   volatile ulonglong auto_increment_lclval;
@@ -854,9 +821,7 @@ typedef struct st_spider_wide_share
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_path_hash_value;
-#endif
   uint               use_count;
   THR_LOCK           lock;
   pthread_mutex_t    sts_mutex;
@@ -906,10 +871,8 @@ typedef struct st_spider_wide_handler
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   SPIDER_PARTITION_HANDLER *partition_handler;
 #endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   List<Item>         *direct_update_fields;
   List<Item>         *direct_update_values;
-#endif
   TABLE_SHARE        *top_share;
   enum thr_lock_type lock_type;
   uchar              lock_table_type;
@@ -918,13 +881,8 @@ typedef struct st_spider_wide_handler
   int                cond_check_error;
   uint               sql_command;
   uint               top_table_fields;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 #ifdef INFO_KIND_FORCE_LIMIT_BEGIN
   longlong           info_limit;
-#endif
-#endif
-#ifdef HA_CAN_BULK_ACCESS
-  ulonglong          external_lock_cnt;
 #endif
   bool               between_flg;
   bool               idx_bitmap_is_set;
@@ -963,9 +921,7 @@ typedef struct st_spider_transaction
   bool               updated_in_this_trx;
 
   THD                *thd;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type thd_hash_value;
-#endif
   XID                xid;
   HASH               trx_conn_hash;
   uint               trx_conn_hash_id;
@@ -1000,10 +956,6 @@ typedef struct st_spider_transaction
   ulonglong          direct_aggregate_count;
   ulonglong          parallel_search_count;
 
-#ifdef HA_CAN_BULK_ACCESS
-  SPIDER_CONN        *bulk_access_conn_first;
-  SPIDER_CONN        *bulk_access_conn_last;
-#endif
 
   pthread_mutex_t    *udf_table_mutexes;
   CHARSET_INFO       *udf_access_charset;
@@ -1060,11 +1012,9 @@ typedef struct st_spider_share
   pthread_mutex_t    crd_mutex;
   TABLE_SHARE        *table_share;
   SPIDER_LGTM_TBLHND_SHARE *lgtm_tblhnd_share;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   my_hash_value_type table_path_hash_value;
-#endif
 #endif
 
   volatile bool      init;
@@ -1223,9 +1173,6 @@ typedef struct st_spider_share
   int                error_read_mode;
   int                error_write_mode;
   int                active_link_count;
-#ifdef HA_CAN_BULK_ACCESS
-  int                bulk_access_free;
-#endif
 #ifdef HA_CAN_FORCE_BULK_UPDATE
   int                force_bulk_update;
 #endif
@@ -1239,9 +1186,7 @@ typedef struct st_spider_share
   char               *bka_engine;
   int                bka_engine_length;
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type *conn_keys_hash_value;
-#endif
   char               **server_names;
   char               **tgt_table_names;
   char               **tgt_dbs;
@@ -1410,9 +1355,7 @@ typedef struct st_spider_init_error_table
 {
   char               *table_name;
   uint               table_name_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type table_name_hash_value;
-#endif
   bool               init_error_with_message;
   char               init_error_msg[MYSQL_ERRMSG_SIZE];
   volatile int       init_error;
@@ -1493,9 +1436,7 @@ typedef struct st_spider_direct_sql
   uint                 tgt_driver_length;
   uint                 conn_key_length;
   uint                 dbton_id;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type   conn_key_hash_value;
-#endif
 
   pthread_mutex_t               *bg_mutex;
   pthread_cond_t                *bg_cond;
@@ -1534,9 +1475,7 @@ typedef struct st_spider_table_mon_list
 {
   char                       *key;
   uint                       key_length;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type         key_hash_value;
-#endif
 
   uint                       use_count;
   uint                       mutex_hash;
@@ -1651,17 +1590,6 @@ typedef struct st_spider_trx_ha
   bool                       wait_for_reusing;
 } SPIDER_TRX_HA;
 
-#ifdef HA_CAN_BULK_ACCESS
-typedef struct st_spider_bulk_access_link
-{
-  ha_spider                  *spider;
-  uint                       sequence_num;
-  bool                       used;
-  bool                       called;
-  MEM_ROOT                   mem_root;
-  st_spider_bulk_access_link *next;
-} SPIDER_BULK_ACCESS_LINK;
-#endif
 
 #define SPIDER_INT_HLD_TGT_SIZE 100
 typedef struct st_spider_int_hld
@@ -1691,9 +1619,7 @@ char *spider_create_string(
 typedef struct st_spider_ip_port_conn {
   char               *key;
   size_t             key_len;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   my_hash_value_type key_hash_value;
-#endif
   char               *remote_ip_str;
   long               remote_port;
   ulong              ip_port_count;

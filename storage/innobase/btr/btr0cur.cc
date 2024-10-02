@@ -1239,19 +1239,16 @@ dberr_t btr_cur_t::search_leaf(const dtuple_t *tuple, page_cur_mode_t mode,
                      &err, height == 0 && !index()->is_clust());
   if (!block)
   {
-    switch (err) {
-    case DB_DECRYPTION_FAILED:
-      btr_decryption_failed(*index());
-      /* fall through */
-    default:
+    if (err != DB_SUCCESS)
+    {
+      btr_read_failed(err, *index());
       goto func_exit;
-    case DB_SUCCESS:
-      /* This must be a search to perform an insert, delete mark, or delete;
-      try using the change buffer */
-      ut_ad(height == 0);
-      ut_ad(thr);
-      break;
     }
+
+    /* This must be a search to perform an insert, delete mark, or delete;
+    try using the change buffer */
+    ut_ad(height == 0);
+    ut_ad(thr);
 
     switch (btr_op) {
     default:
@@ -1790,8 +1787,7 @@ dberr_t btr_cur_t::pessimistic_search_leaf(const dtuple_t *tuple,
 
   if (!block)
   {
-    if (err == DB_DECRYPTION_FAILED)
-      btr_decryption_failed(*index());
+    btr_read_failed(err, *index());
     goto func_exit;
   }
 
@@ -1887,8 +1883,7 @@ search_loop:
   else if (!(block= buf_page_get_gen(page_id, zip_size, rw_latch,
                                      block, BUF_GET, mtr, &err)))
   {
-    if (err == DB_DECRYPTION_FAILED)
-      btr_decryption_failed(*index);
+    btr_read_failed(err, *index);
     goto func_exit;
   }
   else

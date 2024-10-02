@@ -22,9 +22,9 @@
 #define SPIDER_SIMPLE_CONNECT             1
 #define SPIDER_SIMPLE_DISCONNECT          2
 #define SPIDER_SIMPLE_RECORDS             3
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 #define SPIDER_SIMPLE_CHECKSUM_TABLE      4
-#endif
+
+struct TABLE;
 
 /*
   The SPIDER_CONN_LOOP_CHECK has been added to the loop_check queue to
@@ -50,10 +50,8 @@ typedef struct st_spider_conn_loop_check
     SPIDER_LOP_CHK_IGNORED
   */
   uint               flag;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   /* hash value of to_name, used for the hash conn->loop_checked */
   my_hash_value_type hash_value_to;
-#endif
   /*
     The fully qualified name of the current spider table, which will
     also be used to construct the user var name to set in the data
@@ -458,3 +456,11 @@ SPIDER_CONN* spider_get_conn_from_idle_connection
  int *error_num
  );
 void spider_free_ipport_conn(void *info);
+
+void spider_lock_before_query(SPIDER_CONN *conn, int *need_mon);
+
+int spider_unlock_after_query(SPIDER_CONN *conn, int ret);
+
+int spider_unlock_after_query_1(SPIDER_CONN *conn);
+
+int spider_unlock_after_query_2(SPIDER_CONN *conn, ha_spider *spider, int link_idx, TABLE *table);
