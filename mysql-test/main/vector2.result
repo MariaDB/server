@@ -58,3 +58,12 @@ create table t (a int, v blob not null, vector index(v)) engine=myisam;
 create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
 ERROR HY000: Table storage engine 'MERGE' does not support the create option 'VECTOR'
 drop table t;
+#
+# MDEV-35063 Assertion `v->distance_to_target >= threshold' fails upon adding certain values to vector key
+# MDEV-35084 Assertion `v->distance_to_target >= threshold' fails upon adding overflowing values to vector key #2
+#
+create table t (a int, v blob not null, vector(v));
+insert into t values (1,x'78787878'),(2,x'78787878');
+truncate table t;
+insert into t values (1,x'6161616161616161'),(2,x'6161616161616161');
+drop table t;

@@ -1039,7 +1039,8 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   for (size_t i=0; i < inout->num; i++)
   {
     Visited *v= visited.create(inout->links[i]);
-    DBUG_ASSERT(v->distance_to_target >= threshold);
+    DBUG_ASSERT(std::isnan(v->distance_to_target) ||
+                v->distance_to_target >= threshold);
     max_distance= std::max(max_distance, v->distance_to_target);
     candidates.push(v);
     if ((skip_deleted && v->node->deleted) || threshold > NEAREST)
