@@ -1476,7 +1476,7 @@ end:
 
 static inline TC_LOG *get_tc_log_implementation()
 {
-  if (total_ha_2pc <= 1)
+  if (total_ha_2pc <= 2) // online_alter_tp and MHNSW_Trx::tp
     return &tc_log_dummy;
   if (opt_bin_log)
     return &mysql_bin_log;
