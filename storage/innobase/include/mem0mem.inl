@@ -39,8 +39,7 @@ Created 6/8/1994 Heikki Tuuri
 #endif /* UNIV_DEBUG */
 /***************************************************************//**
 Creates a memory heap block where data can be allocated.
-@return own: memory heap block, NULL if did not succeed (only possible
-for MEM_HEAP_BTR_SEARCH type heaps) */
+@return own: memory heap block */
 mem_block_t*
 mem_heap_create_block_func(
 /*=======================*/
@@ -62,19 +61,11 @@ mem_heap_block_free(
 	mem_heap_t*	heap,	/*!< in: heap */
 	mem_block_t*	block);	/*!< in: block to free */
 
-/******************************************************************//**
-Frees the free_block field from a memory heap. */
-void
-mem_heap_free_block_free(
-/*=====================*/
-	mem_heap_t*	heap);	/*!< in: heap */
-
 /***************************************************************//**
 Adds a new block to a memory heap.
 @param[in]	heap	memory heap
 @param[in]	n	number of bytes needed
-@return created block, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return created block */
 mem_block_t*
 mem_heap_add_block(
 	mem_heap_t*	heap,
@@ -100,9 +91,7 @@ UNIV_INLINE
 void
 mem_block_set_type(mem_block_t* block, ulint type)
 {
-	ut_ad((type == MEM_HEAP_DYNAMIC) || (type == MEM_HEAP_BUFFER)
-	      || (type == MEM_HEAP_BUFFER + MEM_HEAP_BTR_SEARCH));
-
+	ut_ad(type == MEM_HEAP_DYNAMIC || type == MEM_HEAP_BUFFER);
 	block->type = type;
 }
 
@@ -157,8 +146,6 @@ mem_heap_zalloc(
 	mem_heap_t*	heap,
 	ulint		n)
 {
-	ut_ad(heap);
-	ut_ad(!(heap->type & MEM_HEAP_BTR_SEARCH));
 	return(memset(mem_heap_alloc(heap, n), 0, n));
 }
 
@@ -166,8 +153,7 @@ mem_heap_zalloc(
 @param[in]	heap	memory heap
 @param[in]	n	number of bytes; if the heap is allowed to grow into
 the buffer pool, this must be <= MEM_MAX_ALLOC_IN_BUF
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return allocated storage */
 UNIV_INLINE
 void*
 mem_heap_alloc(
@@ -289,11 +275,10 @@ void
 mem_heap_empty(
 	mem_heap_t*	heap)
 {
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!heap->ahi_block);
+#endif
 	mem_heap_free_heap_top(heap, (byte*) heap + mem_block_get_start(heap));
-
-	if (heap->free_block) {
-		mem_heap_free_block_free(heap);
-	}
 }
 
 /** Returns a pointer to the topmost element in a memory heap.
@@ -356,8 +341,7 @@ A single user buffer of 'size' will fit in the block.
 @param[in]	file_name	File name where created
 @param[in]	line		Line where created
 @param[in]	type		Heap type
-@return own: memory heap, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return own: memory heap */
 UNIV_INLINE
 mem_heap_t*
 mem_heap_create_func(
@@ -401,14 +385,14 @@ void
 mem_heap_free(
 	mem_heap_t*	heap)
 {
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!heap->ahi_block);
+#endif
+
 	mem_block_t*	block;
 	mem_block_t*	prev_block;
 
 	block = UT_LIST_GET_LAST(heap->base);
-
-	if (heap->free_block) {
-		mem_heap_free_block_free(heap);
-	}
 
 	while (block != NULL) {
 		/* Store the contents of info before freeing current block
@@ -430,13 +414,10 @@ mem_heap_get_size(
 /*==============*/
 	mem_heap_t*	heap)	/*!< in: heap */
 {
-	ulint size = heap->total_size;
-
-	if (heap->free_block) {
-		size += srv_page_size;
-	}
-
-	return(size);
+#ifdef BTR_CUR_HASH_ADAPT
+	ut_ad(!heap->ahi_block);
+#endif
+	return heap->total_size;
 }
 
 /**********************************************************************//**
