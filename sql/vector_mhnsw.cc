@@ -99,9 +99,10 @@ struct FVector
         scale= get_float(v + i);
 
     FVector *vec= align_ptr(mem);
-    vec->scale= scale ? scale/32767 : 1;
+    scale= scale ? scale / 32767 : 1;
     for (size_t i= 0; i < vec_len; i++)
-      vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / vec->scale));
+      vec->dims[i] = static_cast<int16_t>(std::round(get_float(v + i) / scale));
+    vec->scale= std::min(scale, 5.6e14f); // safety, avoid abs2=inf
     vec->postprocess(vec_len);
     if (metric == COSINE)
     {
@@ -116,6 +117,7 @@ struct FVector
   {
     fix_tail(vec_len);
     abs2= scale * scale * dot_product(dims, dims, vec_len) / 2;
+    DBUG_ASSERT(std::isfinite(abs2));
   }
 
 #ifdef AVX2_IMPLEMENTATION
@@ -809,7 +811,8 @@ struct Visited : public Sql_alloc
 {
   FVectorNode *node;
   const float distance_to_target;
-  Visited(FVectorNode *n, float d) : node(n), distance_to_target(d) {}
+  Visited(FVectorNode *n, float d) : node(n), distance_to_target(d)
+  { DBUG_ASSERT(std::isfinite(d)); }
   static int cmp(void *, const Visited* a, const Visited *b)
   {
     return a->distance_to_target < b->distance_to_target ? -1 :
