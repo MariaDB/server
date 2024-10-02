@@ -766,52 +766,22 @@ static void ha_remove_all_nodes_to_page(hash_table_t *table, mem_heap_t *heap,
 #endif /* UNIV_DEBUG */
 }
 
-#if !defined _WIN32 && !defined SUX_LOCK_GENERIC
-# define ERASE_WITH_LOCK_UPGRADE
-#else
-# undef ERASE_WITH_LOCK_UPGRADE
-#endif
-
 inline bool btr_search_sys_t::partition::erase(ulint fold, const rec_t *rec)
   noexcept
 {
-#ifdef ERASE_WITH_LOCK_UPGRADE
-  ut_ad(latch.is_locked());
-  ut_ad(!latch.is_write_locked());
+#ifndef SUX_LOCK_GENERIC
+  ut_ad(latch.is_write_locked());
 #endif
   ut_ad(btr_search_enabled);
 
   if (ha_node_t *node= ha_search_with_data(&table, fold, rec))
   {
-#ifdef ERASE_WITH_LOCK_UPGRADE
-     if (latch.rd_u_upgrade_try())
-     {
-       latch.rd_unlock();
-       latch.u_wr_upgrade(SRW_LOCK_CALL);
-     }
-     else
-     {
-       latch.rd_unlock();
-       latch.wr_lock(SRW_LOCK_CALL);
-
-       node= ha_search_with_data(&table, fold, rec);
-       if (!node)
-       {
-         latch.wr_unlock();
-         return false;
-       }
-     }
-#endif
     ha_delete_hash_node(&table, heap, node);
     latch.wr_unlock();
     return true;
   }
 
-#ifdef ERASE_WITH_LOCK_UPGRADE
-  latch.rd_unlock();
-#else
   latch.wr_unlock();
-#endif
   return false;
 }
 
@@ -1992,11 +1962,8 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 
 	auto part = btr_search_sys.get_part(*index);
 
-#ifdef ERASE_WITH_LOCK_UPGRADE
-	part->latch.rd_lock(SRW_LOCK_CALL);
-#else
+
 	part->latch.wr_lock(SRW_LOCK_CALL);
-#endif
 	assert_block_ahi_valid(block);
 
 	if (block->index && btr_search_enabled) {
@@ -2008,11 +1975,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 			MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_REMOVE_NOT_FOUND);
 		}
 	} else {
-#ifdef ERASE_WITH_LOCK_UPGRADE
-		part->latch.rd_unlock();
-#else
 		part->latch.wr_unlock();
-#endif
 	}
 }
 
