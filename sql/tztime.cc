@@ -1498,7 +1498,7 @@ public:
   they should obey C calling conventions.
 */
 
-extern "C" const uchar *my_tz_names_get_key(const void *entry_, size_t *length,
+static const uchar *my_tz_names_get_key(const void *entry_, size_t *length,
                                             my_bool)
 {
   auto entry= static_cast<const Tz_names_entry *>(entry_);
@@ -1506,7 +1506,7 @@ extern "C" const uchar *my_tz_names_get_key(const void *entry_, size_t *length,
   return reinterpret_cast<const uchar *>(entry->name.ptr());
 }
 
-extern "C" const uchar *my_offset_tzs_get_key(const void *entry_,
+static const uchar *my_offset_tzs_get_key(const void *entry_,
                                              size_t *length, my_bool)
 {
   auto entry= static_cast<const Time_zone_offset *>(entry_);
