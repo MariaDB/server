@@ -616,8 +616,6 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
   if (!for_update && !trx)
     return NULL;
 
-  DBUG_ASSERT(!table->mdl_ticket ||
-              table->mdl_ticket->m_duration == MDL_TRANSACTION);
   while (trx && trx->table_id != table->mdl_ticket) trx= trx->next;
   if (!trx)
   {

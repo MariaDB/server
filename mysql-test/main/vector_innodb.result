@@ -163,3 +163,11 @@ disconnect con1;
 connection default;
 commit;
 drop table t;
+#
+# MDEV-35060 Assertion failure upon DML on table with vector under lock
+#
+create table t (a int, v blob not null, vector(v)) engine=innodb;
+insert into t values (1,x'00000000'),(2,x'00000000');
+lock table t write;
+delete from t;
+drop table t;
