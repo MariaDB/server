@@ -1508,9 +1508,7 @@ static int prepare_or_error(transaction_participant *ht, THD *thd, bool all)
   int err= ht->prepare(thd, all);
   status_var_increment(thd->status_var.ha_prepare_count);
   if (err)
-  {
-      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
-  }
+      my_error(ER_GET_ERRNO, MYF(0), err, hton_name(ht)->str);
 #ifdef WITH_WSREP
   if (run_wsrep_hooks && !err && ht->flags & HTON_WSREP_REPLICATION &&
       wsrep_after_prepare(thd, all))

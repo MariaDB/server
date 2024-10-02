@@ -520,6 +520,7 @@ public:
   static int do_commit(THD *thd, bool);
   static int do_savepoint_rollback(THD *thd, void *);
   static int do_rollback(THD *thd, bool);
+  static int do_prepare(THD *thd, bool);
 };
 
 struct transaction_participant MHNSW_Trx::tp=
@@ -531,7 +532,7 @@ struct transaction_participant MHNSW_Trx::tp=
   [](THD *thd){ return true; },   /*savepoint_rollback_can_release_mdl*/
   nullptr,                        /*savepoint_release*/
   MHNSW_Trx::do_commit, MHNSW_Trx::do_rollback,
-  nullptr,                        /* prepare */
+  MHNSW_Trx::do_prepare,          /* prepare */
   nullptr,                        /* recover */
   nullptr, nullptr,               /* commit/rollback_by_xid */
   nullptr, nullptr,               /* recover_rollback_by_xid/recovery_done */
@@ -604,6 +605,13 @@ int MHNSW_Trx::do_commit(THD *thd, bool)
   }
   thd_set_ha_data(current_thd, &tp, nullptr);
   return 0;
+}
+
+int MHNSW_Trx::do_prepare(THD *thd, bool)
+{
+  /* Explicit XA is not supported yet */
+  return thd->transaction->xid_state.is_explicit_XA()
+         ? HA_ERR_UNSUPPORTED : 0;
 }
 
 MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
