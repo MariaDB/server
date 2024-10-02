@@ -1571,28 +1571,11 @@ rpl_binlog_state_base::load_nolock(struct rpl_gtid *list, uint32 count)
 bool
 rpl_binlog_state_base::load_nolock(rpl_binlog_state_base *orig_state)
 {
-  ulong i, j;
-  HASH *h1= &orig_state->hash;
-
   reset_nolock();
-  for (i= 0; i < h1->records; ++i)
-  {
-    element *e= (element *)my_hash_element(h1, i);
-    HASH *h2= &e->hash;
-    const rpl_gtid *last_gtid= e->last_gtid;
-    for (j= 0; j < h2->records; ++j)
-    {
-      const rpl_gtid *gtid= (const rpl_gtid *)my_hash_element(h2, j);
-      if (gtid == last_gtid)
-        continue;
-      if (update_nolock(gtid))
-        return true;
-    }
-    if (likely(last_gtid) && update_nolock(last_gtid))
-      return true;
-  }
-
-  return false;
+  return orig_state->iterate(
+    [this] (const rpl_gtid *gtid) {
+      return update_nolock(gtid);
+    });
 }
 
 
@@ -1681,36 +1664,14 @@ rpl_binlog_state_base::count_nolock()
 int
 rpl_binlog_state_base::get_gtid_list_nolock(rpl_gtid *gtid_list, uint32 list_size)
 {
-  uint32 i, j, pos;
-
-  pos= 0;
-  for (i= 0; i < hash.records; ++i)
-  {
-    element *e= (element *)my_hash_element(&hash, i);
-    if (!e->last_gtid)
-    {
-      DBUG_ASSERT(e->hash.records==0);
-      continue;
-    }
-    for (j= 0; j <= e->hash.records; ++j)
-    {
-      const rpl_gtid *gtid;
-      if (j < e->hash.records)
-      {
-        gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
-        if (gtid == e->last_gtid)
-          continue;
-      }
-      else
-        gtid= e->last_gtid;
-
+  uint32_t pos= 0;
+  return iterate(
+    [&gtid_list, list_size, &pos] (const rpl_gtid *gtid) {
       if (pos >= list_size)
-        return 1;
+        return true;
       memcpy(&gtid_list[pos++], gtid, sizeof(*gtid));
-    }
-  }
-
-  return 0;
+      return false;
+    });
 }
 
 
@@ -2061,42 +2022,17 @@ end:
 int
 rpl_binlog_state::write_to_iocache(IO_CACHE *dest)
 {
-  ulong i, j;
   char buf[21];
-  int res= 0;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  for (i= 0; i < hash.records; ++i)
-  {
-    element *e= (element *)my_hash_element(&hash, i);
-    if (!e->last_gtid)
-    {
-      DBUG_ASSERT(e->hash.records == 0);
-      continue;
-    }
-    for (j= 0; j <= e->hash.records; ++j)
-    {
-      const rpl_gtid *gtid;
-      if (j < e->hash.records)
-      {
-        gtid= (const rpl_gtid *)my_hash_element(&e->hash, j);
-        if (gtid == e->last_gtid)
-          continue;
-      }
-      else
-        gtid= e->last_gtid;
 
-      longlong10_to_str(gtid->seq_no, buf, 10);
-      if (my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id,
-                      buf))
-      {
-        res= 1;
-        goto end;
-      }
-    }
-  }
+  int res= iterate([&buf, dest] (const rpl_gtid *gtid) {
+    longlong10_to_str(gtid->seq_no, buf, 10);
+    if (my_b_printf(dest, "%u-%u-%s\n", gtid->domain_id, gtid->server_id, buf))
+      return true;
+    return false;
+  });
 
-end:
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
 }
@@ -2248,43 +2184,18 @@ rpl_binlog_state::append_pos(String *str)
 bool
 rpl_binlog_state::append_state(String *str)
 {
-  uint32 i, j;
-  bool res= false;
-
   mysql_mutex_lock(&LOCK_binlog_state);
   reset_dynamic(&gtid_sort_array);
 
-  for (i= 0; i < hash.records; ++i)
-  {
-    element *e= (element *)my_hash_element(&hash, i);
-    if (!e->last_gtid)
-    {
-      DBUG_ASSERT(e->hash.records==0);
-      continue;
-    }
-    for (j= 0; j <= e->hash.records; ++j)
-    {
-      const rpl_gtid *gtid;
-      if (j < e->hash.records)
-      {
-        gtid= (rpl_gtid *)my_hash_element(&e->hash, j);
-        if (gtid == e->last_gtid)
-          continue;
-      }
-      else
-        gtid= e->last_gtid;
+  bool res= iterate([this] (const rpl_gtid *gtid) {
+    if (insert_dynamic(&gtid_sort_array, (const void *) gtid))
+      return true;
+    return false;
+  });
 
-      if (insert_dynamic(&gtid_sort_array, (const void *) gtid))
-      {
-        res= true;
-        goto end;
-      }
-    }
-  }
+  if (likely(!res))
+    rpl_slave_state_tostring_helper(&gtid_sort_array, str);
 
-  rpl_slave_state_tostring_helper(&gtid_sort_array, str);
-
-end:
   mysql_mutex_unlock(&LOCK_binlog_state);
   return res;
 }
