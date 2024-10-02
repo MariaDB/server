@@ -159,3 +159,18 @@ insert into t values (1,x'00000000'),(2,x'00000000');
 lock table t write;
 delete from t;
 drop table t;
+
+--echo #
+--echo # MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+--echo #
+connect con1,localhost,root;
+create table t (a int, v blob not null, vector(v)) engine=innodb;
+xa start 'x';
+insert into t values (1,x'00000000');
+xa end 'x';
+--error ER_GET_ERRNO
+xa prepare 'x';
+disconnect con1;
+connection default;
+#xa commit 'x';
+DROP TABLE t;
