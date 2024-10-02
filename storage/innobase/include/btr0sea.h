@@ -29,7 +29,6 @@ Created 2/17/1996 Heikki Tuuri
 
 #include "dict0dict.h"
 #ifdef BTR_CUR_HASH_ADAPT
-#include "ha0ha.h"
 #include "buf0buf.h"
 
 #ifdef UNIV_PFS_RWLOCK
@@ -258,7 +257,7 @@ struct btr_search_sys_t
     __attribute__((nonnull))
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
     /** Insert or replace an entry into the hash table.
-    @param fold  hash value of data
+    @param fold  hash value of rec
     @param rec   B-tree leaf page record
     @param block the buffer block that contains rec */
     void insert(ulint fold, const rec_t *rec, buf_block_t *block) noexcept;
@@ -268,6 +267,12 @@ struct btr_search_sys_t
     @param rec   B-tree leaf page record */
     void insert(ulint fold, const rec_t *rec) noexcept;
 #endif
+
+    /** Delete a pointer to a record if it exists.
+    @param fold   hash value of rec
+    @param rec    B-tree leaf page record
+    @return whether a record existed and was removed */
+    inline bool erase(ulint fold, const rec_t *rec) noexcept;
   };
 
   /** Partitions of the adaptive hash index */

@@ -558,6 +558,17 @@ public:
       PSI_RWLOCK_CALL(unlock_rwlock)(pfs_psi);
     lock.wr_unlock();
   }
+
+# if !defined _WIN32 && !defined SUX_LOCK_GENERIC
+  bool rd_u_upgrade_try() noexcept { return lock.rd_u_upgrade_try(); }
+  void u_wr_upgrade(const char *file, unsigned line) noexcept
+  {
+    if (psi_likely(pfs_psi != nullptr))
+      psi_wr_lock(file, line);
+    lock.u_wr_upgrade();
+  }
+# endif
+
   bool rd_lock_try() noexcept { return lock.rd_lock_try(); }
   bool wr_lock_try() noexcept { return lock.wr_lock_try(); }
   void lock_shared() noexcept { return rd_lock(SRW_LOCK_CALL); }

@@ -55,6 +55,61 @@ mysql_pfs_key_t	btr_search_latch_key;
 /** The adaptive hash index */
 btr_search_sys_t btr_search_sys;
 
+struct ha_node_t {
+  /** rec_fold(rec) */
+  ulint fold;
+  /** pointer to next record in the hash bucket chain, or nullptr  */
+  ha_node_t *next;
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+  /** block containing rec, or nullptr */
+  buf_block_t *block;
+#endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
+  /** B-tree index leaf page record */
+  const rec_t *rec;
+};
+
+/** Get the first hash chain bucket
+@param table   hash table
+@param fold    rec_fold() value
+@return the first hash chain bucket
+@retval nullptr if there is none */
+static ha_node_t *ha_chain_get_first(const hash_table_t *table, ulint fold)
+{
+  return static_cast<ha_node_t*>(table->array[table->calc_hash(fold)].node);
+}
+
+/*************************************************************//**
+Looks for an element in a hash table.
+@param table   hash table
+@param fold    rec_fold() value
+@return pointer to a record with rec_fold(rec) == fold
+@retval nullptr if no such record was found */
+inline
+const rec_t *ha_search_and_get_data(const hash_table_t *table, ulint fold)
+{
+  for (const ha_node_t *node= ha_chain_get_first(table, fold); node;
+       node= node->next)
+    if (node->fold == fold)
+      return node->rec;
+  return nullptr;
+}
+
+/** Search for a record in the hash table.
+@param table  hash table
+@param fold   rec_fold(rec)
+@param rec    B-tree index leaf page record
+@return pointer to the hash table node
+@retval nullptr if not found */
+static ha_node_t* ha_search_with_data(const hash_table_t *table, ulint fold,
+                                      const rec_t *rec)
+{
+  for (ha_node_t *node= ha_chain_get_first(table, fold); node;
+       node= node->next)
+    if (node->rec == rec)
+      return node;
+  return nullptr;
+}
+
 inline void btr_search_sys_t::partition::init() noexcept
 {
   memset((void*) this, 0, sizeof *this);
@@ -562,13 +617,13 @@ void btr_search_sys_t::partition::insert(ulint fold, const rec_t *rec) noexcept
     {
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
       buf_block_t *prev_block= prev->block;
-      ut_a(prev_block->page.frame == page_align(prev->data));
+      ut_a(prev_block->page.frame == page_align(prev->rec));
       ut_a(prev_block->n_pointers-- < MAX_N_POINTERS);
       ut_a(block->n_pointers++ < MAX_N_POINTERS);
 
       prev->block= block;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-      prev->data= rec;
+      prev->rec= rec;
       return;
     }
   }
@@ -621,7 +676,7 @@ void btr_search_sys_t::partition::insert(ulint fold, const rec_t *rec) noexcept
   ut_a(block->n_pointers++ < MAX_N_POINTERS);
   node->block= block;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-  node->data= rec;
+  node->rec= rec;
 
   node->fold= fold;
   node->next= nullptr;
@@ -647,7 +702,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
 {
   ut_ad(btr_search_enabled);
 #if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
-  ut_a(del_node->block->page.frame == page_align(del_node->data));
+  ut_a(del_node->block->page.frame == page_align(del_node->rec));
   ut_a(del_node->block->n_pointers-- < MAX_N_POINTERS);
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
@@ -694,39 +749,69 @@ static void ha_remove_all_nodes_to_page(hash_table_t *table, mem_heap_t *heap,
 {
   for (ha_node_t *node= ha_chain_get_first(table, fold); node; )
   {
-    if (page_align(ha_node_get_data(node)) == page)
+    if (page_align(node->rec) == page)
     {
       ha_delete_hash_node(table, heap, node);
       /* The deletion may compact the heap of nodes and move other nodes! */
       node= ha_chain_get_first(table, fold);
     }
     else
-      node= ha_chain_get_next(node);
+      node= node->next;
   }
 #ifdef UNIV_DEBUG
   /* Check that all nodes really got deleted */
   for (ha_node_t *node= ha_chain_get_first(table, fold); node;
-       node= ha_chain_get_next(node))
-    ut_ad(page_align(ha_node_get_data(node)) != page);
+       node= node->next)
+    ut_ad(page_align(node->rec) != page);
 #endif /* UNIV_DEBUG */
 }
 
-/** Delete a record if found.
-@param table     hash table
-@param heap      memory heap for the hash bucket chain
-@param fold      folded value of the searched data
-@param data      pointer to the record
-@return whether the record was found */
-static bool ha_search_and_delete_if_found(hash_table_t *table,
-                                          mem_heap_t *heap,
-                                          ulint fold, const rec_t *data)
+#if !defined _WIN32 && !defined SUX_LOCK_GENERIC
+# define ERASE_WITH_LOCK_UPGRADE
+#else
+# undef ERASE_WITH_LOCK_UPGRADE
+#endif
+
+inline bool btr_search_sys_t::partition::erase(ulint fold, const rec_t *rec)
+  noexcept
 {
-  if (ha_node_t *node= ha_search_with_data(table, fold, data))
+#ifdef ERASE_WITH_LOCK_UPGRADE
+  ut_ad(latch.is_locked());
+  ut_ad(!latch.is_write_locked());
+#endif
+  ut_ad(btr_search_enabled);
+
+  if (ha_node_t *node= ha_search_with_data(&table, fold, rec))
   {
-    ha_delete_hash_node(table, heap, node);
+#ifdef ERASE_WITH_LOCK_UPGRADE
+     if (latch.rd_u_upgrade_try())
+     {
+       latch.rd_unlock();
+       latch.u_wr_upgrade(SRW_LOCK_CALL);
+     }
+     else
+     {
+       latch.rd_unlock();
+       latch.wr_lock(SRW_LOCK_CALL);
+
+       node= ha_search_with_data(&table, fold, rec);
+       if (!node)
+       {
+         latch.wr_unlock();
+         return false;
+       }
+     }
+#endif
+    ha_delete_hash_node(&table, heap, node);
+    latch.wr_unlock();
     return true;
   }
 
+#ifdef ERASE_WITH_LOCK_UPGRADE
+  latch.rd_unlock();
+#else
+  latch.wr_unlock();
+#endif
   return false;
 }
 
@@ -760,7 +845,7 @@ static bool ha_search_and_update_if_found(hash_table_t *table, ulint fold,
     ut_a(new_block->n_pointers++ < MAX_N_POINTERS);
     node->block= new_block;
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
-    node->data= new_data;
+    node->rec= new_data;
 
     return true;
   }
@@ -1201,8 +1286,7 @@ btr_search_guess_on_hash(
 		goto ahi_release_and_fail;
 	}
 
-	rec = static_cast<const rec_t*>(
-		ha_search_and_get_data(&part->table, fold));
+	rec = ha_search_and_get_data(&part->table, fold);
 
 	if (!rec) {
 ahi_release_and_fail:
@@ -1908,23 +1992,28 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 
 	auto part = btr_search_sys.get_part(*index);
 
+#ifdef ERASE_WITH_LOCK_UPGRADE
+	part->latch.rd_lock(SRW_LOCK_CALL);
+#else
 	part->latch.wr_lock(SRW_LOCK_CALL);
+#endif
 	assert_block_ahi_valid(block);
 
 	if (block->index && btr_search_enabled) {
 		ut_a(block->index == index);
 
-		if (ha_search_and_delete_if_found(&part->table, part->heap,
-						  fold, rec)) {
+		if (part->erase(fold, rec)) {
 			MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_REMOVED);
 		} else {
 			MONITOR_INC(MONITOR_ADAPTIVE_HASH_ROW_REMOVE_NOT_FOUND);
 		}
-
-		assert_block_ahi_valid(block);
+	} else {
+#ifdef ERASE_WITH_LOCK_UPGRADE
+		part->latch.rd_unlock();
+#else
+		part->latch.wr_unlock();
+#endif
 	}
-
-	part->latch.wr_unlock();
 }
 
 /** Updates the page hash index when a single record is inserted on a page.
@@ -2282,7 +2371,7 @@ func_exit:
 
 		for (; node != NULL; node = node->next) {
 			const buf_block_t*	block
-				= buf_pool.block_from_ahi((byte*) node->data);
+				= buf_pool.block_from_ahi(node->rec);
 			index_id_t		page_index_id;
 
 			if (UNIV_LIKELY(block->page.in_file())) {
@@ -2317,14 +2406,14 @@ state_ok:
 			page_index_id = btr_page_get_index_id(page);
 
 			offsets = rec_get_offsets(
-				node->data, block->index, offsets,
+				node->rec, block->index, offsets,
 				block->index->n_core_fields,
 				btr_search_get_n_fields(block->curr_n_fields,
 							block->curr_n_bytes),
 				&heap);
 
 			const ulint	fold = rec_fold(
-				node->data, offsets,
+				node->rec, offsets,
 				block->curr_n_fields,
 				block->curr_n_bytes,
 				page_index_id);
@@ -2337,13 +2426,13 @@ state_ok:
 					<< block->page.id()
 					<< ", ptr mem address "
 					<< reinterpret_cast<const void*>(
-						node->data)
+						node->rec)
 					<< ", index id " << page_index_id
 					<< ", node fold " << node->fold
 					<< ", rec fold " << fold;
 
 				fputs("InnoDB: Record ", stderr);
-				rec_print_new(stderr, node->data, offsets);
+				rec_print_new(stderr, node->rec, offsets);
 				fprintf(stderr, "\nInnoDB: on that page."
 					" Page mem address %p, is hashed %p,"
 					" n fields %lu\n"
