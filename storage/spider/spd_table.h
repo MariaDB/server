@@ -65,12 +65,6 @@ const uchar *spider_link_get_key(
   my_bool
 );
 
-uchar *spider_ha_get_key(
-  const uchar *spider,
-  size_t *length,
-  my_bool
-);
-
 int spider_get_server(
   SPIDER_SHARE *share,
   int link_idx
