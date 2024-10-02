@@ -109,14 +109,14 @@ cmp_db_names(LEX_CSTRING *db1_name, const LEX_CSTRING *db2_name)
   Function we use in the creation of our hash to get key.
 */
 
-extern "C" const void *dboptions_get_key(const void *opt, size_t *length,
-                                         my_bool);
+extern "C" const uchar *dboptions_get_key(const void *opt, size_t *length,
+                                          my_bool);
 
-const void *dboptions_get_key(const void *opt_, size_t *length, my_bool)
+const uchar *dboptions_get_key(const void *opt_, size_t *length, my_bool)
 {
   auto opt= static_cast<const my_dbopt_t *>(opt_);
   *length= opt->name_length;
-  return opt->name;
+  return reinterpret_cast<const uchar *>(opt->name);
 }
 
 

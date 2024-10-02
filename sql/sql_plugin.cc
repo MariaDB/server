@@ -1514,21 +1514,21 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   DBUG_RETURN(ret);
 }
 
-extern "C" const void *get_plugin_hash_key(const void *, size_t *, my_bool);
-extern "C" const void *get_bookmark_hash_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_plugin_hash_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 
-const void *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
+const uchar *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
 {
   auto plugin= static_cast<const st_plugin_int *>(buff);
   *length= (uint)plugin->name.length;
-  return plugin->name.str;
+  return reinterpret_cast<const uchar *>(plugin->name.str);
 }
 
-const void *get_bookmark_hash_key(const void *buff, size_t *length, my_bool)
+const uchar *get_bookmark_hash_key(const void *buff, size_t *length, my_bool)
 {
   auto var= static_cast<const st_bookmark *>(buff);
   *length= var->name_len + 1;
-  return var->key;
+  return reinterpret_cast<const uchar *>(var->key);
 }
 
 static inline void convert_dash_to_underscore(char *str, size_t len)

@@ -580,14 +580,14 @@ Rpl_filter::set_ignore_db(const char* db_spec)
 }
 
 
-extern "C" const void *get_table_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_table_key(const void *, size_t *, my_bool);
 extern "C" void free_table_ent(void* a);
 
-const void *get_table_key(const void *a, size_t *len, my_bool)
+const uchar *get_table_key(const void *a, size_t *len, my_bool)
 {
   auto e= static_cast<const TABLE_RULE_ENT *>(a);
   *len= e->key_len;
-  return e->db;
+  return reinterpret_cast<const uchar *>(e->db);
 }
 
 

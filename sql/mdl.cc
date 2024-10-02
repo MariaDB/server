@@ -703,7 +703,8 @@ static MDL_map mdl_locks;
 
 extern "C"
 {
-  static const void *mdl_locks_key(const void *record, size_t *length, my_bool)
+  static const uchar *mdl_locks_key(const void *record, size_t *length,
+                                    my_bool)
   {
     MDL_lock *lock= (MDL_lock *) record;
     *length= lock->key.length();

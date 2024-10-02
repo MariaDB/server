@@ -403,8 +403,8 @@ void cleanup_table_share(void)
 
 C_MODE_START
 /** get_key function for @c table_share_hash. */
-static const void *table_share_hash_get_key(const void *entry, size_t *length,
-                                            my_bool)
+static const uchar *table_share_hash_get_key(const void *entry, size_t *length,
+                                             my_bool)
 {
   const PFS_table_share * const *typed_entry;
   const PFS_table_share *share;
@@ -415,7 +415,7 @@ static const void *table_share_hash_get_key(const void *entry, size_t *length,
   assert(share != NULL);
   *length= share->m_key.m_key_length;
   result= &share->m_key.m_hash_key[0];
-  return result;
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

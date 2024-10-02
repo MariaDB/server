@@ -856,11 +856,11 @@ static void write_footer(FILE *sql_file)
   }
 } /* write_footer */
 
-const void *get_table_key(const void *entry, size_t *length,
-                          my_bool not_used __attribute__((unused)))
+const uchar *get_table_key(const void *entry, size_t *length,
+                           my_bool not_used __attribute__((unused)))
 {
   *length= strlen((const char*) entry);
-  return entry;
+  return (const uchar *) entry;
 }
 
 

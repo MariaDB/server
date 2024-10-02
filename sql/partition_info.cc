@@ -671,11 +671,11 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
   Helper function to find_duplicate_name.
 */
 
-static const void *get_part_name_from_elem(const void *name, size_t *length,
-                                           my_bool)
+static const uchar *get_part_name_from_elem(const void *name, size_t *length,
+                                            my_bool)
 {
   *length= strlen((char *) name);
-  return name;
+  return (const uchar *) name;
 }
 
 /*

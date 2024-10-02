@@ -63,7 +63,7 @@ void cleanup_setup_object(void)
 }
 
 C_MODE_START
-static const void *setup_object_hash_get_key(const void *entry,
+static const uchar *setup_object_hash_get_key(const void *entry,
                                               size_t *length, my_bool)
 {
   const PFS_setup_object * const *typed_entry;
@@ -75,7 +75,7 @@ static const void *setup_object_hash_get_key(const void *entry,
   assert(setup_object != NULL);
   *length= setup_object->m_key.m_key_length;
   result= setup_object->m_key.m_hash_key;
-  return result;
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

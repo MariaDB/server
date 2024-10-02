@@ -256,10 +256,10 @@ struct Query_cache_result
 
 extern "C"
 {
-  const void *query_cache_query_get_key(const void *record, size_t *length,
-                                        my_bool);
-  const void *query_cache_table_get_key(const void *record, size_t *length,
-                                        my_bool);
+  const uchar *query_cache_query_get_key(const void *record, size_t *length,
+                                         my_bool);
+  const uchar *query_cache_table_get_key(const void *record, size_t *length,
+                                         my_bool);
 }
 extern "C" void query_cache_invalidate_by_MyISAM_filename(const char* filename);
 

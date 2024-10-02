@@ -208,8 +208,7 @@ static const uchar *cassandra_get_key(const void *share_, size_t *length,
 {
   auto share= static_cast<const CASSANDRA_SHARE *>(share_);
   *length=share->table_name_length;
-  return static_cast<const uchar *>(
-      static_cast<const void *>(share->table_name));
+  return reinterpret_cast<const uchar *>(share->table_name);
 }
 
 #ifdef HAVE_PSI_INTERFACE

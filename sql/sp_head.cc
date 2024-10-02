@@ -102,7 +102,7 @@ void init_sp_psi_keys()
 #define MYSQL_RUN_SP(SP, CODE) do { CODE; } while(0)
 #endif
 
-extern "C" const void *sp_table_key(const void *ptr, size_t *plen, my_bool);
+extern "C" const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool);
 
 /**
   Helper function which operates on a THD object to set the query start_time to
@@ -4976,11 +4976,11 @@ typedef struct st_sp_table
 } SP_TABLE;
 
 
-const void *sp_table_key(const void *ptr, size_t *plen, my_bool)
+const uchar *sp_table_key(const void *ptr, size_t *plen, my_bool)
 {
   auto tab= static_cast<const SP_TABLE *>(ptr);
   *plen= tab->qname.length;
-  return tab->qname.str;
+  return reinterpret_cast<const uchar *>(tab->qname.str);
 }
 
 

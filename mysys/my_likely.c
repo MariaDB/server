@@ -35,12 +35,12 @@ typedef struct st_likely_entry
   ulonglong ok,fail;
 } LIKELY_ENTRY;
 
-static const void *get_likely_key(const void *part_, size_t *length,
-                                  my_bool not_used __attribute__((unused)))
+static const uchar *get_likely_key(const void *part_, size_t *length,
+                                   my_bool not_used __attribute__((unused)))
 {
-  const LIKELY_ENTRY *part= (const LIKELY_ENTRY*) part_;
+  const LIKELY_ENTRY *part= (const LIKELY_ENTRY *) part_;
   *length= part->key_length;
-  return part->key;
+  return (const uchar *) part->key;
 }
 
 pthread_mutex_t likely_mutex;

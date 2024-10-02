@@ -63,7 +63,7 @@ extern ulong spider_allocated_thds_line_no;
 extern pthread_mutex_t spider_allocated_thds_mutex;
 
 // for spider_alter_tables
-const void *spider_alter_tbl_get_key(
+const uchar *spider_alter_tbl_get_key(
   const void *alter_table_,
   size_t *length,
   my_bool
@@ -73,11 +73,11 @@ const void *spider_alter_tbl_get_key(
   *length = alter_table->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", alter_table->table_name));
-  DBUG_RETURN(alter_table->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(alter_table->table_name));
 }
 
 // for SPIDER_TRX_HA
-const void *spider_trx_ha_get_key(
+const uchar *spider_trx_ha_get_key(
   const void *trx_ha_,
   size_t *length,
   my_bool
@@ -87,7 +87,7 @@ const void *spider_trx_ha_get_key(
   *length = trx_ha->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", trx_ha->table_name));
-  DBUG_RETURN(trx_ha->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(trx_ha->table_name));
 }
 
 /*

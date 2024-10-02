@@ -363,20 +363,20 @@ static handler *federatedx_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static const void *federatedx_share_get_key(const void *share_, size_t *length,
-                                            my_bool)
+static const uchar *federatedx_share_get_key(const void *share_,
+                                             size_t *length, my_bool)
 {
   auto share= static_cast<const FEDERATEDX_SHARE *>(share_);
   *length= share->share_key_length;
-  return share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
-static const void *federatedx_server_get_key(const void *server_,
-                                             size_t *length, my_bool)
+static const uchar *federatedx_server_get_key(const void *server_,
+                                              size_t *length, my_bool)
 {
   auto server= static_cast<const FEDERATEDX_SERVER *>(server_);
   *length= server->key_length;
-  return server->key;
+  return reinterpret_cast<const uchar *>(server->key);
 }
 
 #ifdef HAVE_PSI_INTERFACE

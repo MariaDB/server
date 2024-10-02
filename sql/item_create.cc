@@ -37,12 +37,12 @@
 #include "sql_type_geom.h"
 #include <mysql/plugin_function.h>
 
-extern "C" const void *get_native_fct_hash_key(const void *buff,
-                                               size_t *length, my_bool)
+extern "C" const uchar *get_native_fct_hash_key(const void *buff,
+                                                size_t *length, my_bool)
 {
-  auto func= reinterpret_cast<const Native_func_registry *>(buff);
+  auto func= static_cast<const Native_func_registry *>(buff);
   *length= func->name.length;
-  return func->name.str;
+  return reinterpret_cast<const uchar *>(func->name.str);
 }
 
 

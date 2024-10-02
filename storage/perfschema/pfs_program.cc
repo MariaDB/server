@@ -63,8 +63,8 @@ void cleanup_program(void)
 }
 
 C_MODE_START
-static const void *program_hash_get_key(const void *entry, size_t *length,
-                                        my_bool)
+static const uchar *program_hash_get_key(const void *entry, size_t *length,
+                                         my_bool)
 {
   const PFS_program * const *typed_entry;
   const PFS_program *program;
@@ -75,7 +75,7 @@ static const void *program_hash_get_key(const void *entry, size_t *length,
   assert(program != NULL);
   *length= program->m_key.m_key_length;
   result= program->m_key.m_hash_key;
-  return result;
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

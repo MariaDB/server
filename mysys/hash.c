@@ -878,11 +878,11 @@ my_bool my_hash_check(HASH *hash)
 
 #define RECORDS 1000
 
-const void *test_get_key(const void *data, size_t *length,
+const uchar *test_get_key(const void *data, size_t *length,
                           my_bool not_used __attribute__((unused)))
 {
   *length= 2;
-  return data;
+  return (const uchar *) data;
 }
 
 

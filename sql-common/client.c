@@ -4013,13 +4013,13 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
 /**
   A function to return the key from a connection attribute
 */
-const void *
+const uchar *
 get_attr_key(const void *part_, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
   const LEX_STRING *part= (const LEX_STRING *) part_;
   *length= part[0].length;
-  return part[0].str;
+  return (const uchar *) part[0].str;
 }
 
 int STDCALL

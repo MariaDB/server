@@ -71,9 +71,9 @@ static void safe_hash_entry_free(void *entry_)
     #  reference on the key
 */
 
-static const void *safe_hash_entry_get(const void *entry_, size_t *length,
-                                       my_bool not_used
-                                       __attribute__((unused)))
+static const uchar *safe_hash_entry_get(const void *entry_, size_t *length,
+                                        my_bool not_used
+                                        __attribute__((unused)))
 {
   const SAFE_HASH_ENTRY *entry= (const SAFE_HASH_ENTRY *) entry_;
   *length= entry->length;

@@ -4125,7 +4125,7 @@ public:
 
 /** Extract a hash key from User_level_lock. */
 
-const void *ull_get_key(const void *ptr, size_t *length, my_bool)
+const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
   MDL_key *key = ull->lock->get_key();
