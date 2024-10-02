@@ -171,3 +171,16 @@ insert into t values (1,x'00000000'),(2,x'00000000');
 lock table t write;
 delete from t;
 drop table t;
+#
+# MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+#
+connect con1,localhost,root;
+create table t (a int, v blob not null, vector(v)) engine=innodb;
+xa start 'x';
+insert into t values (1,x'00000000');
+xa end 'x';
+xa prepare 'x';
+ERROR HY000: Got error 131 "Command not supported by the engine" from storage engine mhnsw
+disconnect con1;
+connection default;
+DROP TABLE t;
