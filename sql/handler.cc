@@ -6333,9 +6333,6 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
                                       uint *ref_length)
 {
   TABLE table;
-  bool is_tmp __attribute__((unused)) =
-    create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
-  share->m_psi= PSI_CALL_get_table_share(is_tmp, share);
 
   if (open_table_from_share(thd, share, &empty_clex_str, 0, READ_ALL, 0,
                             &table, true))
@@ -6353,8 +6350,6 @@ static int ha_create_table_from_share(THD *thd, TABLE_SHARE *share,
       my_error(ER_CANT_CREATE_TABLE, MYF(0), share->db.str,
                share->table_name.str, error);
     table.file->print_error(error, MYF(ME_WARNING));
-    PSI_CALL_drop_table_share(is_tmp, share->db.str, (uint)share->db.length,
-                        share->table_name.str, (uint)share->table_name.length);
   }
   *ref_length= table.file->ref_length; // for hlindexes
 
@@ -6386,6 +6381,8 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   uint ref_length;
   TABLE_SHARE share;
   Abort_on_warning_instant_set old_abort_on_warning(thd, 0);
+  bool is_tmp __attribute__((unused)) =
+    create_info->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER);
   DBUG_ENTER("ha_create_table");
 
   init_tmp_table_share(thd, &share, db, 0, table_name, path, true);
@@ -6411,8 +6408,13 @@ int ha_create_table(THD *thd, const char *path, const char *db,
       goto err;
   }
 
+  share.m_psi= PSI_CALL_get_table_share(is_tmp, &share);
   if ((error= ha_create_table_from_share(thd, &share, create_info, &ref_length)))
+  {
+    PSI_CALL_drop_table_share(is_tmp, share.db.str, (uint)share.db.length,
+                        share.table_name.str, (uint)share.table_name.length);
     goto err;
+  }
 
   /* create secondary tables for high level indexes */
   if (share.total_keys > share.keys)
