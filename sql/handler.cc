@@ -1552,11 +1552,11 @@ int ha_prepare(THD *thd)
       }
       else
       {
-        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                            ER_GET_ERRNO, ER_THD(thd, ER_GET_ERRNO),
-                            HA_ERR_WRONG_COMMAND,
-                            ha_resolve_storage_engine_name(ht));
-
+        my_error(ER_GET_ERRNO, MYF(0), HA_ERR_WRONG_COMMAND,
+                 ha_resolve_storage_engine_name(ht));
+        ha_rollback_trans(thd, all);
+        error= 1;
+        break;
       }
     }
 
