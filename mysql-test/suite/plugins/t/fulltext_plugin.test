@@ -1,4 +1,5 @@
 --source include/have_simple_parser.inc
+--source include/not_embedded.inc
 
 --echo #
 --echo # BUG#39746 - Debug flag breaks struct definition (server crash)
