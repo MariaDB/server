@@ -52,6 +52,7 @@ Created 11/29/1995 Heikki Tuuri
 #include <unordered_set>
 #include "trx0undo.h"
 #include "trx0trx.h"
+#include "ut0compr_int.h"
 #include "rpl_gtid_base.h"
 
 /** Returns the first extent descriptor for a segment.
@@ -6044,6 +6045,24 @@ func_exit:
 }
 
 
+/*
+  Binlog implementation in InnoDB.
+  ToDo: Move this somewhere reasonable, its own file(s) etc.
+*/
+
+/*
+  How often (in terms of bytes written) to dump a (differential) binlog state
+  at the start of the page, to speed up finding the initial GTID position for
+  a connecting slave.
+
+  Must be a power-of-two multiple of the page size.
+
+  ToDo: An InnoDB setting for this - which needs to be persisted in the
+  tablespace header or maybe initial full binlog state record.
+  ToDo: Default should be like 1M or so, this 64k is for testing.
+*/
+#define INNODB_BINLOG_STATE_INTERVAL (64*1024)
+
 static uint32_t binlog_size_in_pages;
 buf_block_t *binlog_cur_block;
 uint32_t binlog_cur_page_no;
@@ -6075,6 +6094,12 @@ std::atomic<uint64_t> first_open_binlog_file_no;
 */
 uint64_t last_created_binlog_file_no;
 fil_space_t *last_created_binlog_space;
+
+/*
+  Differential binlog state in the currently active binlog tablespace, relative
+  to the state at the start.
+*/
+static rpl_binlog_state_base binlog_diff_state;
 
 /*
   Point at which it is guaranteed that all data has been written out to the
@@ -6153,15 +6178,17 @@ fsp_binlog_tablespace_close(uint64_t file_no)
   /*
     Write out any remaining pages in the buffer pool to the binlog tablespace.
     Then flush the file to disk, and close the old tablespace.
+
+    ToDo: Will this turn into a busy-wait if some of the pages are still latched
+    in this tablespace, maybe because even though the tablespace has been
+    written full, the mtr that's ending in the next tablespace may still be
+    active? This will need fixing, no busy-wait should be done here.
   */
   while (buf_flush_list_space(space))
     ;
   os_aio_wait_until_no_pending_writes(false);
   space->flush<false>();
-  mysql_mutex_lock(&fil_system.mutex);
-  fil_system.detach(space, false);
-  mysql_mutex_unlock(&fil_system.mutex);
-
+  fil_space_free(space_id, false);
   res= DB_SUCCESS;
 end:
   return res;
@@ -6178,6 +6205,7 @@ fsp_binlog_init()
 {
   mysql_mutex_init(fsp_active_binlog_mutex_key, &active_binlog_mutex, nullptr);
   pthread_cond_init(&active_binlog_cond, nullptr);
+  binlog_diff_state.init();
 }
 
 
@@ -6616,6 +6644,7 @@ void fsp_binlog_close()
 ==3464576==    by 0x1558445: fsp_binlog_tablespace_create(unsigned long) (fsp0fsp.cc:3900)
 ==3464576==    by 0x1558C70: fsp_binlog_write_cache(st_io_cache*, unsigned long, mtr_t*) (fsp0fsp.cc:4013)
   */
+  binlog_diff_state.free();
   pthread_cond_destroy(&active_binlog_cond);
   mysql_mutex_destroy(&active_binlog_mutex);
 }
@@ -6754,53 +6783,126 @@ fsp_binlog_prealloc_thread()
 }
 
 
-void fsp_binlog_write_start(uint32_t page_no,
-                            const uchar *data, uint32_t len, mtr_t *mtr)
+__attribute__((noinline))
+static ssize_t
+serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
+                     bool is_first_page)
 {
-	buf_block_t *block= fsp_page_create(active_binlog_space, page_no, mtr);
-	mtr->memcpy<mtr_t::MAYBE_NOP>(*block, FIL_PAGE_DATA + block->page.frame,
-				      data, len);
-	binlog_cur_block= block;
-}
-
-void fsp_binlog_write_offset(uint32_t page_no, uint32_t offset,
-                             const uchar *data, uint32_t len, mtr_t *mtr)
-{
-	dberr_t err;
-        /* ToDo: Is RW_SX_LATCH appropriate here? */
-	buf_block_t *block= buf_page_get_gen(page_id_t{active_binlog_space->id, page_no},
-					     0, RW_SX_LATCH, binlog_cur_block,
-					     BUF_GET, mtr, &err);
-	ut_a(err == DB_SUCCESS);
-	mtr->memcpy<mtr_t::MAYBE_NOP>(*block,
-                                      offset + block->page.frame,
-                                      data, len);
-}
-
-void fsp_binlog_append(const uchar *data, uint32_t len, mtr_t *mtr)
-{
-  ut_ad(binlog_cur_page_offset <= srv_page_size - FIL_PAGE_DATA_END);
-  uint32_t remain= ((uint32_t)srv_page_size - FIL_PAGE_DATA_END) -
-    binlog_cur_page_offset;
-  // ToDo: Some kind of mutex to protect binlog access.
-  while (len > 0) {
-    if (remain < 4) {
-      binlog_cur_page_offset= FIL_PAGE_DATA;
-      remain= ((uint32_t)srv_page_size - FIL_PAGE_DATA_END) -
-        binlog_cur_page_offset;
-      ++binlog_cur_page_no;
-    }
-    uint32_t this_len= std::min<uint32_t>(len, remain);
-    if (binlog_cur_page_offset == FIL_PAGE_DATA)
-      fsp_binlog_write_start(binlog_cur_page_no, data, this_len, mtr);
-    else
-      fsp_binlog_write_offset(binlog_cur_page_no, binlog_cur_page_offset,
-                              data, this_len, mtr);
-    len-= this_len;
-    data+= this_len;
-    binlog_cur_page_offset+= this_len;
+  unsigned char *p= (unsigned char *)buf;
+  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
+  if (is_first_page) {
+    /*
+      In the first page where we put the full state, include the value of the
+      setting for the interval at which differential states are binlogged, so
+      we know how to search them independent of how the setting changes.
+    */
+    p= compr_int_write(p, INNODB_BINLOG_STATE_INTERVAL);
   }
+  unsigned char * const pmax=
+    p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
+
+  if (state->iterate(
+    [buf, buf_size, pmax, &p] (const rpl_gtid *gtid) {
+      if (UNIV_UNLIKELY(p > pmax))
+        return true;
+      p= compr_int_write(p, gtid->domain_id);
+      p= compr_int_write(p, gtid->server_id);
+      p= compr_int_write(p, gtid->seq_no);
+      return false;
+    }))
+    return -1;
+  else
+    return p - (unsigned char *)buf;
 }
+
+
+static bool
+binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
+                  buf_block_t * &block, uint32_t &page_no,
+                  uint32_t &page_offset, fil_space_t *space)
+{
+  /*
+    Use a small, efficient stack-allocated buffer by default, falling back to
+    malloc() if needed for large GTID state.
+  */
+  byte small_buf[192];
+  byte *buf, *alloced_buf;
+
+  ssize_t used_bytes= serialize_gtid_state(state, small_buf, sizeof(small_buf),
+                                           page_no==0);
+  if (used_bytes >= 0)
+  {
+    buf= small_buf;
+    alloced_buf= nullptr;
+  }
+  else
+  {
+    size_t buf_size=
+      state->count_nolock() * (2*COMPR_INT_MAX32 + COMPR_INT_MAX64);
+    /* ToDo: InnoDB alloc function? */
+    alloced_buf= (byte *)my_malloc(PSI_INSTRUMENT_ME, buf_size, MYF(MY_WME));
+    if (UNIV_UNLIKELY(!alloced_buf))
+      return true;
+    buf= alloced_buf;
+    used_bytes= serialize_gtid_state(state, buf, buf_size, page_no==0);
+    if (UNIV_UNLIKELY(used_bytes < 0))
+    {
+      ut_ad(0 /* Shouldn't happen, as we allocated maximum needed size. */);
+      my_free(alloced_buf);
+      return true;
+    }
+  }
+
+  const uint32_t page_size= (uint32_t)srv_page_size;
+  const uint32_t page_room= page_size - (FIL_PAGE_DATA + FIL_PAGE_DATA_END);
+  uint32_t needed_pages= (uint32_t)((used_bytes + page_room - 1) / page_room);
+
+  /* For now, GTID state always at the start of a page. */
+  ut_ad(page_offset == FIL_PAGE_DATA);
+
+  /*
+    Only write the GTID state record if there is room for actual event data
+    afterwards. There is no point in using space to allow fast search to a
+    point if there is no data to search for after that point.
+  */
+  if (page_no + needed_pages < space->size)
+  {
+    while (used_bytes > 0)
+    {
+      ut_ad(page_no < space->size);
+      block= fsp_page_create(space, page_no, mtr);
+      ut_a(block /* ToDo: error handling? */);
+      page_offset= FIL_PAGE_DATA;
+      byte *ptr= page_offset + block->page.frame;
+      ssize_t chunk= used_bytes;
+      if (chunk > page_room - 3) {
+        chunk= page_room - 3;
+        ++page_no;
+      }
+      ptr[0]= 0x02 /* ToDo: FSP_BINLOG_TYPE_GTID_STATE */ | ((chunk < used_bytes) << 7);
+      ptr[1] = (byte)chunk & 0xff;
+      ptr[2] = (byte)(chunk >> 8);
+      ut_ad(chunk <= 0xffff);
+      memcpy(ptr+3, buf, chunk);
+      mtr->memcpy(*block, page_offset, chunk+3);
+      page_offset+= (uint32_t)(chunk+3);
+      buf+= chunk;
+      used_bytes-= chunk;
+    }
+
+    if (page_offset == FIL_PAGE_DATA_END) {
+      block= nullptr;
+      page_offset= FIL_PAGE_DATA;
+      ++page_no;
+      block= fsp_page_create(space, page_no, mtr);
+      ut_a(block /* ToDo: error handling? */);
+    }
+  }
+
+  my_free(alloced_buf);
+  return false;  // No error
+}
+
 
 void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
 {
@@ -6881,7 +6983,32 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
         mysql_mutex_unlock(&active_binlog_mutex);
         binlog_cur_page_no= page_no= 0;
       }
-      block= fsp_page_create(space, page_no, mtr);
+
+      /* Must be a power of two and larger than page size. */
+      ut_ad(INNODB_BINLOG_STATE_INTERVAL > page_size);
+      ut_ad(INNODB_BINLOG_STATE_INTERVAL ==
+            (uint64_t)1 << (63 - nlz((uint64_t)INNODB_BINLOG_STATE_INTERVAL)));
+
+      if (0 == (page_no &
+                ((INNODB_BINLOG_STATE_INTERVAL >> page_size_shift) - 1))) {
+        if (page_no == 0) {
+          rpl_binlog_state_base full_state;
+          full_state.init();
+          bool err= load_global_binlog_state(&full_state);
+          ut_a(!err /* ToDo error handling */);
+          err= binlog_gtid_state(&full_state, mtr, block, page_no,
+                                 page_offset, space);
+          ut_a(!err /* ToDo error handling */);
+          ut_ad(block);
+          full_state.free();
+          binlog_diff_state.reset_nolock();
+        } else {
+          bool err= binlog_gtid_state(&binlog_diff_state, mtr, block, page_no,
+                                      page_offset, space);
+          ut_a(!err /* ToDo error handling */);
+        }
+      } else
+        block= fsp_page_create(space, page_no, mtr);
     } else {
       dberr_t err;
       /* ToDo: Is RW_SX_LATCH appropriate here? */
@@ -6952,30 +7079,23 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
 }
 
 
-extern "C" void binlog_get_cache(THD *, IO_CACHE **, size_t *);
+extern "C" void binlog_get_cache(THD *, IO_CACHE **, size_t *,
+                                 const rpl_gtid **);
 
 void
 fsp_binlog_trx(trx_t *trx, mtr_t *mtr)
 {
   IO_CACHE *cache;
   size_t main_size;
+  const rpl_gtid *gtid;
 
   if (!trx->mysql_thd)
     return;
-  binlog_get_cache(trx->mysql_thd, &cache, &main_size);
-  if (main_size)
+  binlog_get_cache(trx->mysql_thd, &cache, &main_size, &gtid);
+  if (main_size) {
+    binlog_diff_state.update_nolock(gtid);
     fsp_binlog_write_cache(cache, main_size, mtr);
-}
-
-
-void fsp_binlog_test(const uchar *data, uint32_t len)
-{
-  mtr_t mtr;
-  mtr.start();
-  if (!active_binlog_space)
-    fsp_binlog_tablespace_create(0, &active_binlog_space);
-  fsp_binlog_append(data, len, &mtr);
-  mtr.commit();
+  }
 }
 
 
@@ -7043,7 +7163,9 @@ int ha_innodb_binlog_reader::read_binlog_data(uchar *buf, uint32_t len)
   uint64_t file_no= cur_file_no;
   uint64_t offset= cur_file_offset;
   uint64_t active_file_no= active_binlog_file_no.load(std::memory_order_acquire);
-  if (first_open_binlog_file_no.load(std::memory_order_relaxed) > file_no + /* Temporary hack to work-around the next line ToDo: comment */ (offset >= cur_file_length)) {
+  if (first_open_binlog_file_no.load(std::memory_order_relaxed) > file_no +
+      /* Temporary hack to work-around the next line ToDo: comment */
+      (cur_file != (File)-1 && offset >= cur_file_length)) {
     // ToDo: I think there is a bug here, if we're at the end of active_file_no-2, we will be reading directly from active_file_no-1 without checking properly if buffer pool is needed instead. */
     return read_from_file(~(uint64_t)0, buf, len);
   }
@@ -7063,6 +7185,10 @@ int ha_innodb_binlog_reader::read_binlog_data(uchar *buf, uint32_t len)
   } else {  /* file_no == active_file_no - 1 */
     if (offset >= end_offset) {  // ToDo what if this end_pos is stale? Need somehow an extra check afterwards if we are now active-2, and then do a simple file read, not EOF on the stale end_offset.
       /* Handle moving to the currently active file. */
+      if (!(cur_file < (File)0)) {
+        my_close(cur_file, MYF(0));
+        cur_file= (File)-1;
+      }
       cur_file_no= ++file_no;
       cur_file_offset= offset= 0;
       idx= file_no & 1;
@@ -7139,11 +7265,14 @@ ha_innodb_binlog_reader::read_from_file(uint64_t end_offset,
   uint64_t offset= cur_file_offset;
   uint64_t page_start_offset;
 
-  if (cur_file < (File)0 || cur_file_offset >= cur_file_length) {
-    if (!(cur_file < (File)0)) {
-      my_close(cur_file, MYF(0));
-      ++cur_file_no;
-    }
+  if (cur_file >= (File)0 && cur_file_offset >= cur_file_length) {
+    /* At the end of currently open file, move to the next file. */
+    my_close(cur_file, MYF(0));
+    cur_file= (File)-1;
+    ++cur_file_no;
+    cur_file_offset= offset= 0;
+  }
+  if (cur_file < (File)0) {
     char filename[BINLOG_NAME_LEN];
     binlog_name_make(filename, cur_file_no);
     if ((cur_file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME))) < (File)0)
@@ -7157,7 +7286,6 @@ ha_innodb_binlog_reader::read_from_file(uint64_t end_offset,
       return -1;
     }
     cur_file_length= stat_buf.st_size;
-    cur_file_offset= offset= 0;
   }
 
   page_start_offset= offset & ~mask;
@@ -7268,9 +7396,12 @@ innodb_get_binlog_reader()
 
 
 bool
-innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size)
+innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size,
+                             const rpl_gtid *gtid)
 {
   mtr_t mtr;
+  if (gtid)
+    binlog_diff_state.update_nolock(gtid);
   mtr.start();
   fsp_binlog_write_cache(cache, main_size, &mtr);
   mtr.commit();

@@ -5539,7 +5539,7 @@ private:
   rpl_gtid m_last_commit_gtid;
 
 public:
-  rpl_gtid get_last_commit_gtid() { return m_last_commit_gtid; }
+  const rpl_gtid *get_last_commit_gtid() { return &m_last_commit_gtid; }
   void set_last_commit_gtid(rpl_gtid &gtid);
 
 
