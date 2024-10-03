@@ -5783,10 +5783,18 @@ public:
     lex= backup_lex;
   }
 
-  bool should_collect_handler_stats() const
+  bool should_collect_handler_stats()
   {
-    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
-           lex->analyze_stmt;
+    /*
+      We update handler_stats.active to ensure that we have the same
+      value across the whole statement.
+      This function is only called from TABLE::init() so the value will
+      be the same for the whole statement.
+    */
+    handler_stats.active=
+      ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+       lex->analyze_stmt);
+    return handler_stats.active;
   }
 
   /* Return true if we should create a note when an unusable key is found */

@@ -1002,9 +1002,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   file->update_global_table_stats();
   file->update_global_index_stats();
-  if (unlikely(thd->variables.log_slow_verbosity &
-               LOG_SLOW_VERBOSITY_ENGINE) &&
-      likely(file->handler_stats))
+  if (unlikely(file->handler_stats) && file->handler_stats->active)
   {
     Exec_time_tracker *tracker;
     if ((tracker= file->get_time_tracker()))

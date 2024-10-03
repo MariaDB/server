@@ -3216,7 +3216,7 @@ protected:
 
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
-  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  /* Statistics for the query. Updated if handler_stats.active is set */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
 public:
@@ -3456,7 +3456,6 @@ public:
                ("handler created F_UNLCK %d F_RDLCK %d F_WRLCK %d",
                 F_UNLCK, F_RDLCK, F_WRLCK));
     reset_statistics();
-    active_handler_stats.active= 0;
   }
   virtual ~handler(void)
   {
