@@ -90,7 +90,6 @@ public:
   bool
   run(THD *thd);
 
-
   /* Information retrieving methods follow */
   bool
   is_running();
@@ -98,13 +97,12 @@ public:
   void
   dump_internal_status();
 
+  bool
+  execute_top(Event_queue_element_for_exec *event_name);
+
 private:
   uint
   workers_count();
-
-  /* helper functions */
-  bool
-  execute_top(Event_queue_element_for_exec *event_name);
 
   /* helper functions for working with mutexes & conditionals */
   void

@@ -40,6 +40,7 @@ extern PSI_stage_info stage_waiting_for_scheduler_to_stop;
 
 #include "sql_string.h"                         /* LEX_CSTRING */
 #include "my_time.h"                            /* interval_type */
+#include "event_parse_data.h"
 
 class Event_db_repository;
 class Event_parse_data;
@@ -140,6 +141,9 @@ public:
   {
     startup_state= startup_state_org;
   }
+
+  static bool
+  search_n_execute_events(Event_parse_data::enum_event_kind event_kind);
 
 private:
 
