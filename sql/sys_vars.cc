@@ -2337,7 +2337,7 @@ Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   bool first= true;
 
   str.length(0);
-  rpl_gtid gtid= thd->get_last_commit_gtid();
+  rpl_gtid gtid= *thd->get_last_commit_gtid();
   if ((gtid.seq_no > 0 &&
        rpl_slave_state_tostring_helper(&str, &gtid, &first)) ||
       !(p= thd->strmake(str.ptr(), str.length())))
