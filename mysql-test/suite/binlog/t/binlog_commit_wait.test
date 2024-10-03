@@ -15,6 +15,7 @@ connect(con3,localhost,root,,test);
 
 # Get Initial status measurements
 --connection default
+--disable_cursor_protocol
 SELECT variable_value INTO @group_commits FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commits';
 SELECT variable_value INTO @group_commit_trigger_count FROM information_schema.global_status
@@ -23,6 +24,7 @@ SELECT variable_value INTO @group_commit_trigger_timeout FROM information_schema
  WHERE variable_name = 'binlog_group_commit_trigger_timeout';
 SELECT variable_value INTO @group_commit_trigger_lock_wait FROM information_schema.global_status
  WHERE variable_name = 'binlog_group_commit_trigger_lock_wait';
+--enable_cursor_protocol
 
 # Note: binlog_group_commits is counted at the start of the group and group_commit_trigger_* is
 # counted near when the groups its finalised.

@@ -60,7 +60,10 @@ INSERT INTO t1 VALUES ('2004-2-30');
 set @@sql_mode='ansi,traditional';
 INSERT IGNORE INTO t1 VALUES('2004-02-29'),('2004-13-15'),('0000-00-00');
 
+#Enable after fix MDEV-31516
+--disable_cursor_protocol
 select * from t1;
+--enable_cursor_protocol
 drop table t1;
 
 # Test difference in behaviour with InnoDB and MyISAM tables

@@ -62,6 +62,7 @@ while ($1)
 commit;
 --enable_query_log
 
+--disable_cursor_protocol
 flush status;
 select count(distinct n) from t1;
 show status like 'Created_tmp_disk_tables';
@@ -83,6 +84,7 @@ flush status;
 select count(distinct s) from t1;
 show status like 'Created_tmp_disk_tables';
 drop table t1;
+--enable_cursor_protocol
 --enable_ps2_protocol
 
 # End of 4.1 tests

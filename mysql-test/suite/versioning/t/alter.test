@@ -139,9 +139,11 @@ select * from t;
 update t set a=3 where a=1;
 select * from t;
 select * from t for system_time all;
+--disable_cursor_protocol
 --enable_prepare_warnings
 select row_start from t where a=3 into @tm;
 --disable_prepare_warnings
+--enable_cursor_protocol
 alter table t add column b int;
 select @tm=row_start from t where a=3;
 show create table t;

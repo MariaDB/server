@@ -1389,6 +1389,7 @@ void recv_sys_t::debug_free()
   pages_it= pages.end();
 
   mysql_mutex_unlock(&mutex);
+  log_sys.clear_mmap();
 }
 
 
@@ -1541,7 +1542,7 @@ ATTRIBUTE_COLD static dberr_t recv_log_recover_pre_10_2()
 
   byte *buf= const_cast<byte*>(field_ref_zero);
 
-  if (source_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
+  if (source_offset < (log_sys.is_mmap() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[source_offset & ~511], 512);
   else
     if (dberr_t err= recv_sys.read(source_offset & ~511, {buf, 512}))
@@ -1580,7 +1581,7 @@ static dberr_t recv_log_recover_10_5(lsn_t lsn_offset)
 {
   byte *buf= const_cast<byte*>(field_ref_zero);
 
-  if (lsn_offset < (log_sys.is_pmem() ? log_sys.file_size : 4096))
+  if (lsn_offset < (log_sys.is_mmap() ? log_sys.file_size : 4096))
     memcpy_aligned<512>(buf, &log_sys.buf[lsn_offset & ~511], 512);
   else
   {
@@ -1681,7 +1682,7 @@ dberr_t recv_sys_t::find_checkpoint()
   log_sys.next_checkpoint_lsn= 0;
   lsn= 0;
   buf= my_assume_aligned<4096>(log_sys.buf);
-  if (!log_sys.is_pmem())
+  if (!log_sys.is_mmap())
     if (dberr_t err= log_sys.log.read(0, {buf, log_sys.START_OFFSET}))
       return err;
   /* Check the header page checksum. There was no
@@ -2119,7 +2120,7 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 /** Wrapper for log_sys.buf[] between recv_sys.offset and recv_sys.len */
 struct recv_buf
 {
-  bool is_pmem() const noexcept { return log_sys.is_pmem(); }
+  bool is_mmap() const noexcept { return log_sys.is_mmap(); }
 
   const byte *ptr;
 
@@ -2210,11 +2211,11 @@ struct recv_buf
   }
 };
 
-#ifdef HAVE_PMEM
+#ifdef HAVE_INNODB_MMAP
 /** Ring buffer wrapper for log_sys.buf[]; recv_sys.len == log_sys.file_size */
 struct recv_ring : public recv_buf
 {
-  static constexpr bool is_pmem() { return true; }
+  static constexpr bool is_mmap() { return true; }
 
   constexpr recv_ring(const byte *ptr) : recv_buf(ptr) {}
 
@@ -2507,7 +2508,7 @@ restart:
   ut_d(const source el{l});
   lsn+= l - begin;
   offset= l.ptr - log_sys.buf;
-  if (!l.is_pmem());
+  if (!l.is_mmap());
   else if (offset == log_sys.file_size)
     offset= log_sys.START_OFFSET;
   else
@@ -2760,7 +2761,7 @@ restart:
                                    last_offset)
                 : file_name_t::initial_flags;
               if (it == recv_spaces.end())
-                ut_ad(!file_checkpoint || space_id == TRX_SYS_SPACE ||
+                ut_ad(!store || space_id == TRX_SYS_SPACE ||
                       srv_is_undo_tablespace(space_id));
               else if (!it->second.space)
               {
@@ -3024,12 +3025,12 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(bool if_exists) noexcept
 template
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr<false>(bool) noexcept;
 
-#ifdef HAVE_PMEM
+#ifdef HAVE_INNODB_MMAP
 template<bool store>
-recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(bool if_exists) noexcept
+recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 {
   recv_sys_t::parse_mtr_result r{parse_mtr<store>(if_exists)};
-  if (UNIV_LIKELY(r != PREMATURE_EOF) || !log_sys.is_pmem())
+  if (UNIV_LIKELY(r != PREMATURE_EOF) || !log_sys.is_mmap())
     return r;
   ut_ad(recv_sys.len == log_sys.file_size);
   ut_ad(recv_sys.offset >= log_sys.START_OFFSET);
@@ -3040,6 +3041,10 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_pmem(bool if_exists) noexcept
      : &log_sys.buf[recv_sys.offset]};
   return recv_sys.parse<recv_ring,store>(s, if_exists);
 }
+
+/** for mariadb-backup; @see xtrabackup_copy_mmap_logfile() */
+template
+recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap<false>(bool) noexcept;
 #endif
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
@@ -3943,7 +3948,7 @@ void recv_sys_t::apply(bool last_batch)
     log_sort_flush_list();
 
 #ifdef HAVE_PMEM
-  if (last_batch && log_sys.is_pmem())
+  if (last_batch && log_sys.is_mmap() && !log_sys.is_opened())
     mprotect(log_sys.buf, len, PROT_READ | PROT_WRITE);
 #endif
 
@@ -3971,15 +3976,13 @@ static bool recv_scan_log(bool last_phase)
 
   bool store{recv_sys.file_checkpoint != 0};
   size_t buf_size= log_sys.buf_size;
-#ifdef HAVE_PMEM
-  if (log_sys.is_pmem())
+  if (log_sys.is_mmap())
   {
     recv_sys.offset= size_t(log_sys.calc_lsn_offset(recv_sys.lsn));
     buf_size= size_t(log_sys.file_size);
     recv_sys.len= size_t(log_sys.file_size);
   }
   else
-#endif
   {
     recv_sys.offset= size_t(recv_sys.lsn - log_sys.get_first_lsn()) &
       block_size_1;
@@ -4041,7 +4044,7 @@ static bool recv_scan_log(bool last_phase)
         for (;;)
         {
           const byte& b{log_sys.buf[recv_sys.offset]};
-          r= recv_sys.parse_pmem<false>(false);
+          r= recv_sys.parse_mmap<false>(false);
           switch (r) {
           case recv_sys_t::PREMATURE_EOF:
             goto read_more;
@@ -4071,7 +4074,7 @@ static bool recv_scan_log(bool last_phase)
       else
       {
         ut_ad(recv_sys.file_checkpoint != 0);
-        switch ((r= recv_sys.parse_pmem<true>(false))) {
+        switch ((r= recv_sys.parse_mmap<true>(false))) {
         case recv_sys_t::PREMATURE_EOF:
           goto read_more;
         case recv_sys_t::GOT_EOF:
@@ -4093,11 +4096,11 @@ static bool recv_scan_log(bool last_phase)
 
     if (!store)
     skip_the_rest:
-      while ((r= recv_sys.parse_pmem<false>(false)) == recv_sys_t::OK);
+      while ((r= recv_sys.parse_mmap<false>(false)) == recv_sys_t::OK);
     else
     {
       uint16_t count= 0;
-      while ((r= recv_sys.parse_pmem<true>(last_phase)) == recv_sys_t::OK)
+      while ((r= recv_sys.parse_mmap<true>(last_phase)) == recv_sys_t::OK)
         if (!++count && recv_sys.report(time(nullptr)))
         {
           const size_t n= recv_sys.pages.size();
@@ -4136,10 +4139,9 @@ static bool recv_scan_log(bool last_phase)
     }
 
   read_more:
-#ifdef HAVE_PMEM
-    if (log_sys.is_pmem())
+    if (log_sys.is_mmap())
       break;
-#endif
+
     if (recv_sys.is_corrupt_log())
       break;
 
@@ -4484,13 +4486,13 @@ inline void log_t::set_recovered() noexcept
   ut_ad(get_flushed_lsn() == get_lsn());
   ut_ad(recv_sys.lsn == get_lsn());
   size_t offset{recv_sys.offset};
-  if (!is_pmem())
+  if (!is_mmap())
   {
     const size_t bs{log_sys.write_size}, bs_1{bs - 1};
     memmove_aligned<512>(buf, buf + (offset & ~bs_1), bs);
     offset&= bs_1;
   }
-#ifdef HAVE_PMEM
+#ifndef _WIN32
   else
     mprotect(buf, size_t(file_size), PROT_READ | PROT_WRITE);
 #endif

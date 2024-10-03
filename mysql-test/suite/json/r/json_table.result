@@ -1044,6 +1044,51 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	DEPENDENT SUBQUERY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 drop table t1;
 #
+# MDEV-25822: JSON_TABLE: default values should allow non-string literals
+#
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 0.5 on empty)) as T;
+col1
+0.5
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+col1
+5
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+col1
+asdf
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default -0.5 on empty)) as T;
+col1
+-0.5
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+col1
+18446744073709551615
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default DATE '2021-01-01' on empty)) as T;
+col1
+2021-01-01
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+select * from v;
+col1
+5
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `T`.`col1` AS `col1` from JSON_TABLE('{"a": "b"}', '$' COLUMNS (`col1` varchar(32) PATH '$.fooo' DEFAULT 5 ON EMPTY)) `T`	latin1	latin1_swedish_ci
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+select * from v;
+col1
+18446744073709551615
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `T`.`col1` AS `col1` from JSON_TABLE('{"a": "b"}', '$' COLUMNS (`col1` varchar(32) PATH '$.fooo' DEFAULT 18446744073709551615 ON EMPTY)) `T`	latin1	latin1_swedish_ci
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+select * from v;
+col1
+asdf
+show create view v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `T`.`col1` AS `col1` from JSON_TABLE('{"a": "b"}', '$' COLUMNS (`col1` varchar(32) PATH '$.fooo' DEFAULT 'asdf' ON EMPTY)) `T`	latin1	latin1_swedish_ci
+drop view v;
+#
 # End of 10.6 tests
 #
 #

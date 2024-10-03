@@ -9426,6 +9426,7 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   Datetime dt(thd, item, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd));
   return
     !dt.is_valid_datetime() ||
+    dt.check_date(TIME_NO_ZERO_IN_DATE | TIME_NO_ZERO_DATE) ||
     TIME_to_native(thd, dt.get_mysql_time(), to, item->datetime_precision(thd));
 }
 

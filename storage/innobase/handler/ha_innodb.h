@@ -210,16 +210,16 @@ public:
 
 	char* get_foreign_key_create_info() override;
 
-        int get_foreign_key_list(const THD *thd,
+        int get_foreign_key_list(THD *thd,
                                  List<FOREIGN_KEY_INFO> *f_key_list) override;
 
 	int get_parent_foreign_key_list(
-		const THD*		thd,
+		THD*		thd,
 		List<FOREIGN_KEY_INFO>*	f_key_list) override;
 
 	bool can_switch_engines() override;
 
-	uint referenced_by_foreign_key() override;
+	bool referenced_by_foreign_key() const noexcept override;
 
 	void free_foreign_key_create_info(char* str) override { my_free(str); }
 

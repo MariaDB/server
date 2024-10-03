@@ -3,6 +3,7 @@
 --source include/big_test.inc
 --source include/default_optimizer_switch.inc
 --source include/not_embedded.inc
+--source ./include/innodb_stable_estimates.inc
 
 SET SESSION STORAGE_ENGINE='InnoDB';
 

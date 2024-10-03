@@ -1094,7 +1094,8 @@ same_size:
 
   log_sys.latch.wr_unlock();
 
-  log_write_up_to(flushed_lsn, false);
+  if (latest_format)
+    log_write_up_to(flushed_lsn, false);
 
   ut_ad(flushed_lsn == log_sys.get_lsn());
   ut_ad(!os_aio_pending_reads());
@@ -1350,10 +1351,7 @@ dberr_t srv_start(bool create_new_db)
 	}
 #endif /* UNIV_DEBUG */
 
-	if (!log_sys.create()) {
-		return srv_init_abort(DB_ERROR);
-	}
-
+	log_sys.create();
 	recv_sys.create();
 	lock_sys.create(srv_lock_table_size);
 
@@ -1923,13 +1921,13 @@ skip_monitors:
 	if (srv_print_verbose_log) {
 		sql_print_information("InnoDB: "
 				      "log sequence number " LSN_PF
-#ifdef HAVE_PMEM
+#ifdef HAVE_INNODB_MMAP
 				      "%s"
 #endif
 				      "; transaction id " TRX_ID_FMT,
 				      recv_sys.lsn,
-#ifdef HAVE_PMEM
-				      log_sys.is_pmem()
+#ifdef HAVE_INNODB_MMAP
+				      log_sys.is_mmap()
 				      ? " (memory-mapped)" : "",
 #endif
 				      trx_sys.get_max_trx_id());

@@ -5317,6 +5317,19 @@ SELECT SUBSTR(0,@a) FROM t;
 SUBSTR(0,@a)
 DROP TABLE t;
 #
+# MDEV-28386 UBSAN: runtime error: negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_strntoull_8bit on SELECT ... OCT
+#
+CREATE TABLE t1 (c BLOB);
+INSERT INTO t1 VALUES ('-9223372036854775808.5');
+SELECT OCT(c) FROM t1;
+OCT(c)
+1000000000000000000000
+SELECT BIN(c) FROM t1;
+BIN(c)
+1000000000000000000000000000000000000000000000000000000000000000
+DROP TABLE t1;
+DO OCT(-9223372036854775808);
+#
 # End of 10.5 tests
 #
 #

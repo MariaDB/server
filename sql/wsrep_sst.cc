@@ -657,8 +657,8 @@ static void* sst_joiner_thread (void* a)
       if (!tmp || strlen(tmp) < (magic_len + 2) ||
           strncasecmp (tmp, magic, magic_len))
       {
-        WSREP_ERROR("Failed to read '%s <addr>' from: %s\n\tRead: '%s'",
-                    magic, arg->cmd, tmp);
+        WSREP_ERROR("Failed to read '%s <addr>' (got '%s') from: %s",
+                    magic, tmp, arg->cmd);
         proc.wait();
         if (proc.error()) err= proc.error();
       }
@@ -670,8 +670,8 @@ static void* sst_joiner_thread (void* a)
     else
     {
       err= proc.error();
-      WSREP_ERROR("Failed to execute: %s : %d (%s)",
-                  arg->cmd, err, strerror(err));
+      WSREP_ERROR("Failed to execute (%M): %s",
+                  err, arg->cmd);
     }
 
     /*
@@ -2160,7 +2160,8 @@ wait_signal:
       else
       {
         WSREP_WARN("Received unknown signal: '%s'", out);
-        err = -EINVAL;
+        /* since it is the end of the loop, we must set error code */
+        err=-EINVAL;
         proc.wait();
       }
     }

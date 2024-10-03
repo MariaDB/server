@@ -83,8 +83,10 @@ btr_root_adjust_on_import(
 bool btr_root_fseg_validate(ulint offset, const buf_block_t &block,
                             const fil_space_t &space);
 
-/** Report a decryption failure. */
-ATTRIBUTE_COLD void btr_decryption_failed(const dict_index_t &index);
+/** Report a read failure if it is a decryption failure.
+@param err   error code
+@param index the index that is being accessed */
+ATTRIBUTE_COLD void btr_read_failed(dberr_t err, const dict_index_t &index);
 
 /** Get an index page and declare its latching order level.
 @param[in]	index	index tree

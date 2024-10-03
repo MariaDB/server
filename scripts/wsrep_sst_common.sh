@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,19 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a common command line parser to be sourced by other SST scripts
+# This is a common command line parser and common functions to
+# be sourced by other SST scripts.
 
 trap 'exit 32' HUP PIPE
 trap 'exit 3'  INT QUIT TERM
 
-# Setting the path for some utilities on CentOS
-export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
+OS="$(uname)"
+
+# Setting the paths for some utilities on CentOS
+export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+if [ "$OS" != 'Darwin' ]; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/usr/lib:/lib:/opt/lib"
+fi
 
 commandex()
 {
@@ -34,10 +40,44 @@ commandex()
     fi
 }
 
+with_bash_42=0
 with_printf=1
 if [ -z "$BASH_VERSION" ]; then
     [ -z "$(commandex printf)" ] && with_printf=0
+else
+    [ "${BASH_VERSINFO[0]}" -eq 4 -a "${BASH_VERSINFO[1]}" -ge 2 -o \
+      "${BASH_VERSINFO[0]}" -gt 4 ] && with_bash_42=1
 fi
+
+wsrep_log()
+{
+    local t
+    # echo everything to stderr so that it gets into common error log
+    # deliberately made to look different from the rest of the log
+    if [ "$OS" = 'Linux' ]; then
+        t=$(date '+%Y%m%d %H:%M:%S.%3N')
+    elif [ $with_bash_42 -ne 0 ]; then
+        printf -v t '%(%Y%m%d %H:%M:%S)T.000'
+    else
+        t=$(date '+%Y%m%d %H:%M:%S.000')
+    fi
+    echo "WSREP_SST: $* ($t)" >&2
+}
+
+wsrep_log_error()
+{
+    wsrep_log "[ERROR] $*"
+}
+
+wsrep_log_warning()
+{
+    wsrep_log "[WARNING] $*"
+}
+
+wsrep_log_info()
+{
+    wsrep_log "[INFO] $*"
+}
 
 trim_string()
 {
@@ -825,42 +865,6 @@ readonly WSREP_SST_OPT_ADDR_PORT
 script_binary=$(dirname "$0")
 SCRIPTS_DIR=$(cd "$script_binary"; pwd)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
-CLIENT_DIR="$SCRIPTS_DIR/../client"
-
-if [ -x "$CLIENT_DIR/mariadb" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
-else
-    MYSQL_CLIENT=$(commandex 'mariadb')
-fi
-
-if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
-else
-    MYSQLDUMP=$(commandex 'mariadb-dump')
-fi
-
-wsrep_log()
-{
-    # echo everything to stderr so that it gets into common error log
-    # deliberately made to look different from the rest of the log
-    local readonly tst=$(date "+%Y%m%d %H:%M:%S.%N" | cut -b -21)
-    echo "WSREP_SST: $* ($tst)" >&2
-}
-
-wsrep_log_error()
-{
-    wsrep_log "[ERROR] $*"
-}
-
-wsrep_log_warning()
-{
-    wsrep_log "[WARNING] $*"
-}
-
-wsrep_log_info()
-{
-    wsrep_log "[INFO] $*"
-}
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
@@ -1122,7 +1126,7 @@ wsrep_check_program()
     local prog="$1"
     local cmd=$(commandex "$prog")
     if [ -z "$cmd" ]; then
-        echo "'$prog' not found in PATH"
+        wsrep_log_error "'$prog' not found in path"
         return 2 # no such file or directory
     fi
 }
@@ -1241,22 +1245,56 @@ is_local_ip()
 
 check_sockets_utils()
 {
+    # The presence of any of these utilities is enough for us:
     lsof_available=0
     sockstat_available=0
     ss_available=0
 
-    [ -n "$(commandex lsof)" ] && lsof_available=1
-    [ -n "$(commandex sockstat)" ] && sockstat_available=1
-    [ -n "$(commandex ss)" ] && ss_available=1
-
-    if [ $lsof_available -eq 0 -a \
-         $sockstat_available -eq 0 -a \
-         $ss_available -eq 0 ]
-    then
-        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in" \
-                        "the PATH. Make sure you have it installed."
-        exit 2 # ENOENT
+    socket_utility="$(commandex ss)"
+    if [ -n "$socket_utility" ]; then
+        socket_uname='ss'
+        ss_available=1
+        ss_opts='-nlp'
+        # Let's check that ss has an option to skip headers:
+        if $socket_utility -h 2>&1 | grep -qw -F -- '-H'; then
+            ss_available=2
+            ss_opts="${ss_opts}H"
+        fi
+    else
+        socket_utility="$(commandex sockstat)"
+        if [ -n "$socket_utility" ]; then
+            socket_uname='sockstat'
+            sockstat_available=1
+            sockstat_opts='-p'
+            if [ "$OS" = 'FreeBSD' ]; then
+                # sockstat in FreeBSD is different from other systems,
+                # let's denote it with a different value:
+                sockstat_available=2
+                sockstat_opts='-46lq -P tcp -p'
+            fi
+        else
+            socket_utility="$(commandex lsof)"
+            if [ -n "$socket_utility" ]; then
+                socket_uname='lsof'
+                lsof_available=1
+                lsof_opts='-Pnl'
+                # Let's check that lsof has an option to bypass blocking:
+                if $socket_utility -h 2>&1 | grep -qw -F -- '-b'; then
+                    lsof_available=2
+                    lsof_opts="$lsof_opts -b -w"
+                else
+                    lsof_opts="$lsof_opts -S 10"
+                fi
+            else
+                wsrep_log_error "Neither lsof, nor sockstat, nor ss tool" \
+                                "were found in the path. Make sure you have" \
+                                "at least one of them installed."
+                exit 2 # ENOENT
+            fi
+        fi
     fi
+    wsrep_log_info "'$socket_uname' is selected as a socket" \
+                   "information utility."
 }
 
 #
@@ -1277,23 +1315,33 @@ check_port()
 
     [ $pid -le 0 ] && pid='[0-9]+'
 
-    local rc=1
+    local rc=2 # ENOENT
 
-    if [ $lsof_available -ne 0 ]; then
-        lsof -Pnl -i ":$port" 2>/dev/null | \
-        grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
+    if [ $ss_available -ne 0 ]; then
+        $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
+            grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
-        local opts='-p'
-        if [ "$OS" = 'FreeBSD' ]; then
-            # sockstat on FreeBSD requires the "-s" option
-            # to display the connection state:
-            opts='-sp'
+        if [ $sockstat_available -gt 1 ]; then
+            # The sockstat command on FreeBSD does not return
+            # the connection state without special option, but
+            # it supports filtering by connection state:
+            local out
+            out=$($socket_utility $sockstat_opts "$port" 2>/dev/null) || rc=16 # EBUSY
+            # On FreeBSD, the sockstat utility may exit without
+            # any output due to locking issues in certain versions;
+            # let's return a special exit code in such cases:
+            if [ $rc -eq 16 -o -z "$out" ]; then
+                return 16 # EBUSY
+            fi
+            echo "$out" | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
+        else
+            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
         fi
-        sockstat "$opts" "$port" 2>/dev/null | \
-        grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
-    elif [ $ss_available -ne 0 ]; then
-        ss -nlpH "( sport = :$port )" 2>/dev/null | \
-        grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+    elif [ $lsof_available -ne 0 ]; then
+        $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+            grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" && rc=0
     else
         wsrep_log_error "Unknown sockets utility"
         exit 2 # ENOENT
@@ -1564,7 +1612,7 @@ get_proc()
     if [ -z "$nproc" ]; then
         set +e
         if [ "$OS" = 'Linux' ]; then
-            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null)
+            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null || :)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi
@@ -1754,11 +1802,129 @@ simple_cleanup()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
     fi
-    if [ -n "${SST_PID:-}" ]; then
+    if [ -n "$SST_PID" ]; then
         [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
     exit $estatus
 }
+
+create_data()
+{
+    OLD_PWD="$(pwd)"
+
+    if [ -n "$DATA" -a "$DATA" != '.' ]; then
+        [ ! -d "$DATA" ] && mkdir -p "$DATA"
+        cd "$DATA"
+    fi
+    DATA_DIR="$(pwd)"
+
+    cd "$OLD_PWD"
+}
+
+create_dirs()
+{
+    local simplify=${1:-0}
+
+    # if no command line argument and INNODB_DATA_HOME_DIR environment
+    # variable is not set, try to get it from the my.cnf:
+    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
+        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
+    fi
+
+    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+        cd "$INNODB_DATA_HOME_DIR"
+        ib_home_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
+    fi
+
+    # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
+    fi
+
+    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+        cd "$INNODB_LOG_GROUP_HOME"
+        ib_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
+    fi
+
+    # if no command line argument and INNODB_UNDO_DIR is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_UNDO_DIR" ]; then
+        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
+        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
+    fi
+
+    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
+        cd "$INNODB_UNDO_DIR"
+        ib_undo_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
+    fi
+
+    # if no command line argument then try to get it from the my.cnf:
+    if [ -z "$ARIA_LOG_DIR" ]; then
+        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+    fi
+
+    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+        cd "$ARIA_LOG_DIR"
+        ar_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
+    fi
+}
+
+wait_previous_sst()
+{
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 1; do
+        wsrep_log_info "Previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round+1 ))
+        if [ $check_round -eq 30 ]; then
+            wsrep_log_error "previous SST script still running..."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    trap simple_cleanup EXIT
+    echo $$ > "$SST_PID"
+}
+
+DATA="$WSREP_SST_OPT_DATA"
+
+wsrep_check_datadir
+create_data
+
+SST_PID="$DATA/wsrep_sst.pid"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

@@ -102,15 +102,9 @@ dict_table_is_partition(const dict_table_t* table)
 	return (strstr(table->name.m_name, "#p#")
 		|| strstr(table->name.m_name, "#P#"));
 }
-/********************************************************************//**
-Return the end of table name where we have removed dbname and '/'.
-@return table name */
-const char*
-dict_remove_db_name(
-/*================*/
-	const char*	name)	/*!< in: table name in the form
-				dbname '/' tablename */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+#define dict_remove_db_name(name) \
+	(table_name_t{const_cast<char*>(name)}.dbend() + 1)
 
 /** Operation to perform when opening a table */
 enum dict_table_op_t {
@@ -566,15 +560,15 @@ dict_print_info_on_foreign_keys(
 	trx_t*		trx,	/*!< in: transaction */
 	dict_table_t*	table);	/*!< in: table */
 
-/**********************************************************************//**
-Outputs info on a foreign key of a table in a format suitable for
-CREATE TABLE. */
+/** Output info on a foreign key of a table in a format suitable for
+CREATE TABLE.
+@param trx          transaction
+@param foreign      constraint
+@param add_newline  whether to add a newline */
 std::string
-dict_print_info_on_foreign_key_in_create_format(
-/*============================================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
-	ibool		add_newline);	/*!< in: whether to add a newline */
+dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
+                                                const dict_foreign_t *foreign,
+                                                bool add_newline);
 
 /*********************************************************************//**
 Tries to find an index whose first fields are the columns in the array,
@@ -1477,24 +1471,24 @@ public:
 
 #ifdef UNIV_DEBUG
   /** @return whether the current thread is holding the latch */
-  bool frozen() const { return latch.have_any(); }
+  bool frozen() const noexcept { return latch.have_any(); }
   /** @return whether the current thread is holding a shared latch */
-  bool frozen_not_locked() const { return latch.have_rd(); }
+  bool frozen_not_locked() const noexcept { return latch.have_rd(); }
   /** @return whether the current thread holds the exclusive latch */
-  bool locked() const { return latch.have_wr(); }
+  bool locked() const noexcept { return latch.have_wr(); }
 #endif
 private:
   /** Acquire the exclusive latch */
   ATTRIBUTE_NOINLINE
-  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line));
+  void lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept;
 public:
   /** @return the my_hrtime_coarse().val of the oldest lock_wait() start,
   assuming that requests are served on a FIFO basis */
-  ulonglong oldest_wait() const
+  ulonglong oldest_wait() const noexcept
   { return latch_ex_wait_start.load(std::memory_order_relaxed); }
 
   /** Exclusively lock the dictionary cache. */
-  void lock(SRW_LOCK_ARGS(const char *file, unsigned line))
+  void lock(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
   {
     if (!latch.wr_lock_try())
       lock_wait(SRW_LOCK_ARGS(file, line));
@@ -1502,18 +1496,18 @@ public:
 
 #ifdef UNIV_PFS_RWLOCK
   /** Unlock the data dictionary cache. */
-  ATTRIBUTE_NOINLINE void unlock();
+  ATTRIBUTE_NOINLINE void unlock() noexcept;
   /** Acquire a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line);
+  ATTRIBUTE_NOINLINE void freeze(const char *file, unsigned line) noexcept;
   /** Release a shared lock on the dictionary cache. */
-  ATTRIBUTE_NOINLINE void unfreeze();
+  ATTRIBUTE_NOINLINE void unfreeze() noexcept;
 #else
   /** Unlock the data dictionary cache. */
-  void unlock() { latch.wr_unlock(); }
+  void unlock() noexcept { latch.wr_unlock(); }
   /** Acquire a shared lock on the dictionary cache. */
-  void freeze() { latch.rd_lock(); }
+  void freeze() noexcept { latch.rd_lock(); }
   /** Release a shared lock on the dictionary cache. */
-  void unfreeze() { latch.rd_unlock(); }
+  void unfreeze() noexcept { latch.rd_unlock(); }
 #endif
 
   /** Estimate the used memory occupied by the data dictionary

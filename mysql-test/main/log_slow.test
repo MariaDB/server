@@ -45,6 +45,7 @@ show fields from mysql.slow_log;
 #
 # Check flush command
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 
 flush slow logs;
@@ -75,10 +76,12 @@ SET long_query_time=0.1;
 
 --echo # Although this query is disallowed by slow_query_log, it should still increment Slow_queries
 
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @global_slow_queries
   FROM INFORMATION_SCHEMA.GLOBAL_STATUS
   WHERE VARIABLE_NAME='SLOW_QUERIES';
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
+--enable_cursor_protocol
 SELECT
     CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
   FROM
@@ -89,11 +92,13 @@ SELECT
 --echo # Although this query is disallowed by log_slow_filter, it should still increment Slow_queries
 
 SET log_slow_filter=filesort;
+--disable_cursor_protocol
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
 SELECT VARIABLE_VALUE INTO @global_slow_queries
   FROM INFORMATION_SCHEMA.GLOBAL_STATUS
   WHERE VARIABLE_NAME='SLOW_QUERIES';
 SELECT sleep(0.2) INTO @tmp FROM DUAL;
+--enable_cursor_protocol
 SELECT
     CAST(VARIABLE_VALUE AS UNSIGNED)-@global_slow_queries AS Slow_queries_increment
   FROM
@@ -118,6 +123,7 @@ show session status like 'Slow_queries';
 
 drop table t;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # End of 10.3 tests
@@ -141,6 +147,7 @@ CREATE TABLE `tab_MDEV_30820` (
   PRIMARY KEY (`id`)
 );
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 --disable_view_protocol
 
@@ -185,7 +192,7 @@ drop function get_zero;
 
 --enable_view_protocol
 --enable_ps2_protocol
---enable_view_protocol
+--enable_cursor_protocol
 
 --echo # End of 10.4 tests
 
@@ -214,7 +221,7 @@ set log_slow_filter=default;
 set timestamp=default;
 
 let SEARCH_FILE=`select @@slow_query_log_file`;
-let SEARCH_PATTERN=use.*2;
+let SEARCH_PATTERN= use \`a\n.*2;
 let SEARCH_OUTPUT=matches;
 source include/search_pattern_in_file.inc;
 

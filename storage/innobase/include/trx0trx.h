@@ -346,15 +346,7 @@ struct trx_lock_t
   /** Flag the lock owner as a victim in Galera conflict resolution. */
   void set_wsrep_victim()
   {
-# if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    /* There is no 8-bit version of the 80386 BTS instruction.
-    Technically, this is the wrong addressing mode (16-bit), but
-    there are other data members stored after the byte. */
-    __asm__ __volatile__("lock btsw $1, %0"
-                         : "+m" (was_chosen_as_deadlock_victim));
-# else
     was_chosen_as_deadlock_victim.fetch_or(2);
-# endif
   }
 #else /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
 
@@ -1085,15 +1077,7 @@ public:
 
   void reset_skip_lock_inheritance()
   {
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    __asm__("lock btrl $31, %0" : : "m"(skip_lock_inheritance_and_n_ref));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    _interlockedbittestandreset(
-        reinterpret_cast<volatile long *>(&skip_lock_inheritance_and_n_ref),
-        31);
-#else
     skip_lock_inheritance_and_n_ref.fetch_and(~1U << 31);
-#endif
   }
 
   /** @return whether the table has lock on

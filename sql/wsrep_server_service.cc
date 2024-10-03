@@ -166,9 +166,16 @@ void Wsrep_server_service::bootstrap()
   wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
 }
 
+static std::atomic<bool> suppress_logging{false};
+void wsrep_suppress_error_logging() { suppress_logging= true; }
+
 void Wsrep_server_service::log_message(enum wsrep::log::level level,
-                                       const char* message)
+                                       const char *message)
 {
+  if (suppress_logging.load(std::memory_order_relaxed))
+  {
+    return;
+  }
   switch (level)
   {
   case wsrep::log::debug:

@@ -1063,11 +1063,7 @@ extern int my_win_pclose(FILE*);
 #endif
 
 /* my_getpagesize */
-#ifdef HAVE_GETPAGESIZE
-#define my_getpagesize()        getpagesize()
-#else
 int my_getpagesize(void);
-#endif
 
 int my_msync(int, void *, size_t, int);
 

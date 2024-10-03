@@ -1764,7 +1764,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "efficiency");
   static_assert(CPU_LEVEL1_DCACHE_LINESIZE <= 4096, "compatibility");
   byte* c= my_assume_aligned<CPU_LEVEL1_DCACHE_LINESIZE>
-    (is_pmem() ? buf + offset : checkpoint_buf);
+    (is_mmap() ? buf + offset : checkpoint_buf);
   memset_aligned<CPU_LEVEL1_DCACHE_LINESIZE>(c, 0, CPU_LEVEL1_DCACHE_LINESIZE);
   mach_write_to_8(my_assume_aligned<8>(c), next_checkpoint_lsn);
   mach_write_to_8(my_assume_aligned<8>(c + 8), end_lsn);
@@ -1773,8 +1773,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   lsn_t resizing;
 
 #ifdef HAVE_PMEM
-  if (is_pmem())
+  if (is_mmap())
   {
+    ut_ad(!is_opened());
     resizing= resize_lsn.load(std::memory_order_relaxed);
 
     if (resizing > 1 && resizing <= next_checkpoint_lsn)
@@ -1788,12 +1789,12 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
   else
 #endif
   {
+    ut_ad(!is_mmap());
     ut_ad(!checkpoint_pending);
     checkpoint_pending= true;
     latch.wr_unlock();
     log_write_and_flush_prepare();
     resizing= resize_lsn.load(std::memory_order_relaxed);
-    /* FIXME: issue an asynchronous write */
     ut_ad(ut_is_2pow(write_size));
     ut_ad(write_size >= 512);
     ut_ad(write_size <= 4096);
@@ -1836,9 +1837,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
   if (resizing > 1 && resizing <= checkpoint_lsn)
   {
-    ut_ad(is_pmem() == !resize_flush_buf);
+    ut_ad(is_mmap() == !resize_flush_buf);
 
-    if (!is_pmem())
+    if (!is_mmap())
     {
       if (!log_write_through)
         ut_a(resize_log.flush());
@@ -1847,13 +1848,17 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
 
     if (resize_rename())
     {
-      /* Resizing failed. Discard the log_sys.resize_log. */
+      /* Resizing failed. Discard the ib_logfile101. */
 #ifdef HAVE_PMEM
-      if (is_pmem())
+      if (is_mmap())
+      {
+        ut_ad(!is_opened());
         my_munmap(resize_buf, resize_target);
+      }
       else
 #endif
       {
+        ut_ad(!is_mmap());
         ut_free_dodump(resize_buf, buf_size);
         ut_free_dodump(resize_flush_buf, buf_size);
 #ifdef _WIN32
@@ -1871,8 +1876,9 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
     {
       /* Adopt the resized log. */
 #ifdef HAVE_PMEM
-      if (is_pmem())
+      if (is_mmap())
       {
+        ut_ad(!is_opened());
         my_munmap(buf, file_size);
         buf= resize_buf;
         set_buf_free(START_OFFSET + (get_lsn() - resizing));
@@ -1880,6 +1886,7 @@ inline void log_t::write_checkpoint(lsn_t end_lsn) noexcept
       else
 #endif
       {
+        ut_ad(!is_mmap());
         IF_WIN(,log.close());
         std::swap(log, resize_log);
         ut_free_dodump(buf, buf_size);
@@ -2683,12 +2690,12 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
 /** Flush the buffer pool on shutdown. */
 ATTRIBUTE_COLD void buf_flush_buffer_pool()
 {
-  ut_ad(!os_aio_pending_reads());
   ut_ad(!buf_page_cleaner_is_active);
   ut_ad(!buf_flush_sync_lsn);
 
   service_manager_extend_timeout(INNODB_EXTEND_TIMEOUT_INTERVAL,
                                  "Waiting to flush the buffer pool");
+  os_aio_wait_until_no_pending_reads(false);
 
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
 

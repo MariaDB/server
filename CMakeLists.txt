@@ -248,6 +248,19 @@ ENDIF()
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
+          AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
+    MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
+  ENDIF()
+  MY_CHECK_CXX_COMPILER_FLAG("-stdlib=libc++")
+  IF(NOT have_CXX__stdlib_libc__)
+    MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
+  ENDIF()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory" DEBUG RELWITHDEBINFO)
+  IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
+    MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
@@ -261,7 +274,7 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF AND NOT WITH_MSAN)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")

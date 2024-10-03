@@ -780,6 +780,7 @@ typedef struct system_variables
   ulong net_wait_timeout;
   ulong net_write_timeout;
   ulong optimizer_extra_pruning_depth;
+  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
@@ -3867,7 +3868,7 @@ public:
   ulonglong  tmp_tables_size;
   ulonglong  bytes_sent_old;
   ulonglong  affected_rows;                     /* Number of changed rows */
-  ulonglong  max_tmp_space_used;
+  ulonglong  max_tmp_space_used= 0;
 
   Opt_trace_context opt_trace;
   pthread_t  real_id;                           /* For debugging */
@@ -4675,6 +4676,7 @@ public:
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
       reset_killed();
+    my_errno= 0;
     DBUG_VOID_RETURN;
   }
 

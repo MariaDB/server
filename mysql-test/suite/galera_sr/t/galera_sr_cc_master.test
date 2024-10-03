@@ -1,10 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-if (`select version() not like '10.10.3-%'`) {
-  skip disabled until new C/C;
-}
-
 #
 # Test the effect of Cluster Configuration Change on a concurrently-running SR transaction
 # We use SET GLOBAL wsrep_cluster_address = '' to cause the master (node_2) to temporarily
@@ -55,7 +51,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 
 --connection node_2
---error 2013 # CR_SERVER_LOST
+--error 2013,2026
 INSERT INTO t1 VALUES (6);
 
 --connection node_1

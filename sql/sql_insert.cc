@@ -3595,7 +3595,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
     DBUG_LEAVE;
   }
   my_thread_end();
-  pthread_exit(0);
 
   return 0;
 }

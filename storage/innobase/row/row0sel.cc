@@ -4844,7 +4844,8 @@ page_corrupted:
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
-				btr_decryption_failed(*index);
+				innodb_decryption_failed(trx->mysql_thd,
+							 index->table);
 			}
 			rec = NULL;
 			goto page_read_error;

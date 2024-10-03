@@ -1293,7 +1293,7 @@ Item *Item::multiple_equality_transformer(THD *thd, uchar *arg)
       This flag will be removed at the end of the pushdown optimization by
       remove_immutable_flag_processor processor.
     */
-    int new_flag= MARKER_IMMUTABLE;
+    int16 new_flag= MARKER_IMMUTABLE;
     this->walk(&Item::set_extraction_flag_processor, false,
                (void*)&new_flag);
   }
