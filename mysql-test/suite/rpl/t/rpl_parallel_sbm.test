@@ -88,13 +88,13 @@ if (`SELECT $mle_time_trx1_arrive_unix < ($ts_trx_before_ins - 1)`)
 --echo # Validating Slave_last_event_time is still from the last transaction..
 # Note we infer Slave_last_event_time via Master_Slave_time_diff
 --let $time_diff_trx1_arrive= query_get_value(SHOW ALL SLAVES STATUS, Master_Slave_time_diff, 1)
-if ($time_diff_trx1_arrive < 5)
+if ($time_diff_trx1_arrive < 2)
 {
     --let $slave_time_trx1_arrive= query_get_value(SHOW ALL SLAVES STATUS, Slave_last_event_time, 1)
     --let $slave_time_trx1_arrive_unix= `SELECT truncate(unix_timestamp("$slave_time_trx1_arrive"), 0)`
     --echo # Slave_last_event_time: $slave_time_trx1_arrive_unix ($slave_time_trx1_arrive)
     --echo # Master_Slave_time_diff: $time_diff_trx1_arrive
-    --die Slave_last_event_time is too recent, should not be less than 5 seconds, ie. 3 from delay + 2 from sleep
+    --die Slave_last_event_time is too recent, should not be less than 2 seconds, ie. from sleeping
 }
 --echo # ..done
 
