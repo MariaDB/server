@@ -48,6 +48,7 @@ wsrep_sst_receive_address='127.0.0.1:@mysqld.3.#sst_port'
 
 [sst]
 sst-log-archive-dir=@ENV.MYSQLTEST_VARDIR/log
+transferfmt=@ENV.MTR_GALERA_TFMT
 
 [ENV]
 NODE_MYPORT_1= @mysqld.1.port

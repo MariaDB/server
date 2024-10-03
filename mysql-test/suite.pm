@@ -18,7 +18,7 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
   }
 
-  if ( $::opt_ps_protocol ) {
+  if ( $::opt_ps_protocol || $::opt_cursor_protocol) {
     $skip{'include/protocol.combinations'} = [ 'nm' ];
   } else {
     $skip{'include/protocol.combinations'} = [ 'ps' ];
@@ -76,6 +76,9 @@ sub skip_combinations {
 
   $skip{'main/ssl_7937.combinations'} = [ 'x509v3' ]
     unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "1.0.2";
+
+  $skip{'main/tlsv13.test'} = 'does not work with OpenSSL <= 1.1.1'
+    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "3.0.0";
 
   $skip{'main/ssl_verify_ip.test'} = 'x509v3 support required'
     unless $openssl_ver ge "1.0.2";

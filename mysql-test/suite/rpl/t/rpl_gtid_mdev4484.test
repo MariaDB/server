@@ -67,8 +67,10 @@ EOF
 # Since we injected error in the cleanup code, the rows should remain in
 # mysql.gtid_slave_pos. Check that we have at least 20 (more robust against
 # non-deterministic cleanup and future changes than checking for exact number).
+--disable_cursor_protocol
 SELECT COUNT(*), MAX(seq_no) INTO @pre_count, @pre_max_seq_no
   FROM mysql.gtid_slave_pos;
+--disable_cursor_protocol
 SELECT IF(@pre_count >= 20, "OK", CONCAT("Error: too few rows seen while errors injected: ", @pre_count));
 SET GLOBAL debug_dbug= @old_dbug;
 

@@ -61,7 +61,7 @@ public:
     count--;
     DBUG_ASSERT(vio_type == VIO_CLOSED);
   }
-  void close_and_delete();
+  void close_and_delete(uint err);
   void close_with_error(uint sql_errno,
                         const char *message, uint close_error);
   THD *create_thd(THD *thd);

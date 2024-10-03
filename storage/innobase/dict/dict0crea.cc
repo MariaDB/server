@@ -1708,8 +1708,8 @@ dict_foreigns_has_s_base_col(
 		foreign = *it;
 		ulint	type = foreign->type;
 
-		type &= ~(DICT_FOREIGN_ON_DELETE_NO_ACTION
-			  | DICT_FOREIGN_ON_UPDATE_NO_ACTION);
+		type &= ~(foreign->DELETE_NO_ACTION
+			  | foreign->UPDATE_NO_ACTION);
 
 		if (type == 0) {
 			continue;
@@ -1755,8 +1755,10 @@ dict_create_add_foreigns_to_dictionary(
   }
 
   for (auto fk : local_fk_set)
-    if (dberr_t error=
-        dict_create_add_foreign_to_dictionary(table->name.m_name, fk, trx))
+    if (!fk->check_fk_constraint_valid())
+      return DB_CANNOT_ADD_CONSTRAINT;
+    else if (dberr_t error= dict_create_add_foreign_to_dictionary
+             (table->name.m_name, fk, trx))
       return error;
 
   return DB_SUCCESS;

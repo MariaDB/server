@@ -30,7 +30,10 @@ CREATE TABLE diaries (
   FULLTEXT KEY (title)
 ) DEFAULT CHARSET=utf8;
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command('dump --dump_plugins no');
+--enable_cursor_protocol
 
 DROP TABLE diaries;
 

@@ -759,7 +759,10 @@ ulonglong my_strntoull_8bit(CHARSET_INFO *cs,
     return (~(ulonglong) 0);
   }
 
-  return (negative ? -((longlong) i) : (longlong) i);
+  /* Avoid undefinite behavior - negation of LONGLONG_MIN */
+  return negative && (longlong) i != LONGLONG_MIN ?
+        -((longlong) i) :
+         (longlong) i;
 
 noconv:
   err[0]= EDOM;

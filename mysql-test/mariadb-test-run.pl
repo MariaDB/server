@@ -248,7 +248,7 @@ my @opt_skip_test_list;
 our $opt_ssl_supported;
 our $opt_ps_protocol;
 my $opt_sp_protocol;
-my $opt_cursor_protocol;
+our $opt_cursor_protocol;
 my $opt_view_protocol;
 my $opt_non_blocking_api;
 
@@ -5583,11 +5583,12 @@ sub start_check_testcase ($$$) {
   }
   my $errfile= "$opt_vardir/tmp/$name.err";
 
-  My::Debugger::setup_client_args(\$args, \$exe_mysqltest);
+  my $exe= $exe_mysqltest;
+  My::Debugger::setup_client_args(\$args, \$exe);
   my $proc= My::SafeProcess->new
     (
      name          => $name,
-     path          => $exe_mysqltest,
+     path          => $exe,
      error         => $errfile,
      output        => $errfile,
      args          => \$args,
