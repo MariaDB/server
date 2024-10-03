@@ -3942,7 +3942,8 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
           if (!gtid_index)
             sql_print_information("Could not create GTID index for binlog "
                                   "file '%s'. Accesses to this binlog file will "
-                                  "fallback to slower sequential scan.");
+                                  "fallback to slower sequential scan.",
+                                  log_file_name);
         }
         else
           gtid_index= nullptr;
@@ -4475,6 +4476,9 @@ bool MYSQL_BIN_LOG::reset_logs(THD *thd, bool create_new_log,
 
     mark_xids_active(current_binlog_id, 1);
     do_checkpoint_request(current_binlog_id);
+
+    /* Flush all engine logs to force checkpoint responses to come through. */
+    ha_flush_logs();
 
     /* Now wait for all checkpoint requests and pending unlog() to complete. */
     mysql_mutex_lock(&LOCK_xid_list);

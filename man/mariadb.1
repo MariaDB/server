@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,7 +11,7 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql
+.\" mariadb
 .\" command-line tool
 .\" tools: command-line
 .\" scripts: SQL
@@ -20,11 +20,11 @@
 .SH "NAME"
 mariadb \- the MariaDB command\-line tool (mysql is now a symlink to mariadb)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
-\fBmysql [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
+.HP \w'\fBmariadb\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\ 'u
+\fBmariadb [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 is a simple SQL shell (with GNU
 readline
 capabilities)\&. It supports interactive and non\-interactive use\&. When used interactively, query results are presented in an ASCII\-table format\&. When used non\-interactively (for example, as a filter), the result is presented in tab\-separated format\&. The output format can be changed using command options\&.
@@ -32,21 +32,21 @@ capabilities)\&. It supports interactive and non\-interactive use\&. When used i
 If you have problems due to insufficient memory for large result sets, use the
 \fB\-\-quick\fR
 option\&. This forces
-\fBmysql\fR
+\fBmariadb\fR
 to retrieve results from the server a row at a time rather than retrieving the entire result set and buffering it in memory before displaying it\&. This is done by returning the result set using the
-mysql_use_result()
+mariadb_use_result()
 C API function in the client/server library rather than
 mysql_store_result()\&.
 .PP
 Using
-\fBmysql\fR
+\fBmariadb\fR
 is very easy\&. Invoke it from the prompt of your command interpreter as follows:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -58,7 +58,7 @@ Or:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-user=\fR\fB\fIuser_name\fR\fR\fB \-\-password=\fR\fB\fIyour_password\fR\fR\fB \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \-\-user=\fR\fB\fIuser_name\fR\fR\fB \-\-password=\fR\fB\fIyour_password\fR\fR\fB \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -71,9 +71,9 @@ Then type an SQL statement, end it with
 and press Enter\&.
 .PP
 Typing Control\-C causes
-\fBmysql\fR
+\fBmariadb\fR
 to attempt to kill the current statement\&. If this cannot be done, or Control\-C is typed again before the statement is killed,
-\fBmysql\fR
+\fBmariadb\fR
 exits\&.
 .PP
 You can execute SQL statements in a script file (batch file) like this:
@@ -82,22 +82,22 @@ You can execute SQL statements in a script file (batch file) like this:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR\fB\fIoutput\&.tab\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fIscript\&.sql\fR\fR\fB > \fR\fB\fIoutput\&.tab\fR\fR
 .fi
 .if n \{\
 .RE
 .\}
-.SH "MYSQL OPTIONS"
-.\" mysql command options
-.\" command options: mysql
-.\" options: command-line: mysql
-.\" startup parameters: mysql
+.SH "MARIADB OPTIONS"
+.\" mariadb command options
+.\" command options: mariadb
+.\" options: command-line: mariadb
+.\" startup parameters: mariadb
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 supports the following options, which can be specified on the command line or in the
-[mysql], [client], [client-server] or [client-mariadb]
+[mariadb], [client], [client-server] or [client-mariadb]
 option file groups\&.
-\fBmysql\fR
+\fBmariadb\fR
 also supports the options for processing option files\&.
 .sp
 .RS 4
@@ -108,8 +108,8 @@ also supports the options for processing option files\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: help option
-.\" help option: mysql
+.\" mariadb: help option
+.\" help option: mariadb
 \fB\-\-help\fR,
 \fB\-?\fR,
 \fB\-I\fR
@@ -125,8 +125,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: abort-source-on-error option
-.\" abort-source-on-error: mysql
+.\" mariadb: abort-source-on-error option
+.\" abort-source-on-error: mariadb
 \fB\-\-abort\-source\-on\-error\fR
 .sp
 Abort 'source filename' operations in case of errors\&.
@@ -140,20 +140,20 @@ Abort 'source filename' operations in case of errors\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: auto-rehash option
-.\" auto-rehash option: mysql
+.\" mariadb: auto-rehash option
+.\" auto-rehash option: mariadb
 \fB\-\-auto\-rehash\fR
 .sp
 Enable automatic rehashing\&. This option is on by default, which enables database, table, and column name completion\&. Use
 \fB\-\-disable\-auto\-rehash\fR, \fB\-\-no\-auto\-rehash\fR,  or \fB\-\-skip\-auto\-rehash\fR
 to disable rehashing\&. That causes
-\fBmysql\fR
+\fBmariadb\fR
 to start faster, but you must issue the
 rehash
 command if you want to use name completion\&.
 .sp
 To complete a name, enter the first part and press Tab\&. If the name is unambiguous,
-\fBmysql\fR
+\fBmariadb\fR
 completes it\&. Otherwise, you can press Tab again to see the possible names that begin with what you have typed so far\&. Completion does not occur if there is no default database\&.
 .RE
 .sp
@@ -165,8 +165,8 @@ completes it\&. Otherwise, you can press Tab again to see the possible names tha
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: auto-vertical-output option
-.\" auto-vertical-output option: mysql
+.\" mariadb: auto-vertical-output option
+.\" auto-vertical-output option: mariadb
 \fB\-\-auto\-vertical\-output\fR
 .sp
 Automatically switch to vertical output mode if the result is wider than the terminal width\&.
@@ -180,13 +180,13 @@ Automatically switch to vertical output mode if the result is wider than the ter
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: batch option
-.\" batch option: mysql
+.\" mariadb: batch option
+.\" batch option: mariadb
 \fB\-\-batch\fR,
 \fB\-B\fR
 .sp
 Print results using tab as the column separator, with each row on a new line\&. With this option,
-\fBmysql\fR
+\fBmariadb\fR
 does not use the history file\&.
 .sp
 Batch mode results in nontabular output format and escaping of special characters\&. Escaping may be disabled by using raw mode; see the description for the
@@ -202,15 +202,15 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: binary-mode option
-.\" binary-mode option: mysql
+.\" mariadb: binary-mode option
+.\" binary-mode option: mariadb
 \fB\-\-binary\-mode\fR
 .sp
 Binary mode allows certain character sequences to be processed as data that
 would otherwise be treated with a special meaning by the parser\&.
 Specifically, this switch turns off parsing of all client commands except \eC
 and DELIMITER in non-interactive mode (i\&.e\&., when binary mode is combined
-with either 1) piped input, 2) the --batch mysql option, or 3) the 'source'
+with either 1) piped input, 2) the --batch mariadb option, or 3) the 'source'
 command)\&. Also, in binary mode, occurrences of '\er\en' and ASCII '\e0' are
 preserved within strings, whereas by default, '\er\en' is translated to '\en'
 and '\e0' is disallowed in user input\&.
@@ -224,8 +224,8 @@ and '\e0' is disallowed in user input\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: character-sets-dir option
-.\" character-sets-dir option: mysql
+.\" mariadb: character-sets-dir option
+.\" character-sets-dir option: mariadb
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -239,8 +239,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: column-names option
-.\" column-names option: mysql
+.\" mariadb: column-names option
+.\" column-names option: mariadb
 \fB\-\-column\-names\fR
 .sp
 Write column names in results\&.
@@ -254,8 +254,8 @@ Write column names in results\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: column-type-info option
-.\" column-type-info option: mysql
+.\" mariadb: column-type-info option
+.\" column-type-info option: mariadb
 \fB\-\-column\-type\-info\fR,
 \fB\-m\fR
 .sp
@@ -270,8 +270,8 @@ Display result set metadata\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: comments option
-.\" comments option: mysql
+.\" mariadb: comments option
+.\" comments option: mariadb
 \fB\-\-comments\fR,
 \fB\-c\fR
 .sp
@@ -286,8 +286,8 @@ Whether to preserve comments in statements sent to the server\&. The default is 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: compress option
-.\" compress option: mysql
+.\" mariadb: compress option
+.\" compress option: mariadb
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -302,8 +302,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: connect-timeout option
-.\" connect-timeout option: mysql
+.\" mariadb: connect-timeout option
+.\" connect-timeout option: mariadb
 \fB\-\-connect\-timeout=\fR\fB\fIseconds\fR\fR
 .sp
 Set the number of seconds before connection timeout\&. (Default value is 0\&.)
@@ -317,8 +317,8 @@ Set the number of seconds before connection timeout\&. (Default value is 0\&.)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: database option
-.\" database option: mysql
+.\" mariadb: database option
+.\" database option: mariadb
 \fB\-\-database=\fR\fB\fIdb_name\fR\fR,
 \fB\-D \fR\fB\fIdb_name\fR\fR
 .sp
@@ -333,8 +333,8 @@ The database to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: debug option
-.\" debug option: mysql
+.\" mariadb: debug option
+.\" debug option: mariadb
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
@@ -351,8 +351,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysql.trace'.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: debug-check option
-.\" debug-check option: mysql
+.\" mariadb: debug-check option
+.\" debug-check option: mariadb
 \fB\-\-debug\-check\fR
 .sp
 Print some debugging information when the program exits\&.
@@ -366,8 +366,8 @@ Print some debugging information when the program exits\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: debug-info option
-.\" debug-info option: mysql
+.\" mariadb: debug-info option
+.\" debug-info option: mariadb
 \fB\-\-debug\-info\fR,
 \fB\-T\fR
 .sp
@@ -382,8 +382,8 @@ Prints debugging information and memory and CPU usage statistics when the progra
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: default-auth option
-.\" default-auth option: mysql
+.\" mariadb: default-auth option
+.\" default-auth option: mariadb
 \fB\-\-default\-auth=\fR\fB\fIname\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -397,8 +397,8 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: default-character-set option
-.\" default-character-set option: mysql
+.\" mariadb: default-character-set option
+.\" default-character-set option: mariadb
 \fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
 .sp
 Use
@@ -408,7 +408,7 @@ as the default character set for the client and connection\&.
 A common issue that can occur when the operating system uses
 utf8
 or another multi\-byte character set is that output from the
-\fBmysql\fR
+\fBmariadb\fR
 client is formatted incorrectly, due to the fact that the MariaDB client uses the
 latin1
 character set by default\&. You can usually fix such issues by using this option to force the client to use the system character set instead\&.
@@ -422,8 +422,8 @@ character set by default\&. You can usually fix such issues by using this option
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: defaults-extra-file option
-.\" defaults-extra-file option: mysql
+.\" mariadb: defaults-extra-file option
+.\" defaults-extra-file option: mariadb
 \fB\-\-defaults-extra-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
@@ -438,8 +438,8 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: defaults-file option
-.\" defaults-file option: mysql
+.\" mariadb: defaults-file option
+.\" defaults-file option: mariadb
 \fB\-\-defaults-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&. Must be given as first option\&.
@@ -453,8 +453,8 @@ Set \fB\fIfilename\fR\fR as the file to read default options from, override glob
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: defaults-group-suffix option
-.\" defaults-group-suffix option: mysql
+.\" mariadb: defaults-group-suffix option
+.\" defaults-group-suffix option: mariadb
 \fB\-\-defaults\-group\-suffix=\fR\fB\fIsuffix\fR\fR
 .sp
 In addition to the groups named on the command line, read groups that have the given suffix\&.
@@ -468,8 +468,8 @@ In addition to the groups named on the command line, read groups that have the g
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: delimiter option
-.\" delimiter option: mysql
+.\" mariadb: delimiter option
+.\" delimiter option: mariadb
 \fB\-\-delimiter=\fR\fB\fIstr\fR\fR
 .sp
 Set the statement delimiter\&. The default is the semicolon character (\(lq;\(rq)\&.
@@ -483,18 +483,18 @@ Set the statement delimiter\&. The default is the semicolon character (\(lq;\(rq
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: disable named commands
-.\" disable named command: mysql
+.\" mariadb: disable named commands
+.\" disable named command: mariadb
 \fB\-\-disable\-named\-commands\fR
 .sp
 Disable named commands\&. Use the
 \e*
 form only, or use named commands only at the beginning of a line ending with a semicolon (\(lq;\(rq)\&.
-\fBmysql\fR
+\fBmariadb\fR
 starts with this option
 \fIenabled\fR
 by default\&. However, even with this option, long\-format commands still work from the first line\&. See
-the section called \(lqMYSQL COMMANDS\(rq\&.
+the section called \(lqMARIADB COMMANDS\(rq\&.
 .RE
 .sp
 .RS 4
@@ -505,8 +505,8 @@ the section called \(lqMYSQL COMMANDS\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: enable cleartext plugin option
-.\" enable cleartext plugin option: mysql
+.\" mariadb: enable cleartext plugin option
+.\" enable cleartext plugin option: mariadb
 \fB\-\-enable\-cleartext\-plugin\fR
 .sp
 Obsolete option\&. Exists only for MySQL compatibility\&.
@@ -520,8 +520,8 @@ Obsolete option\&. Exists only for MySQL compatibility\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: execute option
-.\" execute option: mysql
+.\" mariadb: execute option
+.\" execute option: mariadb
 \fB\-\-execute=\fR\fB\fIstatement\fR\fR,
 \fB\-e \fR\fB\fIstatement\fR\fR
 .sp
@@ -537,8 +537,8 @@ Execute the statement and quit\&. Disables \fB\-\-force\fR and history file\&. T
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: force option
-.\" force option: mysql
+.\" mariadb: force option
+.\" force option: mariadb
 \fB\-\-force\fR,
 \fB\-f\fR
 .sp
@@ -553,8 +553,8 @@ Continue even if an SQL error occurs\&. Sets \fB\-\-abort\-source\-on-error\fR t
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: host option
-.\" host option: mysql
+.\" mariadb: host option
+.\" host option: mariadb
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -569,8 +569,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: html option
-.\" html option: mysql
+.\" mariadb: html option
+.\" html option: mariadb
 \fB\-\-html\fR,
 \fB\-H\fR
 .sp
@@ -585,8 +585,8 @@ Produce HTML output\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: ignore-spaces option
-.\" ignore-spaces option: mysql
+.\" mariadb: ignore-spaces option
+.\" ignore-spaces option: mariadb
 \fB\-\-ignore\-spaces\fR,
 \fB\-i\fR
 .sp
@@ -601,8 +601,8 @@ Ignore spaces after function names\&. Allows one to have spaces (including tab c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: init-command option
-.\" init-command option: mysql
+.\" mariadb: init-command option
+.\" init-command option: mariadb
 \fB\-\-init\-command=\fR\fB\fIstr\fR\fR\fR
 .sp
 SQL Command to execute when connecting to the MariaDB server\&. Will automatically be re-executed when reconnecting\&.
@@ -616,8 +616,8 @@ SQL Command to execute when connecting to the MariaDB server\&. Will automatical
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: line-numbers option
-.\" line-numbers option: mysql
+.\" mariadb: line-numbers option
+.\" line-numbers option: mariadb
 \fB\-\-line\-numbers\fR
 .sp
 Write line numbers for errors\&. Disable this with
@@ -632,8 +632,8 @@ Write line numbers for errors\&. Disable this with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: local-infile option
-.\" local-infile option: mysql
+.\" mariadb: local-infile option
+.\" local-infile option: mariadb
 \fB\-\-local\-infile[={0|1}]\fR
 .sp
 Enable or disable
@@ -658,8 +658,8 @@ has no effect if the server does not also support it\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: max-allowed-packet option
-.\" max-allowed-packet option: mysql
+.\" mariadb: max-allowed-packet option
+.\" max-allowed-packet option: mariadb
 \fB\-\-max\-allowed\-packet=\fR\fB\fInum\fR\fR
 .sp
 Set the maximum packet length to send to or receive from the server\&. (Default value is 16MB, largest 1GB\&.)
@@ -673,8 +673,8 @@ Set the maximum packet length to send to or receive from the server\&. (Default 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: max-join-size option
-.\" max-join-size option: mysql
+.\" mariadb: max-join-size option
+.\" max-join-size option: mariadb
 \fB\-\-max\-join\-size=\fR\fB\fInum\fR\fR
 .sp
 Set the automatic limit for rows in a join when using
@@ -689,13 +689,13 @@ Set the automatic limit for rows in a join when using
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: named-commands option
-.\" named-commands option: mysql
+.\" mariadb: named-commands option
+.\" named-commands option: mariadb
 \fB\-\-named\-commands\fR,
 \fB\-G\fR
 .sp
 Enable named
-\fBmysql\fR
+\fBmariadb\fR
 commands\&. Long\-format commands are allowed, not just short\-format commands\&. For example,
 quit
 and
@@ -703,7 +703,7 @@ and
 both are recognized\&. Use
 \fB\-\-skip\-named\-commands\fR
 to disable named commands\&. See
-the section called \(lqMYSQL COMMANDS\(rq\&. Disabled by default\&.
+the section called \(lqMARIADB COMMANDS\(rq\&. Disabled by default\&.
 .RE
 .sp
 .RS 4
@@ -716,8 +716,8 @@ the section called \(lqMYSQL COMMANDS\(rq\&. Disabled by default\&.
 .\}
 \h'-04'\(bu\h'+03'\c
 .\}
-.\" mysql: net-buffer-length option
-.\" net-buffer-length option: mysql
+.\" mariadb: net-buffer-length option
+.\" net-buffer-length option: mariadb
 \fB\-\-net\-buffer\-length=\fR\fB\fIsize\fR\fR
 .sp
 Set the buffer size for TCP/IP and socket communication\&. (Default value is 16KB\&.)
@@ -731,8 +731,8 @@ Set the buffer size for TCP/IP and socket communication\&. (Default value is 16K
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: no-auto-rehash option
-.\" no-auto-rehash option: mysql
+.\" mariadb: no-auto-rehash option
+.\" no-auto-rehash option: mariadb
 \fB\-\-no\-auto\-rehash\fR,
 \fB\-A\fR
 .sp
@@ -749,8 +749,8 @@ This has the same effect as
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: no-beep option
-.\" no-beep option: mysql
+.\" mariadb: no-beep option
+.\" no-beep option: mariadb
 \fB\-\-no\-beep\fR,
 \fB\-b\fR
 .sp
@@ -765,8 +765,8 @@ Do not beep when errors occur\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: no-defaults option
-.\" no-defaults option: mysql
+.\" mariadb: no-defaults option
+.\" no-defaults option: mariadb
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option file\&. This must be given as the first argument\&.
@@ -780,8 +780,8 @@ Do not read default options from any option file\&. This must be given as the fi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: one-database option
-.\" one-database option: mysql
+.\" mariadb: one-database option
+.\" one-database option: mariadb
 \fB\-\-one\-database\fR,
 \fB\-o\fR
 .sp
@@ -796,8 +796,8 @@ Ignore statements except those those that occur while the default database is th
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: pager option
-.\" pager option: mysql
+.\" mariadb: pager option
+.\" pager option: mariadb
 \fB\-\-pager[=\fR\fB\fIcommand\fR\fR\fB]\fR
 .sp
 Use the given command for paging query output\&. If the command is omitted, the default pager is the value of your
@@ -807,7 +807,7 @@ environment variable\&. Valid pagers are
 \fBmore\fR,
 \fBcat [> filename]\fR, and so forth\&. This option works only on Unix and only in interactive mode\&. To disable paging, use
 \fB\-\-skip\-pager\fR\&.
-the section called \(lqMYSQL COMMANDS\(rq, discusses output paging further\&.
+the section called \(lqMARIADB COMMANDS\(rq, discusses output paging further\&.
 .RE
 .sp
 .RS 4
@@ -818,8 +818,8 @@ the section called \(lqMYSQL COMMANDS\(rq, discusses output paging further\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: password option
-.\" password option: mysql
+.\" mariadb: password option
+.\" password option: mariadb
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -832,7 +832,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysql\fR
+\fBmariadb\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&. You can use an option file to avoid giving the password on the command line\&.
@@ -846,8 +846,8 @@ Specifying a password on the command line should be considered insecure\&. You c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: pipe option
-.\" pipe option: mysql
+.\" mariadb: pipe option
+.\" pipe option: mariadb
 \fB\-\-pipe\fR,
 \fB\-W\fR
 .sp
@@ -862,8 +862,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: plugin-dir option
-.\" plugin-dir option: mysql
+.\" mariadb: plugin-dir option
+.\" plugin-dir option: mariadb
 \fB\-\-plugin\-dir=\fIdir_name\fR
 .sp
 Directory for client-side plugins\&.
@@ -877,8 +877,8 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: port option
-.\" port option: mysql
+.\" mariadb: port option
+.\" port option: mariadb
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -894,8 +894,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: print-defaults option
-.\" print-defaults option: mysql
+.\" mariadb: print-defaults option
+.\" print-defaults option: mariadb
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list and exit\&. This must be given as the first argument\&.
@@ -909,8 +909,8 @@ Print the program argument list and exit\&. This must be given as the first argu
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: progress-reports option
-.\" progress-reports option: mysql
+.\" mariadb: progress-reports option
+.\" progress-reports option: mariadb
 \fB\-\-progress\-reports\fR
 .sp
 Get progress reports for long running commands (such as ALTER TABLE)\&. (Defaults to on; use \fB\-\-skip\-progress\-reports\fR to disable\&.)
@@ -924,12 +924,12 @@ Get progress reports for long running commands (such as ALTER TABLE)\&. (Default
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: prompt option
-.\" prompt option: mysql
+.\" mariadb: prompt option
+.\" prompt option: mariadb
 \fB\-\-prompt=\fR\fB\fIformat_str\fR\fR
 .sp
 Set the prompt to the specified format\&. The special sequences that the prompt can contain are described in
-the section called \(lqMYSQL COMMANDS\(rq\&.
+the section called \(lqMARIADB COMMANDS\(rq\&.
 .RE
 .sp
 .RS 4
@@ -940,8 +940,8 @@ the section called \(lqMYSQL COMMANDS\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: protocol option
-.\" protocol option: mysql
+.\" mariadb: protocol option
+.\" protocol option: mariadb
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -955,13 +955,13 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: quick option
-.\" quick option: mysql
+.\" mariadb: quick option
+.\" quick option: mariadb
 \fB\-\-quick\fR,
 \fB\-q\fR
 .sp
 Do not cache each query result, print each row as it is received\&. This may slow down the server if the output is suspended\&. With this option,
-\fBmysql\fR
+\fBmariadb\fR
 does not use the history file\&.
 .RE
 .sp
@@ -973,8 +973,8 @@ does not use the history file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: raw option
-.\" raw option: mysql
+.\" mariadb: raw option
+.\" raw option: mariadb
 \fB\-\-raw\fR,
 \fB\-r\fR
 .sp
@@ -999,19 +999,19 @@ The following example demonstrates tabular versus nontabular output and the use 
 .RS 4
 .\}
 .nf
-% \fBmysql\fR
-mysql> SELECT CHAR(92);
+% \fBmariadb\fR
+mariadb> SELECT CHAR(92);
 +\-\-\-\-\-\-\-\-\-\-+
 | CHAR(92) |
 +\-\-\-\-\-\-\-\-\-\-+
 | \e        |
 +\-\-\-\-\-\-\-\-\-\-+
-% \fBmysql \-s\fR
-mysql> SELECT CHAR(92);
+% \fBmariadb \-s\fR
+mariadb> SELECT CHAR(92);
 CHAR(92)
 \e\e
-% \fBmysql \-s \-r\fR
-mysql> SELECT CHAR(92);
+% \fBmariadb \-s \-r\fR
+mariadb> SELECT CHAR(92);
 CHAR(92)
 \e
 .fi
@@ -1028,8 +1028,8 @@ CHAR(92)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: reconnect option
-.\" reconnect option: mysql
+.\" mariadb: reconnect option
+.\" reconnect option: mariadb
 \fB\-\-reconnect\fR
 .sp
 If the connection to the server is lost, automatically try to reconnect\&. A single reconnect attempt is made each time the connection is lost\&. Enabled by default, to disable use
@@ -1044,10 +1044,10 @@ If the connection to the server is lost, automatically try to reconnect\&. A sin
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: safe-updates option
-.\" safe-updates option: mysql
-.\" mysql: i-am-a-dummy option
-.\" i-am-a-dummy option: mysql
+.\" mariadb: safe-updates option
+.\" safe-updates option: mariadb
+.\" mariadb: i-am-a-dummy option
+.\" i-am-a-dummy option: mariadb
 \fB\-\-safe\-updates\fR,
 \fB\-\-i\-am\-a\-dummy\fR,
 \fB\-U\fR
@@ -1059,7 +1059,7 @@ DELETE
 statements that specify which rows to modify by using key values\&. If you have set this option in an option file, you can override it by using
 \fB\-\-safe\-updates\fR
 on the command line\&. See
-the section called \(lqMYSQL TIPS\(rq, for more information about this option\&.
+the section called \(lqMARIADB TIPS\(rq, for more information about this option\&.
 .RE
 .sp
 .RS 4
@@ -1070,8 +1070,8 @@ the section called \(lqMYSQL TIPS\(rq, for more information about this option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: secure-auth option
-.\" secure-auth option: mysql
+.\" mariadb: secure-auth option
+.\" secure-auth option: mariadb
 \fB\-\-secure\-auth\fR
 .sp
 Do not send passwords to the server in old (pre\-4\&.1\&.1) format\&. This prevents connections except for servers that use the newer password format\&.
@@ -1085,8 +1085,8 @@ Do not send passwords to the server in old (pre\-4\&.1\&.1) format\&. This preve
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: select-limit option
-.\" select-limit option: mysql
+.\" mariadb: select-limit option
+.\" select-limit option: mariadb
 \fB\-\-select\-limit=\fR\fB\fIlimit\fR\fR
 .sp
 Set automatic limit for SELECT when using \fB\-\-safe\-updates\fR\&. (Default value is 1,000\&.)
@@ -1100,8 +1100,8 @@ Set automatic limit for SELECT when using \fB\-\-safe\-updates\fR\&. (Default va
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: server-arg option
-.\" server-arg option: mysql
+.\" mariadb: server-arg option
+.\" server-arg option: mariadb
 \fB\-\-server\-arg=\fR\fB\fIname\fR\fR
 .sp
 Send \fB\fIname\fR\fR as a parameter to the embedded server\&.
@@ -1115,8 +1115,8 @@ Send \fB\fIname\fR\fR as a parameter to the embedded server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: show-warnings option
-.\" show-warnings option: mysql
+.\" mariadb: show-warnings option
+.\" show-warnings option: mariadb
 \fB\-\-show\-warnings\fR
 .sp
 Cause warnings to be shown after each statement if there are any\&. This option applies to interactive and batch mode\&.
@@ -1130,8 +1130,8 @@ Cause warnings to be shown after each statement if there are any\&. This option 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: sigint-ignore option
-.\" sigint-ignore option: mysql
+.\" mariadb: sigint-ignore option
+.\" sigint-ignore option: mariadb
 \fB\-\-sigint\-ignore\fR
 .sp
 Ignore
@@ -1147,8 +1147,8 @@ signals (typically the result of typing Control\-C)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: silent option
-.\" silent option: mysql
+.\" mariadb: silent option
+.\" silent option: mariadb
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -1167,8 +1167,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: skip-auto-rehash option
-.\" skip-auto-rehash option: mysql
+.\" mariadb: skip-auto-rehash option
+.\" skip-auto-rehash option: mariadb
 \fB\-\-skip\-auto\-rehash\fR
 .sp
 Disable automatic rehashing\&. Synonym for \fB\-\-disable\-auto\-rehash\fR\&.
@@ -1182,8 +1182,8 @@ Disable automatic rehashing\&. Synonym for \fB\-\-disable\-auto\-rehash\fR\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: skip-column-names option
-.\" skip-column-names option: mysql
+.\" mariadb: skip-column-names option
+.\" skip-column-names option: mariadb
 \fB\-\-skip\-column\-names\fR,
 \fB\-N\fR
 .sp
@@ -1198,8 +1198,8 @@ Do not write column names in results\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: skip-line-numbers option
-.\" skip-line-numbers option: mysql
+.\" mariadb: skip-line-numbers option
+.\" skip-line-numbers option: mariadb
 \fB\-\-skip\-line\-numbers\fR,
 \fB\-L\fR
 .sp
@@ -1214,8 +1214,8 @@ Do not write line numbers for errors\&. Useful when you want to compare result f
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: socket option
-.\" socket option: mysql
+.\" mariadb: socket option
+.\" socket option: mariadb
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -1232,8 +1232,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL options
-.\" SSL options: mysql
+.\" mariadb: SSL options
+.\" SSL options: mariadb
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -1248,8 +1248,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL CA option
-.\" SSL CA option: mysql
+.\" mariadb: SSL CA option
+.\" SSL CA option: mariadb
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -1264,8 +1264,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL CA Path option
-.\" SSL CA Path option: mysql
+.\" mariadb: SSL CA Path option
+.\" SSL CA Path option: mariadb
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -1280,8 +1280,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Cert option
-.\" SSL Cert option: mysql
+.\" mariadb: SSL Cert option
+.\" SSL Cert option: mariadb
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -1296,8 +1296,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Cipher option
-.\" SSL Cipher option: mysql
+.\" mariadb: SSL Cipher option
+.\" SSL Cipher option: mariadb
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -1312,8 +1312,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Key option
-.\" SSL Key option: mysql
+.\" mariadb: SSL Key option
+.\" SSL Key option: mariadb
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -1328,8 +1328,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Crl option
-.\" SSL CRL option: mysql
+.\" mariadb: SSL Crl option
+.\" SSL CRL option: mariadb
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -1344,8 +1344,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Crlpath option
-.\" SSL Crlpath option: mysql
+.\" mariadb: SSL Crlpath option
+.\" SSL Crlpath option: mariadb
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -1360,8 +1360,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysql
+.\" mariadb: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -1375,8 +1375,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: table option
-.\" table option: mysql
+.\" mariadb: table option
+.\" table option: mariadb
 \fB\-\-table\fR,
 \fB\-t\fR
 .sp
@@ -1391,12 +1391,12 @@ Display output in table format\&. This is the default for interactive use, but c
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: tee option
-.\" tee option: mysql
+.\" mariadb: tee option
+.\" tee option: mariadb
 \fB\-\-tee=\fR\fB\fIfile_name\fR\fR
 .sp
 Append a copy of output to the given file\&. This option works only in interactive mode\&.
-the section called \(lqMYSQL COMMANDS\(rq, discusses tee files further\&.
+the section called \(lqMARIADB COMMANDS\(rq, discusses tee files further\&.
 .RE
 .sp
 .RS 4
@@ -1407,8 +1407,8 @@ the section called \(lqMYSQL COMMANDS\(rq, discusses tee files further\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: unbuffered option
-.\" unbuffered option: mysql
+.\" mariadb: unbuffered option
+.\" unbuffered option: mariadb
 \fB\-\-unbuffered\fR,
 \fB\-n\fR
 .sp
@@ -1423,8 +1423,8 @@ Flush the buffer after each query\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: user option
-.\" user option: mysql
+.\" mariadb: user option
+.\" user option: mariadb
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -1439,8 +1439,8 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: verbose option
-.\" verbose option: mysql
+.\" mariadb: verbose option
+.\" verbose option: mariadb
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -1457,8 +1457,8 @@ produces table output format even in batch mode\&.)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: version option
-.\" version option: mysql
+.\" mariadb: version option
+.\" version option: mariadb
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -1473,8 +1473,8 @@ Display version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: vertical option
-.\" vertical option: mysql
+.\" mariadb: vertical option
+.\" vertical option: mariadb
 \fB\-\-vertical\fR,
 \fB\-E\fR
 .sp
@@ -1490,8 +1490,8 @@ Print query output rows vertically (one line per column value)\&. Without this o
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: wait option
-.\" wait option: mysql
+.\" mariadb: wait option
+.\" wait option: mariadb
 \fB\-\-wait\fR,
 \fB\-w\fR
 .sp
@@ -1506,8 +1506,8 @@ If the connection cannot be established, wait and retry instead of aborting\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: xml option
-.\" xml option: mysql
+.\" mariadb: xml option
+.\" xml option: mariadb
 \fB\-\-xml\fR,
 \fB\-X\fR
 .sp
@@ -1515,10 +1515,10 @@ Produce XML output\&.
 The output when
 \fB\-\-xml\fR
 is used with
-\fBmysql\fR
+\fBmariadb\fR
 matches that of
-\fBmysqldump \fR\fB\fB\-\-xml\fR\fR\&. See
-\fBmysqldump\fR(1)
+\fBmariadb-dump \fR\fB\fB\-\-xml\fR\fR\&. See
+\fBmariadb-dump\fR(1)
 for details\&.
 .sp
 The XML output also uses an XML namespace, as shown here:
@@ -1527,7 +1527,7 @@ The XML output also uses an XML namespace, as shown here:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-xml \-uroot \-e "SHOW VARIABLES LIKE 'version%'"\fR
+shell> \fBmariadb \-\-xml \-uroot \-e "SHOW VARIABLES LIKE 'version%'"\fR
 <?xml version="1\&.0"?>
 <resultset statement="SHOW VARIABLES LIKE 'version%'" xmlns:xsi="http://www\&.w3\&.org/2001/XMLSchema\-instance">
 <row>
@@ -1632,15 +1632,15 @@ statements when using
 .\" environment variable: MARIADB_HISTFILE
 .\" HOME environment variable
 .\" environment variable: HOME
-.\" mysql history file
-.\" command-line history: mysql
+.\" mariadb history file
+.\" command-line history: mariadb
 .\" .mariadb_history file
 .PP
 On Unix, the
-\fBmysql\fR
+\fBmariadb\fR
 client writes a record of executed statements to a history file\&. By default, this file is named
 \&.mariadb_history
-and is created in your home directory\&. For backwards compatibility \&.mysql_history will be used if present and
+and is created in your home directory\&. For backwards compatibility \&.mariadb_history will be used if present and
 \&.mariadb_history is missing\&. To specify a different file, set the value of the
 MARIADB_HISTFILE
 environment variable\&. The environment variable MYSQL_HISTFILE will be used if MARIADB_HISTFILE isn't present\&.
@@ -1692,42 +1692,42 @@ shell> \fBln \-s /dev/null $HOME/\&.mariadb_history\fR
 .sp
 You need do this only once\&.
 .RE
-.SH "MYSQL COMMANDS"
+.SH "MARIADB COMMANDS"
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 sends each SQL statement that you issue to the server to be executed\&. There is also a set of commands that
-\fBmysql\fR
+\fBmariadb\fR
 itself interprets\&. For a list of these commands, type
 help
 or
 \eh
 at the
-mysql>
+mariadb>
 prompt:
-.\" mysql commands: list of
+.\" mariadb commands: list of
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-mysql> \fBhelp\fR
-List of all MySQL commands:
+mariadb> \fBhelp\fR
+List of all MariaDB commands:
 Note that all text commands must be first on line and end with ';'
 ?         (\e?) Synonym for 'help'\&.
 clear     (\ec) Clear command\&.
 connect   (\er) Reconnect to the server\&. Optional arguments are db and host\&.
 delimiter (\ed) Set statement delimiter\&.
 edit      (\ee) Edit command with $EDITOR\&.
-ego       (\eG) Send command to mysql server, display result vertically\&.
-exit      (\eq) Exit mysql\&. Same as quit\&.
-go        (\eg) Send command to mysql server\&.
+ego       (\eG) Send command to mariadb server, display result vertically\&.
+exit      (\eq) Exit mariadb\&. Same as quit\&.
+go        (\eg) Send command to mariadb server\&.
 help      (\eh) Display this help\&.
 nopager   (\en) Disable pager, print to stdout\&.
 notee     (\et) Don't write into outfile\&.
 pager     (\eP) Set PAGER [to_pager]\&. Print the query results via PAGER\&.
 print     (\ep) Print current command\&.
-prompt    (\eR) Change your mysql prompt\&.
-quit      (\eq) Quit mysql\&.
+prompt    (\eR) Change your mariadb prompt\&.
+quit      (\eq) Quit mariadb\&.
 rehash    (\e#) Rebuild completion hash\&.
 source    (\e\&.) Execute an SQL script file\&. Takes a file name as an argument\&.
 status    (\es) Get status information from the server\&.
@@ -1759,23 +1759,23 @@ comments is not supported\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: help command
-.\" help command: mysql
+.\" mariadb: help command
+.\" help command: mariadb
 \fBhelp [\fR\fB\fIarg\fR\fR\fB]\fR,
 \fB\eh [\fR\fB\fIarg\fR\fR\fB]\fR,
 \fB\e? [\fR\fB\fIarg\fR\fR\fB]\fR,
 \fB? [\fR\fB\fIarg\fR\fR\fB]\fR
 .sp
 Display a help message listing the available
-\fBmysql\fR
+\fBmariadb\fR
 commands\&.
 .sp
 If you provide an argument to the
 help
 command,
-\fBmysql\fR
+\fBmariadb\fR
 uses it as a search string to access server\-side help\&. For more information, see
-the section called \(lqMYSQL SERVER-SIDE HELP\(rq\&.
+the section called \(lqMARIADB SERVER-SIDE HELP\(rq\&.
 .RE
 .sp
 .RS 4
@@ -1786,15 +1786,15 @@ the section called \(lqMYSQL SERVER-SIDE HELP\(rq\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: charset command
-.\" charset command: mysql
+.\" mariadb: charset command
+.\" charset command: mariadb
 \fBcharset \fR\fB\fIcharset_name\fR\fR,
 \fB\eC \fR\fB\fIcharset_name\fR\fR
 .sp
 Change the default character set and issue a
 SET NAMES
 statement\&. This enables the character set to remain synchronized on the client and server if
-\fBmysql\fR
+\fBmariadb\fR
 is run with auto\-reconnect enabled (which is not recommended), because the specified character set is used for reconnects\&.
 .RE
 .sp
@@ -1806,8 +1806,8 @@ is run with auto\-reconnect enabled (which is not recommended), because the spec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: clear command
-.\" clear command: mysql
+.\" mariadb: clear command
+.\" clear command: mariadb
 \fBclear\fR,
 \fB\ec\fR
 .sp
@@ -1822,8 +1822,8 @@ Clear the current input\&. Use this if you change your mind about executing the 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: connect command
-.\" connect command: mysql
+.\" mariadb: connect command
+.\" connect command: mariadb
 \fBconnect [\fR\fB\fIdb_name\fR\fR\fB \fR\fB\fIhost_name\fR\fR\fB]]\fR,
 \fB\er [\fR\fB\fIdb_name\fR\fR\fB \fR\fB\fIhost_name\fR\fR\fB]]\fR
 .sp
@@ -1838,19 +1838,19 @@ Reconnect to the server\&. The optional database name and host name arguments ma
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: delimiter command
-.\" delimiter command: mysql
+.\" mariadb: delimiter command
+.\" delimiter command: mariadb
 \fBdelimiter \fR\fB\fIstr\fR\fR,
 \fB\ed \fR\fB\fIstr\fR\fR
 .sp
 Change the string that
-\fBmysql\fR
+\fBmariadb\fR
 interprets as the separator between SQL statements\&. The default is the semicolon character (\(lq;\(rq)\&.
 .sp
 The delimiter can be specified as an unquoted or quoted argument\&. Quoting can be done with either single quote (') or douple quote (") characters\&. To include a quote within a quoted string, either quote the string with the other quote character or escape the quote with a backslash (\(lq\e\(rq) character\&. Backslash should be avoided outside of quoted strings because it is the escape character for MariaDB\&. For an unquoted argument, the delmiter is read up to the first space or end of line\&. For a quoted argument, the delimiter is read up to the matching quote on the line\&.
 .sp
 When the delimiter recognized by
-\fBmysql\fR
+\fBmariadb\fR
 is set to something other than the default of
 \(lq;\(rq, instances of that character are sent to the server without interpretation\&. However, the server itself still interprets
 \(lq;\(rq
@@ -1865,13 +1865,13 @@ as a statement delimiter and processes statements accordingly\&. This behavior o
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: edit command
-.\" edit command: mysql
+.\" mariadb: edit command
+.\" edit command: mariadb
 \fBedit\fR,
 \fB\ee\fR
 .sp
 Edit the current input statement\&.
-\fBmysql\fR
+\fBmariadb\fR
 checks the values of the
 EDITOR
 and
@@ -1893,8 +1893,8 @@ command works only in Unix\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: ego command
-.\" ego command: mysql
+.\" mariadb: ego command
+.\" ego command: mariadb
 \fBego\fR,
 \fB\eG\fR
 .sp
@@ -1909,13 +1909,13 @@ Send the current statement to the server to be executed and display the result u
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: exit command
-.\" exit command: mysql
+.\" mariadb: exit command
+.\" exit command: mariadb
 \fBexit\fR,
 \fB\eq\fR
 .sp
 Exit
-\fBmysql\fR\&.
+\fBmariadb\fR\&.
 .RE
 .sp
 .RS 4
@@ -1926,8 +1926,8 @@ Exit
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: go command
-.\" go command: mysql
+.\" mariadb: go command
+.\" go command: mariadb
 \fBgo\fR,
 \fB\eg\fR
 .sp
@@ -1942,8 +1942,8 @@ Send the current statement to the server to be executed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: nopager command
-.\" nopager command: mysql
+.\" mariadb: nopager command
+.\" nopager command: mariadb
 \fBnopager\fR,
 \fB\en\fR
 .sp
@@ -1963,8 +1963,8 @@ command works only in Unix\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: notee command
-.\" notee command: mysql
+.\" mariadb: notee command
+.\" notee command: mariadb
 \fBnotee\fR,
 \fB\et\fR
 .sp
@@ -1980,8 +1980,8 @@ Disable output copying to the tee file\&. See the description for
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: nowarning command
-.\" nowarning command: mysql
+.\" mariadb: nowarning command
+.\" nowarning command: mariadb
 \fBnowarning\fR,
 \fB\ew\fR
 .sp
@@ -1996,18 +1996,18 @@ Enable display of warnings after each statement\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: pager command
-.\" pager command: mysql
+.\" mariadb: pager command
+.\" pager command: mariadb
 \fBpager [\fR\fB\fIcommand\fR\fR\fB]\fR,
 \fB\eP [\fR\fB\fIcommand\fR\fR\fB]\fR
 .sp
 Enable output paging\&. By using the
 \fB\-\-pager\fR
 option when you invoke
-\fBmysql\fR, it is possible to browse or search query results in interactive mode with Unix programs such as
+\fBmariadb\fR, it is possible to browse or search query results in interactive mode with Unix programs such as
 \fBless\fR,
 \fBmore\fR, or any other similar program\&. If you specify no value for the option,
-\fBmysql\fR
+\fBmariadb\fR
 checks the value of the
 PAGER
 environment variable and sets the pager to that\&. Pager functionality works only in interactive mode\&.
@@ -2036,8 +2036,8 @@ for browsing output in some situations\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: print command
-.\" print command: mysql
+.\" mariadb: print command
+.\" print command: mariadb
 \fBprint\fR,
 \fB\ep\fR
 .sp
@@ -2052,21 +2052,21 @@ Print the current input statement without executing it\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: prompt command
-.\" prompt command: mysql
+.\" mariadb: prompt command
+.\" prompt command: mariadb
 \fBprompt [\fR\fB\fIstr\fR\fR\fB]\fR,
 \fB\eR [\fR\fB\fIstr\fR\fR\fB]\fR
 .sp
 Reconfigure the
-\fBmysql\fR
+\fBmariadb\fR
 prompt to the given string\&. The special character sequences that can be used in the prompt are described later in this section\&.
 .sp
 If you specify the
 prompt
 command with no argument,
-\fBmysql\fR
+\fBmariadb\fR
 resets the prompt to the default of
-mysql>\&.
+mariadb>\&.
 .RE
 .sp
 .RS 4
@@ -2077,13 +2077,13 @@ mysql>\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: quit command
-.\" quit command: mysql
+.\" mariadb: quit command
+.\" quit command: mariadb
 \fBquit\fR,
 \fB\eq\fR
 .sp
 Exit
-\fBmysql\fR\&.
+\fBmariadb\fR\&.
 .RE
 .sp
 .RS 4
@@ -2094,8 +2094,8 @@ Exit
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: rehash command
-.\" rehash command: mysql
+.\" mariadb: rehash command
+.\" rehash command: mariadb
 \fBrehash\fR,
 \fB\e#\fR
 .sp
@@ -2112,8 +2112,8 @@ option\&.)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: source command
-.\" source command: mysql
+.\" mariadb: source command
+.\" source command: mariadb
 \fBsource \fR\fB\fIfile_name\fR\fR,
 \fB\e\&. \fR\fB\fIfile_name\fR\fR
 .sp
@@ -2131,8 +2131,8 @@ or
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: status command
-.\" status command: mysql
+.\" mariadb: status command
+.\" status command: mariadb
 \fBstatus\fR,
 \fB\es\fR
 .sp
@@ -2141,7 +2141,7 @@ Provide status information about the connection and the server you are using\&. 
 mode,
 status
 also prints the values for the
-\fBmysql\fR
+\fBmariadb\fR
 variables that affect your queries\&.
 .RE
 .sp
@@ -2153,8 +2153,8 @@ variables that affect your queries\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: system command
-.\" system command: mysql
+.\" mariadb: system command
+.\" system command: mariadb
 \fBsystem \fR\fB\fIcommand\fR\fR,
 \fB\e! \fR\fB\fIcommand\fR\fR
 .sp
@@ -2173,16 +2173,16 @@ command works only in Unix\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: tee command
-.\" tee command: mysql
+.\" mariadb: tee command
+.\" tee command: mariadb
 \fBtee [\fR\fB\fIfile_name\fR\fR\fB]\fR,
 \fB\eT [\fR\fB\fIfile_name\fR\fR\fB]\fR
 .sp
 By using the
 \fB\-\-tee\fR
 option when you invoke
-\fBmysql\fR, you can log statements and their output\&. All the data displayed on the screen is appended into a given file\&. This can be very useful for debugging purposes also\&.
-\fBmysql\fR
+\fBmariadb\fR, you can log statements and their output\&. All the data displayed on the screen is appended into a given file\&. This can be very useful for debugging purposes also\&.
+\fBmariadb\fR
 flushes results to the file after each statement, just before it prints its next prompt\&. Tee functionality works only in interactive mode\&.
 .sp
 You can enable this feature interactively with the
@@ -2204,8 +2204,8 @@ again re\-enables logging\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: use command
-.\" use command: mysql
+.\" mariadb: use command
+.\" use command: mariadb
 \fBuse \fR\fB\fIdb_name\fR\fR,
 \fB\eu \fR\fB\fIdb_name\fR\fR
 .sp
@@ -2222,8 +2222,8 @@ as the default database\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql: warnings command
-.\" warnings command: mysql
+.\" mariadb: warnings command
+.\" warnings command: mariadb
 \fBwarnings\fR,
 \fB\eW\fR
 .sp
@@ -2248,7 +2248,7 @@ You can use it to write to a file and the results go only to the file:
 .RS 4
 .\}
 .nf
-mysql> \fBpager cat > /tmp/log\&.txt\fR
+mariadb> \fBpager cat > /tmp/log\&.txt\fR
 .fi
 .if n \{\
 .RE
@@ -2260,7 +2260,7 @@ You can also pass any options for the program that you want to use as your pager
 .RS 4
 .\}
 .nf
-mysql> \fBpager less \-n \-i \-S\fR
+mariadb> \fBpager less \-n \-i \-S\fR
 .fi
 .if n \{\
 .RE
@@ -2320,7 +2320,7 @@ to cause it to exit if output fits on one screen, which is convenient when no sc
 .RS 4
 .\}
 .nf
-mysql> \fBpager less \-n \-i \-S \-F \-X\fR
+mariadb> \fBpager less \-n \-i \-S \-F \-X\fR
 .fi
 .if n \{\
 .RE
@@ -2341,7 +2341,7 @@ You can specify very complex pager commands for handling query output:
 .RS 4
 .\}
 .nf
-mysql> \fBpager cat | tee /dr1/tmp/res\&.txt \e\fR
+mariadb> \fBpager cat | tee /dr1/tmp/res\&.txt \e\fR
           \fB| tee /dr2/tmp/res2\&.txt | less \-n \-i \-S\fR
 .fi
 .if n \{\
@@ -2371,7 +2371,7 @@ program and still have everything appended into a file the same time\&. The diff
 used with the
 \fBpager\fR
 command and the
-\fBmysql\fR
+\fBmariadb\fR
 built\-in
 \fBtee\fR
 command is that the built\-in
@@ -2387,13 +2387,13 @@ used with
 does not log quite that much\&. Additionally,
 \fBtee\fR
 file logging can be turned on and off interactively from within
-\fBmysql\fR\&. This is useful when you want to log some queries to a file, but not others\&.
-.\" mysql prompt command
+\fBmariadb\fR\&. This is useful when you want to log some queries to a file, but not others\&.
+.\" mariadb prompt command
 .PP
 The
 \fBprompt\fR
 command reconfigures the default
-mysql>
+mariadb>
 prompt\&. The string for defining the prompt can contain the following special sequences\&.
 .TS
 allbox tab(:);
@@ -2618,13 +2618,13 @@ shell> \fBexport MYSQL_PS1="(\eu@\eh) [\ed]> "\fR
 You can set the
 \fB\-\-prompt\fR
 option on the command line to
-\fBmysql\fR\&. For example:
+\fBmariadb\fR\&. For example:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-prompt="(\eu@\eh) [\ed]> "\fR
+shell> \fBmariadb \-\-prompt="(\eu@\eh) [\ed]> "\fR
 (user@host) [database]>
 .fi
 .if n \{\
@@ -2644,7 +2644,7 @@ shell> \fBmysql \-\-prompt="(\eu@\eh) [\ed]> "\fR
 You can set the
 prompt
 option in the
-[mysql]
+[mariadb]
 group of any MariaDB option file, such as
 /etc/my\&.cnf
 or the
@@ -2655,7 +2655,7 @@ file in your home directory\&. For example:
 .RS 4
 .\}
 .nf
-[mysql]
+[mariadb]
 prompt=(\e\eu@\e\eh) [\e\ed]>\e\e_
 .fi
 .if n \{\
@@ -2674,7 +2674,7 @@ format:
 .RS 4
 .\}
 .nf
-[mysql]
+[mariadb]
 prompt="\e\er:\e\em:\e\es> "
 .fi
 .if n \{\
@@ -2700,24 +2700,24 @@ prompt
 .RS 4
 .\}
 .nf
-mysql> \fBprompt (\eu@\eh) [\ed]>\e_\fR
+mariadb> \fBprompt (\eu@\eh) [\ed]>\e_\fR
 PROMPT set to '(\eu@\eh) [\ed]>\e_'
 (\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]>
 (\fIuser\fR@\fIhost\fR) [\fIdatabase\fR]> prompt
-Returning to default PROMPT of mysql>
-mysql>
+Returning to default PROMPT of mariadb>
+mariadb>
 .fi
 .if n \{\
 .RE
 .\}
 .RE
-.SH "MYSQL SERVER-SIDE HELP"
+.SH "MARIADB SERVER-SIDE HELP"
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-mysql> \fBhelp \fR\fB\fIsearch_string\fR\fR
+mariadb> \fBhelp \fR\fB\fIsearch_string\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2726,7 +2726,7 @@ mysql> \fBhelp \fR\fB\fIsearch_string\fR\fR
 If you provide an argument to the
 help
 command,
-\fBmysql\fR
+\fBmariadb\fR
 uses it as a search string to access server\-side help\&. The proper operation of this command requires that the help tables in the
 mysql
 database be initialized with help topic information.
@@ -2737,7 +2737,7 @@ If there is no match for the search string, the search fails:
 .RS 4
 .\}
 .nf
-mysql> \fBhelp me\fR
+mariadb> \fBhelp me\fR
 Nothing found
 Please try to run 'help contents' for a list of all accessible topics
 .fi
@@ -2753,7 +2753,7 @@ to see a list of the help categories:
 .RS 4
 .\}
 .nf
-mysql> \fBhelp contents\fR
+mariadb> \fBhelp contents\fR
 You asked for help about help category: "Contents"
 For more information, type 'help <item>', where <item> is one of the
 following categories:
@@ -2778,14 +2778,14 @@ following categories:
 .\}
 .PP
 If the search string matches multiple items,
-\fBmysql\fR
+\fBmariadb\fR
 shows a list of matching topics:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-mysql> \fBhelp logs\fR
+mariadb> \fBhelp logs\fR
 Many help items for your request exist\&.
 To make a more specific request, please type 'help <item>',
 where <item> is one of the following topics:
@@ -2804,7 +2804,7 @@ Use a topic as the search string to see the help entry for that topic:
 .RS 4
 .\}
 .nf
-mysql> \fBhelp show binary logs\fR
+mariadb> \fBhelp show binary logs\fR
 Name: 'SHOW BINARY LOGS'
 Description:
 Syntax:
@@ -2813,7 +2813,7 @@ SHOW MASTER LOGS
 Lists the binary log files on the server\&. This statement is used as
 part of the procedure described in [purge\-binary\-logs], that shows how
 to determine which logs can be purged\&.
-mysql> SHOW BINARY LOGS;
+mariadb> SHOW BINARY LOGS;
 +\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+
 | Log_name      | File_size |
 +\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+
@@ -2830,38 +2830,38 @@ mysql> SHOW BINARY LOGS;
 .\" data: importing
 .\" files: text
 .\" text files: importing
-.\" source (mysql client command)
-.\" \. (mysql client command)
-.\" mysql source (command for reading from text files)
-.\" mysql \. (command for reading from text files)
+.\" source (mariadb client command)
+.\" \. (mariadb client command)
+.\" mariadb source (command for reading from text files)
+.\" mariadb \. (command for reading from text files)
 .PP
 The
-\fBmysql\fR
+\fBmariadb\fR
 client typically is used interactively, like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 However, it is also possible to put your SQL statements in a file and then tell
-\fBmysql\fR
+\fBmariadb\fR
 to read its input from that file\&. To do so, create a text file
 \fItext_file\fR
 that contains the statements you wish to execute\&. Then invoke
-\fBmysql\fR
+\fBmariadb\fR
 as shown here:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fItext_file\fR\fR
+shell> \fBmariadb \fR\fB\fIdb_name\fR\fR\fB < \fR\fB\fItext_file\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2875,14 +2875,14 @@ statement as the first statement in the file, it is unnecessary to specify the d
 .RS 4
 .\}
 .nf
-shell> \fBmysql < text_file\fR
+shell> \fBmariadb < text_file\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 If you are already running
-\fBmysql\fR, you can execute an SQL script file using the
+\fBmariadb\fR, you can execute an SQL script file using the
 source
 command or
 \e\&.
@@ -2892,8 +2892,8 @@ command:
 .RS 4
 .\}
 .nf
-mysql> \fBsource \fR\fB\fIfile_name\fR\fR
-mysql> \fB\e\&. \fR\fB\fIfile_name\fR\fR
+mariadb> \fBsource \fR\fB\fIfile_name\fR\fR
+mariadb> \fB\e\&. \fR\fB\fIfile_name\fR\fR
 .fi
 .if n \{\
 .RE
@@ -2915,23 +2915,23 @@ The statement shown outputs
 <info_to_display>\&.
 .PP
 You can also invoke
-\fBmysql\fR
+\fBmariadb\fR
 with the
 \fB\-\-verbose\fR
 option, which causes each statement to be displayed before the result that it produces\&.
 .PP
-\fBmysql\fR
+\fBmariadb\fR
 ignores Unicode byte order mark (BOM) characters at the beginning of input files\&. Presence of a BOM does not cause
-\fBmysql\fR
+\fBmariadb\fR
 to change its default character set\&. To do that, invoke
-\fBmysql\fR
+\fBmariadb\fR
 with an option such as
 \fB\-\-default\-character\-set=utf8\fR\&.
 .PP
-.SH "MYSQL TIPS"
+.SH "MARIADB TIPS"
 .PP
 This section describes some techniques that can help you use
-\fBmysql\fR
+\fBmariadb\fR
 more effectively\&.
 .SS "Displaying Query Results Vertically"
 .PP
@@ -2941,7 +2941,7 @@ Some query results are much more readable when displayed vertically, instead of 
 .RS 4
 .\}
 .nf
-mysql> \fBSELECT * FROM mails WHERE LENGTH(txt) < 300 LIMIT 300,1\eG\fR
+mariadb> \fBSELECT * FROM mails WHERE LENGTH(txt) < 300 LIMIT 300,1\eG\fR
 *************************** 1\&. row ***************************
   msg_nro: 3068
      date: 2000\-03\-01 23:29:50
@@ -2980,7 +2980,7 @@ clause\&. Normally, such a statement deletes all rows from the table\&. With
 When you use the
 \fB\-\-safe\-updates\fR
 option,
-\fBmysql\fR
+\fBmariadb\fR
 issues the following statement when it connects to the MariaDB server:
 .sp
 .if n \{\
@@ -3065,32 +3065,32 @@ options:
 .RS 4
 .\}
 .nf
-shell> \fBmysql \-\-safe\-updates \-\-select\-limit=500 \-\-max\-join\-size=10000\fR
+shell> \fBmariadb \-\-safe\-updates \-\-select\-limit=500 \-\-max\-join\-size=10000\fR
 .fi
 .if n \{\
 .RE
 .\}
-.SS "Disabling mysql Auto\-Reconnect"
+.SS "Disabling mariadb Auto\-Reconnect"
 .PP
 If the
-\fBmysql\fR
+\fBmariadb\fR
 client loses its connection to the server while sending a statement, it immediately and automatically tries to reconnect once to the server and send the statement again\&. However, even if
-\fBmysql\fR
+\fBmariadb\fR
 succeeds in reconnecting, your first connection has ended and all your previous session objects and settings are lost: temporary tables, the autocommit mode, and user\-defined and session variables\&. Also, any current transaction rolls back\&. This behavior may be dangerous for you, as in the following example where the server was shut down and restarted between the first and second statements without you knowing it:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-mysql> \fBSET @a=1;\fR
+mariadb> \fBSET @a=1;\fR
 Query OK, 0 rows affected (0\&.05 sec)
-mysql> \fBINSERT INTO t VALUES(@a);\fR
-ERROR 2006: MySQL server has gone away
+mariadb> \fBINSERT INTO t VALUES(@a);\fR
+ERROR 2006: MariaDB server has gone away
 No connection\&. Trying to reconnect\&.\&.\&.
 Connection id:    1
 Current database: test
 Query OK, 1 row affected (1\&.30 sec)
-mysql> \fBSELECT * FROM t;\fR
+mariadb> \fBSELECT * FROM t;\fR
 +\-\-\-\-\-\-+
 | a    |
 +\-\-\-\-\-\-+
@@ -3105,9 +3105,9 @@ mysql> \fBSELECT * FROM t;\fR
 The
 @a
 user variable has been lost with the connection, and after the reconnection it is undefined\&. If it is important to have
-\fBmysql\fR
+\fBmariadb\fR
 terminate with an error if the connection has been lost, you can start the
-\fBmysql\fR
+\fBmariadb\fR
 client with the
 \fB\-\-skip\-reconnect\fR
 option\&.
@@ -3115,7 +3115,7 @@ option\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

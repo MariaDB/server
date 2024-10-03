@@ -99,4 +99,8 @@ class Wsrep_storage_service;
 Wsrep_storage_service*
 wsrep_create_storage_service(THD *orig_thd, const char *ctx);
 
+/**
+   Suppress all error logging from wsrep/Galera library.
+ */
+void wsrep_suppress_error_logging();
 #endif /* WSREP_SERVER_SERVICE */

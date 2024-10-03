@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMYSQL\-STRESS\-TEST\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB\-STRESS\-TEST\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,36 +11,36 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql-stress-test.pl
+.\" mariadb-stress-test.pl
 .SH "NAME"
-mysql-stress-test.pl \- server stress test program
+mariadb-stress-test.pl \- server stress test program
 .SH "SYNOPSIS"
-.HP \w'\fBmysql\-stress\-test\&.pl\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
-\fBmysql\-stress\-test\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
+.HP \w'\fBmariadb\-stress\-test\&.pl\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmariadb\-stress\-test\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysql\-stress\-test\&.pl\fR
+\fBmariadb\-stress\-test\&.pl\fR
 Perl script performs stress\-testing of the MariaDB server\&.
 .PP
-\fBmysql\-stress\-test\&.pl\fR
+\fBmariadb\-stress\-test\&.pl\fR
 requires a version of Perl that has been built with threads support\&.
 .PP
 Invoke
-\fBmysql\-stress\-test\&.pl\fR
+\fBmariadb\-stress\-test\&.pl\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql\-stress\-test\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
+shell> \fBmariadb\-stress\-test\&.pl [\fR\fB\fIoptions\fR\fR\fB]\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysql\-stress\-test\&.pl\fR
+\fBmariadb\-stress\-test\&.pl\fR
 supports the following options:
 .sp
 .RS 4
@@ -51,8 +51,8 @@ supports the following options:
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: help option
-.\" help option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: help option
+.\" help option: mariadb-stress-test.pl
 \fB\-\-help\fR
 .sp
 Display a help message and exit\&.
@@ -66,8 +66,8 @@ Display a help message and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: abort-on-error option
-.\" abort-on-error option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: abort-on-error option
+.\" abort-on-error option: mariadb-stress-test.pl
 \fB\-\-abort\-on\-error=\fR\fB\fIN\fR\fR
 .sp
 Causes the program to abort if an error with severity less than or equal to N was encountered\&. Set to 1 to abort on any error\&.
@@ -81,8 +81,8 @@ Causes the program to abort if an error with severity less than or equal to N wa
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: check-tests-file option
-.\" check-tests-file option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: check-tests-file option
+.\" check-tests-file option: mariadb-stress-test.pl
 \fB\-\-check\-tests\-file\fR
 .sp
 Periodically check the file that lists the tests to be run\&. If it has been modified, reread the file\&. This can be useful if you update the list of tests to be run during a stress test\&.
@@ -96,8 +96,8 @@ Periodically check the file that lists the tests to be run\&. If it has been mod
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: cleanup option
-.\" cleanup option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: cleanup option
+.\" cleanup option: mariadb-stress-test.pl
 \fB\-\-cleanup\fR
 .sp
 Force cleanup of the working directory\&.
@@ -111,8 +111,8 @@ Force cleanup of the working directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: log-error-details option
-.\" log-error-details option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: log-error-details option
+.\" log-error-details option: mariadb-stress-test.pl
 \fB\-\-log\-error\-details\fR
 .sp
 Log error details in the global error log file\&.
@@ -126,8 +126,8 @@ Log error details in the global error log file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: loop-count option
-.\" loop-count option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: loop-count option
+.\" loop-count option: mariadb-stress-test.pl
 \fB\-\-loop\-count=\fR\fB\fIN\fR\fR
 .sp
 In sequential test mode, the number of loops to execute before exiting\&.
@@ -141,12 +141,12 @@ In sequential test mode, the number of loops to execute before exiting\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: mysqltest option
-.\" mysqltest option: mysql-stress-test.pl
-\fB\-\-mysqltest=\fR\fB\fIpath\fR\fR
+.\" mariadb-stress-test.pl: mariadb-test option
+.\" mariadb-test option: mariadb-stress-test.pl
+\fB\-\-mariadb-test=\fR\fB\fIpath\fR\fR
 .sp
 The path name to the
-\fBmysqltest\fR
+\fBmariadb-test\fR
 program\&.
 .RE
 .sp
@@ -158,8 +158,8 @@ program\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-database option
-.\" server-database option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-database option
+.\" server-database option: mariadb-stress-test.pl
 \fB\-\-server\-database=\fR\fB\fIdb_name\fR\fR
 .sp
 The database to use for the tests\&. The default is
@@ -174,8 +174,8 @@ test\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-host option
-.\" server-host option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-host option
+.\" server-host option: mariadb-stress-test.pl
 \fB\-\-server\-host=\fR\fB\fIhost_name\fR\fR
 .sp
 The host name of the local host to use for making a TCP/IP connection to the local server\&. By default, the connection is made to
@@ -191,8 +191,8 @@ using a Unix socket file\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-logs-dir option
-.\" server-logs-dir option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-logs-dir option
+.\" server-logs-dir option: mariadb-stress-test.pl
 \fB\-\-server\-logs\-dir=\fR\fB\fIpath\fR\fR
 .sp
 This option is required\&.
@@ -208,8 +208,8 @@ is the directory where all client session logs will be stored\&. Usually this is
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-password option
-.\" server-password option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-password option
+.\" server-password option: mariadb-stress-test.pl
 \fB\-\-server\-password=\fR\fB\fIpassword\fR\fR
 .sp
 The password to use when connecting to the server\&.
@@ -223,8 +223,8 @@ The password to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-port option
-.\" server-port option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-port option
+.\" server-port option: mariadb-stress-test.pl
 \fB\-\-server\-port=\fR\fB\fIport_num\fR\fR
 .sp
 The TCP/IP port number to use for connecting to the server\&. The default is 3306\&.
@@ -238,13 +238,13 @@ The TCP/IP port number to use for connecting to the server\&. The default is 330
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-socket option
-.\" server-socket option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-socket option
+.\" server-socket option: mariadb-stress-test.pl
 \fB\-\-server\-socket=\fR\fB\fIfile_name\fR\fR
 .sp
 For connections to
 localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&. The default is
-/tmp/mysql\&.sock\&.
+/tmp/mariadb\&.sock\&.
 .RE
 .sp
 .RS 4
@@ -255,8 +255,8 @@ localhost, the Unix socket file to use, or, on Windows, the name of the named pi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: server-user option
-.\" server-user option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: server-user option
+.\" server-user option: mariadb-stress-test.pl
 \fB\-\-server\-user=\fR\fB\fIuser_name\fR\fR
 .sp
 The MariaDB user name to use when connecting to the server\&. The default is
@@ -271,8 +271,8 @@ root\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: sleep-time option
-.\" sleep-time option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: sleep-time option
+.\" sleep-time option: mariadb-stress-test.pl
 \fB\-\-sleep\-time=\fR\fB\fIN\fR\fR
 .sp
 The delay in seconds between test executions\&.
@@ -286,8 +286,8 @@ The delay in seconds between test executions\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-basedir option
-.\" stress-basedir option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-basedir option
+.\" stress-basedir option: mariadb-stress-test.pl
 \fB\-\-stress\-basedir=\fR\fB\fIpath\fR\fR
 .sp
 This option is required\&.
@@ -303,8 +303,8 @@ is the working directory for the test run\&. It is used as the temporary locatio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-datadir option
-.\" stress-datadir option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-datadir option
+.\" stress-datadir option: mariadb-stress-test.pl
 \fB\-\-stress\-datadir=\fR\fB\fIpath\fR\fR
 .sp
 The directory of data files to be used during testing\&. The default location is the
@@ -322,8 +322,8 @@ option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-init-file option
-.\" stress-init-file option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-init-file option
+.\" stress-init-file option: mariadb-stress-test.pl
 \fB\-\-stress\-init\-file[=\fR\fB\fIpath\fR\fR\fB]\fR
 .sp
 \fIfile_name\fR
@@ -340,8 +340,8 @@ in the test suite directory\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-mode option
-.\" stress-mode option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-mode option
+.\" stress-mode option: mariadb-stress-test.pl
 \fB\-\-stress\-mode=\fR\fB\fImode\fR\fR
 .sp
 This option indicates the test order in stress\-test mode\&. The
@@ -362,8 +362,8 @@ random\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-suite-basedir option
-.\" stress-suite-basedir option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-suite-basedir option
+.\" stress-suite-basedir option: mariadb-stress-test.pl
 \fB\-\-stress\-suite\-basedir=\fR\fB\fIpath\fR\fR
 .sp
 This option is required\&.
@@ -387,8 +387,8 @@ option\&.)
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: stress-tests-file option
-.\" stress-tests-file option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: stress-tests-file option
+.\" stress-tests-file option: mariadb-stress-test.pl
 \fB\-\-stress\-tests\-file[=\fR\fB\fIfile_name\fR\fR\fB]\fR
 .sp
 Use this option to run the stress tests\&.
@@ -409,14 +409,14 @@ in the stress suite directory\&. (See
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: suite option
-.\" suite option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: suite option
+.\" suite option: mariadb-stress-test.pl
 \fB\-\-suite=\fR\fB\fIsuite_name\fR\fR
 .sp
 Run the named test suite\&. The default name is
 main
 (the regular test suite located in the
-mysql\-test
+mariadb\-test
 directory)\&.
 .RE
 .sp
@@ -428,8 +428,8 @@ directory)\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: test-count option
-.\" test-count option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: test-count option
+.\" test-count option: mariadb-stress-test.pl
 \fB\-\-test\-count=\fR\fB\fIN\fR\fR
 .sp
 The number of tests to execute before exiting\&.
@@ -443,8 +443,8 @@ The number of tests to execute before exiting\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: test-duration option
-.\" test-duration option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: test-duration option
+.\" test-duration option: mariadb-stress-test.pl
 \fB\-\-test\-duration=\fR\fB\fIN\fR\fR
 .sp
 The duration of stress testing in seconds\&.
@@ -458,8 +458,8 @@ The duration of stress testing in seconds\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: threads option
-.\" threads option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: threads option
+.\" threads option: mariadb-stress-test.pl
 \fB\-\-threads=\fR\fB\fIN\fR\fR
 .sp
 The number of threads\&. The default is 1\&.
@@ -473,8 +473,8 @@ The number of threads\&. The default is 1\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysql-stress-test.pl: verbose option
-.\" verbose option: mysql-stress-test.pl
+.\" mariadb-stress-test.pl: verbose option
+.\" verbose option: mariadb-stress-test.pl
 \fB\-\-verbose\fR
 .sp
 Verbose mode\&. Print more information about what the program does\&.
@@ -482,7 +482,7 @@ Verbose mode\&. Print more information about what the program does\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2020 MariaDB Foundation
+Copyright \(co 2007, 2010, Oracle and/or its affiliates, 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

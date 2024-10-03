@@ -2,6 +2,8 @@
 --source include/have_partition.inc
 --source include/have_sequence.inc
 
+SET @default_stats_persistent= @@global.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
 CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
 INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
 # Buffer fits in the memory
@@ -66,3 +68,4 @@ ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 ALTER TABLE t2 ALGORITHM=COPY, FORCE;
 --disable_info
 DROP TABLE t2, t1;
+SET GLOBAL innodb_stats_persistent=@default_stats_persistent;

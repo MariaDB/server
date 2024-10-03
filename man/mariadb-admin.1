@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-ADMIN\fR" "1" "15 May 2020" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-ADMIN\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,34 +11,34 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysqladmin
+.\" mariadb-admin
 .\" administration: server
 .\" server administration
 .SH "NAME"
-mariadb-admin \- client for administering a MariaDB server (mysqladmin is now a symlink to mariadb-admin)
+mariadb-admin \- client for administering a MariaDB server (mariadb-admin is now a symlink to mariadb-admin)
 .SH "SYNOPSIS"
-.HP \w'\fBmysqladmin\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]\ [\fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]]\ \&.\&.\&.\fR\ 'u
-\fBmysqladmin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB] [\fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB]] \&.\&.\&.\fR
+.HP \w'\fBmariadb-admin\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]\ [\fR\fB\fIcommand\fR\fR\fB\ [\fR\fB\fIcommand\-arg\fR\fR\fB]]\ \&.\&.\&.\fR\ 'u
+\fBmariadb-admin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB] [\fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB]] \&.\&.\&.\fR
 .SH "DESCRIPTION"
 .PP
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 is a client for performing administrative operations\&. You can use it to check the server's configuration and current status, to create and drop databases, and more\&.
 .PP
 Invoke
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 like this:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysqladmin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB] [\fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB]] \&.\&.\&.\fR
+shell> \fBmariadb-admin [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB] [\fR\fB\fIcommand\fR\fR\fB [\fR\fB\fIcommand\-arg\fR\fR\fB]] \&.\&.\&.\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 supports the following commands\&. Some of the commands take an argument following the command name\&.
 .sp
 .RS 4
@@ -387,9 +387,9 @@ password \fInew\-password\fR
 Set a new password\&. This changes the password to
 \fInew\-password\fR
 for the account that you use with
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 for connecting to the server\&. Thus, the next time you invoke
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 (or any other client program) using the same account, you will need to specify the new password\&.
 .sp
 If the
@@ -400,7 +400,7 @@ value contains spaces or other characters that are special to your command inter
 .RS 4
 .\}
 .nf
-shell> \fBmysqladmin password "my new password"\fR
+shell> \fBmariadb-admin password "my new password"\fR
 .fi
 .if n \{\
 .RE
@@ -424,9 +424,9 @@ password
 command with
 flush\-privileges
 on the same command line to re\-enable the grant tables because the flush operation occurs after you connect\&. However, you can use
-\fBmysqladmin flush\-privileges\fR
+\fBmariadb-admin flush\-privileges\fR
 to re\-enable the grant table and then use a separate
-\fBmysqladmin password\fR
+\fBmariadb-admin password\fR
 command to change the password\&.
 .sp .5v
 .RE
@@ -443,7 +443,7 @@ command to change the password\&.
 ping
 .sp
 Check whether the server is alive\&. The return status from
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 is 0 if the server is running, 1 if it is not\&. This is 0 even in case of an error such as
 Access denied, because this means that the server is running but refused the connection, which is different from the server not running\&.
 .RE
@@ -602,7 +602,7 @@ All commands can be shortened to any unique prefix\&. For example:
 .RS 4
 .\}
 .nf
-shell> \fBmysqladmin proc stat\fR
+shell> \fBmariadb-admin proc stat\fR
 +\-\-\-\-+\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-+\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-+\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+
 | Id | User  | Host      | db | Command | Time | State | Info             |
 +\-\-\-\-+\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-+\-\-\-\-+\-\-\-\-\-\-\-\-\-+\-\-\-\-\-\-+\-\-\-\-\-\-\-+\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-\-+
@@ -619,7 +619,7 @@ Open tables: 19  Queries per second avg: 0\&.0268
 .\" status command: results
 .PP
 The
-\fBmysqladmin status\fR
+\fBmariadb-admin status\fR
 command result displays the following values:
 .sp
 .RS 4
@@ -739,7 +739,7 @@ The number of tables that currently are open\&.
 Memory in use
 .sp
 The amount of memory allocated directly by
-\fBmysqld\fR\&. This value is displayed only when MariaDB has been compiled with
+\fBmariadbd\fR\&. This value is displayed only when MariaDB has been compiled with
 \fB\-\-with\-debug=full\fR\&.
 .RE
 .sp
@@ -755,23 +755,23 @@ The amount of memory allocated directly by
 Maximum memory used
 .sp
 The maximum amount of memory allocated directly by
-\fBmysqld\fR\&. This value is displayed only when MariaDB has been compiled with
+\fBmariadbd\fR\&. This value is displayed only when MariaDB has been compiled with
 \fB\-\-with\-debug=full\fR\&.
 .RE
 .PP
 If you execute
-\fBmysqladmin shutdown\fR
+\fBmariadb-admin shutdown\fR
 when connecting to a local server using a Unix socket file,
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 waits until the server's process ID file has been removed, to ensure that the server has stopped properly\&.
-.\" mysqladmin command options
-.\" command options: mysqladmin
-.\" options: command-line: mysqladmin
-.\" startup parameters: mysqladmin
+.\" mariadb-admin command options
+.\" command options: mariadb-admin
+.\" options: command-line: mariadb-admin
+.\" startup parameters: mariadb-admin
 .PP
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 supports the following options, which can be specified on the command line or in the
-[mysqladmin]
+[mariadb-admin]
 and
 [client]
 option file groups\&.
@@ -784,8 +784,8 @@ option file groups\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: help option
-.\" help option: mysqladmin
+.\" mariadb-admin: help option
+.\" help option: mariadb-admin
 \fB\-\-help\fR,
 \fB\-?\fR
 .sp
@@ -800,8 +800,8 @@ Display help and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: character-sets-dir option
-.\" character-sets-dir option: mysqladmin
+.\" mariadb-admin: character-sets-dir option
+.\" character-sets-dir option: mariadb-admin
 \fB\-\-character\-sets\-dir=\fR\fB\fIpath\fR\fR
 .sp
 The directory where character sets are installed\&.
@@ -815,8 +815,8 @@ The directory where character sets are installed\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: compress option
-.\" compress option: mysqladmin
+.\" mariadb-admin: compress option
+.\" compress option: mariadb-admin
 \fB\-\-compress\fR,
 \fB\-C\fR
 .sp
@@ -831,8 +831,8 @@ Compress all information sent between the client and the server if both support 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: connect-timeout option
-.\" connect-timeout option: mysqladmin
+.\" mariadb-admin: connect-timeout option
+.\" connect-timeout option: mariadb-admin
 \fB\-\-connect-timeout=\fR\fB\fItimeout\fR\fR
 .sp
 Equivalent to \fB\-\-connect_timeout\fR, see the end of this section\&.
@@ -846,8 +846,8 @@ Equivalent to \fB\-\-connect_timeout\fR, see the end of this section\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: count option
-.\" count option: mysqladmin
+.\" mariadb-admin: count option
+.\" count option: mariadb-admin
 \fB\-\-count=\fR\fB\fIN\fR\fR,
 \fB\-c \fR\fB\fIN\fR\fR
 .sp
@@ -864,14 +864,14 @@ option is given\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: debug option
-.\" debug option: mysqladmin
+.\" mariadb-admin: debug option
+.\" debug option: mariadb-admin
 \fB\-\-debug[=\fR\fB\fIdebug_options\fR\fR\fB]\fR,
 \fB\-# [\fR\fB\fIdebug_options\fR\fR\fB]\fR
 .sp
 Write a debugging log\&. A typical
 \fIdebug_options\fR
-string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqladmin.trace'.
+string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mariadb-admin.trace'.
 .RE
 .sp
 .RS 4
@@ -882,8 +882,8 @@ string is 'd:t:o,\fIfile_name\fR'. The default is 'd:t:o,/tmp/mysqladmin.trace'.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: debug-check option
-.\" debug-check option: mysqladmin
+.\" mariadb-admin: debug-check option
+.\" debug-check option: mariadb-admin
 \fB\-\-debug\-check\fR
 .sp
 Check memory and open file usage at exit.\&.
@@ -897,8 +897,8 @@ Check memory and open file usage at exit.\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: debug-info option
-.\" debug-info option: mysqladmin
+.\" mariadb-admin: debug-info option
+.\" debug-info option: mariadb-admin
 \fB\-\-debug\-info\fR
 .sp
 Print debugging information and memory and CPU usage statistics when the program exits\&.
@@ -912,8 +912,8 @@ Print debugging information and memory and CPU usage statistics when the program
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: default-auth option
-.\" default-auth option: mysqladmin
+.\" mariadb-admin: default-auth option
+.\" default-auth option: mariadb-admin
 \fB\-\-default\-auth\fR
 .sp
 Default authentication client-side plugin to use\&.
@@ -927,8 +927,8 @@ Default authentication client-side plugin to use\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: default-character-set option
-.\" default-character-set option: mysqladmin
+.\" mariadb-admin: default-character-set option
+.\" default-character-set option: mariadb-admin
 \fB\-\-default\-character\-set=\fR\fB\fIcharset_name\fR\fR
 .sp
 Use
@@ -944,8 +944,8 @@ as the default character set\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: defaults-extra-file option
-.\" defaults-extra-file option: mysqladmin
+.\" mariadb-admin: defaults-extra-file option
+.\" defaults-extra-file option: mariadb-admin
 \fB\-\-defaults\-extra\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from after the global defaults files has been read\&.
@@ -960,8 +960,8 @@ Must be given as first option\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: defaults-file option
-.\" defaults-file option: mysqladmin
+.\" mariadb-admin: defaults-file option
+.\" defaults-file option: mariadb-admin
 \fB\-\-defaults\-file=\fR\fB\fIfilename\fR\fR
 .sp
 Set \fB\fIfilename\fR\fR as the file to read default options from, override global defaults files\&. Must be given as first option\&.
@@ -975,8 +975,8 @@ Set \fB\fIfilename\fR\fR as the file to read default options from, override glob
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: force option
-.\" force option: mysqladmin
+.\" mariadb-admin: force option
+.\" force option: mariadb-admin
 \fB\-\-force\fR,
 \fB\-f\fR
 .sp
@@ -993,8 +993,8 @@ command\&. With multiple commands, continue even if an error occurs\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: host option
-.\" host option: mysqladmin
+.\" mariadb-admin: host option
+.\" host option: mariadb-admin
 \fB\-\-host=\fR\fB\fIhost_name\fR\fR,
 \fB\-h \fR\fB\fIhost_name\fR\fR
 .sp
@@ -1009,8 +1009,8 @@ Connect to the MariaDB server on the given host\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: local option
-.\" local option: mysqladmin
+.\" mariadb-admin: local option
+.\" local option: mariadb-admin
 \fB\-\-local\fR,
 \fB\-l\fR
 .sp
@@ -1021,8 +1021,8 @@ Suppress the SQL command(s) from being written to the binary log by using FLUSH 
 .ie n \{\
 \h'-04'\(bu\h'+03'\c
 .\}
-.\" mysqladmin: no-beep option
-.\" no-beep option: mysqladmin
+.\" mariadb-admin: no-beep option
+.\" no-beep option: mariadb-admin
 \fB\-\-no\-beep\fR,
 \fB\-b\fR
 .sp
@@ -1037,8 +1037,8 @@ Suppress the warning beep that is emitted by default for errors such as a failur
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: no-defaults option
-.\" no-defaults option: mysqladmin
+.\" mariadb-admin: no-defaults option
+.\" no-defaults option: mariadb-admin
 \fB\-\-no\-defaults\fR
 .sp
 Do not read default options from any option file\&. This must be given as the first argument\&.
@@ -1052,8 +1052,8 @@ Do not read default options from any option file\&. This must be given as the fi
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: password option
-.\" password option: mysqladmin
+.\" mariadb-admin: password option
+.\" password option: mariadb-admin
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
 \fB\-p[\fR\fB\fIpassword\fR\fR\fB]\fR
 .sp
@@ -1066,7 +1066,7 @@ value following the
 or
 \fB\-p\fR
 option on the command line,
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 prompts for one\&.
 .sp
 Specifying a password on the command line should be considered insecure\&.
@@ -1080,8 +1080,8 @@ Specifying a password on the command line should be considered insecure\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: pipe option
-.\" pipe option: mysqladmin
+.\" mariadb-admin: pipe option
+.\" pipe option: mariadb-admin
 \fB\-\-pipe\fR,
 \fB\-W\fR
 .sp
@@ -1096,8 +1096,8 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: port option
-.\" port option: mysqladmin
+.\" mariadb-admin: port option
+.\" port option: mariadb-admin
 \fB\-\-port=\fR\fB\fIport_num\fR\fR,
 \fB\-P \fR\fB\fIport_num\fR\fR
 .sp
@@ -1114,8 +1114,8 @@ Forces --protocol=tcp when specified on the command line without other connectio
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: print-defaults option
-.\" print-defaults option: mysqladmin
+.\" mariadb-admin: print-defaults option
+.\" print-defaults option: mariadb-admin
 \fB\-\-print\-defaults\fR
 .sp
 Print the program argument list and exit\&. This must be given as the first argument\&.
@@ -1129,8 +1129,8 @@ Print the program argument list and exit\&. This must be given as the first argu
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: protocol option
-.\" protocol option: mysqladmin
+.\" mariadb-admin: protocol option
+.\" protocol option: mariadb-admin
 \fB\-\-protocol={TCP|SOCKET|PIPE|MEMORY}\fR
 .sp
 The connection protocol to use for connecting to the server\&. It is useful when the other connection parameters normally would cause a protocol to be used other than the one you want\&.
@@ -1144,8 +1144,8 @@ The connection protocol to use for connecting to the server\&. It is useful when
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: relative option
-.\" relative option: mysqladmin
+.\" mariadb-admin: relative option
+.\" relative option: mariadb-admin
 \fB\-\-relative\fR,
 \fB\-r\fR
 .sp
@@ -1164,8 +1164,8 @@ command\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: shutdown-timeout option
-.\" shutdown-timeout option: mysqladmin
+.\" mariadb-admin: shutdown-timeout option
+.\" shutdown-timeout option: mariadb-admin
 \fB\-\-shutdown\-timeout\fR\fB\fItimeout\fR\fR
 .sp
 Equivalent of \fB\-\-shutdown_timeout\fR, see the end of this section\&.
@@ -1179,8 +1179,8 @@ Equivalent of \fB\-\-shutdown_timeout\fR, see the end of this section\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: silent option
-.\" silent option: mysqladmin
+.\" mariadb-admin: silent option
+.\" silent option: mariadb-admin
 \fB\-\-silent\fR,
 \fB\-s\fR
 .sp
@@ -1195,8 +1195,8 @@ Exit silently if a connection to the server cannot be established\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: sleep option
-.\" sleep option: mysqladmin
+.\" mariadb-admin: sleep option
+.\" sleep option: mariadb-admin
 \fB\-\-sleep=\fR\fB\fIdelay\fR\fR,
 \fB\-i \fR\fB\fIdelay\fR\fR
 .sp
@@ -1207,7 +1207,7 @@ seconds in between\&. The
 option determines the number of iterations\&. If
 \fB\-\-count\fR
 is not given,
-\fBmysqladmin\fR
+\fBmariadb-admin\fR
 executes commands indefinitely until interrupted\&.
 .RE
 .sp
@@ -1219,8 +1219,8 @@ executes commands indefinitely until interrupted\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: socket option
-.\" socket option: mysqladmin
+.\" mariadb-admin: socket option
+.\" socket option: mariadb-admin
 \fB\-\-socket=\fR\fB\fIpath\fR\fR,
 \fB\-S \fR\fB\fIpath\fR\fR
 .sp
@@ -1237,8 +1237,8 @@ Forces --protocol=socket when specified on the command line without other connec
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL options
-.\" SSL options: mysqladmin
+.\" mariadb-admin: SSL options
+.\" SSL options: mariadb-admin
 \fB\-\-ssl\fR
 .sp
 Enable SSL for connection (automatically enabled with other flags). Disable with
@@ -1253,8 +1253,8 @@ Enable SSL for connection (automatically enabled with other flags). Disable with
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA option
-.\" SSL CA option: mysqladmin
+.\" mariadb-admin: SSL CA option
+.\" SSL CA option: mariadb-admin
 \fB\-\-ssl\-ca=\fIname\fR
 .sp
 CA file in PEM format (check OpenSSL docs, implies
@@ -1269,8 +1269,8 @@ CA file in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL CA Path option
-.\" SSL CA Path option: mysqladmin
+.\" mariadb-admin: SSL CA Path option
+.\" SSL CA Path option: mariadb-admin
 \fB\-\-ssl\-capath=\fIname\fR
 .sp
 CA directory (check OpenSSL docs, implies
@@ -1285,8 +1285,8 @@ CA directory (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cert option
-.\" SSL Cert option: mysqladmin
+.\" mariadb-admin: SSL Cert option
+.\" SSL Cert option: mariadb-admin
 \fB\-\-ssl\-cert=\fIname\fR
 .sp
 X509 cert in PEM format (check OpenSSL docs, implies
@@ -1301,8 +1301,8 @@ X509 cert in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Cipher option
-.\" SSL Cipher option: mysqladmin
+.\" mariadb-admin: SSL Cipher option
+.\" SSL Cipher option: mariadb-admin
 \fB\-\-ssl\-cipher=\fIname\fR
 .sp
 SSL cipher to use (check OpenSSL docs, implies
@@ -1317,8 +1317,8 @@ SSL cipher to use (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Key option
-.\" SSL Key option: mysqladmin
+.\" mariadb-admin: SSL Key option
+.\" SSL Key option: mariadb-admin
 \fB\-\-ssl\-key=\fIname\fR
 .sp
 X509 key in PEM format (check OpenSSL docs, implies
@@ -1333,8 +1333,8 @@ X509 key in PEM format (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crl option
-.\" SSL CRL option: mysqladmin
+.\" mariadb-admin: SSL Crl option
+.\" SSL CRL option: mariadb-admin
 \fB\-\-ssl\-crl=\fIname\fR
 .sp
 Certificate revocation list (check OpenSSL docs, implies
@@ -1349,8 +1349,8 @@ Certificate revocation list (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Crlpath option
-.\" SSL Crlpath option: mysqladmin
+.\" mariadb-admin: SSL Crlpath option
+.\" SSL Crlpath option: mariadb-admin
 \fB\-\-ssl\-crlpath=\fIname\fR
 .sp
 Certificate revocation list path (check OpenSSL docs, implies
@@ -1365,8 +1365,8 @@ Certificate revocation list path (check OpenSSL docs, implies
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: SSL Verify Server Cert option
-.\" SSL Verify Server Cert option: mysqladmin
+.\" mariadb-admin: SSL Verify Server Cert option
+.\" SSL Verify Server Cert option: mariadb-admin
 \fB\-\-ssl\-verify\-server\-cert\fR
 .sp
 Verify server's "Common Name" in its cert against hostname used when connecting. This option is disabled by default\&.
@@ -1380,8 +1380,8 @@ Verify server's "Common Name" in its cert against hostname used when connecting.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: TLS Version option
-.\" TLS Version option: mysqladmin
+.\" mariadb-admin: TLS Version option
+.\" TLS Version option: mariadb-admin
 \fB\-\-tls\-version=\fR\fB\fIname\fR\fR,
 .sp
 Accepts a comma-separated list of TLS protocol versions\&. A TLS protocol version will only be enabled if it
@@ -1396,8 +1396,8 @@ is present in this list\&. All other TLS protocol versions will not be permitted
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: user option
-.\" user option: mysqladmin
+.\" mariadb-admin: user option
+.\" user option: mariadb-admin
 \fB\-\-user=\fR\fB\fIuser_name\fR\fR,
 \fB\-u \fR\fB\fIuser_name\fR\fR
 .sp
@@ -1412,8 +1412,8 @@ The MariaDB user name to use when connecting to the server\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: verbose option
-.\" verbose option: mysqladmin
+.\" mariadb-admin: verbose option
+.\" verbose option: mariadb-admin
 \fB\-\-verbose\fR,
 \fB\-v\fR
 .sp
@@ -1428,8 +1428,8 @@ Verbose mode\&. Print more information about what the program does\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: version option
-.\" version option: mysqladmin
+.\" mariadb-admin: version option
+.\" version option: mariadb-admin
 \fB\-\-version\fR,
 \fB\-V\fR
 .sp
@@ -1444,8 +1444,8 @@ Display version information and exit\&.
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: vertical option
-.\" vertical option: mysqladmin
+.\" mariadb-admin: vertical option
+.\" vertical option: mariadb-admin
 \fB\-\-vertical\fR,
 \fB\-E\fR
 .sp
@@ -1461,8 +1461,8 @@ Print output vertically\&. This is similar to
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: wait option
-.\" wait option: mysqladmin
+.\" mariadb-admin: wait option
+.\" wait option: mariadb-admin
 \fB\-\-wait[=\fR\fB\fIcount\fR\fR\fB]\fR,
 \fB\-w[\fR\fB\fIcount\fR\fR\fB]\fR
 .sp
@@ -1479,8 +1479,8 @@ value is given, it indicates the number of times to retry\&. The default is one 
 .sp -1
 .IP \(bu 2.3
 .\}
-.\" mysqladmin: --wait-for-all-slaves option
-.\" --wait-for-all-slaves option: mysqladmin
+.\" mariadb-admin: --wait-for-all-slaves option
+.\" --wait-for-all-slaves option: mariadb-admin
 \fB\-\-wait\-for\-all\-slaves\fR
 .sp
 Wait for the last binlog event to be sent to all connected slaves before shutting down\&.
@@ -1522,7 +1522,7 @@ The maximum number of seconds to wait for server shutdown\&. The default value i
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

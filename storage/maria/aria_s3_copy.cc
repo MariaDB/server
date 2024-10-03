@@ -43,7 +43,10 @@ static const char *opt_database;
 static const char *opt_s3_bucket="MariaDB";
 static my_bool opt_compression, opt_verbose, opt_force, opt_s3_debug;
 static my_bool opt_s3_use_http;
+static my_bool opt_s3_ssl_no_verify;
+static my_bool opt_s3_no_content_type;
 static ulong opt_operation= OP_IMPOSSIBLE, opt_protocol_version= 1;
+static ulong opt_provider= 0;
 static ulong opt_block_size;
 static ulong opt_s3_port;
 static char **default_argv=0;
@@ -75,6 +78,13 @@ static struct my_option my_long_options[] =
   {"s3_use_http", 'P', "If true, force use of HTTP protocol",
    (char**) &opt_s3_use_http, (char**) &opt_s3_use_http,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_ssl_no_verify", 's', "If true, verification of the S3 endpoint SSL "
+   "certificate is disabled",
+   (char**) &opt_s3_ssl_no_verify, (char**) &opt_s3_ssl_no_verify,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_no_content_type", 'n', "If true, disables the Content-Type header",
+   (char**) &opt_s3_no_content_type, (char**) &opt_s3_no_content_type,
+   0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"compress", 'c', "Use compression", &opt_compression, &opt_compression,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"op", 'o', "Operation to execute. One of 'from_s3', 'to_s3' or "
@@ -93,6 +103,10 @@ static struct my_option my_long_options[] =
    "\"Original\", \"Amazon\", \"Path\" or \"Domain\". "
    "Note: \"Legacy\", \"Original\" and \"Amazon\" are deprecated.",
    &opt_protocol_version, &opt_protocol_version, &s3_protocol_typelib,
+   GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"s3_provider", 'R', "Enable S3 provider specific compatibility tweaks "
+   "\"Default\", \"Amazon\", or \"Huawei\".",
+   &opt_provider, &opt_provider, &s3_provider_typelib,
    GET_ENUM, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"force", 'f', "Force copy even if target exists",
    &opt_force, &opt_force, 0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
@@ -216,6 +230,19 @@ int main(int argc, char** argv)
 
   ms3_set_option(global_s3_client, MS3_OPT_BUFFER_CHUNK_SIZE, &block_size);
 
+  /* Provider specific overrides */
+  switch (opt_provider)
+  {
+    case 0: /* Default */
+      break;
+    case 1: /* Amazon */
+      opt_protocol_version = 5;
+      break;
+    case 2: /* Huawei */
+      opt_s3_no_content_type = 1;
+      break;
+  }
+
   if (opt_protocol_version > 2)
   {
     uint8_t protocol_version;
@@ -241,6 +268,11 @@ int main(int argc, char** argv)
   if (opt_s3_use_http)
     ms3_set_option(global_s3_client, MS3_OPT_USE_HTTP, NULL);
 
+  if (opt_s3_ssl_no_verify)
+    ms3_set_option(global_s3_client, MS3_OPT_DISABLE_SSL_VERIFY, NULL);
+
+  if (opt_s3_no_content_type)
+    ms3_set_option(global_s3_client, MS3_OPT_NO_CONTENT_TYPE, NULL);
 
   for (; *argv ; argv++)
   {

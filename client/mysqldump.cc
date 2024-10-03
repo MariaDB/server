@@ -7432,7 +7432,7 @@ int main(int argc, char **argv)
       goto err;
     connection_pool.for_each_connection([](MYSQL *c) {
       if (start_transaction(c))
-        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %u", mysql->thread_id);
+        maybe_die(EX_MYSQLERR, "Failed to start transaction on connection ID %lu", mysql->thread_id);
     });
   }
 

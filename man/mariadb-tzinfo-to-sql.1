@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-TZINFO-TO-SQL\fR" "1" "22 April 2022" "MariaDB 10.11" "MariaDB Database System"
+.TH "\fBMARIADB-TZINFO-TO-SQL\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -11,17 +11,17 @@
 .\" -----------------------------------------------------------------
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
-.\" mysql_tzinfo_to_sql
+.\" mariadb-tzinfo-to-sql
 .\" time zone tables
 .SH "NAME"
-mariadb-tzinfo-to-sql \- load the time zone tables (mysql_tzinfo_to_sql is now a symlink to mariadb-tzinfo-to-sql)
+mariadb-tzinfo-to-sql \- load the time zone tables (mariadb-tzinfo-to-sql is now a symlink to mariadb-tzinfo-to-sql)
 .SH "SYNOPSIS"
-.HP \w'\fBmysql_tzinfo_to_sql\ \fR\fB\fIarguments\fR\fR\ 'u
-\fBmysql_tzinfo_to_sql \fR\fB\fIarguments\fR\fR
+.HP \w'\fBmariadb-tzinfo-to-sql\ \fR\fB\fIarguments\fR\fR\ 'u
+\fBmariadb-tzinfo-to-sql \fR\fB\fIarguments\fR\fR
 .SH "DESCRIPTION"
 .PP
 The
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 program loads the time zone tables in the
 mysql
 database\&. It is used on systems that have a
@@ -31,45 +31,45 @@ database (the set of files describing time zones)\&. Examples of such systems ar
 directory (/usr/share/lib/zoneinfo
 on Solaris)\&.
 .PP
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 can be invoked several ways:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql_tzinfo_to_sql \fR\fB\fItz_dir\fR\fR
-shell> \fBmysql_tzinfo_to_sql \fR\fB\fItz_file tz_name\fR\fR
-shell> \fBmysql_tzinfo_to_sql \-\-leap \fR\fB\fItz_file\fR\fR
-shell> \fBmysql_tzinfo_to_sql \-\-skip\-write\-binlog \fR\fB\fItz_dir\fR\fR
+shell> \fBmariadb-tzinfo-to-sql \fR\fB\fItz_dir\fR\fR
+shell> \fBmariadb-tzinfo-to-sql \fR\fB\fItz_file tz_name\fR\fR
+shell> \fBmariadb-tzinfo-to-sql \-\-leap \fR\fB\fItz_file\fR\fR
+shell> \fBmariadb-tzinfo-to-sql \-\-skip\-write\-binlog \fR\fB\fItz_dir\fR\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 For the first invocation syntax, pass the zoneinfo directory path name to
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 and send the output into the
-\fBmysql\fR
+\fBmariadb\fR
 program\&. For example:
 .sp
 .if n \{\
 .RS 4
 .\}
 .nf
-shell> \fBmysql_tzinfo_to_sql /usr/share/zoneinfo | mysql \-u root mysql\fR
+shell> \fBmariadb-tzinfo-to-sql /usr/share/zoneinfo | mariadb \-u root mysql\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 reads your system's time zone files and generates SQL statements from them\&.
-\fBmysql\fR
+\fBmariadb\fR
 processes those statements to load the time zone tables\&.
 .PP
 The second syntax causes
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 to load a single time zone file
 \fItz_file\fR
 that corresponds to a time zone name
@@ -79,14 +79,14 @@ that corresponds to a time zone name
 .RS 4
 .\}
 .nf
-shell> \fBmysql_tzinfo_to_sql \fR\fB\fItz_file\fR\fR\fB \fR\fB\fItz_name\fR\fR\fB | mysql \-u root mysql\fR
+shell> \fBmariadb-tzinfo-to-sql \fR\fB\fItz_file\fR\fR\fB \fR\fB\fItz_name\fR\fR\fB | mariadb \-u root mysql\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 If your time zone needs to account for leap seconds, invoke
-\fBmysql_tzinfo_to_sql\fR
+\fBmariadb-tzinfo-to-sql\fR
 using the third syntax, which initializes the leap second information\&.
 \fItz_file\fR
 is the name of your time zone file:
@@ -95,21 +95,21 @@ is the name of your time zone file:
 .RS 4
 .\}
 .nf
-shell> \fBmysql_tzinfo_to_sql \-\-leap \fR\fB\fItz_file\fR\fR\fB | mysql \-u root mysql\fR
+shell> \fBmariadb-tzinfo-to-sql \-\-leap \fR\fB\fItz_file\fR\fR\fB | mariadb \-u root mysql\fR
 .fi
 .if n \{\
 .RE
 .\}
 .PP
 Using the \-\-skip\-write\-binlog option prevents writing of changes to the binary log or to other Galera
-cluster members. This can be used with any form of running \fBmysql_tzinfo_to_sql\fR.
+cluster members. This can be used with any form of running \fBmariadb-tzinfo-to-sql\fR.
 .PP
 After running
-\fBmysql_tzinfo_to_sql\fR, it is best to restart the server so that it does not continue to use any previously cached time zone data\&.
+\fBmariadb-tzinfo-to-sql\fR, it is best to restart the server so that it does not continue to use any previously cached time zone data\&.
 .SH "COPYRIGHT"
 .br
 .PP
-Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2020 MariaDB Foundation
+Copyright 2007-2008 MySQL AB, 2008-2010 Sun Microsystems, Inc., 2010-2024 MariaDB Foundation
 .PP
 This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
 .PP

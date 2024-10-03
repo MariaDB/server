@@ -45,6 +45,7 @@ CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this 
 CALL mtr.add_suppression("Aborting");
 CALL mtr.add_suppression("Plugin 'wsrep' init function returned error\\.");
 CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed\\.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a FUNCTION failed\\.");
 CALL mtr.add_suppression("Failed to initialize plugins\\.");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\)");
 connection node_3;
@@ -58,6 +59,7 @@ CALL mtr.add_suppression("It may not be safe to bootstrap the cluster from this 
 CALL mtr.add_suppression("Aborting");
 CALL mtr.add_suppression("Plugin 'wsrep' init function returned error\\.");
 CALL mtr.add_suppression("Plugin 'wsrep' registration as a STORAGE ENGINE failed\\.");
+CALL mtr.add_suppression("Plugin 'wsrep' registration as a FUNCTION failed\\.");
 CALL mtr.add_suppression("Failed to initialize plugins\\.");
 CALL mtr.add_suppression("WSREP: gcs/src/gcs_core.cpp:core_handle_uuid_msg\\(\\)");
 SHOW CREATE TABLE t1;

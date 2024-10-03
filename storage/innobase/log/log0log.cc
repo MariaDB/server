@@ -811,13 +811,13 @@ void log_t::resize_write_buf(const byte *b, size_t length) noexcept
   ut_ad(length <= resize_target);
 
   int64_t d= int64_t(write_lsn - resize_in_progress());
-  if (UNIV_UNLIKELY(d <= 0))
+  if (UNIV_UNLIKELY(d < 0))
   {
     d&= ~int64_t(block_size_1);
     if (int64_t(d + length) <= 0)
       return;
-    length+= d;
-    b-= d;
+    length+= ssize_t(d);
+    b-= ssize_t(d);
     d= 0;
   }
   lsn_t offset= START_OFFSET + (lsn_t(d) & ~lsn_t{block_size_1}) %

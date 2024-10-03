@@ -780,6 +780,7 @@ typedef struct system_variables
   ulong net_wait_timeout;
   ulong net_write_timeout;
   ulong optimizer_extra_pruning_depth;
+  ulonglong optimizer_join_limit_pref_ratio;
   ulong optimizer_prune_level;
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;

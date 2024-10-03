@@ -1,10 +1,12 @@
+SET @default_stats_persistent= @@global.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent= 0;
 CREATE TABLE t1(f1 CHAR(200), f2 INT NOT NULL)engine=InnoDB;
 INSERT INTO t1 SELECT repeat('a', 200), seq FROM seq_1_to_2;
 ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 INSERT INTO t1 SELECT repeat('b', 200), seq FROM seq_3_to_65536;
 ALTER TABLE t1 ALGORITHM=COPY, ADD INDEX(f2);
 ALTER TABLE t1 ALGORITHM=COPY, ADD PRIMARY KEY(f1(2));
-ERROR 23000: Duplicate entry 'aa' for key 'PRIMARY'
+ERROR 23000: Duplicate entry 'bb' for key 'PRIMARY'
 INSERT INTO t1 VALUES(repeat('a', 200), 1);
 ALTER TABLE t1 ALGORITHM=COPY, ADD UNIQUE KEY(f2);
 ERROR 23000: Duplicate entry '1' for key 'f2_2'
@@ -48,3 +50,4 @@ ALTER TABLE t2 ALGORITHM=COPY, FORCE;
 affected rows: 1
 info: Records: 1  Duplicates: 0  Warnings: 0
 DROP TABLE t2, t1;
+SET GLOBAL innodb_stats_persistent=@default_stats_persistent;

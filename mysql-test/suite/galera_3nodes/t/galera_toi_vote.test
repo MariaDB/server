@@ -24,6 +24,9 @@ DROP SCHEMA test;
 
 # This should fail on nodes 1 and 2 and succeed on node 3
 --connection node_1
+# Make error message on source node different by changing locale
+# It should still agree with node 2
+SET SESSION lc_messages='fr_FR';
 --error ER_DB_CREATE_EXISTS
 CREATE SCHEMA test;
 
