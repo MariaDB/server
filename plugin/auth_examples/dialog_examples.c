@@ -79,7 +79,7 @@ static int two_questions(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth two_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "dialog", /* requires dialog client plugin */
   two_questions,
   NULL, NULL /* no PASSWORD() */
@@ -117,7 +117,7 @@ static int three_attempts(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth three_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "dialog", /* requires dialog client plugin */
   three_attempts,
   NULL, NULL /* no PASSWORD() */

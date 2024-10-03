@@ -22,7 +22,7 @@
 
 static struct st_mysql_auth info =
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "dialog",
   pam_auth,
   NULL, NULL /* no PASSWORD() */

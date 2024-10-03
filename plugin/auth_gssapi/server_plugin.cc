@@ -136,7 +136,7 @@ static struct st_mysql_sys_var *system_variables[]= {
 
 /* Register authentication plugin */
 static struct st_mysql_auth server_handler= {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "auth_gssapi_client",
   gssapi_auth, NULL, NULL
 };

@@ -94,7 +94,7 @@ static int digest_to_binary(const char *d, size_t dlen,
 
 static struct st_mysql_auth info =
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "client_ed25519",
   auth,
   compute_password_digest,

@@ -69,7 +69,7 @@ static int pipe_auth(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth pipe_auth_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   0,
   pipe_auth
 };

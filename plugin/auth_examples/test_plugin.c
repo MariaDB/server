@@ -67,7 +67,7 @@ static int auth_test_plugin(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth auth_test_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "auth_test_plugin", /* requires test_plugin client's plugin */
   auth_test_plugin,
   NULL, NULL /* no PASSWORD() */
@@ -98,7 +98,7 @@ static int auth_cleartext_plugin(MYSQL_PLUGIN_VIO *vio,
 
 static struct st_mysql_auth auth_cleartext_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "mysql_clear_password", /* requires the clear text plugin */
   auth_cleartext_plugin,
   NULL, NULL /* no PASSWORD() */

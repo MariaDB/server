@@ -2336,8 +2336,8 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
-  if (info->interface_version >= 0x0202 && info->preprocess_hash &&
-      auth->auth_string.length)
+  if (info->interface_version >= MYSQL_AUTH_INTERFACE_VERSION_2_02 &&
+      info->preprocess_hash && auth->auth_string.length)
   {
     uchar buf[MAX_SCRAMBLE_LENGTH];
     size_t len= sizeof(buf);
@@ -2384,7 +2384,7 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
   auth->salt= auth->auth_string;
 
   st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
-  if (info->interface_version < 0x0202)
+  if (info->interface_version < MYSQL_AUTH_INTERFACE_VERSION_2_02)
   {
     res= pwtext.length ? ER_SET_PASSWORD_AUTH_PLUGIN : 0;
     goto end;
@@ -14647,11 +14647,12 @@ static int do_auth_once(THD *thd, const LEX_CSTRING *auth_plugin_name,
   if (plugin)
   {
     st_mysql_auth *info= (st_mysql_auth *) plugin_decl(plugin)->info;
-    switch (info->interface_version >> 8) {
-    case 0x02:
+    switch (info->interface_version & MYSQL_AUTH_INTERFACE_MAJOR_MASK)
+    {
+    case MYSQL_AUTH_INTERFACE_VERSION_2_00:
       res= info->authenticate_user(mpvio, &mpvio->auth_info);
       break;
-    case 0x01:
+    case MYSQL_AUTH_INTERFACE_VERSION_1_00:
       {
         MYSQL_SERVER_AUTH_INFO_0x0100 compat;
         compat.downgrade(&mpvio->auth_info);
@@ -15329,7 +15330,7 @@ static int old_password_get_salt(const char *hash, size_t hash_length,
 
 static struct st_mysql_auth native_password_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   native_password_plugin_name.str,
   native_password_authenticate,
   native_password_make_scramble,
@@ -15338,7 +15339,7 @@ static struct st_mysql_auth native_password_handler=
 
 static struct st_mysql_auth old_password_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   old_password_plugin_name.str,
   old_password_authenticate,
   old_password_make_scramble,

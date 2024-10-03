@@ -18,7 +18,7 @@
   @file
 
   auth plugin that uses old structures as of
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0100
+  MYSQL_AUTH_INTERFACE_VERSION 0x0100
 
   To test the old version support.
   It intentionally uses no constants like CR_OK ok PASSWORD_USED_YES.
@@ -32,7 +32,7 @@
 #if 0
 #include <mysql/plugin_auth.h>
 #else
-#define MYSQL_AUTHENTICATION_INTERFACE_VERSION 0x0100
+#define MYSQL_AUTH_INTERFACE_VERSION_1_0 0x0100
 typedef void MYSQL_PLUGIN_VIO; /* we don't use it here */
 
 typedef struct st_mysql_server_auth_info
@@ -68,7 +68,7 @@ static int do_auth_0x0100(MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *info)
 
 static struct st_mysql_auth auth_0x0100_struct=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION, 0, do_auth_0x0100
+  MYSQL_AUTH_INTERFACE_VERSION_1_0, 0, do_auth_0x0100
 };
 
 maria_declare_plugin(auth_0x0100)

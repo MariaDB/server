@@ -54,7 +54,7 @@ static int qa_auth_interface (MYSQL_PLUGIN_VIO *vio, MYSQL_SERVER_AUTH_INFO *inf
 
 static struct st_mysql_auth qa_auth_test_handler=
 {
-  MYSQL_AUTHENTICATION_INTERFACE_VERSION,
+  MYSQL_AUTH_INTERFACE_VERSION_2_02,
   "qa_auth_interface", /* requires test_plugin client's plugin */
   qa_auth_interface,
   NULL, NULL /* no PASSWORD() */
