@@ -116,6 +116,29 @@ t12963823	CREATE TABLE `t12963823` (
   KEY `ndx_o` (`o`(500)),
   KEY `ndx_p` (`p`(500))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci ROW_FORMAT=DYNAMIC
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(c',
+GROUP_CONCAT(seq SEPARATOR
+' INT DEFAULT 0, c'),
+' INT DEFAULT 0, PRIMARY KEY(c',
+GROUP_CONCAT(seq SEPARATOR ', c'),
+')) ENGINE=InnoDB;') FROM seq_1_to_33);
+EXECUTE IMMEDIATE c;
+END;
+$$
+ERROR 42000: Too many key parts specified; max 32 parts allowed
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('CREATE TABLE t1(c',
+GROUP_CONCAT(seq SEPARATOR
+' INT DEFAULT 0, c'),
+' INT DEFAULT 0, PRIMARY KEY(c',
+GROUP_CONCAT(seq SEPARATOR ', c'),
+')) ENGINE=InnoDB;') FROM seq_1_to_32);
+EXECUTE IMMEDIATE c;
+END;
+$$
+INSERT INTO t1() VALUES();
 InnoDB		0 transactions not purged
+DROP TABLE t1;
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge, t12637786, t12963823;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

@@ -14,7 +14,10 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "hs_compat.h"
+#define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
+  my_init_dynamic_array2(PSI_INSTRUMENT_ME, A, B, C, D, E, F)
+#define SPD_INIT_ALLOC_ROOT(A, B, C, D) \
+  init_alloc_root(PSI_INSTRUMENT_ME, A, B, C, D)
 
 #define SPIDER_DBTON_SIZE 15
 

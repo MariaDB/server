@@ -7550,6 +7550,30 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
 }
 
 
+#ifndef DBUG_OFF
+
+char dbug_join_prefix_buf[256];
+
+const char* dbug_print_join_prefix(const POSITION *join_positions,
+                                   uint idx,
+                                   JOIN_TAB *s)
+{
+  char *buf= dbug_join_prefix_buf;
+  String str(buf, sizeof(dbug_join_prefix_buf), &my_charset_bin);
+  str.length(0);
+  for (uint i=0; i!=idx; i++)
+  {
+    str.append(join_positions[i].table->table->alias);
+    str.append(',');
+  }
+  str.append(s->table->alias);
+  if (str.c_ptr_safe() == buf)
+   return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+#endif
+
 /**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
@@ -7573,6 +7597,14 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
   @param pos              OUT Table access plan
   @param loose_scan_pos   OUT Table plan that uses loosescan, or set cost to 
                               DBL_MAX if not possible.
+  @detail
+   Use this to print the current join prefix:
+
+      dbug_print_join_prefix(join_positions, idx, s)
+
+   Use this as breakpoint condition to stop at join prefix "t1,t2,t3":
+
+    $_streq(dbug_print_join_prefix(join_positions, idx, s), "t1,t2,t3")
 
   @return
     None
@@ -13872,13 +13904,6 @@ void JOIN_TAB::cleanup()
     delete filesort->select;
   delete filesort;
   filesort= NULL;
-  /* Skip non-existing derived tables/views result tables */
-  if (table &&
-      (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
-  {
-    table->file->ha_end_keyread();
-    table->file->ha_index_or_rnd_end();
-  }
   if (table)
   {
     table->file->ha_end_keyread();
@@ -13887,8 +13912,7 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
-    if (table->pos_in_table_list && 
-        table->pos_in_table_list->jtbm_subselect)
+    if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
       {
@@ -28755,6 +28779,16 @@ void st_select_lex::print_on_duplicate_key_clause(THD *thd, String *str,
   }
 }
 
+
+void st_select_lex::print_lock_type(String *str)
+{
+  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
+    str->append(" lock in share mode");
+  else if (lock_type == TL_WRITE)
+    str->append(" for update");
+}
+
+
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
@@ -29027,10 +29061,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   print_limit(thd, str, query_type);
 
   // lock type
-  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
-    str->append(" lock in share mode");
-  else if (lock_type == TL_WRITE)
-    str->append(" for update");
+  if (braces) /* no braces processed in
+                 SELECT_LEX_UNIT::print_lock_from_the_last_select */
+    print_lock_type(str);
 
   if ((sel_type == INSERT_CMD || sel_type == REPLACE_CMD) &&
       thd->lex->update_list.elements)

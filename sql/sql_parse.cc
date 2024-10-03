@@ -9599,8 +9599,27 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
 #ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+
   bool wsrep_high_priority= false;
-#endif
+#endif /* WITH_WSREP */
   uint error= kill_one_thread(thd, id, state, type
 #ifdef WITH_WSREP
                               , wsrep_high_priority
@@ -9632,6 +9651,26 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:

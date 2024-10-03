@@ -1838,8 +1838,8 @@ dict_foreigns_has_s_base_col(
 		foreign = *it;
 		ulint	type = foreign->type;
 
-		type &= ~(DICT_FOREIGN_ON_DELETE_NO_ACTION
-			  | DICT_FOREIGN_ON_UPDATE_NO_ACTION);
+		type &= ~(foreign->DELETE_NO_ACTION
+			  | foreign->UPDATE_NO_ACTION);
 
 		if (type == 0) {
 			continue;
@@ -1897,8 +1897,12 @@ dict_create_add_foreigns_to_dictionary(
 		foreign = *it;
 		ut_ad(foreign->id != NULL);
 
-		error = dict_create_add_foreign_to_dictionary(
-			table->name.m_name, foreign, trx);
+		if (!foreign->check_fk_constraint_valid()) {
+			error = DB_CANNOT_ADD_CONSTRAINT;
+		} else {
+			error = dict_create_add_foreign_to_dictionary(
+				table->name.m_name, foreign, trx);
+		}
 
 		if (error != DB_SUCCESS) {
 			break;

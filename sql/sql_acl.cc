@@ -10192,6 +10192,10 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   int result= 0;
   int error;
   TABLE *table= grant_table.table();
+  DBUG_ENTER("handle_grant_table");
+  if (!table)
+    DBUG_RETURN(0);
+
   Field *host_field= table->field[0];
   Field *user_field= table->field[which_table == USER_TABLE ||
                                   which_table == PROXIES_PRIV_TABLE ? 1 : 2];
@@ -10201,7 +10205,6 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
-  DBUG_ENTER("handle_grant_table");
 
   if (which_table == ROLES_MAPPING_TABLE)
   {
