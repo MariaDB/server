@@ -1465,7 +1465,7 @@ public:
 
     virtual int get_foreign_key_list(THD *thd,
     List<FOREIGN_KEY_INFO> *f_key_list)
-    virtual uint referenced_by_foreign_key()
+    bool referenced_by_foreign_key() const noexcept override
   */
     bool can_switch_engines() override;
   /*

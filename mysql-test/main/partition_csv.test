@@ -57,7 +57,9 @@ ALTER TABLE gl_partitioned PARTITION BY HASH (thread_id) PARTITIONS 10;
 ALTER TABLE general_log RENAME TO gl_nonpartitioned;
 ALTER TABLE gl_partitioned RENAME TO general_log;
 
+--disable_cursor_protocol
 SELECT @@global.log_output INTO @old_glo;
+--enable_cursor_protocol
 SET GLOBAL log_output='table';
 SET GLOBAL general_log =1;
 

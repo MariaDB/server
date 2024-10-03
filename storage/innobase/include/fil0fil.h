@@ -494,9 +494,6 @@ public:
   /** Close each file. Only invoked on fil_system.temp_space. */
   void close();
 
-  /** Note that operations on the tablespace must stop. */
-  inline void set_stopping();
-
   /** Drop the tablespace and wait for any pending operations to cease
   @param id               tablespace identifier
   @param detached_handle  pointer to file to be closed later, or nullptr
@@ -555,32 +552,14 @@ public:
   /** Clear the NEEDS_FSYNC flag */
   void clear_flush()
   {
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    static_assert(NEEDS_FSYNC == 1U << 28, "compatibility");
-    __asm__ __volatile__("lock btrl $28, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    static_assert(NEEDS_FSYNC == 1U << 28, "compatibility");
-    _interlockedbittestandreset(reinterpret_cast<volatile long*>
-                                (&n_pending), 28);
-#else
     n_pending.fetch_and(~NEEDS_FSYNC, std::memory_order_release);
-#endif
   }
 
 private:
   /** Clear the CLOSING flag */
   void clear_closing()
   {
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-    static_assert(CLOSING == 1U << 29, "compatibility");
-    __asm__ __volatile__("lock btrl $29, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-    static_assert(CLOSING == 1U << 29, "compatibility");
-    _interlockedbittestandreset(reinterpret_cast<volatile long*>
-                                (&n_pending), 29);
-#else
     n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
-#endif
   }
 
   /** @return pending operations (and flags) */
@@ -1532,21 +1511,6 @@ inline void fil_space_t::reacquire()
   ut_ad(n & PENDING);
   ut_ad(UT_LIST_GET_FIRST(chain)->is_open());
 #endif /* SAFE_MUTEX */
-}
-
-/** Note that operations on the tablespace must stop. */
-inline void fil_space_t::set_stopping()
-{
-  mysql_mutex_assert_owner(&fil_system.mutex);
-#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
-  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
-  __asm__ __volatile__("lock btsl $30, %0" : "+m" (n_pending));
-#elif defined _MSC_VER && (defined _M_IX86 || defined _M_X64)
-  static_assert(STOPPING_WRITES == 1U << 30, "compatibility");
-  _interlockedbittestandset(reinterpret_cast<volatile long*>(&n_pending), 30);
-#else
-  n_pending.fetch_or(STOPPING_WRITES, std::memory_order_relaxed);
-#endif
 }
 
 /** Flush pending writes from the file system cache to the file. */

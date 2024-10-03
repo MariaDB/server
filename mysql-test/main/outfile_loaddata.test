@@ -17,7 +17,9 @@ INSERT INTO t1 VALUES (101, 202, '-r-', '=raker=');
 --echo # $clauses, warning:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
@@ -32,7 +34,9 @@ DROP TABLE t2;
 --echo # Only numeric fields, $clauses, no warnings:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
@@ -47,7 +51,9 @@ DROP TABLE t2;
 --echo # $clauses, warning:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
@@ -62,7 +68,9 @@ DROP TABLE t2;
 --echo # $clauses, warning:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
@@ -77,7 +85,9 @@ DROP TABLE t2;
 --echo # Only string fields, $clauses, no warnings:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT $fields INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/bug31663.txt' $clauses FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --eval SELECT LOAD_FILE('$MYSQLTEST_VARDIR/tmp/bug31663.txt') as exp
 --eval CREATE TABLE t2 SELECT $fields FROM t1
@@ -100,7 +110,9 @@ SELECT HEX(c1) FROM t1;
 --let $file=$MYSQLTEST_VARDIR/tmp/bug32533.txt
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS ENCLOSED BY 0xC3 FROM t1
+--enable_cursor_protocol
 TRUNCATE t1;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
@@ -135,13 +147,17 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 --echo # Error on multi-character ENCLOSED/ESCAPED BY
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --error 1083
 --eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ENCLOSED BY '12345'
+--enable_cursor_protocol
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --error 1083
 --eval SELECT * FROM t1 INTO OUTFILE '$file' FIELDS ESCAPED BY '12345'
+--enable_cursor_protocol
 --remove_file $file
 
 
@@ -149,21 +165,27 @@ INSERT INTO t1 VALUES (1, 'ABC-АБВ', 'DEF-ÂÃÄ'), (2, NULL, NULL);
 --echo # LOAD DATA rises error or has unpredictable result -- to be fixed later
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS ENCLOSED BY 'ъ' FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 1083 # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ENCLOSED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS ESCAPED BY 'ъ' FROM t1
+--enable_cursor_protocol
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 --error 1083 # backward compatibility
 --eval LOAD DATA INFILE '$file' INTO TABLE t2 CHARACTER SET binary FIELDS ESCAPED BY 'ъ'
 --remove_file $file
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' FIELDS TERMINATED BY 'ъ' FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -176,7 +198,9 @@ SELECT * FROM t1;
 SELECT * FROM t2;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' LINES STARTING BY 'ъ' FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -187,7 +211,9 @@ TRUNCATE t2;
 SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' LINES TERMINATED BY 'ъ' FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -202,7 +228,9 @@ SELECT * FROM t2;
 --echo # Default (binary) charset:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -216,7 +244,9 @@ SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 --echo # latin1 charset (INTO OUTFILE warning is expected):
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' CHARACTER SET latin1 FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -230,7 +260,9 @@ SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 --echo # KOI8-R charset (INTO OUTFILE warning is expected):
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' CHARACTER SET koi8r FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -244,7 +276,9 @@ SELECT * FROM t1 UNION SELECT * FROM t2 ORDER BY a, b, c;
 --echo # UTF-8 charset:
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE '$file' CHARACTER SET utf8 FROM t1
+--enable_cursor_protocol
 --echo ##################################################
 --cat_file $file
 --echo ##################################################
@@ -276,7 +310,9 @@ let $length= 800;
 --eval INSERT INTO t1 VALUES (REPEAT('.', $length))
 
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+--disable_cursor_protocol
 --eval SELECT * INTO OUTFILE $file CHARACTER SET latin1 FROM t1
+--enable_cursor_protocol
 
 --echo # should be greater than $length
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR

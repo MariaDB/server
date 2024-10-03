@@ -971,6 +971,7 @@ while ($count)
 commit;
 --enable_query_log
 
+--disable_cursor_protocol
 select index_length into @unpaked_keys_size from
 information_schema.tables where table_name='t1';
 alter table t1 pack_keys=1;
@@ -984,6 +985,7 @@ alter table t1 max_rows=100;
 select max_data_length into @changed_max_data_length from
 information_schema.tables where table_name='t1';
 select (@orig_max_data_length > @changed_max_data_length);
+--enable_cursor_protocol
 
 drop table t1;
 

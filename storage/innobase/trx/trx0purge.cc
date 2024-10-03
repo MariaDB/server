@@ -491,16 +491,18 @@ loop:
         if (undo->hdr_page_no == hdr_addr.page)
           goto found_cached;
       ut_ad("inconsistent undo logs" == 0);
-      if (false)
-      found_cached:
-        UT_LIST_REMOVE(rseg.undo_cached, undo);
+    found_cached:
       static_assert(FIL_NULL == 0xffffffff, "");
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
         trx_rseg_format_upgrade(rseg_hdr, &mtr);
-      mtr.memset(rseg_hdr, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
-                 undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
-      ut_free(undo);
+      if (UNIV_LIKELY(undo != nullptr))
+      {
+        UT_LIST_REMOVE(rseg.undo_cached, undo);
+        mtr.memset(rseg_hdr, TRX_RSEG + TRX_RSEG_UNDO_SLOTS +
+                   undo->id * TRX_RSEG_SLOT_SIZE, 4, 0xff);
+        ut_free(undo);
+      }
       mtr.write<8,mtr_t::MAYBE_NOP>(*rseg_hdr, TRX_RSEG + TRX_RSEG_MAX_TRX_ID +
                                     rseg_hdr->page.frame,
                                     trx_sys.get_max_trx_id() - 1);
@@ -776,13 +778,16 @@ buf_block_t *purge_sys_t::get_page(page_id_t id)
 {
   ut_ad(!recv_sys.recovery_on);
 
-  buf_block_t*& undo_page= pages[id];
+  buf_block_t *&h= pages[id];
+  buf_block_t *undo_page= h;
 
   if (!undo_page)
   {
     undo_page= buf_pool.page_fix(id); // batch_cleanup() will unfix()
     if (!undo_page)
       pages.erase(id);
+    else
+      h= undo_page;
   }
 
   return undo_page;

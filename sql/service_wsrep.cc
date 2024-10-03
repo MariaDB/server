@@ -183,7 +183,8 @@ extern "C" my_bool wsrep_thd_is_BF(const THD *thd, my_bool sync)
 
 extern "C" my_bool wsrep_thd_is_SR(const THD *thd)
 {
-  return thd && thd->wsrep_cs().transaction().is_streaming();
+  return thd && thd->wsrep_cs().transaction().is_streaming() &&
+    thd->wsrep_cs().transaction().state() == wsrep::transaction::s_executing;
 }
 
 extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,

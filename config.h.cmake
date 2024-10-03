@@ -150,7 +150,6 @@
 #cmakedefine HAVE_GETCWD 1
 #cmakedefine HAVE_GETHOSTBYADDR_R 1
 #cmakedefine HAVE_GETHRTIME 1
-#cmakedefine HAVE_GETPAGESIZE 1
 #cmakedefine HAVE_GETPAGESIZES 1
 #cmakedefine HAVE_GETPASS 1
 #cmakedefine HAVE_GETPASSPHRASE 1

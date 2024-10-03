@@ -37,9 +37,11 @@ while($rows)
   eval insert into t1 values (null);
   dec $rows;
 }
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval select * into outfile '$MYSQLTEST_VARDIR/tmp/bug30435_5k.txt' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 DROP TABLE t1;
 SET @@sql_log_bin= 1;

@@ -9,6 +9,7 @@ WHERE VARIABLE_NAME LIKE 'HANDLER_%' AND VARIABLE_VALUE > 0;
 --echo #
 --echo # Bug#13559657: PARTITION SELECTION DOES NOT WORK WITH VIEWS
 --echo #
+--disable_cursor_protocol
 --disable_view_protocol
 --disable_ps2_protocol
 CREATE TABLE t1 (a int)
@@ -625,6 +626,7 @@ SELECT * FROM t3 PARTITION (pNeg);
 DROP TABLE t1, t2, t3;
 --enable_ps2_protocol
 --enable_view_protocol
+--enable_cursor_protocol
 --echo # Test from superseeded WL# 2682
 # Partition select tests.
 #

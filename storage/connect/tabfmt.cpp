@@ -93,7 +93,7 @@ PQRYRES CSVColumns(PGLOBAL g, PCSZ dp, PTOS topt, bool info)
 	char    sep, q;
 	int     rc, mxr;
 	bool    hdr;
-  char   *p, *colname[MAXCOL], dechar, buf[8];
+  char   *p, *colname[MAXCOL], dechar, buf[16];
   int     i, imax, hmax, n, nerr, phase, blank, digit, dec, type;
   int     ncol = sizeof(buftyp) / sizeof(int);
   int     num_read = 0, num_max = 10000000;     // Statistics

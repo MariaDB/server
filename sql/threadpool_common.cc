@@ -304,7 +304,7 @@ static THD *threadpool_add_connection(CONNECT *connect, TP_connection *c)
   if (!mysys_var ||!(thd= connect->create_thd(NULL)))
   {
     /* Out of memory? */
-    connect->close_and_delete();
+    connect->close_and_delete(0);
     if (mysys_var)
       my_thread_end();
     return NULL;
@@ -497,7 +497,7 @@ static void tp_add_connection(CONNECT *connect)
   if (c)
     pool->add(c);
   else
-    connect->close_and_delete();
+    connect->close_and_delete(0);
 }
 
 int tp_get_idle_thread_count()

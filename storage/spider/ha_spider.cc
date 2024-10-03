@@ -1107,7 +1107,6 @@ int ha_spider::reset()
 int ha_spider::extra(
   enum ha_extra_function operation
 ) {
-  int error_num;
   DBUG_ENTER("ha_spider::extra");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider operation=%d", (int) operation));
@@ -1152,16 +1151,6 @@ int ha_spider::extra(
       break;
     case HA_EXTRA_INSERT_WITH_UPDATE:
       wide_handler->insert_with_update = TRUE;
-      break;
-    case HA_EXTRA_ATTACH_CHILDREN:
-      DBUG_PRINT("info",("spider HA_EXTRA_ATTACH_CHILDREN"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
-      break;
-    case HA_EXTRA_ADD_CHILDREN_LIST:
-      DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
       break;
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
       DBUG_PRINT("info",("spider HA_EXTRA_STARTING_ORDERED_INDEX_SCAN"));
@@ -7018,6 +7007,8 @@ void ha_spider::update_create_info(
   DBUG_PRINT("info",("spider this=%p", this));
   if (wide_handler && wide_handler->sql_command == SQLCOM_ALTER_TABLE)
   {
+    if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &store_error_num)))
+      DBUG_VOID_RETURN;
     SPIDER_TRX *trx = wide_handler->trx;
     THD *thd = trx->thd;
     if (trx->query_id != thd->query_id)
@@ -10191,6 +10182,8 @@ int ha_spider::append_lock_tables_list()
   DBUG_PRINT("info",("spider lock_table_type=%u",
     wide_handler->lock_table_type));
 
+  if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
+    DBUG_RETURN(error_num);
   if ((error_num= spider_check_trx_and_get_conn(wide_handler->trx->thd, this)))
   {
     DBUG_RETURN(error_num);

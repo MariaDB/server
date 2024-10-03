@@ -21,15 +21,19 @@ SET GLOBAL innodb_fast_shutdown = 0;
 --source include/restart_mysqld.inc
 let $status=`SHOW ENGINE INNODB STATUS`;
 
+--disable_cursor_protocol
 SELECT CAST(variable_value AS INTEGER) INTO @read1
 FROM INFORMATION_SCHEMA.GLOBAL_STATUS
 WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+--enable_cursor_protocol
 
 select * from t1;
 
+--disable_cursor_protocol
 SELECT CAST(variable_value AS INTEGER) INTO @read2
 FROM INFORMATION_SCHEMA.GLOBAL_STATUS
 WHERE VARIABLE_NAME='innodb_buffer_pool_read_requests';
+--enable_cursor_protocol
 
 SELECT @read1>0, @read2>@read1;
 
