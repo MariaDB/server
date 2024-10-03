@@ -457,11 +457,13 @@ Connection_errors_max_connections	0
 Connection_errors_peer_address	0
 Connection_errors_select	0
 Connection_errors_tcpwrap	0
+show global status like 'Threads_connected';
+Variable_name	Value
+Threads_connected	1
 set @max_con.save= @@max_connections;
 set global max_connections= 10;
 # ERROR 1040
 # ERROR 1040
-connection default;
 show global status like 'Connection_errors%';
 Variable_name	Value
 Connection_errors_accept	0

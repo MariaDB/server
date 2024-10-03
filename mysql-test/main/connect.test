@@ -517,6 +517,7 @@ SET GLOBAL connect_timeout= @save_connect_timeout;
 flush status;
 
 show global status like 'Connection_errors%';
+show global status like 'Threads_connected';
 
 set @max_con.save= @@max_connections;
 set global max_connections= 10;
@@ -534,9 +535,25 @@ while ($n)
   --dec $n
 }
 
+connection default;
+let $n= 10;
+let $c= 12;
+while ($n)
+{
+  disconnect con$c;
+  --dec $n
+  --dec $c
+}
+
+# Wait until all connections has terminated to ensure
+# that Connection_errors is correct
+
+let $status_var=Threads_connected;
+let $status_var_value= 1;
+--source include/wait_for_status_var.inc
+
 --enable_result_log
 --enable_query_log
---connection default
 show global status like 'Connection_errors%';
 set global max_connections= @max_con.save;
 
