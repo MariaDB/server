@@ -600,6 +600,7 @@ class binlog_cache_mngr;
 class binlog_cache_data;
 struct rpl_gtid;
 struct wait_for_commit;
+struct rpl_binlog_state_base;
 
 class MYSQL_BIN_LOG: public TC_LOG, private Event_log
 {
@@ -763,7 +764,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private Event_log
   bool write_transaction_to_binlog_events(group_commit_entry *entry);
   void trx_group_commit_leader(group_commit_entry *leader);
   bool is_xidlist_idle_nolock();
-  void update_gtid_index(uint32 offset, rpl_gtid gtid);
+  void update_gtid_index(uint32 offset, const rpl_gtid *gtid);
 
 public:
   void purge(bool all);
@@ -1190,6 +1191,9 @@ public:
   my_off_t binlog_end_pos;
   char binlog_end_pos_file[FN_REFLEN];
 };
+
+extern bool load_global_binlog_state(rpl_binlog_state_base *state);
+
 
 class Log_event_handler
 {
