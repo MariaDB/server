@@ -1842,11 +1842,13 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 
 extern "C"
 void
-binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size)
+binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size,
+                 const rpl_gtid **out_gtid)
 {
   IO_CACHE *cache= nullptr;
   size_t main_size= 0;
   binlog_cache_mngr *cache_mngr;
+  const rpl_gtid *gtid= nullptr;
   if (likely(!opt_bootstrap /* ToDo needed? */) &&
       opt_binlog_engine_hton &&
       (cache_mngr= thd->binlog_get_cache_mngr()))
@@ -1854,9 +1856,11 @@ binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size)
     main_size= cache_mngr->gtid_cache_offset;
     cache= !cache_mngr->trx_cache.empty() ?
       &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
+    gtid= thd->get_last_commit_gtid();
   }
   *out_cache= cache;
   *out_main_size= main_size;
+  *out_gtid= gtid;
 }
 
 
@@ -7166,6 +7170,17 @@ MYSQL_BIN_LOG::get_most_recent_gtid_list(rpl_gtid **list, uint32 *size)
 }
 
 
+/* ToDo: Should this be a service? */
+bool
+load_global_binlog_state(rpl_binlog_state_base *state)
+{
+  mysql_mutex_lock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  bool err= state->load_nolock(&rpl_global_gtid_binlog_state);
+  mysql_mutex_unlock(&rpl_global_gtid_binlog_state.LOCK_binlog_state);
+  return err;
+}
+
+
 bool
 MYSQL_BIN_LOG::append_state_pos(String *str)
 {
@@ -7550,7 +7565,8 @@ err:
         mysql_mutex_unlock(&LOCK_log);
         mysql_mutex_lock(&LOCK_commit_ordered);
         mysql_mutex_unlock(&LOCK_after_binlog_sync);
-        if ((*opt_binlog_engine_hton->binlog_write_direct)(file, binlog_main_bytes))
+        if ((*opt_binlog_engine_hton->binlog_write_direct)
+            (file, binlog_main_bytes, thd->get_last_commit_gtid()))
           goto engine_fail;
         /* ToDo: Need to set last_commit_pos_offset here? */
         /* ToDo: Maybe binlog_write_direct() could return the coords. */
@@ -7655,14 +7671,14 @@ err:
 
 
 void
-MYSQL_BIN_LOG::update_gtid_index(uint32 offset, rpl_gtid gtid)
+MYSQL_BIN_LOG::update_gtid_index(uint32 offset, const rpl_gtid *gtid)
 {
   if (!unlikely(gtid_index))
     return;
 
   rpl_gtid *gtid_list;
   uint32 gtid_count;
-  int err= gtid_index->process_gtid_check_batch(offset, &gtid,
+  int err= gtid_index->process_gtid_check_batch(offset, gtid,
                                                 &gtid_list, &gtid_count);
   if (err)
     return;
