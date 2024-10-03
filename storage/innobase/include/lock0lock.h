@@ -781,28 +781,28 @@ public:
   ATTRIBUTE_NOINLINE void rd_unlock();
 #else
   /** Acquire exclusive lock_sys.latch */
-  void wr_lock()
+  void wr_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
     latch.wr_lock();
   }
   /** Release exclusive lock_sys.latch */
-  void wr_unlock() { latch.wr_unlock(); }
+  void wr_unlock() noexcept { latch.wr_unlock(); }
   /** Acquire shared lock_sys.latch */
-  void rd_lock()
+  void rd_lock() noexcept
   {
     mysql_mutex_assert_not_owner(&wait_mutex);
     latch.rd_lock();
   }
   /** Release shared lock_sys.latch */
-  void rd_unlock() { latch.rd_unlock(); }
+  void rd_unlock() noexcept { latch.rd_unlock(); }
 #endif
   /** Try to acquire exclusive lock_sys.latch
   @return whether the latch was acquired */
-  bool wr_lock_try() { return latch.wr_lock_try(); }
+  bool wr_lock_try() noexcept { return latch.wr_lock_try(); }
   /** Try to acquire shared lock_sys.latch
   @return whether the latch was acquired */
-  bool rd_lock_try() { return latch.rd_lock_try(); }
+  bool rd_lock_try() noexcept { return latch.rd_lock_try(); }
 
   /** Assert that wr_lock() has been invoked by this thread */
   void assert_locked() const { ut_ad(latch.have_wr()); }

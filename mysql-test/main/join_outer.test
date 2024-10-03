@@ -885,9 +885,11 @@ INSERT INTO t2 VALUES
 EXPLAIN
 SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
 
+--disable_cursor_protocol
 flush status;
 SELECT t1.id, a FROM t1 LEFT JOIN t2 ON t1.id=t2.id WHERE t2.b IS NULL;
 show status like 'Handler_read%';
+--enable_cursor_protocol
 
 DROP TABLE t1,t2;
 --enable_ps2_protocol
@@ -1371,7 +1373,6 @@ drop table t1,t2,t3,t4;
 --echo #            table is used in the on condition of an outer join
 --echo # 
 --disable_ps2_protocol
---disable_view_protocol
 create table t1 (a int);
 insert into t1 values (NULL), (NULL), (NULL), (NULL);
 insert into t1 select * from t1; 
@@ -1403,16 +1404,18 @@ insert into t3 values (11, 100), (33, 301), (44, 402), (11, 102), (11, 101);
 insert into t3 values (22, 100), (53, 301), (64, 402), (22, 102), (22, 101);
 
 analyze table t1,t2,t3;
-
+--disable_view_protocol
+--disable_cursor_protocol
 flush status;
 select sum(t3.b) from t1 left join t3 on t3.a=t1.a and t1.a is not null;
 show status like "handler_read%";
 flush status;
 select sum(t3.b) from t2 left join t3 on t3.a=t2.a and t2.a <> 10;
 show status like "handler_read%";
+--enable_cursor_protocol
+--enable_view_protocol
 
 drop table t1,t2,t3;
---enable_view_protocol
 --enable_ps2_protocol
 
 --echo #

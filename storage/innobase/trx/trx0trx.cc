@@ -1266,20 +1266,20 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   const bool flush=
     (!my_disable_sync &&
      (srv_flush_log_at_trx_commit & 1));
+  if (!log_sys.is_mmap())
+  {
+    completion_callback cb;
 
-  completion_callback cb;
-  if (!log_sys.is_pmem() &&
-      (cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
-  {
-    cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
-    log_write_up_to(lsn, flush, &cb);
+    if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
+    {
+      cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
+      log_write_up_to(lsn, flush, &cb);
+      return;
+    }
   }
-  else
-  {
-    trx->op_info= "flushing log";
-    log_write_up_to(lsn, flush);
-    trx->op_info= "";
-  }
+  trx->op_info= "flushing log";
+  log_write_up_to(lsn, flush);
+  trx->op_info= "";
 }
 
 /** Process tables that were modified by the committing transaction. */

@@ -51,7 +51,7 @@ SET SESSION wsrep_sync_wait = 0;
 --let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Waiting for table metadata lock%';
 --source include/wait_condition.inc
 
---let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE STATE LIKE 'Commit';
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE (STATE LIKE 'Commit' or STATE = 'Waiting for certification');
 --source include/wait_condition.inc
 
 UNLOCK TABLES;

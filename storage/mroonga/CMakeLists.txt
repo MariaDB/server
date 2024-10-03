@@ -421,14 +421,6 @@ set(MRN_TEST_SUITE_DIR "${CMAKE_SOURCE_DIR}/mysql-test/suite/mroonga")
 if(NOT EXISTS "${MRN_TEST_SUITE_DIR}")
   set(MRN_TEST_SUITE_DIR "${PROJECT_SOURCE_DIR}/mysql-test/mroonga")
 endif()
-configure_file(
-  "${MRN_TEST_SUITE_DIR}/storage/r/information_schema_plugins.result.in"
-  "${MRN_TEST_SUITE_DIR}/storage/r/information_schema_plugins.result"
-  NEWLINE_STYLE LF)
-configure_file(
-  "${MRN_TEST_SUITE_DIR}/storage/r/variable_version.result.in"
-  "${MRN_TEST_SUITE_DIR}/storage/r/variable_version.result"
-  NEWLINE_STYLE LF)
 
 configure_file(
   "${PROJECT_SOURCE_DIR}/data/install.sql.in"

@@ -47,9 +47,11 @@ create index Language on CountryLanguage(Language);
 create index CityName on City(Name);
 alter table City change population population int(11) null default 0;
 
+--disable_cursor_protocol
 --enable_prepare_warnings
 select max(id) from City into @max_city_id;
 --disable_prepare_warnings
+--enable_cursor_protocol
 insert into City values (@max_city_id + 1,'Kilifarevo','BGR',NULL);
 
 

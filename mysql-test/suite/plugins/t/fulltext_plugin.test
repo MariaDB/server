@@ -1,8 +1,9 @@
+--source include/not_embedded.inc
 --source include/have_simple_parser.inc
 
-#
-# BUG#39746 - Debug flag breaks struct definition (server crash)
-#
+--echo #
+--echo # BUG#39746 - Debug flag breaks struct definition (server crash)
+--echo #
 --replace_result .dll .so
 eval INSTALL PLUGIN simple_parser SONAME '$MYPLUGLIB_SO';
 CREATE TABLE t1(a TEXT, b TEXT, FULLTEXT(a) WITH PARSER simple_parser);
@@ -15,3 +16,12 @@ UNINSTALL PLUGIN simple_parser;
 #
 show status like 'a%status';
 
+--echo #
+--echo # MDEV-35050 Found wrong usage of mutex upon setting plugin session variables
+--echo #
+install soname 'mypluglib';
+set session_track_system_variables="*";
+set session simple_parser_simple_thdvar_one = 10;
+uninstall soname 'mypluglib';
+
+--echo # End of 10.5 tests

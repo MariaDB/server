@@ -438,6 +438,7 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     SHOW_VAR show;
     CHARSET_INFO *charset;
     size_t val_length, length;
+    mysql_mutex_lock(&LOCK_global_system_variables);
     mysql_mutex_lock(&LOCK_plugin);
     if (!*node->test_load)
     {
@@ -454,13 +455,12 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     show.name= svar->name.str;
     show.value= (char *) svar;
 
-    mysql_mutex_lock(&LOCK_global_system_variables);
     const char *value= get_one_variable(thd, &show, OPT_SESSION, SHOW_SYS, NULL,
                                         &charset, val_buf, &val_length);
-    mysql_mutex_unlock(&LOCK_global_system_variables);
 
     if (is_plugin)
       mysql_mutex_unlock(&LOCK_plugin);
+    mysql_mutex_unlock(&LOCK_global_system_variables);
 
     length= net_length_size(svar->name.length) +
       svar->name.length +

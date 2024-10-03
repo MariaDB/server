@@ -1775,6 +1775,15 @@ JSON_INSERT(JSON_OBJECT(l1, l2, l3, l4), '$.k3', 'v3')	JSON_SET(JSON_OBJECT(l1, 
 {"k1": "v1", "k2": "v2", "k3": "v3"}	{"k1": "v1", "k2": "new v2"}	{"k1": "v1", "k2": "new v2"}
 DROP TABLE t;
 #
+# MDEV-27412: JSON_TABLE doesn't properly unquote strings
+#
+SET @data = '[{"Data": "<root language=\\"de\\"></root>"}]';
+SELECT
+data
+FROM JSON_TABLE (@data, '$[*]' COLUMNS (data text PATH '$.Data')) AS t;
+data
+<root language="de"></root>
+#
 # End of 10.6 tests
 #
 #

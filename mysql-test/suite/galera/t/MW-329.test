@@ -87,7 +87,7 @@ while ($count)
 --enable_query_log
 
 --connection node_1b
---error 0,2013,1317,2026
+--error 0,1317,2013,2026
 --reap
 --enable_query_log
 --enable_result_log

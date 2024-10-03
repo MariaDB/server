@@ -3352,6 +3352,15 @@ SET NAMES utf8mb4;
 # End of 10.11 tests
 #
 #
+# MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+#
+SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
+c1
+-9223372036854775808
+#
+# End of 10.5 tests
+#
+#
 # Start of 11.4 tests
 #
 #

@@ -21,6 +21,7 @@ SET LOCAL query_cache_type= ON;
 
 # Reset query cache variables.
 
+--disable_cursor_protocol
 flush query cache; # This crashed in some versions
 flush query cache; # This crashed in some versions
 reset query cache;
@@ -1806,6 +1807,7 @@ SELECT foo( LAST_INSERT_ID() ) from t1;
 show status like "Qcache_queries_in_cache";
 DROP FUNCTION foo;
 drop table t1;
+--enable_cursor_protocol
 
 --echo #
 --echo # MDEV-33861: main.query_cache fails with embedded after
@@ -1861,7 +1863,9 @@ create table t1 (a text);
 insert into t1 values ('{"a":"foo"}');
 flush global status;
 SHOW STATUS LIKE 'Qcache_inserts';
+--disable_cursor_protocol
 select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt;
+--enable_cursor_protocol
 SHOW STATUS LIKE 'Qcache_inserts';
 drop table t1;
 

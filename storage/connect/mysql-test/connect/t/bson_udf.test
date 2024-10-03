@@ -19,7 +19,10 @@ SELECT BsonValue(9223372036854775807);
 SELECT BsonValue(NULL);
 SELECT BsonValue(TRUE);
 SELECT BsonValue(FALSE);
+#Check after fix MDEV-31587
+--disable_cursor_protocol
 SELECT BsonValue();
+--enable_cursor_protocol
 SELECT BsonValue('[11, 22, 33]' json_) FROM t1;
 #
 SELECT Bson_Make_Array();

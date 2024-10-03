@@ -897,6 +897,30 @@ explain select c,
 drop table t1;
 
 --echo #
+--echo # MDEV-25822: JSON_TABLE: default values should allow non-string literals
+--echo #
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 0.5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default -0.5 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default DATE '2021-01-01' on empty)) as T;
+
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 5 on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 18446744073709551615 on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+create view v as select * from json_table('{"a": "b"}', '$' columns(col1 varchar(32) path '$.fooo' default 'asdf' on empty)) as T;
+select * from v;
+show create view v;
+drop view v;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
 

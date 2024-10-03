@@ -18,7 +18,7 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
   }
 
-  if ( $::opt_ps_protocol ) {
+  if ( $::opt_ps_protocol || $::opt_cursor_protocol) {
     $skip{'include/protocol.combinations'} = [ 'nm' ];
   } else {
     $skip{'include/protocol.combinations'} = [ 'ps' ];
@@ -74,6 +74,8 @@ sub skip_combinations {
   $skip{'main/openssl_6975.test'} = 'no or wrong openssl version'
     unless $openssl_ver ge "1.0.1d" and $openssl_ver lt "1.1.1";
   $skip{'main/func_kdf.combinations'} = [ $ssl_lib =~ /OpenSSL 1\.0\./ ? 'new' : 'old' ];
+  $skip{'main/tlsv13.test'} = 'does not work with OpenSSL <= 1.1.1'
+    unless $ssl_lib =~ /WolfSSL/ or $openssl_ver ge "3.0.0";
 
   sub utf8_command_line_ok() {
    if (IS_WINDOWS) {

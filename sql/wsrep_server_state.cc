@@ -158,7 +158,7 @@ void Wsrep_server_state::deinit_provider_services()
 
 void Wsrep_server_state::handle_fatal_signal()
 {
-  if (m_instance)
+  if (m_instance && m_instance->is_provider_loaded())
   {
     /* Galera background threads are still running and the logging may be
        relatively verbose in case of networking error. Silence all wsrep

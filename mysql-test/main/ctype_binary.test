@@ -1,3 +1,4 @@
+
 set names binary;
 
 --source include/ctype_numconv.inc
@@ -232,8 +233,11 @@ SELECT DATE_FORMAT('2004-02-02','%W');
 SELECT HEX(DATE_FORMAT('2004-02-02','%W'));
 #Enable after fix MDEV-33936
 --disable_view_protocol
+#enable after fix MDEV-34215
+--disable_cursor_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01','%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01','%h'));
+--enable_cursor_protocol
 --enable_view_protocol
 
 --echo # latin1 format, binary result
@@ -241,8 +245,11 @@ SELECT DATE_FORMAT('2004-02-02',_latin1'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_latin1'%W'));
 #Enable after fix MDEV-33936
 --disable_view_protocol
+#enable after fix MDEV-34215
+--disable_cursor_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_latin1'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_latin1'%h'));
+--enable_cursor_protocol
 --enable_view_protocol
 
 --echo # Binary format, latin1 result
@@ -251,8 +258,11 @@ SELECT DATE_FORMAT('2004-02-02',_binary'%W');
 SELECT HEX(DATE_FORMAT('2004-02-02',_binary'%W'));
 #Enable after fix MDEV-33936
 --disable_view_protocol
+#enable after fix MDEV-34215
+--disable_cursor_protocol
 SELECT DATE_FORMAT(TIME'-01:01:01',_binary'%h');
 SELECT HEX(DATE_FORMAT(TIME'-01:01:01',_binary'%h'));
+--enable_cursor_protocol
 --enable_view_protocol
 --echo #
 --echo # End of 10.4 tests

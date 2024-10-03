@@ -1470,5 +1470,13 @@ DROP FUNCTION params;
 DROP FUNCTION select01;
 DROP FUNCTION select02;
 #
+# MDEV-32891 Assertion `value <= ((ulonglong) 0xFFFFFFFFL) * 10000ULL' failed in str_to_DDhhmmssff_internal
+#
+SELECT EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1');
+EXTRACT(HOUR_MICROSECOND FROM '42949672955000x1')
+NULL
+Warnings:
+Warning	1292	Incorrect interval value: '42949672955000x1'
+#
 # End of 10.5 tests
 #
