@@ -60,6 +60,7 @@ class Field_blob;
 class Column_definition;
 class select_result;
 class handler_binlog_reader;
+struct rpl_gtid;
 
 // the following is for checking tables
 
@@ -1531,7 +1532,8 @@ struct handlerton
 
   /* Optional implementation of binlog in the engine. */
   bool (*binlog_init)(size_t binlog_size);
-  bool (*binlog_write_direct)(IO_CACHE *cache, size_t main_size);
+  bool (*binlog_write_direct)(IO_CACHE *cache, size_t main_size,
+                              const rpl_gtid *gtid);
   handler_binlog_reader * (*get_binlog_reader)();
 
    /*
