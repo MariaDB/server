@@ -131,7 +131,7 @@ SET DEBUG_SYNC = "now WAIT_FOR bwoc_reached";
 SET DEBUG_SYNC = "now SIGNAL bwoc_continue";
 SET DEBUG_SYNC='RESET';
 --connection node_2a
---error 0,1213
+--error 0,1213,2013,2026
 --reap
 
 --connection node_2

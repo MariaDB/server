@@ -1,0 +1,25 @@
+
+--source include/not_embedded.inc
+--source include/have_csv.inc
+
+--echo #
+--echo # MDEV-33373: Unexpected ER_FILE_NOT_FOUND upon reading from logging
+--echo # table after crash recovery
+--echo #
+
+call mtr.add_suppression("Table 'general_log' is marked as crashed and should be repaired");
+
+--disable_ps_protocol
+SET GLOBAL log_output="TABLE";
+CREATE TABLE t (a INT);
+--disable_ps_protocol
+--let $shutdown_timeout= 0
+--source include/restart_mysqld.inc
+DROP TABLE t;
+--disable_ps_protocol
+SELECT count(*) FROM mysql.general_log;
+--enable_ps_protocol
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

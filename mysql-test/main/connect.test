@@ -508,3 +508,38 @@ SET GLOBAL log_warnings=default;
 SET GLOBAL connect_timeout= @save_connect_timeout;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-33990: SHOW STATUS counts ER_CON_COUNT_ERROR as
+--echo # Connection_errors_internal
+--echo #
+
+flush status;
+
+show global status like 'Connection_errors%';
+
+set @max_con.save= @@max_connections;
+set global max_connections= 10;
+
+--disable_result_log
+--disable_query_log
+--let $n= 12
+while ($n)
+{
+  --error 0,ER_CON_COUNT_ERROR
+  --connect (con$n,localhost,root)
+  if ($mysql_errno) {
+    --echo # ERROR $mysql_errno
+  }
+  --dec $n
+}
+
+--enable_result_log
+--enable_query_log
+--connection default
+show global status like 'Connection_errors%';
+set global max_connections= @max_con.save;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

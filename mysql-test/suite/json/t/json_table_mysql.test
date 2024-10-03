@@ -446,11 +446,8 @@ SELECT * FROM JSON_TABLE('"asdf"', '$' COLUMNS(
   f FLOAT PATH '$',
   d DECIMAL PATH '$')) AS jt;
 
-# DEFAULT NULL is not accepted syntax.
---error ER_PARSE_ERROR
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON EMPTY)) jt;
---error ER_PARSE_ERROR
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON ERROR)) jt;
 
@@ -458,13 +455,10 @@ SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON EMPTY)) jt;
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT 0 ON ERROR)) jt;
-# We don't accept dates in DEFAULT
---error 1064
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x DATE
                                   PATH '$.x'
                                   DEFAULT DATE'2020-01-01' ON EMPTY)) jt;
---error 1064
 SELECT * FROM
   JSON_TABLE('{}', '$' COLUMNS (x DATE
                                   PATH '$.x'

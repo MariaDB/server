@@ -330,8 +330,11 @@ SELECT JSON_DEPTH( json_compact( '"abc"') );
 --echo error ER_INVALID_TYPE_FOR_JSON
 SELECT JSON_DEPTH( 1 );
 
+#Check after fix MDEV-31728
+--disable_cursor_protocol
 --echo error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_DEPTH( 'abc' );
+--enable_cursor_protocol
 
 # returns 1
 SELECT JSON_DEPTH( json_compact( 1) );
@@ -372,11 +375,14 @@ SELECT JSON_DEPTH
   '[ "a", true, "b" , { "e" : false }, "c" , null ]'
 );
 
+#Check after fix MDEV-31728
+--disable_cursor_protocol
 --echo error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_DEPTH
 (
   '[ "a", true, "b" , { "e" : false }, "c" , null'
 );
+--enable_cursor_protocol
 
 --echo # ----------------------------------------------------------------------
 --echo # Test of JSON_REMOVE function.
@@ -585,6 +591,8 @@ SELECT JSON_MERGE
 --echo error ER_INVALID_JSON_TEXT_IN_PARAM
 select json_type('abc');
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 #select i, json_type(j) from t1;
 select json_type('{"a": 2}');
 select json_type('[1,2]');
@@ -651,6 +659,7 @@ select json_type(json_compact(ST_GeomFromText('POLYGON((0 0,10 0,10 10,0 10,0 0)
 select json_type(json_compact(null));
 select json_type(json_compact(null)) is null; # check that it is an SQL NULL
 select json_type(null) is null;               # is an SQL NULL
+--enable_cursor_protocol
 
 #
 # same, but now show the printable value:
@@ -882,7 +891,10 @@ select json_extract( '[1]', '$**[0]' );
 
 # should have same result
 select json_extract( '{ "a": 1 }', '$.a[0]' );
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_extract( '{ "a": 1 }', '$**[0]' );
+--enable_cursor_protocol
 
 # should have same result
 select json_extract( '{ "a": 1 }', '$[0].a' );
@@ -890,7 +902,10 @@ select json_extract( '{ "a": 1 }', '$**.a' );
 
 # should have same result
 select json_extract( '{ "a": 1 }', '$[0].a[0]' );
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_extract( '{ "a": 1 }', '$**[0]' );
+--enable_cursor_protocol
 
 # should have the same result
 select json_extract( '{ "a": 1 }', '$[0].a' );
@@ -998,7 +1013,10 @@ select json_extract( '[ { "a": [3,4] }, { "b": 2 } ]', '$[0].a', '$[1].a' ) jdoc
 # NULLs
 select json_array_append(NULL, '$.b', json_compact(1));
 select json_array_append('[1,2,3]', NULL, json_compact(1));
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_array_append('[1,2,3]', '$', NULL);
+--enable_cursor_protocol
 
 # wrong # args
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -1019,9 +1037,12 @@ select json_array_append(json_compact('{"a": {"b": [3]}}'), '$**[0]', 6);
 
 --echo # Auto-wrapping, since because the paths identify scalars.
 --echo # should return {"a": "foo", "b": ["bar", 4], "c": ["wibble", "grape"]}
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_ARRAY_APPEND('{"a": "foo", "b": "bar", "c": "wibble"}',
                   '$.b', json_compact(4),
                   '$.c', json_compact('"grape"'));
+--enable_cursor_protocol
 
 --echo # should return {"a": "foo", "b": [1, 2, 3, 4],
 --echo #                "c": ["apple", "pear", "grape"]}
@@ -1061,7 +1082,10 @@ SELECT JSON_ARRAY_APPEND
 --echo # Bug#21373874 ASSERTION `PARENT' FAILED
 --echo # ----------------------------------------------------------------------
 
+#Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_array_append('{"a":1}', '$[0]', 100);
+--enable_cursor_protocol
 select json_array_append('3', '$[0]', 100);
 select json_array_append('3', '$[0][0][0][0]', 100);
 
@@ -1072,7 +1096,10 @@ select json_array_append('3', '$[0][0][0][0]', 100);
 # NULLs
 select json_insert(NULL, '$.b', json_compact(1));
 select json_insert('[1,2,3]', NULL, json_compact(1));
+#Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_insert('[1,2,3]', '$[3]', NULL);
+--enable_cursor_protocol
 
 # wrong # args
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -1089,7 +1116,10 @@ select json_insert('[1,2,3]', '$[3]', 4);
 select json_insert('[1,2,3]', '$[10]', 4);
 
 select json_insert('{"c":4}', '$.c', 4);
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_insert('{"c":4}', '$.a', 4);
+--enable_cursor_protocol
 
 select json_insert('1', '$', 4);
 select json_insert('1', '$[0]', 4);
@@ -1200,7 +1230,10 @@ SELECT JSON_INSERT
 # NULLs
 select json_array_insert(NULL, '$.b[1]', 1);
 select json_array_insert('[1,2,3]', NULL, 1);
+#Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_array_insert('[1,2,3]', '$[3]', NULL);
+--enable_cursor_protocol
 
 # wrong # args
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
@@ -1218,6 +1251,8 @@ select json_array_insert('true', '$.a', 1);
 --echo error ER_INVALID_JSON_PATH_ARRAY_CELL
 select json_array_insert('true', '$.a[1].b', 1);
 
+#Enable after fix MDEV-31554
+--disable_cursor_protocol
 # nop if there is no array at the path's parent
 select json_array_insert( 'true', '$[0]', false );
 select json_array_insert( 'true', '$[1]', false );
@@ -1243,6 +1278,7 @@ select json_array_insert( '[1, 2, 3, 4]', '$[2]', false );
 select json_array_insert( '[1, 2, 3, 4]', '$[3]', false );
 select json_array_insert( '[1, 2, 3, 4]', '$[4]', false );
 select json_array_insert( '[1, 2, 3, 4]', '$[5]', false );
+--enable_cursor_protocol
 
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[0]', false );
 select json_array_insert( '{ "a": [1, 2, 3, 4] }', '$.a[1]', false );
@@ -1268,7 +1304,10 @@ select json_insert('[]', '$**[1]', 6);
 select json_insert('[]', '$[*][1]', 6);
 
 # multiple paths,
+#Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]', true, '$[1]', false );
+--enable_cursor_protocol
 select json_array_insert( '[ 1, 2, 3 ]', '$[1]',
        json_compact( '[ "a", "b", "c", "d" ]'), '$[1][2]', false );
 
@@ -1297,9 +1336,12 @@ select json_set(NULL, NULL);
 --error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
 select json_set(NULL, NULL, NULL, NULL);
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # Detect errors in nested function calls.
 --echo error ER_INVALID_JSON_TEXT_IN_PARAM
 SELECT JSON_SET('{}', '$.name', JSON_EXTRACT('', '$'));
+--enable_cursor_protocol
 
 # positive test cases
 
@@ -1308,7 +1350,10 @@ select json_set('[1,2,3]', '$[3]', 4);
 select json_set('[1,2,3]', '$[10]', 4);
 
 select json_set('{"c":4}', '$.c', 5);
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_set('{"c":4}', '$.a', 5);
+--enable_cursor_protocol
 
 select json_set('1', '$', 4);
 select json_set('1', '$[0]', 4);
@@ -1355,10 +1400,13 @@ select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
                '$.a',
                json_compact('{}'));
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # returns { "a" : "foo", "b" : [ 1, 2, 3 ], "c" : [ true, false ] }
 select json_set('{ "a" : "foo", "b" : [ 1, 2, 3 ] }',
                '$.c',
                json_compact('[true, false]'));
+--enable_cursor_protocol
 
 # returns [ 1, null, null, 2 ]
 select json_set('1', '$[3]', 2);
@@ -1376,6 +1424,8 @@ SELECT JSON_SET
   JSON_OBJECT()
 );
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # returns {"a": "foo", "b": [1, 2, 3], "c": [true, false]}
 SELECT JSON_SET
 (
@@ -1391,6 +1441,7 @@ SELECT JSON_SET
   '$.c',
   JSON_ARRAY( json_compact( 'true'), json_compact( 'false') )
 );
+--enable_cursor_protocol
 
 # returns [1, 2]
 SELECT JSON_SET
@@ -1473,6 +1524,8 @@ select json_array('[1,2,3]', NULL, json_compact(1));
 select json_array('[1,2,3]', '$[3]', NULL);
 
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # positive test cases
 select json_array();
 select json_array(3.14);
@@ -1483,6 +1536,7 @@ select json_array(b'0', b'1', b'10');
 
 # returns the empty array: []
 SELECT JSON_ARRAY();
+--enable_cursor_protocol
 
 --echo # ----------------------------------------------------------------------
 --echo # Test of JSON_OBJECT function.
@@ -1498,9 +1552,12 @@ select json_object( 'a', 1, 'b' );
 --echo error ER_JSON_DOCUMENT_NULL_KEY
 select json_object( null, 1 );
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # positive tests
 select json_object();
 select json_object( 'a', null );
+--enable_cursor_protocol
 select json_object( 'a', 1 );
 select json_object( 'a', 1, 'b', 'foo' );
 select json_object( 'a', 1, 'b', 'foo', 'c', json_compact( '{ "d": "wibble" }') );
@@ -1517,8 +1574,11 @@ select json_object( cast(json_array() as char), json_array());
 select json_object( 1, json_array());
 select json_object( cast(1 as char), json_array());
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # returns the empty object: {}
 SELECT JSON_OBJECT();
+--enable_cursor_protocol
 
 --echo # ----------------------------------------------------------------------
 --echo # Test of JSON_SEARCH function.
@@ -1710,17 +1770,23 @@ select json_type(case (null is null) when 1 then
                 json_compact('null') else
                 json_compact('[1,2,3]') end);
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_type(case (null is not null) when 1 then
                 json_compact('null') else
                 json_compact('[1,2,3]') end);
+--enable_cursor_protocol
 
 select json_type( if(null is null,
                     json_compact('null'),
                     json_compact('[1,2,3]')) );
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_type( if(null is not null,
                     json_compact('null'),
                     json_compact('[1,2,3]')));
+--enable_cursor_protocol
 
 select cast(json_extract(json_compact(concat('[', json_compact('["A",2]'), ']')),
             '$[0][1]') as char) = 2;
@@ -1765,8 +1831,11 @@ select json_quote(convert('abc' using utf8mb4));
 select json_unquote('abc');                      # should do nothing
 
 select json_unquote('"abc"');
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_unquote(convert('"abc"' using ascii));
 select json_unquote(convert('"abc"' using latin1));
+--enable_cursor_protocol
 select json_unquote(convert('"abc"' using utf8));
 select json_unquote(convert('"abc"' using utf8mb4));
 
@@ -1775,8 +1844,11 @@ select json_unquote('"');                        # should do nothing
 
 --echo error ER_INCORRECT_TYPE
 select json_quote(123);                          # integer not allowed
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 --echo error ER_INCORRECT_TYPE
 select json_unquote(123);                        # integer not allowed
+--enable_cursor_protocol
 
 select json_unquote('""');                       # empty string
 select char_length(json_unquote('""'));          # verify empty string
@@ -1810,21 +1882,30 @@ select  json_unquote(json_unquote(json_unquote(        # long round trip of it
 
 # DATE/TIME will lose their quotes, too:
 select json_compact(cast('2015-01-15 23:24:25' as datetime));
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_unquote(json_compact(cast('2015-01-15 23:24:25' as datetime)));
+--enable_cursor_protocol
 
 # as well as opaque values:
 select json_compact(st_geomfromtext('point(1 1)'));
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_unquote(json_compact(st_geomfromtext('point(1 1)')));
+--enable_cursor_protocol
 
 # examples from the wl7909 spec
 # returns the SQL string literal abc
 SELECT JSON_UNQUOTE( '"abc"' );
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 # returns the SQL string literal "abc
 SELECT JSON_UNQUOTE( '"abc' );
 
 --echo error ER_INCORRECT_TYPE
 SELECT JSON_UNQUOTE( 123 );
+--enable_cursor_protocol
 
 # returns the SQL string literal abc
 SELECT JSON_UNQUOTE
@@ -1966,7 +2047,10 @@ SELECT JSON_CONTAINS('[1]', '[1]', '$', '$[0]');
 select json_object("a", ifnull(json_quote('test'), json_compact('null')));
 select json_compact(concat('[', json_quote('ab'), ']'));
 select json_compact(concat('[', json_unquote('"12"'), ']'));
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 select json_compact(concat('["', json_type( json_compact(1)), '"]'));
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#20912438: ITEM_TYPE_HOLDER::DISPLAY_LENGTH(ITEM*): ASSERTION `0' FAILED
@@ -2125,7 +2209,10 @@ select json_quote( json_type( json_compact('{}') ) );
 --echo #              WHEN EXECUTED IN A VIEW OR JOIN
 --echo #
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_TYPE(JSON_OBJECT());
+--enable_cursor_protocol
 CREATE VIEW v1 AS SELECT JSON_TYPE(JSON_OBJECT());
 SELECT * FROM v1;
 drop view v1;
@@ -2158,8 +2245,11 @@ SELECT * FROM (SELECT JSON_UNQUOTE(JSON_QUOTE('This is a string that should not 
 --echo #               FOR BOOL WHEN USED VIA VIEW
 --echo #
 
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_OBJECT('key1', false, 'key2', true);
 SELECT JSON_ARRAY('key1', false, 'key2', true);
+--enable_cursor_protocol
 CREATE VIEW v1 AS SELECT JSON_OBJECT('key1', false, 'key2', true);
 SELECT * FROM v1;
 CREATE VIEW v2 AS SELECT JSON_ARRAY('key1', false, 'key2', true);
@@ -2282,7 +2372,9 @@ SELECT JSON_REPLACE('[[[1]]]', '$[0][0][0]', 100);
 # LEAST and GREATEST treat JSON arguments as strings for now. They used to hit
 # an assertion if used in a JSON context and all arguments were JSON values, or
 # a mix of NULLs and JSON values.
+# Enable after fix MDEV-31554
+--disable_cursor_protocol
 SELECT JSON_ARRAY(LEAST(NULL, NULL), GREATEST(NULL, NULL), LEAST(j1, NULL),
                   GREATEST(NULL, j2), LEAST(j1, j2), GREATEST(j1, j2)) AS j
 FROM (SELECT json_compact('1') AS j1, json_compact('2') AS j2) t;
-
+--enable_cursor_protocol

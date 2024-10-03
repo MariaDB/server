@@ -6414,7 +6414,7 @@ my_bool translog_write_record(LSN *lsn,
   struct st_translog_parts parts;
   LEX_CUSTRING *part;
   int rc;
-  uint short_trid= trn->short_id;
+  SHORT_TRANSACTION_ID short_trid= trn->short_id;
   DBUG_ENTER("translog_write_record");
   DBUG_PRINT("enter", ("type: %u (%s)  ShortTrID: %u  rec_len: %lu",
                        (uint) type, log_record_type_descriptor[type].name,

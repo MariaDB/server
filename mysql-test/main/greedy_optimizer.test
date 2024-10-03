@@ -424,6 +424,7 @@ EXPLAIN SELECT * FROM t100,t10000,t10;
 EXPLAIN SELECT * FROM t10000,t10,t100;
 EXPLAIN SELECT * FROM t10000,t100,t10;
 
+--disable_cursor_protocol
 ######
 ## Ordering between T100,T10000 EQ-joined T10 will
 ## normally be with smallest EQ-table joined first
@@ -715,6 +716,7 @@ SELECT COUNT(*) FROM t10,t10000 y,t10000 x
 WHERE x.k=t10.i
   AND y.i=x.k;
 --source include/check_qep.inc
+--enable_cursor_protocol
 
 ########
 

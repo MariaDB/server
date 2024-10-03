@@ -1,3 +1,6 @@
+#
+# BUG#39746 - Debug flag breaks struct definition (server crash)
+#
 INSTALL PLUGIN simple_parser SONAME 'mypluglib.so';
 CREATE TABLE t1(a TEXT, b TEXT, FULLTEXT(a) WITH PARSER simple_parser);
 ALTER TABLE t1 ADD FULLTEXT(b) WITH PARSER simple_parser;
@@ -5,3 +8,11 @@ DROP TABLE t1;
 UNINSTALL PLUGIN simple_parser;
 show status like 'a%status';
 Variable_name	Value
+#
+# MDEV-35050 Found wrong usage of mutex upon setting plugin session variables
+#
+install soname 'mypluglib';
+set session_track_system_variables="*";
+set session simple_parser_simple_thdvar_one = 10;
+uninstall soname 'mypluglib';
+# End of 10.5 tests
