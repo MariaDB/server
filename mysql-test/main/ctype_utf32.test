@@ -1162,6 +1162,16 @@ SELECT HEX(DATE_FORMAT(TIME'11:22:33',@format));
 --echo #
 
 --echo #
+--echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
+--echo #
+
+SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
 --echo # Start of 10.11 tests
 --echo #
 
@@ -1238,14 +1248,3 @@ SET NAMES utf8mb4;
 --echo #
 
 --enable_service_connection
-
-
---echo #
---echo # MDEV-31221 UBSAN runtime error: negation of -9223372036854775808 cannot be represented in type 'long long int' in my_strtoll10_utf32
---echo #
-
-SELECT CAST(CONVERT('-9223372036854775808' USING utf32) AS SIGNED) AS c1;
-
---echo #
---echo # End of 10.5 tests
---echo #
