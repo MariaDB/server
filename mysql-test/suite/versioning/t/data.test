@@ -38,8 +38,10 @@ insert into t1 values (1), (2);
 set timestamp=unix_timestamp('2011-11-11 11:11:11.111111');
 delete from t1 where x = 1;
 set timestamp=default;
+--disable_cursor_protocol
 select row_start, row_end into @s1, @e1 from t1 for system_time all where x = 1;
 select row_start, row_end into @s2, @e2 from t1 for system_time all where x = 2;
+--enable_cursor_protocol
 
 create or replace table t2 (
   x int,

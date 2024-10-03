@@ -6417,5 +6417,16 @@ Warning	1292	Truncated incorrect time value: '8390000'
 Warning	1292	Truncated incorrect time value: '8390000'
 SET @@timestamp= DEFAULT;
 #
+# MDEV-31302 Assertion `mon > 0 && mon < 13' failed in my_time_t sec_since_epoch(int, int, int, int, int, int)
+#
+CREATE TABLE t1 (a DATE);
+SET @@time_zone='+1:00';
+INSERT INTO t1 VALUES ('2024-00-01');
+SELECT UNIX_TIMESTAMP(MAX(a)) AS a FROM t1;
+a
+NULL
+SET @@time_zone=DEFAULT;
+DROP TABLE t1;
+#
 # End of 10.5 tests
 #

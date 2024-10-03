@@ -333,7 +333,7 @@ static int read_meta_file(File meta_file, ha_rows *rows)
   /* check crashed bit and magic number */
   if ((meta_buffer[0] != (uchar)TINA_CHECK_HEADER) ||
       ((bool)(*ptr)== TRUE))
-    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED_ON_USAGE);
 
   mysql_file_sync(meta_file, MYF(MY_WME));
 
@@ -974,7 +974,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   if (share->crashed && !(open_options & HA_OPEN_FOR_REPAIR))
   {
     free_share(share);
-    DBUG_RETURN(my_errno ? my_errno : HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno);
   }
 
   local_data_file_version= share->data_file_version;

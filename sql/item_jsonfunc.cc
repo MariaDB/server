@@ -101,7 +101,7 @@ static inline bool append_simple(String *s, const uchar *a, size_t a_len)
   Appends JSON string to the String object taking charsets in
   consideration.
 */
-static int st_append_json(String *s,
+int st_append_json(String *s,
              CHARSET_INFO *json_cs, const uchar *js, uint js_len)
 {
   int str_len= js_len * s->charset()->mbmaxlen;

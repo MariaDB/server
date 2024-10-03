@@ -209,7 +209,9 @@ DROP TABLE t1;
 connection node_2;
 SELECT * FROM t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
-SET GLOBAL wsrep_ignore_apply_errors = 7;
+SET GLOBAL wsrep_ignore_apply_errors = 10;
+Warnings:
+Warning	1292	Truncated incorrect wsrep_ignore_apply_errors value: '10'
 CALL mtr.add_suppression("Can't find record in ");
 CALL mtr.add_suppression("Slave SQL: Could not execute Delete_rows event");
 CALL mtr.add_suppression("Slave SQL: Error 'Unknown table 'test\\.t1'' on query\\. Default database: 'test'\\. Query: 'DROP TABLE t1', Error_code: 1051");
@@ -218,3 +220,4 @@ CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'idx1'; check that column
 CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'idx1'; check that column/key exists' on query\\. Default database: 'test'\\. Query: 'ALTER TABLE t1 DROP INDEX idx1', Error_code: 1091");
 CALL mtr.add_suppression("Slave SQL: Error 'Can't DROP 'f2'; check that column/key exists' on query\\. Default database: 'test'\\. Query: 'ALTER TABLE t1 DROP COLUMN f2', Error_code: 1091");
 CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query\\.");
+CALL mtr.add_suppression("Inconsistency detected: Inconsistent by consensus on ");

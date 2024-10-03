@@ -59,7 +59,7 @@ C_MODE_END
 /* fmtlib include (https://fmt.dev/). */
 #define FMT_STATIC_THOUSANDS_SEPARATOR ','
 #define FMT_HEADER_ONLY 1
-#include "fmt/format-inl.h"
+#include "fmt/args.h"
 
 size_t username_char_length= USERNAME_CHAR_LENGTH;
 
@@ -1450,37 +1450,15 @@ namespace fmt {
 */
 String *Item_func_sformat::val_str(String *res)
 {
-  /*
-    A union that stores a numeric format arg value.
-    fmt::detail::make_arg does not accept temporaries, so all of its numeric
-    args are temporarily stored in the fmt_args array.
-    See: https://github.com/fmtlib/fmt/issues/3596
-  */
-  union Format_arg_store {
-    longlong val_int;
-    float    val_float;
-    double   val_double;
-  };
-
   DBUG_ASSERT(fixed());
-  using                         ctx=      fmt::format_context;
-  String                       *fmt_arg=  NULL;
-  String                       *parg=     NULL;
-  fmt::format_args::format_arg *vargs=    NULL;
-  Format_arg_store             *fmt_args= NULL;
+  using         ArgStore= fmt::dynamic_format_arg_store<fmt::format_context>;
+  String       *fmt_arg=  NULL;
+  String       *parg=     NULL;
+  ArgStore      arg_store;
 
   null_value= true;
   if (!(fmt_arg= args[0]->val_str(res)))
     return NULL;
-
-  if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
-    return NULL;
-
-  if (!(fmt_args= new Format_arg_store[arg_count - 1]))
-  {
-    delete [] vargs;
-    return NULL;
-  }
 
   /* Creates the array of arguments for vformat */
   for (uint carg= 1; carg < arg_count; carg++)
@@ -1488,37 +1466,26 @@ String *Item_func_sformat::val_str(String *res)
     switch (args[carg]->result_type())
     {
     case INT_RESULT:
-      fmt_args[carg-1].val_int= args[carg]->val_int();
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_int);
+      arg_store.push_back(args[carg]->val_int());
       break;
     case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
       if (args[carg]->field_type() == MYSQL_TYPE_FLOAT)
-      {
-        fmt_args[carg-1].val_float= (float)args[carg]->val_real();
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_float);
-      }
+        arg_store.push_back((float)args[carg]->val_real());
       else
-      {
-        fmt_args[carg-1].val_double= args[carg]->val_real();
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(fmt_args[carg-1].val_double);
-      }
+        arg_store.push_back(args[carg]->val_real());
       break;
     case STRING_RESULT:
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
       {
-        delete [] vargs;
-        delete [] fmt_args;
         return NULL;
       }
-      vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
+      arg_store.push_back(*parg);
       break;
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO
     default:
       DBUG_ASSERT(0);
-      delete [] vargs;
-      delete [] fmt_args;
       return NULL;
     }
   }
@@ -1527,8 +1494,7 @@ String *Item_func_sformat::val_str(String *res)
   /* Create the string output  */
   try
   {
-    auto text = fmt::vformat(fmt_arg->c_ptr_safe(),
-                             fmt::format_args(vargs, arg_count-1));
+    auto text = fmt::vformat(fmt_arg->c_ptr_safe(), arg_store);
     res->length(0);
     res->set_charset(collation.collation);
     res->append(text.c_str(), text.size(), fmt_arg->charset());
@@ -1541,8 +1507,6 @@ String *Item_func_sformat::val_str(String *res)
                         ER_THD(thd, WARN_SFORMAT_ERROR), ex.what());
     null_value= true;
   }
-  delete [] vargs;
-  delete [] fmt_args;
   return null_value ? NULL : res;
 }
 

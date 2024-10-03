@@ -4502,6 +4502,7 @@ public:
     is_slave_error= 0;
     if (killed == KILL_BAD_DATA)
       reset_killed();
+    my_errno= 0;
     DBUG_VOID_RETURN;
   }
 

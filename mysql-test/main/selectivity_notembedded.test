@@ -221,6 +221,44 @@ set optimizer_trace=@trace_tmp;
 drop table t1;
 
 --echo #
+--echo # MDEV-34993: Incorrect cardinality estimation causes poor query plan
+--echo #
+
+create table t1 (
+  pk int,
+  key1 int,
+  filler char(100),
+  index (key1, pk),
+  primary key (pk)
+);
+
+insert into t1
+select 
+  seq, FLOOR(seq/100), 'filler'
+from 
+  seq_1_to_1000;
+analyze table t1;
+
+set optimizer_trace=1;
+explain select * from t1 
+where
+  pk in (1,2,3,4,5) and
+  key1 <= 4;
+
+--echo # 11.0+ will not attempt to use selectivity(key1): 
+select 
+  json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
+from 
+  information_schema.optimizer_trace;
+
+--echo # Must not include 1.79...e308 as cost:
+select 
+  json_detailed(json_extract(trace,'$**.best_access_path')) as JS
+from 
+  information_schema.optimizer_trace;
+
+drop table t1;
+--echo #
 --echo # Clean up
 --echo #
 --source include/restore_charset.inc

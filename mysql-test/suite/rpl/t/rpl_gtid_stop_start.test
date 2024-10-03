@@ -1,6 +1,6 @@
-if (`SELECT $PS_PROTOCOL != 0`)
+if (`SELECT $PS_PROTOCOL + $CURSOR_PROTOCOL > 0`)
 {
-   --skip Test temporarily disabled for ps-protocol
+   --skip Test temporarily disabled for ps-protocol and cursor-protocol
 }
 --source include/no_valgrind_without_big.inc
 --let $rpl_topology=1->2

@@ -10156,8 +10156,8 @@ wsrep_append_key(
 static bool
 referenced_by_foreign_key2(
 /*=======================*/
-	dict_table_t* table,
-	dict_index_t* index)
+	const dict_table_t* table,
+	const dict_index_t* index) noexcept
 {
 	ut_ad(table != NULL);
 	ut_ad(index != NULL);
@@ -12638,13 +12638,13 @@ create_table_info_t::create_foreign_keys()
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_CASCADE;
+			foreign->type |= foreign->DELETE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_SET_NULL;
+			foreign->type |= foreign->DELETE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_NO_ACTION;
+			foreign->type |= foreign->DELETE_NO_ACTION;
 			break;
 		case FK_OPTION_SET_DEFAULT:
 			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
@@ -12659,13 +12659,13 @@ create_table_info_t::create_foreign_keys()
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
+			foreign->type |= foreign->UPDATE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
+			foreign->type |= foreign->UPDATE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_NO_ACTION;
+			foreign->type |= foreign->UPDATE_NO_ACTION;
 			break;
 		case FK_OPTION_SET_DEFAULT:
 			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
@@ -15451,7 +15451,7 @@ static
 FOREIGN_KEY_INFO*
 get_foreign_key_info(
 /*=================*/
-	const THD*	thd,	/*!< in: user thread handle */
+	THD*		thd,	/*!< in: user thread handle */
 	dict_foreign_t* foreign)/*!< in: foreign key constraint */
 {
 	FOREIGN_KEY_INFO	f_key_info;
@@ -15510,28 +15510,43 @@ get_foreign_key_info(
 		name = thd_make_lex_string(thd, name, ptr,
 					   strlen(ptr), 1);
 		f_key_info.foreign_fields.push_back(name);
+
+		if (dict_index_t* fidx = foreign->foreign_index) {
+			if (fidx->fields[i].col->is_nullable()) {
+				f_key_info.set_nullable(thd, false, i,
+							foreign->n_fields);
+			}
+		}
 		ptr = foreign->referenced_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
 					   strlen(ptr), 1);
 		f_key_info.referenced_fields.push_back(name);
+
+		if (dict_index_t* ref_idx = foreign->referenced_index) {
+			if (ref_idx->fields[i].col->is_nullable()) {
+				f_key_info.set_nullable(thd, true, i,
+							foreign->n_fields);
+			}
+		}
+
 	} while (++i < foreign->n_fields);
 
-	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
+	if (foreign->type & foreign->DELETE_CASCADE) {
 		f_key_info.delete_method = FK_OPTION_CASCADE;
-	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
+	} else if (foreign->type & foreign->DELETE_SET_NULL) {
 		f_key_info.delete_method = FK_OPTION_SET_NULL;
-	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
+	} else if (foreign->type & foreign->DELETE_NO_ACTION) {
 		f_key_info.delete_method = FK_OPTION_NO_ACTION;
 	} else {
 		f_key_info.delete_method = FK_OPTION_RESTRICT;
 	}
 
 
-	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
+	if (foreign->type & foreign->UPDATE_CASCADE) {
 		f_key_info.update_method = FK_OPTION_CASCADE;
-	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
+	} else if (foreign->type & foreign->UPDATE_SET_NULL) {
 		f_key_info.update_method = FK_OPTION_SET_NULL;
-	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
+	} else if (foreign->type & foreign->UPDATE_NO_ACTION) {
 		f_key_info.update_method = FK_OPTION_NO_ACTION;
 	} else {
 		f_key_info.update_method = FK_OPTION_RESTRICT;
@@ -15584,7 +15599,7 @@ Gets the list of foreign keys in this table.
 int
 ha_innobase::get_foreign_key_list(
 /*==============================*/
-	const THD*		thd,		/*!< in: user thread handle */
+	THD*			thd,		/*!< in: user thread handle */
 	List<FOREIGN_KEY_INFO>*	f_key_list)	/*!< out: foreign key list */
 {
 	update_thd(ha_thd());
@@ -15622,7 +15637,7 @@ Gets the set of foreign keys where this table is the referenced table.
 int
 ha_innobase::get_parent_foreign_key_list(
 /*=====================================*/
-	const THD*		thd,		/*!< in: user thread handle */
+	THD*			thd,		/*!< in: user thread handle */
 	List<FOREIGN_KEY_INFO>*	f_key_list)	/*!< out: foreign key list */
 {
 	update_thd(ha_thd());
@@ -15672,14 +15687,12 @@ bool ha_innobase::can_switch_engines()
               m_prebuilt->table->referenced_set.empty());
 }
 
-/*******************************************************************//**
-Checks if a table is referenced by a foreign key. The MySQL manual states that
-a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
+/** Checks if a table is referenced by a foreign key. The MySQL manual states
+that a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
 delete is then allowed internally to resolve a duplicate key conflict in
 REPLACE, not an update.
-@return > 0 if referenced by a FOREIGN KEY */
-
-uint ha_innobase::referenced_by_foreign_key()
+@return whether the table is referenced by a FOREIGN KEY */
+bool ha_innobase::referenced_by_foreign_key() const noexcept
 {
   dict_sys.freeze(SRW_LOCK_CALL);
   const bool empty= m_prebuilt->table->referenced_set.empty();
@@ -16195,9 +16208,9 @@ ha_innobase::external_lock(
 		}
 
 		DBUG_RETURN(0);
-	} else {
-		DEBUG_SYNC_C("ha_innobase_end_statement");
 	}
+
+	DEBUG_SYNC_C("ha_innobase_end_statement");
 
 	/* MySQL is releasing a table lock */
 
@@ -16223,14 +16236,6 @@ ha_innobase::external_lock(
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 			trx->read_view.close();
 		}
-	}
-
-	if (!trx_is_started(trx)
-	    && lock_type != F_UNLCK
-	    && (m_prebuilt->select_lock_type != LOCK_NONE
-		|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
-
-		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(0);
@@ -18526,7 +18531,10 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
 
   if (high_level_read_only)
     ib_senderrf(thd, IB_LOG_LEVEL_ERROR, ER_READ_ONLY_MODE);
-  else if (!log_sys.is_pmem() &&
+  else if (
+#ifdef HAVE_PMEM
+          !log_sys.is_mmap() &&
+#endif
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
@@ -18567,7 +18575,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
         mysql_mutex_unlock(&buf_pool.flush_list_mutex);
         if (start > log_sys.get_lsn())
         {
-          ut_ad(!log_sys.is_pmem());
+          ut_ad(!log_sys.is_mmap());
           /* The server is almost idle. Write dummy FILE_CHECKPOINT records
           to ensure that the log resizing will complete. */
           log_sys.latch.wr_lock(SRW_LOCK_CALL);
@@ -19379,6 +19387,19 @@ static MYSQL_SYSVAR_UINT(log_buffer_size, log_sys.buf_size,
   "Redo log buffer size in bytes.",
   NULL, NULL, 16U << 20, 2U << 20, log_sys.buf_size_max, 4096);
 
+#ifdef HAVE_INNODB_MMAP
+  static constexpr const char *innodb_log_file_mmap_description=
+    "Whether ib_logfile0"
+# ifdef HAVE_PMEM
+    " resides in persistent memory or"
+# endif
+    " should initially be memory-mapped";
+static MYSQL_SYSVAR_BOOL(log_file_mmap, log_sys.log_mmap,
+  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  innodb_log_file_mmap_description,
+  nullptr, nullptr, log_sys.log_mmap_default);
+#endif
+
 #if defined __linux__ || defined _WIN32
 static MYSQL_SYSVAR_BOOL(log_file_buffering, log_sys.log_buffered,
   PLUGIN_VAR_OPCMDARG,
@@ -19836,6 +19857,9 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(deadlock_report),
   MYSQL_SYSVAR(page_size),
   MYSQL_SYSVAR(log_buffer_size),
+#ifdef HAVE_INNODB_MMAP
+  MYSQL_SYSVAR(log_file_mmap),
+#endif
 #if defined __linux__ || defined _WIN32
   MYSQL_SYSVAR(log_file_buffering),
 #endif
