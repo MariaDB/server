@@ -52,9 +52,11 @@ drop view vt1_1;
 replace_result $sys_datatype_expl SYS_DATATYPE;
 eval create or replace table t1( id bigint primary key, a int, b int) with system versioning;
 insert into t1 values(1, 1, 1);
+--disable_cursor_protocol
 --enable_prepare_warnings
 select row_start, row_end from t1 into @sys_start, @sys_end;
 --disable_prepare_warnings
+--enable_cursor_protocol
 select id, a, b from t1;
 insert into t1 values(2, 2, 2);
 select id, a, b, row_start > @sys_start as C, row_end = @sys_end as D from t1 where id = 2;
@@ -190,9 +192,11 @@ replace into t3 values (0,  '1980-01-01 00:00:00', '1981-01-01 00:00:00');
 --echo # LOAD DATA
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
 --replace_result $DATAFILE DATAFILE
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
 --enable_ps2_protocol
+--enable_cursor_protocol
 create or replace table t2 like t1;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t2;
@@ -249,9 +253,11 @@ set sql_mode='STRICT_ALL_TABLES';
 create or replace table t1 (a int) with system versioning;
 set system_versioning_insert_history= on;
 insert into t1 (a,row_start,row_end) values (1,'2022-01-01','2023-01-01'),(1,'2022-01-01','2023-01-01');
+--disable_cursor_protocol
 --disable_ps2_protocol
 select a,row_start,row_end into outfile 'mdev29813.txt' from t1 for system_time all;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 create or replace table t1 (a int primary key) with system versioning;
 load data infile 'mdev29813.txt' ignore into table t1 (a,row_start,row_end);

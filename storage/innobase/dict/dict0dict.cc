@@ -955,7 +955,7 @@ void dict_sys_t::create()
 }
 
 
-void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
+void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line)) noexcept
 {
   ulonglong now= my_hrtime_coarse().val, old= 0;
   if (latch_ex_wait_start.compare_exchange_strong
@@ -981,17 +981,17 @@ void dict_sys_t::lock_wait(SRW_LOCK_ARGS(const char *file, unsigned line))
 }
 
 #ifdef UNIV_PFS_RWLOCK
-ATTRIBUTE_NOINLINE void dict_sys_t::unlock()
+ATTRIBUTE_NOINLINE void dict_sys_t::unlock() noexcept
 {
   latch.wr_unlock();
 }
 
-ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line)
+ATTRIBUTE_NOINLINE void dict_sys_t::freeze(const char *file, unsigned line) noexcept
 {
   latch.rd_lock(file, line);
 }
 
-ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
+ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze() noexcept
 {
   latch.rd_unlock();
 }
@@ -2967,8 +2967,8 @@ dict_foreign_add_to_cache(
 			for_in_cache->n_fields,
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
-			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+			& (foreign->DELETE_SET_NULL
+			   | foreign->UPDATE_SET_NULL));
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3933,27 +3933,27 @@ dict_print_info_on_foreign_key_in_create_format(const trx_t *trx,
 
 	str.append(")");
 
-	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
+	if (foreign->type & foreign->DELETE_CASCADE) {
 		str.append(" ON DELETE CASCADE");
 	}
 
-	if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
+	if (foreign->type & foreign->DELETE_SET_NULL) {
 		str.append(" ON DELETE SET NULL");
 	}
 
-	if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
+	if (foreign->type & foreign->DELETE_NO_ACTION) {
 		str.append(" ON DELETE NO ACTION");
 	}
 
-	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
+	if (foreign->type & foreign->UPDATE_CASCADE) {
 		str.append(" ON UPDATE CASCADE");
 	}
 
-	if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
+	if (foreign->type & foreign->UPDATE_SET_NULL) {
 		str.append(" ON UPDATE SET NULL");
 	}
 
-	if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
+	if (foreign->type & foreign->UPDATE_NO_ACTION) {
 		str.append(" ON UPDATE NO ACTION");
 	}
 
@@ -4016,27 +4016,27 @@ dict_print_info_on_foreign_keys(
 
 			str.append(")");
 
-			if (foreign->type == DICT_FOREIGN_ON_DELETE_CASCADE) {
+			if (foreign->type == foreign->DELETE_CASCADE) {
 				str.append(" ON DELETE CASCADE");
 			}
 
-			if (foreign->type == DICT_FOREIGN_ON_DELETE_SET_NULL) {
+			if (foreign->type == foreign->DELETE_SET_NULL) {
 				str.append(" ON DELETE SET NULL");
 			}
 
-			if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
+			if (foreign->type & foreign->DELETE_NO_ACTION) {
 				str.append(" ON DELETE NO ACTION");
 			}
 
-			if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
+			if (foreign->type & foreign->UPDATE_CASCADE) {
 				str.append(" ON UPDATE CASCADE");
 			}
 
-			if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
+			if (foreign->type & foreign->UPDATE_SET_NULL) {
 				str.append(" ON UPDATE SET NULL");
 			}
 
-			if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
+			if (foreign->type & foreign->UPDATE_NO_ACTION) {
 				str.append(" ON UPDATE NO ACTION");
 			}
 		}

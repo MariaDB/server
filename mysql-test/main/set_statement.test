@@ -976,6 +976,7 @@ SET STATEMENT keycache1.key_buffer_size=1024 FOR SELECT 1;
 #
 # MDEV-6940: SET STATEMENT executed after SET GLOBAL does not work
 #
+--disable_cursor_protocol
 --disable_ps2_protocol
 --disable_view_protocol
 set @save_general_log=@@global.general_log;
@@ -1048,6 +1049,7 @@ select sql_text from mysql.slow_log where sql_text not like 'set @@long_query_ti
 --echo #---
 --enable_view_protocol
 --enable_ps2_protocol
+--enable_cursor_protocol
 #
 # log_slow_verbosity is impossible to check because results are not written
 # in TABLE mode

@@ -414,9 +414,11 @@ select row_start = '1980-01-01 00:00:00', row_end = '1980-01-01 00:00:01' from t
 connection master;
 --let DATAFILE= $MYSQLTEST_VARDIR/tmp/test_versioning_t3.data
 --replace_result $DATAFILE DATAFILE
+--disable_cursor_protocol
 --disable_ps2_protocol
 eval select x, row_start, row_end into outfile '$DATAFILE' from t1 for system_time all;
 --enable_ps2_protocol
+--enable_cursor_protocol
 create or replace table t3 like t1;
 set @@system_versioning_insert_history= 1;
 --replace_result $DATAFILE DATAFILE

@@ -4155,7 +4155,7 @@ public:
   virtual int
   get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
-  virtual uint referenced_by_foreign_key() { return 0;}
+  virtual bool referenced_by_foreign_key() const noexcept { return false;}
   virtual void init_table_handle_for_HANDLER()
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}

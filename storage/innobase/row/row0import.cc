@@ -3321,7 +3321,9 @@ static dict_table_t *build_fts_hidden_table(
       new_index->fields[old_index->n_fields].fixed_len= sizeof(doc_id_t);
     }
 
-    new_index->search_info= old_index->search_info;
+#ifdef BTR_CUR_HASH_ADAPT
+    new_index->search_info= btr_search_info_create(new_index->heap);
+#endif /* BTR_CUR_HASH_ADAPT */
     UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
     old_index= UT_LIST_GET_NEXT(indexes, old_index);
     if (UT_LIST_GET_LEN(new_table->indexes)

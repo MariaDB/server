@@ -45,7 +45,10 @@ SELECT * FROM users;
 SELECT * FROM users
          WHERE MATCH (–¼‘O) AGAINST ('+‚½‚È‚©' IN BOOLEAN MODE);
 
+#Check after fix MDEV-31554
+--disable_cursor_protocol
 SELECT mroonga_command("dump --dump_plugins no --dump_records no");
+--enable_cursor_protocol
 
 DROP TABLE users;
 

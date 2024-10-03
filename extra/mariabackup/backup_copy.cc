@@ -64,6 +64,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #ifdef _WIN32
 #include <direct.h> /* rmdir */
 #endif
+#include <functional>
 
 #ifdef _WIN32
 #include <aclapi.h>
@@ -1634,7 +1635,7 @@ is_aria_log_dir_file(const datadir_node_t &node)
 bool
 copy_back_aria_logs(const char *dstdir)
 {
-  std::unique_ptr<ds_ctxt_t, void (&)(ds_ctxt_t*)>
+  std::unique_ptr<ds_ctxt_t, std::function<void(ds_ctxt_t*)>>
     ds_ctxt_aria_log_dir_path(ds_create(dstdir, DS_TYPE_LOCAL), ds_destroy);
 
   datadir_node_t node;

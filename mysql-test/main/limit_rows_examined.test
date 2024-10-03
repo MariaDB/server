@@ -23,6 +23,8 @@ insert into t2i values ('bb'), ('cc'), ('dd'), ('ff');
 --echo Simple joins
 --echo =========================================================================
 
+#Check after fix MDEV-31522
+--disable_cursor_protocol
 --echo Simple nested loops join without blocking
 set @@join_cache_level=0;
 explain
@@ -457,6 +459,7 @@ SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 14;
 
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 15;
 SELECT DISTINCT a FROM t1, t2  HAVING a > ' ' LIMIT ROWS EXAMINED 16;
+--enable_cursor_protocol
 
 drop table t1,t2,t3;
 
@@ -489,6 +492,7 @@ WHERE alias3.c IN ( SELECT 1 UNION SELECT 6 )
 GROUP BY field1, field2, field3, field4, field5
 LIMIT ROWS EXAMINED 120;
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 FLUSH STATUS;
 SELECT a AS field1, alias2.d AS field2, alias2.f AS field3, alias2.e AS field4, b AS field5
@@ -508,6 +512,7 @@ LIMIT ROWS EXAMINED 124;
 SHOW STATUS LIKE 'Handler_read%';
 SHOW STATUS LIKE 'Handler_tmp%';
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 drop table t1, t2;
 

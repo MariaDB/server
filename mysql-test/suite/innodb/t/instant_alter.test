@@ -808,18 +808,24 @@ SELECT * FROM t1;
 DROP TABLE t1;
 
 eval CREATE TABLE t1 (t TINYINT PRIMARY KEY, m MEDIUMINT UNIQUE) $engine;
+--disable_cursor_protocol
 SELECT table_id INTO @table_id1 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
+--enable_cursor_protocol
 INSERT INTO t1 VALUES (-42, -123456);
 --enable_info
 ALTER TABLE t1 CHANGE t s SMALLINT;
+--disable_cursor_protocol
 SELECT table_id INTO @table_id2 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
+--enable_cursor_protocol
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 ALTER TABLE t1 CHANGE m i INT, ALGORITHM=INSTANT;
 ALTER TABLE t1 CHANGE m i INT;
+--disable_cursor_protocol
 SELECT table_id INTO @table_id3 FROM INFORMATION_SCHEMA.INNODB_SYS_TABLESTATS
 WHERE name = 'test/t1';
+--enable_cursor_protocol
 --disable_info
 SELECT @table_id1 = @table_id2, @table_id2 = @table_id3;
 INSERT IGNORE INTO t1 VALUES (0, -123456);
