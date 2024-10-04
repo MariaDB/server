@@ -461,6 +461,14 @@ create table mysql.host (host char(60) binary default '' not null, db char(64) b
 insert mysql.host values('10.5.0.0/255.255.0.0','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','N');
 flush privileges;
 drop table mysql.host;
-#
 # End of 10.4 tests
 #
+# MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+#
+CREATE USER foo@localhost;
+GRANT FILE ON *.* TO foo@localhost IDENTIFIED VIA not_installed_plugin;
+ERROR HY000: Plugin 'not_installed_plugin' is not loaded
+DROP USER foo@localhost;
+CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
+ERROR HY000: Plugin 'not_installed_plugin' is not loaded
+# End of 10.5 tests

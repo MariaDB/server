@@ -419,6 +419,20 @@ insert mysql.host values('10.5.0.0/255.255.0.0','','Y','Y','Y','Y','Y','Y','Y','
 flush privileges;
 drop table mysql.host;
 
---echo #
 --echo # End of 10.4 tests
+
 --echo #
+--echo # MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+--echo #
+
+CREATE USER foo@localhost;
+--error ER_PLUGIN_IS_NOT_LOADED
+GRANT FILE ON *.* TO foo@localhost IDENTIFIED VIA not_installed_plugin;
+
+# Cleanup
+DROP USER foo@localhost;
+
+--error ER_PLUGIN_IS_NOT_LOADED
+CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
+
+--echo # End of 10.5 tests
