@@ -2042,7 +2042,7 @@ int spider_db_mbase::connect(
         DBUG_RETURN(ER_CONNECT_TO_FOREIGN_DATA_SOURCE);
       }
       connect_retry_count--;
-      my_sleep((ulong) connect_retry_interval);
+      my_sleep((ulong) connect_retry_interval * 1000);
     } else {
       db_conn->net.thd = NULL;
       if (connect_mutex)
