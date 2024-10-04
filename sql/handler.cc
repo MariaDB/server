@@ -5494,7 +5494,7 @@ handler::ha_truncate()
   mark_trx_read_write();
 
   int err= truncate();
-  if (!err && table->s->total_keys > table->s->keys)
+  if (!err && table->s->hlindexes())
   {
     if (!(err= table->hlindex_open(table->s->keys)))
       err= table->hlindexes_on_delete_all(true);
@@ -6417,10 +6417,10 @@ int ha_create_table(THD *thd, const char *path, const char *db,
   }
 
   /* create secondary tables for high level indexes */
-  if (share.total_keys > share.keys)
+  if (share.hlindexes())
   {
     /* as of now: only one vector index can be here */
-    DBUG_ASSERT(share.total_keys == share.keys + 1);
+    DBUG_ASSERT(share.hlindexes() == 1);
     DBUG_ASSERT(share.key_info[share.keys].algorithm == HA_KEY_ALG_VECTOR);
     TABLE_SHARE index_share;
     char file_name[FN_REFLEN+1];
