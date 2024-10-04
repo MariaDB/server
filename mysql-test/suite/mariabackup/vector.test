@@ -1,9 +1,4 @@
---source include/not_embedded.inc
-
---echo #
---echo # mysqldump
---echo #
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
                      (Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
@@ -15,20 +10,21 @@ insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.186,0.696,0.035,0.668,0.847]')),
                      (Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
-replace_result InnoDB MyISAM;
-exec $MYSQL_DUMP --compact --hex-blob test t1;
-exec $MYSQL_DUMP --hex-blob test t1 > $MYSQL_TMP_DIR/vector.sql;
-exec $MYSQL test < $MYSQL_TMP_DIR/vector.sql;
-remove_file $MYSQL_TMP_DIR/vector.sql;
+
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+let $backup_log=$MYSQLTEST_VARDIR/tmp/backup.log;
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--enable_result_log
+
+drop table t1;
+--list_files $targetdir/test
+--source include/restart_and_restore.inc
+
 show create table t1;
 select id, Vec_ToText(v) from t1;
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
 drop table t1;
-
---echo #
---echo # MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
---echo #
-create table t (a int primary key, v blob not null, vector index(v));
---error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
-alter table t modify a int auto_increment, lock=none;
-drop table t;
+rmdir $targetdir;
