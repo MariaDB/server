@@ -3629,7 +3629,7 @@ int spider_conn_first_link_idx(
   int eligible_link_idx, eligible_links = 0;
   longlong balance_total = 0, balance_threshold;
   double rand_val;
-  int *link_idxs, result;
+  int *link_idxs, result= -1;
   DBUG_ENTER("spider_conn_first_link_idx");
   char *ptr;
   /* Allocate memory for link_idxs */
