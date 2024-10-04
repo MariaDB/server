@@ -1491,10 +1491,10 @@ bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
   {
     error= rm_temporary_table(share->db_type(), share->path.str);
 
-    if (share->total_keys > share->keys)
+    if (share->hlindexes())
     {
       /* as of now: only one vector index can be here */
-      DBUG_ASSERT(share->total_keys == share->keys + 1);
+      DBUG_ASSERT(share->hlindexes() == 1);
       rm_temporary_table(share->hlindex->db_type(), share->hlindex->path.str);
     }
   }

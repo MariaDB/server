@@ -2402,7 +2402,7 @@ retry_share:
     DBUG_RETURN(true);
   }
   /* hlindexes don't support concurrent insert */
-  if (table->s->total_keys > table->s->keys &&
+  if (table->s->hlindexes() &&
       table_list->lock_type == TL_WRITE_CONCURRENT_INSERT)
     table_list->lock_type= TL_WRITE_DEFAULT;
 
@@ -9834,7 +9834,7 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
 
 int TABLE::hlindex_open(uint nr)
 {
-  DBUG_ASSERT(s->total_keys - s->keys == 1);
+  DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
   if (!hlindex)
   {
@@ -9895,7 +9895,7 @@ int TABLE::hlindex_open(uint nr)
 
 int TABLE::open_hlindexes_for_write()
 {
-  DBUG_ASSERT(s->total_keys - s->keys <= 1);
+  DBUG_ASSERT(s->hlindexes() <= 1);
   for (uint i= s->keys; i < s->total_keys; i++)
     if (hlindex_open(i))
       return 1;
@@ -9914,7 +9914,7 @@ int TABLE::reset_hlindexes()
 
 int TABLE::hlindexes_on_insert()
 {
-  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
     if (int err= mhnsw_insert(this, key_info + s->keys))
       return err;
@@ -9923,7 +9923,7 @@ int TABLE::hlindexes_on_insert()
 
 int TABLE::hlindexes_on_update()
 {
-  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
   {
     int err;
@@ -9938,7 +9938,7 @@ int TABLE::hlindexes_on_update()
 
 int TABLE::hlindexes_on_delete(const uchar *buf)
 {
-  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
   DBUG_ASSERT(buf == record[0] || buf == record[1]); // note: REPLACE
   if (hlindex && hlindex->in_use)
     if (int err= mhnsw_invalidate(this, buf, key_info + s->keys))
@@ -9948,7 +9948,7 @@ int TABLE::hlindexes_on_delete(const uchar *buf)
 
 int TABLE::hlindexes_on_delete_all(bool truncate)
 {
-  DBUG_ASSERT(s->total_keys - s->keys == (hlindex != NULL));
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
   if (hlindex && hlindex->in_use)
     if (int err= mhnsw_delete_all(this, key_info + s->keys, truncate))
       return err;
@@ -9957,7 +9957,7 @@ int TABLE::hlindexes_on_delete_all(bool truncate)
 
 int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
 {
-  DBUG_ASSERT(s->total_keys - s->keys == 1);
+  DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
 
   if (hlindex_open(nr))

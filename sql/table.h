@@ -848,6 +848,8 @@ struct TABLE_SHARE
   uint keys;                            /* Number of KEY's for the engine */
   uint total_keys;                      /* total number of KEY's, including
                                            high level indexes             */
+  uint hlindexes() { return total_keys - keys; }
+
   uint key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
   uint max_key_length, max_unique_length;

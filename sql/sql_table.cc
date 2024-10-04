@@ -7296,7 +7296,7 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
     If we aren't adding/dropping indexes, ha_alter_info->key_count is
     table->s->total_keys, but must be table->s->keys to not confuse the engine.
   */
-  if (table->s->keys < table->s->total_keys)
+  if (table->s->hlindexes())
   {
     if (ha_alter_info->index_drop_count || ha_alter_info->index_add_count)
       ha_alter_info->inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
@@ -12272,7 +12272,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
 
   from->file->info(HA_STATUS_VARIABLE);
   to->file->extra(HA_EXTRA_PREPARE_FOR_ALTER_TABLE);
-  if (!to->s->long_unique_table && to->s->keys == to->s->total_keys)
+  if (!to->s->long_unique_table && !to->s->hlindexes())
   {
     to->file->ha_start_bulk_insert(from->file->stats.records,
                                    ignore ? 0 : HA_CREATE_UNIQUE_INDEX_BY_SORT);
@@ -12400,7 +12400,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   thd->progress.max_counter= from->file->records();
   time_to_report_progress= MY_HOW_OFTEN_TO_WRITE/10;
   /* for now, InnoDB needs the undo log for ALTER IGNORE */
-  if (!ignore && to->s->keys == to->s->total_keys)
+  if (!ignore && !to->s->hlindexes())
     to->file->extra(HA_EXTRA_BEGIN_ALTER_COPY);
 
   if (!(error= info.read_record()))
@@ -12577,7 +12577,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   bulk_insert_started= 0;
-  if (!ignore && to->s->keys == to->s->total_keys && error <= 0)
+  if (!ignore && !to->s->hlindexes() && error <= 0)
   {
     int alt_error= to->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (alt_error > 0)
