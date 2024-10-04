@@ -82,7 +82,7 @@ bool fil_space_t::try_to_close(fil_space_t *ignore_space, bool print_info)
     case FIL_TYPE_IMPORT:
       break;
     case FIL_TYPE_TABLESPACE:
-      if (is_predefined_tablespace(space.id))
+      if (space.id == TRX_SYS_SPACE || srv_is_undo_tablespace(space.id))
         continue;
     }
 

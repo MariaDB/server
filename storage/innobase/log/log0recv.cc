@@ -2184,7 +2184,7 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 {
   uint32_t space_id= page_id.space();
   uint32_t page_no= page_id.page_no();
-  if (is_predefined_tablespace(space_id))
+  if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
   {
     if (srv_immediate_scrub_data_uncompressed)
       fil_space_get(space_id)->free_page(page_no, freed);
@@ -2719,7 +2719,7 @@ restart:
       continue;
     }
     else if (storing == YES && file_checkpoint &&
-             !is_predefined_tablespace(space_id))
+             space_id != TRX_SYS_SPACE && !srv_is_undo_tablespace(space_id))
     {
       recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
       if (i != recv_spaces.end() && i->first == space_id);
@@ -3066,7 +3066,7 @@ restart:
             goto file_rec_error;
         }
 
-        if (is_predefined_tablespace(space_id))
+        if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
           goto file_rec_error;
         if (fnend - fn < 4 || memcmp(fnend - 4, DOT_IBD, 4))
           goto file_rec_error;
@@ -4321,7 +4321,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	     p != recv_sys.pages.end();) {
 		ut_ad(!p->second.log.empty());
 		const uint32_t space = p->first.space();
-		if (is_predefined_tablespace(space)) {
+		if (space == TRX_SYS_SPACE || srv_is_undo_tablespace(space)) {
 next:
 			p++;
 			continue;

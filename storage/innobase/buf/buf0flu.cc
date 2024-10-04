@@ -1596,7 +1596,7 @@ static ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED,
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed)
 {
   const auto space_id= space->id;
-  ut_ad(space_id <= SRV_SPACE_ID_UPPER_BOUND);
+  ut_ad(space_id < SRV_SPACE_ID_UPPER_BOUND);
 
   bool may_have_skipped= false;
   ulint max_n_flush= srv_io_capacity;
