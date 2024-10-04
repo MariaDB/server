@@ -829,7 +829,7 @@ static int unlock_lock_and_free_resource(WT_THD *thd, WT_RESOURCE *rc)
 
   if (rc->owners.elements || rc->waiter_count)
   {
-    DBUG_PRINT("wt", ("nothing to do, %u owners, %u waiters",
+    DBUG_PRINT("wt", ("nothing to do, %zu owners, %u waiters",
                       rc->owners.elements, rc->waiter_count));
     rc_unlock(rc);
     DBUG_RETURN(0);
@@ -1142,4 +1142,3 @@ void wt_thd_release(WT_THD *thd, const WT_RESOURCE_ID *resid)
     reset_dynamic(&thd->my_resources);
   DBUG_VOID_RETURN;
 }
-

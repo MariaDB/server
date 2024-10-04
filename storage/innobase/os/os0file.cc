@@ -4030,7 +4030,8 @@ bool fil_node_t::read_page0()
                                      (flags & ~FSP_FLAGS_MEM_MASK)))
     {
 invalid:
-      sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
+      sql_print_error("InnoDB: Expected tablespace flags 0x%" PRIx32
+                      " but found 0x%" PRIx32
                       " in the file %s", space->flags, flags, name);
       return false;
     }
