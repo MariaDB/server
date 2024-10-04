@@ -50,6 +50,7 @@ connection default;
 disconnect u1;
 drop user u1@localhost;
 drop database mysqltest1;
+use test;
 
 --echo #
 --echo # MDEV-22313: Neither SHOW CREATE USER nor SHOW GRANTS prints a user's default role
