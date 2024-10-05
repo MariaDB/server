@@ -3931,7 +3931,9 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
          key_part < key_part_end;
          key_part++)
     {
-      Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+      /* &-reference is important for the update of TABLE->field */
+      Field *&field= outparam->field[key_part->fieldnr - 1];
+      key_part->field= field;
       if (field->key_length() != key_part->length &&
           !(field->flags & BLOB_FLAG))
       {

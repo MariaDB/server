@@ -2683,12 +2683,21 @@ end_create:
   DBUG_RETURN(thd->is_error());
 }
 
-#define memdup_vcol(thd, vcol)                                            \
-  if (vcol)                                                               \
-  {                                                                       \
-    (vcol)= (Virtual_column_info*)(thd)->memdup((vcol), sizeof(*(vcol))); \
-    (vcol)->expr= NULL;                                                   \
+static inline
+bool memdup_vcol(THD *thd, Virtual_column_info *&vcol)
+{
+  if (vcol)
+  {
+    vcol= (Virtual_column_info*)(thd->memdup(vcol, sizeof(*vcol)));
+    if (!vcol)
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
+    vcol->expr= NULL;
   }
+  return false;
+}
 
 /**
   As we can't let many client threads modify the same TABLE
@@ -2829,9 +2838,12 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     (*field)->move_field_offset(adjust_ptrs);	// Point at copy->record[0]
     (*field)->flags|= ((*org_field)->flags & LONG_UNIQUE_HASH_FIELD);
     (*field)->invisible= (*org_field)->invisible;
-    memdup_vcol(client_thd, (*field)->vcol_info);
-    memdup_vcol(client_thd, (*field)->default_value);
-    memdup_vcol(client_thd, (*field)->check_constraint);
+    if (memdup_vcol(client_thd, (*field)->vcol_info))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->default_value))
+      goto error;
+    if (memdup_vcol(client_thd, (*field)->check_constraint))
+      goto error;
     if (*org_field == found_next_number_field)
       (*field)->table->found_next_number_field= *field;
   }
