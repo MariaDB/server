@@ -78,8 +78,7 @@ int maria_status(MARIA_HA *info, register MARIA_INFO *x, uint flag)
     x->filenr	 = info->dfile.file;
     x->options	 = share->options;
     x->create_time=share->state.create_time;
-    x->reflength= maria_get_pointer_length(share->base.max_data_file_length,
-                                        maria_data_pointer_size);
+    x->reflength= share->base.rec_reflength;
     x->record_offset= (info->s->data_file_type == STATIC_RECORD ?
                        share->base.pack_reclength: 0);
     x->sortkey= -1;				/* No clustering */
