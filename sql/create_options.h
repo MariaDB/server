@@ -46,6 +46,18 @@ public:
    {
      return my_charset_utf8mb3_general1400_as_ci.streq(*this, rhs);
    }
+   uint find_in_list(const char *str) const
+   {
+      const char *end= str;
+      for (int num= 0; *end; num++)
+      {
+        for (end=str; *end && *end != ','; end++) /* no-op */;
+        if (streq(Lex_cstring(str, end)))
+          return num;
+        str= end + 1;
+      }
+      return UINT_MAX;
+   }
  };
  public:
   Name name;
