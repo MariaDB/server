@@ -114,14 +114,15 @@ bool parse_engine_part_options(THD *thd, TABLE *table);
 bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
-                       bool suppress_warning, MEM_ROOT *root);
+                       bool suppress_warning, bool create, MEM_ROOT *root);
 
 static inline bool parse_option_list(THD* thd, handlerton *hton,
          void *option_struct, engine_option_value **option_list,
-         ha_create_table_option *rules, bool suppress_warning, MEM_ROOT *root)
+         ha_create_table_option *rules, bool suppress_warning, bool create,
+         MEM_ROOT *root)
 {
   return parse_option_list(thd, hton2plugin[hton->slot], option_struct,
-                           option_list, rules, suppress_warning, root);
+                           option_list, rules, suppress_warning, create, root);
 }
 
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
