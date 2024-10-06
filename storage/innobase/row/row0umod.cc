@@ -1210,9 +1210,8 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		dict_sys.freeze(SRW_LOCK_CALL);
+		const Scope_freeze_dict_sys freeze_dict_sys{dict_sys SRW_LOCK_CALL2};
 		node->table = dict_sys.acquire_temporary_table(table_id);
-		dict_sys.unfreeze();
 	} else {
 		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
