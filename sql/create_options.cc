@@ -27,6 +27,8 @@
 
 #define FRM_QUOTED_VALUE 0x8000U
 
+static const char *bools="NO,OFF,0,YES,ON,1";
+
 /**
   Links this item to the given list end
 
@@ -125,8 +127,7 @@ static bool set_one_value(ha_create_table_option *opt,
 {
   DBUG_ENTER("set_one_value");
   DBUG_PRINT("enter", ("opt: %p type: %u name '%s' value: '%s'",
-                       opt,
-                       opt->type, opt->name,
+                       opt, opt->type, opt->name,
                        (value->str ? value->str : "<DEFAULT>")));
   switch (opt->type)
   {
@@ -172,29 +173,17 @@ static bool set_one_value(ha_create_table_option *opt,
     }
   case HA_OPTION_TYPE_ENUM:
     {
-      uint *val= (uint *)value_ptr(base, opt), num;
+      uint *val= (uint *)value_ptr(base, opt);
 
       *val= (uint) opt->def_value;
       if (!value->str)
         DBUG_RETURN(0);
 
-      const char *start= opt->values, *end;
-
-      num= 0;
-      while (*start)
+      uint num= value->find_in_list(opt->values);
+      if (num != UINT_MAX)
       {
-        for (end=start;
-             *end && *end != ',';
-             end++) /* no-op */;
-        if (value->streq(Lex_cstring(start, end)))
-        {
-          *val= num;
-          DBUG_RETURN(0);
-        }
-        if (*end)
-          end++;
-        start= end;
-        num++;
+        *val= num;
+        DBUG_RETURN(0);
       }
 
       DBUG_RETURN(report_wrong_value(thd, opt->name, value->str,
@@ -208,20 +197,11 @@ static bool set_one_value(ha_create_table_option *opt,
       if (!value->str)
         DBUG_RETURN(0);
 
-      if (value->streq("NO"_LEX_CSTRING) ||
-          value->streq("OFF"_LEX_CSTRING) ||
-          value->streq("0"_LEX_CSTRING))
+      uint num= value->find_in_list(bools);
+      if (num != UINT_MAX)
       {
-        *val= FALSE;
-        DBUG_RETURN(FALSE);
-      }
-
-      if (value->streq("YES"_LEX_CSTRING) ||
-          value->streq("ON"_LEX_CSTRING) ||
-          value->streq("1"_LEX_CSTRING))
-      {
-        *val= TRUE;
-        DBUG_RETURN(FALSE);
+        *val= num > 2;
+        DBUG_RETURN(0);
       }
 
       DBUG_RETURN(report_wrong_value(thd, opt->name, value->str,
