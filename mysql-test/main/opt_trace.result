@@ -1431,7 +1431,7 @@ EXPLAIN SELECT DISTINCT a FROM t1	{
                   ],
                   "best_covering_index_scan": {
                     "index": "a",
-                    "cost": 9.123706862,
+                    "cost": 9.118658462,
                     "chosen": true
                   },
                   "group_index_range": {
@@ -2387,7 +2387,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 180,
-                        "cost": 0.223677504,
+                        "cost": 0.223437104,
                         "chosen": false,
                         "cause": "cost"
                       },
@@ -2434,7 +2434,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                   },
                   {
                     "key": "a_c",
-                    "build_cost": 0.024214742,
+                    "build_cost": 0.023974342,
                     "rows": 180
                   }
                 ]
@@ -2479,7 +2479,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                           "index": "a_c",
                           "used_range_estimates": true,
                           "rows": 180,
-                          "cost": 0.222922562,
+                          "cost": 0.222886962,
                           "chosen": true
                         },
                         {
@@ -2567,7 +2567,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "direction": 1,
                       "rows_to_examine": 4.390243902,
                       "range_scan": true,
-                      "scan_cost": 0.023415994,
+                      "scan_cost": 0.023390252,
                       "chosen": true
                     },
                     {
@@ -2608,7 +2608,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 180,
-                        "cost": 0.223677504,
+                        "cost": 0.223437104,
                         "cost_with_limit": 0.002574553,
                         "chosen": true
                       }
@@ -2630,7 +2630,7 @@ explain  select * from t1 where a=1 and b=2 order by c limit 1	{
                       "ranges": ["(1) <= (a) <= (1)"]
                     },
                     "rows_for_plan": 180,
-                    "cost_for_plan": 0.223677504,
+                    "cost_for_plan": 0.223437104,
                     "chosen": true
                   }
                 }
@@ -13245,7 +13245,7 @@ EXPLAIN
 {
   "query_block": {
     "select_id": 1,
-    "cost": 2.662022424,
+    "cost": 2.661782024,
     "nested_loop": [
       {
         "table": {
@@ -13277,7 +13277,7 @@ EXPLAIN
           },
           "loops": 3,
           "rows": 1000,
-          "cost": 2.651517609,
+          "cost": 2.651277209,
           "filtered": 43.11999893,
           "attached_condition": "t1.b < 5000 and t1.c < 1000"
         }
@@ -13427,7 +13427,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                         "using_mrr": false,
                         "index_only": false,
                         "rows": 4312,
-                        "cost": 5.325149412,
+                        "cost": 5.324909012,
                         "chosen": false,
                         "cause": "cost"
                       }
@@ -13448,7 +13448,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                 "rowid_filters": [
                   {
                     "key": "b",
-                    "build_cost": 0.611957109,
+                    "build_cost": 0.611716709,
                     "rows": 4312
                   }
                 ]
@@ -13554,7 +13554,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                               "filter": {
                                 "rowid_filter_index": "b",
                                 "index_only_cost": 0.092096742,
-                                "filter_startup_cost": 0.611957109,
+                                "filter_startup_cost": 0.611716709,
                                 "find_key_and_filter_lookup_cost": 0.094772697,
                                 "filter_selectivity": 0.4312,
                                 "original_rows": 1000,
@@ -13564,11 +13564,11 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                                 "original_found_rows_cost": 1.111284,
                                 "with_filter_found_rows_cost": 0.479185661,
                                 "org_cost": 3.706142226,
-                                "filter_cost": 2.651517609,
+                                "filter_cost": 2.651277209,
                                 "filter_used": true
                               },
                               "rows": 431.2,
-                              "cost": 2.651517609,
+                              "cost": 2.651277209,
                               "chosen": true
                             },
                             {
@@ -13659,7 +13659,7 @@ explain format=json select * from three, t1 where t1.a=three.a and t1.b<5000 and
                           "using_mrr": false,
                           "index_only": false,
                           "rows": 4312,
-                          "cost": 5.325149412,
+                          "cost": 5.324909012,
                           "chosen": false,
                           "cause": "cost"
                         }
