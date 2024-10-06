@@ -955,7 +955,7 @@ EXPLAIN
                 "filtered": 10
               },
               "buffer_type": "flat",
-              "buffer_size": "206",
+              "buffer_size": "195",
               "join_type": "BNL",
               "attached_condition": "t1.b = t2.b and t1.a = t2.a"
             }
@@ -2014,7 +2014,7 @@ EXPLAIN
             "index_condition_bka": "t4.b + 1 <= t3.b + 1"
           },
           "buffer_type": "flat",
-          "buffer_size": "400",
+          "buffer_size": "380",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan"
         }
@@ -2077,7 +2077,7 @@ ANALYZE
             "r_filtered": 100
           },
           "buffer_type": "flat",
-          "buffer_size": "400",
+          "buffer_size": "380",
           "join_type": "BKA",
           "mrr_type": "Rowid-ordered scan",
           "r_loops": 10,
@@ -2265,7 +2265,7 @@ EXPLAIN
                 "filtered": 100
               },
               "buffer_type": "flat",
-              "buffer_size": "152",
+              "buffer_size": "141",
               "join_type": "BNL",
               "attached_condition": "t2.a = t0.a"
             }
