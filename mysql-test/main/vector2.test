@@ -1,6 +1,7 @@
 #
 # tests that don't need to be run on many engines
 #
+--source include/have_sequence.inc
 
 --echo # Aria doesn't support VECTOR yet
 --error ER_ILLEGAL_HA_CREATE_OPTION
@@ -55,3 +56,17 @@ create table t (a int, v blob not null, vector index(v)) engine=myisam;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
 drop table t;
+
+--echo #
+--echo # MDEV-35078 Server crash or ASAN errors in mhnsw_insert
+--echo #
+set session mhnsw_max_edges_per_node = 4;
+create table t (a int, v blob not null);
+insert into t select seq, x'00000000' from seq_1_to_10;
+alter table t add vector(v);
+show create table t;
+create table x like t;
+show create table x;
+insert into t values (11,x'00000000');
+drop table t, x;
+set session mhnsw_max_edges_per_node = default;
