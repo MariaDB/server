@@ -3035,7 +3035,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
-                          thd->mem_root))
+                          sql_field->field == NULL, thd->mem_root))
       DBUG_RETURN(TRUE);
     /*
       For now skip fields that are not physically stored in the database
@@ -3320,7 +3320,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     key_info->option_list= key->option_list;
     if (parse_option_list(thd, index_plugin, &key_info->option_struct,
                           &key_info->option_list, index_options,
-                          FALSE, thd->mem_root))
+                          FALSE, !key->old, thd->mem_root))
       DBUG_RETURN(TRUE);
 
     if (key->type == Key::FULLTEXT)
@@ -3916,6 +3916,7 @@ without_overlaps_err:
   if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
                           &create_info->option_list,
                           file->partition_ht()->table_options, FALSE,
+                          create_table_mode > C_ALTER_TABLE,
                           thd->mem_root))
       DBUG_RETURN(TRUE);
 

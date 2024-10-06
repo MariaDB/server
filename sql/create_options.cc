@@ -220,6 +220,7 @@ static const size_t ha_option_type_sizeof[]=
   @param option_list      list of options given by user
   @param rules            list of option description by engine
   @param suppress_warning second parse so we do not need warnings
+  @param create           a new object is created, use current sysvar value
   @param root             MEM_ROOT where allocate memory
 
   @retval TRUE  Error
@@ -229,7 +230,7 @@ static const size_t ha_option_type_sizeof[]=
 bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
-                       bool suppress_warning, MEM_ROOT *root)
+                       bool suppress_warning, bool create, MEM_ROOT *root)
 {
   ha_create_table_option *opt;
   size_t option_struct_size= 0;
@@ -276,7 +277,7 @@ bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
 
       /*
         Okay, here's the logic for sysvar options:
-        1. When we parse CREATE TABLE and sysvar option was not explicitly
+        1. When an object is created and sysvar option was not explicitly
            mentioned we add it to the list as if it was specified with the
            *current* value of the underlying sysvar.
         2. But only if the underlying sysvar value is different from the
@@ -298,12 +299,12 @@ bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
         Note that if the option was set explicitly (not =DEFAULT) it wouldn't
         have passes the if() condition above.
       */
-      if (!suppress_warning && opt->var &&
-          (thd->lex->sql_command == SQLCOM_CREATE_TABLE || seen))
+      if (opt->var && (create || seen))
       {
         // take a value from the variable and add it to the list
         sys_var *sysvar= find_plugin_sysvar(plugin, opt->var);
         DBUG_ASSERT(sysvar);
+        DBUG_ASSERT(!suppress_warning); // always warn when creating
 
         if (!sysvar->session_is_default(thd))
         {
@@ -438,14 +439,14 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   DBUG_ENTER("parse_engine_table_options");
 
   if (parse_option_list(thd, ht, &share->option_struct, & share->option_list,
-                        ht->table_options, TRUE, root))
+                        ht->table_options, TRUE, FALSE, root))
     DBUG_RETURN(TRUE);
 
   for (Field **field= share->field; *field; field++)
   {
     if (parse_option_list(thd, ht, &(*field)->option_struct,
                           & (*field)->option_list,
-                          ht->field_options, TRUE, root))
+                          ht->field_options, TRUE, FALSE, root))
       DBUG_RETURN(TRUE);
   }
 
@@ -453,7 +454,7 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   {
     if (parse_option_list(thd, ht, &share->key_info[index].option_struct,
                           & share->key_info[index].option_list,
-                          ht->index_options, TRUE, root))
+                          ht->index_options, TRUE, FALSE, root))
       DBUG_RETURN(TRUE);
   }
 
@@ -497,7 +498,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
     {
       ht= part_elem->engine_type;
       if (parse_option_list(thd, ht, &part_elem->option_struct,
-                            &tmp_option_list, ht->table_options, TRUE, root))
+                      &tmp_option_list, ht->table_options, TRUE, FALSE, root))
         DBUG_RETURN(TRUE);
     }
     else
@@ -507,7 +508,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
       {
         ht= sub_part_elem->engine_type;
         if (parse_option_list(thd, ht, &sub_part_elem->option_struct,
-                              &tmp_option_list, ht->table_options, TRUE, root))
+                      &tmp_option_list, ht->table_options, TRUE, FALSE, root))
           DBUG_RETURN(TRUE);
       }
     }
