@@ -1604,7 +1604,8 @@ static void kill_thread(THD *thd)
 
 
 /**
-  First shutdown everything but slave threads and binlog dump connections
+  First shutdown everything but slave threads, binlog dump connections
+  and shutdown triggers
 */
 static my_bool kill_thread_phase_1(THD *thd, void *)
 {
@@ -1612,6 +1613,8 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
                       (ulong) thd->thread_id));
 
   if (thd->slave_thread || thd->is_binlog_dump_thread())
+    return 0;
+  if (thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
     return 0;
 
   if (DBUG_IF("only_kill_system_threads") && !thd->system_thread)
@@ -1625,7 +1628,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
 
 
 /**
-  Last shutdown binlog dump connections
+  Last shutdown binlog dump connections and shutdown triggers
 */
 static my_bool kill_thread_phase_2(THD *thd, void *)
 {
@@ -1646,6 +1649,9 @@ static my_bool kill_thread_phase_2(THD *thd, void *)
 /* associated with the kill thread phase 1 */
 static my_bool warn_threads_active_after_phase_1(THD *thd, void *)
 {
+  if (thd->system_thread == SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER)
+    return 0;
+
   if (!thd->is_binlog_dump_thread() && thd->vio_ok())
     sql_print_warning("%s: Thread %llu (user : '%s') did not exit\n", my_progname,
                       (ulonglong) thd->thread_id,
@@ -3520,6 +3526,7 @@ SHOW_VAR com_status_vars[]= {
   {"drop_table",           STMT_STATUS(SQLCOM_DROP_TABLE)},
   {"drop_temporary_table", COM_STATUS(com_drop_tmp_table)},
   {"drop_trigger",         STMT_STATUS(SQLCOM_DROP_TRIGGER)},
+  {"drop_trigger_server",  STMT_STATUS(SQLCOM_DROP_TRIGGER_SERVER)},
   {"drop_user",            STMT_STATUS(SQLCOM_DROP_USER)},
   {"drop_view",            STMT_STATUS(SQLCOM_DROP_VIEW)},
   {"empty_query",          STMT_STATUS(SQLCOM_EMPTY_QUERY)},
@@ -6115,6 +6122,8 @@ int mysqld_main(int argc, char **argv)
       unireg_abort(1);
   }
 
+  Events::search_n_execute_events(Event_parse_data::STARTUP);
+
   disable_log_notes= 0; /* Startup done, now we can give notes again */
 
   if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
@@ -6171,6 +6180,7 @@ int mysqld_main(int argc, char **argv)
 #endif /* _WIN32 */
 
   /* Shutdown requested */
+  Events::search_n_execute_events(Event_parse_data::SHUTDOWN);
   char *user= shutdown_user.load(std::memory_order_relaxed);
   sql_print_information(ER_DEFAULT(ER_NORMAL_SHUTDOWN), my_progname,
                         user ? user : "unknown");

@@ -564,6 +564,7 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_DROP_VIEW]=      CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_TRIGGER]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_TRIGGER]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
+  sql_command_flags[SQLCOM_DROP_TRIGGER_SERVER]= CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_CREATE_EVENT]=   CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_ALTER_EVENT]=    CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
   sql_command_flags[SQLCOM_DROP_EVENT]=     CF_CHANGES_DATA | CF_AUTO_COMMIT_TRANS;
@@ -5146,6 +5147,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
                                    &lex->spname->m_name);
     break;
   case SQLCOM_DROP_EVENT:
+  case SQLCOM_DROP_TRIGGER_SERVER:
     if (!(res= Events::drop_event(thd,
                                   &lex->spname->m_db, &lex->spname->m_name,
                                   lex->if_exists())))

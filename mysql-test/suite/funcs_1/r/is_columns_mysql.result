@@ -54,6 +54,7 @@ def	mysql	event	db	1	''	NO	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(6
 def	mysql	event	db_collation	21	NULL	YES	char	64	192	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	char(64)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	definer	4	''	NO	varchar	384	1152	NULL	NULL	NULL	utf8mb3	utf8mb3_bin	varchar(384)			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	ends	12	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
+def	mysql	event	event_kind	23	'SCHEDULE'	NO	enum	8	24	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('SCHEDULE','STARTUP','SHUTDOWN')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	execute_at	5	NULL	YES	datetime	NULL	NULL	NULL	NULL	0	NULL	NULL	datetime			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	interval_field	7	NULL	YES	enum	18	54	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	enum('YEAR','QUARTER','MONTH','DAY','HOUR','MINUTE','WEEK','SECOND','MICROSECOND','YEAR_MONTH','DAY_HOUR','DAY_MINUTE','DAY_SECOND','HOUR_MINUTE','HOUR_SECOND','MINUTE_SECOND','DAY_MICROSECOND','HOUR_MICROSECOND','MINUTE_MICROSECOND','SECOND_MICROSECOND')			select,insert,update,references		NEVER	NULL	NO	NO
 def	mysql	event	interval_value	6	NULL	YES	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL	NO	NO
@@ -394,6 +395,7 @@ NULL	mysql	event	originator	int	NULL	NULL	NULL	NULL	int(10) unsigned
 3.0000	mysql	event	collation_connection	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 3.0000	mysql	event	db_collation	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 1.0000	mysql	event	body_utf8	longblob	4294967295	4294967295	NULL	NULL	longblob
+3.0000	mysql	event	event_kind	enum	8	24	utf8mb3	utf8mb3_general_ci	enum('SCHEDULE','STARTUP','SHUTDOWN')
 3.0000	mysql	func	name	char	64	192	utf8mb3	utf8mb3_bin	char(64)
 NULL	mysql	func	ret	tinyint	NULL	NULL	NULL	NULL	tinyint(1)
 3.0000	mysql	func	dl	char	128	384	utf8mb3	utf8mb3_bin	char(128)
