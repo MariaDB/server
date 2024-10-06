@@ -31,7 +31,7 @@ protected:
   int m_ProgressTotal;
 
   //ProgressBar related: current service being upgraded
-  int m_ProgressCurrent; 
+  int m_ProgressCurrent;
 
 protected:
   HICON m_hIcon;
