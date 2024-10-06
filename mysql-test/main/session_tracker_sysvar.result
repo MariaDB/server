@@ -28,3 +28,12 @@ drop table t1;
 -- last_gtid: 0-1-1002
 
 reset master;
+#
+# MDEV-35086 Trying to lock mutex when the mutex was already locked (session_tracker.cc), server hangs
+#
+set session_track_system_variables='*';
+alter table t1 nowait force;
+ERROR 42S02: Table 'test.t1' doesn't exist
+use mysql;
+set session_track_system_variables=default;
+# End of 10.5 tests
