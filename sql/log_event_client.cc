@@ -3284,19 +3284,19 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
 {
   switch (type) {
   case MYSQL_TYPE_LONG:
-    my_snprintf(typestr, typestr_length, "%s", "INT");
+    strmake(typestr, "INT", typestr_length-1);
     break;
   case MYSQL_TYPE_TINY:
-    my_snprintf(typestr, typestr_length, "TINYINT");
+    strmake(typestr, "TINYINT", typestr_length-1);
     break;
   case MYSQL_TYPE_SHORT:
-    my_snprintf(typestr, typestr_length, "SMALLINT");
+    strmake(typestr, "SMALLINT", typestr_length-1);
     break;
   case MYSQL_TYPE_INT24:
-    my_snprintf(typestr, typestr_length, "MEDIUMINT");
+    strmake(typestr, "MEDIUMINT", typestr_length-1);
     break;
   case MYSQL_TYPE_LONGLONG:
-    my_snprintf(typestr, typestr_length, "BIGINT");
+    strmake(typestr, "BIGINT", typestr_length-1);
     break;
   case MYSQL_TYPE_NEWDECIMAL:
       my_snprintf(typestr, typestr_length, "DECIMAL(%d,%d)",
@@ -3304,11 +3304,11 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
       (*meta_ptr)+= 2;
       break;
   case MYSQL_TYPE_FLOAT:
-    my_snprintf(typestr, typestr_length, "FLOAT");
+    strmake(typestr, "FLOAT", typestr_length-1);
     (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DOUBLE:
-    my_snprintf(typestr, typestr_length, "DOUBLE");
+    strmake(typestr, "DOUBLE", typestr_length-1);
     (*meta_ptr)++;
     break;
   case MYSQL_TYPE_BIT:
@@ -3320,36 +3320,36 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIMESTAMP(%d)", **meta_ptr);
     else
-      my_snprintf(typestr, typestr_length, "TIMESTAMP");
+      strmake(typestr, "TIMESTAMP", typestr_length-1);
     (*meta_ptr)++;
     break;
   case MYSQL_TYPE_DATETIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "DATETIME(%d)", **meta_ptr);
     else
-      my_snprintf(typestr, typestr_length, "DATETIME");
+      strmake(typestr, "DATETIME", typestr_length-1);
     (*meta_ptr)++;
     break;
   case MYSQL_TYPE_TIME2:
     if (**meta_ptr != 0)
       my_snprintf(typestr, typestr_length, "TIME(%d)", **meta_ptr);
     else
-      my_snprintf(typestr, typestr_length, "TIME");
+      strmake(typestr, "TIME", typestr_length-1);
     (*meta_ptr)++;
     break;
   case MYSQL_TYPE_NEWDATE:
   case MYSQL_TYPE_DATE:
-    my_snprintf(typestr, typestr_length, "DATE");
+    strmake(typestr, "DATE", typestr_length-1);
     break;
   case MYSQL_TYPE_YEAR:
-    my_snprintf(typestr, typestr_length, "YEAR");
+    strmake(typestr, "YEAR", typestr_length-1);
     break;
   case MYSQL_TYPE_ENUM:
-    my_snprintf(typestr, typestr_length, "ENUM");
+    strmake(typestr, "ENUM", typestr_length-1);
     (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_SET:
-    my_snprintf(typestr, typestr_length, "SET");
+    strmake(typestr, "SET", typestr_length-1);
     (*meta_ptr)+= 2;
     break;
   case MYSQL_TYPE_BLOB:
@@ -3404,7 +3404,7 @@ static void get_type_name(uint type, unsigned char** meta_ptr,
         "MULTILINESTRING", "MULTIPOLYGON", "GEOMETRYCOLLECTION"
       };
       if (geometry_type < 8)
-        my_snprintf(typestr, typestr_length, names[geometry_type]);
+        strmake(typestr, names[geometry_type], typestr_length-1);
       else
         my_snprintf(typestr, typestr_length, "INVALID_GEOMETRY_TYPE(%u)",
                     geometry_type);
