@@ -138,6 +138,7 @@ struct dbcontext : public dbcontext_i, private noncopyable {
   bool get_commit_error() override;
   void clear_error() override;
   void close_tables_if() override;
+  void init_thd_for_query() override;
   void table_addref(size_t tbl_id) override;
   void table_release(size_t tbl_id) override;
   void cmd_open(dbcallback_i& cb, const cmd_open_args& args) override;
@@ -473,6 +474,13 @@ dbcontext::close_tables_if()
     table_vec.clear();
     table_map.clear();
   }
+}
+
+void
+dbcontext::init_thd_for_query()
+{
+  thd->set_time();
+  thd->set_query_id(next_query_id());
 }
 
 void
@@ -1115,6 +1123,7 @@ dbcontext::cmd_exec(dbcallback_i& cb, const cmd_exec_args& args)
   }
   ha_rkey_function find_flag = HA_READ_KEY_EXACT;
   db_write_op wrop = db_write_op_none;
+  init_thd_for_query();
   if (args.op.size() == 1) {
     switch (args.op.begin()[0]) {
     case '=':
