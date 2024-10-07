@@ -2380,6 +2380,8 @@ convert_error_code_to_mysql(
 		return(HA_ERR_FTS_TOO_MANY_WORDS_IN_PHRASE);
 	case DB_COMPUTE_VALUE_FAILED:
 		return(HA_ERR_GENERIC); // impossible
+	case DB_LOCK_READ_PAST:
+		return(HA_ERR_NUK_LOCKED);
 	}
 }
 

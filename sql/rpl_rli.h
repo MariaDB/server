@@ -834,12 +834,11 @@ struct rpl_group_info
   };
   uchar killed_for_retry;
   enum enum_exec_flags {
-    HIT_BUSY_INDEX= 0
+    DO_READ_PAST= 0
   };
   /*
-    Being executed replication event's context. It could contain
-    notification from engine such as attempts to lock already acquired
-    index record.
+    Being executed replication event's context. It can contain
+    requests to engine e.g to implement READ-PAST access to non-unique indexes.
   */
   uint32 exec_flags;
 

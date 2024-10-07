@@ -5647,9 +5647,7 @@ extern "C" bool thd_is_slave(const MYSQL_THD thd) {
 /*
   Used by storage engines (currently InnoDB) to report the fact of a non-unique
   index lock by an earlier ordered XA transaction is in the way of the current
-  transaction's operation.
-  Along with the reporting a found incident is remembered in associated with
-  the current THD slave execution context.
+  transaction's operation which is a row-based replication event.
 
   @param thd        THD of the transaction that is trying to lock
   @param other_thd  THD of the actual lock owner
@@ -5662,23 +5660,32 @@ extern "C" bool thd_rpl_xa_non_uniq_index_hit(MYSQL_THD thd,
                                               MYSQL_THD other_thd,
                                               bool is_other_prepared)
 {
-  bool rc= false;
-  rpl_group_info *rg_i=  thd ? thd->rgi_slave : NULL;
+
+  DBUG_ASSERT(thd);
+
+  rpl_group_info *rg_i=  thd->rgi_slave;
   rpl_group_info *rg_o=  other_thd ? other_thd->rgi_slave : NULL;
+
+  DBUG_ASSERT(rg_i->exec_flags |= 1 << rpl_group_info::DO_READ_PAST);
+  DBUG_ASSERT(rg_i->is_row_event_execution());
   /*
     Return to the caller the fact of the non-unique index wait lock
     conflicts with one of a prepared state transaction.
   */
-  if (rg_i && rg_i->is_row_event_execution() &&
-      ((!other_thd && is_other_prepared) ||
-       (other_thd->transaction->xid_state.get_state_code() != XA_NO_STATE &&
-        (rg_o && rg_o->gtid_sub_id < rg_i->gtid_sub_id))))
-  {
-    rg_i->exec_flags |= 1 << rpl_group_info::HIT_BUSY_INDEX;
-    rc= true;
-  }
+  return rg_i &&
+	 ((!other_thd && is_other_prepared) ||
+	  (other_thd->transaction->xid_state.get_state_code() != XA_NO_STATE &&
+           (rg_o && rg_o->gtid_sub_id < rg_i->gtid_sub_id)));
+}
 
-  return rc;
+/*
+  Return true when the server layer is in the read-past mode.
+*/
+extern "C" bool thd_rpl_check_read_past(MYSQL_THD thd)
+{
+  rpl_group_info *rgi=  thd ? thd->rgi_slave : NULL;
+  return (rgi && rgi->is_row_event_execution() &&
+	  rgi->exec_flags & (1 << rpl_group_info::DO_READ_PAST));
 }
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)

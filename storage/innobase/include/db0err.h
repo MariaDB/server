@@ -167,6 +167,8 @@ enum dberr_t {
 	DB_END_OF_INDEX,
 	DB_NOT_FOUND,			/*!< Generic error code for "Not found"
 					type of errors */
+	DB_LOCK_READ_PAST,		/*!< Lock is not granted wait is
+					ignored. */
 };
 
 #endif

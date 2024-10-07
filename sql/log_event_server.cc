@@ -8105,13 +8105,15 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
    */ 
   store_record(table,record[1]);    
 
+  bool is_index_unique= true;
   if (m_key_info)
   {
     bool skip_first_compare= false;
-    bool is_index_unique=
+    is_index_unique=
       (table->key_info->flags & HA_NOSAME) &&
       !(table->key_info->flags & (HA_NULL_PART_KEY));
-
+    if (!is_index_unique)
+      rgi->exec_flags= 1 << rpl_group_info::DO_READ_PAST;
     DBUG_PRINT("info",("locating record using key #%u [%s] (index_read)",
                        m_key_nr, m_key_info->name.str));
     /* We use this to test that the correct key is used in test cases. */
@@ -8156,10 +8158,9 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
                                                         HA_READ_KEY_EXACT))))
     {
       DBUG_PRINT("info",("no record matching the key found in the table"));
-      if (error == HA_ERR_LOCK_WAIT_TIMEOUT && !is_index_unique &&
-          (rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)))
+      if (error == HA_ERR_NUK_LOCKED)
       {
-        rgi->exec_flags &= ~(1 << rpl_group_info::HIT_BUSY_INDEX);
+	DBUG_ASSERT(!is_index_unique);
         skip_first_compare= true;
       }
       else
@@ -8247,19 +8248,16 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
         DBUG_PRINT("info",("no record matching the given row found"));
         if (error == HA_ERR_END_OF_FILE)
           error= end_of_file_error(rgi);
-        else if (error == HA_ERR_LOCK_WAIT_TIMEOUT && !is_index_unique &&
-                 (rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)))
+        else if (error == HA_ERR_NUK_LOCKED)
         {
-          rgi->exec_flags &= ~(1 << rpl_group_info::HIT_BUSY_INDEX);
+	  DBUG_ASSERT(!is_index_unique);
+
           continue;
         }
-        DBUG_ASSERT(!(rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)));
-
         table->file->print_error(error, MYF(0));
         table->file->ha_index_end();
         goto end;
       }
-      DBUG_ASSERT(!(rgi->exec_flags & (1 << rpl_group_info::HIT_BUSY_INDEX)));
     }
   }
   else
@@ -8315,7 +8313,9 @@ int Rows_log_event::find_row(rpl_group_info *rgi)
     DBUG_ASSERT(error == HA_ERR_END_OF_FILE || error == 0);
   }
 
-end:
+ end:
+  if (!is_index_unique)
+    rgi->exec_flags &= ~(1 << rpl_group_info::DO_READ_PAST);
   if (is_table_scan || is_index_scan)
     issue_long_find_row_warning(get_general_type_code(), m_table->alias.c_ptr(), 
                                 is_index_scan, rgi);

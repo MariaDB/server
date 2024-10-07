@@ -419,6 +419,8 @@ ut_strerr(
 		return ("File system does not support punch hole (trim) operation.");
 	case DB_PAGE_CORRUPTED:
 		return("Page read from tablespace is corrupted.");
+	case DB_LOCK_READ_PAST:
+		return("Lock is not granted, wait for it is not done either");
 
 	/* do not add default: in order to produce a warning if new code
 	is added to the enum but not added here */

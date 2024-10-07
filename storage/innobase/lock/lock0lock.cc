@@ -79,6 +79,7 @@ extern "C" bool thd_is_slave(const MYSQL_THD thd);
 extern "C" bool thd_rpl_xa_non_uniq_index_hit(MYSQL_THD thd,
                                               MYSQL_THD other_thd,
                                               bool is_other_prepared);
+extern "C" bool thd_rpl_check_read_past(MYSQL_THD thd);
 #endif
 
 /** Describes of how lock_sys was latched */
@@ -1935,11 +1936,15 @@ ATTRIBUTE_NOINLINE MY_ATTRIBUTE((nonnull, warn_unused_result))
 /** Report lock waits to parallel replication. Sets
 trx->error_state= DB_DEADLOCK if trx->lock.was_chosen_as_deadlock_victim was
 set when lock_sys.wait_mutex was unlocked.
-@param trx       transaction that may be waiting for a lock
-@param wait_timeout  either remains or can be zeroed
+Also report with @nowait_arg the fact of non-unique index lock by a slave
+prepared user xa transaction is in the way of the current transaction.
+
+@param         trx        transaction that may be waiting for a lock
+@param[in,out] nowait_arg is set to true, when thd_rpl_xa_non_uniq_index_hit
+                          has returned non-zero at least once
 @return lock being waited for (may have been replaced by an equivalent one)
 @retval nullptr if no lock is being waited for */
-static lock_t *lock_wait_rpl_report(trx_t *trx, ulong& wait_timeout)
+static lock_t *lock_wait_rpl_report(trx_t *trx, bool& nowait_arg)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->state == TRX_STATE_ACTIVE);
@@ -1967,7 +1972,7 @@ func_exit:
       if (!nowait && trx->lock.was_chosen_as_deadlock_victim)
         trx->error_state= DB_DEADLOCK;
       if (count_non_unique_index > 0)
-        wait_timeout= 0;
+        nowait_arg= true;
       return wait_lock;
     }
     ut_ad(wait_lock->is_waiting());
@@ -2007,7 +2012,9 @@ func_exit:
         if (lock->trx->mysql_thd != thd)
         {
           thd_rpl_deadlock_check(thd, lock->trx->mysql_thd);
-          if (!(lock->index->is_unique() && !lock->index->n_nullable))
+          if (count_non_unique_index == 0 &&
+	      !(lock->index->is_unique() && lock->index->n_nullable == 0) &&
+	      thd_rpl_check_read_past(thd))
             count_non_unique_index +=
               thd_rpl_xa_non_uniq_index_hit(thd, lock->trx->mysql_thd,
                                             lock->trx->state ==
@@ -2166,12 +2173,17 @@ dberr_t lock_wait(que_thr_t *thr)
 
 #ifdef HAVE_REPLICATION
   /*
-    innodb_lock_wait_timeout can be zeroed in a specific case of non-unique
-    index locking by slave applier. When that happens no actual waiting for
-    wait_lock is done before the server layer has received the timeout error.
+    In a specific case of a locked non-unique index, the slave applier does not
+    wait to at once return with a status that is essentially DB_SUCCESS except
+    no locking is actually done.
   */
   if (rpl)
-    wait_lock= lock_wait_rpl_report(trx, innodb_lock_wait_timeout);
+  {
+    bool nowait= false;
+    wait_lock= lock_wait_rpl_report(trx, nowait);
+    if (nowait)
+      trx->error_state= DB_LOCK_READ_PAST;
+  }
 #endif
   abstime.MY_tv_sec+= innodb_lock_wait_timeout;
   switch (trx->error_state) {
@@ -2186,6 +2198,7 @@ dberr_t lock_wait(que_thr_t *thr)
     break;
   case DB_DEADLOCK:
   case DB_INTERRUPTED:
+  case DB_LOCK_READ_PAST:
 #endif
     goto end_loop;
   }
@@ -2271,6 +2284,7 @@ end_wait:
   case DB_DEADLOCK:
   case DB_INTERRUPTED:
   case DB_LOCK_WAIT_TIMEOUT:
+  case DB_LOCK_READ_PAST:
     break;
   default:
     ut_ad("invalid state" == 0);
