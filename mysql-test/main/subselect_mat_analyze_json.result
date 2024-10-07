@@ -102,7 +102,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -158,7 +158,7 @@ ANALYZE
         "subqueries": [
           {
             "materialization": {
-              "r_strategy": "index_lookup;constant for partial match",
+              "r_strategy": "null-aware index_lookup",
               "r_loops": 4,
               "r_index_lookups": 3,
               "r_partial_matches": 1,
@@ -215,7 +215,7 @@ ANALYZE
         "subqueries": [
           {
             "materialization": {
-              "r_strategy": "index_lookup;constant for partial match",
+              "r_strategy": "null-aware index_lookup",
               "r_loops": 4,
               "r_index_lookups": 3,
               "r_partial_matches": 1,
@@ -276,7 +276,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -324,7 +324,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -464,7 +464,7 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "query_block": {

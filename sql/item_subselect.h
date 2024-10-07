@@ -1176,8 +1176,8 @@ public:
     PARTIAL_MATCH,  /* Use some partial matching strategy. */
     PARTIAL_MATCH_MERGE, /* Use partial matching through index merging. */
     PARTIAL_MATCH_SCAN,  /* Use partial matching through table scan. */
-    PARTIAL_MATCH_SINGLE_COLUMN, /* Use simplifeid partial matching when
-                                    there is only one field involved. */
+    SINGLE_COLUMN_MATCH, /* Use simplified matching when there is only
+                            one field involved. */
     IMPOSSIBLE      /* Subquery materialization is not applicable. */
   };
 
@@ -1564,13 +1564,25 @@ public:
 };
 
 
-class subselect_single_column_partial_engine:
+/*
+  An engine to handle NULL-aware Materialization for subqueries
+  that compare one column:
+
+    col1 IN (SELECT t2.col2 FROM t2 ...)
+
+  When only one column is used, we need to handle NULL values of
+  col1 and col2 but don't need to perform "partial" matches when only
+  a subset of compared columns is NULL.
+  This allows to save on some data structures.
+*/
+
+class subselect_single_column_match_engine:
     public subselect_partial_match_engine
 {
 protected:
   bool partial_match() override;
 public:
-  subselect_single_column_partial_engine(
+  subselect_single_column_match_engine(
                               subselect_uniquesubquery_engine *engine_arg,
                               TABLE *tmp_table_arg, Item_subselect *item_arg,
                               select_result_interceptor *result_arg,
@@ -1664,8 +1676,8 @@ private:
         return "index_lookup;array merge for partial match";
       case Strategy::PARTIAL_MATCH_SCAN:
         return "index_lookup;full scan for partial match";
-      case Strategy::PARTIAL_MATCH_SINGLE_COLUMN:
-        return "index_lookup;constant for partial match";
+      case Strategy::SINGLE_COLUMN_MATCH:
+        return "null-aware index_lookup";
       default:
         return "unsupported";
     }

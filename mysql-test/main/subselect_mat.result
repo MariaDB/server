@@ -3028,36 +3028,26 @@ a
 2
 3
 NULL
-select a from t1 join t2 on a not in (select b from t2);
-a
-select a from t1 left join t2 on a not in (select b from t2);
-a
-1
-2
-3
-NULL
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	0
+2	0
+3	0
+NULL	0
 # Insert some not-NULL values
 insert into t2 values (3), (4);
 select * from t1 where a not in (select b from t2);
 a
 1
 2
-select a from t1 join t2 on a not in (select b from t2);
-a
-1
-1
-2
-2
-select a from t1 left join t2 on a not in (select b from t2);
-a
-1
-1
-2
-2
-3
-NULL
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	0
+2	0
+3	1
+NULL	NULL
 # Ensure the correct strategy is tested
-analyze format=json  select * from t1 where a not in (select b from t2);
+analyze format=json select * from t1 where a not in (select b from t2);
 ANALYZE
 {
   "query_block": {
@@ -3079,7 +3069,53 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "r_partial_matches": 1,
+          "query_block": {
+            "select_id": 2,
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 2,
+              "r_rows": 2,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze format=json select a, a in (select b from t2) from t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 4,
+      "r_rows": 4,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    },
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "r_partial_matches": 1,
@@ -3108,15 +3144,13 @@ ANALYZE
 insert into t2 values (null);
 select * from t1 where a not in (select b from t2);
 a
-select a from t1 join t2 on a not in (select b from t2);
-a
-select a from t1 left join t2 on a not in (select b from t2);
-a
-1
-2
-3
-NULL
-analyze format=json  select * from t1 where a not in (select b from t2);
+select a, a in (select b from t2) from t1;
+a	a in (select b from t2)
+1	NULL
+2	NULL
+3	1
+NULL	NULL
+analyze format=json select * from t1 where a not in (select b from t2);
 ANALYZE
 {
   "query_block": {
@@ -3138,7 +3172,52 @@ ANALYZE
     "subqueries": [
       {
         "materialization": {
-          "r_strategy": "index_lookup;constant for partial match",
+          "r_strategy": "null-aware index_lookup",
+          "r_loops": 4,
+          "r_index_lookups": 3,
+          "query_block": {
+            "select_id": 2,
+            "r_loops": 1,
+            "r_total_time_ms": "REPLACED",
+            "table": {
+              "table_name": "t2",
+              "access_type": "ALL",
+              "r_loops": 1,
+              "rows": 3,
+              "r_rows": 3,
+              "r_table_time_ms": "REPLACED",
+              "r_other_time_ms": "REPLACED",
+              "filtered": 100,
+              "r_filtered": 100
+            }
+          }
+        }
+      }
+    ]
+  }
+}
+analyze format=json select a, a in (select b from t2) from t1;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "t1",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 4,
+      "r_rows": 4,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 100
+    },
+    "subqueries": [
+      {
+        "materialization": {
+          "r_strategy": "null-aware index_lookup",
           "r_loops": 4,
           "r_index_lookups": 3,
           "query_block": {

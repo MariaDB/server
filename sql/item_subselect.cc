@@ -4981,7 +4981,7 @@ subselect_hash_sj_engine::choose_partial_match_strategy(
   DBUG_ASSERT(strategy == PARTIAL_MATCH);
   if (field_count == 1)
   {
-    strategy= PARTIAL_MATCH_SINGLE_COLUMN;
+    strategy= SINGLE_COLUMN_MATCH;
     return;
   }
 
@@ -5765,12 +5765,12 @@ int subselect_hash_sj_engine::exec()
     choose_partial_match_strategy(field_count, MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
-    DBUG_ASSERT(strategy == PARTIAL_MATCH_SINGLE_COLUMN ||
+    DBUG_ASSERT(strategy == SINGLE_COLUMN_MATCH ||
                 strategy == PARTIAL_MATCH_MERGE ||
                 strategy == PARTIAL_MATCH_SCAN);
-    if (strategy == PARTIAL_MATCH_SINGLE_COLUMN)
+    if (strategy == SINGLE_COLUMN_MATCH)
     {
-      if (!(pm_engine= new subselect_single_column_partial_engine(
+      if (!(pm_engine= new subselect_single_column_match_engine(
               (subselect_uniquesubquery_engine*) lookup_engine, tmp_table,
               item, result, semi_join_conds->argument_list(),
               has_covering_null_row, has_covering_null_columns,
@@ -6999,7 +6999,7 @@ void subselect_table_scan_engine::cleanup()
 }
 
 
-subselect_single_column_partial_engine::subselect_single_column_partial_engine(
+subselect_single_column_match_engine::subselect_single_column_match_engine(
   subselect_uniquesubquery_engine *engine_arg,
   TABLE *tmp_table_arg,
   Item_subselect *item_arg,
@@ -7016,7 +7016,7 @@ subselect_single_column_partial_engine::subselect_single_column_partial_engine(
 {}
 
 
-bool subselect_single_column_partial_engine::partial_match()
+bool subselect_single_column_match_engine::partial_match()
 {
   /*
     We get here if:

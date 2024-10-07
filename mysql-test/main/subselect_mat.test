@@ -312,32 +312,30 @@ insert into t1 values (null), (1), (2), (3);
 --sorted_result
 select * from t1 where a not in (select b from t2);
 --sorted_result
-select a from t1 join t2 on a not in (select b from t2);
---sorted_result
-select a from t1 left join t2 on a not in (select b from t2);
+select a, a in (select b from t2) from t1;
 
 --echo # Insert some not-NULL values
 insert into t2 values (3), (4);
 --sorted_result
 select * from t1 where a not in (select b from t2);
 --sorted_result
-select a from t1 join t2 on a not in (select b from t2);
---sorted_result
-select a from t1 left join t2 on a not in (select b from t2);
+select a, a in (select b from t2) from t1;
 --echo # Ensure the correct strategy is tested
 --source include/analyze-format.inc
-analyze format=json  select * from t1 where a not in (select b from t2);
+analyze format=json select * from t1 where a not in (select b from t2);
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
 
 --echo # Insert NULL value
 insert into t2 values (null);
 --sorted_result
 select * from t1 where a not in (select b from t2);
 --sorted_result
-select a from t1 join t2 on a not in (select b from t2);
---sorted_result
-select a from t1 left join t2 on a not in (select b from t2);
+select a, a in (select b from t2) from t1;
 --source include/analyze-format.inc
-analyze format=json  select * from t1 where a not in (select b from t2);
+analyze format=json select * from t1 where a not in (select b from t2);
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
 
 drop table t1, t2;
 
