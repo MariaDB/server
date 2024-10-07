@@ -1781,7 +1781,13 @@ int ha_commit_trans(THD *thd, bool all)
   DBUG_PRINT("info", ("is_real_trans: %d  rw_trans:  %d  rw_ha_count: %d",
                       is_real_trans, rw_trans, rw_ha_count));
 
-  if (rw_trans)
+  /*
+    backup_commit_lock may have already been set.
+    This can happen in case of spider that does xa_commit() by
+    calling ha_commit_trans() from spader_commit().
+  */
+
+  if (rw_trans && !thd->backup_commit_lock)
   {
     /*
       Acquire a metadata lock which will ensure that COMMIT is blocked
@@ -2052,8 +2058,8 @@ end:
       not needed.
     */
     thd->mdl_context.release_lock(mdl_backup.ticket);
+    thd->backup_commit_lock= 0;
   }
-  thd->backup_commit_lock= 0;
 #ifdef WITH_WSREP
   if (wsrep_is_active(thd) && is_real_trans && !error &&
       (rw_ha_count == 0 || all) &&
