@@ -46,8 +46,7 @@ void engine_option_value::link(engine_option_value **start,
   engine_option_value *opt;
   /* check duplicates to avoid writing them to frm*/
   for(opt= *start;
-      opt && ((opt->parsed && !opt->value.str) ||
-              !name.streq(opt->name));
+      opt && ((opt->parsed && !opt->value.str) || !name.streq(opt->name));
       opt= opt->next) /* no-op */;
   if (opt)
   {
@@ -119,11 +118,9 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
 
 #define value_ptr(STRUCT,OPT)    ((char*)(STRUCT) + (OPT)->offset)
 
-static bool set_one_value(ha_create_table_option *opt,
-                          THD *thd, const engine_option_value::Value *value,
-                          void *base,
-                          bool suppress_warning,
-                          MEM_ROOT *root)
+static bool set_one_value(ha_create_table_option *opt, THD *thd,
+                          const engine_option_value::Value *value, void *base,
+                          bool suppress_warning, MEM_ROOT *root)
 {
   DBUG_ENTER("set_one_value");
   DBUG_PRINT("enter", ("opt: %p type: %u name '%s' value: '%s'",
@@ -143,10 +140,9 @@ static bool set_one_value(ha_create_table_option *opt,
         DBUG_RETURN(0);
       }
 
-      my_option optp=
-        { opt->name, 1, 0, (uchar **)val, 0, 0, GET_ULL,
+      my_option optp= { opt->name, 1, 0, (uchar **)val, 0, 0, GET_ULL,
           REQUIRED_ARG, (longlong)opt->def_value, (longlong)opt->min_value,
-          opt->max_value, 0, (long) opt->block_size, 0};
+          opt->max_value, 0, (long) opt->block_size, 0 };
 
       ulonglong orig_val= strtoull(value->str, NULL, 10);
       my_bool unused;
