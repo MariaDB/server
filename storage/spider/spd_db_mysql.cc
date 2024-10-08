@@ -6216,7 +6216,6 @@ int spider_db_mbase_util::append_escaped_util(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 /*
   Walk a TABLE_LIST, or format it to a string and append it.
 
@@ -6500,7 +6499,6 @@ int spider_db_mbase_util::append_having(
   str->q_append(SPIDER_SQL_HAVING_STR, SPIDER_SQL_HAVING_LEN);
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_db_mbase_util::append_charset_name_before_string()
 {
@@ -12475,7 +12473,6 @@ int spider_mbase_handler::reset_sql(
 }
 
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
   int link_idx,
@@ -12489,7 +12486,6 @@ int spider_mbase_handler::set_sql_for_exec(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
@@ -13853,7 +13849,6 @@ int spider_mbase_handler::reset_union_table_name(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::append_from_and_tables_part(
   spider_fields *fields,
   ulong sql_type
@@ -14154,7 +14149,6 @@ int spider_mbase_handler::append_order_by(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_mbase_handler::check_direct_update(
   st_select_lex *select_lex,

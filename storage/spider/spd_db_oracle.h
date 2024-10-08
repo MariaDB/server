@@ -144,7 +144,6 @@ public:
     spider_string *to,
     String *from
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables(
     ha_spider *spider,
     spider_fields *fields,
@@ -163,7 +162,6 @@ public:
   int append_having(
     spider_string *str
   );
-#endif
 };
 
 class spider_db_oracle_row: public spider_db_row
@@ -1264,13 +1262,11 @@ public:
   bool need_lock_before_set_sql_for_exec(
     ulong sql_type
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   );
-#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1385,7 +1381,6 @@ public:
     int link_idx,
     ulong sql_type
   );
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1456,7 +1451,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
 };
 
 class spider_oracle_copy_table: public spider_db_copy_table

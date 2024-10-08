@@ -87,9 +87,7 @@ ha_spider::ha_spider(
   sql_kinds = 0;
   error_mode = 0;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   dml_inited = FALSE;
   use_pre_call = FALSE;
   use_pre_action = FALSE;
@@ -155,9 +153,7 @@ ha_spider::ha_spider(
   sql_kinds = 0;
   error_mode = 0;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   dml_inited = FALSE;
   use_pre_call = FALSE;
   use_pre_action = FALSE;
@@ -1213,9 +1209,7 @@ int ha_spider::reset()
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   error_mode = 0;
   DBUG_RETURN(error_num);
 }

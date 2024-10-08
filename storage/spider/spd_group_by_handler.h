@@ -13,7 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 class spider_group_by_handler: public group_by_handler
 {
   Query query;
@@ -41,4 +40,3 @@ group_by_handler *spider_create_group_by_handler(
   THD *thd,
   Query *query
 );
-#endif
