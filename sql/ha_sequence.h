@@ -143,7 +143,7 @@ public:
   { file->unbind_psi(); }
   void rebind_psi() override
   { file->rebind_psi(); }
-
+  int discard_or_import_tablespace(my_bool discard) override;
   bool auto_repair(int error) const override
   { return file->auto_repair(error); }
   int repair(THD* thd, HA_CHECK_OPT* check_opt) override

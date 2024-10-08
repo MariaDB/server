@@ -529,7 +529,30 @@ int SEQUENCE::read_initial_values(TABLE *table)
 
 
 /*
-  Do the actiual reading of data from sequence table and
+  This class is here to allow one to use import table space on sequences
+*/
+
+class Silence_table_space_errors : public Internal_error_handler
+{
+public:
+  Silence_table_space_errors() {}
+  ~Silence_table_space_errors() override = default;
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sql_state,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    if (sql_errno == ER_TABLESPACE_DISCARDED || HA_ERR_TABLESPACE_MISSING)
+      return true;                              // Silence it
+    return false;
+  }
+};
+
+
+/*
+  Do the actual reading of data from sequence table and
   update values in the sequence object.
 
   Called once from when table is opened
@@ -538,7 +561,11 @@ int SEQUENCE::read_initial_values(TABLE *table)
 int SEQUENCE::read_stored_values(TABLE *table)
 {
   int error;
+  Silence_table_space_errors error_handler;
+  THD *thd= table->in_use;
   DBUG_ENTER("SEQUENCE::read_stored_values");
+
+  thd->push_internal_handler(&error_handler);
 
   MY_BITMAP *save_read_set= tmp_use_all_columns(table, &table->read_set);
   error= table->file->ha_read_first_row(table->record[0], MAX_KEY);
@@ -546,6 +573,9 @@ int SEQUENCE::read_stored_values(TABLE *table)
 
   if (unlikely(error))
   {
+    thd->pop_internal_handler();
+    if (error == HA_ERR_TABLESPACE_MISSING && thd->tablespace_op)
+      DBUG_RETURN(0);      // Ignore error for ALTER TABLESPACE
     table->file->print_error(error, MYF(0));
     DBUG_RETURN(error);
   }
@@ -553,6 +583,7 @@ int SEQUENCE::read_stored_values(TABLE *table)
   adjust_values(reserved_until);
 
   all_values_used= 0;
+  thd->pop_internal_handler();
   DBUG_RETURN(0);
 }
 
@@ -775,8 +806,9 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
     DBUG_RETURN(next_value(table, 1, error));
   }
 
-  if (unlikely((*error= write(table, thd->variables.binlog_row_image !=
-                                         BINLOG_ROW_IMAGE_MINIMAL))))
+  if (unlikely((*error= write(table,
+                              (thd->variables.binlog_row_image !=
+                               BINLOG_ROW_IMAGE_MINIMAL)))))
   {
     reserved_until= org_reserved_until;
     next_free_value= res_value;
