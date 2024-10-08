@@ -21364,6 +21364,14 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   if (handler->update_prebuilt_upd_buf())
     return false; // TODO: DB_OUT_OF_MEMORY
 	
+
+  if (maria_table->vfield) {
+    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
+    maria_table->move_fields(maria_table->field, maria_table->record[1], maria_table->record[0]);
+    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
+    maria_table->move_fields(maria_table->field, maria_table->record[0], maria_table->record[1]);
+	}	
+  
   ib_uint64_t autoinc;
   dberr_t error= calc_row_difference(node->update, maria_table->record[1],
                 maria_table->record[0], maria_table,
