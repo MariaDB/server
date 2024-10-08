@@ -2807,7 +2807,7 @@ innobase_set_foreign_key_option(
 		break;
 	}
 
-#if defined __GNUC__ && __GNUC__ == 5
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion"
 #endif
@@ -2827,7 +2827,7 @@ innobase_set_foreign_key_option(
 		break;
 	}
 
-#if defined __GNUC__ && __GNUC__ == 5
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic pop
 #endif
 	return(innobase_check_fk_option(foreign));

@@ -12518,7 +12518,7 @@ create_table_info_t::create_foreign_keys()
 				}
 			}
 		}
-#if defined __GNUC__ && __GNUC__ == 5
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic push
 # pragma GCC diagnostic ignored "-Wconversion"
 #endif
@@ -12563,7 +12563,7 @@ create_table_info_t::create_foreign_keys()
 			ut_ad(0);
 			break;
 		}
-#if defined __GNUC__ && __GNUC__ == 5
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
 # pragma GCC diagnostic pop
 #endif
 	}
