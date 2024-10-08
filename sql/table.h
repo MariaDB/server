@@ -1927,7 +1927,14 @@ public:
     DBUG_ASSERT(fields_nullable);
     DBUG_ASSERT(field < n_fields);
     size_t bit= size_t{field} + referenced * n_fields;
-    fields_nullable[bit / 8]|= (unsigned char)(1 << (bit % 8));
+#if defined __GNUC__ && __GNUC__ == 5
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
+#if defined __GNUC__ && __GNUC__ == 5
+# pragma GCC diagnostic pop
+#endif
   }
 
   /**
@@ -1944,7 +1951,7 @@ public:
     unsigned n_field= get_n_fields();
     DBUG_ASSERT(field < n_field);
     size_t bit= size_t{field} + referenced * n_field;
-    return fields_nullable[bit / 8] & (1 << (bit % 8));
+    return fields_nullable[bit / 8] & (1U << (bit % 8));
   }
 
 } FOREIGN_KEY_INFO;
