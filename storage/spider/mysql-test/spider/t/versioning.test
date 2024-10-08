@@ -33,25 +33,28 @@ create or replace table t2_sp (
 engine=spider comment='wrapper "mysql", srv "s", table "t2"'
 with system versioning;
 
+# set spider_use_pushdown_udf=1;
 --echo # Timestamps are not propagated (subject of MDEV-16546, but not for implicit system fields)
+# select spider_direct_sql('set timestamp= unix_timestamp("2000-01-01 00:00:00");', '', 'srv "s"');
 set timestamp= unix_timestamp('2000-01-01 00:00:00');
-insert into t1_sp values (1, 1), (2, 2);
-insert into t2_sp values (1, 1), (2, 2);
+insert into t1_sp values (1, 1), (2, 2); # T1
+insert into t2_sp values (1, 1), (2, 2); # T2
 --sleep 0.01
 
+# select spider_direct_sql('set timestamp= unix_timestamp("2001-01-01 00:11:11");', '', 'srv "s"');
 set timestamp= unix_timestamp('2000-01-01 00:11:11');
 --echo # check dml generating history
-delete from t1_sp where x = 1;
+delete from t1_sp where x = 1; # T3
 --sleep 0.01
-delete from t2_sp where x = 1;
+delete from t2_sp where x = 1; # T4
 --sleep 0.01
 
-select row_end into @t1 from t2 for system_time all where x = 1;
+select row_end into @t1 from t2 for system_time all where x = 1; # @t1 = T4
 
-update t1_sp set y= y + 1;
-select row_start into @t2 from t1 where x = 2;
+update t1_sp set y= y + 1; # T5
+select row_start into @t2 from t1 where x = 2; # @t2 = T5
 --sleep 0.01
-update t2_sp set y= y + 1;
+update t2_sp set y= y + 1; # T6
 
 select * from t1_sp;
 select * from t2_sp;
@@ -78,6 +81,9 @@ select * from t2_sp for system_time between timestamp @t1 and timestamp @t2;
         #
 --echo  # but somehow it doesn't fail the query and continues without FOR SYSTEM_TIME ALL clause
 select *, check_row(row_start, row_end) from t1_sp for system_time all order by row_end, y, x;
+
+# select t0.`row_end` `row_end`,t0.`x` `x`,t0.`y` `y`,(`check_row`(t0.`row_start` , t0.`row_end`)) `check_row(row_start, row_end)` from `test`.`t1` for system_time all t0 order by t0.`row_end`,`y`,`x`;
+
 select *, check_row(row_start, row_end) from t2_sp for system_time all order by row_end, y, x;
 --echo # SELECT from base table works as usual:
 select *, check_row(row_start, row_end) from t1 for system_time all order by row_end, y, x;

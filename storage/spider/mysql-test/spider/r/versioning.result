@@ -69,9 +69,13 @@ x	y
 # but somehow it doesn't fail the query and continues without FOR SYSTEM_TIME ALL clause
 select *, check_row(row_start, row_end) from t1_sp for system_time all order by row_end, y, x;
 x	y	check_row(row_start, row_end)
+1	1	HISTORICAL ROW
+2	2	HISTORICAL ROW
 2	3	CURRENT ROW
 select *, check_row(row_start, row_end) from t2_sp for system_time all order by row_end, y, x;
 x	y	check_row(row_start, row_end)
+1	1	HISTORICAL ROW
+2	2	HISTORICAL ROW
 2	3	CURRENT ROW
 # SELECT from base table works as usual:
 select *, check_row(row_start, row_end) from t1 for system_time all order by row_end, y, x;

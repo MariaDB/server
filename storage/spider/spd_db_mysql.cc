@@ -7713,6 +7713,12 @@ int spider_mbase_handler::append_table_name_with_adjusting(
   } else {
     error_num = mysql_share->append_table_name_with_adjusting(str,
       spider->conn_link_idx[link_idx]);
+    const auto& vers_conditions=
+      spider->get_table()->pos_in_table_list->vers_conditions;
+    if (spider->wide_handler->sql_command == SQLCOM_SELECT &&
+        (vers_conditions.type == SYSTEM_TIME_ALL ||
+         vers_conditions.orig_type == SYSTEM_TIME_ALL))
+      str->append(STRING_WITH_LEN(" for system_time all "));
   }
   DBUG_RETURN(error_num);
 }
@@ -9668,6 +9674,23 @@ int spider_mbase_handler::append_key_where(
 ) {
   int error_num;
   DBUG_ENTER("spider_mbase_handler::append_key_where");
+  TABLE *table = spider->get_table();
+  const auto &vers_conditions= table->pos_in_table_list->vers_conditions;
+  if (sql_type == SPIDER_SQL_TYPE_DELETE_SQL &&
+      vers_conditions.delete_history)
+  {
+    if (vers_conditions.orig_type == SYSTEM_TIME_BEFORE)
+    {
+      auto *start= vers_conditions.start.item->val_str();
+      if (str->append(" before system_time '"))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      if (str->append(*start))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+      if (str->append("'"))
+        DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+    DBUG_RETURN(0);
+  }
   error_num = spider_db_append_key_where_internal(str, str_part, str_part2,
     start_key, end_key, spider, set_order, sql_type,
     dbton_id);
