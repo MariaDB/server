@@ -915,6 +915,13 @@ EOF
         fi
     fi
 
+    # Delay for MTR tests if needed to simulate long SST
+    if [ ${MTR_SST_JOINER_DELAY:=0} -gt 0 ]
+    then
+        wsrep_log_info "Sleeping $MTR_SST_JOINER_DELAY seconds for MTR test"
+        sleep $MTR_SST_JOINER_DELAY
+    fi
+
     # Remove special tags from the magic file, and from the output:
     coords=$(head -n1 "$MAGIC_FILE")
     wsrep_log_info "Galera co-ords from recovery: $coords"
