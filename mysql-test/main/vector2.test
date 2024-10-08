@@ -70,3 +70,15 @@ show create table x;
 insert into t values (11,x'00000000');
 drop table t, x;
 set session mhnsw_max_edges_per_node = default;
+
+--echo #
+--echo # MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
+--echo #
+set mhnsw_distance_function= cosine;
+create table t (a int, v blob not null);
+prepare stmt from 'alter table t drop index if exists v, add vector (v) max_edges_per_node=10';
+execute stmt;
+execute stmt;
+show create table t;
+drop table t;
+set mhnsw_distance_function= default;
