@@ -44,8 +44,6 @@
 #define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
 #define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
 
-#define SPIDER_HAS_GROUP_BY_HANDLER
-
 #define SPIDER_ORDER_HAS_ENUM_ORDER
 
 #define SPIDER_ITEM_GEOFUNC_NAME_HAS_MBR
@@ -778,7 +776,6 @@ public:
     spider_string *to,
     String *from
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables(
     ha_spider *spider,
     spider_fields *fields,
@@ -792,7 +789,6 @@ public:
   virtual int append_having(
     spider_string *str
   ) = 0;
-#endif
   virtual bool tables_on_different_db_are_joinable();
   virtual bool socket_has_default_value();
   virtual bool database_has_default_value();
@@ -1413,13 +1409,11 @@ public:
   virtual int reset_sql(
     ulong sql_type
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   ) = 0;
-#endif
   virtual int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1533,7 +1527,6 @@ public:
     int link_idx,
     ulong sql_type
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1576,7 +1569,6 @@ public:
     spider_fields *fields,
     ulong sql_type
   ) = 0;
-#endif
   virtual bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,

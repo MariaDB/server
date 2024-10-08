@@ -975,7 +975,6 @@ int spider_fields::ping_table_mon_from_table(
   DBUG_RETURN(error_num);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 spider_group_by_handler::spider_group_by_handler(
   THD *thd_arg,
   Query *query_arg,
@@ -1842,4 +1841,3 @@ skip_free_table_holder:
   spider_free(spider_current_trx, table_holder, MYF(0));
   DBUG_RETURN(NULL);
 }
-#endif
