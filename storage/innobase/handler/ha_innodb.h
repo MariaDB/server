@@ -403,6 +403,7 @@ public:
 	@param[in] idx_cond Index condition to be checked
 	@return idx_cond if pushed; NULL if not pushed */
 	Item* idx_cond_push(uint keyno, Item* idx_cond) override;
+  const COND* cond_push(const COND *cond) override;
 	/* @} */
 
 	/** Check if InnoDB is not storing virtual column metadata for a table.
