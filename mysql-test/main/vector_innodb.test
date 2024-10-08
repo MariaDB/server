@@ -174,3 +174,10 @@ disconnect con1;
 connection default;
 #xa commit 'x';
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
+--echo #
+create table t (f varchar(1024) not null, v blob not null, unique(f)) engine=innodb charset=utf8mb3;
+alter table t add vector (v);
+drop table t;
