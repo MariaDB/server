@@ -1,0 +1,11 @@
+--echo
+--echo # MDEV-34687: Attempt to warn on unexpected binlog file modification
+--echo
+
+--source include/have_binlog_format_statement.inc
+--let MYSQLD_DATADIR= `select @@datadir;`
+--exec touch $MYSQLD_DATADIR/master-bin.000001
+call mtr.add_suppression("The binlog file was written unexpectedly by another thread or process and may be corrupt");
+--let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err
+--let SEARCH_PATTERN=The binlog file was written unexpectedly
+--source include/search_pattern_in_file.inc

@@ -33,6 +33,35 @@ bool ending_trans(THD* thd, const bool all);
 bool ending_single_stmt_trans(THD* thd, const bool all);
 bool trans_has_updated_non_trans_table(const THD* thd);
 bool stmt_has_updated_non_trans_table(const THD* thd);
+void fecache_on_open_callback(struct st_io_cache*);
+void fecache_on_pre_write_callback(struct st_io_cache*);
+void fecache_on_post_write_callback(struct st_io_cache*);
+void fecache_on_close_callback(struct st_io_cache*);
+
+/*
+  Extends IO_CACHE such that we can inspect and cache the
+  file modification time on each file event.  Should we
+  inspect it and it not match the cached time (saved from
+  when we last inspected it) then emit a warning.
+*/
+class FileEventAwareIOCache : public IO_CACHE
+{
+private:
+  struct stat cached_stat;
+
+  void warn_on_mismatch() const;
+  void initialize_callbacks();
+  void refresh_cached_file_stat();
+
+public:
+  FileEventAwareIOCache();
+
+  void on_cache_init();
+  void on_open();
+  void on_pre_write();
+  void on_post_write();
+  void on_close();
+};
 
 /*
   Transaction Coordinator log - a base abstract class
@@ -333,7 +362,7 @@ public:
   char log_file_name[FN_REFLEN];
   char time_buff[20], db[NAME_LEN + 1];
   bool write_error, inited;
-  IO_CACHE log_file;
+  FileEventAwareIOCache log_file;
   enum_log_type log_type;
   volatile enum_log_state log_state;
   enum cache_type io_cache_type;
@@ -507,7 +536,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
   mysql_cond_t  COND_xid_list;
   mysql_cond_t  COND_relay_log_updated, COND_bin_log_updated;
   ulonglong bytes_written;
-  IO_CACHE index_file;
+  FileEventAwareIOCache index_file;
   char index_file_name[FN_REFLEN];
   /*
     purge_file is a temp file used in purge_logs so that the index file
@@ -515,7 +544,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     recovery. It is created on demand the first time purge_logs is called
     and then reused for subsequent calls. It is cleaned up in cleanup().
   */
-  IO_CACHE purge_index_file;
+  FileEventAwareIOCache purge_index_file;
   char purge_index_file_name[FN_REFLEN];
   /*
      The max size before rotation (usable only if log_type == LOG_BIN: binary
@@ -830,7 +859,7 @@ public:
   bool write_incident_already_locked(THD *thd);
   bool write_incident(THD *thd);
   void write_binlog_checkpoint_event_already_locked(const char *name, uint len);
-  int  write_cache(THD *thd, IO_CACHE *cache);
+  int  write_cache(THD *thd, FileEventAwareIOCache *cache);
   void set_write_error(THD *thd, bool is_transactional);
   bool check_write_error(THD *thd);
   bool check_cache_error(THD *thd, binlog_cache_data *cache_data);

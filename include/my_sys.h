@@ -460,6 +460,22 @@ typedef struct st_io_cache		/* Used when caching files */
     somewhere else
   */
   size_t alloced_buffer;
+
+  /*
+    The following four on_*_callback functions are invoked on the file
+    backing this cache (if configured) when:
+  */
+  /* 1. we open it */
+  void (*on_open_callback)(struct st_io_cache *);
+
+  /* 2. just before we write through the cache to the file */
+  void (*on_pre_write_callback)(struct st_io_cache *);
+
+  /* 3. immediately after we write through the cache to the file*/
+  void (*on_post_write_callback)(struct st_io_cache *);
+
+  /* 4. we close it */
+  void (*on_close_callback)(struct st_io_cache *);
 } IO_CACHE;
 
 typedef int (*qsort2_cmp)(const void *, const void *, const void *);

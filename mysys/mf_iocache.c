@@ -73,11 +73,22 @@ int (*_my_b_encr_read)(IO_CACHE *info,uchar *Buffer,size_t Count)= 0;
 int (*_my_b_encr_write)(IO_CACHE *info,const uchar *Buffer,size_t Count)= 0;
 
 
+/*
+  This function intentionally does nothing and is analogous to a virtual
+  method whose default implementation is empty.
+*/
+void nop_on_operation_callback(struct st_io_cache* io_cache)
+{
+}
 
 static void
 init_functions(IO_CACHE* info)
 {
   enum cache_type type= info->type;
+  info->on_open_callback= nop_on_operation_callback;
+  info->on_pre_write_callback= nop_on_operation_callback;
+  info->on_post_write_callback= nop_on_operation_callback;
+  info->on_close_callback= nop_on_operation_callback;
   info->read_function = 0;                      /* Force a core if used */
   info->write_function = 0;                     /* Force a core if used */
   switch (type) {
@@ -1500,6 +1511,7 @@ int _my_b_get(IO_CACHE *info)
 
 int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
+  size_t write_result= 0;
   if (Buffer != info->write_buffer)
   {
     Count= IO_ROUND_DN(Count);
@@ -1523,7 +1535,11 @@ int _my_b_cache_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
     }
     info->seek_not_done=0;
   }
-  if (mysql_file_write(info->file, Buffer, Count, info->myflags | MY_NABP))
+  info->on_pre_write_callback(info);
+  write_result= mysql_file_write(info->file, Buffer,
+                                 Count, info->myflags | MY_NABP);
+  info->on_post_write_callback(info);
+  if (write_result)
     return info->error= -1;
 
   info->pos_in_file+= Count;
@@ -1565,7 +1581,7 @@ static int _my_b_cache_write_r(IO_CACHE *info, const uchar *Buffer, size_t Count
 
 int my_b_append(IO_CACHE *info, const uchar *Buffer, size_t Count)
 {
-  size_t rest_length,length;
+  size_t rest_length, length, write_result;
 
   MEM_CHECK_DEFINED(Buffer, Count);
 
@@ -1592,7 +1608,11 @@ int my_b_append(IO_CACHE *info, const uchar *Buffer, size_t Count)
   if (Count >= IO_SIZE)
   {					/* Fill first intern buffer */
     length= IO_ROUND_DN(Count);
-    if (mysql_file_write(info->file,Buffer, length, info->myflags | MY_NABP))
+    info->on_pre_write_callback(info);
+    write_result= mysql_file_write(info->file,Buffer,
+                                   length, info->myflags | MY_NABP);
+    info->on_post_write_callback(info);
+    if (write_result)
     {
       unlock_append_buffer(info);
       return info->error= -1;
@@ -1633,7 +1653,7 @@ int my_b_safe_write(IO_CACHE *info, const uchar *Buffer, size_t Count)
 int my_block_write(IO_CACHE *info, const uchar *Buffer, size_t Count,
 		   my_off_t pos)
 {
-  size_t length;
+  size_t length, pwrite_result;
   int error=0;
 
   /*
@@ -1646,12 +1666,22 @@ int my_block_write(IO_CACHE *info, const uchar *Buffer, size_t Count,
   if (pos < info->pos_in_file)
   {
     /* Of no overlap, write everything without buffering */
-    if (pos + Count <= info->pos_in_file)
-      return (int)mysql_file_pwrite(info->file, Buffer, Count, pos,
-		                    info->myflags | MY_NABP);
+    if (pos + Count <= info->pos_in_file) {
+      info->on_pre_write_callback(info);
+      pwrite_result= mysql_file_pwrite(info->file, Buffer,
+                                       Count, pos,
+                                       info->myflags | MY_NABP);
+      info->on_post_write_callback(info);
+      return (int)pwrite_result;
+    }
     /* Write the part of the block that is before buffer */
     length= (uint) (info->pos_in_file - pos);
-    if (mysql_file_pwrite(info->file, Buffer, length, pos, info->myflags | MY_NABP))
+    info->on_pre_write_callback(info);
+    pwrite_result= mysql_file_pwrite(info->file, Buffer,
+                                     length, pos,
+                                     info->myflags | MY_NABP);
+    info->on_post_write_callback(info);
+    if (pwrite_result)
       info->error= error= -1;
     Buffer+=length;
     pos+=  length;
@@ -1691,7 +1721,7 @@ int my_block_write(IO_CACHE *info, const uchar *Buffer, size_t Count,
 
 int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
 {
-  size_t length;
+  size_t length, write_result;
   my_bool append_cache= (info->type == SEQ_READ_APPEND);
   DBUG_ENTER("my_b_flush_io_cache");
   DBUG_PRINT("enter", ("cache: %p",  info));
@@ -1712,8 +1742,11 @@ int my_b_flush_io_cache(IO_CACHE *info, int need_append_buffer_lock)
     {
       if (append_cache)
       {
-        if (mysql_file_write(info->file, info->write_buffer, length,
-                             info->myflags | MY_NABP))
+        info->on_pre_write_callback(info);
+        write_result= mysql_file_write(info->file, info->write_buffer, length,
+                                       info->myflags | MY_NABP);
+        info->on_post_write_callback(info);
+        if (write_result)
         {
           info->error= -1;
           DBUG_RETURN(-1);
