@@ -76,3 +76,22 @@ x	CREATE TABLE `x` (
 insert into t values (11,x'00000000');
 drop table t, x;
 set session mhnsw_max_edges_per_node = default;
+#
+# MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
+#
+set mhnsw_distance_function= cosine;
+create table t (a int, v blob not null);
+prepare stmt from 'alter table t drop index if exists v, add vector (v) max_edges_per_node=10';
+execute stmt;
+Warnings:
+Note	1091	Can't DROP INDEX `v`; check that it exists
+execute stmt;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `a` int(11) DEFAULT NULL,
+  `v` blob NOT NULL,
+  VECTOR KEY `v` (`v`) `max_edges_per_node`=10 `distance_function`='cosine'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t;
+set mhnsw_distance_function= default;
