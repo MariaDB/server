@@ -11,8 +11,8 @@ n
 2002
 connection master;
 show slave hosts;
-Server_id	Host	Port	Master_id
-2	127.0.0.1	9999	1
+Server_id	Host	Port	Master_id	Gtid_State_Sent	Gtid_State_Ack	Sync_Status
+2	127.0.0.1	9999	1			asynchronous
 drop table t1;
 connection slave;
 stop slave;

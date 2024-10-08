@@ -353,7 +353,20 @@ void Ack_receiver::run()
         if (likely(len != packet_error))
         {
           int res;
-          res= repl_semisync_master.report_reply_packet(slave->server_id(),
+#ifdef ENABLED_DEBUG_SYNC
+          /*
+            A (+d,pause_ack_thread_on_next_ack)-test is supposed to
+            be run to check `Gtid_state_ack` in show replica hosts
+            for cases where there are multiple active replicas.
+          */
+          DBUG_EXECUTE_IF("pause_ack_thread_on_next_ack",
+            {
+              const char act[]= "now SIGNAL pause_ack_reply_to_binlog WAIT_FOR unpause_ack_reply_to_binlog";
+              DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
+              DBUG_SET("-d,pause_ack_thread_on_next_ack");
+            };);
+#endif
+          res= repl_semisync_master.report_reply_packet(slave->thd, slave->server_id(),
                                                         net.read_pos, len);
           if (unlikely(res < 0))
           {

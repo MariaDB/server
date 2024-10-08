@@ -9,7 +9,7 @@
 #
 # USAGE
 #
-#    All rows of the result must fulfil the condition if $all_rows_fulfil is 1
+#    All rows of the result must fulfil the condition if $wait_for_all is 1
 #    else at least one of the result must fulfil the condition.
 #    let $wait_for_all= 1; 
 #    let $show_statement= SHOW PROCESSLIST;
@@ -25,7 +25,7 @@
 #    let $condition= = 'Updating';
 #    --source include/wait_show_condition.inc
 #
-# Please do not use this use routine if you can replace the SHOW statement
+# Please do not use this routine if you can replace the SHOW statement
 # with a select. In such a case include/wait_condition.inc is recommended.
 #
 # Created: 2009-02-18 mleich
