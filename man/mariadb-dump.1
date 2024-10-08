@@ -1,6 +1,6 @@
 '\" t
 .\"
-.TH "\fBMARIADB-DUMP\fR" "1" "3 September 2024" "MariaDB 11.4" "MariaDB Database System"
+.TH "\fBMARIADB-DUMP\fR" "1" "8 October 2024" "MariaDB 11.6" "MariaDB Database System"
 .\" -----------------------------------------------------------------
 .\" * set default formatting
 .\" -----------------------------------------------------------------
@@ -729,6 +729,26 @@ On a master replication server, delete the binary logs by sending a
 PURGE BINARY LOGS
 statement to the server after performing the dump operation\&. This option automatically enables
 \fB\-\-master\-data\fR\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mariadb-dump: dir option
+.\" dirs option: mariadb-dump
+\fB\-\-dir\fR
+.sp
+Parallel dump of multiple databases. Works just like \fB\-\-tab\fR, with regard to output 
+(sql file for table definition and tab-separated for data, same options, e.g \fB\-\-parallel\fR)\&.
+It also allows the \fB\-\-databases\fR and \fB\-\-all-databases\fR options\&. When \fB\-\-dir\fR is used, 
+it creates the directory structure in the output directory pointed to by \fB\-\-dir\fR\&. For 
+every database to be dumped, there will be a directory with the database name\&. All 
+options that \fB\-\-tab\fR supports are also supported by \fB\-\-dir\fR, in particular \fB\-\-parallel\fR\&.
 .RE
 .sp
 .RS 4
