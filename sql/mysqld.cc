@@ -5728,12 +5728,11 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   else
   {
-    char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
+    char real_server_version[2 * SERVER_VERSION_LENGTH + 10], *pos;
 
-    set_server_version(real_server_version, sizeof(real_server_version));
-    safe_strcat(real_server_version, sizeof(real_server_version), "' as '");
-    safe_strcat(real_server_version, sizeof(real_server_version),
-		server_version);
+    pos= set_server_version(real_server_version, sizeof(real_server_version)-1);
+    strxnmov(pos, sizeof(real_server_version) - 1 - (pos-real_server_version),
+             "' as '", server_version, NullS);
 
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
                           real_server_version,
@@ -8797,7 +8796,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   (MYSQL_SERVER_SUFFIX is set by the compilation environment)
 */
 
-void set_server_version(char *buf, size_t size)
+char *set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
@@ -8806,14 +8805,14 @@ void set_server_version(char *buf, size_t size)
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
-  strxnmov(buf, size - 1,
-           MYSQL_SERVER_VERSION,
-           MYSQL_SERVER_SUFFIX_STR,
-           IF_EMBEDDED("-embedded", ""),
-           is_valgrind,
-           is_debug ? "-debug" : "",
-           is_log ? "-log" : "",
-           NullS);
+  return strxnmov(buf, size - 1,
+                  MYSQL_SERVER_VERSION,
+                  MYSQL_SERVER_SUFFIX_STR,
+                  IF_EMBEDDED("-embedded", ""),
+                  is_valgrind,
+                  is_debug ? "-debug" : "",
+                  is_log ? "-log" : "",
+                  NullS);
 }
 
 
