@@ -275,6 +275,22 @@ is_partition(
 
 
 
+/** Checks whether the file name belongs to a to the hlindex
+@param[in]	file_name	file name
+@return pointer to the end of the table name part of the file name, or NULL */
+static
+char*
+is_hlindex(
+/*=========*/
+	char*		file_name)
+{
+	/* We look for pattern #i# to see if the table is hlindex
+	MariaDB table. */
+	return strstr(file_name, "#i#");
+}
+
+
+
 /** Return the InnoDB ROW_FORMAT enum value
 @param[in]	row_format	row_format from "innodb_default_row_format"
 @return InnoDB ROW_FORMAT value from rec_format_t enum. */
@@ -20217,11 +20233,14 @@ innobase_rename_vc_templ(
 
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
-	char*	is_part = is_partition(tbname);
 
-	if (is_part != NULL) {
+	if (char *is_part = is_partition(tbname)) {
 		*is_part = '\0';
 		tbnamelen = ulint(is_part - tbname);
+	}
+	else if (char *is_hli = is_hlindex(tbname)) {
+		*is_hli = '\0';
+		tbnamelen = ulint(is_hli - tbname);
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,
