@@ -1950,7 +1950,7 @@ copy_back()
 
 	for (uint i = 1; i <= TRX_SYS_MAX_UNDO_SPACES; i++) {
 		char filename[20];
-		sprintf(filename, "undo%03u", i);
+		snprintf(filename, sizeof(filename), "undo%03u", i);
 		if (!file_exists(filename)) {
 			break;
 		}
