@@ -1,3 +1,5 @@
 --innodb_buffer_pool_size=5M
+--innodb-encrypt-log=1
+--plugin-load-add=$DEBUG_KEY_MANAGEMENT_SO
 --innodb_encrypt_temporary_tables=1
 --innodb_tablespaces_encryption
