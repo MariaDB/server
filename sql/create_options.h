@@ -111,18 +111,21 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool parse_engine_part_options(THD *thd, TABLE *table);
 #endif
-bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct,
+bool parse_option_list(THD* thd, void *option_struct,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
-                       bool suppress_warning, bool create, MEM_ROOT *root);
+                       bool suppress_warning, MEM_ROOT *root);
 
-static inline bool parse_option_list(THD* thd, handlerton *hton,
-         void *option_struct, engine_option_value **option_list,
-         ha_create_table_option *rules, bool suppress_warning, bool create,
-         MEM_ROOT *root)
+bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
+                       engine_option_value **option_list,
+                       ha_create_table_option *rules, MEM_ROOT *root);
+
+static inline bool extend_option_list(THD* thd, handlerton *hton, bool create,
+                                      engine_option_value **option_list,
+                       ha_create_table_option *rules, MEM_ROOT *root)
 {
-  return parse_option_list(thd, hton2plugin[hton->slot], option_struct,
-                           option_list, rules, suppress_warning, create, root);
+  return extend_option_list(thd, hton2plugin[hton->slot], create, option_list,
+                            rules, root);
 }
 
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
