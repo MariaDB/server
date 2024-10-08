@@ -285,14 +285,11 @@ static inline void safe_strcpy(char *dst, size_t dst_size, const char *src)
 static inline int safe_strcpy_truncated(char *dst, size_t dst_size,
                                         const char *src)
 {
-  DBUG_ASSERT(dst_size > 0);
 
-  strncpy(dst, src, dst_size);
-  if (dst[dst_size - 1])
-  {
-    dst[dst_size - 1]= 0;
+  DBUG_ASSERT(dst_size > 0);
+  if (strmake(dst, src, dst_size-1) == dst+dst_size-1 &&
+      src[dst_size-1])
     return 1;
-  }
   return 0;
 }
 
