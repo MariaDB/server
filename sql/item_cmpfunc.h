@@ -2232,6 +2232,7 @@ public:
   Item_func_case(THD *thd, List<Item> &list)
    :Item_func_case_expression(thd, list)
   { }
+  uint decimal_precision() const override;
   double real_op() override;
   longlong int_op() override;
   String *str_op(String *) override;
