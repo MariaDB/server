@@ -202,3 +202,42 @@ drop sequence s;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-32350 Can't selectively restore sequences using innodb tables from
+--echo # backup
+--echo #
+
+--disable_ps_protocol
+
+create sequence s2 engine=innodb;
+alter table s2 discard tablespace;
+--error ER_GET_ERRNO
+SELECT NEXTVAL(s2);
+create sequence s1 engine=innodb;
+select * from s1;
+flush tables s1 for export;
+--let $MYSQLD_DATADIR= `select @@datadir`
+--move_file $MYSQLD_DATADIR/test/s1.cfg $MYSQLD_DATADIR/test/s2.cfg
+--copy_file $MYSQLD_DATADIR/test/s1.ibd $MYSQLD_DATADIR/test/s2.ibd
+unlock tables;
+--error ER_GET_ERRNO
+select * from s2;
+--error ER_GET_ERRNO
+SELECT NEXTVAL(s2);
+--error ER_GET_ERRNO
+alter sequence s2 restart;
+alter table s2 import tablespace;
+select * from s2;
+SELECT NEXTVAL(s2);
+select NEXTVAL(s1);
+flush table s1,s2;
+select * from s1;
+select * from s2;
+drop sequence s1,s2;
+
+--enable_ps_protocol
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
