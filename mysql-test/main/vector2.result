@@ -102,3 +102,12 @@ t	CREATE TABLE `t` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 set mhnsw_distance_function= default;
+#
+# MDEV-35105 Assertion `tab->join->order' fails upon vector search with DISTINCT
+#
+create table t (a int, v blob not null, vector(v));
+insert into t values(1,x'00000000'),(2,x'00000000');
+select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) limit 1;
+a
+#
+drop table t;
