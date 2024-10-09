@@ -29,7 +29,7 @@ WHERE c<v1 AND EXISTS (SELECT 1
 FROM tbl_b
 WHERE tbl_a.c=tbl_b.c)) DO
 SELECT 1;
-END WHILE; 
+END WHILE;
 END $$
 CALL sp();
 connection master_1;

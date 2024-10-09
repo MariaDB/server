@@ -1,27 +1,27 @@
 --echo #
 --echo # MDEV-30191 SIGSEGV & heap-use-after-free in spider_db_print_item_type, SIGABRT in __cxa_pure_virtual/spider_db_print_item_type, Got error 128 "Out of memory in engine", 56/112 memory not freed, and Assertion `fixed()' failed in Item_sp_variable::val_str on SP call
 --echo #
- 
+
 --disable_query_log
 --disable_result_log
 --source ../../t/test_init.inc
 --enable_result_log
 --enable_query_log
- 
+
 --connection child2_1
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
 CREATE TABLE tbl_a (c INT);
- 
+
 --connection master_1
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
- 
+
 eval CREATE TABLE tbl_a (
     c INT
 ) $MASTER_1_ENGINE $MASTER_1_CHARSET COMMENT='table "tbl_a", srv "s_2_1"';
 CREATE TABLE tbl_b (c INT);
- 
+
 --delimiter $$
 CREATE PROCEDURE sp() BEGIN
     DECLARE v1 DATE;
@@ -34,16 +34,16 @@ CREATE PROCEDURE sp() BEGIN
                                        FROM tbl_b
                                        WHERE tbl_a.c=tbl_b.c)) DO
         SELECT 1;
-    END WHILE; 
+    END WHILE;
 END $$
 --delimiter ;
 CALL sp();
- 
+
 --connection master_1
 DROP DATABASE IF EXISTS auto_test_local;
 --connection child2_1
 DROP DATABASE IF EXISTS auto_test_remote;
- 
+
 --disable_query_log
 --disable_result_log
 --source ../t/test_deinit.inc
