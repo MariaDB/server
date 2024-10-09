@@ -26,8 +26,10 @@ static void check(const char *res)
   str1.length= 0;
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
+  MY_INIT(argv[0]);
+
   plan(23);
 
   IF_WIN(skip_all("Test of POSIX shell escaping rules, not for CMD.EXE\n"), );
@@ -69,6 +71,7 @@ int main(void)
 
   dynstr_free(&str1);
 
+  my_end(MY_CHECK_ERROR);
   return exit_status();
 }
 
