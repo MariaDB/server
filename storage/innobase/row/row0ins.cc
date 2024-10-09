@@ -3437,7 +3437,9 @@ columns in row.
 @param[in]	index	index handler
 @param[out]	entry	index entry to make
 @param[in]	row	row
-@return DB_SUCCESS if the set is successful */
+@return DB_SUCCESS if the set is successful
+@return DB_CANT_CREATE_GEOMETRY_OBJECT when spatial index fails to
+create goemetry object */
 static
 dberr_t
 row_ins_index_entry_set_vals(
@@ -3559,6 +3561,7 @@ row_ins_index_entry_step(
 					   node->row);
 
 	if (err != DB_SUCCESS) {
+		thr_get_trx(thr)->error_info = node->index;
 		DBUG_RETURN(err);
 	}
 
