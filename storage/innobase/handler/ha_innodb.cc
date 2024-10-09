@@ -2036,7 +2036,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     const trx_id_t trx_id= table->def_trx_id;
     DBUG_ASSERT(trx_id <= create_id);
     dict_table_close(table);
-    DBUG_PRINT("info", ("create_id: %llu  trx_id: %llu", create_id, trx_id));
+    DBUG_PRINT("info", ("create_id: %llu  trx_id: %" PRIu64, create_id, trx_id));
     DBUG_RETURN(create_id != trx_id);
   }
   else

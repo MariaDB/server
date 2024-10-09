@@ -194,7 +194,7 @@ static bool btr_root_fseg_validate(ulint offset,
   sql_print_error("InnoDB: Index root page " UINT32PF " in %s is corrupted "
                   "at " ULINTPF,
                   block.page.id().page_no(),
-                  UT_LIST_GET_FIRST(space.chain)->name);
+                  UT_LIST_GET_FIRST(space.chain)->name, offset);
   return false;
 }
 

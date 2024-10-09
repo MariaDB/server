@@ -1445,7 +1445,7 @@ void Repl_semi_sync_master::await_all_slave_replies(const char *msg)
     if (msg && first)
     {
       first= false;
-      sql_print_information(msg);
+      sql_print_information("%s", msg);
     }
 
     wait_result=

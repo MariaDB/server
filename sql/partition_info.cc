@@ -178,7 +178,7 @@ bool partition_info::add_named_partition(const char *part_name, size_t length)
   }
   DBUG_PRINT("info", ("Found partition %u is_subpart %d for name %.*s",
                       part_def->part_id, part_def->is_subpart,
-                      length, part_name));
+                      (int) length, part_name));
   DBUG_RETURN(false);
 }
 
