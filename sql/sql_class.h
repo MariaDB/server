@@ -920,6 +920,7 @@ typedef struct system_variables
   my_bool binlog_alter_two_phase;
 
   Charset_collation_map_st character_set_collations;
+  char *path;
 } SV;
 
 /**
