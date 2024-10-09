@@ -573,8 +573,9 @@ static int hton_drop_table(handlerton *hton, const char *path)
 }
 
 
-int ha_finalize_handlerton(st_plugin_int *plugin)
+int ha_finalize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -625,8 +626,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 }
 
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
+int ha_initialize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
   static const char *no_exts[]= { 0 };
   int ret= 0;
@@ -6144,15 +6146,19 @@ static int cmp_file_names(const void *a, const void *b)
   return cs->strnncoll(aa, strlen(aa), bb, strlen(bb));
 }
 
-static int cmp_table_names(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return my_charset_bin.strnncoll((*a)->str, (*a)->length,
                                   (*b)->str, (*b)->length);
 }
 
 #ifndef DBUG_OFF
-static int cmp_table_names_desc(LEX_CSTRING * const *a, LEX_CSTRING * const *b)
+static int cmp_table_names_desc(const void *a_, const void *b_)
 {
+  auto a= static_cast<const LEX_CSTRING *const *>(a_);
+  auto b= static_cast<const LEX_CSTRING *const *>(b_);
   return -cmp_table_names(a, b);
 }
 #endif

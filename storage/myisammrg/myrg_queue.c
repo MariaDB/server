@@ -15,10 +15,10 @@
 
 #include "myrg_def.h"
 
-static int queue_key_cmp(void *keyseg, uchar *a, uchar *b)
+static int queue_key_cmp(void *keyseg, const void *a, const void *b)
 {
-  MYRG_TABLE *ma= (MYRG_TABLE *)a;
-  MYRG_TABLE *mb= (MYRG_TABLE *)b;
+  const MYRG_TABLE *ma= a;
+  const MYRG_TABLE *mb= b;
   MI_INFO *aa= ma->table;
   MI_INFO *bb= mb->table;
   uint not_used[2];

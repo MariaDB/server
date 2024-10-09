@@ -203,11 +203,12 @@ Cassandra_status_vars cassandra_counters;
   Function we use in the creation of our hash to get key.
 */
 
-static uchar* cassandra_get_key(CASSANDRA_SHARE *share, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+static const uchar *cassandra_get_key(const void *share_, size_t *length,
+                                      my_bool)
 {
+  auto share= static_cast<const CASSANDRA_SHARE *>(share_);
   *length=share->table_name_length;
-  return (uchar*) share->table_name;
+  return reinterpret_cast<const uchar *>(share->table_name);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -242,8 +243,8 @@ static int cassandra_init_func(void *p)
 
   cassandra_hton= (handlerton *)p;
   mysql_mutex_init(ex_key_mutex_example, &cassandra_mutex, MY_MUTEX_INIT_FAST);
-  (void) my_hash_init(PSI_INSTRUMENT_ME, &cassandra_open_tables,system_charset_info,32,0,0,
-                      (my_hash_get_key) cassandra_get_key,0,0);
+  (void) my_hash_init(PSI_INSTRUMENT_ME, &cassandra_open_tables,
+                      system_charset_info, 32, 0, 0, cassandra_get_key, 0, 0);
 
   cassandra_hton->create=  cassandra_create_handler;
   /*

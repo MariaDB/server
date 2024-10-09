@@ -194,7 +194,7 @@ const char *encryption_plugin_get_config()
   return encryption_plugin_config.c_str();
 }
 
-extern int finalize_encryption_plugin(st_plugin_int *plugin);
+extern int finalize_encryption_plugin(void *plugin);
 
 
 void encryption_plugin_prepare_init(int argc, char **argv)

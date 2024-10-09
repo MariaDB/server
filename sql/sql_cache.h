@@ -141,8 +141,8 @@ struct Query_cache_block
   inline bool is_free(void) { return type == FREE; }
   void init(size_t length);
   void destroy();
-  uint headers_len();
-  uchar* data(void);
+  uint headers_len() const;
+  uchar* data(void) const;
   Query_cache_query *query();
   Query_cache_table *table();
   Query_cache_result *result();
@@ -256,10 +256,10 @@ struct Query_cache_result
 
 extern "C"
 {
-  uchar *query_cache_query_get_key(const uchar *record, size_t *length,
-                                   my_bool not_used);
-  uchar *query_cache_table_get_key(const uchar *record, size_t *length,
-                                   my_bool not_used);
+  const uchar *query_cache_query_get_key(const void *record, size_t *length,
+                                         my_bool);
+  const uchar *query_cache_table_get_key(const void *record, size_t *length,
+                                         my_bool);
 }
 extern "C" void query_cache_invalidate_by_MyISAM_filename(const char* filename);
 

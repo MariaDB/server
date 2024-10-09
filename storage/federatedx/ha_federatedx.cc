@@ -363,21 +363,20 @@ static handler *federatedx_create_handler(handlerton *hton,
 
 /* Function we use in the creation of our hash to get key */
 
-static uchar *
-federatedx_share_get_key(FEDERATEDX_SHARE *share, size_t *length,
-                         my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_share_get_key(const void *share_,
+                                             size_t *length, my_bool)
 {
+  auto share= static_cast<const FEDERATEDX_SHARE *>(share_);
   *length= share->share_key_length;
-  return (uchar*) share->share_key;
+  return reinterpret_cast<const uchar *>(share->share_key);
 }
 
-
-static uchar *
-federatedx_server_get_key(FEDERATEDX_SERVER *server, size_t *length,
-                          my_bool not_used __attribute__ ((unused)))
+static const uchar *federatedx_server_get_key(const void *server_,
+                                              size_t *length, my_bool)
 {
+  auto server= static_cast<const FEDERATEDX_SERVER *>(server_);
   *length= server->key_length;
-  return server->key;
+  return reinterpret_cast<const uchar *>(server->key);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -447,10 +446,12 @@ int federatedx_db_init(void *p)
   if (mysql_mutex_init(fe_key_mutex_federatedx,
                        &federatedx_mutex, MY_MUTEX_INIT_FAST))
     goto error;
-  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_share_get_key, 0, 0) &&
-      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers, &my_charset_bin, 32, 0, 0,
-                 (my_hash_get_key) federatedx_server_get_key, 0, 0))
+  if (!my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_tables,
+                    &my_charset_bin, 32, 0, 0, federatedx_share_get_key, 0,
+                    0) &&
+      !my_hash_init(PSI_INSTRUMENT_ME, &federatedx_open_servers,
+                    &my_charset_bin, 32, 0, 0, federatedx_server_get_key, 0,
+                    0))
   {
     DBUG_RETURN(FALSE);
   }

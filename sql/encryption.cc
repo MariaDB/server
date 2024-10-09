@@ -59,8 +59,9 @@ uint ctx_size(unsigned int, unsigned int)
 
 } /* extern "C" */
 
-int initialize_encryption_plugin(st_plugin_int *plugin)
+int initialize_encryption_plugin(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   if (encryption_manager)
     return 1;
 
@@ -107,8 +108,9 @@ int initialize_encryption_plugin(st_plugin_int *plugin)
   return 0;
 }
 
-int finalize_encryption_plugin(st_plugin_int *plugin)
+int finalize_encryption_plugin(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   bool used= plugin_ref_to_int(encryption_manager) == plugin;
 
   if (used)

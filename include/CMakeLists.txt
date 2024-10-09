@@ -41,6 +41,7 @@ SET(HEADERS
   typelib.h 
   my_dbug.h 
   m_string.h
+  my_cmp.h
   my_sys.h 
   my_xml.h
   mysql_embed.h
