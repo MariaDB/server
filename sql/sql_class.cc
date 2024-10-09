@@ -5642,6 +5642,10 @@ thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
   return 0;
 }
 
+/* Returns whether the thd is slave worker thread */
+extern "C" bool thd_is_slave(const MYSQL_THD thd) {
+  return thd->rgi_slave;
+}
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
