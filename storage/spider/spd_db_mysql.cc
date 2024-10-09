@@ -2294,7 +2294,7 @@ int spider_db_mbase::fetch_and_print_warnings(struct tm *l_time)
       longlong res_num =
         (longlong) my_strtoll10(row[1], (char**) NULL, &error_num);
       DBUG_PRINT("info",("spider res_num=%lld", res_num));
-      my_printf_error((int) res_num, row[2], MYF(0));
+      my_printf_error((int) res_num, "%s", MYF(0), row[2]);
       error_num = (int) res_num;
       row = mysql_fetch_row(res);
     }

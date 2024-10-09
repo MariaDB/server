@@ -986,7 +986,7 @@ bool wsrep_max_ws_size_update(sys_var *self, THD *thd, enum_var_type)
 {
   char max_ws_size_opt[128];
   my_snprintf(max_ws_size_opt, sizeof(max_ws_size_opt),
-              "repl.max_ws_size=%d", wsrep_max_ws_size);
+              "repl.max_ws_size=%lu", wsrep_max_ws_size);
   enum wsrep::provider::status ret= Wsrep_server_state::instance().provider().options(max_ws_size_opt);
   if (ret)
   {
