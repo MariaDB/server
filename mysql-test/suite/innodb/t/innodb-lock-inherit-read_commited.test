@@ -79,7 +79,7 @@ disconnect purge_control;
 connection default;
 
 # Wait for purge to delete the delete-marked record
---source ../../innodb/include/wait_all_purged.inc
+SET GLOBAL innodb_max_purge_lag_wait=2;
 
 SET debug_sync = 'now SIGNAL con2_go WAIT_FOR con2_insert_done';
 SET debug_sync = 'now SIGNAL con1_go WAIT_FOR con1_insert_done';
