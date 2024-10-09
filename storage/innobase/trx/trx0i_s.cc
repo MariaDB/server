@@ -622,7 +622,7 @@ fill_lock_data(
 	mem_heap_t*		heap;
 	rec_offs		offsets_onstack[REC_OFFS_NORMAL_SIZE];
 	rec_offs*		offsets;
-	char			buf[TRX_I_S_LOCK_DATA_MAX_LEN];
+	thread_local char	buf[TRX_I_S_LOCK_DATA_MAX_LEN];
 	ulint			buf_used;
 	ulint			i;
 

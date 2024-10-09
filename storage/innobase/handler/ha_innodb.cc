@@ -2670,7 +2670,7 @@ innobase_raw_format(
 	/* XXX we use a hard limit instead of allocating
 	but_size bytes from the heap */
 	CHARSET_INFO*	data_cs;
-	char		buf_tmp[8192];
+	thread_local char buf_tmp[8192];
 	ulint		buf_tmp_used;
 	uint		num_errors;
 
@@ -9613,7 +9613,7 @@ ha_innobase::ft_init_ext(
 	NEW_FT_INFO*		fts_hdl = NULL;
 	dict_index_t*		index;
 	fts_result_t*		result;
-	char			buf_tmp[8192];
+	thread_local char	buf_tmp[8192];
 	ulint			buf_tmp_used;
 	uint			num_errors;
 	ulint			query_len = key->length();
@@ -12321,8 +12321,8 @@ create_table_info_t::create_foreign_keys()
 	dberr_t		      error;
 	ulint		      number	      = 1;
 	static const unsigned MAX_COLS_PER_FK = 500;
-	const char*	      column_names[MAX_COLS_PER_FK];
-	const char*	      ref_column_names[MAX_COLS_PER_FK];
+	thread_local const char*column_names[MAX_COLS_PER_FK];
+	thread_local const char*ref_column_names[MAX_COLS_PER_FK];
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
 	dict_index_t*	      index	  = NULL;
