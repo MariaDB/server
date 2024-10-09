@@ -10856,8 +10856,11 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
   POSITION *pos= join->best_positions + join->const_tables;
   /*
     Generally, we assume that producing X% of output takes X% of the cost.
+
+    best_extension_by_limited_search() subtracts COST_EPS from
+    join->best_read, add it back.
   */
-  double partial_join_cost= join->best_read * fraction;
+  double partial_join_cost= (join->best_read + COST_EPS) * fraction;
 
   if (skip_sorting)
   {
@@ -10875,11 +10878,19 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
     if (first_table_cost)
     {
       /*
+        Compute the cost of accessing the first table in the same way as
+        it was done in greedy_search():
+      */
+      double prev_first_table_cost;
+      prev_first_table_cost= pos->read_time +
+                             (double)pos->records_read / TIME_FOR_COMPARE;
+      prev_first_table_cost *= fraction;
+      /*
         Subtract the remainder of the first table's cost we had in
         join->best_read:
       */
-      partial_join_cost -= pos->read_time*fraction;
-      partial_join_cost -= pos->records_read*fraction / TIME_FOR_COMPARE;
+      partial_join_cost -= prev_first_table_cost;
+      DBUG_ASSERT(partial_join_cost >= 0.0);
 
       /* Add the cost of the new access method we've got: */
       partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
@@ -11465,6 +11476,10 @@ best_extension_by_limited_search(JOIN      *join,
           memcpy((uchar*) join->best_positions, (uchar*) join->positions,
                  sizeof(POSITION) * (idx + 1));
           join->join_record_count= partial_join_cardinality;
+          /*
+            note: recompute_join_cost_with_limit() relies on this COST_EPS
+            subtraction:
+          */
           join->best_read= current_read_time - COST_EPS;
         }
         DBUG_EXECUTE("opt", print_plan(join, idx+1,
