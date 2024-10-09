@@ -4402,7 +4402,8 @@ JOIN::optimize_distinct()
   }
 
   /* Optimize "select distinct b from t1 order by key_part_1 limit #" */
-  if (order && skip_sort_order && !unit->lim.is_with_ties())
+  if (order && skip_sort_order && !unit->lim.is_with_ties()
+      && (*order->item)->type() == Item::FIELD_ITEM)
   {
     /* Should already have been optimized away */
     DBUG_ASSERT(ordered_index_usage == ordered_index_order_by);
