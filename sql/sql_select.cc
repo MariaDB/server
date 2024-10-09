@@ -20043,6 +20043,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->copy_blobs= 1;
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->group_concat= param->group_concat;
   table->expr_arena= thd;
 
   table->s= share;

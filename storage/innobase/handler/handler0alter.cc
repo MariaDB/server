@@ -3010,6 +3010,10 @@ innobase_set_foreign_key_option(
 		break;
 	}
 
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
 	switch (fk_key->update_opt) {
 	case FK_OPTION_NO_ACTION:
 	case FK_OPTION_RESTRICT:
@@ -3026,6 +3030,9 @@ innobase_set_foreign_key_option(
 		break;
 	}
 
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	return(innobase_check_fk_option(foreign));
 }
 

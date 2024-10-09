@@ -6515,6 +6515,7 @@ public:
     aggregate functions as normal functions.
   */
   bool precomputed_group_by;
+  bool group_concat;
   bool force_copy_fields;
   /*
     If TRUE, create_tmp_field called from create_tmp_table will convert
@@ -6533,7 +6534,7 @@ public:
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-     precomputed_group_by(0),
+     precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {
     init();

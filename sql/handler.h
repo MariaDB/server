@@ -5521,4 +5521,6 @@ uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
 
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned);
 #endif /* HANDLER_INCLUDED */
