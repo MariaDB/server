@@ -552,6 +552,8 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   if (mod_op == 'U') {
     /* update */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_update();
+    hnd->prepare_for_row_logging();
     uchar *const buf = table->record[0];
     store_record(table, record[1]);
     const prep_stmt::fields_type& rf = pst.get_ret_fields();
@@ -576,6 +578,8 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   } else if (mod_op == 'D') {
     /* delete */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_delete();
+    hnd->prepare_for_row_logging();
     table_vec[pst.get_table_id()].modified = true;
     const int r = hnd->ha_delete_row(table->record[0]);
     if (r != 0) {
@@ -585,6 +589,8 @@ dbcontext::modify_record(dbcallback_i& cb, TABLE *const table,
   } else if (mod_op == '+' || mod_op == '-') {
     /* increment/decrement */
     handler *const hnd = table->file;
+    table->mark_columns_needed_for_update();
+    hnd->prepare_for_row_logging();
     uchar *const buf = table->record[0];
     store_record(table, record[1]);
     const prep_stmt::fields_type& rf = pst.get_ret_fields();
@@ -658,6 +664,8 @@ dbcontext::cmd_insert_internal(dbcallback_i& cb, const prep_stmt& pst,
   }
   table->next_number_field = table->found_next_number_field;
     /* FIXME: test */
+  table->mark_columns_needed_for_insert();
+  hnd->prepare_for_row_logging();
   const int r = hnd->ha_write_row(buf);
   const ulonglong insert_id = table->file->insert_id_for_cur_row;
   table->next_number_field = 0;
