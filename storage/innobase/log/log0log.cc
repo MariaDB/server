@@ -1282,7 +1282,7 @@ std::vector<std::string> get_existing_log_files_paths() {
   for (int i= 0; i < 101; i++) {
     auto path= get_log_file_path(LOG_FILE_NAME_PREFIX)
                                  .append(std::to_string(i));
-    os_file_stat_t stat;
+    thread_local os_file_stat_t stat;
     dberr_t err= os_file_get_status(path.c_str(), &stat, false, true);
     if (err)
       break;

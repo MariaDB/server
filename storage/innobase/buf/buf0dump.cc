@@ -238,8 +238,8 @@ buf_dump(
 {
 #define SHOULD_QUIT()	(SHUTTING_DOWN() && obey_shutdown)
 
-	char	full_filename[OS_FILE_MAX_PATH];
-	char	tmp_filename[OS_FILE_MAX_PATH + sizeof "incomplete"];
+	thread_local char full_filename[OS_FILE_MAX_PATH];
+	thread_local char tmp_filename[OS_FILE_MAX_PATH + sizeof "incomplete"];
 	char	now[32];
 	FILE*	f;
 	int	ret;
@@ -424,7 +424,7 @@ void
 buf_load()
 /*======*/
 {
-	char		full_filename[OS_FILE_MAX_PATH];
+	thread_local char full_filename[OS_FILE_MAX_PATH];
 	char		now[32];
 	FILE*		f;
 	page_id_t*	dump;

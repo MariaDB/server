@@ -3387,7 +3387,7 @@ size_t os_file_get_fs_block_size(const char *path)
                        &numberOfFreeClusters, &totalNumberOfClusters))
     return ((size_t) bytesPerSector) * sectorsPerCluster;
 #else
-  os_file_stat_t info;
+  thread_local os_file_stat_t info;
   if (os_file_get_status(path, &info, false, false) == DB_SUCCESS)
     return info.block_size;
 #endif

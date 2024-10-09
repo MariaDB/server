@@ -267,7 +267,7 @@ ut_copy_file(
 	FILE*	src)	/*!< in: input file to be appended to output */
 {
 	long	len = ftell(src);
-	char	buf[4096];
+	thread_local char buf[4096];
 
 	rewind(src);
 	do {

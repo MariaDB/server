@@ -93,7 +93,7 @@ void encryption_plugin_backup_init(MYSQL *mysql)
   MYSQL_RES *result;
   MYSQL_ROW row;
   std::ostringstream oss;
-  char *argv[PLUGIN_MAX_ARGS];
+  thread_local char *argv[PLUGIN_MAX_ARGS];
   int argc;
 
   result = xb_mysql_query(mysql, QUERY_PLUGIN, true, true);
