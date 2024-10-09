@@ -4730,7 +4730,6 @@ int ha_partition::delete_row(const uchar *buf)
   {
     uint32 part_id;
     error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
-    DBUG_ASSERT(!error);
     DBUG_ASSERT(part_id == m_last_part);
   }
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
