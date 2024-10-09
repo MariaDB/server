@@ -6125,8 +6125,11 @@ void handler::update_global_table_stats()
   table_stats->rows_stats.deleted+=       rows_stats.deleted;
   table_stats->rows_stats.key_read_hit+=  rows_stats.key_read_hit;
   table_stats->rows_stats.key_read_miss+= rows_stats.key_read_miss;
-  table_stats->rows_stats.pages_accessed+= handler_stats->pages_accessed;
-  table_stats->rows_stats.pages_read_count+= handler_stats->pages_read_count;
+  if (handler_stats)
+  {
+    table_stats->rows_stats.pages_accessed+=   handler_stats->pages_accessed;
+    table_stats->rows_stats.pages_read_count+= handler_stats->pages_read_count;
+  }
   changed= rows_stats.updated + rows_stats.inserted + rows_stats.deleted;
   table_stats->rows_changed_x_indexes+= (changed *
                                          (table->s->keys ? table->s->keys :
