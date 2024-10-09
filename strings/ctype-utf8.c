@@ -4974,7 +4974,7 @@ static void my_hash_sort_utf8mb3_nopad(CHARSET_INFO *cs, const uchar *s, size_t 
 {
   my_wc_t wc;
   int res;
-  const uchar *e= s+slen;
+  const uchar *e= (slen == 0) ? s : s + slen;
   MY_UNICASE_INFO *uni_plane= cs->caseinfo;
   register ulong m1= *nr1, m2= *nr2;
 

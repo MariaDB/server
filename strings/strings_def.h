@@ -80,7 +80,7 @@
 
 static inline const uchar *skip_trailing_space(const uchar *ptr,size_t len)
 {
-  const uchar *end= ptr + len;
+  const uchar *end = (len == 0) ? ptr : ptr + len;
 
   if (len > 20)
   {

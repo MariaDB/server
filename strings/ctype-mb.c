@@ -403,7 +403,8 @@ my_copy_fix_mb(CHARSET_INFO *cs,
   size_t fixed_length;
   size_t min_length= MY_MIN(src_length, dst_length);
 
-  well_formed_nchars= my_ci_well_formed_char_length(cs, src, src + min_length,
+  const char* end = (min_length == 0) ? src : src + min_length;
+  well_formed_nchars= my_ci_well_formed_char_length(cs, src, end,
                                                         nchars, status);
   DBUG_ASSERT(well_formed_nchars <= nchars);
   well_formed_length= status->m_source_end_pos - src;
