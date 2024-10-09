@@ -950,7 +950,7 @@ struct buf_block_t{
 
 	Another exception is that ha_insert_for_fold() may
 	decrement n_pointers without holding the appropriate latch
-	in btr_search_latches[]. Thus, n_pointers must be
+	in btr_search_sys.parts[]. Thus, n_pointers must be
 	protected by atomic memory access.
 
 	This implies that the fields may be read without race

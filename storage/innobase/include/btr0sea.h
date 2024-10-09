@@ -29,8 +29,7 @@ Created 2/17/1996 Heikki Tuuri
 
 #include "dict0dict.h"
 #ifdef BTR_CUR_HASH_ADAPT
-#include "ha0ha.h"
-#include "srw_lock.h"
+#include "buf0buf.h"
 
 #ifdef UNIV_PFS_RWLOCK
 extern mysql_pfs_key_t btr_search_latch_key;
@@ -110,7 +109,7 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id);
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
-                                           srw_spin_lock *ahi_latch);
+                                           srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is inserted on a page.
 @param[in,out]	cursor		cursor which was positioned to the
@@ -119,7 +118,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_on_insert(btr_cur_t *cursor,
-                                      srw_spin_lock *ahi_latch);
+                                      srw_lock *ahi_latch);
 
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
@@ -240,69 +239,53 @@ struct btr_search_sys_t
   /** Partition of the hash table */
   struct partition
   {
-    /** latches protecting hash_table */
-    srw_spin_lock latch;
+    /** latches protecting the hash table */
+    alignas(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
     /** mapping of dtuple_fold() to rec_t* in buf_block_t::frame */
     hash_table_t table;
     /** memory heap for table */
     mem_heap_t *heap;
 
-#ifdef _MSC_VER
-#pragma warning(push)
-// nonstandard extension - zero sized array, if perfschema is not compiled
-#pragma warning(disable : 4200)
+    inline void init() noexcept;
+
+    inline void alloc(ulint hash_size) noexcept;
+
+    inline void clear() noexcept;
+
+    inline void free() noexcept;
+
+    __attribute__((nonnull))
+#if defined UNIV_AHI_DEBUG || defined UNIV_DEBUG
+    /** Insert or replace an entry into the hash table.
+    @param fold  hash value of rec
+    @param rec   B-tree leaf page record
+    @param block the buffer block that contains rec */
+    void insert(ulint fold, const rec_t *rec, buf_block_t *block) noexcept;
+#else
+    /** Insert or replace an entry into the hash table.
+    @param fold  hash value of data
+    @param rec   B-tree leaf page record */
+    void insert(ulint fold, const rec_t *rec) noexcept;
 #endif
 
-    char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof latch -
-              sizeof table - sizeof heap) &
-             (CPU_LEVEL1_DCACHE_LINESIZE - 1)];
-
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
-
-    void init()
-    {
-      memset((void*) this, 0, sizeof *this);
-      latch.SRW_LOCK_INIT(btr_search_latch_key);
-    }
-
-    void alloc(ulint hash_size)
-    {
-      table.create(hash_size);
-      heap= mem_heap_create_typed(std::min<ulong>(4096,
-                                                  MEM_MAX_ALLOC_IN_BUF / 2
-                                                  - MEM_BLOCK_HEADER_SIZE
-                                                  - MEM_SPACE_NEEDED(0)),
-                                  MEM_HEAP_FOR_BTR_SEARCH);
-    }
-
-    void clear()
-    {
-      mem_heap_free(heap);
-      heap= nullptr;
-      ut_free(table.array);
-    }
-
-    void free()
-    {
-      latch.destroy();
-      if (heap)
-        clear();
-    }
+    /** Delete a pointer to a record if it exists.
+    @param fold   hash value of rec
+    @param rec    B-tree leaf page record
+    @return whether a record existed and was removed */
+    inline bool erase(ulint fold, const rec_t *rec) noexcept;
   };
 
   /** Partitions of the adaptive hash index */
   partition *parts;
 
   /** Get an adaptive hash index partition */
-  partition *get_part(index_id_t id, ulint space_id) const
+  partition *get_part(index_id_t id, ulint space_id) const noexcept
   {
     return parts + ut_fold_ulint_pair(ulint(id), space_id) % btr_ahi_parts;
   }
 
   /** Get an adaptive hash index partition */
-  partition *get_part(const dict_index_t &index) const
+  partition *get_part(const dict_index_t &index) const noexcept
   {
     ut_ad(!index.table->space ||
           index.table->space->id == index.table->space_id);
@@ -310,41 +293,19 @@ struct btr_search_sys_t
   }
 
   /** Get the search latch for the adaptive hash index partition */
-  srw_spin_lock *get_latch(const dict_index_t &index) const
+  srw_lock *get_latch(const dict_index_t &index) const
   { return &get_part(index)->latch; }
 
   /** Create and initialize at startup */
-  void create()
-  {
-    parts= static_cast<partition*>(ut_malloc(btr_ahi_parts * sizeof *parts,
-                                             mem_key_ahi));
-    for (ulong i= 0; i < btr_ahi_parts; ++i)
-      parts[i].init();
-    if (btr_search_enabled)
-      btr_search_enable();
-  }
+  void create() noexcept;
 
-  void alloc(ulint hash_size)
-  {
-    hash_size/= btr_ahi_parts;
-    for (ulong i= 0; i < btr_ahi_parts; ++i)
-      parts[i].alloc(hash_size);
-  }
+  void alloc(ulint hash_size) noexcept;
 
   /** Clear when disabling the adaptive hash index */
-  void clear() { for (ulong i= 0; i < btr_ahi_parts; ++i) parts[i].clear(); }
+  inline void clear() noexcept;
 
   /** Free at shutdown */
-  void free()
-  {
-    if (parts)
-    {
-      for (ulong i= 0; i < btr_ahi_parts; ++i)
-        parts[i].free();
-      ut_free(parts);
-      parts= nullptr;
-    }
-  }
+  void free() noexcept;
 };
 
 /** The adaptive hash index */
@@ -355,7 +316,7 @@ TRANSACTIONAL_INLINE inline ulint dict_index_t::n_ahi_pages() const
 {
   if (!btr_search_enabled)
     return 0;
-  srw_spin_lock *latch= &btr_search_sys.get_part(*this)->latch;
+  srw_lock *latch= &btr_search_sys.get_part(*this)->latch;
 #if !defined NO_ELISION && !defined SUX_LOCK_GENERIC
   if (xbegin())
   {
