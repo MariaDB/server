@@ -261,12 +261,8 @@ ibuf_update_free_bits_if_full(
 	}
 
 	if (after == 0) {
-		/* We move the page to the front of the buffer pool LRU list:
-		the purpose of this is to prevent those pages to which we
-		cannot make inserts using the insert buffer from slipping
-		out of the buffer pool */
-
-		buf_page_make_young(&block->page);
+		// Avoid eviction of pages to which we cannot buffer changes
+		block->page.flag_accessed_only();
 	}
 
 	if (before > after) {

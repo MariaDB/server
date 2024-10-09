@@ -50,11 +50,6 @@ The caller must hold buf_pool.mutex.
 bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
   MY_ATTRIBUTE((nonnull));
 
-/** Try to free a replaceable block.
-@param limit  maximum number of blocks to scan
-@return true if found and freed */
-bool buf_LRU_scan_and_free_block(ulint limit= ULINT_UNDEFINED);
-
 /** @return a buffer block from the buf_pool.free list
 @retval	NULL	if the free list is empty */
 buf_block_t* buf_LRU_get_free_only();
@@ -81,14 +76,17 @@ we put it to free list to be used.
 buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	MY_ATTRIBUTE((malloc,warn_unused_result));
 
+#define buf_block_alloc() buf_LRU_get_free_block(false)
+
 /** @return whether the unzip_LRU list should be used for evicting a victim
 instead of the general LRU list */
 bool buf_LRU_evict_from_unzip_LRU();
 
-/** Puts a block back to the free list.
-@param[in]	block	block; not containing a file page */
-void
-buf_LRU_block_free_non_file_page(buf_block_t* block);
+/** Free a buffer block which does not contain a file page,
+while holding buf_pool.mutex.
+@param block   block to be put to buf_pool.free */
+void buf_LRU_block_free_non_file_page(buf_block_t *block);
+
 /******************************************************************//**
 Adds a block to the LRU list. Please make sure that the page_size is
 already set when invoking the function, so that we can get correct
@@ -102,14 +100,8 @@ buf_LRU_add_block(
 				start; if the LRU list is very short, added to
 				the start regardless of this parameter */
 
-/** Move a block to the start of the buf_pool.LRU list.
-@param bpage  buffer pool page */
+/** Move a block to the "recently used" end of buf_pool.LRU. */
 void buf_page_make_young(buf_page_t *bpage);
-/** Flag a page accessed in buf_pool and move it to the start of buf_pool.LRU
-if it is too old.
-@param bpage  buffer pool page
-@return whether this is not the first access */
-bool buf_page_make_young_if_needed(buf_page_t *bpage);
 
 /******************************************************************//**
 Adds a block to the LRU list of decompressed zip pages. */
@@ -163,10 +155,6 @@ The minimum must exceed
 #if BUF_LRU_OLD_RATIO_MAX > BUF_LRU_OLD_RATIO_DIV
 # error "BUF_LRU_OLD_RATIO_MAX > BUF_LRU_OLD_RATIO_DIV"
 #endif
-
-/** Move blocks to "new" LRU list only if the first access was at
-least this many milliseconds ago.  Not protected by any mutex or latch. */
-extern uint	buf_LRU_old_threshold_ms;
 /* @} */
 
 /** @brief Statistics for selecting the LRU list for eviction.

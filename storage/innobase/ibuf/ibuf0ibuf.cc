@@ -314,7 +314,7 @@ ibuf_header_page_get(
 		return nullptr;
 	}
 
-	buf_page_make_young_if_needed(&block->page);
+	block->page.flag_accessed();
 
 	return block->page.frame;
 }
@@ -335,7 +335,7 @@ static buf_block_t *ibuf_tree_root_get(mtr_t *mtr, dberr_t *err= nullptr)
   if (block)
   {
     ut_ad(ibuf.empty == page_is_empty(block->page.frame));
-    buf_page_make_young_if_needed(&block->page);
+    block->page.flag_accessed();
   }
 
   return block;
@@ -841,12 +841,8 @@ ibuf_update_free_bits_zip(
 	ulint after = ibuf_index_page_calc_free_zip(block);
 
 	if (after == 0) {
-		/* We move the page to the front of the buffer pool LRU list:
-		the purpose of this is to prevent those pages to which we
-		cannot make inserts using the insert buffer from slipping
-		out of the buffer pool */
-
-		buf_page_make_young(&block->page);
+		// Avoid eviction of pages to which we cannot buffer changes
+		block->page.flag_accessed_only();
 	}
 
 	if (buf_block_t* bitmap_page = ibuf_bitmap_get_map_page(

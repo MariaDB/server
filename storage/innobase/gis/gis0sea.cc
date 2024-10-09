@@ -300,7 +300,12 @@ rtr_pcur_getnext_from_path(
 			break;
 		}
 
-		buf_page_make_young_if_needed(&block->page);
+		if (rw_latch != RW_NO_LATCH) {
+			block->page.flag_accessed();
+		} else {
+			/* rtr_latch_leaves() will invoke flag_accessed() */
+			block->page.flag_accessed_only();
+		}
 
 		page = buf_block_get_frame(block);
 		page_ssn = page_get_ssn_id(page);
@@ -685,15 +690,19 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     return err;
   }
 
-  buf_page_make_young_if_needed(&block->page);
+  const page_t *page= block->page.frame;
 
-  const page_t *page= buf_block_get_frame(block);
+  if (rw_latch != RW_NO_LATCH)
+  {
+    block->page.flag_accessed();
 #ifdef UNIV_ZIP_DEBUG
-  if (rw_latch != RW_NO_LATCH) {
     const page_zip_des_t *page_zip= buf_block_get_page_zip(block);
     ut_a(!page_zip || page_zip_validate(page_zip, page, index));
-  }
 #endif /* UNIV_ZIP_DEBUG */
+  }
+  else
+    /* rtr_latch_leaves() will invoke flag_accessed() */
+    block->page.flag_accessed_only();
 
   ut_ad(fil_page_index_page_check(page));
   ut_ad(index->id == btr_page_get_index_id(page));
@@ -1686,7 +1695,7 @@ corrupted:
 		goto func_exit;
 	}
 
-	buf_page_make_young_if_needed(&page_cursor->block->page);
+	page_cursor->block->page.flag_accessed();
 
 	/* Get the page SSN */
 	page = buf_block_get_frame(page_cursor->block);
@@ -1872,7 +1881,7 @@ rtr_init_match(
 		matches->block = buf_block_alloc();
 	}
 
-	matches->block->page.init(buf_page_t::MEMORY, block->page.id());
+	matches->block->page.init(buf_page_t::MEMORY, block->page.id(), 0);
 	/* We have to copy PAGE_*_SUPREMUM_END bytes so that we can
 	use infimum/supremum of this page as normal btr page for search. */
 	matches->used = page_is_comp(page)

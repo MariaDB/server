@@ -2672,8 +2672,8 @@ dberr_t fseg_free_page(fseg_header_t *seg_header, fil_space_t *space,
 dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
 {
   mtr_t mtr;
-  uint32_t dpage= xdes_calc_descriptor_page(space->zip_size(), page);
   const unsigned zip_size= space->zip_size();
+  uint32_t dpage= xdes_calc_descriptor_page(zip_size, page);
   dberr_t err= DB_SUCCESS;
 
   mtr.start();
@@ -2682,7 +2682,7 @@ dberr_t fseg_page_is_allocated(fil_space_t *space, unsigned page)
 
   if (page >= space->free_limit || page >= space->size_in_header);
   else if (const buf_block_t *b=
-           buf_page_get_gen(page_id_t(space->id, dpage), space->zip_size(),
+           buf_page_get_gen(page_id_t(space->id, dpage), zip_size,
                             RW_S_LATCH, nullptr, BUF_GET_POSSIBLY_FREED,
                             &mtr, &err))
   {

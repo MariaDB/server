@@ -189,7 +189,7 @@ public:
     size_t size;
     const byte *page= block.page.zip.data;
     if (UNIV_LIKELY_NULL(page))
-      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize;
+      size= (UNIV_ZIP_SIZE_MIN >> 1) << block.page.zip.ssize();
     else
     {
       page= block.page.frame;
@@ -319,7 +319,7 @@ page_corrupted:
       switch (b & 0x70) {
       case EXTENDED:
         if (UNIV_UNLIKELY(block.page.id().page_no() < 3 ||
-                          block.page.zip.ssize))
+                          block.page.zip.ssize()))
           goto record_corrupted;
         static_assert(INIT_ROW_FORMAT_REDUNDANT == 0, "compatiblity");
         static_assert(INIT_ROW_FORMAT_DYNAMIC == 1, "compatibility");
@@ -1497,6 +1497,7 @@ void recv_sys_t::clear()
   {
     buf_block_t *prev_block= UT_LIST_GET_PREV(unzip_LRU, block);
     ut_ad(block->page.state() == buf_page_t::MEMORY);
+    block->page.hash= nullptr;
     UT_LIST_REMOVE(blocks, block);
     MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
     buf_block_free(block);
@@ -1546,14 +1547,11 @@ inline void recv_sys_t::free(const void *data)
     buf_block_t *block= &chunk->blocks[offs];
     ut_ad(block->page.frame == data);
     ut_ad(block->page.state() == buf_page_t::MEMORY);
-    ut_ad(static_cast<uint16_t>(block->page.access_time - 1) <
-          srv_page_size);
-    unsigned a= block->page.access_time;
-    ut_ad(a >= 1U << 16);
-    a-= 1U << 16;
-    block->page.access_time= a;
-    if (!(a >> 16))
+    ut_ad(uint16_t(block->page.free_offset - 1) < srv_page_size);
+    ut_ad(block->page.used_records);
+    if (!--block->page.used_records)
     {
+      block->page.hash= nullptr;
       UT_LIST_REMOVE(blocks, block);
       MEM_MAKE_ADDRESSABLE(block->page.frame, srv_page_size);
       buf_block_free(block);
@@ -2262,7 +2260,7 @@ bool recv_sys_t::add(map::iterator it, lsn_t start_lsn, lsn_t lsn,
     ut_ad(tail->lsn == lsn);
     block= UT_LIST_GET_LAST(blocks);
     ut_ad(block);
-    const size_t used= static_cast<uint16_t>(block->page.access_time - 1) + 1;
+    const size_t used= uint16_t(block->page.free_offset - 1) + 1;
     ut_ad(used >= ALIGNMENT);
     const byte *end= const_cast<const log_phys_t*>(tail)->end();
     if (!((reinterpret_cast<size_t>(end + len) ^
@@ -2283,7 +2281,7 @@ append:
     ut_ad(new_used > used);
     if (new_used > srv_page_size)
       break;
-    block->page.access_time= (block->page.access_time & ~0U << 16) |
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(new_used), ALIGNMENT);
     goto append;
   }
@@ -2298,7 +2296,8 @@ append:
     block= add_block();
     if (UNIV_UNLIKELY(!block))
       return true;
-    block->page.access_time= 1U << 16 |
+    block->page.used_records= 1;
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(size), ALIGNMENT);
     static_assert(ut_is_2pow(ALIGNMENT), "ALIGNMENT must be a power of 2");
     UT_LIST_ADD_FIRST(blocks, block);
@@ -2308,7 +2307,7 @@ append:
   }
   else
   {
-    size_t free_offset= static_cast<uint16_t>(block->page.access_time);
+    size_t free_offset= block->page.free_offset;
     ut_ad(!ut_2pow_remainder(free_offset, ALIGNMENT));
     if (UNIV_UNLIKELY(!free_offset))
     {
@@ -2321,7 +2320,8 @@ append:
     if (free_offset > srv_page_size)
       goto create_block;
 
-    block->page.access_time= ((block->page.access_time >> 16) + 1) << 16 |
+    block->page.used_records++;
+    block->page.free_offset=
       ut_calc_align<uint16_t>(static_cast<uint16_t>(free_offset), ALIGNMENT);
     MEM_MAKE_ADDRESSABLE(block->page.frame + free_offset - size, size);
     buf= block->page.frame + free_offset - size;
@@ -3137,7 +3137,7 @@ set_start_lsn:
 			buf_zip_decompress(block, false);
 		}
 
-		buf_block_modify_clock_inc(block);
+		block->invalidate();
 		mysql_mutex_lock(&log_sys.flush_order_mutex);
 		buf_flush_note_modification(block, start_lsn, end_lsn);
 		mysql_mutex_unlock(&log_sys.flush_order_mutex);
