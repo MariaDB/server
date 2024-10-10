@@ -247,7 +247,7 @@ static MYSQL_SYSVAR_BOOL(no_content_type, s3_no_content_type,
 static MYSQL_SYSVAR_ENUM(provider, s3_provider,
                          PLUGIN_VAR_RQCMDARG,
                          "Enable S3 provider specific compatibility tweaks "
-                         "\"Default\", \"Amazon\", or \"Huawei\". ",
+                         "\"Default\", \"Amazon\", or \"Huawei\"",
                          NULL, NULL, 0, &s3_provider_typelib);
 
 ha_create_table_option s3_table_option_list[]=
