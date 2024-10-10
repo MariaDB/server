@@ -53,6 +53,8 @@ class Select_limit_counters;
 struct Query
 {
   List<Item> *select;
+  /* Number of auxiliary fields. */
+  int        n_aux;
   bool        distinct;
   TABLE_LIST *from;
   Item       *where;
@@ -71,7 +73,10 @@ public:
 
   /*
     Temporary table where all results should be stored in record[0]
-    The table has a field for every item from the Query::select list.
+    The table has a field for every item from the Query::select list,
+    except for const items and some other exceptions, see
+    Create_tmp_table::add_fields() for which items are included and
+    which are skipped.
   */
   TABLE *table;
 

@@ -1473,7 +1473,7 @@ public:
 
     Then, ORDER/GROUP BY and Window Function code add columns that need to
     be saved to be available in the post-group-by context. These extra columns
-    are added to the front, because this->all_fields points to the suffix of
+    are added to the front, because this->fields_list points to the suffix of
     this list.
   */
   List<Item> all_fields;

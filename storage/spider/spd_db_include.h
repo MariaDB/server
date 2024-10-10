@@ -851,7 +851,7 @@ public:
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
-  virtual SPIDER_DB_ROW *fetch_row() = 0;
+  virtual SPIDER_DB_ROW *fetch_row(MY_BITMAP *skips = NULL) = 0;
   virtual SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
   ) = 0;
@@ -1549,7 +1549,8 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields,
-    ulong sql_type
+    ulong sql_type,
+    int n_aux=0
   ) = 0;
   virtual int append_group_by_part(
     ORDER *order,
@@ -1838,4 +1839,10 @@ typedef struct st_spider_result_list
 #endif
     SPIDER_RESULT         *bgs_current;
   SPIDER_DB_ROW           *tmp_pos_row_first;
+  /*
+    A bitmap marking fields to skip when storing results fetched from
+    the data node to a SPIDER_DB_ROW
+  */
+  MY_BITMAP               *skips;
+  int                     n_aux;
 } SPIDER_RESULT_LIST;

@@ -2850,7 +2850,7 @@ int spider_db_fetch_row(
 
   DBUG_RETURN(error_num);
 }
-
+/* TODO: document this function */
 int spider_db_fetch_table(
   ha_spider *spider,
   uchar *buf,
@@ -2863,6 +2863,7 @@ int spider_db_fetch_table(
   SPIDER_RESULT *current = (SPIDER_RESULT*) result_list->current;
   SPIDER_DB_ROW *row;
   Field **field;
+  int n_aux= result_list->n_aux;
   DBUG_ENTER("spider_db_fetch_table");
     if (result_list->quick_mode == 0)
     {
@@ -2940,6 +2941,8 @@ int spider_db_fetch_table(
       *field;
       field++
     ) {
+      if (n_aux-- > 0)
+        continue;
       if ((
         bitmap_is_set(table->read_set, (*field)->field_index) |
         bitmap_is_set(table->write_set, (*field)->field_index)
@@ -3788,7 +3791,7 @@ int spider_db_store_result(
       }
       current->dbton_id = current->result->dbton_id;
       SPIDER_DB_ROW *row;
-      if (!(row = current->result->fetch_row()))
+      if (!(row = current->result->fetch_row(result_list->skips)))
       {
         error_num = current->result->get_errno();
         DBUG_PRINT("info",("spider set finish_flg point 3"));

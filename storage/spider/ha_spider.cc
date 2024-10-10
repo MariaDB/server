@@ -52,13 +52,9 @@ extern pthread_mutex_t spider_lgtm_tblhnd_share_mutex;
 /* UTC time zone for timestamp columns */
 extern Time_zone *UTC;
 
-ha_spider::ha_spider(
-) : handler(spider_hton_ptr, NULL)
+void ha_spider::init_fields()
 {
-  DBUG_ENTER("ha_spider::ha_spider");
-  DBUG_PRINT("info",("spider this=%p", this));
-  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
-  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  DBUG_ENTER("ha_spider::init_fields");
   share = NULL;
   conns = NULL;
   need_mons = NULL;
@@ -113,6 +109,20 @@ ha_spider::ha_spider(
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
   result_list.in_cmp_ref = FALSE;
+  result_list.skips= NULL;
+  result_list.n_aux= 0;
+  ref_length = sizeof(SPIDER_POSITION);
+  DBUG_VOID_RETURN;
+}
+
+ha_spider::ha_spider(
+) : handler(spider_hton_ptr, NULL)
+{
+  DBUG_ENTER("ha_spider::ha_spider");
+  DBUG_PRINT("info",("spider this=%p", this));
+  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
+  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
@@ -125,61 +135,7 @@ ha_spider::ha_spider(
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_2);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
-  share = NULL;
-  conns = NULL;
-  need_mons = NULL;
-  blob_buff = NULL;
-  conn_keys = NULL;
-  spider_thread_id = 0;
-  trx_conn_adjustment = 0;
-  search_link_query_id = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_handler = NULL;
-#endif
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-  multi_range_keys = NULL;
-  mrr_key_buff = NULL;
-#endif
-  append_tblnm_alias = NULL;
-  use_index_merge = FALSE;
-  is_clone = FALSE;
-  pt_clone_source_handler = NULL;
-  pt_clone_last_searcher = NULL;
-  ft_handler = NULL;
-  ft_first = NULL;
-  ft_current = NULL;
-  ft_count = 0;
-  ft_init_without_index_init = FALSE;
-  sql_kinds = 0;
-  error_mode = 0;
-  use_spatial_index = FALSE;
-  use_fields = FALSE;
-  dml_inited = FALSE;
-  use_pre_call = FALSE;
-  use_pre_action = FALSE;
-  do_direct_update = FALSE;
-  prev_index_rnd_init = SPD_NONE;
-  direct_aggregate_item_first = NULL;
-  result_link_idx = 0;
-  result_list.have_sql_kind_backup = FALSE;
-  result_list.sqls = NULL;
-  result_list.insert_sqls = NULL;
-  result_list.update_sqls = NULL;
-  result_list.tmp_sqls = NULL;
-  result_list.tmp_tables_created = FALSE;
-  result_list.bgs_working = FALSE;
-  result_list.direct_order_limit = FALSE;
-  result_list.direct_limit_offset = FALSE;
-  result_list.set_split_read = FALSE;
-  result_list.insert_dup_update_pushdown = FALSE;
-  result_list.tmp_pos_row_first = NULL;
-  result_list.direct_aggregate = FALSE;
-  result_list.snap_direct_aggregate = FALSE;
-  result_list.direct_distinct = FALSE;
-  result_list.casual_read = NULL;
-  result_list.use_both_key = FALSE;
-  result_list.in_cmp_ref = FALSE;
-  ref_length = sizeof(SPIDER_POSITION);
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
