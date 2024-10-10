@@ -4,3 +4,6 @@ default-storage-engine=innodb
 
 [myisam]
 default-storage-engine=myisam
+
+[aria]
+default-storage-engine=aria

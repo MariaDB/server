@@ -65,12 +65,6 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
 #
-# MDEV-34919 Aria crashes with high-level (vector) indexes
-#
-# Aria doesn't support VECTOR yet
-create table t1(v vector(10) not null, vector index(v)) engine=aria;
-ERROR HY000: Table storage engine 'Aria' does not support the create option 'VECTOR'
-#
 # MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
 #
 create table t (a int, v vector(10) not null, vector index (v));

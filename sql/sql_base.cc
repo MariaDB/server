@@ -9896,8 +9896,21 @@ int TABLE::hlindex_open(uint nr)
     return 0;
   hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
-  return hlindex->file->ha_external_lock(in_use,
-           reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+
+  int res= hlindex->file->ha_external_lock(in_use,
+             reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+  /*
+    This code is here mostly for Aria. It requires start_trans() call to handle
+    transaction logging.
+  */
+  if (res == 0 && hlindex->file->lock_count() == 1)
+  {
+    THR_LOCK_DATA *lock_data;
+    hlindex->file->store_lock(in_use, &lock_data, TL_IGNORE);
+    if (lock_data->lock->start_trans)
+      lock_data->lock->start_trans(lock_data->status_param);
+  }
+  return res;
 }
 
 int TABLE::open_hlindexes_for_write()
