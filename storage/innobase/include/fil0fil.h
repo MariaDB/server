@@ -515,8 +515,9 @@ public:
   written while the space ID is being updated in each page. */
   inline void set_imported();
 
-  /** Report the tablespace as corrupted */
-  ATTRIBUTE_COLD void set_corrupted() const;
+  /** Report the tablespace as corrupted
+  @return whether this was the first call */
+  ATTRIBUTE_COLD bool set_corrupted() const noexcept;
 
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
@@ -1030,8 +1031,10 @@ public:
   void flush_low();
 
   /** Read the first page of a data file.
+  @param dpage   copy of a first page, from the doublewrite buffer, or nullptr
+  @param no_lsn  whether to skip the FIL_PAGE_LSN check
   @return whether the page was found valid */
-  bool read_page0();
+  bool read_page0(const byte *dpage, bool no_lsn) noexcept;
 
   /** Determine the next tablespace for encryption key rotation.
   @param space    current tablespace (nullptr to start from the beginning)
@@ -1128,8 +1131,10 @@ struct fil_node_t final
   bool is_open() const { return handle != OS_FILE_CLOSED; }
 
   /** Read the first page of a data file.
+  @param dpage   copy of a first page, from the doublewrite buffer, or nullptr
+  @param no_lsn  whether to skip the FIL_PAGE_LSN check
   @return whether the page was found valid */
-  bool read_page0();
+  bool read_page0(const byte *dpage, bool no_lsn) noexcept;
 
   /** Determine some file metadata when creating or reading the file.
   @param file   the file that is being created, or OS_FILE_CLOSED */
@@ -1613,7 +1618,7 @@ inline uint32_t fil_space_t::get_size()
   if (!size)
   {
     mysql_mutex_lock(&fil_system.mutex);
-    read_page0();
+    read_page0(nullptr, false);
     mysql_mutex_unlock(&fil_system.mutex);
   }
   return size;
