@@ -26,6 +26,7 @@ usr/lib/tmpfiles.d/mariadb.conf # Not used (yet) in Debian systemd
 usr/sbin/rcmysql
 usr/share/doc/mariadb-server/COPYING (related file: "debian/tmp/usr/share/mariadb/mroonga/COPYING")
 usr/share/doc/mariadb-server/CREDITS
+usr/share/doc/mariadb-Server_Galera/README-wsrep
 usr/share/doc/mariadb-server/INSTALL-BINARY
 usr/share/doc/mariadb-server/README.md
 usr/share/doc/mariadb-server/README-wsrep
