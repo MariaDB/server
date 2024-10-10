@@ -286,7 +286,7 @@ int ha_spider::open(
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -306,7 +306,7 @@ int ha_spider::open(
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
         NullS)
 #else
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_2, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),

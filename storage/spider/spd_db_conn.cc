@@ -4029,7 +4029,7 @@ int spider_db_store_result_for_reuse_cursor(
     if (!result_list->first)
     {
       if (!(result_list->first = (SPIDER_RESULT *)
-        spider_malloc(spider_current_trx, 4, sizeof(*result_list->first),
+        spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_1, sizeof(*result_list->first),
           MYF(MY_WME | MY_ZEROFILL)))
       ) {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4055,7 +4055,7 @@ int spider_db_store_result_for_reuse_cursor(
       if (result_list->bgs_current == result_list->last)
       {
         if (!(result_list->last = (SPIDER_RESULT *)
-          spider_malloc(spider_current_trx, 5, sizeof(*result_list->last),
+          spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_2, sizeof(*result_list->last),
              MYF(MY_WME | MY_ZEROFILL)))
         ) {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4084,7 +4084,7 @@ int spider_db_store_result_for_reuse_cursor(
       if (result_list->current == result_list->last)
       {
         if (!(result_list->last = (SPIDER_RESULT *)
-          spider_malloc(spider_current_trx, 6, sizeof(*result_list->last),
+          spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_3, sizeof(*result_list->last),
             MYF(MY_WME | MY_ZEROFILL)))
         ) {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4213,7 +4213,7 @@ int spider_db_store_result_for_reuse_cursor(
     }
     current->field_count = field_count;
     if (!(position = (SPIDER_POSITION *)
-      spider_bulk_malloc(spider_current_trx, 7, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_4, MYF(MY_WME | MY_ZEROFILL),
         &position, (uint) (sizeof(SPIDER_POSITION) * page_size),
         &tmp_row, (uint) (sizeof(SPIDER_DB_ROW) * field_count),
         NullS))
