@@ -9,7 +9,7 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `test`\\.`t1` is corrupted\\. Please drop the table and recreate\\.");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
+call mtr.add_suppression("InnoDB: Failed to read page [1-9][0-9]* from file '.*test.t1\\.ibd'");
 call mtr.add_suppression("InnoDB: We detected index corruption in an InnoDB type table");
 call mtr.add_suppression("Index for table 't1' is corrupt; try to repair it");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");

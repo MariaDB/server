@@ -4,15 +4,18 @@
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
-call mtr.add_suppression("InnoDB: Database page corruption on disk or a failed read of file '.*test.t1\\.ibd' page");
-call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test.t1\\.ibd': Page read from tablespace is corrupted.");
-call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) corrupted page .*, page number=3\\]");
-call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+call mtr.add_suppression("InnoDB: Unable to apply log to corrupted page 3 in file .*test.t1\\.ibd");
+call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate\\.");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: A long wait .* was observed for dict_sys");
+call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 1311768467463790320 is in the future!");
+call mtr.add_suppression("InnoDB: Your database may be corrupt");
+call mtr.add_suppression("InnoDB: MySQL-8\\.0 tablespace in .*test/t2\\.ibd");
+call mtr.add_suppression("InnoDB: Restart in MySQL for migration/recovery\\.");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
+let ALGO=`select @@innodb_checksum_algorithm`;
 CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1);
 # Force a redo log checkpoint.
@@ -30,15 +33,32 @@ INSERT INTO t2 VALUES(1);
 --echo # Corrupt the pages
 
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
 my $ps = $ENV{INNODB_PAGE_SIZE};
-
 my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 die "Unable to read $file" unless sysread(FILE, $page, $ps) == $ps;
-# Replace the a=1 with a=0.
-$page =~ s/\x80\x0\x0\x0\x0\x0\x0\x1/\x80\x0\x0\x0\x0\x0\x0\x0/;
+# Assign a future FIL_PAGE_LSN
+substr($page, 16, 8) = pack("NN", 0x12345678, 0x9abcdef0);
+substr($page, $ps - 8, 8) = pack("NN", 0x9abcdef0, 0x9abcdef0);
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($page, 0, $ps - 4), 0, $polynomial);
+    substr($page, $ps - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($page, 38, $ps - 38 - 8), 0, $polynomial));
+    substr ($page, 0, 4) = $ck;
+    substr ($page, $ps - 8, 4) = $ck;
+}
 sysseek(FILE, 3*$ps, 0) || die "Unable to seek $file\n";
 syswrite(FILE, $page, $ps)==$ps || die "Unable to write $file\n";
 close FILE or die "close";
@@ -46,20 +66,23 @@ close FILE or die "close";
 $file = "$ENV{MYSQLD_DATADIR}/test/t2.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
-# Corrupt pages 1 to 3. MLOG_INIT_FILE_PAGE2 should protect us!
-# Unfortunately, we are not immune to page 0 corruption.
-seek (FILE, $ps, SEEK_SET) or die "seek";
-print FILE chr(0xff) x ($ps * 3);
+# Corrupt pages 0 to 3. INIT_PAGE should protect us!
+print FILE chr(0xff) x ($ps * 4);
 close FILE or die "close";
 EOF
 
 --source include/start_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
+let SEARCH_PATTERN=InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 1311768467463790320 is in the future!;
+--source include/search_pattern_in_file.inc
+
 let $restart_parameters=--innodb_force_recovery=1;
 --source include/restart_mysqld.inc
 
---error ER_NO_SUCH_TABLE_IN_ENGINE,ER_TABLE_CORRUPT
+--error 0,ER_NO_SUCH_TABLE_IN_ENGINE
 SELECT * FROM t1;
 SELECT * FROM t2;
 CHECK TABLE t2;
@@ -81,13 +104,36 @@ DELETE FROM t1 WHERE pk=3;
 --source ../include/no_checkpoint_end.inc
 disconnect con1;
 
---echo # Corrupt the pages
+--echo # Corrupt the page
 perl;
+do "$ENV{MTR_SUITE_DIR}/include/crc32.pl";
+my $polynomial = 0x82f63b78; # CRC-32C
+my $algo = $ENV{ALGO};
+my $ps = $ENV{INNODB_PAGE_SIZE};
 my $file = "$ENV{MYSQLD_DATADIR}/test/t1.ibd";
 open(FILE, "+<$file") || die "Unable to open $file";
 binmode FILE;
-seek (FILE, $ENV{INNODB_PAGE_SIZE} * 3, SEEK_SET) or die "seek";
-print FILE "junk";
+sysseek(FILE, $ps * 3, SEEK_SET) or die "seek";
+sysread(FILE, $page, $ps)==$ps||die "Unable to read $file\n";
+# Set FIL_PAGE_LSN to the maximum
+substr($page, 16, 8) = chr(255) x 8;
+substr($page, $ps - 8, 8) = chr(255) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($page, 0, $ps - 4), 0, $polynomial);
+    substr($page, $ps - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($page, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($page_, 38, $ps - 38 - 8), 0, $polynomial));
+    substr ($page, 0, 4) = $ck;
+    substr ($page, $ps - 8, 4) = $ck;
+}
+sysseek(FILE, $ps * 3, SEEK_SET) or die "seek";
+syswrite(FILE, $page);
 close FILE or die "close";
 EOF
 --source include/start_mysqld.inc
