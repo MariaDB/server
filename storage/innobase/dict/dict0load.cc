@@ -172,36 +172,24 @@ name_of_col_is(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-This function gets the next system table record as it scans the table.
-@return the next record if found, NULL if end of scan */
-static
 const rec_t*
-dict_getnext_system_low(
-/*====================*/
-	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor to the
-					record*/
-	mtr_t*		mtr)		/*!< in: the mini-transaction */
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr)
 {
-	rec_t*	rec = NULL;
-
-	while (!rec) {
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
-
-		rec = btr_pcur_get_rec(pcur);
-
-		if (!btr_pcur_is_on_user_rec(pcur)) {
-			/* end of index */
-			btr_pcur_close(pcur);
-
-			return(NULL);
-		}
-	}
-
-	/* Get a record, let's save the position */
-	btr_pcur_store_position(pcur, mtr);
-
-	return(rec);
+  rec_t *rec = nullptr;
+  while (!rec)
+  {
+    btr_pcur_move_to_next_user_rec(pcur, mtr);
+    rec = btr_pcur_get_rec(pcur);
+    if (!btr_pcur_is_on_user_rec(pcur))
+    {
+      /* end of index */
+      btr_pcur_close(pcur);
+      return nullptr;
+    }
+  }
+  /* Get a record, let's save the position */
+  btr_pcur_store_position(pcur, mtr);
+  return rec;
 }
 
 /********************************************************************//**
