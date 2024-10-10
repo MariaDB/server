@@ -1,0 +1,23 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t(a) VALUES (1);
+
+
+BEGIN;
+SELECT * FROM t WHERE a = 1 LOCK IN SHARE MODE;
+
+--connect con1,localhost,root
+BEGIN;
+--send SELECT * FROM t WHERE a = 1 FOR UPDATE
+
+--connection default
+--sleep 3
+
+SELECT * FROM t WHERE a = 1 FOR UPDATE;
+ROLLBACK;
+
+--disconnect con1
+--connection default
+DROP TABLE t;
+

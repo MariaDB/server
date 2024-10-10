@@ -52,6 +52,12 @@ namespace Deadlock
   enum report { REPORT_OFF, REPORT_BASIC, REPORT_FULL };
 }
 
+struct conflicting_lock_info {
+  lock_t *conflicting;
+  lock_t *insert_after;
+  lock_t *bypassed;
+};
+
 /*********************************************************************//**
 Gets the heap_no of the smallest user record on a page.
 @return heap_no of smallest user record, or PAGE_HEAP_NO_SUPREMUM */
@@ -1151,25 +1157,6 @@ struct TMTrxGuard
 #endif
 };
 
-/*********************************************************************//**
-Creates a new record lock and inserts it to the lock queue. Does NOT check
-for deadlocks or lock compatibility!
-@return created lock */
-UNIV_INLINE
-lock_t*
-lock_rec_create(
-/*============*/
-	lock_t*			c_lock,	/*!< conflicting lock */
-	unsigned		type_mode,/*!< in: lock mode and wait flag */
-	const buf_block_t*	block,	/*!< in: buffer block containing
-					the record */
-	ulint			heap_no,/*!< in: heap number of the record */
-	dict_index_t*		index,	/*!< in: index of record */
-	trx_t*			trx,	/*!< in,out: transaction */
-	bool			caller_owns_trx_mutex);
-					/*!< in: true if caller owns
-					trx mutex */
-
 /** Remove a record lock request, waiting or granted, on a discarded page
 @param in_lock  lock object
 @param cell     hash table cell containing in_lock */
@@ -1188,7 +1175,7 @@ without checking for deadlocks or conflicts.
 @return created lock */
 lock_t*
 lock_rec_create_low(
-	lock_t*		c_lock,
+	const conflicting_lock_info   &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,
 	const page_t*	page,
@@ -1217,7 +1204,7 @@ Check for deadlocks.
 @retval	DB_DEADLOCK		if this transaction was chosen as the victim */
 dberr_t
 lock_rec_enqueue_waiting(
-	lock_t*			c_lock,
+	const conflicting_lock_info &c_lock_info,
 	unsigned		type_mode,
 	const page_id_t		id,
 	const page_t*		page,

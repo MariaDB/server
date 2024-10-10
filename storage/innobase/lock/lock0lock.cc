@@ -56,6 +56,8 @@ Created 5/7/1996 Heikki Tuuri
 #include <mysql/service_wsrep.h>
 #endif /* WITH_WSREP */
 
+extern const conflicting_lock_info null_c_lock_info{nullptr, nullptr, nullptr};
+
 /** The value of innodb_deadlock_detect */
 my_bool innodb_deadlock_detect;
 /** The value of innodb_deadlock_report */
@@ -1000,6 +1002,36 @@ Checks if a transaction has a GRANTED explicit lock on rec stronger or equal
 to precise_mode.
 @return lock or NULL */
 UNIV_INLINE
+bool
+lock_rec_has_expl(
+/*==============*/
+	ulint			precise_mode,/*!< in: LOCK_S or LOCK_X
+					possibly ORed to LOCK_GAP or
+					LOCK_REC_NOT_GAP, for a
+					supremum record we regard this
+					always a gap type request */
+	const lock_t *lock,
+	const trx_t*		trx,
+	bool is_supremum)	/*!< in: transaction */
+{
+    if (lock->trx == trx &&
+	!(lock->type_mode & (LOCK_WAIT | LOCK_INSERT_INTENTION)) &&
+	(!((LOCK_REC_NOT_GAP | LOCK_GAP) & lock->type_mode) ||
+	 is_supremum ||
+	 ((LOCK_REC_NOT_GAP | LOCK_GAP) & precise_mode & lock->type_mode)) &&
+	lock_mode_stronger_or_eq(lock->mode(), static_cast<lock_mode>
+				 (precise_mode & LOCK_MODE_MASK)))
+      return true;
+
+  return false;
+}
+
+
+/*********************************************************************//**
+Checks if a transaction has a GRANTED explicit lock on rec stronger or equal
+to precise_mode.
+@return lock or NULL */
+UNIV_INLINE
 lock_t*
 lock_rec_has_expl(
 /*==============*/
@@ -1019,15 +1051,9 @@ lock_rec_has_expl(
 
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
-    if (lock->trx == trx &&
-	!(lock->type_mode & (LOCK_WAIT | LOCK_INSERT_INTENTION)) &&
-	(!((LOCK_REC_NOT_GAP | LOCK_GAP) & lock->type_mode) ||
-	 heap_no == PAGE_HEAP_NO_SUPREMUM ||
-	 ((LOCK_REC_NOT_GAP | LOCK_GAP) & precise_mode & lock->type_mode)) &&
-	lock_mode_stronger_or_eq(lock->mode(), static_cast<lock_mode>
-				 (precise_mode & LOCK_MODE_MASK)))
+    if (lock_rec_has_expl(precise_mode, lock, trx,
+                          heap_no == PAGE_HEAP_NO_SUPREMUM))
       return lock;
-
   return nullptr;
 }
 
@@ -1159,12 +1185,22 @@ func_exit:
         lock= lock_rec_get_next(heap_no, lock);
       do
       {
+        /* Conflicting locks can be only before the waiting lock */
+        if (lock == wait_lock)
+          break;
         /* This is similar case as above except here we have
            record-locks instead of table locks. See details
            from comment above.
         */
         if (lock->trx->mysql_thd && wsrep_will_BF_abort(lock, trx))
         {
+            /* There can't be bypassed locks because:
+            1. The transaction can't be blocked by lock to bypass because
+               lock_rec_other_has_conflicting() does not treat such lock as
+               conflicting.
+            2. The lock is placed before bypassed lock in
+               lock_rec_create_low().
+            TODO: add debug check here */
           victims.emplace(lock->trx);
         }
       } while ((lock= lock_rec_get_next(heap_no, lock)));
@@ -1211,21 +1247,57 @@ LOCK_INSERT_INTENTION
 @param[in] trx our transaction
 @return conflicting lock and the flag which indicated if conflicting locks
 which wait for the current transaction were ignored */
-static lock_t *lock_rec_other_has_conflicting(unsigned mode,
-                                              const hash_cell_t &cell,
-                                              const page_id_t id,
-                                              ulint heap_no, const trx_t *trx)
+static conflicting_lock_info
+lock_rec_other_has_conflicting(unsigned mode, const hash_cell_t &cell,
+                               const page_id_t id, ulint heap_no,
+                               const trx_t *trx)
 {
-	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
+  bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
+  bool has_s_lock_or_stronger= false;
+  bool mode_is_not_ii_and_x = !(mode & LOCK_INSERT_INTENTION)
+      && (mode & LOCK_MODE_MASK) == LOCK_X;
+  lock_t *insert_after= nullptr;
+  lock_t *bypassed= nullptr;
 
-	for (lock_t* lock = lock_sys_t::get_first(cell, id, heap_no);
-	     lock; lock = lock_rec_get_next(heap_no, lock)) {
-		if (lock_rec_has_to_wait(trx, mode, lock, is_supremum)) {
-			return(lock);
-		}
-	}
+  for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
+       lock= lock_rec_get_next(heap_no, lock))
+  {
 
-	return(NULL);
+    if (mode_is_not_ii_and_x &&
+        lock_rec_has_expl(LOCK_S | LOCK_REC_NOT_GAP, lock, trx, is_supremum))
+    {
+      has_s_lock_or_stronger= true;
+      if (!bypassed)
+        insert_after= lock;
+      continue;
+    }
+    if (lock->trx == trx && !bypassed)
+      insert_after= lock;
+    if (lock_rec_has_to_wait(trx, mode, lock, is_supremum))
+    {
+      /* There is no need to lock lock_sys.wait_mutex to check
+      trx->lock.wait_trx here because the current function is executed under
+      the cell latch, and trx->lock.wait_trx transaction can change wait_trx
+      field only under the cell latch, wait_trx trx_t object can not be
+      deinitialized before releasing all its locks, and during releasing the
+      locks the cell latch will also be requested. So while the cell latch
+      is held, lock->trx->lock.wait_trx can't be changed. There also can't be
+      lock loops for one record, because all waiting locks of the record  will
+      always wait for the same lock of the record in a cell array, and check
+      for conflicting lock will always start with the first lock for the
+      heap_no, and go ahead with the same order(the order of the locks in the
+      cell array) */
+      if (lock->is_waiting() && lock->trx->lock.wait_trx == trx &&
+          !lock->is_insert_intention() && (!lock->is_gap() || !is_supremum) &&
+          lock->mode() == LOCK_X && has_s_lock_or_stronger) {
+          bypassed = lock;
+        continue;
+      }
+      return {lock, bypassed ? insert_after : nullptr, bypassed};
+    }
+  }
+
+  return {nullptr, bypassed ? insert_after : nullptr, bypassed};
 }
 
 /*********************************************************************//**
@@ -1336,7 +1408,7 @@ without checking for deadlocks or conflicts.
 @return created lock */
 lock_t*
 lock_rec_create_low(
-	lock_t*		c_lock,
+	const conflicting_lock_info &c_lock_info,
 	unsigned	type_mode,
 	const page_id_t	page_id,
 	const page_t*	page,
@@ -1345,6 +1417,7 @@ lock_rec_create_low(
 	trx_t*		trx,
 	bool		holds_trx_mutex)
 {
+	lock_t*		c_lock = c_lock_info.conflicting;
 	lock_t*		lock;
 	ulint		n_bytes;
 
@@ -1354,6 +1427,7 @@ lock_rec_create_low(
 	ut_ad(!(type_mode & LOCK_TABLE));
 	ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 	ut_ad(!trx->is_autocommit_non_locking());
+	ut_ad(!c_lock_info.insert_after || !(type_mode & LOCK_WAIT));
 
 	/* If rec is the supremum record, then we reset the gap and
 	LOCK_REC_NOT_GAP bits, as all locks on the supremum are
@@ -1424,14 +1498,19 @@ lock_rec_create_low(
 	} else {
 		/* Predicate lock always on INFIMUM (0) */
 		lock->un_member.rec_lock.n_bits = 8;
- 	}
+	}
 	lock_rec_bitmap_reset(lock);
 	lock_rec_set_nth_bit(lock, heap_no);
 	index->table->n_rec_locks++;
 	ut_ad(index->table->get_ref_count() || !index->table->can_be_evicted);
 
 	const auto lock_hash = &lock_sys.hash_get(type_mode);
-	lock_hash->cell_get(page_id.fold())->append(*lock, &lock_t::hash);
+	hash_cell_t& cell = *lock_hash->cell_get(page_id.fold());
+	if (UNIV_LIKELY(c_lock_info.conflicting || !c_lock_info.insert_after))
+		cell.append(*lock, &lock_t::hash);
+	else
+		cell.insert_after(*c_lock_info.insert_after, *lock,
+				  &lock_t::hash);
 
 	if (type_mode & LOCK_WAIT) {
 		if (trx->lock.wait_trx) {
@@ -1474,7 +1553,7 @@ Check for deadlocks.
 @retval	DB_DEADLOCK		if this transaction was chosen as the victim */
 dberr_t
 lock_rec_enqueue_waiting(
-	lock_t*			c_lock,
+	const conflicting_lock_info   &c_lock_info,
 	unsigned		type_mode,
 	const page_id_t		id,
 	const page_t*		page,
@@ -1507,7 +1586,7 @@ lock_rec_enqueue_waiting(
 	/* Enqueue the lock request that will wait to be granted, note that
 	we already own the trx mutex. */
 	lock_t* lock = lock_rec_create_low(
-		c_lock,
+		c_lock_info,
 		type_mode | LOCK_WAIT, id, page, heap_no, index, trx, true);
 
 	if (prdt && type_mode & LOCK_PREDICATE) {
@@ -1576,7 +1655,8 @@ which does NOT check for deadlocks or lock compatibility!
 @param[in,out] trx transaction
 @param[in] caller_owns_trx_mutex TRUE if caller owns the transaction mutex */
 TRANSACTIONAL_TARGET
-static void lock_rec_add_to_queue(unsigned type_mode, const hash_cell_t &cell,
+static void lock_rec_add_to_queue(const conflicting_lock_info &c_lock_info,
+                                  unsigned type_mode, const hash_cell_t &cell,
                                   const page_id_t id, const page_t *page,
                                   ulint heap_no, dict_index_t *index,
                                   trx_t *trx, bool caller_owns_trx_mutex)
@@ -1638,7 +1718,8 @@ static void lock_rec_add_to_queue(unsigned type_mode, const hash_cell_t &cell,
 	} else if (lock_t *first_lock = lock_sys_t::get_first(cell, id)) {
 		for (lock_t* lock = first_lock;;) {
 			if (lock->is_waiting()
-			    && lock_rec_get_nth_bit(lock, heap_no)) {
+			    && lock_rec_get_nth_bit(lock, heap_no)
+			    && lock != c_lock_info.bypassed) {
 				goto create;
 			}
 			if (!(lock = lock_rec_get_next_on_page(lock))) {
@@ -1672,7 +1753,7 @@ create:
 	because we should be moving an existing waiting lock request. */
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
-	lock_rec_create_low(nullptr,
+	lock_rec_create_low(c_lock_info,
 			    type_mode, id, page, heap_no, index, trx,
 			    caller_owns_trx_mutex);
 }
@@ -1713,12 +1794,13 @@ static void lock_reuse_for_next_key_lock(const lock_t *held_lock,
   that GAP Locks do not conflict with anything. Therefore a GAP Lock
   could be granted to us right now if we've requested: */
   mode|= LOCK_GAP;
-  ut_ad(nullptr ==
-        lock_rec_other_has_conflicting(mode, cell, id, heap_no, trx));
+  ut_ad(nullptr == lock_rec_other_has_conflicting(mode, cell, id, heap_no, trx)
+                       .conflicting);
 
   /* It might be the case we already have one, so we first check that. */
   if (lock_rec_has_expl(mode, cell, id, heap_no, trx) == nullptr)
-    lock_rec_add_to_queue(mode, cell, id, page, heap_no, index, trx, true);
+    lock_rec_add_to_queue(null_c_lock_info, mode, cell, id, page, heap_no,
+                          index, trx, true);
 }
 
 
@@ -1806,21 +1888,23 @@ lock_rec_lock(
       /* Do nothing if the trx already has a strong enough lock on rec */
       if (!held_lock)
       {
-        if (lock_t *c_lock= lock_rec_other_has_conflicting(mode, g.cell(), id,
-                                                           heap_no, trx))
+        auto c_lock_info = lock_rec_other_has_conflicting(mode, g.cell(), id,
+                                                           heap_no, trx);
+        if (c_lock_info.conflicting)
           /*
             If another transaction has a non-gap conflicting
             request in the queue, as this transaction does not
             have a lock strong enough already granted on the
             record, we have to wait.
           */
-          err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
-                                        heap_no, index, thr, nullptr);
+          err= lock_rec_enqueue_waiting(c_lock_info, mode, id,
+                                        block->page.frame, heap_no, index, thr,
+                                        nullptr);
         else if (!impl)
         {
           /* Set the requested lock on the record. */
-          lock_rec_add_to_queue(mode, g.cell(), id, block->page.frame, heap_no,
-                                index, trx, true);
+          lock_rec_add_to_queue(c_lock_info, mode, g.cell(), id,
+                                block->page.frame, heap_no, index, trx, true);
           err= DB_SUCCESS_LOCKED_REC;
         }
       }
@@ -1853,8 +1937,8 @@ lock_rec_lock(
 
   /* Simplified and faster path for the most common cases */
   if (!impl)
-    lock_rec_create_low(nullptr, mode, id, block->page.frame, heap_no, index,
-                        trx, false);
+    lock_rec_create_low(null_c_lock_info, mode, id, block->page.frame, heap_no,
+                        index, trx, false);
 
   return DB_SUCCESS_LOCKED_REC;
 }
@@ -1875,6 +1959,10 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 	ut_ad(!wait_lock->is_table());
 
 	heap_no = lock_rec_find_set_bit(wait_lock);
+	bool is_supremum= (heap_no == PAGE_HEAP_NO_SUPREMUM);
+	bool has_s_lock_or_stronger= false;
+	bool mode_is_not_ii_and_x = !wait_lock->is_insert_intention()
+	  && wait_lock->mode() == LOCK_X;
 
 	bit_offset = heap_no / 8;
 	bit_mask = static_cast<ulint>(1) << (heap_no % 8);
@@ -1884,10 +1972,24 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 	     lock != wait_lock;
 	     lock = lock_rec_get_next_on_page_const(lock)) {
 		const byte*	p = (const byte*) &lock[1];
-
+		if (mode_is_not_ii_and_x
+		    && lock_rec_has_expl(
+		      LOCK_S | LOCK_REC_NOT_GAP, lock, wait_lock->trx,
+		      is_supremum))
+		{
+		  has_s_lock_or_stronger= true;
+		  continue;
+		}
 		if (heap_no < lock_rec_get_n_bits(lock)
 		    && (p[bit_offset] & bit_mask)
 		    && lock_has_to_wait(wait_lock, lock)) {
+		  if (lock->is_waiting()
+		      && lock->trx->lock.wait_trx == wait_lock->trx
+		      && !lock->is_insert_intention()
+		      && (!lock->is_gap() || !is_supremum)
+		      && lock->mode() == LOCK_X
+		      && has_s_lock_or_stronger)
+		    continue;
 			return(lock);
 		}
 	}
@@ -2551,9 +2653,9 @@ lock_rec_inherit_to_gap(hash_cell_t &heir_cell, const page_id_t heir,
          ((!from_split || !lock->is_record_not_gap()) &&
           lock->mode() != (lock_trx->duplicates ? LOCK_S : LOCK_X))))
     {
-      lock_rec_add_to_queue(LOCK_GAP | lock->mode(), heir_cell, heir,
-                            heir_page, heir_heap_no, lock->index, lock_trx,
-                            false);
+      lock_rec_add_to_queue(null_c_lock_info, LOCK_GAP | lock->mode(),
+                            heir_cell, heir, heir_page, heir_heap_no,
+                            lock->index, lock_trx, false);
     }
   }
 }
@@ -2583,7 +2685,7 @@ lock_rec_inherit_to_gap_if_gap_lock(
          !lock->is_insert_intention() && (heap_no == PAGE_HEAP_NO_SUPREMUM ||
                                           !lock->is_record_not_gap()) &&
          !lock_table_has(lock->trx, lock->index->table, LOCK_X))
-       lock_rec_add_to_queue(LOCK_GAP | lock->mode(),
+       lock_rec_add_to_queue(null_c_lock_info, LOCK_GAP | lock->mode(),
                              g.cell(), id, block->page.frame,
                              heir_heap_no, lock->index, lock->trx, false);
 }
@@ -2629,9 +2731,9 @@ lock_rec_move(
 		/* Note that we FIRST reset the bit, and then set the lock:
 		the function works also if donator_id == receiver_id */
 
-		lock_rec_add_to_queue(type_mode, receiver_cell,
-				      receiver_id, receiver.page.frame,
-				      receiver_heap_no,
+		lock_rec_add_to_queue(null_c_lock_info, type_mode,
+				      receiver_cell, receiver_id,
+				      receiver.page.frame, receiver_heap_no,
 				      lock->index, lock_trx, true);
 		lock_trx->mutex_unlock();
 	}
@@ -2796,8 +2898,9 @@ lock_move_reorganize_page(
 
           /* NOTE that the old lock bitmap could be too
           small for the new heap number! */
-          lock_rec_add_to_queue(lock->type_mode, cell, id, block->page.frame,
-                                new_heap_no, lock->index, lock_trx, true);
+          lock_rec_add_to_queue(null_c_lock_info, lock->type_mode, cell, id,
+                                block->page.frame, new_heap_no, lock->index,
+                                lock_trx, true);
         }
 
 	lock_trx->mutex_unlock();
@@ -2939,9 +3042,9 @@ lock_move_rec_list_end(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_page,
-                                rec2_heap_no, lock->index, lock_trx, true);
+          lock_rec_add_to_queue(null_c_lock_info, type_mode, g.cell2(), new_id,
+                                new_page, rec2_heap_no, lock->index, lock_trx,
+                                true);
         }
 
         lock_trx->mutex_unlock();
@@ -3062,7 +3165,7 @@ lock_move_rec_list_start(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
+          lock_rec_add_to_queue(null_c_lock_info, type_mode, g.cell2(), new_id,
                                 new_block->page.frame,
                                 rec2_heap_no, lock->index, lock_trx, true);
         }
@@ -3156,7 +3259,7 @@ lock_rtr_move_rec_list(
             lock->type_mode&= ~LOCK_WAIT;
           }
 
-          lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
+          lock_rec_add_to_queue(null_c_lock_info, type_mode, g.cell2(), new_id,
                                 new_block->page.frame,
                                 rec2_heap_no, lock->index, lock_trx, true);
 
@@ -5830,12 +5933,14 @@ lock_rec_insert_check_and_lock(
       on the successor, which produced an unnecessary deadlock. */
       const unsigned type_mode= LOCK_X | LOCK_GAP | LOCK_INSERT_INTENTION;
 
-      if (lock_t *c_lock= lock_rec_other_has_conflicting(type_mode,
+      auto c_lock_info = lock_rec_other_has_conflicting(type_mode,
                                                          g.cell(), id,
-                                                         heap_no, trx))
+                                                         heap_no, trx);
+      if (c_lock_info.conflicting)
       {
+        // TODO: check there was not bypassed lock
         trx->mutex_lock();
-        err= lock_rec_enqueue_waiting(c_lock, type_mode, id, block->page.frame,
+        err= lock_rec_enqueue_waiting(c_lock_info, type_mode, id, block->page.frame,
                                       heap_no, index, thr, nullptr);
         trx->mutex_unlock();
       }
@@ -5905,8 +6010,9 @@ static trx_t *lock_rec_convert_impl_to_expl_for_trx(trx_t *trx,
       if (!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY) &&
           !lock_rec_has_expl(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id, heap_no,
                              trx))
-        lock_rec_add_to_queue(LOCK_X | LOCK_REC_NOT_GAP, g.cell(), id,
-                              page_align(rec), heap_no, index, trx, true);
+        lock_rec_add_to_queue(null_c_lock_info, LOCK_X | LOCK_REC_NOT_GAP,
+                              g.cell(), id, page_align(rec), heap_no, index,
+                              trx, true);
     }
 
     trx->release_reference();

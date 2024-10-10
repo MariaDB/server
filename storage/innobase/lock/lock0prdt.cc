@@ -32,6 +32,8 @@ Created 9/7/2013 Jimmy Yang
 #include "dict0mem.h"
 #include "que0que.h"
 
+extern const conflicting_lock_info null_c_lock_info;
+
 /*********************************************************************//**
 Get a minimum bounding box from a Predicate
 @return	the minimum bounding box */
@@ -470,8 +472,9 @@ create:
 	because we should be moving an existing waiting lock request. */
 	ut_ad(!(type_mode & LOCK_WAIT) || trx->lock.wait_trx);
 
-	lock_t* lock = lock_rec_create(nullptr,
-				       type_mode, block, PRDT_HEAPNO, index,
+	lock_t* lock = lock_rec_create_low(null_c_lock_info,
+				       type_mode, block->page.id(),
+				       block->page.frame, PRDT_HEAPNO, index,
 				       trx, caller_owns_trx_mutex);
 
 	if (lock->type_mode & LOCK_PREDICATE) {
@@ -533,8 +536,9 @@ lock_prdt_insert_check_and_lock(
         trx->mutex_lock();
         /* Allocate MBR on the lock heap */
         lock_init_prdt_from_mbr(prdt, mbr, 0, trx->lock.lock_heap);
-        err= lock_rec_enqueue_waiting(c_lock, mode, id, block->page.frame,
-                                      PRDT_HEAPNO, index, thr, prdt);
+        err= lock_rec_enqueue_waiting({c_lock, nullptr, nullptr}, mode, id,
+                                      block->page.frame, PRDT_HEAPNO, index,
+                                      thr, prdt);
         trx->mutex_unlock();
       }
     }
@@ -734,10 +738,10 @@ lock_prdt_lock(
 	lock_t*		lock = lock_sys_t::get_first(g.cell(), id);
 
 	if (lock == NULL) {
-		lock = lock_rec_create(
-			NULL,
-			prdt_mode, block, PRDT_HEAPNO,
-			index, trx, FALSE);
+		lock = lock_rec_create_low(
+			null_c_lock_info,
+			prdt_mode, block->page.id(), block->page.frame,
+			PRDT_HEAPNO, index, trx, FALSE);
 
 		status = LOCK_REC_SUCCESS_CREATED;
 	} else {
@@ -759,7 +763,8 @@ lock_prdt_lock(
 					   prdt_mode, g.cell(), id, prdt,
 					   trx)) {
 				err = lock_rec_enqueue_waiting(
-					wait_for, prdt_mode, id,
+					{wait_for, nullptr, nullptr},
+					prdt_mode, id,
 					block->page.frame, PRDT_HEAPNO,
 					index, thr, prdt);
 			} else {
@@ -826,8 +831,7 @@ lock_place_prdt_page_lock(
 	}
 
 	if (lock == NULL) {
-		lock = lock_rec_create_low(
-			NULL,
+		lock = lock_rec_create_low(null_c_lock_info,
 			mode, page_id, NULL, PRDT_HEAPNO,
 			index, trx, FALSE);
 

@@ -917,7 +917,7 @@ add_trx_relevant_locks_to_cache(
 		add the ones that are blocking it */
 
 		lock_queue_iterator_reset(&iter, wait_lock, ULINT_UNDEFINED);
-
+                // TODO: understand and fix the logic of the iterator
 		for (curr_lock = lock_queue_iterator_get_prev(&iter);
 		     curr_lock != NULL;
 		     curr_lock = lock_queue_iterator_get_prev(&iter)) {
