@@ -6788,3 +6788,13 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_legacy_xa_rollback_at_disconnect(
+       "legacy_xa_rollback_at_disconnect",
+       "If a user session disconnects after putting a transaction into the XA "
+       "PREPAREd state, roll back the transaction. Can be used for backwards "
+       "compatibility to enable this pre-10.5 behavior for applications that "
+       "expect it. Note that this violates the XA specification and should not "
+       "be used for new code",
+       SESSION_VAR(legacy_xa_rollback_at_disconnect), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG);

@@ -46,6 +46,7 @@ bool xid_cache_insert(XID *xid);
 bool xid_cache_insert(THD *thd, XID_STATE *xid_state, XID *xid);
 void xid_cache_delete(THD *thd, XID_STATE *xid_state);
 
+bool xa_trans_force_rollback(THD *thd);
 bool trans_xa_start(THD *thd);
 bool trans_xa_end(THD *thd);
 bool trans_xa_prepare(THD *thd);

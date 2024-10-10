@@ -433,6 +433,13 @@ The following specify which files/extra groups are read (specified before remain
  --lc-time-names=name 
  Set the language used for the month names and the days of
  the week.
+ --legacy-xa-rollback-at-disconnect 
+ If a user session disconnects after putting a transaction
+ into the XA PREPAREd state, roll back the transaction.
+ Can be used for backwards compatibility to enable this
+ pre-10.5 behavior for applications that expect it. Note
+ that this violates the XA specification and should not be
+ used for new code
  --local-infile      Enable LOAD DATA LOCAL INFILE
  (Defaults to on; use --skip-local-infile to disable.)
  --lock-wait-timeout=# 
@@ -1572,6 +1579,7 @@ large-pages FALSE
 lc-messages en_US
 lc-messages-dir MYSQL_SHAREDIR/
 lc-time-names en_US
+legacy-xa-rollback-at-disconnect FALSE
 local-infile TRUE
 lock-wait-timeout 86400
 log-bin foo

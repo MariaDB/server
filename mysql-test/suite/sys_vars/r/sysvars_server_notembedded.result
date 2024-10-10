@@ -1642,6 +1642,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	LEGACY_XA_ROLLBACK_AT_DISCONNECT
+VARIABLE_SCOPE	SESSION
+VARIABLE_TYPE	BOOLEAN
+VARIABLE_COMMENT	If a user session disconnects after putting a transaction into the XA PREPAREd state, roll back the transaction. Can be used for backwards compatibility to enable this pre-10.5 behavior for applications that expect it. Note that this violates the XA specification and should not be used for new code
+NUMERIC_MIN_VALUE	NULL
+NUMERIC_MAX_VALUE	NULL
+NUMERIC_BLOCK_SIZE	NULL
+ENUM_VALUE_LIST	OFF,ON
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	LICENSE
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	VARCHAR
