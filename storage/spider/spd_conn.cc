@@ -165,7 +165,7 @@ int spider_conn_init(
   ) {
     goto error_loop_checked_hash_init;
   }
-  spider_alloc_calc_mem_init(conn->loop_checked, 268);
+  spider_alloc_calc_mem_init(conn->loop_checked, SPD_MID_CONN_INIT_1);
   spider_alloc_calc_mem(spider_current_trx,
     conn->loop_checked,
     conn->loop_checked.array.max_element *
@@ -176,7 +176,7 @@ int spider_conn_init(
   ) {
     goto error_loop_check_queue_hash_init;
   }
-  spider_alloc_calc_mem_init(conn->loop_check_queue, 269);
+  spider_alloc_calc_mem_init(conn->loop_check_queue, SPD_MID_CONN_INIT_2);
   spider_alloc_calc_mem(spider_current_trx,
     conn->loop_check_queue,
     conn->loop_check_queue.array.max_element *
@@ -1108,7 +1108,7 @@ int spider_conn_queue_and_merge_loop_check(
   } else {
     /* Merge lcptr and lcqptr into a newly created lcrptr. */
     DBUG_PRINT("info", ("spider append merged_value and replace"));
-    if (unlikely(!spider_bulk_malloc(spider_current_trx, 271, MYF(MY_WME),
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, SPD_MID_CONN_QUEUE_AND_MERGE_LOOP_CHECK_1, MYF(MY_WME),
       &lcrptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
       &cur_name, (uint) (lcqptr->cur_name.length + 1),
       &to_name, (uint) (lcqptr->to_name.length + 1),
@@ -1363,7 +1363,7 @@ int spider_conn_queue_loop_check(
       spider_free(spider_current_trx, lcptr, MYF(0));
     }
     DBUG_PRINT("info", ("spider alloc_lcptr"));
-    if (unlikely(!spider_bulk_malloc(spider_current_trx, 272, MYF(MY_WME),
+    if (unlikely(!spider_bulk_malloc(spider_current_trx, SPD_MID_CONN_QUEUE_LOOP_CHECK_1, MYF(MY_WME),
       &lcptr, (uint) (sizeof(SPIDER_CONN_LOOP_CHECK)),
       &cur_name, (uint) (top_share->path.length + 1),
       &to_name, (uint) (to_str.length + 1),
