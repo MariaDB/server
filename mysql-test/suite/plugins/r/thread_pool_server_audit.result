@@ -8,6 +8,8 @@ server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
 server_audit_incl_users	
+server_audit_log_buffer_size	1
+server_audit_log_buffer_time	1000
 server_audit_logging	OFF
 server_audit_mode	0
 server_audit_output_type	file
@@ -77,6 +79,8 @@ server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
 server_audit_incl_users	odin, root, dva, tri
+server_audit_log_buffer_size	1
+server_audit_log_buffer_time	1000
 server_audit_logging	ON
 server_audit_mode	0
 server_audit_output_type	file
@@ -228,6 +232,8 @@ server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
 server_audit_incl_users	odin, root, dva, tri
+server_audit_log_buffer_size	1
+server_audit_log_buffer_time	1000
 server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
