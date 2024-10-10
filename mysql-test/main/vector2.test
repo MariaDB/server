@@ -53,13 +53,6 @@ show create table t1;
 drop table t1;
 
 --echo #
---echo # MDEV-34919 Aria crashes with high-level (vector) indexes
---echo #
---echo # Aria doesn't support VECTOR yet
---error ER_ILLEGAL_HA_CREATE_OPTION
-create table t1(v vector(10) not null, vector index(v)) engine=aria;
-
---echo #
 --echo # MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
 --echo #
 create table t (a int, v vector(10) not null, vector index (v));
