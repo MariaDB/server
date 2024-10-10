@@ -11626,6 +11626,8 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
   POSITION *pos= join->best_positions + join->const_tables;
   /*
     Generally, we assume that producing X% of output takes X% of the cost.
+    (Note: before 11.0, we subtracted COST_EPS here. In 11.0+, there's no need
+     to do this)
   */
   double partial_join_cost= join->best_read * fraction;
 
@@ -11646,10 +11648,11 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
     {
       /*
         Subtract the remainder of the first table's cost we had in
-        join->best_read:
+        join->best_read.
+        (Before 11.0, we also subtracted pos->records_read/TIME_FOR_COMPARE.
+         In 11.0+, that time is already included in pos->read_time)
       */
       partial_join_cost -= pos->read_time*fraction;
-      partial_join_cost -= pos->records_read*fraction * WHERE_COST_THD(join->thd);
 
       /* Add the cost of the new access method we've got: */
       partial_join_cost= COST_ADD(partial_join_cost, *first_table_cost);
@@ -11666,12 +11669,7 @@ double recompute_join_cost_with_limit(const JOIN *join, bool skip_sorting,
       table.  Do the same for costs of checking the WHERE.
     */
     double extra_first_table_cost= pos->read_time * (1.0 - fraction);
-    double extra_first_table_where= pos->records_read * (1.0 - fraction) *
-                                    WHERE_COST_THD(join->thd);
-
-    partial_join_cost= COST_ADD(partial_join_cost,
-                            COST_ADD(extra_first_table_cost,
-                                     extra_first_table_where));
+    partial_join_cost= COST_ADD(partial_join_cost, extra_first_table_cost);
   }
   return partial_join_cost;
 }
