@@ -747,6 +747,25 @@ xa rollback '4';
 set @@global.read_only=@sav_read_only;
 
 
+--echo # MDEV-35019: Provide a way to enable "rollback XA on disconnect" behavior we had before 10.5.2
+--echo # Test legacy_xa_rollback_at_disconnect option.
+CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1, 0);
+connect (con1,localhost,root,,);
+SET SESSION legacy_xa_rollback_at_disconnect= 1;
+XA START '5';
+INSERT INTO t1 VALUES (2, 0);
+XA END '5';
+XA PREPARE '5';
+disconnect con1;
+
+connection default;
+--source include/wait_until_count_sessions.inc
+INSERT INTO t1 VALUES (3, 0);
+--error ER_XAER_NOTA
+XA ROLLBACK '5';
+DROP TABLE t1;
+
 --echo #
 --echo # End of 10.5 tests
 --echo #

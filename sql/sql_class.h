@@ -846,6 +846,7 @@ typedef struct system_variables
   uint in_subquery_conversion_threshold;
   ulong optimizer_max_sel_arg_weight;
   ulonglong max_rowid_filter_size;
+  my_bool legacy_xa_rollback_at_disconnect;
 
   vers_asof_timestamp_t vers_asof_timestamp;
   ulong vers_alter_history;
