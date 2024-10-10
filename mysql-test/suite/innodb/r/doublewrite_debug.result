@@ -37,7 +37,7 @@ set global innodb_buf_flush_list_now = 1;
 # Make the 1st page (page_no=0) and 2nd page (page_no=1)
 # of the system tablespace all zeroes.
 # restart
-FOUND 1 /InnoDB: Restoring page \[page id: space=0, page number=0\] of datafile/ in mysqld.1.err
+FOUND 1 /InnoDB: Recovered page \[page id: space=0, page number=0\]/ in mysqld.1.err
 FOUND 1 /InnoDB: Recovered page \[page id: space=0, page number=1\]/ in mysqld.1.err
 check table t1;
 Table	Op	Msg_type	Msg_text
@@ -66,7 +66,7 @@ set global innodb_buf_flush_list_now = 1;
 # Kill the server
 # Corrupt the 1st page (page_no=0) and 2nd page of the system tablespace.
 # restart
-FOUND 2 /InnoDB: Restoring page \[page id: space=0, page number=0\] of datafile/ in mysqld.1.err
+FOUND 2 /InnoDB: Recovered page \[page id: space=0, page number=0\]/ in mysqld.1.err
 FOUND 2 /InnoDB: Recovered page \[page id: space=0, page number=1\]/ in mysqld.1.err
 check table t1;
 Table	Op	Msg_type	Msg_text
