@@ -22,7 +22,7 @@ IF(NOT WITHOUT_SERVER)
     resolveip.1 mariadb-service-convert.1 mariadbd-safe-helper.1 mariadbd.8)
   INSTALL_MANPAGES(Backup mbstream.1 mariadb-backup.1)
   IF(WITH_WSREP)
-    INSTALL_MANPAGES(Server
+    INSTALL_MANPAGES(Server_Galera
       wsrep_sst_rsync.1 wsrep_sst_common.1 wsrep_sst_mariabackup.1
       wsrep_sst_mysqldump.1 wsrep_sst_rsync_wan.1 galera_recovery.1
       galera_new_cluster.1 wsrep_sst_backup.1)
