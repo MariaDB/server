@@ -114,7 +114,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 0.492018616,
+        "shortcut_cost_with_risk": 0.495218616,
         "use_shortcut_cost": true
     }
 ]
@@ -166,7 +166,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 19.4241863,
+        "shortcut_cost_with_risk": 16.2273863,
         "use_shortcut_cost": true
     }
 ]
@@ -254,7 +254,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 199.426608,
+        "shortcut_cost_with_risk": 197.826608,
         "use_shortcut_cost": false
     }
 ]
@@ -375,7 +375,7 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 0.532449162,
+        "shortcut_cost_with_risk": 0.535649162,
         "use_shortcut_cost": true
     }
 ]
@@ -463,11 +463,21 @@ JS
         "full_join_cost": "REPLACED",
         "risk_ratio": 10,
         "shortcut_join_cost": "REPLACED",
-        "shortcut_cost_with_risk": 0.492018616,
+        "shortcut_cost_with_risk": 0.495218616,
         "use_shortcut_cost": true
     }
 ]
 set optimizer_search_depth=@tmp_osd;
 set optimizer_trace=@tmp_os;
-set optimizer_join_limit_pref_ratio=default;
 drop table t1, t10, t11;
+#
+# MDEV-35072: Assertion failure with optimizer_join_limit_pref_ratio and 1-table select
+#
+SET optimizer_join_limit_pref_ratio=1;
+CREATE TABLE t1 (c1 INT, INDEX(c1));
+INSERT INTO t1  VALUES (1),(2);
+SELECT * FROM t1  ORDER BY c1 LIMIT 1;
+c1
+1
+DROP TABLE t1;
+set optimizer_join_limit_pref_ratio=default;
