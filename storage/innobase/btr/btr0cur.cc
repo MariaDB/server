@@ -7422,13 +7422,19 @@ btr_blob_free(
 
 	buf_pool_mutex_enter(buf_pool);
 
-	if (buf_page_t* bpage = buf_page_hash_get(buf_pool, page_id)) {
-		if (!buf_LRU_free_page(bpage, all)
-		    && all && bpage->zip.data) {
+	/* Only free the block if it is still allocated to
+	the same file page. */
+
+	if (buf_block_get_state(block)
+	    == BUF_BLOCK_FILE_PAGE
+	    && block->page.id == page_id) {
+
+		if (!buf_LRU_free_page(&block->page, all)
+		    && all && block->page.zip.data) {
 			/* Attempt to deallocate the uncompressed page
 			if the whole block cannot be deallocted. */
 
-			buf_LRU_free_page(bpage, false);
+			buf_LRU_free_page(&block->page, false);
 		}
 	}
 
