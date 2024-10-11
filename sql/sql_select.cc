@@ -20714,8 +20714,6 @@ do_select(JOIN *join, Procedure *procedure)
   {
     /* Select fields are in the temporary table */
     join->fields= &join->tmp_fields_list1;
-    /* Setup HAVING to work with fields in temporary table */
-    join->set_items_ref_array(join->items1);
     /* The storage engine will take care of the group by query result */
     int res= join->pushdown_query->execute(join);
 
