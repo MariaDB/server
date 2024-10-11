@@ -94,7 +94,7 @@ sp_pcontext::sp_pcontext()
   m_parent(NULL), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM), m_composites(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(REGULAR_SCOPE)
 {
   init(0, 0, 0);
@@ -107,7 +107,7 @@ sp_pcontext::sp_pcontext(sp_pcontext *prev, sp_pcontext::enum_scope scope)
   m_parent(prev), m_pboundary(0),
   m_vars(PSI_INSTRUMENT_MEM), m_case_expr_ids(PSI_INSTRUMENT_MEM),
   m_conditions(PSI_INSTRUMENT_MEM), m_cursors(PSI_INSTRUMENT_MEM),
-  m_handlers(PSI_INSTRUMENT_MEM), m_records(PSI_INSTRUMENT_MEM),
+  m_handlers(PSI_INSTRUMENT_MEM), m_composites(PSI_INSTRUMENT_MEM),
   m_children(PSI_INSTRUMENT_MEM), m_scope(scope)
 {
   init(prev->m_var_offset + prev->m_max_var_index,
@@ -427,6 +427,22 @@ sp_condition_value *sp_pcontext::find_condition(const LEX_CSTRING *name,
 }
 
 
+sp_composite *sp_pcontext::find_composite(const LEX_CSTRING *name,
+                               bool current_scope_only) const
+{
+  for (uint  i= 0; i < m_composites.elements(); i++)
+  {
+    sp_composite *p= m_composites.at(i);
+    if (p->eq_name(name))
+      return p;
+  }
+
+  return (!current_scope_only && m_parent) ?
+    m_parent->find_composite(name, false) :
+    NULL;
+}
+
+
 bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
                              Row_definition_list *field)
 {
@@ -435,28 +451,21 @@ bool sp_pcontext::add_record(THD *thd, const Lex_ident_column &name,
   if (p == NULL)
     return true;
 
-  return m_records.append(p);
+  return m_composites.append(p);
 }
 
 
-sp_record *sp_pcontext::find_record(const LEX_CSTRING *name,
-                                    bool current_scope_only) const
+bool sp_pcontext::add_assoc_array(THD *thd,
+                                  const Lex_ident_column &name,
+                                  Spvar_definition *key,
+                                  Spvar_definition *value)
 {
-  size_t i= m_records.elements();
+  sp_assoc_array *p= new (thd->mem_root) sp_assoc_array(name, key, value);
 
-  while (i--)
-  {
-    sp_record *p= m_records.at(i);
+  if (p == NULL)
+    return true;
 
-    if (p->eq_name(name))
-    {
-      return p;
-    }
-  }
-
-  return (!current_scope_only && m_parent) ?
-    m_parent->find_record(name, false) :
-    NULL;
+  return m_composites.append(p);
 }
 
 
