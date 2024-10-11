@@ -910,6 +910,8 @@ public:
   int append_lock_tables_list();
   int lock_tables();
   int dml_init();
+private:
+  void init_fields();
 };
 
 

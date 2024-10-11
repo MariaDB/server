@@ -1,0 +1,55 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# const should be skipped in results
+create table t2 (c int key);
+create table t1 (c int key) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+INSERT INTO t1 VALUES (23),(48);
+# max is const, count and sum are not
+SELECT COUNT(c), MAX(c), SUM(c) FROM t1;
+# should be the result:
+# COUNT(a)	MAX(a)	SUM(a)
+# 2	48	71
+drop table t1, t2;
+
+# const should be selected then skipped
+create table t2 (a int, b int, c int, PRIMARY KEY (a, b));
+create table t1 (a int, b int, c int, PRIMARY KEY (a, b)) ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t2 VALUES (1,4,1), (1,2,2), (2,11,3);
+# min is const
+SELECT MIN(b), a, c FROM t1 WHERE a=1;
+# should be one row
+# 2	1	X
+# where X could be 1 or 2
+# todo: a testcase with both const and aux fields
+# SELECT MIN(b), c FROM t1 WHERE a=1;
+drop table t1, t2;
+
+# aux fields should be skipped in select
+create table t2 (a int, b int);
+create table t1 ENGINE=Spider
+COMMENT='WRAPPER "mysql", srv "srv",TABLE "t2"';
+insert into t1 VALUES (1,1), (1,1), (2,2), (2,2);
+# should be one row instead of two here
+select distinct count(a) from t1 group by b;
+# should be the result:
+# count(a)
+# 2
+drop table t1, t2;
+
+# todo: mdev_24715: aux fields used
+
+drop server srv;
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log
