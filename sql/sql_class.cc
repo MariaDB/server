@@ -8949,6 +8949,51 @@ bool Qualified_column_ident::append_to(THD *thd, String *str) const
 }
 
 
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a)
+ :m_cli_pos(a.pos()),
+  m_spvar(nullptr),
+  m_defined_parts(1)
+{
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= m_parts[2]= Lex_ident_sys();
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
+                                 const Lex_ident_sys_st &b)
+ :m_cli_pos(a.pos()),
+  m_spvar(nullptr),
+  m_defined_parts(2)
+{
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= b;
+  m_parts[2]= Lex_ident_sys();
+}
+
+
+Qualified_ident::Qualified_ident(THD *thd, const Lex_ident_cli_st &a,
+                                 const Lex_ident_sys_st &b,
+                                 const Lex_ident_sys_st &c)
+ :m_cli_pos(a.pos()),
+  m_spvar(nullptr),
+  m_defined_parts(3)
+{
+  m_parts[0]= Lex_ident_sys(thd, &a);
+  m_parts[1]= b;
+  m_parts[2]= c;
+}
+
+
+Qualified_ident::Qualified_ident(const Lex_ident_sys_st &a)
+ :m_cli_pos(nullptr),
+  m_spvar(nullptr),
+  m_defined_parts(1)
+{
+  m_parts[0]= a;
+  m_parts[1]= m_parts[2]= Lex_ident_sys();
+}
+
+
 #endif /* !defined(MYSQL_CLIENT) */
 
 

@@ -12328,3 +12328,9 @@ ER_WARN_MALFORMED_HINT
         eng "Hint %s is ignored as malformed"
 ER_WARN_HINTS_ON_INSERT_PART_OF_INSERT_SELECT
         eng "Optimizer hints at the INSERT part of a INSERT..SELECT statement are not supported"
+ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+        eng "Element not found with key '%s'"
+ER_NULL_FOR_ASSOC_ARRAY_INDEX
+        eng "NULL key used for associative array '%s'"
+ER_NEED_NAMED_ASSOCIATION
+        eng "Initializing %s requires named association"

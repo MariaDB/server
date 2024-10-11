@@ -72,6 +72,25 @@ public:
 };
 
 
+/*
+  This class represents 'DECLARE TYPE .. TABLE OF' statement.
+*/
+class sp_type_def_composite2 : public sp_type_def
+{
+public:
+  Spvar_definition *m_def[2];
+
+public:
+  sp_type_def_composite2(const Lex_ident_column &name_arg,
+                         const Type_handler *th,
+                         Spvar_definition *key_def_arg,
+                         Spvar_definition *value_def_arg)
+   :sp_type_def(name_arg, th),
+    m_def{key_def_arg, value_def_arg}
+  { }
+};
+
+
 class sp_type_def_list
 {
 protected:
@@ -92,6 +111,11 @@ public:
 
   bool type_defs_add_record(THD *thd, const Lex_ident_column &name,
                             Row_definition_list *field);
+  bool type_defs_add_composite2(THD *thd,
+                                const Lex_ident_column &name,
+                                const Type_handler *th,
+                                Spvar_definition *key,
+                                Spvar_definition *value);
 };
 
 

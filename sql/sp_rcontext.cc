@@ -33,6 +33,12 @@ Sp_rcontext_handler_package_body sp_rcontext_handler_package_body;
 Sp_rcontext_handler_statement sp_rcontext_handler_statement;
 
 
+const sp_variable *
+Sp_rcontext_handler_local::get_pvariable(const sp_pcontext *pctx, uint i) const
+{
+  return pctx->find_variable(i);
+}
+
 sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
                                                  const sp_rcontext_ref &ref)
 {
@@ -47,6 +53,14 @@ sp_cursor *Sp_rcontext_handler::get_open_cursor_or_error(THD *thd,
 sp_rcontext *Sp_rcontext_handler_local::get_rcontext(sp_rcontext *ctx) const
 {
   return ctx;
+}
+
+const sp_variable *
+Sp_rcontext_handler_package_body::get_pvariable(const sp_pcontext *pctx, uint i)
+                                                                           const
+{
+  DBUG_ASSERT(0);
+  return nullptr;
 }
 
 sp_rcontext *Sp_rcontext_handler_package_body::get_rcontext(sp_rcontext *ctx) const
@@ -663,7 +677,10 @@ int sp_rcontext::set_variable(THD *thd, uint idx, Item **value)
 {
   DBUG_ENTER("sp_rcontext::set_variable");
   DBUG_ASSERT(value);
-  DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value));
+
+  auto handler= get_variable(idx)->type_handler()->to_composite();
+  DBUG_RETURN(thd->sp_eval_expr(m_var_table->field[idx], value) ||
+              (handler && handler->finalize_for_set(get_variable(idx))));
 }
 
 
@@ -674,18 +691,6 @@ int sp_rcontext::set_variable_row_field(THD *thd, uint var_idx, uint field_idx,
   DBUG_ASSERT(value);
   Virtual_tmp_table *vtable= virtual_tmp_table_for_row(var_idx);
   DBUG_RETURN(thd->sp_eval_expr(vtable->field[field_idx], value));
-}
-
-
-int sp_rcontext::set_variable_row_field_by_name(THD *thd, uint var_idx,
-                                                const LEX_CSTRING &field_name,
-                                                Item **value)
-{
-  DBUG_ENTER("sp_rcontext::set_variable_row_field_by_name");
-  uint field_idx;
-  if (find_row_field_by_name_or_error(&field_idx, var_idx, field_name))
-    DBUG_RETURN(1);
-  DBUG_RETURN(set_variable_row_field(thd, var_idx, field_idx, value));
 }
 
 
@@ -706,6 +711,64 @@ Virtual_tmp_table *sp_rcontext::virtual_tmp_table_for_row(uint var_idx)
   Field *field= m_var_table->field[var_idx];
   DBUG_ASSERT(field->virtual_tmp_table());
   return field->virtual_tmp_table();
+}
+
+
+int sp_rcontext::set_variable_composite_by_name(THD *thd, uint var_idx,
+                                                const LEX_CSTRING &name,
+                                                Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+  DBUG_ASSERT(get_variable(var_idx)->cmp_type() == ROW_RESULT);
+
+  DBUG_RETURN(set_variable_composite_by_name(thd, get_variable(var_idx),
+                                             name, value));
+}
+
+
+int sp_rcontext::set_variable_composite_by_name(THD *thd, Item_field *composite,
+                                                const LEX_CSTRING &name,
+                                                Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_by_name");
+
+  auto handler= composite->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  auto elem= handler->get_or_create_item(thd, composite, name);
+  if (!elem)
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(thd->sp_eval_expr(elem->field, value) ||
+              handler->finalize_for_set(elem));
+}
+
+
+int
+sp_rcontext::set_variable_composite_field_by_key(THD *thd,
+                                                 uint var_idx,
+                                                 const LEX_CSTRING &elem_name,
+                                                 const LEX_CSTRING &field_name,
+                                                 Item **value)
+{
+  DBUG_ENTER("sp_rcontext::set_variable_composite_field_by_key");
+  DBUG_ASSERT(value);
+
+  DBUG_ASSERT(get_variable(var_idx)->type() == Item::FIELD_ITEM);
+
+  auto composite= get_variable(var_idx);
+  auto handler= composite->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  auto elem= handler->get_item(thd, composite, elem_name);
+  if (!elem)
+    DBUG_RETURN(1);
+
+  handler->prepare_for_set(elem);
+
+  DBUG_RETURN(set_variable_composite_by_name(thd, elem, field_name, value) ||
+              handler->finalize_for_set(elem));
 }
 
 

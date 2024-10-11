@@ -22,6 +22,7 @@
 #include "field.h"                              // Create_field
 #include "sql_array.h"                          // Dynamic_array
 #include "sp_type_def.h"
+#include "sp_rcontext_handler.h"
 
 
 /// This class represents a stored program variable or a parameter
@@ -345,30 +346,6 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////
 
-/// This class represents 'DECLARE RECORD' statement.
-
-class sp_record : public Sql_alloc
-{
-public:
-  /// Name of the record.
-  Lex_ident_column name;
-  Row_definition_list *field;
-
-public:
-  sp_record(const Lex_ident_column &name_arg, Row_definition_list *prmfield) 
-   :Sql_alloc(),
-    name(name_arg),
-    field(prmfield)
-  { }
-  bool eq_name(const LEX_CSTRING *str) const
-  {
-    return name.streq(*str);
-  }
-};
-
-
-///////////////////////////////////////////////////////////////////////////
-
 /// The class represents parse-time context, which keeps track of declared
 /// variables/parameters, conditions, handlers, cursors and labels.
 ///
@@ -564,6 +541,11 @@ public:
   /// @param n The number of variables to skip.
   void declare_var_boundary(uint n)
   { m_pboundary= n; }
+
+  const sp_variable *get_pvariable(const sp_rcontext_addr &addr) const
+  {
+    return addr.rcontext_handler()->get_pvariable(this, addr.offset());
+  }
 
   /////////////////////////////////////////////////////////////////////////
   // CASE expressions.
@@ -771,6 +753,23 @@ public:
       return true;
     }
     return type_defs_add_record(thd, name, field);
+  }
+
+  /////////////////////////////////////////////////////////////////////////
+  // Composites, e.g. associative arrays.
+  /////////////////////////////////////////////////////////////////////////
+  bool type_defs_declare_composite2(THD *thd,
+                                    const Lex_ident_column &name,
+                                    const Type_handler *th,
+                                    Spvar_definition *key,
+                                    Spvar_definition *value)
+  {
+    if (unlikely(find_type_def(name, true)))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      return true;
+    }
+    return type_defs_add_composite2(thd, name, th, key, value);
   }
 
 private:

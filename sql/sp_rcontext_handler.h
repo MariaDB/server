@@ -18,6 +18,7 @@
 
 
 class sp_rcontext;
+class sp_pcontext;
 class sp_cursor; 
 
 /**
@@ -73,6 +74,11 @@ public:
     name with a package body variable.
   */
   virtual const LEX_CSTRING *get_name_prefix() const= 0;
+
+  // Find a parse time SP variable
+  virtual const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                           uint offset) const= 0;
+
   /**
     At execution time THD->spcont points to the run-time context (sp_rcontext)
     of the currently executed routine.
@@ -95,6 +101,8 @@ class Sp_rcontext_handler_local final :public Sp_rcontext_handler
 {
 public:
   const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
   Item_field *get_variable(THD *thd, uint offset) const override;
   sp_cursor *get_cursor(THD *thd, uint offset) const override;
@@ -111,6 +119,8 @@ class Sp_rcontext_handler_package_body final :public Sp_rcontext_handler
 {
 public:
   const LEX_CSTRING *get_name_prefix() const override;
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override;
   sp_rcontext *get_rcontext(sp_rcontext *ctx) const override;
   Item_field *get_variable(THD *thd, uint offset) const override;
   sp_cursor *get_cursor(THD *thd, uint offset) const override
@@ -143,6 +153,12 @@ public:
   Item_field *get_variable(THD *thd, uint offset) const override
   {
     DBUG_ASSERT(0); // There are no session wide SP variables yet.
+    return nullptr;
+  }
+  const sp_variable *get_pvariable(const sp_pcontext *pctx,
+                                   uint offset) const override
+  {
+    DBUG_ASSERT(0);
     return nullptr;
   }
   sp_cursor *get_cursor(THD *thd, uint offset) const override;

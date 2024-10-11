@@ -35,6 +35,7 @@ C_MODE_START
 C_MODE_END
 
 class Field;
+class Qualified_ident;
 class Column_definition;
 class Column_definition_attributes;
 class Key_part_spec;
@@ -79,6 +80,7 @@ class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
 class Item_type_holder;
+class Item_splocal;
 class cmp_item;
 class in_vector;
 class Type_handler_data;
@@ -98,8 +100,10 @@ class Conv_source;
 class ST_FIELD_INFO;
 class Type_collection;
 class Create_func;
+class Type_handler_composite;
 class sp_type_def;
 class sp_head;
+class sp_instr;
 class my_var;
 
 #define my_charset_numeric      my_charset_latin1
@@ -4135,6 +4139,15 @@ public:
     return false;
   }
 
+  /*
+    Convert "this" to a composite type handler.
+    Scalar type handlers return nullptr meaning that they are not composite.
+  */
+  virtual const Type_handler_composite *to_composite() const
+  {
+    return nullptr;
+  }
+
   virtual bool partition_field_check(const LEX_CSTRING &field_name, Item *)
     const
   {
@@ -4185,6 +4198,12 @@ public:
   virtual bool can_return_extract_source(interval_type type) const;
   virtual bool is_bool_type() const { return false; }
   virtual bool is_general_purpose_string_type() const { return false; }
+  virtual bool has_methods() const { return false; }
+  /*
+    If an SP variable supports:  spvar(expr_list).
+    For example, assoc arrays support: spvar_assoc_array('key')
+  */
+  virtual bool has_functors() const { return false; }
   virtual bool has_null_predicate() const { return true; }
   virtual decimal_digits_t Item_time_precision(THD *thd, Item *item) const;
   virtual decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const;
@@ -4409,6 +4428,17 @@ public:
                                     const Lex_ident_sys_st &field,
                                     sp_head *sphead,
                                     bool validate_only) const;
+  /*
+    SELECT 1 INTO spvar(arg);
+    SELECT 1 INTO spvar(arg).field;
+  */
+  virtual my_var *make_outvar_lvalue_functor(THD *thd,
+                                             const Lex_ident_sys_st &name,
+                                             Item *arg,
+                                             const Lex_ident_sys &opt_field,
+                                             sp_head *sphead,
+                                             const sp_rcontext_addr &addr,
+                                             bool validate_only) const;
   virtual void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const;
@@ -4627,6 +4657,50 @@ public:
     return nullptr;
   }
   virtual Item_copy *create_item_copy(THD *thd, Item *item) const;
+  /*
+    Create an Item for an expression of this kind:
+      SELECT spvar(args);       -- e.g. spvar_assoc_array('key')
+      SELECT spvar(args).field; -- e.g. spvar_assoc_array('key').field
+  */
+  virtual Item_splocal *create_item_functor(THD *thd,
+                                            const Lex_ident_sys &a,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *item_list,
+                                            const Lex_ident_sys &b,
+                                            const Lex_ident_cli_st &name)
+                                                                    const
+  {
+    DBUG_ASSERT(0); // Should have checked has_functors().
+    return nullptr;
+  }
+  /*
+    Generate instructions for:
+      spvar(args)        := expr; -- e.g. spvar_assoc_array('key')      := 10;
+      spvar(args).member := expr; -- e.g. spvar_assoc_array('key').field:= 10;
+  */
+  virtual
+  sp_instr *create_instr_set_assign_functor(THD *thd, LEX *lex,
+                                            const Qualified_ident &ident,
+                                            const sp_rcontext_addr &addr,
+                                            List<Item> *args,
+                                            const Lex_ident_sys_st &member,
+                                            Item *item,
+                                            const LEX_CSTRING &expr_str) const
+  {
+    DBUG_ASSERT(0); // Should have checked has_functors().
+    return nullptr;
+  }
+  virtual Item *create_item_method(THD *thd,
+                                   const Lex_ident_sys &ca,
+                                   const Lex_ident_sys &cb,
+                                   List<Item> *args,
+                                   const Lex_ident_cli_st &query_fragment)
+                                                                    const
+  {
+    DBUG_ASSERT(0); // Should have checked has_methods().
+    return nullptr;
+  }
+
   virtual int cmp_native(const Native &a, const Native &b) const
   {
     MY_ASSERT_UNREACHABLE();
@@ -4778,6 +4852,10 @@ public:
   Item_func_mod_fix_length_and_dec(Item_func_mod *func) const= 0;
 
   virtual const Vers_type_handler *vers() const { return NULL; }
+
+  void raise_bad_data_type_for_functor(const Qualified_ident &ident,
+                                       const Lex_ident_sys &field=
+                                         Lex_ident_sys()) const;
 };
 
 
@@ -5076,14 +5154,53 @@ public:
 };
 
 
-class Type_limits_int
+class Type_range_int
+{
+  const longlong m_min_signed;
+  const longlong m_max_signed;
+  const ulonglong m_max_unsigned;
+public:
+  Type_range_int(longlong min_signed, longlong max_signed,
+                  ulonglong max_unsigned)
+   :m_min_signed(min_signed), m_max_signed(max_signed),
+    m_max_unsigned(max_unsigned)
+  { }
+  longlong min_signed() const { return m_min_signed; }
+  longlong max_signed() const { return m_max_signed; }
+  ulonglong max_unsigned() const { return m_max_unsigned; }
+
+  static Type_range_int range8()
+  {
+    return Type_range_int(INT_MIN8, INT_MAX8, UINT_MAX8);
+  }
+  static Type_range_int range16()
+  {
+    return Type_range_int(INT_MIN16, INT_MAX16, UINT_MAX16);
+  }
+  static Type_range_int range24()
+  {
+    return Type_range_int(INT_MIN24, INT_MAX24, UINT_MAX24);
+  }
+  static Type_range_int range32()
+  {
+    return Type_range_int(INT_MIN32, INT_MAX32, UINT_MAX32);
+  }
+  static Type_range_int range64()
+  {
+    return Type_range_int(INT_MIN64, INT_MAX64, UINT64_MAX);
+  }
+};
+
+
+class Type_limits_int: public Type_range_int
 {
 private:
   uint32 m_precision;
   uint32 m_char_length;
 public:
-  Type_limits_int(uint32 prec, uint32 nchars)
-   :m_precision(prec), m_char_length(nchars)
+  Type_limits_int(uint32 prec, uint32 nchars, const Type_range_int &range)
+   :Type_range_int(range),
+    m_precision(prec), m_char_length(nchars)
   { }
   uint32 precision() const { return m_precision; }
   uint32 char_length() const { return m_char_length; }
@@ -5098,7 +5215,7 @@ class Type_limits_uint8: public Type_limits_int
 {
 public:
   Type_limits_uint8()
-   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH)
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH, range8())
   { }
 };
 
@@ -5107,7 +5224,7 @@ class Type_limits_sint8: public Type_limits_int
 {
 public:
   Type_limits_sint8()
-   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH + 1)
+   :Type_limits_int(MAX_TINYINT_WIDTH, MAX_TINYINT_WIDTH + 1, range8())
   { }
 };
 
@@ -5120,7 +5237,7 @@ class Type_limits_uint16: public Type_limits_int
 {
 public:
   Type_limits_uint16()
-   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH)
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH, range16())
   { }
 };
 
@@ -5129,7 +5246,7 @@ class Type_limits_sint16: public Type_limits_int
 {
 public:
   Type_limits_sint16()
-   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH + 1)
+   :Type_limits_int(MAX_SMALLINT_WIDTH, MAX_SMALLINT_WIDTH + 1, range16())
   { }
 };
 
@@ -5142,7 +5259,7 @@ class Type_limits_uint24: public Type_limits_int
 {
 public:
   Type_limits_uint24()
-   :Type_limits_int(MAX_MEDIUMINT_WIDTH, MAX_MEDIUMINT_WIDTH)
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH, MAX_MEDIUMINT_WIDTH, range24())
   { }
 };
 
@@ -5151,7 +5268,7 @@ class Type_limits_sint24: public Type_limits_int
 {
 public:
   Type_limits_sint24()
-   :Type_limits_int(MAX_MEDIUMINT_WIDTH - 1, MAX_MEDIUMINT_WIDTH)
+   :Type_limits_int(MAX_MEDIUMINT_WIDTH - 1, MAX_MEDIUMINT_WIDTH, range24())
   { }
 };
 
@@ -5164,7 +5281,7 @@ class Type_limits_uint32: public Type_limits_int
 {
 public:
   Type_limits_uint32()
-   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH)
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH, range32())
   { }
 };
 
@@ -5174,7 +5291,7 @@ class Type_limits_sint32: public Type_limits_int
 {
 public:
   Type_limits_sint32()
-   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH + 1)
+   :Type_limits_int(MAX_INT_WIDTH, MAX_INT_WIDTH + 1, range32())
   { }
 };
 
@@ -5186,7 +5303,8 @@ public:
 class Type_limits_uint64: public Type_limits_int
 {
 public:
-  Type_limits_uint64(): Type_limits_int(MAX_BIGINT_WIDTH, MAX_BIGINT_WIDTH)
+  Type_limits_uint64()
+   :Type_limits_int(MAX_BIGINT_WIDTH, MAX_BIGINT_WIDTH, range64())
   { }
 };
 
@@ -5195,7 +5313,7 @@ class Type_limits_sint64: public Type_limits_int
 {
 public:
   Type_limits_sint64()
-   :Type_limits_int(MAX_BIGINT_WIDTH - 1, MAX_BIGINT_WIDTH)
+   :Type_limits_int(MAX_BIGINT_WIDTH - 1, MAX_BIGINT_WIDTH, range64())
   { }
 };
 
@@ -5817,6 +5935,7 @@ public:
   Item_cache *Item_get_cache(THD *thd, const Item *item) const override;
   int Item_save_in_field(Item *item, Field *field, bool no_conversions)
                          const override;
+  String *print_item_value(THD *thd, Item *item, String *str) const override;
 };
 
 
@@ -7615,7 +7734,7 @@ class Named_type_handler : public TypeHandler
   { Type_handler::set_name(Name(n, static_cast<uint>(strlen(n)))); }
 };
 
-extern Named_type_handler<Type_handler_row>         type_handler_row;
+extern const Type_handler_composite                 &type_handler_row;
 extern Named_type_handler<Type_handler_null>        type_handler_null;
 
 extern Named_type_handler<Type_handler_float>       type_handler_float;

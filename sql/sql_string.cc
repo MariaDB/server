@@ -800,6 +800,15 @@ void Binary_string::qs_append(ulonglong i)
 }
 
 
+void Binary_string::qs_append_int64(longlong i)
+{
+  char *buff= Ptr + str_length;
+  char *end= longlong10_to_str(i, buff, -10);
+  ASSERT_LENGTH((size_t) (end-buff));
+  str_length+= (uint32) (end-buff);
+}
+
+
 bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
                                         CHARSET_INFO *from_cs,
                                         const char *from,

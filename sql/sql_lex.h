@@ -165,6 +165,7 @@ class sp_variable;
 class sp_fetch_target;
 class sp_expr_lex;
 class sp_assignment_lex;
+class sp_type_def;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -3914,6 +3915,11 @@ public:
                             const Lex_ident_sys_st *db,
                             const Lex_ident_sys_st *pkg,
                             const Lex_ident_sys_st *proc);
+  bool call_statement_start(THD *thd, const Qualified_ident *ident);
+  bool call_statement_start_or_lvalue_assign(THD *thd,
+                                             Qualified_ident *ident);
+
+  bool assoc_assign_start(THD *thd, Qualified_ident *ident);
   sp_variable *find_variable(const LEX_CSTRING *name,
                              sp_pcontext **ctx,
                              const Sp_rcontext_handler **rh) const;
@@ -3937,6 +3943,8 @@ public:
   bool set_variable(const Lex_ident_sys_st *name1,
                     const Lex_ident_sys_st *name2, Item *item,
                     const LEX_CSTRING &expr_str);
+  bool set_variable(const Qualified_ident *ident, Item *item,
+                    const LEX_CSTRING &expr_str);
   void sp_variable_declarations_init(THD *thd, int nvars);
   bool sp_variable_declarations_finalize(THD *thd, int nvars,
                                          const Column_definition *cdef,
@@ -3944,10 +3952,11 @@ public:
                                          const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_set_default(THD *thd, int nvars, Item *def,
                                             const LEX_CSTRING &expr_str);
-  bool sp_variable_declarations_rec_finalize(THD *thd, int nvars,
-                                             Row_definition_list *src_row,
-                                             Item *def,
-                                             const LEX_CSTRING &expr_str);
+  bool sp_set_assign_lvalue_function(THD *thd,
+                                     const Qualified_ident *ident,
+                                     List<Item> *params,
+                                     const Lex_ident_sys_st &field_name,
+                                     Item *item, const LEX_CSTRING &expr_str);
   bool sp_variable_declarations_row_finalize(THD *thd, int nvars,
                                              Row_definition_list *row,
                                              Item *def,
@@ -4178,6 +4187,17 @@ public:
   }
 
   /*
+    Create items of this kind:
+      SELECT name(args);        -- e.g. spvar_assoc_array('key')
+      SELECT name(args).member; -- e.g. spvar_assoc_array('key').member
+  */
+  Item_splocal *create_item_functor(THD *thd,
+                                    const Lex_ident_sys &name,
+                                    List<Item> *args,
+                                    const Lex_ident_sys &member,
+                                    const Lex_ident_cli_st &query_fragment);
+
+  /*
     Create an item for "NEXT VALUE FOR sequence_name"
   */
   Item *create_item_func_nextval(THD *thd, Table_ident *ident);
@@ -4274,6 +4294,12 @@ public:
   Item *make_item_func_call_native_or_parse_error(THD *thd,
                                                   Lex_ident_cli_st &name,
                                                   List<Item> *args);
+  Item *make_item_func_or_method_call(THD *thd,
+                                      const Lex_ident_cli_st &ident0,
+                                      const Lex_ident_cli_st &ident1,
+                                      List<Item> *args,
+                                      const Lex_ident_cli_st &query_fragment);
+
   my_var *create_outvar(THD *thd, const Lex_ident_sys_st &name);
 
   /*
@@ -4286,6 +4312,10 @@ public:
   my_var *create_outvar(THD *thd,
                         const Lex_ident_sys_st &var_name,
                         const Lex_ident_sys_st &field_name);
+
+  my_var *create_outvar_lvalue_function(THD *thd, const Lex_ident_sys_st &name,
+                                        Item *arg,
+                                        const Lex_ident_sys &opt_field_name);
 
   bool is_trigger_new_or_old_reference(const LEX_CSTRING *name) const;
 
@@ -4949,12 +4979,19 @@ public:
   sp_condition_value *stmt_signal_value(const Lex_ident_sys_st &ident);
 
   Spvar_definition *row_field_name(THD *thd, const Lex_ident_sys_st &name);
+  Spvar_definition *init_spvar_definition(THD *thd,
+                                          const Lex_ident_sys_st &name);
 
   bool set_field_type_udt(Lex_field_type_st *type,
                           const LEX_CSTRING &name,
                           const Lex_length_and_dec_st &attr);
   bool set_cast_type_udt(Lex_cast_type_st *type,
                          const LEX_CSTRING &name);
+
+  bool set_field_type_composite(Lex_field_type_st *type,
+                                const LEX_CSTRING &name,
+                                bool with_collection,
+                                bool *is_composite);
 
   bool map_data_type(const Lex_ident_sys_st &schema,
                      Lex_field_type_st *type) const;

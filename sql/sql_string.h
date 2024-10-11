@@ -392,6 +392,12 @@ public:
     int4store(Ptr + str_length, n);
     str_length += 4;
   }
+  void q_append_int64(const longlong n)
+  {
+    ASSERT_LENGTH(8);
+    int8store(Ptr + str_length, n);
+    str_length += 8;
+  }
   void q_append(double d)
   {
     ASSERT_LENGTH(8);
@@ -474,6 +480,8 @@ public:
     char *end= ll2str(i, buff, radix, 0);
     str_length+= (uint32) (end-buff);
   }
+
+  void qs_append_int64(longlong i);
 
   /* Mark variable thread specific it it's not allocated already */
   inline void set_thread_specific()
