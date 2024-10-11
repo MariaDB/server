@@ -883,7 +883,7 @@ public:
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM,
-             EXPR_CACHE_ITEM};
+             EXPR_CACHE_ITEM, ASSOC_ARRAY_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
   enum traverse_order { POSTFIX, PREFIX };

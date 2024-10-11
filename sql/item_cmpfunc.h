@@ -244,6 +244,7 @@ public:
     DBUG_ASSERT(!is_cond());
     return val_bool();
   }
+  String *val_str(String*str) override;
   bool val_bool() override= 0;
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
@@ -2778,6 +2779,7 @@ protected:
                        Item_func::Functype type, Item *value) override;
 public:
   Item_func_null_predicate(THD *thd, Item *a): Item_bool_func(thd, a) { }
+  bool check_arguments() const override;
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields, uint *and_level,
                       table_map usable_tables, SARGABLE_PARAM **sargables)
     override;
