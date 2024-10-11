@@ -441,6 +441,17 @@ public:
                                             const LEX_CSTRING *field_name,
                                             Item *val, LEX *lex,
                                             const LEX_CSTRING &value_query);
+  bool set_local_variable_assoc_array(THD *thd, sp_pcontext *spcont,
+                                      const Sp_rcontext_handler *rh,
+                                      sp_variable *spv, Item* key,
+                                      Item *val, LEX *lex,
+                                      const LEX_CSTRING &value_query);
+  bool set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
+                                            const Sp_rcontext_handler *rh,
+                                            sp_variable *spv, Item* key,
+                                            const LEX_CSTRING &field_name,
+                                            Item *val, LEX *lex,
+                                            const LEX_CSTRING &value_query);
   bool check_package_routine_end_name(const LEX_CSTRING &end_name) const;
   bool check_standalone_routine_end_name(const sp_name *end_name) const;
   bool check_group_aggregate_instructions_function() const;
@@ -825,6 +836,11 @@ public:
                                  const LEX_CSTRING &db,
                                  const LEX_CSTRING &table,
                                  const LEX_CSTRING &column);
+  bool spvar_def_fill_rowtype_reference(THD *thd, Spvar_definition *def,
+                                        const LEX_CSTRING &table);
+  bool spvar_def_fill_rowtype_reference(THD *thd, Spvar_definition *def,
+                                        const LEX_CSTRING &db,
+                                        const LEX_CSTRING &table);
 
   void set_c_chistics(const st_sp_chistics &chistics);
   void set_info(longlong created, longlong modified,

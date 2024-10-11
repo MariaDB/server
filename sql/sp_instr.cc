@@ -1290,13 +1290,23 @@ sp_instr_set_row_field::print(String *str)
 
 
 /*
-  sp_instr_set_field_by_name class functions
+  sp_instr_set_composite_field_by_name class functions
 */
 
 int
-sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
+sp_instr_set_composite_field_by_name::exec_core(THD *thd, uint *nextp)
 {
-  int res= get_rcontext(thd)->set_variable_row_field_by_name(thd, m_offset,
+  if (m_key)
+  {
+    auto var= get_rcontext(thd)->get_variable(m_offset);
+    auto handler= var->type_handler()->to_composite();
+    DBUG_ASSERT(handler);
+
+    if (handler->key_to_lex_cstring(thd, &m_key, var->name, m_field_name))
+      return true;
+  }
+
+  int res= get_rcontext(thd)->set_variable_composite_by_name(thd, m_offset,
                                                              m_field_name,
                                                              &m_value);
   *nextp= m_ip + 1;
@@ -1305,30 +1315,96 @@ sp_instr_set_row_field_by_name::exec_core(THD *thd, uint *nextp)
 
 
 void
-sp_instr_set_row_field_by_name::print(String *str)
+sp_instr_set_composite_field_by_name::print(String *str)
 {
   /* set name.field@offset["field"] ... */
-  size_t rsrv= SP_INSTR_UINT_MAXLEN + 6 + 6 + 3 + 2;
+  /* set name.field["key"] ... */
   sp_variable *var= m_ctx->find_variable(m_offset);
   const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
   DBUG_ASSERT(var);
   DBUG_ASSERT(var->field_def.is_table_rowtype_ref() ||
-              var->field_def.is_cursor_rowtype_ref());
+              var->field_def.is_cursor_rowtype_ref() ||
+              var->field_def.is_assoc_array());
 
-  rsrv+= var->name.length + 2 * m_field_name.length + prefix->length;
-  if (str->reserve(rsrv))
-    return;
-  str->qs_append(STRING_WITH_LEN("set "));
-  str->qs_append(prefix);
-  str->qs_append(&var->name);
-  str->qs_append('.');
-  str->qs_append(&m_field_name);
-  str->qs_append('@');
-  str->qs_append(m_offset);
-  str->qs_append("[\"",2);
-  str->qs_append(&m_field_name);
-  str->qs_append("\"]",2);
-  str->qs_append(' ');
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+
+  if (!m_key)
+  {
+    str->append('.');
+    str->append(&m_field_name);
+  }
+
+  str->append('@');
+  str->append_ulonglong(m_offset);
+
+  if (!m_key)
+  {
+    str->append(STRING_WITH_LEN("[\""));
+    str->append(&m_field_name);
+    str->append(STRING_WITH_LEN("\"]"));
+  }
+  else
+  {
+    str->append('[');
+    m_key->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+    str->append(']');
+  }
+
+  str->append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
+/*
+  sp_instr_set_composite_field_by_key class functions
+*/
+
+int
+sp_instr_set_composite_field_by_key::exec_core(THD *thd, uint *nextp)
+{
+  auto var= get_rcontext(thd)->get_variable(m_offset);
+  auto handler= var->type_handler()->to_composite();
+  DBUG_ASSERT(handler);
+
+  LEX_CSTRING key;
+  if (handler->key_to_lex_cstring(thd, &m_key, var->name, key))
+    return true;
+
+  int res= get_rcontext(thd)->set_variable_composite_field_by_key(thd,
+                                                                  m_var_name,
+                                                                  m_offset,
+                                                                  key,
+                                                                  m_field_name,
+                                                                  &m_value);
+  *nextp= m_ip + 1;
+  return res;
+}
+
+
+void
+sp_instr_set_composite_field_by_key::print(String *str)
+{
+  sp_variable *var= m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  DBUG_ASSERT(var);
+  DBUG_ASSERT(var->field_def.is_assoc_array());
+
+  str->append(STRING_WITH_LEN("set "));
+  str->append(prefix);
+  str->append(&var->name);
+  str->append('@');
+  str->append_ulonglong(m_offset);
+  str->append('[');
+  m_key->print(str, enum_query_type(QT_ORDINARY |
+                                    QT_ITEM_ORIGINAL_FUNC_NULLIF));
+  str->append(']');
+  str->append('.');
+  str->append(&m_field_name);
+  str->append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));
 }

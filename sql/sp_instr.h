@@ -748,35 +748,103 @@ public:
   structure of "rec". It gets resolved at run time, during the corresponding
   sp_instr_cursor_copy_struct::exec_core().
 
-  So sp_instr_set_row_field_by_name searches for ROW fields by name,
+  So sp_instr_set_composite_field_by_name searches for ROW fields by name,
   while sp_instr_set_row_field (see above) searches for ROW fields by index.
-*/
 
-class sp_instr_set_row_field_by_name : public sp_instr_set
+  Additionally, this class is used for assignments of associative arrays
+  by key:
+  DECLARE
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+  BEGIN
+    arr('key'):= rec_t(10, 20); -- This instruction
+  END;
+*/
+class sp_instr_set_composite_field_by_name : public sp_instr_set
 {
-  // Prevent use of this
-  sp_instr_set_row_field_by_name(const sp_instr_set_row_field &);
-  void operator=(sp_instr_set_row_field_by_name &);
-  const LEX_CSTRING m_field_name;
+  using SELF= sp_instr_set_composite_field_by_name;
+  sp_instr_set_composite_field_by_name(const SELF &);
+  void operator=(SELF &);
+  LEX_CSTRING m_field_name;
+  Item* m_key;
 
 public:
-
-  sp_instr_set_row_field_by_name(uint ip, sp_pcontext *ctx,
-                                 const Sp_rcontext_handler *rh,
-                                 uint offset, const LEX_CSTRING &field_name,
-                                 Item *val,
-                                 LEX *lex, bool lex_resp,
-                                 const LEX_CSTRING &value_query)
+  sp_instr_set_composite_field_by_name(uint ip, sp_pcontext *ctx,
+                                       const Sp_rcontext_handler *rh,
+                                       uint offset,
+                                       const LEX_CSTRING &field_name,
+                                       Item *val,
+                                       LEX *lex, bool lex_resp,
+                                       const LEX_CSTRING &value_query)
     : sp_instr_set(ip, ctx, rh, offset, val, lex, lex_resp, value_query),
-      m_field_name(field_name)
+      m_field_name(field_name),
+      m_key(nullptr)
+  {}
+  sp_instr_set_composite_field_by_name(uint ip, sp_pcontext *ctx,
+                                       const sp_rcontext_addr &addr,
+                                       Item* key, Item *val,
+                                       LEX *lex, bool lex_resp,
+                                       const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx,
+                   addr.rcontext_handler(),
+                   addr.offset(), val, lex,
+                   lex_resp, value_query),
+      m_key(key)
   {}
 
-  virtual ~sp_instr_set_row_field_by_name() = default;
+  virtual ~sp_instr_set_composite_field_by_name() = default;
 
   int exec_core(THD *thd, uint *nextp) override;
 
   void print(String *str) override;
-}; // class sp_instr_set_field_by_name : public sp_instr_set
+}; // class sp_instr_set_composite_field_by_name : public sp_instr_set
+
+
+/*
+  This class handles assignments of non scalar associative array's element
+  assignments.
+
+  DECLARE
+    TYPE t IS TABLE OF rec_t INDEX BY VARCHAR2(20);
+    arr t;
+  BEGIN
+    arr('key'):= rec_t(10, 20);
+    arr('key').field:= 30; -- This instruction
+  END;
+*/
+class sp_instr_set_composite_field_by_key : public sp_instr_set
+{
+  using SELF= sp_instr_set_composite_field_by_key;
+  sp_instr_set_composite_field_by_key(const SELF &);
+  void operator=(SELF &);
+  const LEX_CSTRING m_var_name;
+  Item* m_key;
+  const LEX_CSTRING m_field_name;
+
+public:
+  sp_instr_set_composite_field_by_key(uint ip, sp_pcontext *ctx,
+                                      const sp_rcontext_addr &addr,
+                                      const LEX_CSTRING &var_name,
+                                      Item* key,
+                                      const LEX_CSTRING &field_name,
+                                      Item *val,
+                                      LEX *lex, bool lex_resp,
+                                      const LEX_CSTRING &value_query)
+    : sp_instr_set(ip, ctx,
+                   addr.rcontext_handler(),
+                   addr.offset(), val, lex,
+                   lex_resp, value_query),
+      m_var_name(var_name),
+      m_key(key),
+      m_field_name(field_name)
+  {}
+
+  virtual ~sp_instr_set_composite_field_by_key() = default;
+
+  int exec_core(THD *thd, uint *nextp) override;
+
+  void print(String *str) override;
+}; // class sp_instr_set_composite_field_by_key : public sp_instr_set
 
 
 /**

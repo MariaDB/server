@@ -1984,10 +1984,13 @@ CALL p1();
 bool Item_splocal::check_cols(uint n)
 {
   DBUG_ASSERT(m_thd->spcont);
-  if (Type_handler_hybrid_field_type::cmp_type() != ROW_RESULT)
+
+  Item_result cmp_type= Type_handler_hybrid_field_type::cmp_type();
+  if (cmp_type != ROW_RESULT)
     return Item::check_cols(n);
 
-  if (n != this_item()->cols() || n == 1)
+  if (n != this_item()->cols() || n == 1 ||
+      type_handler() == &type_handler_assoc_array)
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), n);
     return true;

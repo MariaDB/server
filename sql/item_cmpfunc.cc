@@ -5815,6 +5815,18 @@ bool Item_func_null_predicate::count_sargable_conds(void *arg)
 }
 
 
+bool Item_func_null_predicate::check_arguments() const
+{
+  DBUG_ASSERT(arg_count == 1);
+  
+  if (args[0]->type_handler() != &type_handler_assoc_array &&
+      args[0]->check_type_scalar(func_name_cstring()))
+    return true;
+
+  return false;
+}
+
+
 bool Item_func_isnull::val_bool()
 {
   DBUG_ASSERT(fixed());

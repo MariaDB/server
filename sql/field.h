@@ -44,12 +44,14 @@ class Item_bool_func;
 class Item_equal;
 class Virtual_tmp_table;
 class Qualified_column_ident;
+class Qualified_ident;
 class Table_ident;
 class SEL_ARG;
 class RANGE_OPT_PARAM;
 struct KEY_PART;
 struct SORT_FIELD;
 struct SORT_FIELD_ATTR;
+class Item_field_assoc_array;
 
 enum enum_check_fields
 {
@@ -5709,6 +5711,7 @@ public:
   - variables with explicit data types:   DECLARE a INT;
   - variables with data type references:  DECLARE a t1.a%TYPE;
   - ROW type variables
+  - Associative arrays
 
   Notes:
   - Scalar variables have m_field_definitions==NULL.
@@ -5743,6 +5746,14 @@ public:
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
+  { }
+  Spvar_definition(const Column_definition &col_def)
+   : Column_definition(col_def),
+     m_column_type_ref(NULL),
+     m_table_rowtype_ref(NULL),
+     m_cursor_rowtype_ref(false),
+     m_cursor_rowtype_offset(0),
+     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
   {
@@ -5799,7 +5810,8 @@ public:
   }
   uint is_row() const
   {
-    return m_row_field_definitions != NULL;
+    return m_row_field_definitions != NULL &&
+           type_handler() == &type_handler_row;
   }
   // Check if "this" defines a ROW variable with n elements
   uint is_row(uint n) const
@@ -5819,6 +5831,24 @@ public:
   }
 
   class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
+
+  uint is_assoc_array() const
+  {
+    return m_row_field_definitions != NULL &&
+           type_handler() == &type_handler_assoc_array;
+  }
+  Row_definition_list *assoc_array_definition() const
+  {
+    return m_row_field_definitions;
+  }
+  void set_assoc_array_definition(Row_definition_list *assoc_array_def)
+  {
+    DBUG_ASSERT(assoc_array_def);
+    set_handler(&type_handler_assoc_array);
+    m_row_field_definitions= assoc_array_def;
+  }
+
+  Item_field_assoc_array *make_item_field_assoc_array(THD *thd, Field *field);
 };
 
 

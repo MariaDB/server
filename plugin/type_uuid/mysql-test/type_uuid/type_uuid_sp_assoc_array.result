@@ -1,0 +1,35 @@
+#
+# MDEV-34319 DECLARE TYPE type_name IS RECORD (..) with scalar members in stored routines
+#
+#
+# Demonstrate UDT field type for associative array element
+#
+SET sql_mode=ORACLE;
+DECLARE
+TYPE uuids_t IS TABLE OF UUID INDEX BY INTEGER;
+uuids uuids_t;
+BEGIN
+uuids(1):= 'e7a69166-a557-4bbe-ab4d-d390114b51fa';
+SELECT uuids(1);
+END;
+$$
+uuids(1)
+e7a69166-a557-4bbe-ab4d-d390114b51fa
+#
+# Demonstrate UDT field type for associative array RECORD field
+#
+SET sql_mode=ORACLE;
+DECLARE
+TYPE rec_t IS RECORD (
+a INT,
+b UUID
+);
+TYPE uuids_t IS TABLE OF rec_t INDEX BY INTEGER;
+uuids uuids_t;
+BEGIN
+uuids(1):= rec_t(1, 'e7a69166-a557-4bbe-ab4d-d390114b51fa');
+SELECT uuids(1).a,uuids(1).b;
+END;
+$$
+uuids(1).a	uuids(1).b
+1	e7a69166-a557-4bbe-ab4d-d390114b51fa

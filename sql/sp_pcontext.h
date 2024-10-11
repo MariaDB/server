@@ -343,26 +343,65 @@ public:
 
 
 ///////////////////////////////////////////////////////////////////////////
+/// This class represents a type definition in a stored program.
+
+class sp_type_def : public Sql_alloc,
+                    public Type_handler_hybrid_field_type
+{
+protected:
+  /// Name of the type.
+  Lex_ident_column m_name;
+
+public:
+  sp_type_def(const Lex_ident_column &name_arg, const Type_handler *th)
+   :Sql_alloc(),
+    Type_handler_hybrid_field_type(th),
+    m_name(name_arg)
+  { }
+
+  bool eq_name(const LEX_CSTRING *str) const
+  {
+    return m_name.streq(*str);
+  }
+
+  const Lex_ident_column &get_name() const
+  {
+    return m_name;
+  }
+};
+
 
 /// This class represents 'DECLARE RECORD' statement.
 
-class sp_record : public Sql_alloc
+class sp_type_def_record : public sp_type_def
 {
 public:
-  /// Name of the record.
-  Lex_ident_column name;
   Row_definition_list *field;
 
 public:
-  sp_record(const Lex_ident_column &name_arg, Row_definition_list *prmfield) 
-   :Sql_alloc(),
-    name(name_arg),
+  sp_type_def_record(const Lex_ident_column &name_arg,
+                     Row_definition_list *prmfield)
+   :sp_type_def(name_arg, &type_handler_row),
     field(prmfield)
   { }
-  bool eq_name(const LEX_CSTRING *str) const
-  {
-    return name.streq(*str);
-  }
+};
+
+/// This class represents 'DECLARE TYPE .. TABLE OF' statement.
+
+class sp_type_def_assoc_array : public sp_type_def
+{
+public:
+  Spvar_definition *key_def;
+  Spvar_definition *value_def;
+
+public:
+  sp_type_def_assoc_array(const Lex_ident_column &name_arg,
+                          Spvar_definition *key_def_arg,
+                          Spvar_definition *value_def_arg)
+   :sp_type_def(name_arg, &type_handler_assoc_array),
+    key_def(key_def_arg),
+    value_def(value_def_arg)
+  { }
 };
 
 
@@ -752,27 +791,46 @@ public:
     return m_scope;
   }
 
+  sp_type_def *find_data_type(const LEX_CSTRING *name,
+                               bool current_scope_only) const;
+
   /////////////////////////////////////////////////////////////////////////
   // Record.
   /////////////////////////////////////////////////////////////////////////
+  bool type_defs_add_record(THD *thd,
+                            const Lex_ident_column &name,
+                            Row_definition_list *field);
 
-  bool add_record(THD *thd,
-                  const Lex_ident_column &name,
-                  Row_definition_list *field);
-
-  sp_record *find_record(const LEX_CSTRING *name,
-                         bool current_scope_only) const;
-
-  bool declare_record(THD *thd,
-                      const Lex_ident_column &name,
-                      Row_definition_list *field)
+  bool type_defs_declare_record(THD *thd,
+                                const Lex_ident_column &name,
+                                Row_definition_list *field)
   {
-    if (find_record(&name, true))
+    if (unlikely(find_data_type(&name, true)))
     {
       my_error(ER_SP_DUP_DECL, MYF(0), name.str);
       return true;
     }
-    return add_record(thd, name, field);
+    return type_defs_add_record(thd, name, field);
+  }
+
+  /////////////////////////////////////////////////////////////////////////
+  // Associative array.
+  /////////////////////////////////////////////////////////////////////////
+  bool type_defs_add_assoc_array(THD *thd,
+                                 const Lex_ident_column &name,
+                                 Spvar_definition *key,
+                                 Spvar_definition *value);
+  bool type_defs_declare_assoc_array(THD *thd,
+                                     const Lex_ident_column &name,
+                                     Spvar_definition *key,
+                                     Spvar_definition *value)
+  {
+    if (unlikely(find_data_type(&name, true)))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      return true;
+    }
+    return type_defs_add_assoc_array(thd, name, key, value);
   }
 
 private:
@@ -839,8 +897,8 @@ private:
   /// Stack of SQL-handlers.
   Dynamic_array<sp_handler *> m_handlers;
 
-  /// Stack of records.
-  Dynamic_array<sp_record *> m_records;
+  /// Stack of type definitions.
+  Dynamic_array<sp_type_def *> m_type_defs;
 
   /*
    In the below example the label <<lab>> has two meanings:

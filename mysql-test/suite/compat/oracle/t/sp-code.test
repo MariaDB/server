@@ -1105,4 +1105,45 @@ DELIMITER ;$$
 SHOW PROCEDURE CODE p1;
 DROP PROCEDURE p1;
 
+--echo # 
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo # 
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  marks marks_t:= marks_t('1' => 43, '2' => 99);
+BEGIN
+  marks(1) := 62;
+  SELECT marks(1);
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t:=
+                                table_of_peson_t(
+                                    'Monty' => person_t('Michael', 'Widenius'),
+                                    'Serg' => person_t('Sergei ', 'Golubchik')) ;
+  nick VARCHAR(20);
+BEGIN
+  nick:= person_by_nickname.FIRST;
+  person_by_nickname(nick).first_name:= 'Michael';
+
+  person_by_nickname(nick):= person_t('Michael', 'Widenius');
+END;
+$$
+DELIMITER ;$$
+SHOW PROCEDURE CODE p1;
+DROP PROCEDURE p1;
+
+
 --echo # End of 11.8 tests

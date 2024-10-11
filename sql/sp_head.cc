@@ -3856,14 +3856,63 @@ sp_head::set_local_variable_row_field_by_name(THD *thd, sp_pcontext *spcont,
   if (!(val= adjust_assignment_source(thd, val, NULL)))
     return true;
 
-  sp_instr_set_row_field_by_name *sp_set=
-    new (thd->mem_root) sp_instr_set_row_field_by_name(instructions(),
-                                                       spcont, rh,
-                                                       spv->offset,
-                                                       *field_name,
-                                                       val,
-                                                       lex, true,
-                                                       value_query);
+  sp_instr_set_composite_field_by_name *sp_set=
+    new (thd->mem_root) sp_instr_set_composite_field_by_name(instructions(),
+                                                             spcont, rh,
+                                                             spv->offset,
+                                                             *field_name,
+                                                             val,
+                                                             lex, true,
+                                                             value_query);
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
+/**
+  Similar to set_local_variable(), but for ASSOC ARRAY variable fields.
+*/
+
+bool
+sp_head::set_local_variable_assoc_array(THD *thd, sp_pcontext *spcont,
+                                        const Sp_rcontext_handler *rh,
+                                        sp_variable *spv, Item* key,
+                                        Item *val, LEX *lex,
+                                        const LEX_CSTRING &value_query)
+{
+  if (!(val= adjust_assignment_source(thd, val, NULL)))
+    return true;
+
+  const sp_rcontext_addr addr(rh, spv->offset);
+  auto *sp_set=
+    new (thd->mem_root) sp_instr_set_composite_field_by_name(instructions(),
+                                                             spcont, addr,
+                                                             key, val,
+                                                             lex, true,
+                                                             value_query);
+  return sp_set == NULL || add_instr(sp_set);
+}
+
+
+bool
+sp_head::set_local_variable_assoc_array_field(THD *thd, sp_pcontext *spcont,
+                                              const Sp_rcontext_handler *rh,
+                                              sp_variable *spv, Item* key,
+                                              const LEX_CSTRING &field_name,
+                                              Item *val, LEX *lex,
+                                              const LEX_CSTRING &value_query)
+{
+  if (!(val= adjust_assignment_source(thd, val, NULL)))
+    return true;
+
+  const sp_rcontext_addr addr(rh, spv->offset);
+  auto *sp_set=
+    new (thd->mem_root) sp_instr_set_composite_field_by_key(instructions(),
+                                                            spcont, addr,
+                                                            spv->name,
+                                                            key, field_name,
+                                                            val,
+                                                            lex, true,
+                                                            value_query);
   return sp_set == NULL || add_instr(sp_set);
 }
 
@@ -4042,8 +4091,37 @@ bool sp_head::spvar_def_fill_type_reference(THD *thd, Spvar_definition *def,
   if (!(ref= new (thd->mem_root) Qualified_column_ident(thd, &db, &table,
                                                         &column)))
     return true;
-  
+
   def->set_column_type_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
+  return false;
+}
+
+
+bool sp_head::spvar_def_fill_rowtype_reference(THD *thd, Spvar_definition *def,
+                                               const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(&table)))
+    return true;
+
+  def->set_table_rowtype_ref(ref);
+  m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
+
+  return false;
+}
+
+
+bool sp_head::spvar_def_fill_rowtype_reference(THD *thd, Spvar_definition *def,
+                                               const LEX_CSTRING &db,
+                                               const LEX_CSTRING &table)
+{
+  Table_ident *ref;
+  if (!(ref= new (thd->mem_root) Table_ident(thd, &db, &table, false)))
+    return true;
+
+  def->set_table_rowtype_ref(ref);
   m_flags|= sp_head::HAS_COLUMN_TYPE_REFS;
 
   return false;

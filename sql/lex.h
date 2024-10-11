@@ -55,6 +55,7 @@ SYMBOL symbols[] = {
   { "<<",		SYM(SHIFT_LEFT)},
   { ">>",		SYM(SHIFT_RIGHT)},
   { "<=>",		SYM(EQUAL_SYM)},
+  { "=>",   SYM(ARROW_SYM)},
   { "ACCESSIBLE",	SYM(ACCESSIBLE_SYM)},
   { "ACCOUNT",		SYM(ACCOUNT_SYM)},
   { "ACTION",		SYM(ACTION)},

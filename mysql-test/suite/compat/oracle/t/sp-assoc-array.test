@@ -1,0 +1,1969 @@
+--echo #
+--echo # MDEV-34319 DECLARE TYPE .. TABLE OF .. INDEX BY in stored routines
+--echo #
+
+set sql_mode=oracle;
+SET NAMES utf8mb4;
+
+--echo #
+--echo # RECORD element type
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t;
+  nick VARCHAR(20);
+  temp person_t;
+BEGIN
+  person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+  person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+  nick:= person_by_nickname.FIRST;
+  WHILE nick IS NOT NULL
+  LOOP
+    temp:= person_by_nickname(nick);
+    SELECT nick, temp.first_name, temp.last_name FROM DUAL;
+    nick:= person_by_nickname.NEXT(nick);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD element type with initialization
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t:=
+                                table_of_peson_t(
+                                    'Monty' => person_t('Michael', 'Widenius'),
+                                    'Serg' => person_t('Sergei ', 'Golubchik')) ;
+  nick VARCHAR(20);
+BEGIN
+  nick:= person_by_nickname.FIRST;
+  WHILE nick IS NOT NULL
+  LOOP
+    SELECT
+        nick, person_by_nickname(nick).first_name,
+        person_by_nickname(nick).last_name
+    FROM DUAL;
+
+    nick:= person_by_nickname.NEXT(nick);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # SCALAR element type
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+  id INTEGER;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  id:= marks.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    SELECT marks(id), id;
+    id:= marks.NEXT(id);
+  END LOOP;
+
+  SELECT marks(0) + marks(1) as total, POW(marks(0), 2), POW(marks(1), 2);
+
+  marks(1) := NULL;
+  SELECT marks(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SCALAR element type with initialization
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+  id INTEGER;
+BEGIN
+  id:= marks.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    SELECT marks(id), id;
+    id:= marks.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SCALAR element type with initialization (2)
+--echo # NUMBER element type initialized with string
+--echo # On Oracle error PLS-00306 will be raised
+--echo # In this implementation we just convert
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+  id INTEGER;
+BEGIN
+  id:= marks.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    SELECT marks(id), id;
+    id:= marks.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Initialization without named association
+--echo #
+DELIMITER $$;
+--error ER_NEED_NAMED_ASSOCIATION
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(62, 78, 99);
+  id INTEGER;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Initialization without named association (2)
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(1 => 62, 2 => 78, 99);
+  id INTEGER;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Initialization with empty elements
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t();
+  id INTEGER;
+BEGIN
+  SELECT marks.first;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Initialization with duplicate key
+--echo #
+DELIMITER $$;
+--error ER_DUP_UNKNOWN_IN_INDEX
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(1 => 1, 2 => 2, 1 => 3);
+  id INTEGER;
+BEGIN
+  SELECT marks.first;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # RECORD array assignment
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t:=
+                                table_of_peson_t(
+                                    'Monty' => person_t('Michael', 'Widenius'),
+                                    'Serg' => person_t('Sergei ', 'Golubchik')) ;
+  person_by_nickname_copy table_of_peson_t;
+  nick VARCHAR(20);
+BEGIN
+  person_by_nickname_copy:= person_by_nickname;
+  nick:= person_by_nickname_copy.FIRST;
+  WHILE nick IS NOT NULL
+  LOOP
+    SELECT
+        nick, person_by_nickname_copy(nick).first_name,
+        person_by_nickname_copy(nick).last_name
+    FROM DUAL;
+
+    nick:= person_by_nickname_copy.NEXT(nick);
+  END LOOP;
+
+  person_by_nickname_copy('Alex'):= NULL;
+  SELECT person_by_nickname_copy('Alex').first_name;
+  person_by_nickname_copy('Alex'):= person_by_nickname('Monty');
+  SELECT person_by_nickname_copy('Alex').first_name;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SCALAR array assignment
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+  marks2 marks_t;
+  id INTEGER;
+BEGIN
+  marks2:= marks;
+  id:= marks2.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    SELECT marks2(id), id;
+    id:= marks2.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # SCALAR array assignment with differing element types
+--echo # Oracle do not allow this (PLS-00382: expression is of wrong type)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  TYPE names_t IS TABLE OF VARCHAR(64) INDEX BY VARCHAR2(20);
+  marks marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+  names2 names_t:= names_t('1' => 'Klaus', '2' => 'Lee', '3' => 'Arun');
+
+  id INTEGER;
+BEGIN
+  marks:= names2;
+  id:= marks.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    id:= marks.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Anchored ROWTYPE for array element
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30)
+);
+DELIMITER $$;
+DECLARE
+  TYPE depts_t IS TABLE OF t1%ROWTYPE INDEX BY INTEGER;
+  depts depts_t;
+  t INTEGER;
+BEGIN
+  depts(666666) := ROW(1, 'HR');
+  depts(777777) := ROW(2, 'Accounting');
+  t:= depts.FIRST;
+  WHILE t IS NOT NULL
+  LOOP
+    SELECT depts(t).dept_name, t;
+    t:= depts.NEXT(t);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # Anchored column TYPE for array element
+--echo #
+CREATE TABLE t1
+(
+    dept_id    NUMBER(4),
+    dept_name  VARCHAR2(30)
+);
+DELIMITER $$;
+DECLARE
+  TYPE depts_t IS TABLE OF t1.dept_name%TYPE INDEX BY INTEGER;
+  depts depts_t;
+  t INTEGER;
+BEGIN
+  depts(666666) := 'HR';
+  depts(777777) := 'Accounting';
+  depts(-1) := 'Engineering';
+  t:= depts.FIRST;
+  WHILE t IS NOT NULL
+  LOOP
+    SELECT depts(t), t;
+    t:= depts.NEXT(t);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+--echo #
+--echo # Retrieve keys from uninitialized array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+  nick VARCHAR2(20);
+BEGIN
+  nick:= person_by_nickname.FIRST;
+  SELECT nick FROM DUAL;
+
+  nick:= person_by_nickname.LAST;
+  SELECT nick FROM DUAL;
+
+  nick:= person_by_nickname.NEXT(nick);
+  SELECT nick FROM DUAL;
+
+  
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Retrieve keys from initialized array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+  nick VARCHAR2(20);
+BEGIN
+  person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+  person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+  person_by_nickname('Zam') := person_t('Kitamura ', 'Motoyasu');
+
+  nick:= person_by_nickname.LAST;
+  SELECT nick FROM DUAL;
+
+  nick:= person_by_nickname.FIRST;
+  SELECT nick FROM DUAL;
+
+  nick:= person_by_nickname.NEXT(nick);
+  SELECT nick FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # NEXT
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.NEXT(marks.FIRST), marks.NEXT(marks.LAST), marks.NEXT(NULL),
+         marks.next(marks.FIRST);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # NEXT, argument count error 1
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.NEXT();
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # NEXT, argument count error 2
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.NEXT(0, 1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # NEXT, NULL array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT marks.NEXT(0);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # NEXT on scalar
+--echo #
+DELIMITER $$;
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+DECLARE
+  marks INTEGER;
+BEGIN
+  SELECT marks.NEXT(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # PRIOR
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.PRIOR(marks.LAST), marks.PRIOR(marks.FIRST), marks.PRIOR(NULL),
+         marks.prior(marks.LAST);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # PRIOR, argument count error 1
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.PRIOR();
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # PRIOR, argument count error 2
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.PRIOR(0, 1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # PRIOR, NULL array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT marks.PRIOR(0);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # PRIOR on scalar
+--echo #
+DELIMITER $$;
+--error ER_SP_DOES_NOT_EXIST
+DECLARE
+  marks INTEGER;
+BEGIN
+  SELECT marks.PRIOR(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXISTS
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  SELECT marks.EXISTS(1), marks.EXISTS(4),
+         marks.exists(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXISTS, argument count error
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  SELECT marks.EXISTS();
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXISTS, NULL key
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  SELECT marks.EXISTS(NULL);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXISTS on scalar
+--echo #
+DELIMITER $$;
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+DECLARE
+  marks INTEGER;
+BEGIN
+  SELECT marks.EXISTS(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXISTS, NULL array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT marks.EXISTS(4);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # DELETE
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  marks(2) := 99;
+  SELECT marks.DELETE(1);
+  SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
+
+  SELECT marks.DELETE;
+  SELECT marks.EXISTS(0), marks.EXISTS(1), marks.EXISTS(2);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # DELETE, argument count error
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  marks(2) := 99;
+  SELECT marks.DELETE(1, 2);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # DELETE, NULL key
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  SELECT marks.DELETE(NULL);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # DELETE on scalar
+--echo #
+DELIMITER $$;
+--error ER_FUNC_INEXISTENT_NAME_COLLISION
+DECLARE
+  marks INTEGER;
+BEGIN
+  SELECT marks.DELETE(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # COUNT
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(0) := 62;
+  marks(1) := 78;
+  marks(2) := 99;
+  SELECT marks.COUNT;
+
+  marks(3) := 44;
+  SELECT marks.COUNT;
+
+  SELECT marks.DELETE(1);
+  SELECT marks.COUNT;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # COUNT on scalar
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_TABLE
+DECLARE
+  marks INTEGER;
+BEGIN
+  SELECT marks.COUNT;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # VARCHAR2 key length error
+--echo #
+DELIMITER $$;
+--error ER_TOO_LONG_KEY
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(10);
+  marks marks_t;
+BEGIN
+  marks('Clementine Montgomery') := 99;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # VARCHAR2 key fix
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(10);
+  marks marks_t;
+BEGIN
+  marks('Cle' || 'mentine') := 99;
+  SELECT marks('Cleme' || 'ntine');
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key collation, case insensitive, accent insensitive
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_ci;
+  marks marks_t;
+  id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+  marks(id) := 62;
+  id:= 'steve';
+  SELECT marks(id);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key collation, case sensitive, accent insensitive (1)
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_cs;
+  marks marks_t;
+  id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+  marks(id) := 62;
+  SELECT marks('Steve');
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key collation, case sensitive, accent insensitive (2)
+--echo #
+DELIMITER $$;
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4 COLLATE uca1400_ai_cs;
+  marks marks_t;
+  id VARCHAR2(20) CHARACTER SET utf8mb4:= 'Stéve';
+BEGIN
+  marks(id) := 62;
+  SELECT marks('steve');
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key ascii charset
+--echo #
+DELIMITER $$;
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20) CHARACTER SET utf8mb4;
+  marks marks_t;
+  id VARCHAR2(20) CHARACTER SET ascii:= 'Stéve';
+BEGIN
+  marks('Stéve') := 62;
+  SELECT marks(id);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # VARCHAR2 key with numeric key retrival
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  marks marks_t;
+BEGIN
+  marks('1') := 62;
+  SELECT marks(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Key numeric, range (min)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(-2147483649) := 62;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Key numeric, range (max)
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(2147483648) := 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key numeric, character access
+--echo #
+DELIMITER $$;
+--error ER_WRONG_VALUE
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks('Test') := 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # NULL key when assigning variable
+--echo # On Oracle ORA-06502
+--echo #
+DELIMITER $$;
+--error ER_NULL_FOR_ASSOC_ARRAY_INDEX
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(NULL):= 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # NULL key when accessing elements
+--echo # On Oracle ORA-06502
+--echo #
+DELIMITER $$;
+--error ER_NULL_FOR_ASSOC_ARRAY_INDEX
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1):= 62;
+  SELECT marks(NULL);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Nested tables (INDEX BY is not specified)
+--echo # This is not supported yet
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER;
+  marks marks_t:= marks_t(62, 78, 99);
+
+  id INTEGER;
+BEGIN
+  marks:= names2;
+  id:= marks.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    -- SELECT marks(id), id;
+    id:= marks.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Element access for scalar variable
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  marks INTEGER;
+BEGIN
+  marks(1):= 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Element assignment with wrong argument count
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1, 2):= 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Element assignment with wrong argument count (2)
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks():= 62;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Element access with wrong argument count
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1):= 62;
+  SELECT marks(1, 2);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Element access with wrong argument count (2)
+--echo #
+DELIMITER $$;
+--error ER_SP_WRONG_NO_OF_ARGS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT marks();
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Non-existant field access
+--echo #
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+BEGIN
+  person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+  SELECT person_by_nickname('Monty').email;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Field access on array with scalar element
+--echo #
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  marks(1) := 1;
+  SELECT marks(1).name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Field assignment
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+BEGIN
+  person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+  person_by_nickname('Serg') := person_t('Sergei ', 'Golubchik');
+  person_by_nickname('Monty').first_name:= 'Mike';
+
+  SELECT person_by_nickname('Monty').first_name,
+          person_by_nickname('Monty').last_name;
+  SELECT person_by_nickname('Serg').first_name,
+          person_by_nickname('Serg').last_name;
+
+  person_by_nickname('Serg').first_name:= NULL;
+  SELECT person_by_nickname('Serg').first_name, person_by_nickname('Serg').first_name IS NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Field access - non-existant key
+--echo #
+DELIMITER $$;
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+BEGIN
+  SELECT person_by_nickname('Monty').first_name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Field assignment - non-existant key
+--echo #
+DELIMITER $$;
+--error ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+BEGIN
+  person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+  person_by_nickname('Jeff').nick_name:= 'Mike';
+
+  SELECT person_by_nickname('Monty').first_name,
+          person_by_nickname('Monty').last_name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Field assignment - non existant field
+--echo #
+DELIMITER $$;
+--error ER_ROW_VARIABLE_DOES_NOT_HAVE_FIELD
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_person_t;
+BEGIN
+  person_by_nickname('Monty'):= person_t('Michael', 'Widenius');
+  person_by_nickname('Monty').nick_name:= 'Mike';
+
+  SELECT person_by_nickname('Monty').first_name,
+          person_by_nickname('Monty').last_name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Key access using another array's element
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  marks marks_t;
+  fname VARCHAR2(20);
+
+  TYPE hist_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  hist hist_t;
+  hist_bin INTEGER;
+BEGIN
+  marks('Steve') := 62;
+  marks('Mark') := 77;
+  marks('Lee') := 79;
+  marks('John') := 31;
+
+  fname:= marks.FIRST;
+  WHILE fname IS NOT NULL
+  LOOP
+    IF hist.EXISTS(FLOOR(marks(fname) / 10)) THEN
+      hist(FLOOR(marks(fname) / 10)):= hist(FLOOR(marks(fname) / 10)) + 1;
+    ELSE
+      hist(FLOOR(marks(fname) / 10)):= 1;
+    END IF;
+    
+    fname:= marks.NEXT(fname);
+  END LOOP;
+
+  hist_bin:= hist.FIRST;
+  WHILE hist_bin IS NOT NULL
+  LOOP
+    SELECT hist_bin, hist(hist_bin);
+    hist_bin:= hist.NEXT(hist_bin);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # ASSOC ARRAY type used in a stored PROCEDURE
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(v NUMBER) AS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  marks marks_t;
+BEGIN
+  marks(1) := 62;
+  SELECT marks(1);
+END;
+$$
+DELIMITER ;$$
+CALL p1(4);
+DROP PROCEDURE p1;
+
+--echo #
+--echo # ASSOC ARRAY type used in a stored FUNCTION
+--echo #
+DELIMITER $$;
+CREATE FUNCTION f1(v NUMBER)
+RETURN NUMBER IS
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  marks marks_t;
+BEGIN
+  marks(1) := 62;
+  RETURN marks(1);
+END;
+$$
+DELIMITER ;$$
+SELECT f1(4);
+DROP FUNCTION f1;
+
+--echo #
+--echo # Accessing member fields from constructor should fail
+--echo # for RECORD type
+--echo #
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+
+  first_name VARCHAR(64):= person_t('First', 'Last').first_name;
+BEGIN
+  SELECT first_name;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Accessing member fields from constructor should fail
+--echo # for ASSOC ARRAY type
+--echo #
+DELIMITER $$;
+--error ER_BAD_FIELD_ERROR
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  first_name VARCHAR(64):= table_of_person_t('1' => person_t('First', 'Last')).first_name;
+BEGIN
+  SELECT first_name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Selecting assoc array
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 AS '1');
+BEGIN
+  SELECT marks;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Assoc array compare - scalar element
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 => 1);
+  prev_marks marks_t:=marks_t(1 => 1);
+BEGIN
+  IF marks = prev_marks THEN
+    SELECT 'Equal';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Assoc array compare - record element
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE subjects_t IS RECORD
+  (
+    english INTEGER,
+    math INTEGER
+  );
+  TYPE marks_t IS TABLE OF subjects_t INDEX BY VARCHAR2(64);
+  marks marks_t:=marks_t('Nur' => subjects_t(80, 90));
+  prev_marks marks_t:=marks_t('Nur' => subjects_t(75, 69));
+BEGIN
+  IF marks = prev_marks THEN
+    SELECT 'Equal';
+  END IF;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Assoc array SUM
+--echo #
+DELIMITER $$;
+--error ER_OPERAND_COLUMNS
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+  SELECT SUM(marks);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Assoc array IN
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+  SELECT marks(2) IN (2, 3);
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # Assoc array IN (2)
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  persons table_of_person_t;
+BEGIN
+  persons('Monty') := person_t('Michael', 'Widenius');
+  persons('Serg') := person_t('Sergei ', 'Golubchik');
+  SELECT persons('Monty') IN (person_t('Michael', 'Widenius'));
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # Assoc array IN (2)
+--echo #
+CREATE TABLE t1 (a INT);
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  persons table_of_person_t;
+BEGIN
+  persons('Monty') := person_t('Michael', 'Widenius');
+  persons('Serg') := person_t('Sergei ', 'Golubchik');
+  SELECT persons('Monty').first_name IN ('Michael', 'Sergei ');
+  SELECT persons('Monty').last_name IN ('Michael', 'Sergei ');
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # IN Assoc array element
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+  SELECT * FROM t1 WHERE a IN (marks(2), marks(3));
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+
+--echo #
+--echo # IN Assoc array, not going to support this, test just
+--echo # to ensure that we don't crash the server
+--echo #
+DELIMITER $$;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t:=marks_t(1 => 1, 2 => 2, 3 => 3);
+BEGIN
+  SELECT 2 IN (marks);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # SELECT INTO ASSOC ARRAY scalar element
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT * FROM t1 WHERE a = 2 INTO marks(200);
+  SELECT marks(200);
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT INTO ASSOC ARRAY non-scalar element
+--echo #
+CREATE TABLE t1 (first_name VARCHAR(64), last_name VARCHAR(64));
+INSERT INTO t1 VALUES ('Anwar', 'Ibrahim');
+INSERT INTO t1 VALUES ('Najib', 'Razak');
+INSERT INTO t1 VALUES ('Muhyiddin', 'Yassin');
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  persons table_of_person_t;
+BEGIN
+  SELECT * FROM t1 WHERE first_name = 'Anwar' INTO persons('Nuau');
+  SELECT persons('Nuau').last_name;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT scalar INTO ASSOC ARRAY non-scalar element
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_person_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  persons table_of_person_t;
+BEGIN
+  SELECT * FROM t1 WHERE a = 3 INTO persons('Nuau');
+  SELECT persons('Nuau').last_name;
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT non-scalar INTO ASSOC ARRAY scalar element
+--echo #
+CREATE TABLE t1 (first_name VARCHAR(64), last_name VARCHAR(64));
+INSERT INTO t1 VALUES ('Anwar', 'Ibrahim');
+INSERT INTO t1 VALUES ('Najib', 'Razak');
+INSERT INTO t1 VALUES ('Muhyiddin', 'Yassin');
+DELIMITER $$;
+--error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  marks marks_t;
+BEGIN
+  SELECT * FROM t1 WHERE first_name = 'Najib' INTO marks(200);
+  SELECT marks(200);
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT scalar INTO scalar variable with non-existant key
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+--error ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY
+DECLARE
+  id INTEGER;
+BEGIN
+  SELECT * FROM t1 WHERE a = 3 INTO id('Nuau');
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+--echo #
+--echo # SELECT scalar INTO non-existant variable with key
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (2);
+INSERT INTO t1 VALUES (3);
+INSERT INTO t1 VALUES (4);
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+DECLARE
+  id INTEGER;
+BEGIN
+  SELECT * FROM t1 WHERE a = 3 INTO missing_var('Nuau');
+END;
+$$
+DELIMITER ;$$
+DROP TABLE t1;
+
+
+SET sql_mode=default;
+
+--echo #
+--echo # Basic ASSOC ARRAY, anonymous block sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+BEGIN NOT ATOMIC
+  DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  DECLARE marks marks_t;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Basic ASSOC ARRAY, stored procedure sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE PROCEDURE p1()
+BEGIN
+  DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  DECLARE marks marks_t;
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_DOES_NOT_EXIST
+CALL p1();
+--error ER_SP_DOES_NOT_EXIST
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Basic ASSOC ARRAY, stored function sql_mode=default;
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+CREATE OR REPLACE FUNCTION f1() RETURNS INT
+BEGIN
+  DECLARE TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  DECLARE marks marks_t;
+  RETURN marks(1);
+END;
+$$
+DELIMITER ;$$
+--error ER_SP_DOES_NOT_EXIST
+SELECT f1();
+--error ER_SP_DOES_NOT_EXIST
+DROP FUNCTION f1;
+
+SET sql_mode=ORACLE;
+
+--echo #
+--echo # Ensure that nested assoc array types are properly parsed (without crash, etc)
+--echo #
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+DECLARE
+   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+   TYPE classes_t IS TABLE OF marks_t INDEX BY INTEGER;
+BEGIN
+   NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Ensure that nested assoc array types cannot be used for record field
+--echo #
+DELIMITER $$;
+--error ER_UNKNOWN_DATA_TYPE
+DECLARE
+   TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+   TYPE rec_t IS RECORD (a INT, b marks_t);
+BEGIN
+   NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Ensure that DATE element maps correctly to MariaDB
+--echo # DATETIME
+--echo #
+DELIMITER $$;
+DECLARE
+   TYPE dates_t IS TABLE OF DATE INDEX BY INTEGER;
+   dates dates_t:= dates_t(1 => '2021-01-01 10:20:30');
+BEGIN
+  SELECT dates(1);
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Multiple variable declaration
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1,m2,m3 marks_t:= marks_t(1 => 62, 2 => 78, 3 => 99);
+  id INTEGER;
+BEGIN
+  id:= m1.FIRST;
+  WHILE id IS NOT NULL
+  LOOP
+    SELECT m1(id) || m2(id) || m3(id) AS m;
+    id:= m1.NEXT(id);
+  END LOOP;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXPLAIN SELECT for element of array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t;
+BEGIN
+  person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+  
+  SELECT person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'));
+  EXPLAIN EXTENDED SELECT person_t('Michael', 'Widenius') IN (person_by_nickname('Monty'));
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # EXPLAIN SELECT for field of element of array
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  person_by_nickname table_of_peson_t;
+BEGIN
+  person_by_nickname('Monty') := person_t('Michael', 'Widenius');
+  EXPLAIN EXTENDED SELECT person_by_nickname('Monty').first_name;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # EXPLAIN SELECT for IS NULL with array argument
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  pbn table_of_peson_t;
+BEGIN
+  pbn('Monty') := person_t('Michael', 'Widenius');
+  
+  SELECT pbn IS NULL;
+  EXPLAIN EXTENDED SELECT pbn IS NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # EXPLAIN SELECT for IS NOT NULL with array argument
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE person_t IS RECORD
+  (
+    first_name VARCHAR(64),
+    last_name VARCHAR(64)
+  );
+  TYPE table_of_peson_t IS TABLE OF person_t INDEX BY VARCHAR2(20);
+  pbn table_of_peson_t;
+BEGIN
+  pbn('Monty') := person_t('Michael', 'Widenius');
+  
+  SELECT pbn IS NOT NULL;
+  EXPLAIN EXTENDED SELECT pbn IS NOT NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # IS NULL, IS NOT NULL
+--echo #
+DELIMITER $$;
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 marks_t:= marks_t(1 => 62);
+  m2 marks_t;
+  m3 marks_t:= marks_t(1 => 62);
+  id INTEGER;
+BEGIN
+  SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+  m1:= m2;
+  SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+  m2:= marks_t(1 => 62);
+  SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+  m1:= m3;
+  SELECT m1 IS NULL, m1 IS NOT NULL, m2 is NULL, m2 IS NOT NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Call associative array method directly
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 marks_t:= marks_t(1 => 62);
+BEGIN
+  m1.delete;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Create an associative array type sharing the same name as a built-in function
+--echo # TODO: This should be allowed
+--echo #
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  TYPE trim IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 trim:= trim(1=>1);
+BEGIN
+  SELECT m1(1);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Create an associative array type sharing the same name as a built-in function (2)
+--echo # TODO: This should be allowed
+--echo #
+DELIMITER $$;
+--error ER_WRONG_PARAMETERS_TO_NATIVE_FCT
+DECLARE
+  TYPE acos IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 acos:= acos(1=>1);
+BEGIN
+  SELECT m1(1);
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # Create an associative array type sharing the same name as a stored procedure
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1() AS
+BEGIN
+  SELECT 'p1()';
+END;
+$$
+
+DECLARE
+  TYPE p1 IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 p1:= p1(1=>1);
+BEGIN
+  SELECT m1(1);
+END;
+$$
+DELIMITER ;$$
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Create an associative array type sharing the same name as a package
+--echo #
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE p1();
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE p1() AS
+  BEGIN
+    SELECT 'p1()';
+  END;
+END;
+$$
+
+DECLARE
+  TYPE pkg1 IS TABLE OF NUMBER INDEX BY INTEGER;
+  m1 pkg1:= pkg1(1=>1);
+BEGIN
+  SELECT m1(1);
+END;
+$$
+DELIMITER ;$$
+
+DROP PACKAGE pkg1;
+
+
+--echo #
+--echo # Create an associative array sharing the same name as a package
+--echo # The expected behaviour is that the associative array local variable
+--echo # will hide the package. On the other hand prepared statements
+--echo # will not see the local variable.
+--echo #
+DELIMITER $$;
+CREATE PACKAGE pkg1 AS
+  PROCEDURE prior(a VARCHAR);
+  PROCEDURE prior1(a VARCHAR);
+  FUNCTION prior(a VARCHAR) RETURN VARCHAR;
+END;
+$$
+CREATE PACKAGE BODY pkg1 AS
+  PROCEDURE prior(a VARCHAR) AS
+  BEGIN
+    SELECT 'pkg1.prior()';
+  END;
+  PROCEDURE prior1(a VARCHAR) AS
+  BEGIN
+    SELECT 'pkg1.prior1()';
+  END;
+  FUNCTION prior(a VARCHAR) RETURN VARCHAR AS
+  BEGIN
+    RETURN 'pkg1.prior()';
+  END;
+END;
+$$
+
+DECLARE
+  TYPE marks_t IS TABLE OF NUMBER INDEX BY VARCHAR2(20);
+  pkg1 marks_t:= marks_t('1'=>1,'2'=>2);
+BEGIN
+  SELECT pkg1.prior('2');
+  CALL pkg1.prior('2');
+  EXECUTE IMMEDIATE 'CALL pkg1.prior(2)';
+  EXECUTE IMMEDIATE 'CALL pkg1.prior1(2)';
+END;
+$$
+DELIMITER ;$$
+
+DROP PACKAGE pkg1;
+
+
+--echo #
+--echo # A scalar variable does not shadow a package
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+  p1 INT;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'pkg.p1';
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'pkg.f1';
+  END;
+END;
+$$
+CREATE PROCEDURE p1 AS
+  pkg INT; -- This scalar variable does not shadow the package 'pkg'
+BEGIN
+  pkg.p1();        -- This is resolved to the package procedure call
+  SELECT pkg.f1(); -- This is resolved to the package function call
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg;
+
+
+--echo #
+--echo # A ROW variable does not shadow a package
+--echo #
+
+DELIMITER $$;
+CREATE PACKAGE pkg AS
+  PROCEDURE p1;
+  FUNCTION f1 RETURN TEXT;
+END;
+$$
+CREATE PACKAGE BODY pkg AS
+  p1 INT;
+  PROCEDURE p1 AS
+  BEGIN
+    SELECT 'pkg.p1';
+  END;
+  FUNCTION f1 RETURN TEXT AS
+  BEGIN
+    RETURN 'pkg.f1';
+  END;
+END;
+$$
+CREATE PROCEDURE p1 AS
+  pkg ROW(p1 INT,p2 INT); -- This ROW variable does not shadow the package 'pkg'
+BEGIN
+  pkg.p1();        -- This is resolved to the package procedure call
+  SELECT pkg.f1(); -- This is resolved to the package function call
+END;
+$$
+DELIMITER ;$$
+CALL p1;
+DROP PROCEDURE p1;
+DROP PACKAGE pkg;
