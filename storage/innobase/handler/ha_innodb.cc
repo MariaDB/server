@@ -871,7 +871,7 @@ static MYSQL_THDVAR_BOOL(table_locks, PLUGIN_VAR_OPCMDARG,
 
 static MYSQL_THDVAR_BOOL(snapshot_isolation, PLUGIN_VAR_OPCMDARG,
   "Use snapshot isolation (write-write conflict detection)",
-  NULL, NULL, FALSE);
+  NULL, NULL, TRUE);
 
 static MYSQL_THDVAR_BOOL(strict_mode, PLUGIN_VAR_OPCMDARG,
   "Use strict mode when evaluating create options",
