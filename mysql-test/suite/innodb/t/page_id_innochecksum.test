@@ -66,5 +66,6 @@ let $restart_parameters=--innodb-force-recovery=1;
 --source include/wait_all_purged.inc
 drop table t1;
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd': Page read from tablespace is corrupted\\.");
+call mtr.add_suppression("InnoDB: File '.*t1\\.ibd' is corrupted");
 let $restart_parameters=;
 --source include/restart_mysqld.inc

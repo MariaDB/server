@@ -517,7 +517,7 @@ static bool is_page_corrupted(byte *buf, bool is_encrypted, uint32_t flags)
 	normal method. */
 	if (is_encrypted && key_version != 0) {
 		is_corrupted = use_full_crc32
-			? buf_page_is_corrupted(true, buf, flags)
+			? !!buf_page_is_corrupted(false, buf, flags)
 			: !fil_space_verify_crypt_checksum(buf, zip_size);
 
 		if (is_corrupted && log_file) {
