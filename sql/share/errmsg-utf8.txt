@@ -9165,12 +9165,8 @@ ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
         spa "INSERT... ON DUPLICATE KEY UPDATE en una tabla con más de una UNIQUE KEY no es segura"
         sw "INSERT... ON DUPLICATE KEY UPDATE kwenye jedwali iliyo na zaidi ya UNIQUE KEY moja si salama"
 
-ER_UNUSED_28
-        chi "你永远不应该看到它"
-        eng "You should never see it"
-        geo "ამას ვერასდროს უნდა ხედავდეთ"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY
+        eng "Key specifier used with variable '%-.64s' are only allowed for associative array data types"
 
 ER_VERS_NOT_ALLOWED
         chi "系统版本的表%`s.%`s不允许"
@@ -11272,14 +11268,10 @@ ER_SECURE_TRANSPORT_REQUIRED 08004
 # MariaDB extra error numbers starts from 4000
 skip-to-error-number 4000
 
-ER_UNUSED_26 0A000
-        eng "This error never happens"
-        spa "Este error nunca ocurre"
-        sw "Hitilafu hii haifanyiki kamwe"
-ER_UNUSED_27
-        eng "This error never happens"
-        spa "Este error nunca ocurre"
-        sw "Hitilafu hii haifanyiki kamwe"
+ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+        eng "Element not found with key '%s'"
+ER_NULL_FOR_ASSOC_ARRAY_INDEX
+        eng "NULL key used for associative array '%s'"
 ER_WITH_COL_WRONG_LIST
         chi "使用列列表并选择字段列表具有不同的列计数"
         eng "WITH column list and SELECT field list have different column counts"
@@ -11898,10 +11890,8 @@ ER_VERS_DROP_PARTITION_INTERVAL
         spa "Sólo se pueden eliminar viejas particiones al rotar mediante INTERVAL"
         sw "Inaweza tu kuacha kizigeu cha zamani zaidi wakati wa kuzungushwa kwa INTERVAL"
 
-ER_UNUSED_25
-        eng "You should never see it"
-        spa "Nunca debería vd de ver esto"
-        sw "Hupaswi kuiona kamwe"
+ER_NEED_NAMED_ASSOCIATION
+        eng "Initializing %s requires named association"
 
 WARN_VERS_PART_NON_HISTORICAL
         chi "分区%`s包含非历史数据"

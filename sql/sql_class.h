@@ -7536,6 +7536,24 @@ public:
 };
 
 
+class Qualified_ident: public Sql_alloc
+{
+public:
+  Lex_ident_cli_st ident;
+  Lex_ident_sys_st parts[2];
+public:
+  Qualified_ident(THD *thd, Lex_ident_cli_st *a);
+  Qualified_ident(THD *thd, Lex_ident_cli_st *a, Lex_ident_sys_st *b);
+  Qualified_ident(THD *thd, Lex_ident_cli_st *a, Lex_ident_sys_st *b,
+                  Lex_ident_sys_st *c);
+
+  const char *pos() const
+  {
+    return ident.pos();
+  }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry: public Type_handler_hybrid_field_type
 {
@@ -7710,6 +7728,20 @@ public:
   bool set(THD *thd, Item *val) override;
 };
 
+class my_var_sp_assoc_array_element: public my_var_sp
+{
+  Item *m_key;
+public:
+  my_var_sp_assoc_array_element(const Sp_rcontext_handler *rcontext_handler,
+                                const LEX_CSTRING *varname, Item *key,
+                                uint var_idx, sp_head *s)
+   :my_var_sp(rcontext_handler, varname, var_idx,
+              &type_handler_assoc_array, s),
+    m_key(key)
+  { }
+  bool set(THD *thd, Item *val) override;
+};
+
 class my_var_user: public my_var {
 public:
   my_var_user(const LEX_CSTRING *j)
@@ -7721,11 +7753,13 @@ public:
 class select_dumpvar :public select_result_interceptor {
   ha_rows row_count;
   my_var_sp *m_var_sp_row; // Not NULL if SELECT INTO row_type_sp_variable
+  my_var_sp *m_var_sp_assoc_array;
   bool send_data_to_var_list(List<Item> &items);
 public:
   List<my_var> var_list;
   select_dumpvar(THD *thd_arg)
-   :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL)
+   :select_result_interceptor(thd_arg), row_count(0), m_var_sp_row(NULL),
+    m_var_sp_assoc_array(NULL)
   { var_list.empty(); }
   ~select_dumpvar() = default;
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;

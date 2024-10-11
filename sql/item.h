@@ -883,7 +883,7 @@ public:
              FIELD_VARIANCE_ITEM, INSERT_VALUE_ITEM,
              SUBSELECT_ITEM, ROW_ITEM, CACHE_ITEM, TYPE_HOLDER,
              PARAM_ITEM, TRIGGER_FIELD_ITEM,
-             EXPR_CACHE_ITEM};
+             EXPR_CACHE_ITEM, ASSOC_ARRAY_ITEM};
 
   enum cond_result { COND_UNDEF,COND_OK,COND_TRUE,COND_FALSE };
   enum traverse_order { POSTFIX, PREFIX };
@@ -2525,6 +2525,22 @@ public:
   // used in row subselects to get value of elements
   virtual void bring_value() {}
 
+  // For associative arrays
+  /// Returns the number of columns for the elements of the array
+  /// returns 0 if the element is of scalar type
+  virtual uint cols_for_elements() const { return 0; }
+  virtual uint rows() const { return 1; }
+  virtual bool get_key(String *key, bool is_first) { return true; }
+  virtual bool get_next_key(const String *curr_key, String *next_key)
+  {
+    return true;
+  }
+  virtual Item *element_by_key(THD *thd, String *key) { return NULL; }
+  virtual Item **element_addr_by_key(THD *thd, Item **addr_arg, String *key)
+  {
+    return addr_arg;
+  }
+
   const Type_handler *type_handler_long_or_longlong() const
   {
     return Type_handler::type_handler_long_or_longlong(max_char_length(),
@@ -3383,6 +3399,58 @@ public:
 };
 
 
+class Item_splocal_assoc_array_element :public Item_splocal
+{
+protected:
+  Item *m_key;
+  bool set_value(THD *thd, sp_rcontext *ctx, Item **it) override;
+public:
+  Item_splocal_assoc_array_element(THD *thd,
+                         const Sp_rcontext_handler *rh,
+                         const LEX_CSTRING *sp_var_name,
+                         Item *m_key, uint sp_var_idx,
+                         const Type_handler *handler,
+                         uint pos_in_q= 0, uint len_in_q= 0)
+   :Item_splocal(thd, rh, sp_var_name, sp_var_idx, handler, pos_in_q, len_in_q),
+    m_key(m_key)
+  { }
+  bool fix_fields(THD *thd, Item **) override;
+  Item *this_item() override;
+  const Item *this_item() const override;
+  Item **this_item_addr(THD *thd, Item **) override;
+  bool append_for_log(THD *thd, String *str) override;
+  void print(String *str, enum_query_type query_type) override;
+
+  Item *do_get_copy(THD *) const override { return nullptr; }
+  Item *do_build_clone(THD *thd) const override { return nullptr; }
+};
+
+
+class Item_splocal_assoc_array_element_field :
+  public Item_splocal_row_field_by_name
+{
+public:
+  Item *m_key;
+  Item_splocal_assoc_array_element_field(THD *thd,
+                         const Sp_rcontext_handler *rh,
+                         const LEX_CSTRING *sp_var_name,
+                         Item *key, const LEX_CSTRING *sp_field_name,
+                         uint sp_var_idx,
+                         const Type_handler *handler,
+                         uint pos_in_q= 0, uint len_in_q= 0)
+   :Item_splocal_row_field_by_name(thd, rh, sp_var_name, sp_field_name,
+                                   sp_var_idx, handler, pos_in_q, len_in_q),
+    m_key(key)
+  { }
+  bool fix_fields(THD *thd, Item **) override;
+  Item *this_item() override;
+  const Item *this_item() const override;
+  Item **this_item_addr(THD *thd, Item **) override;
+  bool append_for_log(THD *thd, String *str) override;
+  void print(String *str, enum_query_type query_type) override;
+};
+
+
 /*****************************************************************************
   Item_splocal inline implementation.
 *****************************************************************************/
@@ -3959,6 +4027,50 @@ public:
       return true;
     }
     return false;
+  }
+};
+
+
+/**
+  Item_field for the associative array data type
+*/
+class Item_field_assoc_array: public Item_field
+{
+public:
+  Assoc_array_definition *m_def;
+  Item_field_assoc_array(THD *thd, Field *field)
+   :Item_field(thd, field),
+    m_def(NULL)
+  { }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_field_assoc_array>(thd, this); }
+
+  const Type_handler *type_handler() const override
+  { return &type_handler_assoc_array; }
+
+  bool set_array_def(THD *thd, Assoc_array_definition *def);
+
+  uint cols_for_elements() const override;
+
+  uint rows() const override
+  {
+    return field->rows();
+  }
+  bool get_key(String *key, bool is_first) override
+  {
+    return field->get_key(key, is_first);
+  }
+  bool get_next_key(const String *curr_key, String *next_key) override
+  {
+    return field->get_next_key(curr_key, next_key);
+  }
+  Item *element_by_key(THD *thd, String *key) override
+  {
+    return ((const Field *)field)->element_by_key(thd, key);
+  }
+  Item **element_addr_by_key(THD *thd, Item **ref, String *key) override
+  {
+    return field->element_addr_by_key(thd, key);
   }
 };
 
@@ -8221,6 +8333,77 @@ inline void Virtual_column_info::print(String* str)
 {
   expr->print_for_table_def(str);
 }
+
+class Item_assoc_array: public Item_fixed_hybrid,
+                        private Item_args
+{
+public:
+  Item_assoc_array(THD *thd)
+   :Item_fixed_hybrid(thd), Item_args()
+  { }
+
+  Item_assoc_array(THD *thd, List<Item> &list)
+   :Item_fixed_hybrid(thd), Item_args(thd, list)
+   { }
+
+  enum Type type() const override { return ASSOC_ARRAY_ITEM; }
+  const Type_handler *type_handler() const override
+  {
+    return &type_handler_assoc_array;
+  }
+
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param) override
+  {
+    return NULL;
+  }
+
+  void illegal_method_call(const char *);
+
+  void make_send_field(THD *thd, Send_field *) override
+  {
+    illegal_method_call((const char*)"make_send_field");
+  };
+  double val_real() override
+  {
+    illegal_method_call((const char*)"val");
+    return 0;
+  };
+  longlong val_int() override
+  {
+    illegal_method_call((const char*)"val_int");
+    return 0;
+  };
+  String *val_str(String *) override
+  {
+    illegal_method_call((const char*)"val_str");
+    return 0;
+  };
+  my_decimal *val_decimal(my_decimal *) override
+  {
+    illegal_method_call((const char*)"val_decimal");
+    return 0;
+  };
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
+  {
+    illegal_method_call((const char*)"get_date");
+    return true;
+  }
+
+  uint rows() const override;
+  bool get_key(String *key, bool is_first) override;
+  bool get_next_key(const String *curr_key, String *next_key) override;
+  Item *element_by_key(THD *thd, String *key) override;
+  Item **element_addr_by_key(THD *thd, Item **addr_arg, String *key) override;
+
+  bool fix_fields(THD *thd, Item **ref) override;
+  void bring_value() override;
+  void print(String *str, enum_query_type query_type) override;
+
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_assoc_array>(thd, this); }
+  Item *do_build_clone(THD *thd) const override;
+};
 
 class Item_direct_ref_to_item : public Item_direct_ref
 {

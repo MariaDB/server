@@ -29,6 +29,7 @@
 #include "compat56.h"
 #include "sql_type.h"                           /* Type_std_attributes */
 #include "field_comp.h"
+#include "my_tree.h"
 
 class Send_field;
 class Copy_field;
@@ -44,6 +45,7 @@ class Item_bool_func;
 class Item_equal;
 class Virtual_tmp_table;
 class Qualified_column_ident;
+class Qualified_ident;
 class Table_ident;
 class SEL_ARG;
 class RANGE_OPT_PARAM;
@@ -2035,6 +2037,32 @@ public:
     return NULL;
   }
   virtual bool sp_prepare_and_store_item(THD *thd, Item **value);
+
+  virtual uint rows() const { return 0; }
+  virtual bool get_key(String *key, bool is_first) { return true; }
+  virtual bool get_next_key(const String *curr_key, String *next_key)
+  {
+    return true;
+  }
+  virtual bool get_prior_key(const String *curr_key, String *prior_key)
+  {
+    return true;
+  }
+  virtual Item_field *element_by_key(THD *thd, String *key) { return NULL; }
+  virtual Item_field *element_by_key(THD *thd, String *key) const
+  {
+    return NULL;
+  }
+  virtual Item **element_addr_by_key(THD *thd, String *key) { return NULL; }
+  virtual bool delete_all_elements() { return true; }
+  virtual bool delete_element_by_key(String *key) { return true; }
+  virtual Field *get_field_by_key_and_name(THD *thd,
+                                           const LEX_CSTRING &var_name,
+                                           String *key,
+                                           const LEX_CSTRING &field_name) const
+  {
+    return NULL;
+  }
 
   friend int cre_myisam(char * name, TABLE *form, uint options,
 			ulonglong auto_increment_value);
@@ -5257,6 +5285,73 @@ public:
 };
 
 
+class Assoc_array_definition :public Sql_alloc
+{
+public:
+  Column_definition *m_key_def;
+  Spvar_definition *m_value_def;
+
+  Assoc_array_definition()
+    :m_key_def(NULL), m_value_def(NULL)
+  { }
+
+  Assoc_array_definition(
+    Column_definition *key_def,
+    Spvar_definition *value_def)
+    :m_key_def(key_def), m_value_def(value_def)
+  { }
+};
+
+
+class Field_assoc_array final :public Field_null
+{
+public:
+  MEM_ROOT m_mem_root;
+  TREE m_tree;
+
+  TABLE *m_table;
+  Assoc_array_definition *m_def;
+
+public:
+  Field_assoc_array(uchar *ptr_arg,
+                    const LEX_CSTRING *field_name_arg);
+  ~Field_assoc_array();
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
+  {
+    DBUG_ASSERT(0);
+    return Field::tmp_engine_column_type(use_packed_rows);
+  }
+  enum_conv_type rpl_conv_type_from(const Conv_source &source,
+                                    const Relay_log_info *rli,
+                                    const Conv_param &param) const override
+  {
+    DBUG_ASSERT(0);
+    return CONV_TYPE_IMPOSSIBLE;
+  }
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override;
+
+  uint rows() const override;
+  bool get_key(String *key, bool is_first) override;
+  bool get_next_key(const String *curr_key, String *next_key) override;
+  bool get_prior_key(const String *curr_key, String *prior_key) override;
+  Item_field *element_by_key(THD *thd, String *key) override;
+  Item_field *element_by_key(THD *thd, String *key) const override;
+  Item **element_addr_by_key(THD *thd, String *key) override;
+  bool delete_all_elements() override;
+  bool delete_element_by_key(String *key) override;
+
+  Field *get_field_by_key_and_name(THD *thd, const LEX_CSTRING &var_name,
+                                   String *key,
+                                   const LEX_CSTRING &field_name)
+                                   const override;
+
+protected:
+  Item_field *create_element(THD *thd);
+  String *copy_and_convert_key(THD *thd, const String *key) const;
+  CHARSET_INFO *key_charset() const;
+};
+
+
 extern const LEX_CSTRING null_clex_str;
 
 class Column_definition_attributes: public Type_extra_attributes
@@ -5666,6 +5761,7 @@ public:
   - variables with explicit data types:   DECLARE a INT;
   - variables with data type references:  DECLARE a t1.a%TYPE;
   - ROW type variables
+  - Associative arrays
 
   Notes:
   - Scalar variables have m_field_definitions==NULL.
@@ -5685,13 +5781,15 @@ class Spvar_definition: public Column_definition
   bool m_cursor_rowtype_ref;                       // for cursor%ROWTYPE
   uint m_cursor_rowtype_offset;                    // for cursor%ROWTYPE
   Row_definition_list *m_row_field_definitions;    // for ROW
+  Assoc_array_definition *m_assoc_array_def;
 public:
   Spvar_definition()
    :m_column_type_ref(NULL),
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_assoc_array_def(NULL)
   { }
   Spvar_definition(THD *thd, Field *field)
    :Column_definition(thd, field, NULL),
@@ -5699,7 +5797,8 @@ public:
     m_table_rowtype_ref(NULL),
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
-    m_row_field_definitions(NULL)
+    m_row_field_definitions(NULL),
+    m_assoc_array_def(NULL)
   { }
   const Type_handler *type_handler() const
   {
@@ -5776,6 +5875,21 @@ public:
   }
 
   class Item_field_row *make_item_field_row(THD *thd, Field_row *field);
+
+  uint is_assoc_array() const
+  {
+    return m_assoc_array_def != NULL;
+  }
+  Assoc_array_definition *assoc_array_definition() const
+  {
+    return m_assoc_array_def;
+  }
+  void set_assoc_array_definition(Assoc_array_definition *assoc_array_def)
+  {
+    DBUG_ASSERT(assoc_array_def);
+    set_handler(&type_handler_assoc_array);
+    m_assoc_array_def= assoc_array_def;
+  }
 };
 
 

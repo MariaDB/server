@@ -6817,6 +6817,17 @@ bool LEX::sp_variable_declarations_finalize(THD *thd, int nvars,
                                                    dflt_value_item, expr_str);
     }
   }
+  else if (cdef->type_handler() == &type_handler_assoc_array)
+  {
+    if (sp_assoc_array *spaa=
+       (sp_assoc_array *)cdef->get_attr_const_void_ptr(0)) {
+      return sp_variable_declarations_assoc_array_finalize(thd, nvars,
+                                                           spaa->key_def,
+                                                           spaa->value_def,
+                                                           dflt_value_item,
+                                                           expr_str);
+    }
+  }
 
   Column_definition tmp(*cdef);
   if (sphead->fill_spvar_definition(thd, &tmp))
@@ -6852,6 +6863,267 @@ bool LEX::sp_variable_declarations_rec_finalize(THD *thd, int nvars,
 
   return sp_variable_declarations_row_finalize(thd, nvars, row,
                                                dflt_value_item, expr_str);
+}
+
+
+static bool lex_ident_col_eq(Lex_ident_column *a, Lex_ident_column *b)
+{
+  return a->streq(*b);
+}
+
+bool LEX::sp_check_assoc_array_args(const LEX_CSTRING& type_name,
+                                 List<Item> &list)
+{
+  List<Lex_ident_column> names;
+
+  List_iterator<Item> it(list);
+  for (Item *item= it++; item; item= it++)
+  {
+    if (unlikely(!item->is_explicit_name()))
+    {
+      my_error(ER_NEED_NAMED_ASSOCIATION, MYF(0), type_name.str);
+      return true;
+    }
+
+    if (unlikely(names.add_unique(&item->name, lex_ident_col_eq)))
+    {
+      my_error(ER_DUP_UNKNOWN_IN_INDEX, MYF(0), item->name.str);
+      return true;
+    }
+  }
+
+  return false;
+}
+
+
+bool LEX::sp_set_assoc_array(THD *thd, const Qualified_ident *ident,
+                             Item *item, const LEX_CSTRING &expr_str)
+{
+  sp_pcontext *ctx;
+  const Sp_rcontext_handler *rh;
+  Item *key= assoc_key;
+
+  Lex_ident_sys name(thd, &ident->ident);
+  if (unlikely(!name.str))
+    return true;
+
+  sp_variable *spv= find_variable(&name, &ctx, &rh);
+  if (!spv->field_def.is_assoc_array())
+  {
+    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name.str);
+    return true;
+  }
+
+  return spv ? sphead->set_local_variable_assoc_array(thd, ctx,
+                                                      rh, spv, key,
+                                                      item, this,
+                                                      expr_str) :
+                                                      true;
+}
+
+
+bool LEX::sp_set_assoc_array_field(THD *thd, const Qualified_ident *ident,
+                                   const Lex_ident_sys_st *field_name,
+                                   Item *item, const LEX_CSTRING &expr_str)
+{
+  DBUG_ASSERT(field_name);
+
+  Item *key= assoc_key;
+
+  sp_pcontext *ctx;
+  const Sp_rcontext_handler *rh;
+  Lex_ident_sys name(thd, &ident->ident);
+  if (unlikely(!name.str))
+    return true;
+
+  sp_variable *spv= find_variable(&name, &ctx, &rh);
+
+  if (!spv->field_def.is_assoc_array())
+  {
+    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name.str);
+    return true;
+  }
+
+  return spv ? sphead->set_local_variable_assoc_array_field(thd, ctx,
+                                                      rh, spv, key,
+                                                      field_name,
+                                                      item, this,
+                                                      expr_str) :
+                                                      true;
+}
+
+
+bool LEX::sp_set_assoc_array_copy_key(LEX *sub_lex)
+{
+  if (value_list.elements != 1)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY KEY",
+             ErrConvDQName(sphead).ptr(),
+             1, value_list.elements);
+    return true;
+  }
+  
+  sub_lex->assoc_key= &*value_list.begin();
+  return false;
+}
+
+
+Item *LEX::sp_get_assoc_array_key(THD *thd, Item_splocal* array,
+                                  List<Item> *args, bool is_first)
+{
+  DBUG_ASSERT(array);
+  
+  if (args)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), is_first ? "FIRST" : "LAST", 
+             ErrConvDQName(sphead).ptr(),
+             0, args->elements);
+    return NULL;
+  }
+
+  return is_first ?
+    (Item *)new (thd->mem_root) Item_func_assoc_array_first(thd, array) :
+    (Item *)new (thd->mem_root) Item_func_assoc_array_last(thd, array);
+}
+
+
+Item *LEX::sp_get_assoc_array_next_or_prior(THD *thd,
+                                            Item_splocal* array,
+                                            List<Item> *args, bool is_next)
+{
+  DBUG_ASSERT(array);
+  
+  if (!args || args->elements != 1)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), is_next ? "NEXT" : "PRIOR", 
+             ErrConvDQName(sphead).ptr(),
+             1, args ? args->elements : 0);
+    return NULL;
+  }
+
+  Item_args args_item(thd, *args);
+  return is_next ? (Item *)
+                      new (thd->mem_root)
+                        Item_func_assoc_array_next(thd, array,
+                                                   args_item.arguments()[0]) :
+                   (Item *)
+                      new (thd->mem_root)
+                        Item_func_assoc_array_prior(thd, array,
+                                                   args_item.arguments()[0]);
+}
+
+
+Item *LEX::sp_get_assoc_array_count(THD *thd, Item_splocal* array,
+                                    List<Item> *args)
+{
+  DBUG_ASSERT(array);
+
+  if (args)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "COUNT", 
+             ErrConvDQName(sphead).ptr(),
+             0, args->elements);
+    return NULL;
+  }
+
+  return new (thd->mem_root) Item_func_assoc_array_count(thd, array);
+}
+
+
+Item *LEX::sp_get_assoc_array_exists(THD *thd,
+                                     Item_splocal* array,
+                                     List<Item> *args)
+{
+  DBUG_ASSERT(array);
+
+  if (!args || args->elements != 1)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "EXISTS", 
+             ErrConvDQName(sphead).ptr(),
+             1, args ? args->elements : 0);
+    return NULL;
+  }
+
+  Item_args args_item(thd, *args);
+  return new (thd->mem_root)
+            Item_func_assoc_array_exists(thd,
+                                         array,
+                                         args_item.arguments()[0]);
+}
+
+
+Item *LEX::sp_get_assoc_array_delete(THD *thd,
+                                     Item_splocal* array,
+                                     List<Item> *args)
+{
+  DBUG_ASSERT(array);
+
+  if (args)
+  {
+    if (args->elements != 1)
+    {
+      my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "DELETE", 
+             ErrConvDQName(sphead).ptr(),
+             1, args->elements);
+      return NULL;
+    }
+
+    Item_args args_item(thd, *args);
+    return new (thd->mem_root)
+      Item_func_assoc_array_delete(thd, array,
+                                   args_item.arguments()[0]);
+  }
+  else
+    return new (thd->mem_root) Item_func_assoc_array_delete(thd, array);
+}
+
+
+bool LEX::sp_variable_declarations_assoc_array_finalize(THD *thd, int nvars,
+                                             Column_definition *key_def,
+                                             Spvar_definition *value_def,
+                                             Item *def,
+                                             const LEX_CSTRING &expr_str)
+{
+  DBUG_ASSERT(key_def);
+  DBUG_ASSERT(value_def);
+
+  // Set the default charset to be the database charset
+  if (!key_def->charset)
+    key_def->charset= thd->variables.collation_database;
+
+  value_def= new (thd->mem_root) Spvar_definition(*value_def);
+  if (value_def->type_handler() == &type_handler_row)
+  {
+    if (sp_record *sprec=
+       (sp_record *)value_def->get_attr_const_void_ptr(0))   
+    {
+      if (sphead->row_fill_field_definitions(thd, sprec->field))
+        return true;
+
+      value_def->set_row_field_definitions(sprec->field);
+    }
+  }
+
+  if (sphead->fill_spvar_definition(thd, value_def))
+    return true;
+
+  Assoc_array_definition* aa_def =
+    new (thd->mem_root) Assoc_array_definition(key_def, value_def);
+
+  for (uint i= 0 ; i < (uint) nvars ; i++)
+  {
+    sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+    spvar->field_def.set_assoc_array_definition(aa_def);
+    if (sphead->fill_spvar_definition(thd, &spvar->field_def, &spvar->name))
+      return true;
+  }
+
+  if (sp_variable_declarations_set_default(thd, nvars, def,
+                                           expr_str))
+    return true;
+
+  spcont->declare_var_boundary(0);
+  return sphead->restore_lex(thd);
 }
 
 bool LEX::sp_variable_declarations_row_finalize(THD *thd, int nvars,
@@ -8496,6 +8768,87 @@ Item_splocal *LEX::create_item_spvar_row_field(THD *thd,
 }
 
 
+Item_splocal *LEX::create_item_spvar_assoc_array_element(THD *thd,
+                                               const Lex_ident_sys_st *ca,
+                                               List<Item> *item_list)
+{
+  sp_variable *spv;
+  Lex_ident_sys a(thd, ca);
+
+  if (!item_list || item_list->elements != 1)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT", 
+             ErrConvDQName(sphead).ptr(),
+             1, !item_list ? 0 : item_list->elements);
+    return NULL;
+  }
+
+  const Sp_rcontext_handler *rh;
+  if (unlikely(!(spv= find_variable(&a, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+
+  Item_args args(thd, *item_list);
+  Item *key= args.arguments()[0];
+
+  Item_splocal *item= new (thd->mem_root)
+                        Item_splocal_assoc_array_element(thd, rh, ca,
+                                                         key, spv->offset,
+                                                         &type_handler_null);
+#ifdef DBUG_ASSERT_EXISTS
+    if (item)
+    {
+      item->m_sp= sphead;
+    }
+#endif
+
+  return item;
+}
+
+
+Item_splocal *LEX::create_item_spvar_assoc_array_element_field(THD *thd,
+                                               const Lex_ident_sys_st *ca,
+                                               List<Item> *item_list,
+                                               const Lex_ident_sys_st *cb)
+{
+  sp_variable *spv;
+  Lex_ident_sys a(thd, ca);
+
+  if (item_list->elements != 1)
+  {
+    my_error(ER_SP_WRONG_NO_OF_ARGS, MYF(0), "ASSOC_ARRAY_ELEMENT", 
+             ErrConvDQName(sphead).ptr(),
+             1, item_list->elements);
+    return NULL;
+  }
+
+  const Sp_rcontext_handler *rh;
+  if (unlikely(!(spv= find_variable(&a, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), a.str);
+    return NULL;
+  }
+
+  Item_args args(thd, *item_list);
+  Item *key= args.arguments()[0];
+
+  Item_splocal *item= new (thd->mem_root)
+        Item_splocal_assoc_array_element_field(thd, rh, ca, key,
+                                               cb, spv->offset,
+                                               &type_handler_null);
+#ifdef DBUG_ASSERT_EXISTS
+    if (item)
+    {
+      item->m_sp= sphead;
+    }
+#endif
+
+  return item;
+}
+
+
 my_var *LEX::create_outvar(THD *thd, const LEX_CSTRING *name)
 {
   const Sp_rcontext_handler *rh;
@@ -8527,6 +8880,32 @@ my_var *LEX::create_outvar(THD *thd,
   return result ?
     new (thd->mem_root) my_var_sp_row_field(rh, a, b, t->offset,
                                             row_field_offset, sphead) :
+    NULL /* EXPLAIN */;
+}
+
+my_var *LEX::create_outvar(THD *thd,
+                           const LEX_CSTRING *name,
+                           Item *key)
+{
+  DBUG_ASSERT(key);
+
+  const Sp_rcontext_handler *rh;
+  sp_variable *t;
+  if (unlikely(!(t= find_variable(name, &rh))))
+  {
+    my_error(ER_SP_UNDECLARED_VAR, MYF(0), name->str);
+    return NULL;
+  }
+  
+  if (unlikely(!t->field_def.is_assoc_array()))
+  {
+    my_error(ER_WRONG_TYPE_FOR_ASSOC_ARRAY_KEY, MYF(0), name->str);
+    return NULL;
+  }
+
+  return result ?
+    new (thd->mem_root) my_var_sp_assoc_array_element(rh, name, key, t->offset,
+                                                      sphead) :
     NULL /* EXPLAIN */;
 }
 
@@ -8596,6 +8975,59 @@ Item *LEX::create_item_func_setval(THD *thd, Table_ident *table_ident,
 }
 
 
+Item *LEX::sp_get_assoc_array_method(THD *thd,
+                                const Lex_ident_cli_st *ca,
+                                const Lex_ident_cli_st *cb,
+                                List<Item> *args)
+{
+  DBUG_ASSERT(ca);
+  DBUG_ASSERT(cb);
+
+  Item_splocal *array= create_item_for_sp_var(ca, NULL);
+  if (unlikely(array == NULL))
+    return NULL;
+
+  return sp_get_assoc_array_method(thd, array, cb, args);
+}
+
+
+Item *LEX::sp_get_assoc_array_method(THD *thd,
+                                  Item_splocal* array,
+                                  const Lex_ident_cli_st *method_name,
+                                  List<Item> *args)
+{
+  DBUG_ASSERT(method_name);
+
+  Lex_ident_sys b(thd, method_name);
+  if (b.length == 5)
+  {
+    if (Lex_ident_column(b).streq("COUNT"_Lex_ident_column))
+      return sp_get_assoc_array_count(thd, array, args);
+    else if (Lex_ident_column(b).streq("FIRST"_Lex_ident_column))
+      return sp_get_assoc_array_key(thd, array, args, true); 
+    else if (Lex_ident_column(b).streq("PRIOR"_Lex_ident_column))
+      return sp_get_assoc_array_next_or_prior(thd, array, args, false);
+  }
+  else if (b.length == 4)
+  {
+    if (Lex_ident_column(b).streq("LAST"_Lex_ident_column))
+      return sp_get_assoc_array_key(thd, array, args, false); 
+    else if (Lex_ident_column(b).streq("NEXT"_Lex_ident_column))
+      return sp_get_assoc_array_next_or_prior(thd, array, args, true);
+  }
+  else if (b.length == 6)
+  {
+    if (Lex_ident_column(b).streq("EXISTS"_Lex_ident_column))
+      return sp_get_assoc_array_exists(thd, array, args);
+    else if (Lex_ident_column(b).streq("DELETE"_Lex_ident_column))
+      return sp_get_assoc_array_delete(thd, array, args);
+  }
+
+  my_error(ER_BAD_FIELD_ERROR, MYF(0), method_name->str);
+  return NULL;
+}
+
+
 Item *LEX::create_item_ident(THD *thd,
                              const Lex_ident_cli_st *ca,
                              const Lex_ident_cli_st *cb)
@@ -8610,11 +9042,15 @@ Item *LEX::create_item_ident(THD *thd,
   Lex_ident_sys a(thd, ca), b(thd, cb);
   if (a.is_null() || b.is_null())
     return NULL; // OEM
-  if ((spv= find_variable(&a, &rh)) &&
-      (spv->field_def.is_row() ||
+  if ((spv= find_variable(&a, &rh)))
+  {
+    if (spv->field_def.is_row() ||
        spv->field_def.is_table_rowtype_ref() ||
-       spv->field_def.is_cursor_rowtype_ref()))
-    return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
+       spv->field_def.is_cursor_rowtype_ref())
+      return create_item_spvar_row_field(thd, rh, &a, &b, spv, start, end);
+    else if ((thd->variables.sql_mode & MODE_ORACLE) && spv->field_def.is_assoc_array())
+        return sp_get_assoc_array_method(thd, ca, cb, NULL);
+  }
 
   if ((thd->variables.sql_mode & MODE_ORACLE) && b.length == 7)
   {
@@ -8868,6 +9304,26 @@ bool LEX::set_variable(const Lex_ident_sys_st *name1,
     return set_trigger_field(name1, name2, item, expr_str);
 
   return set_system_variable(thd, option_type, name1, name2, item);
+}
+
+
+bool LEX::set_variable(const Qualified_ident *ident,
+                       Item *item, const LEX_CSTRING &expr_str)
+{
+  Lex_ident_sys name(thd, &ident->ident);
+  if (unlikely(!name.str))
+    return true;
+  
+  if (unlikely(ident->parts[1].length))
+  {
+    thd->parse_error(ER_SYNTAX_ERROR, ident->ident.pos());
+    return true;
+  }
+
+  if (ident->parts[0].length)
+    return set_variable(&name, &ident->parts[0], item, expr_str);
+
+  return set_variable(&name, item, expr_str);
 }
 
 
@@ -9572,7 +10028,6 @@ bool LEX::call_statement_start(THD *thd, sp_name *name)
   Database_qualified_name pkgname;
   const Sp_handler *sph= &sp_handler_procedure;
   sql_command= SQLCOM_CALL;
-  value_list.empty();
   if (unlikely(sph->sp_resolve_package_routine(thd, thd->lex->sphead,
                                                name, &sph, &pkgname)))
     return true;
@@ -9631,6 +10086,25 @@ bool LEX::call_statement_start(THD *thd,
 
   return !(m_sql_cmd= new (thd->mem_root) Sql_cmd_call(spname,
                                               &sp_handler_package_procedure));
+}
+
+
+bool LEX::call_statement_start(THD *thd, const Qualified_ident *ident)
+{
+  Lex_ident_sys name(thd, &ident->ident);
+  if (unlikely(!name.str))
+    return true;
+
+  if (ident->parts[1].length)
+  {
+    return call_statement_start(thd, &name, &ident->parts[0], &ident->parts[1]);
+  }
+  else if (ident->parts[0].length)
+  {
+    return call_statement_start(thd, &name, &ident->parts[0]);
+  }
+
+  return call_statement_start(thd, &name);
 }
 
 
@@ -12152,6 +12626,23 @@ Spvar_definition *LEX::row_field_name(THD *thd, const Lex_ident_sys_st &name)
   }
   if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
     return NULL;
+  init_last_field(res, &name);
+  return res;
+}
+
+
+Column_definition *LEX::assoc_array_def_init(THD *thd, const Lex_ident_sys_st &name)
+{
+  Spvar_definition *res;
+  if (unlikely(check_string_char_length(&name, 0, NAME_CHAR_LEN,
+                                        system_charset_info, 1)))
+  {
+    my_error(ER_TOO_LONG_IDENT, MYF(0), name.str);
+    return NULL;
+  }
+  if (unlikely(!(res= new (thd->mem_root) Spvar_definition())))
+    return NULL;
+
   init_last_field(res, &name);
   return res;
 }

@@ -561,6 +561,7 @@ void Item::print_value(String *str)
       str->append(*ptr);
       break;
     case ROW_RESULT:
+    case ASSOC_ARRAY_RESULT:
       DBUG_ASSERT(0);
     }
   }
@@ -1939,10 +1940,14 @@ CALL p1();
 bool Item_splocal::check_cols(uint n)
 {
   DBUG_ASSERT(m_thd->spcont);
-  if (Type_handler_hybrid_field_type::cmp_type() != ROW_RESULT)
+
+  Item_result cmp_type= Type_handler_hybrid_field_type::cmp_type();
+  if (cmp_type != ROW_RESULT &&
+      cmp_type != ASSOC_ARRAY_RESULT)
     return Item::check_cols(n);
 
-  if (n != this_item()->cols() || n == 1)
+  if (n != this_item()->cols() || n == 1 ||
+      cmp_type == ASSOC_ARRAY_RESULT)
   {
     my_error(ER_OPERAND_COLUMNS, MYF(0), n);
     return true;
@@ -2053,6 +2058,180 @@ bool Item_splocal_row_field_by_name::set_value(THD *thd, sp_rcontext *ctx, Item 
 {
   DBUG_ASSERT(fixed()); // Make sure m_field_idx is already set
   return Item_splocal_row_field::set_value(thd, ctx, it);
+}
+
+
+bool Item_splocal_assoc_array_element::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+
+  if (m_key->fix_fields_if_needed(thd, &m_key))
+    return true;
+  
+  if (m_key->null_value)
+  {
+    my_error(ER_NULL_FOR_ASSOC_ARRAY_INDEX, MYF(0),
+             m_name.str);
+    return true;
+  }
+
+  Item *item= get_variable(thd->spcont)->element_by_key(thd, m_key->val_str());
+  if (!item)
+  {
+    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
+             m_key->val_str()->ptr());
+    return true;
+  }
+
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, ref, item);
+}
+
+
+Item *
+Item_splocal_assoc_array_element::this_item()
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(m_key->fixed());
+  return get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
+}
+
+
+const Item *
+Item_splocal_assoc_array_element::this_item() const
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(m_key->fixed());
+  return get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
+}
+
+
+Item **
+Item_splocal_assoc_array_element::this_item_addr(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+  DBUG_ASSERT(m_key->fixed());
+  return get_variable(thd->spcont)->element_addr_by_key(m_thd, ref, m_key->val_str());
+}
+
+
+void Item_splocal_assoc_array_element::print(String *str, enum_query_type type)
+{
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->append(prefix);
+  str->append(&m_name);
+  str->append('[');
+  m_key->print(str, type);
+  str->append(']');
+  str->append('@');
+  str->qs_append(m_var_idx);
+  str->append('[');
+  m_key->print(str, type);
+  str->append(']');
+}
+
+
+bool Item_splocal_assoc_array_element::set_value(THD *thd, sp_rcontext *ctx, Item **it)
+{
+  return get_rcontext(ctx)->set_variable_assoc_array_by_key(thd, m_var_idx, m_key,
+                                                            it);
+}
+
+
+bool Item_splocal_assoc_array_element_field::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+
+  if (m_key->fix_fields_if_needed(thd, &m_key))
+    return true;
+
+  Item *element_item_base= get_variable(thd->spcont)->
+                            element_by_key(thd, m_key->val_str());
+  if (!element_item_base)
+  {
+    my_error(ER_ASSOC_ARRAY_ELEM_NOT_FOUND, MYF(0),
+             m_key->val_str()->c_ptr());
+    return true;
+  }
+
+  Item_field *element_item= element_item_base->field_for_view_update();
+  if (!element_item)
+    return true;
+
+  Virtual_tmp_table **ptable= element_item->field->virtual_tmp_table_addr();
+  if (!ptable)
+  {
+    my_error(ER_BAD_FIELD_ERROR, MYF(0),
+             m_key->val_str()->c_ptr(), thd_where(thd));
+    return true;
+  }
+
+  Virtual_tmp_table *vtable= ptable[0];
+  DBUG_ASSERT(vtable);
+
+  if (vtable->sp_find_field_by_name_or_error(&m_field_idx,
+                                         m_name, m_field_name))
+    return true;
+  
+  Item *item= element_item->element_index(m_field_idx);
+  set_handler(item->type_handler());
+  return fix_fields_from_item(thd, ref, item);
+}
+
+
+Item *
+Item_splocal_assoc_array_element_field::this_item()
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+
+  Item *element_item= get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
+  return element_item->element_index(m_field_idx);
+}
+
+
+const Item *
+Item_splocal_assoc_array_element_field::this_item() const
+{
+  DBUG_ASSERT(m_sp == m_thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+
+  Item *element_item= get_variable(m_thd->spcont)->element_by_key(m_thd, m_key->val_str());
+  return element_item->element_index(m_field_idx);
+}
+
+
+Item **
+Item_splocal_assoc_array_element_field::this_item_addr(THD *thd, Item **)
+{
+  DBUG_ASSERT(m_sp == thd->spcont->m_sp);
+  DBUG_ASSERT(fixed());
+
+  Item *element_item= get_variable(thd->spcont)->element_by_key(thd, m_key->val_str());
+  return element_item->addr(m_field_idx);
+}
+
+
+void Item_splocal_assoc_array_element_field::print(String *str, enum_query_type type)
+{
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+  str->append(prefix);
+  str->append(&m_name);
+  str->append('[');
+  m_key->print(str, type);
+  str->append(']');
+  str->append('.');
+  str->append(&m_field_name);
+  str->append('@');
+  str->qs_append(m_var_idx);
+  str->append('[');
+  m_key->print(str, type);
+  str->append(']');
+  str->append('.');
+  str->qs_append(m_field_idx);
 }
 
 
@@ -4772,6 +4951,7 @@ double Item_param::PValue::val_real(const Type_std_attributes *attr) const
     */
     return TIME_to_double(&time);
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4793,6 +4973,7 @@ longlong Item_param::PValue::val_int(const Type_std_attributes *attr) const
   case TIME_RESULT:
     return (longlong) TIME_to_ulonglong(&time);
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4817,6 +4998,7 @@ my_decimal *Item_param::PValue::val_decimal(my_decimal *dec,
   case TIME_RESULT:
     return TIME_to_my_decimal(&time, dec);
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4850,6 +5032,7 @@ String *Item_param::PValue::val_str(String *str,
     return str;
   }
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -4926,6 +5109,7 @@ const String *Item_param::value_query_val_str(THD *thd, String *str) const
       return str;
     }
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -5026,6 +5210,7 @@ Item *Item_param::value_clone_item(THD *thd) const
   case TIME_RESULT:
     break;
   case ROW_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);
     break;
   }
@@ -10408,6 +10593,8 @@ Item_result item_cmp_type(Item_result a,Item_result b)
     return ROW_RESULT;
   if (a == TIME_RESULT || b == TIME_RESULT)
     return TIME_RESULT;
+  if (a == ASSOC_ARRAY_RESULT || b == ASSOC_ARRAY_RESULT)
+    return ASSOC_ARRAY_RESULT;
   if ((a == INT_RESULT || a == DECIMAL_RESULT) &&
       (b == INT_RESULT || b == DECIMAL_RESULT))
     return DECIMAL_RESULT;
@@ -11424,3 +11611,165 @@ bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
   }
   return false;
 }
+
+
+bool Item_assoc_array::fix_fields(THD *thd, Item **ref)
+{
+  DBUG_ASSERT(fixed() == 0);
+  null_value= 0;
+  base_flags&= ~item_base_t::MAYBE_NULL;
+
+  Item **arg, **arg_end;
+  for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
+  {
+    if ((*arg)->fix_fields_if_needed(thd, arg))
+      return TRUE;
+    // we can't assign 'item' before, because fix_fields() can change arg
+    Item *item= *arg;
+
+    base_flags|= (item->base_flags & item_base_t::MAYBE_NULL);
+    with_flags|= item->with_flags;
+  }
+  base_flags|= item_base_t::FIXED;
+  return FALSE;
+}
+
+
+void Item_assoc_array::bring_value()
+{
+  for (uint i= 0; i < arg_count; i++)
+    args[i]->bring_value();
+}
+
+
+void Item_assoc_array::print(String *str, enum_query_type query_type)
+{
+  str->append('(');
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (i)
+      str->append(',');
+    args[i]->print(str, query_type);
+    str->append('@');
+    str->append(args[i]->name.str, args[i]->name.length);
+  }
+  str->append(')');
+}
+
+
+void Item_assoc_array::illegal_method_call(const char *method)
+{
+  DBUG_ENTER("Item_assoc_array::illegal_method_call");
+  DBUG_PRINT("error", ("!!! %s method was called for associative array",
+                       method));
+  DBUG_ASSERT(0);
+  my_error(ER_OPERAND_COLUMNS, MYF(0), 1);
+  DBUG_VOID_RETURN;
+}
+
+
+Item *Item_assoc_array::do_build_clone(THD *thd) const
+{
+  Item **copy_args= static_cast<Item **>
+    (alloc_root(thd->mem_root, sizeof(Item *) * arg_count));
+  if (unlikely(!copy_args))
+    return 0;
+  for (uint i= 0; i < arg_count; i++)
+  {
+    Item *arg_clone= args[i]->build_clone(thd);
+    if (!arg_clone)
+      return 0;
+    copy_args[i]= arg_clone;
+  }
+  Item_assoc_array *copy= (Item_assoc_array *) get_copy(thd);
+  if (unlikely(!copy))
+    return 0;
+  copy->args= copy_args;
+  return copy;
+}
+
+
+uint Item_assoc_array::rows() const
+{
+  return arg_count;
+}
+
+
+bool Item_assoc_array::get_key(String *key, bool is_first)
+{
+  DBUG_ASSERT(key);
+
+  uint current_arg;
+
+  if (arg_count == 0)
+    return true;
+
+  if (is_first)
+    current_arg= 0;
+  else
+    current_arg= arg_count - 1;
+
+  key->set(args[current_arg]->name.str, args[current_arg]->name.length, &my_charset_bin);
+  return false;
+}
+
+
+bool Item_assoc_array::get_next_key(const String *curr_key, String *next_key)
+{
+  DBUG_ASSERT(curr_key);
+  DBUG_ASSERT(next_key);
+
+  /*
+    The code below is pretty slow, but a constructor is a one time operation
+  */
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->name.length == curr_key->length() &&
+        !memcmp(args[i]->name.str, curr_key->ptr(), curr_key->length()))
+    {
+      if (i == arg_count - 1)
+        return true;
+      next_key->set(args[i + 1]->name.str, args[i + 1]->name.length, &my_charset_bin);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+
+Item *Item_assoc_array::element_by_key(THD *thd, String *key)
+{
+  DBUG_ASSERT(key);
+
+  /*
+    See the comment in get_next_key() about the performance
+  */
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->name.length == key->length() &&
+        !memcmp(args[i]->name.str, key->ptr(), key->length()))
+      return args[i];
+  }
+
+  return NULL;
+}
+
+
+Item **Item_assoc_array::element_addr_by_key(THD *thd,
+                                             Item **addr_arg,
+                                             String *key)
+{
+  /*
+    See the comment in get_next_key() about the performance
+  */
+  for (uint i= 0; i < arg_count; i++)
+  {
+    if (args[i]->name.length == key->length() &&
+        !memcmp(args[i]->name.str, key->ptr(), key->length()))
+      return &args[i];
+  }
+
+  return NULL;
+}
+

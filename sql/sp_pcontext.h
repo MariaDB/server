@@ -344,6 +344,31 @@ public:
   }
 };
 
+/// This class represents 'DECLARE TYPE .. TABLE OF' statement.
+
+class sp_assoc_array : public Sql_alloc
+{
+public:
+  /// Name of the associative aray
+  Lex_ident_column name;
+  Column_definition *key_def;
+  Spvar_definition *value_def;
+
+public:
+  sp_assoc_array(const Lex_ident_column &name_arg,
+                 Column_definition *key_def_arg,
+                 Spvar_definition *value_def_arg) 
+   :Sql_alloc(),
+    name(name_arg),
+    key_def(key_def_arg),
+    value_def(value_def_arg)
+  { }
+  bool eq_name(const LEX_CSTRING *str) const
+  {
+    return name.streq(*str);
+  }
+};
+
 
 ///////////////////////////////////////////////////////////////////////////
 
@@ -739,12 +764,37 @@ public:
                       const Lex_ident_column &name,
                       Row_definition_list *field)
   {
-    if (find_record(&name, true))
+    if (unlikely(find_record(&name, true) || find_assoc_array(&name, true)))
     {
       my_error(ER_SP_DUP_DECL, MYF(0), name.str);
       return true;
     }
     return add_record(thd, name, field);
+  }
+
+  /////////////////////////////////////////////////////////////////////////
+  // Associative array.
+  /////////////////////////////////////////////////////////////////////////
+
+  bool add_assoc_array(THD *thd,
+                       const Lex_ident_column &name,
+                       Column_definition *key,
+                       Spvar_definition *value);
+  
+  sp_assoc_array *find_assoc_array(const LEX_CSTRING *name,
+                                   bool current_scope_only) const;
+  
+  bool declare_assoc_array(THD *thd,
+                            const Lex_ident_column &name,
+                            Column_definition *key,
+                            Spvar_definition *value)
+  {
+    if (unlikely(find_record(&name, true) || find_assoc_array(&name, true)))
+    {
+      my_error(ER_SP_DUP_DECL, MYF(0), name.str);
+      return true;
+    }
+    return add_assoc_array(thd, name, key, value);
   }
 
 private:
@@ -813,6 +863,9 @@ private:
 
   /// Stack of records.
   Dynamic_array<sp_record *> m_records;
+
+  /// Stack of associative array types.
+  Dynamic_array<sp_assoc_array *> m_assoc_arrays;
 
   /*
    In the below example the label <<lab>> has two meanings:

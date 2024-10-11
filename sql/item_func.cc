@@ -3649,6 +3649,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
           break;
         case ROW_RESULT:
         case TIME_RESULT:
+        case ASSOC_ARRAY_RESULT:
           DBUG_ASSERT(0);          // This case should never be chosen
           break;
         }
@@ -3725,6 +3726,7 @@ bool udf_handler::get_arguments()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
+    case ASSOC_ARRAY_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       break;
     }
@@ -4553,6 +4555,7 @@ longlong Item_func_benchmark::val_int()
       break;
     case ROW_RESULT:
     case TIME_RESULT:
+    case ASSOC_ARRAY_RESULT:
       DBUG_ASSERT(0);              // This case should never be chosen
       return 0;
     }
@@ -4795,6 +4798,10 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     DBUG_ASSERT(0);
     set_handler(&type_handler_row);
     break;
+  case ASSOC_ARRAY_RESULT:
+    DBUG_ASSERT(0);
+    set_handler(&type_handler_assoc_array);
+    break;
   }
   if (thd->lex->current_select)
   {
@@ -5015,6 +5022,7 @@ double user_var_entry::val_real(bool *null_value)
     return my_atof(value);                      // This is null terminated
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5043,6 +5051,7 @@ longlong user_var_entry::val_int(bool *null_value) const
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5077,6 +5086,7 @@ String *user_var_entry::val_str(bool *null_value, String *str,
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5105,6 +5115,7 @@ my_decimal *user_var_entry::val_decimal(bool *null_value, my_decimal *val)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);				// Impossible
     break;
   }
@@ -5163,6 +5174,7 @@ Item_func_set_user_var::check(bool use_result_field)
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5197,6 +5209,7 @@ void Item_func_set_user_var::save_item_result(Item *item)
     break;
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5264,6 +5277,7 @@ Item_func_set_user_var::update()
   }
   case ROW_RESULT:
   case TIME_RESULT:
+  case ASSOC_ARRAY_RESULT:
     DBUG_ASSERT(0);                // This case should never be chosen
     break;
   }
@@ -5726,6 +5740,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
       break;
     case ROW_RESULT:                            // Keep compiler happy
     case TIME_RESULT:
+    case ASSOC_ARRAY_RESULT:
       DBUG_ASSERT(0);                // This case should never be chosen
       break;
     }
@@ -6890,6 +6905,183 @@ bool Item_func_sp::check_vcol_func_processor(void *arg)
 {
   return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
 }
+
+
+class Func_handler_assoc_array_first:
+        public Item_handled_func::Handler_str
+{
+public:
+  const Type_handler *
+      return_type_handler(const Item_handled_func *item) const override
+  {
+    return &type_handler_string;
+  }
+
+
+  bool fix_length_and_dec(Item_handled_func *) const override
+  {
+    return FALSE;
+  }
+
+
+  static Field *get_field_assoc_array(Item *item)
+  {
+    Item_splocal* item_splocal= item->get_item_splocal();
+    return item_splocal->this_item()->field_for_view_update()->field;
+  }
+
+
+  virtual String *val_str(Item_handled_func *item, String *tmp) const override
+  {
+    auto field_assoc_array= get_field_assoc_array(item->arguments()[0]);
+
+    if (field_assoc_array->get_key(tmp, true)) {
+      item->null_value= 1;
+      return NULL;
+    }
+
+    item->null_value= 0;
+    return tmp;
+  }
+};
+
+
+class Func_handler_assoc_array_last:
+        public Func_handler_assoc_array_first
+{
+  String *val_str(Item_handled_func *item, String *tmp) const override
+  {
+    auto field_assoc_array= get_field_assoc_array(item->arguments()[0]);
+
+    if (field_assoc_array->get_key(tmp, false)) {
+      item->null_value= 1;
+      return NULL;
+    }
+
+    return tmp;
+  }
+};
+
+
+class Func_handler_assoc_array_next:
+        public Func_handler_assoc_array_first
+{
+  String *val_str(Item_handled_func *item, String *tmp) const override
+  {
+    DBUG_ASSERT(item->fixed());
+
+    auto field= get_field_assoc_array(item->arguments()[0]);
+    auto curr_key= item->arguments()[1]->val_str();
+
+    if (field->get_next_key(curr_key, tmp)) {
+      item->null_value= 1;
+      return NULL;
+    }
+
+    return tmp;
+  }
+};
+
+
+class Func_handler_assoc_array_prior:
+        public Func_handler_assoc_array_first
+{
+  String *val_str(Item_handled_func *item, String *tmp) const override
+  {
+    DBUG_ASSERT(item->fixed());
+
+    auto field= get_field_assoc_array(item->arguments()[0]);
+    auto curr_key= item->arguments()[1]->val_str();
+
+    if (field->get_prior_key(curr_key, tmp)) {
+      item->null_value= 1;
+      return NULL;
+    }
+
+    return tmp;
+  }
+};
+
+
+class Func_handler_assoc_array_count:
+        public Item_handled_func::Handler_ulonglong
+{
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
+  {
+    DBUG_ASSERT(item->fixed());
+
+    auto field_assoc_array=
+      Func_handler_assoc_array_first::get_field_assoc_array(
+        item->arguments()[0]);
+    return Longlong_null(field_assoc_array->rows());
+  }
+};
+
+
+bool Item_func_assoc_array_first::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_assoc_array_first ha_str_key;
+  set_func_handler(&ha_str_key);
+  return m_func_handler->fix_length_and_dec(this);
+}
+
+
+bool Item_func_assoc_array_last::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_assoc_array_last ha_str_key;
+  set_func_handler(&ha_str_key);
+  return m_func_handler->fix_length_and_dec(this);
+}
+
+
+bool Item_func_assoc_array_next::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_assoc_array_next ha_str_key;
+  set_func_handler(&ha_str_key);
+  return m_func_handler->fix_length_and_dec(this);
+}
+
+
+bool Item_func_assoc_array_prior::fix_length_and_dec(THD *thd)
+{
+  static Func_handler_assoc_array_prior ha_str_key;
+  set_func_handler(&ha_str_key);
+  return m_func_handler->fix_length_and_dec(this);
+}
+
+
+longlong Item_func_assoc_array_count::val_int()
+{
+  DBUG_ASSERT(fixed());
+  return args[0]->this_item()->rows();
+}
+
+
+longlong Item_func_assoc_array_exists::val_int()
+{
+  DBUG_ASSERT(fixed());
+
+  if (args[1]->null_value)
+    return 0;
+
+  return args[0]->this_item()->element_by_key(current_thd,
+                                              args[1]->val_str()) != NULL;
+}
+
+
+longlong Item_func_assoc_array_delete::val_int()
+{
+  DBUG_ASSERT(fixed());
+
+  Field *field= args[0]->this_item()->field_for_view_update()->field;
+  if (arg_count == 1)
+    return field->delete_all_elements();
+  else if (arg_count == 2)
+    return field->delete_element_by_key(args[1]->val_str());
+
+  return 0;
+}
+
 
 /*
   uuid_short handling.

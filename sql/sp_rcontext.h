@@ -184,6 +184,14 @@ public:
                                      Item **value);
   int set_variable_row(THD *thd, uint var_idx, List<Item> &items);
 
+  int set_variable_assoc_array_by_key(THD *thd, uint var_idx, Item* key,
+                                      Item **value);
+  int set_variable_assoc_array_field_by_key(THD *thd,
+                                            const LEX_CSTRING &var_name,
+                                            uint var_idx,
+                                            Item *key,
+                                            const LEX_CSTRING &field_name,
+                                            Item **value);
   int set_parameter(THD *thd, uint var_idx, Item **value)
   {
     DBUG_ASSERT(var_idx < argument_count());
