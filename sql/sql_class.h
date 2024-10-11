@@ -7404,6 +7404,60 @@ public:
 };
 
 
+class Qualified_ident: public Sql_alloc
+{
+protected:
+  const char *m_cli_pos;
+  Lex_ident_sys_st m_parts[3];
+  sp_variable *m_spvar;
+  uint m_defined_parts;
+public:
+  Qualified_ident(THD *thd, const Lex_ident_cli_st &a);
+  Qualified_ident(THD *thd,
+                  const Lex_ident_cli_st &a,
+                  const Lex_ident_sys_st &b);
+  Qualified_ident(THD *thd,
+                  const Lex_ident_cli_st &a,
+                  const Lex_ident_sys_st &b,
+                  const Lex_ident_sys_st &c);
+  
+  Qualified_ident(const Lex_ident_sys_st &a);
+  /*
+    Returns the position of the first character of the identifier in
+    the client string.
+  */
+  const char *pos() const
+  {
+    return m_cli_pos;
+  }
+
+  sp_variable *spvar() const
+  {
+    return m_spvar;
+  }
+
+  const Lex_ident_sys_st &part(uint i) const
+  {
+    DBUG_ASSERT(i < array_elements(m_parts));
+    return m_parts[i];
+  }
+
+  uint defined_parts() const
+  {
+    return m_defined_parts;
+  }
+
+  void set_cli_pos(const char *pos)
+  {
+    m_cli_pos= pos;
+  }
+  void set_spvar(sp_variable *spvar)
+  {
+    m_spvar= spvar;
+  }
+};
+
+
 // this is needed for user_vars hash
 class user_var_entry: public Type_handler_hybrid_field_type
 {

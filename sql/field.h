@@ -44,6 +44,7 @@ class Item_bool_func;
 class Item_equal;
 class Virtual_tmp_table;
 class Qualified_column_ident;
+class Qualified_ident;
 class Table_ident;
 class SEL_ARG;
 class RANGE_OPT_PARAM;
@@ -5722,6 +5723,7 @@ public:
   - variables with explicit data types:   DECLARE a INT;
   - variables with data type references:  DECLARE a t1.a%TYPE;
   - ROW type variables
+  - Associative arrays
 
   Notes:
   - Scalar variables have m_field_definitions==NULL.
@@ -5756,6 +5758,14 @@ public:
     m_cursor_rowtype_ref(false),
     m_cursor_rowtype_offset(0),
     m_row_field_definitions(NULL)
+  { }
+  Spvar_definition(const Column_definition &col_def)
+   : Column_definition(col_def),
+     m_column_type_ref(NULL),
+     m_table_rowtype_ref(NULL),
+     m_cursor_rowtype_ref(false),
+     m_cursor_rowtype_offset(0),
+     m_row_field_definitions(NULL)
   { }
   const Type_handler *type_handler() const
   {
@@ -5812,7 +5822,8 @@ public:
   }
   uint is_row() const
   {
-    return m_row_field_definitions != NULL;
+    return m_row_field_definitions != NULL &&
+           type_handler() == &type_handler_row;
   }
   // Check if "this" defines a ROW variable with n elements
   uint is_row(uint n) const
@@ -5824,10 +5835,11 @@ public:
   {
     return m_row_field_definitions;
   }
-  void set_row_field_definitions(Row_definition_list *list)
+  void set_row_field_definitions(const Type_handler *th,
+                                 Row_definition_list *list)
   {
     DBUG_ASSERT(list);
-    set_handler(&type_handler_row);
+    set_handler(th);
     m_row_field_definitions= list;
   }
 

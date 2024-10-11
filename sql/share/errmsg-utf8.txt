@@ -12332,3 +12332,9 @@ ER_INIT_SLAVE_ERROR
         eng "Slave SQL thread aborted. Can't execute init_slave query due to error code %u: %s"
 ER_ACTIVE_CONNECTIONS_FOR_USER_TO_DROP
         eng "Dropped users %s have active connections. Use KILL CONNECTION if they should not be used anymore."
+ER_ASSOC_ARRAY_ELEM_NOT_FOUND
+        eng "Element not found with key '%s'"
+ER_NULL_FOR_ASSOC_ARRAY_INDEX
+        eng "NULL key used for associative array '%s'"
+ER_NEED_NAMED_ASSOCIATION
+        eng "Initializing %s requires named association"
