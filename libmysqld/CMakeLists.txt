@@ -136,6 +136,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_schema.cc
            ../sql/lex_charset.cc ../sql/charset_collations.cc
            ../sql/sql_type.cc ../sql/sql_type.h
+           ../sql/sql_type_composite.cc ../sql/item_composite.cc
            ../sql/sql_type_row.cc
            ../sql/sql_mode.cc
            ../sql/sql_type_string.cc

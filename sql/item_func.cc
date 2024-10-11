@@ -4812,7 +4812,7 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
     break;
   case ROW_RESULT:
     DBUG_ASSERT(0);
-    set_handler(&type_handler_row);
+    set_handler(args[0]->type_handler());
     break;
   }
   if (thd->lex->current_select)

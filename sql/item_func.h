@@ -826,6 +826,8 @@ public:
 protected:
   const Handler *m_func_handler;
 public:
+  Item_handled_func(THD *thd)
+   :Item_func(thd), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a)
    :Item_func(thd, a), m_func_handler(NULL) { }
   Item_handled_func(THD *thd, Item *a, Item *b)
