@@ -4203,6 +4203,26 @@ insert into t3 values (1), (2);
 set statement optimizer_switch='condition_pushdown_for_derived=off,condition_pushdown_for_subquery=off,condition_pushdown_from_having=off' for
 select t1.c1 as a from t2, t1 where t1.c1=t2.c2
   order by (select c3 from t3 group by a having a=2);
-drop table if exists t1, t2, t3;
+drop table t1, t2, t3;
+
+WITH RECURSIVE cte AS ( SELECT 1 as x UNION SELECT x FROM cte)
+  SELECT ( SELECT 1 FROM ( SELECT 1 FROM cte) dt GROUP BY x HAVING x= 1 )
+  FROM cte
+  GROUP BY 1 ;
+
+CREATE TABLE t1 ( x BOOLEAN NOT NULL );
+INSERT INTO t1 ( x ) VALUES ( 1 ) ;
+UPDATE t1 SET x = 1 WHERE x = 1 ;
+INSERT INTO t1 ( x ) VALUES ( 1 ) , ( x IN ( SELECT x FROM ( SELECT ( SELECT EXISTS ( SELECT * FROM ( SELECT DISTINCT ( - CASE WHEN x = 1 THEN 1 ELSE x + 1 END >= x IS NOT NULL = 1 AND x = 1 ) OR x = x OR x = 'x' FROM t1 AS x GROUP BY x ) AS x WHERE 1 / x GROUP BY x HAVING ( 1 = 1 AND x = 1 ) ) FROM t1 GROUP BY EXISTS ( SELECT 1 ) ) FROM t1 UNION SELECT x FROM t1 ) AS x ) ) ;
+DROP TABLE t1;
+
+WITH
+   cte1 AS ( SELECT 1 as x UNION SELECT 1),
+   cte2 AS ( SELECT 1 as x UNION SELECT 1)
+SELECT
+  ( SELECT 1 FROM ( SELECT 1 FROM cte1) dt GROUP BY x HAVING x= 1 )
+FROM cte2
+  GROUP BY 1 ;
+
 
 --echo # End of 10.5 tests
