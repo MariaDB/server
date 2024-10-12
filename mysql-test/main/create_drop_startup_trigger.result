@@ -1,0 +1,21 @@
+CREATE TABLE t1 (inc INT);
+INSERT INTO t1 VALUES (0);
+SELECT * FROM t1;
+inc
+0
+CREATE OR REPLACE TRIGGER IF NOT EXISTS trg AFTER STARTUP DO UPDATE test.t1 SET inc = inc + 1;
+ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
+CREATE OR REPLACE TRIGGER trg BEFORE STARTUP DO UPDATE test.t1 SET inc = inc + 1;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'STARTUP DO UPDATE test.t1 SET inc = inc + 1' at line 1
+CREATE TRIGGER trg AFTER STARTUP DO UPDATE test.t1 SET inc = inc + 1;
+# restart
+SELECT * FROM t1;
+inc
+1
+DROP TABLE t1;
+DROP TRIGGER trg;
+DROP TRIGGER trg;
+ERROR HY000: Trigger does not exist
+DROP TRIGGER IF EXISTS trg;
+Warnings:
+Note	1360	Trigger does not exist
