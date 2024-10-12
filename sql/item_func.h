@@ -90,7 +90,7 @@ public:
   static void wrong_param_count_error(const LEX_CSTRING &schema_name,
                                       const LEX_CSTRING &func_name);
 
-  table_map not_null_tables_cache= 0;
+  table_map not_null_tables_cache; //= 0;
 
   enum Functype { UNKNOWN_FUNC,EQ_FUNC,EQUAL_FUNC,NE_FUNC,LT_FUNC,LE_FUNC,
 		  GE_FUNC,GT_FUNC,FT_FUNC,
@@ -132,24 +132,32 @@ public:
   {
     with_field= 0;
     with_param= 0;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, Item *a)
    :Item_func_or_sum(thd, a), With_sum_func_cache(a)
   {
     with_param= a->with_param;
     with_field= a->with_field;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, Item *a, Item *b)
    :Item_func_or_sum(thd, a, b), With_sum_func_cache(a, b)
   {
     with_param= a->with_param || b->with_param;
     with_field= a->with_field || b->with_field;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c)
    :Item_func_or_sum(thd, a, b, c), With_sum_func_cache(a, b, c)
   {
     with_field= a->with_field || b->with_field || c->with_field;
     with_param= a->with_param || b->with_param || c->with_param;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d)
    :Item_func_or_sum(thd, a, b, c, d), With_sum_func_cache(a, b, c, d)
@@ -158,6 +166,8 @@ public:
                 c->with_field || d->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, Item *a, Item *b, Item *c, Item *d, Item* e)
    :Item_func_or_sum(thd, a, b, c, d, e), With_sum_func_cache(a, b, c, d, e)
@@ -166,11 +176,15 @@ public:
                 c->with_field || d->with_field || e->with_field;
     with_param= a->with_param || b->with_param ||
                 c->with_param || d->with_param || e->with_param;
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   Item_func(THD *thd, List<Item> &list):
     Item_func_or_sum(thd, list)
   {
     set_arguments(thd, list);
+    //MEM_UNDEFINED_VALGRIND_ONLY(&not_null_tables_cache,
+    //                            sizeof(not_null_tables_cache));
   }
   // Constructor used for Item_cond_and/or (see Item comment)
   Item_func(THD *thd, Item_func *item)
