@@ -21291,7 +21291,7 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   dict_index_t *clust_index = dict_table_get_first_index(table);
 
   if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
-    return true;
+    return false;
   }
 
   THD *thd = current_thd;
@@ -21304,7 +21304,7 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
 
   if (!maria_table->triggers ||  
       !maria_table->triggers->has_triggers(trigger_event, trigger_time)) 
-      return false;
+      return true;
   
   ha_innobase *handler = (ha_innobase*)maria_table->file;
   row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
