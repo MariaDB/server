@@ -21302,11 +21302,10 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE;
   trg_action_time_type trigger_time = after ? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; 
 
-  if (!maria_table->triggers->has_triggers(trigger_event, trigger_time)) {
+  if (!maria_table->triggers ||  
+      !maria_table->triggers->has_triggers(trigger_event, trigger_time)) 
       return false;
-  }
-
-	
+  
   ha_innobase *handler = (ha_innobase*)maria_table->file;
   row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
   prebuilt->upd_node= node;
