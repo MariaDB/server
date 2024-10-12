@@ -21298,10 +21298,14 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   TABLE *maria_table = find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
                                           tbl_buf_len);
 
-  //TODO: add maria_table->triggers->has_triggers(TYPE) check
-  if (maria_table->triggers == NULL) {
-    return false;
+
+  trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE;
+  trg_action_time_type trigger_time = after ? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; 
+
+  if (!maria_table->triggers->has_triggers(trigger_event, trigger_time)) {
+      return false;
   }
+
 	
   ha_innobase *handler = (ha_innobase*)maria_table->file;
   row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
@@ -21355,15 +21359,13 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
                           false, clust_index, offsets); 
 
-  trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE;
-  trg_action_time_type trigger_time = after? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; 
   maria_table->column_bitmaps_set(&maria_table->s->all_set, &maria_table->s->all_set);
   //FIXME: Check return value
   maria_table->triggers->process_triggers(thd, trigger_event, trigger_time, true); 
 
   if (handler->update_prebuilt_upd_buf())
     return false; // TODO: DB_OUT_OF_MEMORY
-	
+
 
   if (maria_table->vfield) {
     maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
