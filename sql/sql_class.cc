@@ -175,7 +175,8 @@ Key::Key(const Key &rhs, MEM_ROOT *mem_root)
   name(rhs.name),
   option_list(rhs.option_list),
   generated(rhs.generated), invisible(false),
-  without_overlaps(rhs.without_overlaps), old(rhs.old), period(rhs.period)
+  without_overlaps(rhs.without_overlaps), old(rhs.old), length(rhs.length),
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }

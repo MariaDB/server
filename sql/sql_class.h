@@ -423,6 +423,7 @@ public:
   bool invisible;
   bool without_overlaps;
   bool old;
+  uint length;
   Lex_ident period;
 
   Key(enum Keytype type_par, const LEX_CSTRING *name_arg,
@@ -430,7 +431,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(default_key_create_info),
     name(*name_arg), option_list(NULL), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -441,7 +442,7 @@ public:
     :DDL_options(ddl_options),
      type(type_par), key_create_info(*key_info_arg), columns(*cols),
     name(*name_arg), option_list(create_opt), generated(generated_arg),
-    invisible(false), without_overlaps(false), old(false)
+    invisible(false), without_overlaps(false), old(false), length(0)
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() = default;
