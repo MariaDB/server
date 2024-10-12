@@ -5264,7 +5264,8 @@ handler::ha_create(const char *name, TABLE *form, HA_CREATE_INFO *info_arg)
     info_arg->options|= HA_LEX_CREATE_GLOBAL_TMP_TABLE;
   int error= create(name, form, info_arg);
   if (!error &&
-      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)))
+      !(info_arg->options & (HA_LEX_CREATE_TMP_TABLE | HA_CREATE_TMP_ALTER)) &&
+      !info_arg->is_partition)
     mysql_audit_create_table(form);
   return error;
 }
