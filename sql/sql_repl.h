@@ -66,7 +66,8 @@ void rpl_init_gtid_slave_state();
 void rpl_deinit_gtid_slave_state();
 void rpl_init_gtid_waiting();
 void rpl_deinit_gtid_waiting();
-int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str);
+int gtid_state_from_binlog_pos(const char *name, uint32 pos, String *out_str,
+                               const char **out_err= NULL);
 int rpl_append_gtid_state(String *dest, bool use_binlog);
 int rpl_load_gtid_state(slave_connection_state *state, bool use_binlog);
 bool rpl_gtid_pos_check(THD *thd, char *str, size_t len);
