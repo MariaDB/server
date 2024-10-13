@@ -90,7 +90,7 @@ static const uchar *servers_cache_get_key(const void *server_, size_t *length,
                       server->server_name_length,
                       server->server_name));
 
-  *length= (uint) server->server_name_length;
+  *length= server->server_name_length;
   DBUG_RETURN(reinterpret_cast<const uchar *>(server->server_name));
 }
 

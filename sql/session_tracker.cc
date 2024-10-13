@@ -561,7 +561,7 @@ const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
 {
   *length= sizeof(sys_var *);
   return reinterpret_cast<const uchar *>(
-      &(((sysvar_node_st *) entry)->m_svar));
+      &((static_cast<const sysvar_node_st *>(entry))->m_svar));
 }
 
 

@@ -724,7 +724,7 @@ static const uchar *sphinx_get_key(const void *pSharePtr,
                                    GetKeyLength_t *pLength, my_bool)
 {
   const CSphSEShare *pShare= static_cast<const CSphSEShare *>(pSharePtr);
-  *pLength= (size_t) pShare->m_iTableNameLen;
+  *pLength= pShare->m_iTableNameLen;
   return reinterpret_cast<const uchar *>(pShare->m_sTable);
 }
 

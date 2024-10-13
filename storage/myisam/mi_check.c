@@ -3805,11 +3805,13 @@ int sort_write_record(MI_SORT_PARAM *sort_param)
 
 	/* Compare two keys from _create_index_by_sort */
 
-static int sort_key_cmp(void *sort_param_, const void *a, const void *b)
+static int sort_key_cmp(void *sort_param_, const void *a_, const void *b_)
 {
   const MI_SORT_PARAM *sort_param= sort_param_;
   uint not_used[2];
-  return (ha_key_cmp(sort_param->seg, *((uchar**) a), *((uchar**) b),
+  const void *const *a= a_;
+  const void *const *b= b_;
+  return (ha_key_cmp(sort_param->seg, *a, *b,
 		     USE_WHOLE_KEY, SEARCH_SAME, not_used));
 } /* sort_key_cmp */
 

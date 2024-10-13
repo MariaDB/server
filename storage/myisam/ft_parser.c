@@ -34,8 +34,7 @@ static int FT_WORD_cmp(void *cs_, const void *w1_, const void *w2_)
 {
   CHARSET_INFO *cs= cs_;
   const FT_WORD *w1= w1_, *w2= w2_;
-  return ha_compare_word(cs, (uchar*) w1->pos, w1->len,
-                             (uchar*) w2->pos, w2->len);
+  return ha_compare_word(cs, w1->pos, w1->len, w2->pos, w2->len);
 }
 
 static int walk_and_copy(void *word_, element_count count, void *docstat_)

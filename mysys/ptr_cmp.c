@@ -47,8 +47,8 @@
 static int native_compare(void *length_, const void *a_, const void *b_)
 {
   size_t *length= length_;
-  const unsigned char **a= (const unsigned char **) a_;
-  const unsigned char **b= (const unsigned char **) b_;
+  const unsigned char *const *a= a_;
+  const unsigned char *const *b= b_;
   return memcmp(*a, *b, *length);
 }
 
@@ -59,21 +59,21 @@ qsort_cmp2 get_ptr_compare (size_t size __attribute__((unused)))
 
 #else /* USE_NATIVE_MEMCMP */
 
-static int ptr_compare(size_t *compare_length, uchar **a, uchar **b);
-static int ptr_compare_0(size_t *compare_length, uchar **a, uchar **b);
-static int ptr_compare_1(size_t *compare_length, uchar **a, uchar **b);
-static int ptr_compare_2(size_t *compare_length, uchar **a, uchar **b);
-static int ptr_compare_3(size_t *compare_length, uchar **a, uchar **b);
-static int degenerate_compare_func(size_t *compare_length, uchar **a, uchar **b)
+static int ptr_compare(void *compare_length, const void *a, const void *b);
+static int ptr_compare_0(void *compare_length, const void *a, const void *b);
+static int ptr_compare_1(void *compare_length, const void *a, const void *b);
+static int ptr_compare_2(void *compare_length, const void *a, const void *b);
+static int ptr_compare_3(void *compare_length, const void *a, const void *b);
+static int degenerate_compare_func(void *compare_length, const void *a, const void *b)
 {
-  DBUG_ASSERT(*compare_length == 0);
+  DBUG_ASSERT(*((size_t *) compare_length) == 0);
   return 0;
 }
 
 qsort_cmp2 get_ptr_compare (size_t size)
 {
   if (size == 0)
-    return (qsort_cmp2) degenerate_compare_func;
+    return degenerate_compare_func;
   if (size < 4)
     return (qsort_cmp2) ptr_compare;
   switch (size & 3) {
@@ -91,13 +91,13 @@ qsort_cmp2 get_ptr_compare (size_t size)
 
 #define cmp(N) if (first[N] != last[N]) return (int) first[N] - (int) last[N]
 
-static int ptr_compare(size_t *compare_length, uchar **a, uchar **b)
+static int ptr_compare(void *compare_length, const void *a, const void *b)
 {
-  size_t length= *compare_length;
-  uchar *first,*last;
+  size_t length= *((size_t *) compare_length);
+  const uchar *first= *((const uchar *const *) a);
+  const uchar *last= *((const uchar *const *) b);
 
   DBUG_ASSERT(length > 0);
-  first= *a; last= *b;
   while (--length)
   {
     if (*first++ != *last++)
@@ -107,12 +107,11 @@ static int ptr_compare(size_t *compare_length, uchar **a, uchar **b)
 }
 
 
-static int ptr_compare_0(size_t *compare_length,uchar **a, uchar **b)
+static int ptr_compare_0(void *compare_length, const void *a, const void *b)
 {
-  size_t length= *compare_length;
-  uchar *first,*last;
-
-  first= *a; last= *b;
+  size_t length= *((size_t *) compare_length);
+  const uchar *first= *((const uchar *const *) a);
+  const uchar *last= *((const uchar *const *) b);
  loop:
   cmp(0);
   cmp(1);
@@ -128,12 +127,13 @@ static int ptr_compare_0(size_t *compare_length,uchar **a, uchar **b)
 }
 
 
-static int ptr_compare_1(size_t *compare_length,uchar **a, uchar **b)
+static int ptr_compare_1(void *compare_length, const void *a, const void *b)
 {
-  size_t length= *compare_length-1;
-  uchar *first,*last;
 
-  first= *a+1; last= *b+1;
+  size_t length= *((size_t *) compare_length) - 1;
+  const uchar *first= *((const uchar *const *) a) + 1;
+  const uchar *last= *((const uchar *const *) b) + 1;
+
   cmp(-1);
  loop:
   cmp(0);
@@ -149,12 +149,12 @@ static int ptr_compare_1(size_t *compare_length,uchar **a, uchar **b)
   return (0);
 }
 
-static int ptr_compare_2(size_t *compare_length,uchar **a, uchar **b)
+static int ptr_compare_2(void *compare_length, const void *a, const void *b)
 {
-  size_t length= *compare_length-2;
-  uchar *first,*last;
+  size_t length= *((size_t *) compare_length) - 2;
+  const uchar *first= *((const uchar *const *) a) + 2;
+  const uchar *last= *((const uchar *const *) b) + 2;
 
-  first= *a +2 ; last= *b +2;
   cmp(-2);
   cmp(-1);
  loop:
@@ -171,12 +171,12 @@ static int ptr_compare_2(size_t *compare_length,uchar **a, uchar **b)
   return (0);
 }
 
-static int ptr_compare_3(size_t *compare_length,uchar **a, uchar **b)
+static int ptr_compare_3(void *compare_length, const void *a, const void *b)
 {
-  size_t length= *compare_length-3;
-  uchar *first,*last;
+  size_t length= *((size_t *) compare_length) - 3;
+  const uchar *first= *((const uchar *const *) a) + 3;
+  const uchar *last= *((const uchar *const *) b) + 3;
 
-  first= *a +3 ; last= *b +3;
   cmp(-3);
   cmp(-2);
   cmp(-1);

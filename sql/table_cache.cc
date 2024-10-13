@@ -608,7 +608,7 @@ bool tdc_init(void)
                LF_HASH_UNIQUE, 0, 0, tdc_hash_key, &my_charset_bin);
   tdc_hash.alloc.constructor= lf_alloc_constructor;
   tdc_hash.alloc.destructor= lf_alloc_destructor;
-  tdc_hash.initializer= (lf_hash_initializer) tdc_hash_initializer;
+  tdc_hash.initializer= tdc_hash_initializer;
   DBUG_RETURN(false);
 }
 

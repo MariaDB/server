@@ -5045,7 +5045,7 @@ my_bool Query_cache::check_integrity(bool locked)
       size_t length;
       const uchar *key= query_cache_query_get_key(block, &length, 0);
       uchar* val = my_hash_search(&queries, key, length);
-      if (((uchar*)block) != val)
+      if ((reinterpret_cast<uchar *>(block)) != val)
       {
 	DBUG_PRINT("error", ("block %p found in queries hash like %p",
 			     block, val));
@@ -5078,9 +5078,9 @@ my_bool Query_cache::check_integrity(bool locked)
       DBUG_PRINT("qcache", ("block %p, type %u...", 
 			    block, (uint) block->type));
       size_t length;
-      const uchar *key= query_cache_table_get_key((uchar *) block, &length, 0);
+      const uchar *key= query_cache_table_get_key(block, &length, 0);
       uchar* val = my_hash_search(&tables, key, length);
-      if (((uchar*)block) != val)
+      if (reinterpret_cast<uchar *>(block) != val)
       {
 	DBUG_PRINT("error", ("block %p found in tables hash like %p",
 			     block, val));

@@ -75,7 +75,7 @@ static const uchar *safe_hash_entry_get(const void *entry_, size_t *length,
                                         my_bool not_used
                                         __attribute__((unused)))
 {
-  const SAFE_HASH_ENTRY *entry= (const SAFE_HASH_ENTRY *) entry_;
+  const SAFE_HASH_ENTRY *entry= entry_;
   *length= entry->length;
   return entry->key;
 }

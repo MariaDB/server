@@ -106,7 +106,7 @@ static const char *init_syms(udf_func *tmp, char *nm)
 extern "C" const uchar *get_hash_key(const void *buff, size_t *length, my_bool)
 {
   auto udf= static_cast<const udf_func *>(buff);
-  *length=(uint) udf->name.length;
+  *length= udf->name.length;
   return reinterpret_cast<const uchar *>(udf->name.str);
 }
 

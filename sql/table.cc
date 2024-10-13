@@ -244,7 +244,7 @@ View_creation_ctx * View_creation_ctx::create(THD *thd,
 static const uchar *get_field_name(const void *buff_, size_t *length, my_bool)
 {
   auto buff= static_cast<const Field *const *>(buff_);
-  *length= static_cast<uint>((*buff)->field_name.length);
+  *length= (*buff)->field_name.length;
   return reinterpret_cast<const uchar *>((*buff)->field_name.str);
 }
 

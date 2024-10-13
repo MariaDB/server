@@ -58,7 +58,10 @@ int unique_write_to_file_with_count(void* key_, element_count count, void *uniqu
   uchar *key= static_cast<uchar *>(key_);
   Unique *unique= static_cast<Unique *>(unique_);
   return my_b_write(&unique->file, key, unique->size) ||
-         my_b_write(&unique->file, (uchar*)&count, sizeof(element_count)) ? 1 : 0;
+                 my_b_write(&unique->file, reinterpret_cast<uchar *>(&count),
+                            sizeof(element_count))
+             ? 1
+             : 0;
 }
 
 int unique_write_to_ptrs(void* key_, element_count, void *unique_)
