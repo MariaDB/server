@@ -1,4 +1,4 @@
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v)) engine=innodb;
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
 (Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
 (Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
@@ -27,7 +27,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `v` blob NOT NULL,
+  `v` vector(5) NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci

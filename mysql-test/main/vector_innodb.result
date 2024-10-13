@@ -1,9 +1,9 @@
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
+create table t1 (id int auto_increment primary key, v vector(8) not null, vector index (v)) engine=innodb;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `v` blob NOT NULL,
+  `v` vector(8) NOT NULL,
   PRIMARY KEY (`id`),
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -52,7 +52,7 @@ id	d
 30	1.11140
 10	1.11863
 8	1.14057
-create table t2 (id int auto_increment primary key, v blob not null, vector index (v)) engine=innodb;
+create table t2 (id int auto_increment primary key, v vector(6) not null, vector index (v)) engine=innodb;
 insert t2 (v) values
 (x'45cf153f830a313f7a0a113fb1ff533f47a1533fcf9e6e3f'),
 (x'4b311d3fdd82423f35ba7d3fa041223dfd7db03e72d5833e'),
@@ -107,54 +107,29 @@ drop table t1, t2;
 #
 # MDEV-34989 After selecting from empty table with vector key the next insert hangs
 #
-create table t (v blob not null, vector key(v)) engine=InnoDB;
+create table t (v vector(5) not null, vector key(v)) engine=InnoDB;
 select vec_distance_euclidean(v, x'B047263C9F87233fcfd27e3eae493e3f0329f43e') as e from t order by e limit 1;
 e
 insert into t values (x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
 drop table t;
 #
-# MDEV-35006 Using varbinary as vector-storing column results in assertion failures
-#
-create table t (pk int primary key, v varbinary(1024) not null, vector key(v)) engine=InnoDB;
-insert into t values (1, x'B047263C9F87233fcfd27e3eae493e3f0329f43e');
-select pk,hex(v) from t;
-pk	hex(v)
-1	B047263C9F87233FCFD27E3EAE493E3F0329F43E
-drop table t;
-#
 # MDEV-35039 Number of indexes inside InnoDB differs from that defined in MariaDB after altering table with vector key
 #
-create table t (v blob not null, vector index (v)) row_format=compressed engine=innodb;
+create table t (v vector(1) not null, vector index (v)) row_format=compressed engine=innodb;
 alter table t add f int;
 insert into t values (x'00000000',1);
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
-  `v` blob NOT NULL,
+  `v` vector(1) NOT NULL,
   `f` int(11) DEFAULT NULL,
   VECTOR KEY `v` (`v`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci ROW_FORMAT=COMPRESSED
 drop table t;
 #
-# MDEV-35020 After a failed attempt to create vector index temporary file remains and prevents further operation
-#
-create table t (a int) engine=innodb;
-insert into t values (1);
-alter table t add v blob not null, add vector index (v);
-ERROR 22007: Incorrect vector value: '...' for column `test`.`t`.`v` at row 1
-alter table t add v blob not null default x'00000000', add vector index (v);
-show create table t;
-Table	Create Table
-t	CREATE TABLE `t` (
-  `a` int(11) DEFAULT NULL,
-  `v` blob NOT NULL DEFAULT X'00000000',
-  VECTOR KEY `v` (`v`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-drop table t;
-#
 # MDEV-35055 ASAN errors in TABLE_SHARE::lock_share upon committing transaction after FLUSH on table with vector key
 #
-create table t (pk int primary key, v blob not null, vector index(v)) engine=innodb;
+create table t (pk int primary key, v vector(3) not null, vector index(v)) engine=innodb;
 start transaction;
 insert into t values (1,vec_fromtext('[1,2,3]'));
 connect con1,localhost,root;
@@ -166,7 +141,7 @@ drop table t;
 #
 # MDEV-35060 Assertion failure upon DML on table with vector under lock
 #
-create table t (a int, v blob not null, vector(v)) engine=innodb;
+create table t (a int, v vector(1) not null, vector(v)) engine=innodb;
 insert into t values (1,x'00000000'),(2,x'00000000');
 lock table t write;
 delete from t;
@@ -175,7 +150,7 @@ drop table t;
 # MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
 #
 connect con1,localhost,root;
-create table t (a int, v blob not null, vector(v)) engine=innodb;
+create table t (a int, v vector(1) not null, vector(v)) engine=innodb;
 xa start 'x';
 insert into t values (1,x'00000000');
 xa end 'x';
@@ -189,6 +164,6 @@ DROP TABLE t;
 #
 # MDEV-35104 Invalid (old?) table or database name upon DDL on table with vector key and unique key
 #
-create table t (f varchar(1024) not null, v blob not null, unique(f)) engine=innodb charset=utf8mb3;
+create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
 alter table t add vector (v);
 drop table t;

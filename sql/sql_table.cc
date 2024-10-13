@@ -2762,34 +2762,6 @@ Type_handler_blob_common::Key_part_spec_init_ft(Key_part_spec *part,
 }
 
 
-bool Type_handler_string::Key_part_spec_init_vector(Key_part_spec *part,
-                                                    const Column_definition &def)
-                                                    const
-{
-  part->length= 0;
-  return def.charset != &my_charset_bin;
-}
-
-
-bool Type_handler_varchar::Key_part_spec_init_vector(Key_part_spec *part,
-                                                     const Column_definition &def)
-                                                     const
-{
-  part->length= 0;
-  return def.charset != &my_charset_bin;
-}
-
-
-bool
-Type_handler_blob_common::Key_part_spec_init_vector(Key_part_spec *part,
-                                                    const Column_definition &def)
-                                                    const
-{
-  part->length= 1;
-  return def.charset != &my_charset_bin;
-}
-
-
 static bool
 key_add_part_check_null(const handler *file, KEY *key_info,
                         const Column_definition *sql_field,
@@ -3578,7 +3550,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	  DBUG_RETURN(TRUE);
       }
       if (key_part_length > file->max_key_part_length() &&
-          key->type != Key::FULLTEXT)
+          key->type != Key::FULLTEXT && key->type != Key::VECTOR)
       {
         if (key->type == Key::MULTIPLE)
         {
@@ -3641,7 +3613,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     if (key_info->key_length > max_key_length && key->type == Key::UNIQUE)
       is_hash_field_needed= true;  // for case "a BLOB UNIQUE"
     if (key_length > max_key_length && key->type != Key::FULLTEXT &&
-        !is_hash_field_needed)
+        key->type != Key::VECTOR && !is_hash_field_needed)
     {
       my_error(ER_TOO_LONG_KEY, MYF(0), max_key_length);
       DBUG_RETURN(TRUE);
