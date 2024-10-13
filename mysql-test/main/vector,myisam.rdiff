@@ -1,7 +1,7 @@
 --- a/mysql-test/main/vector.result
 +++ b/mysql-test/main/vector.result
 @@ -305,8 +305,30 @@
- create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
  truncate table t1;
 +
@@ -33,7 +33,7 @@
  id	hex(v)
 @@ -324,26 +346,32 @@
  # Test RENAME TABLE with vector index
- create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+ create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
  db.opt
 -t1#i#01.ibd
 +t1#i#01.MYD
@@ -106,7 +106,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -415,13 +415,15 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -143,7 +143,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -445,13 +447,15 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -180,7 +180,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -479,13 +479,15 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -217,7 +217,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` ( 
 @@ -509,24 +511,27 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -233,7 +233,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
    `id` int(11) NOT NULL AUTO_INCREMENT,
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -250,7 +250,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -539,24 +539,27 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -266,7 +266,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
    `id` int(11) NOT NULL AUTO_INCREMENT,
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -283,7 +283,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -567,7 +567,7 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -292,7 +292,7 @@
  alter table t1 add index a(id), algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 @@ -590,31 +590,15 @@
- alter table t1 modify column v mediumblob not null, algorithm=inplace;
+ alter table t1 modify column v vector(6) not null, algorithm=inplace;
  ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
  # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
 -alter table t1 add column a varchar(10), algorithm=inplace;
@@ -307,7 +307,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `id` int(11) NOT NULL AUTO_INCREMENT,
--  `v` blob NOT NULL,
+-  `v` vector(5) NOT NULL,
 -  PRIMARY KEY (`id`),
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -328,7 +328,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -606,13 +606,15 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -347,7 +347,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -622,14 +622,16 @@
-   `w` blob NOT NULL,
+   `w` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`w`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -367,7 +367,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -639,7 +639,7 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `w` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -387,7 +387,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
    `id` int(11) NOT NULL AUTO_INCREMENT,
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -409,7 +409,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `id` int(11) NOT NULL AUTO_INCREMENT,
--  `v` blob NOT NULL,
+-  `v` vector(5) NOT NULL,
 -  PRIMARY KEY (`id`),
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -422,7 +422,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `id` int(11) NOT NULL AUTO_INCREMENT,
--  `v` blob NOT NULL,
+-  `v` vector(5) NOT NULL,
 -  PRIMARY KEY (`id`),
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -437,7 +437,7 @@
 -Table	Create Table
 -t2	CREATE TABLE `t2` (
 -  `id` int(11) NOT NULL AUTO_INCREMENT,
--  `v` blob NOT NULL,
+-  `v` vector(5) NOT NULL,
 -  PRIMARY KEY (`id`),
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -450,7 +450,7 @@
 -Table	Create Table
 -t1	CREATE TABLE `t1` (
 -  `id` int(11) NOT NULL AUTO_INCREMENT,
--  `v` blob NOT NULL,
+-  `v` vector(5) NOT NULL,
 -  PRIMARY KEY (`id`),
 -  VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
@@ -459,7 +459,7 @@
  ERROR HY000: Incorrect arguments to VECTOR INDEX
 @@ -671,9 +672,11 @@
  ERROR 42000: All parts of a VECTOR index must be NOT NULL
- alter table t1 modify column v tinyblob not null;
+ alter table t1 modify column v vector(7) not null;
  db.opt
 -t1#i#01.ibd
 +t1#i#01.MYD
@@ -472,12 +472,12 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -681,12 +684,14 @@
-   `v` tinyblob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
- alter table t1 change column v v blob not null;
+ alter table t1 change column v v vector(5) not null;
  db.opt
 -t1#i#01.ibd
 +t1#i#01.MYD
@@ -490,7 +490,7 @@
  Table	Create Table
  t1	CREATE TABLE `t1` (
 @@ -699,15 +699,16 @@
-   `v` blob NOT NULL,
+   `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
    VECTOR KEY `v` (`v`)
 -) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci

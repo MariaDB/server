@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_type.h"
 #include "sql_type_geom.h"
+#include "sql_type_vector.h"
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
@@ -289,6 +290,8 @@ Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
   }
 
   const Type_handler *ha= Type_collection_geometry_handler_by_name(name);
+  if (!ha && type_handler_vector.name().eq(name))
+    return &type_handler_vector;
   return ha;
 }
 
