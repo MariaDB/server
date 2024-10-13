@@ -3,40 +3,69 @@
 #
 --source include/have_sequence.inc
 
+--echo #
+--echo # MDEV-33410 VECTOR data type
+--echo #
+--error ER_PARSE_ERROR
+create table t1 (a int, b vector);
+--error ER_WRONG_FIELD_SPEC
+create table t1 (a int, b vector(0));
+--error ER_WRONG_FIELD_SPEC
+create table t1 (a int, b vector(10) collate utf8mb3_general_ci);
+create table t1 (a int, b vector(10));
+show create table t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1.1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, 1e1);
+--error ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION
+insert t1 values (1, now());
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+insert t1 values (1, repeat(x'56', 10));
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+insert t1 values (1, repeat(x'66', 40));
+insert t1 values (1, repeat(x'56', 40));
+select * from t1;
+--error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
+select cast(b as char) from t1;
+create table t2 as select b, cast(b as binary) from t1;
+show create table t2;
+drop table t1, t2;
+
+create table t1 (a int, b vector(1) not null);
+insert into t1 values (1,x'00000000');
+alter table t1 modify b vector(2) not null;
+insert into t1 values (1,x'0000000000000000');
+select a, vec_totext(b) from t1;
+drop table t1;
+
+--error ER_WRONG_ARGUMENTS
+create table t1(v blob not null, vector index(v));
+--error ER_WRONG_ARGUMENTS
+create table t1(v varbinary(100) not null, vector index(v));
+--error ER_WRONG_ARGUMENTS
+create table t1(v binary not null, vector index(v));
+
+--echo #
+--echo # MDEV-34919 Aria crashes with high-level (vector) indexes
+--echo #
 --echo # Aria doesn't support VECTOR yet
 --error ER_ILLEGAL_HA_CREATE_OPTION
-create table t1(v blob not null, vector index(v)) engine=aria;
+create table t1(v vector(10) not null, vector index(v)) engine=aria;
 
 --echo #
 --echo # MDEV-35038 Server crash in Index_statistics::get_avg_frequency upon EITS collection for vector index
 --echo #
-create table t (a int, v blob not null, vector index (v));
+create table t (a int, v vector(10) not null, vector index (v));
 analyze table t persistent for columns() indexes (v);
 drop table t;
 
 --echo #
---echo # MDEV-35033 LeakSanitizer errors in my_malloc / safe_mutex_lazy_init_deadlock_detection / MHNSW_Context::alloc_node and alike
---echo #
-call mtr.add_suppression('mariadbd: Can''t find record in ''t''');
-create table t (a int, v blob not null, vector index (v));
-insert into t values (1,vec_fromtext('[0]'));
-
---error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
-update t set v = vec_fromtext('[0,0]');
-
---error ER_KEY_NOT_FOUND
-update t set a = 2;
-
-set global mhnsw_cache_size = 1048576;
-insert into t  values (2,x'00000000');
-
-drop table t;
-set global mhnsw_cache_size = default;
-
---echo #
 --echo # MDEV-35029 ASAN errors in Lex_ident<Compare_ident_ci>::is_valid_ident upon DDL on table with vector index
 --echo #
-create table t (a int, v blob not null, vector key (v) distance_function=euclidean);
+create table t (a int, v vector(10) not null, vector key (v) distance_function=euclidean);
 show create table t;
 set session mhnsw_max_edges_per_node = @@mhnsw_max_edges_per_node + 1;
 create table t2 like t;
@@ -47,12 +76,12 @@ drop table t, t2;
 --echo # MDEV-35043 Unsuitable error upon an attempt to create MEMORY table with vector key
 --echo #
 --error ER_ILLEGAL_HA_CREATE_OPTION
-create table t (v binary(255) not null, vector index(v)) engine=memory;
+create table t (v vector(31) not null, vector index(v)) engine=memory;
 
 --echo #
 --echo # MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
 --echo #
-create table t (a int primary key, v blob not null, vector index(v));
+create table t (a int primary key, v vector(10) not null, vector index(v));
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify a int auto_increment, lock=none;
 drop table t;
@@ -60,16 +89,16 @@ drop table t;
 --echo #
 --echo # MDEV-35042 Vector indexes are allowed for MERGE tables, but do not
 --echo #
-create table t (a int, v blob not null, vector index(v)) engine=myisam;
+create table t (a int, v vector(10) not null, vector index(v)) engine=myisam;
 --error ER_ILLEGAL_HA_CREATE_OPTION
-create table tm (a int, v blob not null, vector index(v)) engine=merge union=(t);
+create table tm (a int, v vector(10) not null, vector index(v)) engine=merge union=(t);
 drop table t;
 
 --echo #
 --echo # MDEV-35078 Server crash or ASAN errors in mhnsw_insert
 --echo #
 set session mhnsw_max_edges_per_node = 4;
-create table t (a int, v blob not null);
+create table t (a int, v vector(1) not null);
 insert into t select seq, x'00000000' from seq_1_to_10;
 alter table t add vector(v);
 show create table t;
@@ -83,7 +112,7 @@ set session mhnsw_max_edges_per_node = default;
 --echo # MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
 --echo #
 set mhnsw_distance_function= cosine;
-create table t (a int, v blob not null);
+create table t (a int, v vector(10) not null);
 prepare stmt from 'alter table t drop index if exists v, add vector (v) max_edges_per_node=10';
 execute stmt;
 execute stmt;
@@ -94,7 +123,7 @@ set mhnsw_distance_function= default;
 --echo #
 --echo # MDEV-35105 Assertion `tab->join->order' fails upon vector search with DISTINCT
 --echo #
-create table t (a int, v blob not null, vector(v));
+create table t (a int, v vector(1) not null, vector(v));
 insert into t values(1,x'00000000'),(2,x'00000000');
 --replace_column 1 #
 select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) limit 1;
