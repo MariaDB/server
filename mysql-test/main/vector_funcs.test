@@ -1,4 +1,4 @@
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),

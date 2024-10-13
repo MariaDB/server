@@ -1122,15 +1122,6 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
 }
 
 
-static int bad_value_on_insert(Field *f)
-{
-  my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0), "vector", "...",
-           f->table->s->db.str, f->table->s->table_name.str, f->field_name.str,
-           f->table->in_use->get_stmt_da()->current_row_for_warning());
-  return my_errno= HA_ERR_GENERIC;
-}
-
-
 int mhnsw_insert(TABLE *table, KEY *keyinfo)
 {
   THD *thd= table->in_use;
@@ -1148,13 +1139,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   DBUG_ASSERT(vec_field->cmp_type() == STRING_RESULT);
   DBUG_ASSERT(res); // ER_INDEX_CANNOT_HAVE_NULL
   DBUG_ASSERT(table->file->ref_length <= graph->field[FIELD_TREF]->field_length);
-
-  // XXX returning an error here will rollback the insert in InnoDB
-  // but in MyISAM the row will stay inserted, making the index out of sync:
-  // invalid vector values are present in the table but cannot be found
-  // via an index. The easiest way to fix it is with a VECTOR(N) type
-  if (res->length() == 0 || res->length() % 4)
-    return bad_value_on_insert(vec_field);
+  DBUG_ASSERT(res->length() > 0 && res->length() % 4 == 0);
 
   table->file->position(table->record[0]);
 
@@ -1175,7 +1160,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
   }
 
   if (ctx->byte_len != res->length())
-    return bad_value_on_insert(vec_field);
+    return my_errno= HA_ERR_CRASHED;
 
   MEM_ROOT_SAVEPOINT memroot_sv;
   root_make_savepoint(thd->mem_root, &memroot_sv);
