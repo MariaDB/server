@@ -8462,6 +8462,33 @@ ATTRIBUTE_COLD bool wsrep_append_table_key(MYSQL_THD thd, const dict_table_t &ta
 }
 #endif /* WITH_WSREP */
 
+int ha_innobase::update_prebuilt_upd_buf()
+{
+  DBUG_ENTER("ha_innobase::update_prebuilt_upd_buf");
+  if (m_upd_buf == NULL) {
+    ut_ad(m_upd_buf_size == 0);
+
+    /* Create a buffer for packing the fields of a record. Why
+    table->reclength did not work here? Obviously, because char
+    fields when packed actually became 1 byte longer, when we also
+    stored the string length as the first byte. */
+
+    m_upd_buf_size = table->s->reclength + table->s->max_key_length
+                     + MAX_REF_PARTS * 3;
+
+    m_upd_buf = reinterpret_cast<uchar*>(my_malloc(PSI_INSTRUMENT_ME,
+                    m_upd_buf_size,
+                    MYF(MY_WME)));
+
+    if (m_upd_buf == NULL) {
+      m_upd_buf_size = 0;
+      DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+    }
+  }
+  DBUG_RETURN(0);
+}
+
+
 /**
 Updates a row given as a parameter to a new value. Note that we are given
 whole rows, not just the fields which are updated: this incurs some
@@ -8492,27 +8519,8 @@ ha_innobase::update_row(
 		trx->will_lock = true;
 	}
 
-	if (m_upd_buf == NULL) {
-		ut_ad(m_upd_buf_size == 0);
-
-		/* Create a buffer for packing the fields of a record. Why
-		table->reclength did not work here? Obviously, because char
-		fields when packed actually became 1 byte longer, when we also
-		stored the string length as the first byte. */
-
-		m_upd_buf_size = table->s->reclength + table->s->max_key_length
-			+ MAX_REF_PARTS * 3;
-
-		m_upd_buf = reinterpret_cast<uchar*>(
-			my_malloc(PSI_INSTRUMENT_ME,
-                                  m_upd_buf_size,
-				MYF(MY_WME)));
-
-		if (m_upd_buf == NULL) {
-			m_upd_buf_size = 0;
-			DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-		}
-	}
+	if (int ret= update_prebuilt_upd_buf())
+		DBUG_RETURN(ret);
 
 	upd_t*		uvect = row_get_prebuilt_update_vector(m_prebuilt);
 	ib_uint64_t	autoinc;
@@ -21289,4 +21297,108 @@ buf_pool_size_align(
   } else {
     return (size / m + 1) * m;
   }
+}
+
+bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) 
+{
+  btr_pcur_t	*pcur = node->pcur;
+  char db_buf[NAME_LEN + 1];
+  char tbl_buf[NAME_LEN + 1];
+  ulint db_buf_len, tbl_buf_len;
+
+  dict_table_t *table = node->table;
+  dict_index_t *clust_index = dict_table_get_first_index(table);
+
+  if (!table->parse_name(db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+    return false;
+  }
+
+  THD *thd = current_thd;
+  TABLE *maria_table = find_fk_open_table(thd, db_buf, db_buf_len, tbl_buf, 
+                                          tbl_buf_len);
+
+
+  trg_event_type trigger_event = is_delete ? TRG_EVENT_DELETE : TRG_EVENT_UPDATE;
+  trg_action_time_type trigger_time = after ? TRG_ACTION_AFTER: TRG_ACTION_BEFORE; 
+
+  if (!maria_table->triggers ||  
+      !maria_table->triggers->has_triggers(trigger_event, trigger_time)) 
+      return true;
+  
+  ha_innobase *handler = (ha_innobase*)maria_table->file;
+  row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
+  prebuilt->upd_node= node;
+  //ut_ad(is_delete);
+  //ut_ad(after);
+
+  const rec_t* rec = btr_pcur_get_rec(pcur); 
+  const rec_offs*	offsets = rec_get_offsets(
+    rec, 
+    clust_index, 
+    nullptr, 
+    clust_index->n_core_fields, 
+    ULINT_UNDEFINED, 
+    &node->heap
+  );
+
+  if (!is_delete) {
+  if (node->upd_row == NULL) {
+    node->row = row_build(ROW_COPY_DATA, clust_index, rec,
+            offsets, NULL,
+            NULL, NULL, &node->upd_ext, node->heap);
+
+    node->upd_row = dtuple_copy(node->row, node->heap);
+    row_upd_replace(node->upd_row, &node->upd_ext,
+      clust_index, node->update, node->heap);
+  }
+
+  dtuple_t* entry = row_build_index_entry(node->upd_row, NULL, 
+                                          clust_index, 
+                                          node->heap);
+
+  ulint n_ext = dtuple_get_n_ext(node->upd_row);
+  
+  ulint size = rec_get_converted_size(clust_index, entry, n_ext);
+  byte *buf = static_cast<byte*>(mem_heap_alloc(node->heap, size));
+
+  rec_t *rec_upd = rec_convert_dtuple_to_rec(buf, clust_index, entry, n_ext);
+  const rec_offs* upd_offsets = rec_get_offsets(
+    rec_upd, clust_index, nullptr, 
+    clust_index->n_core_fields, 
+    ULINT_UNDEFINED, &node->heap);
+
+  //FIXME:Check return value
+  row_sel_store_mysql_rec(maria_table->record[0], prebuilt, rec_upd, 
+                          NULL, false, clust_index, upd_offsets); 
+  }
+
+  //FIXME: Check return value
+  row_sel_store_mysql_rec(maria_table->record[1], prebuilt, rec, NULL, 
+                          false, clust_index, offsets); 
+
+  maria_table->column_bitmaps_set(&maria_table->s->all_set, &maria_table->s->all_set);
+  //FIXME: Check return value
+  maria_table->triggers->process_triggers(thd, trigger_event, trigger_time, true); 
+
+  if (handler->update_prebuilt_upd_buf())
+    return false; // TODO: DB_OUT_OF_MEMORY
+
+
+  if (maria_table->vfield) {
+    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
+    maria_table->move_fields(maria_table->field, maria_table->record[1], maria_table->record[0]);
+    maria_table->update_virtual_fields(handler, VCOL_UPDATE_FOR_WRITE);
+    maria_table->move_fields(maria_table->field, maria_table->record[0], maria_table->record[1]);
+	}	
+  
+  ib_uint64_t autoinc;
+  dberr_t error= calc_row_difference(node->update, maria_table->record[1],
+                maria_table->record[0], maria_table,
+                handler->m_upd_buf,
+                handler->m_upd_buf_size,
+                prebuilt, autoinc);
+  if (error)
+    return false;
+
+  return true;
 }
