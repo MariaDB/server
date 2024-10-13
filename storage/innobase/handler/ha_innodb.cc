@@ -21323,7 +21323,6 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   );
 
   if (!is_delete) {
-  dberr_t err;
   if (node->upd_row == NULL) {
     node->row = row_build(ROW_COPY_DATA, clust_index, rec,
             offsets, NULL,
