@@ -1,24 +1,24 @@
 replace_result InnoDB MyISAM;
 error ER_NO_INDEX_ON_TEMPORARY;
-create temporary table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create temporary table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 
 error ER_NOT_SUPPORTED_YET;
 create table t1 (id int auto_increment primary key,
-  u blob not null, vector index (u),
-  v blob not null, vector index (v));
+  u vector(5) not null, vector index (u),
+  v vector(5) not null, vector index (v));
 
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 replace_result InnoDB MyISAM;
 show create table t1;
 show keys from t1;
 drop table t1;
 set mhnsw_max_edges_per_node=@@mhnsw_max_edges_per_node+1;
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 replace_result InnoDB MyISAM;
 show create table t1;
 show keys from t1;
 drop table t1;
-create table t1 (id int auto_increment primary key, v blob not null,
+create table t1 (id int auto_increment primary key, v vector(5) not null,
   vector index (v) max_edges_per_node=5);
 replace_result InnoDB MyISAM;
 show create table t1;
@@ -132,7 +132,7 @@ let $datadir=`select @@datadir`;
 list_files $datadir/test;
 
 --echo # Check if CREATE TABLE ... LIKE inherits VECTOR index
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 create table t2 like t1;
 replace_result InnoDB MyISAM;
 show create table t2;
@@ -140,7 +140,7 @@ drop table t1, t2;
 list_files $datadir/test;
 
 --echo # Test insert ... select with vector index
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 create table t2 like t1;
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
@@ -158,7 +158,7 @@ select id, hex(v) from t1;
 drop table t1, t2;
 list_files $datadir/test;
 
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 insert t1 (id, v) values (1, x'e360d63ebe554f3fcdbc523f4522193f5236083d');
 truncate table t1;
 if ($MTR_COMBINATION_MYISAM) {
@@ -179,7 +179,7 @@ drop table t1;
 list_files $datadir/test;
 
 --echo # Test RENAME TABLE with vector index
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 list_files $datadir/test;
 rename table t1 to t2;
 list_files $datadir/test;
@@ -204,7 +204,7 @@ list_files $datadir/test;
 --echo #
 --echo # Cosine distance
 --echo #
-create table t1 (id int auto_increment primary key, v blob not null,
+create table t1 (id int auto_increment primary key, v vector(5) not null,
   vector index (v) distance_function=cosine);
 replace_result InnoDB MyISAM;
 show create table t1;
@@ -245,7 +245,7 @@ set @a=vec_fromtext('[94.542572,8.735560,60.050098,74.043800,90.068710,28.212160
 select vec_distance_cosine(@a, @a), vec_distance_euclidean(@a, @a);
 
 --echo # Test ALTER TABLE, CREATE/DROP INDEX
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
                      (x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
                      (x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
@@ -324,11 +324,11 @@ alter table t1 add vector index v(v);
 
 --echo # CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (vector)
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t1 change column v v mediumblob not null, algorithm=inplace;
+alter table t1 change column v v vector(6) not null, algorithm=inplace;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
 alter table t1 drop column v, algorithm=inplace;
 --error ER_ALTER_OPERATION_NOT_SUPPORTED
-alter table t1 modify column v mediumblob not null, algorithm=inplace;
+alter table t1 modify column v vector(7) not null, algorithm=inplace;
 
 --echo # ADD/CHANGE/DROP/MODIFY COLUMN, ALGORITHM=INPLACE (non-vector)
 if ($MTR_COMBINATION_INNODB) {
@@ -392,13 +392,13 @@ alter table t1 modify column v int;
 --error ER_WRONG_ARGUMENTS
 alter table t1 change column v v int;
 --error ER_INDEX_CANNOT_HAVE_NULL
-alter table t1 modify column v blob;
+alter table t1 modify column v vector(5);
 --error ER_INDEX_CANNOT_HAVE_NULL
-alter table t1 change column v v blob;
-alter table t1 modify column v tinyblob not null;
+alter table t1 change column v v vector(6);
+alter table t1 modify column v vector(7) not null;
 list_files $datadir/test;
 show create table t1;
-alter table t1 change column v v blob not null;
+alter table t1 change column v v vector(5) not null;
 list_files $datadir/test;
 show create table t1;
 alter table t1 drop column v;
@@ -410,14 +410,14 @@ drop table t1;
 # This is supposed to test crash while filling indexes_option_struct array,
 # which doesn't happen because alloc_root(0) returns something. Add a test
 # anyway and fix indexes_option_struct array allocation.
-create table t1(v blob not null, vector index(v));
+create table t1(v vector(5) not null, vector index(v));
 alter table t1 add column a int;
 drop table t1;
 
 --echo #
 --echo # mysqldump
 --echo #
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
                      (Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),

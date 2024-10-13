@@ -2762,34 +2762,6 @@ Type_handler_blob_common::Key_part_spec_init_ft(Key_part_spec *part,
 }
 
 
-bool Type_handler_string::Key_part_spec_init_vector(Key_part_spec *part,
-                                                    const Column_definition &def)
-                                                    const
-{
-  part->length= 0;
-  return def.charset != &my_charset_bin;
-}
-
-
-bool Type_handler_varchar::Key_part_spec_init_vector(Key_part_spec *part,
-                                                     const Column_definition &def)
-                                                     const
-{
-  part->length= 0;
-  return def.charset != &my_charset_bin;
-}
-
-
-bool
-Type_handler_blob_common::Key_part_spec_init_vector(Key_part_spec *part,
-                                                    const Column_definition &def)
-                                                    const
-{
-  part->length= 1;
-  return def.charset != &my_charset_bin;
-}
-
-
 static bool
 key_add_part_check_null(const handler *file, KEY *key_info,
                         const Column_definition *sql_field,
