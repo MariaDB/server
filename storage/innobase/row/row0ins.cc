@@ -3434,24 +3434,22 @@ row_ins_spatial_index_entry_set_mbr_field(
 
 /** Sets the values of the dtuple fields in entry from the values of appropriate
 columns in row.
-@param[in]	index	index handler
-@param[out]	entry	index entry to make
-@param[in]	row	row
-@return DB_SUCCESS if the set is successful */
+@param[in]	node	row insert node
+@param[in]	thr	query thread
+@retval DB_SUCCESS if the set is successful
+@retval DB_CANT_CREATE_GEOMETRY_OBJECT when spatial index fails to
+create geometry object */
 static
 dberr_t
-row_ins_index_entry_set_vals(
-	const dict_index_t*	index,
-	dtuple_t*		entry,
-	const dtuple_t*		row)
+row_ins_index_entry_set_vals(const ins_node_t* node, que_thr_t* thr)
 {
-	ulint	n_fields;
-	ulint	i;
+	const dict_index_t* index = node->index;
+	dtuple_t* entry = *node->entry;
+	const dtuple_t* row = node->row;
 	ulint	num_v = dtuple_get_n_v_fields(entry);
+	ulint n_fields = dtuple_get_n_fields(entry);
 
-	n_fields = dtuple_get_n_fields(entry);
-
-	for (i = 0; i < n_fields + num_v; i++) {
+	for (ulint i = 0; i < n_fields + num_v; i++) {
 		dict_field_t*	ind_field = NULL;
 		dfield_t*	field;
 		const dfield_t*	row_field;
@@ -3521,6 +3519,7 @@ row_ins_index_entry_set_vals(
 		if ((i == 0) && dict_index_is_spatial(index)) {
 			if (!row_field->data
 			    || row_field->len < GEO_DATA_HEADER_SIZE) {
+				thr_get_trx(thr)->error_info = index;
 				return(DB_CANT_CREATE_GEOMETRY_OBJECT);
 			}
 			row_ins_spatial_index_entry_set_mbr_field(
@@ -3555,8 +3554,7 @@ row_ins_index_entry_step(
 
 	ut_ad(dtuple_check_typed(node->row));
 
-	err = row_ins_index_entry_set_vals(node->index, *node->entry,
-					   node->row);
+	err = row_ins_index_entry_set_vals(node, thr);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);

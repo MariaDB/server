@@ -2108,7 +2108,7 @@ innodb_instant_alter_column_allowed_reason:
 		if ((ha_alter_info->handler_flags
 		     & (ALTER_STORED_COLUMN_ORDER | ALTER_DROP_STORED_COLUMN))
 		    || m_prebuilt->table->instant) {
-			reason_rebuild = "innodb_instant_atler_column_allowed="
+			reason_rebuild = "innodb_instant_alter_column_allowed="
 				"add_last";
 			goto innodb_instant_alter_column_allowed_reason;
 		}
