@@ -1335,10 +1335,11 @@ static inline int sign(long a)
 }
 
 
-static int compare_columns(const void *a_ptr, const void *b_ptr)
+static int compare_columns(const void *a_ptr_, const void *b_ptr_)
 {
-  const MARIA_COLUMNDEF *a= *((const MARIA_COLUMNDEF *const *) a_ptr),
-                        *b= *((const MARIA_COLUMNDEF *const *) b_ptr);
+  const MARIA_COLUMNDEF *const *a_ptr= a_ptr_;
+  const MARIA_COLUMNDEF *const *b_ptr= b_ptr_;
+  const MARIA_COLUMNDEF *a= *a_ptr, *b= *b_ptr;
 
   enum en_fieldtype a_type, b_type;
 

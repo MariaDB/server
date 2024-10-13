@@ -706,7 +706,7 @@ extern "C"
   static const uchar *mdl_locks_key(const void *record, size_t *length,
                                     my_bool)
   {
-    MDL_lock *lock= (MDL_lock *) record;
+    const MDL_lock *lock= static_cast<const MDL_lock *>(record);
     *length= lock->key.length();
     return lock->key.ptr();
 }
@@ -820,7 +820,7 @@ void MDL_map::init()
                mdl_locks_key, &my_charset_bin);
   m_locks.alloc.constructor= MDL_lock::lf_alloc_constructor;
   m_locks.alloc.destructor= MDL_lock::lf_alloc_destructor;
-  m_locks.initializer= (lf_hash_initializer) MDL_lock::lf_hash_initializer;
+  m_locks.initializer= MDL_lock::lf_hash_initializer;
   m_locks.hash_function= mdl_hash_function;
 }
 

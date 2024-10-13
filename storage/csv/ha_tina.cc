@@ -183,7 +183,7 @@ static int tina_init_func(void *p)
   init_tina_psi_keys();
 #endif
 
-  tina_hton= (handlerton *)p;
+  tina_hton= static_cast<handlerton *>(p);
   mysql_mutex_init(csv_key_mutex_tina, &tina_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(csv_key_memory_tina_share, &tina_open_tables,
                       Lex_ident_table::charset_info(), 32, 0, 0, tina_get_key,

@@ -674,8 +674,8 @@ partition_element *partition_info::get_part_elem(const char *partition_name,
 static const uchar *get_part_name_from_elem(const void *name, size_t *length,
                                             my_bool)
 {
-  *length= strlen((char *) name);
-  return (const uchar *) name;
+  *length= strlen(static_cast<const char *>(name));
+  return static_cast<const uchar *>(name);
 }
 
 /*

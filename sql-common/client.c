@@ -4017,7 +4017,7 @@ const uchar *
 get_attr_key(const void *part_, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
-  const LEX_STRING *part= (const LEX_STRING *) part_;
+  const LEX_STRING *part= part_;
   *length= part[0].length;
   return (const uchar *) part[0].str;
 }

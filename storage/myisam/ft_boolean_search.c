@@ -169,8 +169,8 @@ static int FTB_WORD_cmp_list(void *cs_, const void *a_, const void *b_)
   const FTB_WORD *const *b= b_;
 
   /* ORDER BY word, ndepth */
-  int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
-                             (uchar*) (*b)->word + 1, (*b)->len - 1);
+  int i= ha_compare_word(cs, (*a)->word + 1, (*a)->len - 1, (*b)->word + 1,
+                         (*b)->len - 1);
   if (!i)
     i= CMP_NUM((*a)->ndepth, (*b)->ndepth);
   return i;

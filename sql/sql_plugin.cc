@@ -1520,7 +1520,7 @@ extern "C" const uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 const uchar *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
 {
   auto plugin= static_cast<const st_plugin_int *>(buff);
-  *length= (uint)plugin->name.length;
+  *length= plugin->name.length;
   return reinterpret_cast<const uchar *>(plugin->name.str);
 }
 

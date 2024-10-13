@@ -1258,10 +1258,11 @@ static int get_statistic(PACK_MRG_INFO *mrg,HUFF_COUNTS *huff_counts)
 }
 
 static int compare_huff_elements(void *not_used __attribute__((unused)),
-                                 const void *a, const void *b)
+                                 const void *a_, const void *b_)
 {
-  return *((const my_off_t*) a) < *((const my_off_t*) b) ? -1 :
-    (*((const my_off_t*) a) == *((const my_off_t*) b)  ? 0 : 1);
+  const my_off_t *a= a_;
+  const my_off_t *b= b_;
+  return *a < *b ? -1 : (*a == *b ? 0 : 1);
 }
 
 	/* Check each tree if we should use pre-space-compress, end-space-

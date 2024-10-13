@@ -169,8 +169,8 @@ static int FTB_WORD_cmp_list(void *cs_, const void *a_, const void *b_)
   const FTB_WORD *const *b= b_;
 
   /* ORDER BY word, ndepth */
-  int i= ha_compare_word(cs, (uchar*) (*a)->word + 1, (*a)->len - 1,
-                             (uchar*) (*b)->word + 1, (*b)->len - 1);
+  int i= ha_compare_word(cs, (*a)->word + 1, (*a)->len - 1, (*b)->word + 1,
+                         (*b)->len - 1);
   if (!i)
     i=CMP_NUM((*a)->ndepth, (*b)->ndepth);
   return i;
@@ -331,11 +331,12 @@ static int _ftb_parse_query(FTB *ftb, uchar *query, uint len,
   DBUG_RETURN(parser->parse(param));
 }
 
-
 static int _ftb_no_dupes_cmp(void *not_used __attribute__((unused)),
-                             const void *a,const void *b)
+                             const void *a_, const void *b_)
 {
-  return CMP_NUM((*((my_off_t*)a)), (*((my_off_t*)b)));
+  const my_off_t *a= a_;
+  const my_off_t *b= b_;
+  return CMP_NUM((*a), (*b));
 }
 
 

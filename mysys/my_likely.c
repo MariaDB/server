@@ -57,8 +57,8 @@ void init_my_likely()
 
 static int likely_cmp(const void  *a_, const void *b_)
 {
-  const LIKELY_ENTRY **a= (const LIKELY_ENTRY **) a_;
-  const LIKELY_ENTRY **b= (const LIKELY_ENTRY **) b_;
+  const LIKELY_ENTRY *const *a= a_;
+  const LIKELY_ENTRY *const *b= b_;
   int cmp;
   if ((cmp= strcmp((*a)->key, (*b)->key)))
     return cmp;

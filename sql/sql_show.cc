@@ -9988,7 +9988,7 @@ int initialize_schema_table(void *plugin_)
 int finalize_schema_table(void *plugin_)
 {
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
+  ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)
