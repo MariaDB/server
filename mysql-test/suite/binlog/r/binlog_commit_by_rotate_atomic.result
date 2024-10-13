@@ -50,7 +50,7 @@ SET GLOBAL binlog_large_commit_threshold = 10 * 1024 * 1024;
 SET debug = 'd,binlog_commit_by_rotate_crash_before_rename';
 UPDATE t1 SET c1 = repeat('4', 5242880);
 ERROR HY000: Lost connection to server during query
-# One cache file left afte crash
+# One cache file left after crash
 # list #binlog_cache_files/
 ML_BINLOG_CACHE_FILE
 non_binlog_cache
@@ -79,7 +79,7 @@ INSERT INTO t1 VALUES('a');
 SET debug = 'd,binlog_commit_by_rotate_crash_after_rotate';
 COMMIT;
 ERROR HY000: Lost connection to server during query
-# No cache file left afte crash
+# No cache file left after crash
 # list #binlog_cache_files/
 # restart
 include/show_binlog_events.inc

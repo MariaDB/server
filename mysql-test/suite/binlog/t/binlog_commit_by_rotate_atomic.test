@@ -81,7 +81,7 @@ UPDATE t1 SET c1 = repeat('4', 5242880);
 It is not a binlog cache file
 EOF
 
---echo # One cache file left afte crash
+--echo # One cache file left after crash
 --echo # list #binlog_cache_files/
 --replace_regex /ML_[0-9]+/ML_BINLOG_CACHE_FILE/
 --list_files $datadir/#binlog_cache_files
@@ -125,7 +125,7 @@ SET debug = 'd,binlog_commit_by_rotate_crash_after_rotate';
 --error 2013
 COMMIT;
 
---echo # No cache file left afte crash
+--echo # No cache file left after crash
 --echo # list #binlog_cache_files/
 --replace_regex /ML_[0-9]+/ML_BINLOG_CACHE_FILE/
 --list_files $datadir/#binlog_cache_files
