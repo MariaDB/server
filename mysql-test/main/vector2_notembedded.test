@@ -3,7 +3,7 @@
 --echo #
 --echo # mysqldump
 --echo #
-create table t1 (id int auto_increment primary key, v blob not null, vector index (v));
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
 insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
                      (Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
                      (Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
@@ -28,7 +28,7 @@ drop table t1;
 --echo #
 --echo # MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
 --echo #
-create table t (a int primary key, v blob not null, vector index(v));
+create table t (a int primary key, v vector(10) not null, vector index(v));
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify a int auto_increment, lock=none;
 drop table t;
