@@ -13,20 +13,13 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifndef _my_cmp_h
-#define _my_cmp_h
+#pragma once
 
 #ifdef __cplusplus
-#define C_MODE_START    extern "C" {
-#define C_MODE_END	}
-#else
-#define C_MODE_START
-#define C_MODE_END
+extern "C" {
 #endif
-
-C_MODE_START
 typedef int (*qsort_cmp)(const void *, const void *);
 typedef int (*qsort_cmp2)(void *param, const void *a, const void *b);
-C_MODE_END
-
-#endif /* my_cmp_h */
+#ifdef __cplusplus
+}
+#endif

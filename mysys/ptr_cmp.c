@@ -54,7 +54,7 @@ static int native_compare(void *length_, const void *a_, const void *b_)
 
 qsort_cmp2 get_ptr_compare (size_t size __attribute__((unused)))
 {
-  return (qsort_cmp2) native_compare;
+  return native_compare;
 }
 
 #else /* USE_NATIVE_MEMCMP */
@@ -75,12 +75,12 @@ qsort_cmp2 get_ptr_compare (size_t size)
   if (size == 0)
     return degenerate_compare_func;
   if (size < 4)
-    return (qsort_cmp2) ptr_compare;
+    return ptr_compare;
   switch (size & 3) {
-    case 0: return (qsort_cmp2) ptr_compare_0;
-    case 1: return (qsort_cmp2) ptr_compare_1;
-    case 2: return (qsort_cmp2) ptr_compare_2;
-    case 3: return (qsort_cmp2) ptr_compare_3;
+    case 0: return ptr_compare_0;
+    case 1: return ptr_compare_1;
+    case 2: return ptr_compare_2;
+    case 3: return ptr_compare_3;
     }
   return 0;					/* Impossible */
 }
