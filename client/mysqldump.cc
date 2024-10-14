@@ -625,8 +625,10 @@ static const char *load_default_groups[]=
   0 };
 static void ensure_out_dir_exists(const char *db);
 static void maybe_exit(int error);
-static void die(int error, const char* reason, ...);
-static void maybe_die(int error, const char* reason, ...);
+static void die(int error, const char* reason, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
+static void maybe_die(int error, const char* reason, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 static void write_header(FILE *sql_file, const char *db_name);
 static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
                         const char *prefix,const char *name,
@@ -653,7 +655,8 @@ static int dump_all_tablespaces();
 static int dump_tablespaces_for_tables(char *db, char **table_names, int tables);
 static int dump_tablespaces_for_databases(char** databases);
 static int dump_tablespaces(char* ts_where);
-static void print_comment(FILE *, my_bool, const char *, ...);
+static void print_comment(FILE *, my_bool, const char *, ...)
+  ATTRIBUTE_FORMAT(printf, 3, 4);
 
 
 static inline int cmp_database(const char *a, const char *b)

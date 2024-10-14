@@ -109,7 +109,8 @@ void set_stmt_error(MYSQL_STMT *stmt, int errcode, const char *sqlstate,
                     const char *err);
 void set_mysql_error(MYSQL *mysql, int errcode, const char *sqlstate);
 void set_mysql_extended_error(MYSQL *mysql, int errcode, const char *sqlstate,
-                              const char *format, ...);
+                              const char *format, ...)
+                              ATTRIBUTE_FORMAT(printf, 4, 5);
 
 /* client side of the pluggable authentication */
 struct st_vio;
