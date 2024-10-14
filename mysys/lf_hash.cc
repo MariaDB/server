@@ -309,7 +309,7 @@ static inline const uchar* hash_key(const LF_HASH *hash,
                                     const uchar *record, size_t *length)
 {
   if (hash->get_key)
-    return static_cast<const uchar *>((*hash->get_key)(record, length, 0));
+    return (*hash->get_key)(record, length, 0);
   *length= hash->key_length;
   return record + hash->key_offset;
 }

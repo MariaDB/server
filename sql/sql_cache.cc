@@ -997,8 +997,8 @@ extern "C"
     auto query_block= static_cast<const Query_cache_block *>(record);
     *length= (query_block->used - query_block->headers_len() -
               ALIGN_SIZE(sizeof(Query_cache_query)));
-    return reinterpret_cast<const uchar *>(
-        ((query_block->data()) + ALIGN_SIZE(sizeof(Query_cache_query))));
+    return reinterpret_cast<const uchar *>
+        (((query_block->data()) + ALIGN_SIZE(sizeof(Query_cache_query))));
 }
 }
 

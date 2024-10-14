@@ -5269,12 +5269,11 @@ int init_partitioned_key_cache(void *keycache_,
     calls of resize_partitioned_key_cache itself are serialized.
 */
 
-static
-int resize_partitioned_key_cache(void *keycache_,
-                                 uint key_cache_block_size,
-		                 size_t use_mem, uint division_limit,
-		                 uint age_threshold,
-                                 uint changed_blocks_hash_size)
+static int resize_partitioned_key_cache(void *keycache_,
+                                        uint key_cache_block_size,
+                                        size_t use_mem, uint division_limit,
+                                        uint age_threshold,
+                                        uint changed_blocks_hash_size)
 {
   PARTITIONED_KEY_CACHE_CB *keycache= keycache_;
   uint i;
