@@ -136,7 +136,7 @@ private:
   ulonglong m_bound[OVERALL_POWER_COUNT];
 };
 
-static
+ATTRIBUTE_FORMAT(printf, 3, 0) static
 size_t print_time(char* buffer, std::size_t buffer_size, const char* format,
                   uint64 value)
 {
