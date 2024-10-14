@@ -809,7 +809,7 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
 
   if (org_key_part_used != *key_part_used ||
       (is_field_part && 
-       (between || eq_type || max_fl == less_fl) && !cond->val_int()))
+       (between || eq_type || max_fl == less_fl) && !cond->val_bool()))
   {
     /*
       It's the first predicate for this part or a predicate of the
@@ -859,7 +859,7 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
   }
   else if (eq_type)
   {
-    if ((!is_null && !cond->val_int()) ||
+    if ((!is_null && !cond->val_bool()) ||
         (is_null && !MY_TEST(part->field->is_null())))
      DBUG_RETURN(FALSE);                       // Impossible test
   }

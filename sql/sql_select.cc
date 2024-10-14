@@ -17219,7 +17219,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
 {
   List<Item> eq_list;
   Item_func_eq *eq_item= 0;
-  if (((Item *) item_equal)->const_item() && !item_equal->val_int())
+  if (((Item *) item_equal)->const_item() && !item_equal->val_bool())
     return (Item*) &Item_false;
   Item *item_const= item_equal->get_const();
   Item_equal_fields_iterator it(*item_equal);
@@ -17288,7 +17288,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
         Item_func_eq *func= new (thd->mem_root) Item_func_eq(thd, item_const, upper_const);
         func->set_cmp_func(thd);
         func->quick_fix_field();
-        if (func->val_int())
+        if (func->val_bool())
           item= 0;
       }
       else
@@ -18745,7 +18745,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
         List_iterator<Item_equal> ei(*cond_equalities);
         while ((equal_item= ei++))
 	{
-          if (equal_item->const_item() && !equal_item->val_int())
+          if (equal_item->const_item() && !equal_item->val_bool())
 	  {
             *is_simplifiable_cond= true;
             return;
@@ -18776,7 +18776,7 @@ void propagate_new_equalities(THD *thd, Item *cond,
     {
       equality->merge_with_check(thd, equal_item, true);
     }
-    if (equality->const_item() && !equality->val_int())
+    if (equality->const_item() && !equality->val_bool())
       *is_simplifiable_cond= true;
   }
   else
@@ -18941,7 +18941,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
      Item_equal *eq_item;
      while ((eq_item= it++))
      {
-       if (eq_item->const_item() && eq_item->val_int())
+       if (eq_item->const_item() && eq_item->val_bool())
          it.remove();
      }
      cond_arg_list->append((List<Item> *) cond_equalities);
@@ -19088,7 +19088,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
       List_iterator_fast<Item_equal> ei(*cond_equalities);
       while ((equality= ei++))
       {
-        if (equality->const_item() && !equality->val_int())
+        if (equality->const_item() && !equality->val_bool())
         {
           *cond_value= Item::COND_FALSE;
           return (COND*) 0;
@@ -21810,7 +21810,7 @@ do_select(JOIN *join, Procedure *procedure)
         */
         clear_tables(join, &cleared_tables);
       }
-      if (!join->having || join->having->val_int())
+      if (!join->having || join->having->val_bool())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
                                    join->fields);
@@ -22302,7 +22302,7 @@ sub_select(JOIN *join,JOIN_TAB *join_tab,bool end_of_records)
 
     /* Set first_unmatched for the last inner table of this group */
     join_tab->last_inner->first_unmatched= join_tab;
-    if (join_tab->on_precond && !join_tab->on_precond->val_int())
+    if (join_tab->on_precond && !join_tab->on_precond->val_bool())
       rc= NESTED_LOOP_NO_MORE_ROWS;
   }
   join->thd->get_stmt_da()->reset_current_row_for_warning();
@@ -22481,7 +22481,7 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
         */
         if (tab->select_cond)
         {
-          const longlong res= tab->select_cond->val_int();
+          const longlong res= tab->select_cond->val_bool();
           if (join->thd->is_error())
             DBUG_RETURN(NESTED_LOOP_ERROR);
 
@@ -22620,7 +22620,7 @@ evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab)
     mark_as_null_row(join_tab->table);       // For group by without error
     select_cond= join_tab->select_cond;
     /* Check all attached conditions for inner table rows. */
-    if (select_cond && !select_cond->val_int())
+    if (select_cond && !select_cond->val_bool())
       return NESTED_LOOP_OK;
   }
   join_tab--;
@@ -22642,7 +22642,7 @@ evaluate_null_complemented_join_record(JOIN *join, JOIN_TAB *join_tab)
     first_unmatched->found= 1;
     for (JOIN_TAB *tab= first_unmatched; tab <= join_tab; tab++)
     {
-      if (tab->select_cond && !tab->select_cond->val_int())
+      if (tab->select_cond && !tab->select_cond->val_bool())
       {
         join->return_tab= tab;
         return NESTED_LOOP_OK;
@@ -23738,7 +23738,7 @@ end_send_group(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
 	int error=0;
 	if (join->procedure)
 	{
-	  if (join->having && join->having->val_int() == 0)
+	  if (join->having && !join->having->val_bool())
 	    error= -1;				// Didn't satisfy having
 	  else
 	  {
@@ -28446,7 +28446,7 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg,
   {
     /* Get reference pointers to sum functions in place */
     copy_ref_ptr_array(ref_ptrs, rollup.ref_pointer_arrays[i]);
-    if ((!having || having->val_int()))
+    if ((!having || having->val_bool()))
     {
       int write_error;
       Item *item;
