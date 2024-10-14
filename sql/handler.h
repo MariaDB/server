@@ -4987,6 +4987,12 @@ public:
   /* XXX to be removed, see ha_partition::partition_ht() */
   virtual handlerton *partition_ht() const
   { return ht; }
+  /*
+    Used with 'wrapper' engines, like SEQUENCE, to access to the
+    underlaying engine used for storage.
+  */
+  virtual handlerton *storage_ht() const
+  { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
   inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);

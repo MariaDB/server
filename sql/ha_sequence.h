@@ -65,6 +65,8 @@ public:
 
   ha_sequence(handlerton *hton, TABLE_SHARE *share);
   ~ha_sequence();
+  virtual handlerton *storage_ht() const override
+  { return file->ht; }
 
   /* virtual function that are re-implemented for sequence */
   int open(const char *name, int mode, uint test_if_locked) override;
