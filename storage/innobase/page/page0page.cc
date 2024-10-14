@@ -38,6 +38,17 @@ Created 2/2/1994 Heikki Tuuri
 #include "trx0sys.h"
 #include <algorithm>
 
+page_t *page_align(void *ptr)
+{
+  return my_assume_aligned<UNIV_PAGE_SIZE_MIN>
+    (reinterpret_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
+}
+
+uint16_t page_offset(const void *ptr)
+{
+  return static_cast<uint16_t>(ut_align_offset(ptr, srv_page_size));
+}
+
 /*			THE INDEX PAGE
 			==============
 
@@ -939,7 +950,7 @@ page_delete_rec_list_end(
 #endif /* UNIV_ZIP_DEBUG */
       page_cur_delete_rec(&cur, offsets, mtr);
     }
-    while (page_offset(rec) != PAGE_NEW_SUPREMUM);
+    while (rec - page != PAGE_NEW_SUPREMUM);
 
     if (UNIV_LIKELY_NULL(heap))
       mem_heap_free(heap);
@@ -976,7 +987,7 @@ page_delete_rec_list_end(
       n_recs++;
 
       if (scrub)
-        mtr->memset(block, page_offset(rec2), rec_offs_data_size(offsets), 0);
+        mtr->memset(block, rec2 - page, rec_offs_data_size(offsets), 0);
 
       rec2= page_rec_get_next(rec2);
     }
@@ -1030,7 +1041,7 @@ page_delete_rec_list_end(
   const uint16_t free= page_header_get_field(page, PAGE_FREE);
   static_assert(PAGE_FREE + 2 == PAGE_GARBAGE, "compatibility");
 
-  mach_write_to_2(page_header, page_offset(rec));
+  mach_write_to_2(page_header, rec - page);
   mach_write_to_2(my_assume_aligned<2>(page_header + 2),
                   mach_read_from_2(my_assume_aligned<2>(page_free + 2)) +
                   size);
@@ -1060,19 +1071,17 @@ page_delete_rec_list_end(
 			PAGE_N_RECS + 2 - PAGE_N_DIR_SLOTS);
       // TODO: the equivalent of page_zip_dir_delete() for all records
       mach_write_to_2(prev_rec - REC_NEXT, static_cast<uint16_t>
-		      (PAGE_NEW_SUPREMUM - page_offset(prev_rec)));
+		      (PAGE_NEW_SUPREMUM - (prev_rec - page)));
       mach_write_to_2(last_rec - REC_NEXT, free
-                    ? static_cast<uint16_t>(free - page_offset(last_rec))
-                    : 0U);
+                      ? uint16_t(free - (last_rec - block->page.frame)) : 0U);
       return DB_SUCCESS;
     }
 #endif
     mtr->write<1,mtr_t::MAYBE_NOP>(*block, owned, new_owned);
     mtr->write<2>(*block, prev_rec - REC_NEXT, static_cast<uint16_t>
-                  (PAGE_NEW_SUPREMUM - page_offset(prev_rec)));
+                  (PAGE_NEW_SUPREMUM - (prev_rec - block->page.frame)));
     mtr->write<2>(*block, last_rec - REC_NEXT, free
-                  ? static_cast<uint16_t>(free - page_offset(last_rec))
-                  : 0U);
+                  ? uint16_t(free - (last_rec - block->page.frame)) : 0U);
   }
   else
   {
@@ -1383,9 +1392,8 @@ page_dir_print(
 	fprintf(stderr, "--------------------------------\n"
 		"PAGE DIRECTORY\n"
 		"Page address %p\n"
-		"Directory stack top at offs: %lu; number of slots: %lu\n",
-		page, (ulong) page_offset(page_dir_get_nth_slot(page, n - 1)),
-		(ulong) n);
+		"Directory stack top at offs: %zu; number of slots: %zu\n",
+		page, page_dir_get_nth_slot(page, n - 1) - page, n);
 	for (i = 0; i < n; i++) {
 		slot = page_dir_get_nth_slot(page, i);
 		if ((i == pr_n) && (i < n - pr_n)) {
@@ -1393,17 +1401,16 @@ page_dir_print(
 		}
 		if ((i < pr_n) || (i >= n - pr_n)) {
 			fprintf(stderr,
-				"Contents of slot: %lu: n_owned: %lu,"
-				" rec offs: %lu\n",
-				(ulong) i,
-				(ulong) page_dir_slot_get_n_owned(slot),
-				(ulong)
-				page_offset(page_dir_slot_get_rec(slot)));
+				"Contents of slot: %zu: n_owned: %zu,"
+				" rec offs: %zu\n",
+				i,
+				page_dir_slot_get_n_owned(slot),
+				page_dir_slot_get_rec(slot) - page);
 		}
 	}
-	fprintf(stderr, "Total of %lu records\n"
+	fprintf(stderr, "Total of %zu records\n"
 		"--------------------------------\n",
-		(ulong) (PAGE_HEAP_NO_USER_LOW + page_get_n_recs(page)));
+		PAGE_HEAP_NO_USER_LOW + page_get_n_recs(page));
 }
 
 /***************************************************************//**
@@ -1555,13 +1562,13 @@ page_rec_validate(
 	}
 
 	if (UNIV_UNLIKELY(!(n_owned <= PAGE_DIR_SLOT_MAX_N_OWNED))) {
-		ib::warn() << "Dir slot of rec " << page_offset(rec)
+		ib::warn() << "Dir slot of rec " << rec - page
 			<< ", n owned too big " << n_owned;
 		return(FALSE);
 	}
 
 	if (UNIV_UNLIKELY(!(heap_no < page_dir_get_n_heap(page)))) {
-		ib::warn() << "Heap no of rec " << page_offset(rec)
+		ib::warn() << "Heap no of rec " << rec - page
 			<< " too big " << heap_no << " "
 			<< page_dir_get_n_heap(page);
 		return(FALSE);
@@ -1643,8 +1650,7 @@ page_simple_validate_old(
 			<< "Record heap and dir overlap on a page, heap top "
 			<< page_header_get_field(page, PAGE_HEAP_TOP)
 			<< ", dir "
-			<< page_offset(page_dir_get_nth_slot(page,
-							     n_slots - 1));
+			<< page_dir_get_nth_slot(page, n_slots - 1) - page;
 
 		goto func_exit;
 	}
@@ -1841,9 +1847,9 @@ page_simple_validate_new(
 
 		ib::error() << "Record heap and dir overlap on a page,"
 			" heap top "
-			<< page_header_get_field(page, PAGE_HEAP_TOP)
-			<< ", dir " << page_offset(
-				page_dir_get_nth_slot(page, n_slots - 1));
+			    << page_header_get_field(page, PAGE_HEAP_TOP)
+			    << ", dir "
+			    << page_dir_get_nth_slot(page, n_slots - 1) - page;
 
 		goto func_exit;
 	}
@@ -1861,9 +1867,9 @@ page_simple_validate_new(
 	for (;;) {
 		if (UNIV_UNLIKELY(rec < page + PAGE_NEW_INFIMUM
 				  || rec > rec_heap_top)) {
-			ib::error() << "Record " << page_offset(rec)
+			ib::error() << "Record " << rec - page
 				<< " is out of bounds: "
-				<< page_offset(rec_heap_top);
+				<< rec_heap_top - page;
 			goto func_exit;
 		}
 
@@ -1875,7 +1881,7 @@ page_simple_validate_new(
 				ib::error() << "Wrong owned count "
 					<< rec_get_n_owned_new(rec) << ", "
 					<< own_count << ", rec "
-					<< page_offset(rec);
+					<< rec - page;
 
 				goto func_exit;
 			}
@@ -1883,7 +1889,7 @@ page_simple_validate_new(
 			if (UNIV_UNLIKELY
 			    (page_dir_slot_get_rec(slot) != rec)) {
 				ib::error() << "Dir slot does not point"
-					" to right rec " << page_offset(rec);
+					" to right rec " << rec - page;
 
 				goto func_exit;
 			}
@@ -1907,7 +1913,7 @@ page_simple_validate_new(
 
 			ib::error() << "Next record offset nonsensical "
 				<< rec_get_next_offs(rec, TRUE)
-				<< " for rec " << page_offset(rec);
+				<< " for rec " << rec - page;
 
 			goto func_exit;
 		}
@@ -1954,15 +1960,15 @@ page_simple_validate_new(
 				  || rec >= page + srv_page_size)) {
 
 			ib::error() << "Free list record has"
-				" a nonsensical offset " << page_offset(rec);
+				" a nonsensical offset " << rec - page;
 
 			goto func_exit;
 		}
 
 		if (UNIV_UNLIKELY(rec > rec_heap_top)) {
-			ib::error() << "Free list record " << page_offset(rec)
+			ib::error() << "Free list record " << rec - page
 				<< " is above rec heap top "
-				<< page_offset(rec_heap_top);
+				<< rec_heap_top - page;
 
 			goto func_exit;
 		}
@@ -2272,7 +2278,7 @@ wrong_page_type:
 #endif /* UNIV_GIS_DEBUG */
 		}
 
-		offs = page_offset(rec_get_start(rec, offsets));
+		offs = rec_get_start(rec, offsets) - page;
 		i = rec_offs_size(offsets);
 		if (UNIV_UNLIKELY(offs + i >= srv_page_size)) {
 			ib::error() << "Record offset out of bounds: "
@@ -2402,7 +2408,7 @@ next_free:
 		}
 
 		count++;
-		offs = page_offset(rec_get_start(rec, offsets));
+		offs = rec_get_start(rec, offsets) - page;
 		i = rec_offs_size(offsets);
 		if (UNIV_UNLIKELY(offs + i >= srv_page_size)) {
 			ib::error() << "Free record offset out of bounds: "

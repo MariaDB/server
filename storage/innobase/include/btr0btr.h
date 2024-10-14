@@ -498,15 +498,15 @@ btr_print_index(
 Checks the size and number of fields in a record based on the definition of
 the index.
 @return TRUE if ok */
-ibool
+bool
 btr_index_rec_validate(
 /*===================*/
-	const rec_t*		rec,		/*!< in: index record */
+	const page_cur_t&	cur,		/*!< in: index record */
 	const dict_index_t*	index,		/*!< in: index */
-	ibool			dump_on_error)	/*!< in: TRUE if the function
+	bool			dump_on_error)	/*!< in: true if the function
 						should print hex dump of record
 						and page on error */
-	MY_ATTRIBUTE((warn_unused_result));
+	noexcept MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Checks the consistency of an index tree.
 @return	DB_SUCCESS if ok, error code if not */

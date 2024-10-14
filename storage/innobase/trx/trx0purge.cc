@@ -188,7 +188,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   /* This function is invoked during transaction commit, which is not
   allowed to fail. If we get a corrupted undo header, we will crash here. */
   ut_a(undo_page);
-  trx_ulogf_t *undo_header= undo_page->page.frame + undo->hdr_offset;
+  const uint16_t undo_header_offset= undo->hdr_offset;
+  trx_ulogf_t *undo_header= undo_page->page.frame + undo_header_offset;
 
   ut_ad(mach_read_from_2(undo_header + TRX_UNDO_NEEDS_PURGE) <= 1);
   ut_ad(rseg->needs_purge > trx->id);
@@ -265,9 +266,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
   than to intentionally violate ACID by committing something
   that is known to be corrupted. */
   ut_a(flst_add_first(rseg_header, TRX_RSEG + TRX_RSEG_HISTORY, undo_page,
-                      uint16_t(page_offset(undo_header) +
-                               TRX_UNDO_HISTORY_NODE), rseg->space->free_limit,
-                      mtr) == DB_SUCCESS);
+                      uint16_t(undo_header_offset + TRX_UNDO_HISTORY_NODE),
+                      rseg->space->free_limit, mtr) == DB_SUCCESS);
 
   mtr->write<2>(*undo_page, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE +
                 undo_page->page.frame, undo_state);
@@ -926,7 +926,8 @@ bool purge_sys_t::choose_next_log()
         goto purge_nothing;
     }
 
-    offset= page_offset(undo_rec);
+    offset= uint16_t(undo_rec - b->page.frame);
+    ut_ad(undo_rec - b->page.frame == page_offset(undo_rec));
     tail.undo_no= trx_undo_rec_get_undo_no(undo_rec);
     page_no= id.page_no();
   }
@@ -968,12 +969,14 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
     return {nullptr, 0};
   }
 
+  buf_block_t *rec2_page= b;
   if (const trx_undo_rec_t *rec2=
       trx_undo_page_get_next_rec(b, offset, hdr_page_no, hdr_offset))
   {
   got_rec:
     ut_ad(page_no == page_id.page_no());
-    offset= page_offset(rec2);
+    ut_ad(page_offset(rec2) == rec2 - rec2_page->page.frame);
+    offset= uint16_t(rec2 - rec2_page->page.frame);
     tail.undo_no= trx_undo_rec_get_undo_no(rec2);
   }
   else if (hdr_page_no != page_no ||
@@ -989,6 +992,7 @@ inline trx_purge_rec_t purge_sys_t::get_next_rec(roll_ptr_t roll_ptr)
         rec2= trx_undo_page_get_first_rec(next_page, hdr_page_no, hdr_offset);
         if (rec2)
         {
+          rec2_page= next_page;
           page_no= next;
           goto got_rec;
         }

@@ -2799,9 +2799,10 @@ lock_move_rec_list_end(
 	const rec_t*		rec)		/*!< in: record on page: this
 						is the first record moved */
 {
-  const ulint comp= page_rec_is_comp(rec);
-
-  ut_ad(block->page.frame == page_align(rec));
+  const page_t *const page= block->page.frame;
+  const page_t *const new_page= new_block->page.frame;
+  const ulint comp= page_is_comp(page);
+  ut_ad(page == page_align(rec));
   ut_ad(comp == page_is_comp(new_block->page.frame));
 
   const page_id_t id{block->page.id()};
@@ -2824,17 +2825,15 @@ lock_move_rec_list_end(
 
       if (comp)
       {
-        if (page_offset(rec1) == PAGE_NEW_INFIMUM)
-          rec1= page_rec_get_next_low(rec1, TRUE);
-        rec2= page_rec_get_next_low(new_block->page.frame + PAGE_NEW_INFIMUM,
-                                    TRUE);
+        if (rec1 -page == PAGE_NEW_INFIMUM)
+          rec1= page_rec_next_get<true>(page, rec1);
+        rec2= page_rec_next_get<true>(new_page, PAGE_NEW_INFIMUM + new_page);
       }
       else
       {
-        if (page_offset(rec1) == PAGE_OLD_INFIMUM)
-          rec1= page_rec_get_next_low(rec1, FALSE);
-        rec2= page_rec_get_next_low(new_block->page.frame + PAGE_OLD_INFIMUM,
-                                    FALSE);
+        if (rec1 - page == PAGE_OLD_INFIMUM)
+          rec1= page_rec_next_get<false>(page, rec1);
+        rec2= page_rec_next_get<false>(new_page, PAGE_OLD_INFIMUM + new_page);
       }
 
       if (UNIV_UNLIKELY(!rec1 || !rec2))
@@ -2856,19 +2855,19 @@ lock_move_rec_list_end(
         if (comp)
         {
           rec1_heap_no= rec_get_heap_no_new(rec1);
-          if (!(rec1= page_rec_get_next_low(rec1, TRUE)))
+          if (!(rec1= page_rec_next_get<true>(page, rec1)))
           {
             ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
           }
           rec2_heap_no= rec_get_heap_no_new(rec2);
-          rec2= page_rec_get_next_low(rec2, TRUE);
+          rec2= page_rec_next_get<true>(new_page, rec2);
         }
         else
         {
           ut_d(const rec_t *old1= rec1);
           rec1_heap_no= rec_get_heap_no_old(rec1);
-          if (!(rec1= page_rec_get_next_low(rec1, FALSE)))
+          if (!(rec1= page_rec_next_get<false>(page, rec1)))
           {
             ut_ad(rec1_heap_no == PAGE_HEAP_NO_SUPREMUM);
             break;
@@ -2878,7 +2877,7 @@ lock_move_rec_list_end(
           ut_ad(!memcmp(old1, rec2, rec_get_data_size_old(old1)));
 
           rec2_heap_no= rec_get_heap_no_old(rec2);
-          rec2= page_rec_get_next_low(rec2, FALSE);
+          rec2= page_rec_next_get<false>(new_page, rec2);
         }
 
         if (UNIV_UNLIKELY(!rec2))
@@ -2902,7 +2901,7 @@ lock_move_rec_list_end(
           }
 
           lock_rec_add_to_queue(type_mode, g.cell2(), new_id,
-                                new_block->page.frame,
+                                new_page,
                                 rec2_heap_no, lock->index, lock_trx, true);
         }
 
@@ -2941,7 +2940,7 @@ lock_move_rec_list_start(
 						before the records
 						were copied */
 {
-  const ulint comp= page_rec_is_comp(rec);
+  const ulint comp= page_is_comp(block->page.frame);
 
   ut_ad(block->page.frame == page_align(rec));
   ut_ad(comp == page_is_comp(new_block->page.frame));
@@ -3062,8 +3061,7 @@ lock_rtr_move_rec_list(
   if (!num_move)
     return;
 
-  const ulint comp= page_rec_is_comp(rec_move[0].old_rec);
-
+  const ulint comp= page_is_comp(block->page.frame);
   ut_ad(block->page.frame == page_align(rec_move[0].old_rec));
   ut_ad(new_block->page.frame == page_align(rec_move[0].new_rec));
   ut_ad(comp == page_rec_is_comp(rec_move[0].new_rec));
@@ -3299,7 +3297,7 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
 
   /* This would likely be too large for a memory transaction. */
   LockMultiGuard g{lock_sys.rec_hash, l, right};
-  if (!page_rec_is_supremum(left_next_rec))
+  if (!page_rec_is_supremum_low(left_next_rec - left.page.frame))
   {
     /* Inherit the locks on the supremum of the left page to the
     first record which was moved from the right page */
@@ -3443,16 +3441,16 @@ lock_update_insert(
 	/* Inherit the gap-locking locks for rec, in gap mode, from the next
 	record */
 
-	if (page_rec_is_comp(rec)) {
+	if (page_is_comp(block->page.frame)) {
 		receiver_heap_no = rec_get_heap_no_new(rec);
-		rec = page_rec_get_next_low(rec, TRUE);
+		rec = page_rec_next_get<true>(block->page.frame, rec);
 		if (UNIV_UNLIKELY(!rec)) {
 			return;
 		}
 		donator_heap_no = rec_get_heap_no_new(rec);
 	} else {
 		receiver_heap_no = rec_get_heap_no_old(rec);
-		rec = page_rec_get_next_low(rec, FALSE);
+		rec = page_rec_next_get<false>(block->page.frame, rec);
 		if (UNIV_UNLIKELY(!rec)) {
 			return;
 		}

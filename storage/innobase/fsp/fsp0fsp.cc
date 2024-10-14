@@ -446,8 +446,9 @@ Returns page offset of the first page in extent described by a descriptor.
 static uint32_t xdes_get_offset(const xdes_t *descr)
 {
   ut_ad(descr);
-  return page_get_page_no(page_align(descr)) +
-    uint32_t(((page_offset(descr) - XDES_ARR_OFFSET) / XDES_SIZE) *
+  const page_t *page= page_align(descr);
+  return page_get_page_no(page) +
+    uint32_t(((descr - page - XDES_ARR_OFFSET) / XDES_SIZE) *
              FSP_EXTENT_SIZE);
 }
 
@@ -1507,7 +1508,8 @@ static void fsp_free_seg_inode(fil_space_t *space, fseg_inode_t *inode,
       return;
   }
 
-  mtr->memset(iblock, page_offset(inode) + FSEG_ID, FSEG_INODE_SIZE, 0);
+  mtr->memset(iblock, inode - iblock->page.frame + FSEG_ID,
+              FSEG_INODE_SIZE, 0);
 
   if (ULINT_UNDEFINED != fsp_seg_inode_page_find_used(iblock->page.frame,
                                                       physical_size))
@@ -1778,7 +1780,7 @@ page_alloc:
 	}
 
 	mtr->write<2>(*block, byte_offset + FSEG_HDR_OFFSET
-		      + block->page.frame, page_offset(inode));
+		      + block->page.frame, inode - iblock->page.frame);
 
 	mtr->write<4>(*block, byte_offset + FSEG_HDR_PAGE_NO
 		      + block->page.frame, iblock->page.id().page_no());
@@ -1921,10 +1923,11 @@ fseg_alloc_free_extent(
 	dberr_t*		err)
 {
   ut_ad(!((page_offset(inode) - FSEG_ARR_OFFSET) % FSEG_INODE_SIZE));
+  ut_ad(iblock->page.frame == page_align(inode));
   ut_ad(!memcmp(FSEG_MAGIC_N_BYTES, FSEG_MAGIC_N + inode, 4));
   ut_d(space->modify_check(*mtr));
 
-  if (UNIV_UNLIKELY(page_offset(inode) < FSEG_ARR_OFFSET))
+  if (UNIV_UNLIKELY(inode - iblock->page.frame < FSEG_ARR_OFFSET))
   {
   corrupted:
     *err= DB_CORRUPTION;
@@ -2834,9 +2837,9 @@ fseg_free_step(
 {
 	ulint		n;
 	fseg_inode_t*	inode;
-
-	const uint32_t space_id = page_get_space_id(page_align(header));
-	const uint32_t header_page = page_get_page_no(page_align(header));
+	const page_t* header_frame = page_align(header);
+	const uint32_t space_id = page_get_space_id(header_frame);
+	const uint32_t header_page = page_get_page_no(header_frame);
 
 	fil_space_t* space = mtr->x_lock_space(space_id);
 	xdes_t* descr = xdes_get_descriptor(space, header_page, mtr);
@@ -2925,8 +2928,8 @@ fseg_free_step_not_header(
 	)
 {
 	fseg_inode_t*	inode;
-
-	const uint32_t space_id = page_get_space_id(page_align(header));
+	const page_t* header_frame = page_align(header);
+	const uint32_t space_id = page_get_space_id(header_frame);
 	ut_ad(mtr->is_named_space(space_id));
 
 	fil_space_t*		space = mtr->x_lock_space(space_id);
@@ -2941,7 +2944,7 @@ fseg_free_step_not_header(
 	if (!inode) {
 		ib::warn() << "Double free of "
 			   << page_id_t(space_id,
-					page_get_page_no(page_align(header)));
+					page_get_page_no(header_frame));
 		return true;
 	}
 
@@ -2973,7 +2976,7 @@ fseg_free_step_not_header(
 
 	uint32_t page_no = fseg_get_nth_frag_page_no(inode, n);
 
-	if (page_no == page_get_page_no(page_align(header))) {
+	if (page_no == page_get_page_no(header_frame)) {
 		return true;
 	}
 
@@ -3052,8 +3055,9 @@ static void fseg_print_low(const fseg_inode_t *inode)
 	ulint	page_no;
 	ib_id_t	seg_id;
 
-	space = page_get_space_id(page_align(inode));
-	page_no = page_get_page_no(page_align(inode));
+	const page_t* inode_page = page_align(inode);
+	space = page_get_space_id(inode_page);
+	page_no = page_get_page_no(inode_page);
 
 	reserved = fseg_n_reserved_pages_low(inode, &used);
 

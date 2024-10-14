@@ -237,7 +237,7 @@ unreadable:
 	}
 
 	ut_ad(page_cur_is_before_first(&cur.page_cur));
-	ut_ad(page_is_leaf(cur.page_cur.block->page.frame));
+	ut_ad(page_is_leaf(btr_cur_get_page(&cur)));
 
 	const rec_t* rec = page_cur_move_to_next(&cur.page_cur);
 	const ulint comp = dict_table_is_comp(index->table);
@@ -2308,7 +2308,7 @@ btr_cur_ins_lock_and_undo(
 		}
 	}
 
-	if (!index->is_primary() || !page_is_leaf(page_align(rec))) {
+	if (!index->is_primary() || !page_is_leaf(btr_cur_get_page(cursor))) {
 		return DB_SUCCESS;
 	}
 
@@ -2997,7 +2997,8 @@ static dberr_t btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
       To save space, we must have d>6, that is, the complete DB_TRX_ID and
       the first byte(s) of DB_ROLL_PTR must match the previous record. */
       memcpy(dest, src, d);
-      mtr->memmove(*block, page_offset(dest), page_offset(src), d);
+      mtr->memmove(*block, dest - block->page.frame, src - block->page.frame,
+                   d);
       dest+= d;
       len-= d;
       /* DB_TRX_ID,DB_ROLL_PTR must be unique in each record when
@@ -3185,8 +3186,8 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 			default:
 				mtr->memset(
 					block,
-					page_offset(rec_get_field_start_offs(
-							    rec, n) + rec),
+					rec_get_field_start_offs(rec, n) + rec
+					- block->page.frame,
 					size, 0);
 			}
 			ulint l = rec_get_1byte_offs_flag(rec)
@@ -5967,7 +5968,8 @@ struct btr_blob_log_check_t {
 		uint32_t	page_no = FIL_NULL;
 
 		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
-			offs = page_offset(*m_rec);
+			offs = *m_rec - (*m_block)->page.frame;
+			ut_ad(offs == page_offset(*m_rec));
 			page_no = (*m_block)->page.id().page_no();
 			(*m_block)->page.fix();
 			ut_ad(page_no != FIL_NULL);
@@ -6076,7 +6078,7 @@ btr_store_big_rec_extern_fields(
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
-	if (!fil_page_index_page_check(page_align(rec))) {
+	if (!fil_page_index_page_check(btr_pcur_get_page(pcur))) {
 		if (op != BTR_STORE_INSERT_BULK) {
 			return DB_PAGE_CORRUPTED;
 		}

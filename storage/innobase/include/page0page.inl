@@ -235,7 +235,9 @@ page_get_page_no(
 /*=============*/
 	const page_t*	page)	/*!< in: page */
 {
-  ut_ad(page == page_align((page_t*) page));
+#ifndef UNIV_INNOCHECKSUM
+  ut_ad(page == page_align(page));
+#endif /* !UNIV_INNOCHECKSUM */
   return mach_read_from_4(my_assume_aligned<4>(page + FIL_PAGE_OFFSET));
 }
 
@@ -249,7 +251,7 @@ page_get_space_id(
 /*==============*/
 	const page_t*	page)	/*!< in: page */
 {
-  ut_ad(page == page_align((page_t*) page));
+  ut_ad(page == page_align(page));
   return mach_read_from_4(my_assume_aligned<2>
                           (page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID));
 }
@@ -357,8 +359,6 @@ page_rec_get_next_low(
   const page_t *page= page_align(rec);
   ut_ad(page_rec_check(rec));
   ulint offs= rec_get_next_offs(rec, comp);
-  if (!offs)
-    return nullptr;
   if (UNIV_UNLIKELY(offs < (comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM)))
     return nullptr;
   if (UNIV_UNLIKELY(offs > page_header_get_field(page, PAGE_HEAP_TOP)))

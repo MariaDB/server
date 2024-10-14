@@ -687,7 +687,7 @@ btr_search_update_hash_ref(
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
-	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->page.frame);
+	ut_ad(btr_cur_get_page(cursor) == block->page.frame);
 	ut_ad(page_is_leaf(block->page.frame));
 	assert_block_ahi_valid(block);
 
