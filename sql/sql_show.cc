@@ -8307,6 +8307,12 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
       check_access(thd, EVENT_ACL, et.dbname.str, NULL, NULL, 0, 1))
     DBUG_RETURN(0);
 
+  /*
+    Skip non SCHEDULE events
+  */
+  if (et.event_kind != Event_parse_data::SCHEDULE)
+    DBUG_RETURN(0);
+
   sch_table->field[ISE_EVENT_CATALOG]->store(STRING_WITH_LEN("def"), scs);
   sch_table->field[ISE_EVENT_SCHEMA]->
                                 store(et.dbname.str, et.dbname.length,scs);

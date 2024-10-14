@@ -47,6 +47,7 @@ alter table mysql.event
 --echo # Now we restart the server
 
 call mtr.add_suppression("Incorrect definition of table mysql.event:.*");
+call mtr.add_suppression("System trigger: Failed to open table mysql.event");
 --source include/restart_mysqld.inc
 
 use events_test;
