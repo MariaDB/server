@@ -3430,8 +3430,8 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 	  {
 	    if (!searching)
 	      mi_check_print_info(param,
-				  "Found block with impossible length %lu at %s; Skipped",
-				  block_info.block_len+ (ulong) (block_info.filepos-pos),
+				  "Found block with impossible length %u at %s; Skipped",
+				  block_info.block_len+ (uint) (block_info.filepos-pos),
 				  llstr(pos,llbuff));
 	    if (found_record)
 	      goto try_next;
