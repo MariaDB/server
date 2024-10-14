@@ -354,17 +354,18 @@ static void free_share(st_blackhole_share *share)
   mysql_mutex_unlock(&blackhole_mutex);
 }
 
-static void blackhole_free_key(st_blackhole_share *share)
+static void blackhole_free_key(void *share)
 {
-  thr_lock_delete(&share->lock);
+  thr_lock_delete(&static_cast<st_blackhole_share *>(share)->lock);
   my_free(share);
 }
 
-static uchar* blackhole_get_key(st_blackhole_share *share, size_t *length,
-                                my_bool not_used __attribute__((unused)))
+static const uchar *blackhole_get_key(const void *share_, size_t *length,
+                                      my_bool)
 {
+  auto share= static_cast<const st_blackhole_share *>(share_);
   *length= share->table_name_length;
-  return (uchar*) share->table_name;
+  return reinterpret_cast<const uchar *>(share->table_name);
 }
 
 #ifdef HAVE_PSI_INTERFACE
@@ -405,9 +406,8 @@ static int blackhole_init(void *p)
   mysql_mutex_init(bh_key_mutex_blackhole,
                    &blackhole_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(PSI_INSTRUMENT_ME, &blackhole_open_tables,
-                      system_charset_info, 32, 0, 0,
-                      (my_hash_get_key) blackhole_get_key,
-                      (my_hash_free_key) blackhole_free_key, 0);
+                      system_charset_info, 32, 0, 0, blackhole_get_key,
+                      blackhole_free_key, 0);
 
   return 0;
 }

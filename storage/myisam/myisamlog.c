@@ -57,12 +57,11 @@ extern int main(int argc,char * *argv);
 static void get_options(int *argc,char ***argv);
 static int examine_log(char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
-static int file_info_compare(void *cmp_arg, void *a,void *b);
-static int test_if_open(struct file_info *key,element_count count,
-			struct test_if_open_param *param);
+static int file_info_compare(void *cmp_arg, const void *a, const void *b);
+static int test_if_open(void *key, element_count count, void *param);
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
-static int test_when_accessed(struct file_info *key,element_count count,
-			      struct st_access_param *access_param);
+static int test_when_accessed(void *key, element_count count,
+                              void *access_param);
 static int file_info_free(void*, TREE_FREE, void *);
 static int close_some_file(TREE *tree);
 static int reopen_closed_file(TREE *tree,struct file_info *file_info);
@@ -329,7 +328,7 @@ static int examine_log(char * file_name, char **table_names)
 
   init_io_cache(&cache,file,0,READ_CACHE,start_offset,0,MYF(0));
   bzero((uchar*) com_count,sizeof(com_count));
-  init_tree(&tree,0,0,sizeof(file_info),(qsort_cmp2) file_info_compare,
+  init_tree(&tree,0,0,sizeof(file_info), file_info_compare,
 	          file_info_free, NULL, MYF(MY_TREE_WITH_DELETE));
   (void) init_key_cache(dflt_key_cache,KEY_CACHE_BLOCK_SIZE,KEY_CACHE_SIZE,
                         0, 0, 0, 0);
@@ -695,9 +694,8 @@ static int read_string(IO_CACHE *file, register uchar* *to, register uint length
   DBUG_RETURN (0);
 }				/* read_string */
 
-
-static int file_info_compare(void* cmp_arg __attribute__((unused)),
-			     void *a, void *b)
+static int file_info_compare(void *cmp_arg __attribute__((unused)),
+                             const void *a, const void *b)
 {
   long lint;
 
@@ -709,10 +707,12 @@ static int file_info_compare(void* cmp_arg __attribute__((unused)),
 
 	/* ARGSUSED */
 
-static int test_if_open (struct file_info *key,
+static int test_if_open (void *key_,
 			 element_count count __attribute__((unused)),
-			 struct test_if_open_param *param)
+			 void *param_)
 {
+  struct file_info *key= key_;
+  struct test_if_open_param *param= param_;
   if (!strcmp(key->name,param->name) && key->id > param->max_id)
     param->max_id=key->id;
   return 0;
@@ -737,10 +737,12 @@ static void fix_blob_pointers(MI_INFO *info, uchar *record)
 	/* close the file with hasn't been accessed for the longest time */
 	/* ARGSUSED */
 
-static int test_when_accessed (struct file_info *key,
+static int test_when_accessed (void *key_,
 			       element_count count __attribute__((unused)),
-			       struct st_access_param *access_param)
+			       void *access_param_)
 {
+  struct file_info *key= key_;
+  struct st_access_param *access_param= access_param_;
   if (key->accessed < access_param->min_accessed && ! key->closed)
   {
     access_param->min_accessed=key->accessed;

@@ -63,19 +63,19 @@ void cleanup_setup_actor(void)
 }
 
 C_MODE_START
-static uchar *setup_actor_hash_get_key(const uchar *entry, size_t *length,
-                                       my_bool)
+static const uchar *setup_actor_hash_get_key(const void *entry, size_t *length,
+                                            my_bool)
 {
   const PFS_setup_actor * const *typed_entry;
   const PFS_setup_actor *setup_actor;
   const void *result;
-  typed_entry= reinterpret_cast<const PFS_setup_actor* const *> (entry);
+  typed_entry= static_cast<const PFS_setup_actor* const *> (entry);
   assert(typed_entry != NULL);
   setup_actor= *typed_entry;
   assert(setup_actor != NULL);
   *length= setup_actor->m_key.m_key_length;
   result= setup_actor->m_key.m_hash_key;
-  return const_cast<uchar*> (reinterpret_cast<const uchar*> (result));
+  return reinterpret_cast<const uchar *>(result);
 }
 C_MODE_END
 

@@ -109,14 +109,14 @@ cmp_db_names(LEX_CSTRING *db1_name, const LEX_CSTRING *db2_name)
   Function we use in the creation of our hash to get key.
 */
 
-extern "C" uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                                    my_bool not_used);
+extern "C" const uchar *dboptions_get_key(const void *opt, size_t *length,
+                                          my_bool);
 
-uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                         my_bool not_used __attribute__((unused)))
+const uchar *dboptions_get_key(const void *opt_, size_t *length, my_bool)
 {
+  auto opt= static_cast<const my_dbopt_t *>(opt_);
   *length= opt->name_length;
-  return (uchar*) opt->name;
+  return reinterpret_cast<const uchar *>(opt->name);
 }
 
 
@@ -187,8 +187,8 @@ bool my_dboptions_cache_init(void)
   {
     dboptions_init= 1;
     error= my_hash_init(key_memory_dboptions_hash, &dboptions,
-                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
-                        dboptions_get_key, free_dbopt, 0);
+                        table_alias_charset, 32, 0, 0, dboptions_get_key,
+                        free_dbopt, 0);
   }
   return error;
 }
@@ -219,7 +219,7 @@ void my_dbopt_cleanup(void)
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
   my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
-               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
+               0, 0, dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 
