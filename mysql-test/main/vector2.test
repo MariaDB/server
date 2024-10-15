@@ -128,3 +128,11 @@ insert into t values(1,x'00000000'),(2,x'00000000');
 --replace_column 1 #
 select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) limit 1;
 drop table t;
+
+--echo #
+--echo # MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
+--echo #
+create table t1 (v vector(64) not null);
+insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+analyze table t1 persistent for all;
+drop table t1;
