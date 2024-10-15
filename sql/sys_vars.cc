@@ -2860,7 +2860,7 @@ static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
     "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
     "new 11.0 optimizer.",
     SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
-    adjust_secondary_key_cost, DEFAULT(OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF));
+    adjust_secondary_key_cost, DEFAULT(OPTIMIZER_ADJ_DEFAULT));
 
 
 static Sys_var_charptr_fscs Sys_pid_file(

@@ -1709,7 +1709,7 @@ old-alter-table DEFAULT
 old-mode UTF8_IS_UTF8MB3
 old-passwords FALSE
 old-style-user-limits FALSE
-optimizer-adjust-secondary-key-costs fix_reuse_range_for_ref
+optimizer-adjust-secondary-key-costs fix_reuse_range_for_ref,fix_card_multiplier
 optimizer-join-limit-pref-ratio 0
 optimizer-max-sel-arg-weight 32000
 optimizer-max-sel-args 16000
