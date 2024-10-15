@@ -47,3 +47,9 @@ select hex(vec_fromtext('[1,2,3]'));
 select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');
 set character_set_results=default;
 select vec_totext(x'0000803F0000004000004040FFFFFFFF0000807F000080FF');
+
+set names utf8mb4;
+create table t1 as select vec_totext(x'55555555') x;
+show create table t1;
+select * from t1;
+drop table t1;
