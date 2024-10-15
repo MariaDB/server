@@ -634,7 +634,7 @@ continue_search:
   if (je.value_type == JSON_VALUE_NULL)
     return true;
 
-  if (unlikely(check_and_get_value(&je, str, &error)))
+  if (unlikely(check_and_get_value(cur_step, &je, str, &error)))
   {
     if (error)
       return true;
@@ -645,7 +645,7 @@ continue_search:
 }
 
 
-bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
+bool Json_engine_scan::check_and_get_value_scalar(json_path_step_t *cur_step, String *res, int *error)
 {
   CHARSET_INFO *json_cs;
   const uchar *js;
@@ -659,20 +659,29 @@ bool Json_engine_scan::check_and_get_value_scalar(String *res, int *error)
     return true;
   }
 
-  if (value_type == JSON_VALUE_TRUE ||
-      value_type == JSON_VALUE_FALSE)
+  if (cur_step->type & JSON_PATH_ARRAY_WILD)
   {
-    json_cs= &my_charset_utf8mb4_bin;
-    js= (const uchar *) ((value_type == JSON_VALUE_TRUE) ? "1" : "0");
-    js_len= 1;
+    while (json_scan_next(this) == 0) {}
+    if (this->s.error)
+      *error=1;
+    return true;
   }
   else
   {
-    json_cs= s.cs;
-    js= value;
-    js_len= value_len;
+    if (value_type == JSON_VALUE_TRUE ||
+      value_type == JSON_VALUE_FALSE)
+    {
+      json_cs= &my_charset_utf8mb4_bin;
+      js= (const uchar *) ((value_type == JSON_VALUE_TRUE) ? "1" : "0");
+      js_len= 1;
+    }
+    else
+    {
+      json_cs= s.cs;
+      js= value;
+      js_len= value_len;
+    }
   }
-
 
   return st_append_json(res, json_cs, js, js_len);
 }

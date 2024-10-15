@@ -661,7 +661,7 @@ JSON_SEARCH('{"foo":"bar"}', 'all' , @str, '%', @path)
 "$.foo"
 SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]');
 JSON_VALUE('[{"foo": 1},"bar"]', '$[*][0]')
-bar
+NULL
 CREATE TABLE t1 (f INT NOT NULL);
 INSERT INTO t1 VALUES (0);
 SELECT JSON_KEYS(f) FROM t1 ORDER BY 1;
@@ -1457,7 +1457,7 @@ SET @old_collation_connection= @@COLLATION_CONNECTION;
 SET COLLATION_CONNECTION= ucs2_unicode_ci;
 SELECT JSON_VALUE('["foo"]', '$**[0]') AS f;
 f
-foo
+NULL
 SET @@COLLATION_CONNECTION= @old_collation_connection;
 #
 # MDEV-32587 JSON_VALID fail to validate integer zero in scientific notation

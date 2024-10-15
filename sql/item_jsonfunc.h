@@ -52,7 +52,7 @@ public:
    :Json_engine_scan(str.charset(), (const uchar *) str.ptr(),
                                     (const uchar *) str.end())
   { }
-  bool check_and_get_value_scalar(String *res, int *error);
+  bool check_and_get_value_scalar(json_path_step_t *cur_step, String *res, int *error);
   bool check_and_get_value_complex(String *res, int *error);
 };
 
@@ -62,7 +62,7 @@ class Json_path_extractor: public json_path_with_flags
 protected:
   String tmp_js, tmp_path;
   virtual ~Json_path_extractor() { }
-  virtual bool check_and_get_value(Json_engine_scan *je,
+  virtual bool check_and_get_value(json_path_step_t *cur_step, Json_engine_scan *je,
                                    String *to, int *error)=0;
   bool extract(String *to, Item *js, Item *jp, CHARSET_INFO *cs);
 };
@@ -145,10 +145,10 @@ public:
                                              collation.collation);
     return null_value ? NULL : to;
   }
-  bool check_and_get_value(Json_engine_scan *je,
+  bool check_and_get_value(json_path_step_t *cur_step, Json_engine_scan *je,
                            String *res, int *error) override
   {
-    return je->check_and_get_value_scalar(res, error);
+    return je->check_and_get_value_scalar(cur_step, res, error);
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_value>(thd, this); }
@@ -169,7 +169,7 @@ public:
                                              collation.collation);
     return null_value ? NULL : to;
   }
-  bool check_and_get_value(Json_engine_scan *je,
+  bool check_and_get_value(json_path_step_t *cur_step, Json_engine_scan *je,
                            String *res, int *error) override
   {
     return je->check_and_get_value_complex(res, error);

@@ -1,0 +1,1 @@
+SELECT JSON_VALUE('[{"foo": 1},"bar"]', '$[*][1]');
