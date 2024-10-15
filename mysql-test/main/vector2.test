@@ -145,3 +145,16 @@ select * from t1;
 insert into t1 values (null);
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-35150 Column containing non-vector tables can be modified to VECTOR type without warnings
+--echo #
+create table t1 (a blob);
+insert t1 values (1);
+--error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
+alter table t1 modify a vector(2);
+update t1 set a=x'5555555555555555';
+alter table t1 modify a vector(2);
+select hex(a) from t1;
+select vec_totext(a) from t1;
+drop table t1;
