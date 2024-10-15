@@ -113,6 +113,7 @@ extern uint opt_bin_log_compress_min_len;
 extern my_bool opt_log, opt_bootstrap;
 extern my_bool opt_support_flashback;
 extern ulonglong log_output_options;
+extern uint opt_log_suppress_repeated_errors;
 extern bool opt_disable_networking, opt_skip_show_db;
 extern bool opt_skip_name_resolve;
 extern bool opt_ignore_builtin_innodb;
