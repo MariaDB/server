@@ -331,9 +331,7 @@ Type_handler_data *type_handler_data= NULL;
 
 bool Float::to_string(String *val_buffer, uint dec) const
 {
-  val_buffer->set_charset(&my_charset_numeric);
-  val_buffer->length(0);
-  return val_buffer->append_float(m_value, dec);
+  return val_buffer->set_real(m_value, dec, &my_charset_numeric);
 }
 
 
