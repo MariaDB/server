@@ -192,3 +192,19 @@ NULL
 NULL
 NULL
 drop table t1;
+#
+# MDEV-35150 Column containing non-vector tables can be modified to VECTOR type without warnings
+#
+create table t1 (a blob);
+insert t1 values (1);
+alter table t1 modify a vector(2);
+ERROR 22007: Incorrect vector value: '1' for column `test`.`t1`.`a` at row 1
+update t1 set a=x'5555555555555555';
+alter table t1 modify a vector(2);
+select hex(a) from t1;
+hex(a)
+5555555555555555
+select vec_totext(a) from t1;
+vec_totext(a)
+[14660154687488.000000,14660154687488.000000]
+drop table t1;
