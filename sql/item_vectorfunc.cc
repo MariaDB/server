@@ -97,7 +97,11 @@ String *Item_func_vec_totext::val_str_ascii(String *str)
     else if (std::isnan(val))
       str->append(STRING_WITH_LEN("NaN"));
     else
-      str->append_float(val, FLT_DIG);
+    {
+      char buf[MAX_FLOAT_STR_LENGTH+1];
+      size_t l= my_gcvt(val, MY_GCVT_ARG_FLOAT, MAX_FLOAT_STR_LENGTH, buf, 0);
+      str->append(buf, l);
+    }
 
     ptr+= 4;
     if (r1->length() - i > 4)
