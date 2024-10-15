@@ -2588,7 +2588,61 @@ mysql.user has data
 SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
 mysql.user has data
 1
-# End of 10.5 tests
+#
+# Upgrade from version 10.5
+#
+# Loading dump of 10.5 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.6
+#
+# Loading dump of 10.6 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 10.11
+#
+# Loading dump of 10.11 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 11.1
+#
+# Loading dump of 11.1 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 11.2
+#
+# Loading dump of 11.2 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+#
+# Upgrade from version 11.3
+#
+# Loading dump of 11.3 mysql schema
+# Running mysql_upgrade
+# Checking that mysql.user is accessible and returns some data
+SELECT COUNT(*) > 0 AS `mysql.user has data` FROM mysql.user;
+mysql.user has data
+1
+# End of major version upgrade tests
 #
 # MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
 #

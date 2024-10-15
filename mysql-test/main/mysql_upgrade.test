@@ -562,7 +562,25 @@ call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, foun
 --let $old_version= 10.4
 --source include/load_dump_and_upgrade.inc
 
---echo # End of 10.5 tests
+--let $old_version= 10.5
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.6
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.11
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 11.1
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 11.2
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 11.3
+--source include/load_dump_and_upgrade.inc
+
+--echo # End of major version upgrade tests
 
 --echo #
 --echo # MDEV-33554 Upgrade from 11.2 to 11.3 changes root's privileges
