@@ -169,3 +169,28 @@ Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
+#
+# MDEV-35147 Inconsistent NULL handling in vector type
+#
+create table t1 (a vector(1));
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` vector(1) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+insert into t1 values ();
+insert into t1 values (default);
+insert into t1 values (default(a));
+select * from t1;
+a
+NULL
+NULL
+NULL
+insert into t1 values (null);
+select * from t1;
+a
+NULL
+NULL
+NULL
+NULL
+drop table t1;
