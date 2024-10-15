@@ -716,7 +716,13 @@ SPIDER_DB_ROW *spider_db_mbase_result::current_row()
   DBUG_RETURN((SPIDER_DB_ROW *) row.clone());
 }
 
-SPIDER_DB_ROW *spider_db_mbase_result::fetch_row()
+/*
+  Fetch results from the data node and store them in a
+  SPIDER_DB_ROW
+
+  @param  skips   A bitmap specifying which fields to skip storing
+*/
+SPIDER_DB_ROW *spider_db_mbase_result::fetch_row(MY_BITMAP *skips)
 {
   DBUG_ENTER("spider_db_mbase_result::fetch_row");
   DBUG_PRINT("info",("spider this=%p", this));
@@ -732,7 +738,22 @@ SPIDER_DB_ROW *spider_db_mbase_result::fetch_row()
     DBUG_RETURN(NULL);
   }
   row.lengths = mysql_fetch_lengths(db_result);
-  row.field_count = mysql_num_fields(db_result);
+  if (skips != NULL)
+  {
+    uint i= 0;
+    for (uint j= 0; j < mysql_num_fields(db_result); j++)
+    {
+      if (!bitmap_is_set(skips, j))
+      {
+        row.row[i]= row.row[j];
+        row.lengths[i]= row.lengths[j];
+        i++;
+      }
+    }
+    row.field_count= i;
+  }
+  else
+    row.field_count = mysql_num_fields(db_result);
   row.row[row.field_count] = NULL;
   row.row_first = row.row;
   row.lengths_first = row.lengths;
@@ -5461,11 +5482,12 @@ int spider_db_mbase_util::print_item_func(
           tmp_str.mem_calc();
           if (tmp_str.reserve(1))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          tmp_ptr = tmp_str.c_ptr_quick();
+          last_str = tmp_ptr = tmp_str.c_ptr_quick();
           DBUG_PRINT("info",("spider tmp_ptr = %s", tmp_ptr));
           while ((tmp_ptr2 = strstr(tmp_ptr, SPIDER_SQL_AS_BINARY_STR)))
             tmp_ptr = tmp_ptr2 + 1;
-          last_str = tmp_ptr - 1;
+          if (tmp_ptr != last_str)
+            last_str = tmp_ptr - 1;
           last_str_length = strlen(last_str) - SPIDER_SQL_CLOSE_PAREN_LEN;
           break;
         } else if (!strncasecmp("cast_as_signed", func_name, func_name_length))
@@ -5586,11 +5608,12 @@ int spider_db_mbase_util::print_item_func(
           tmp_str.mem_calc();
           if (tmp_str.reserve(1))
             DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-          tmp_ptr = tmp_str.c_ptr_quick();
+          last_str = tmp_ptr = tmp_str.c_ptr_quick();
           DBUG_PRINT("info",("spider tmp_ptr = %s", tmp_ptr));
           while ((tmp_ptr2 = strstr(tmp_ptr, SPIDER_SQL_AS_DECIMAL_STR)))
             tmp_ptr = tmp_ptr2 + 1;
-          last_str = tmp_ptr - 1;
+          if (tmp_ptr != last_str)
+            last_str = tmp_ptr - 1;
           last_str_length = strlen(last_str) - SPIDER_SQL_CLOSE_PAREN_LEN;
           break;
         } else if (!strncasecmp("cast_as_datetime", func_name,
@@ -5723,11 +5746,12 @@ int spider_db_mbase_util::print_item_func(
         tmp_str.mem_calc();
         if (tmp_str.reserve(1))
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-        tmp_ptr = tmp_str.c_ptr_quick();
+        last_str = tmp_ptr = tmp_str.c_ptr_quick();
         DBUG_PRINT("info",("spider tmp_ptr = %s", tmp_ptr));
-        while ((tmp_ptr2 = strstr(tmp_ptr, SPIDER_SQL_AS_CHAR_STR)))
+        while ((tmp_ptr2 = strstr(tmp_ptr, SPIDER_SQL_AS_STR)))
           tmp_ptr = tmp_ptr2 + 1;
-        last_str = tmp_ptr - 1;
+        if (tmp_ptr != last_str)
+          last_str = tmp_ptr - 1;
         last_str_length = strlen(last_str) - SPIDER_SQL_CLOSE_PAREN_LEN;
       }
       break;
@@ -6245,7 +6269,6 @@ int spider_db_mbase_util::append_escaped_util(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 /*
   Walk a TABLE_LIST, or format it to a string and append it.
 
@@ -6529,7 +6552,6 @@ int spider_db_mbase_util::append_having(
   str->q_append(SPIDER_SQL_HAVING_STR, SPIDER_SQL_HAVING_LEN);
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_db_mbase_util::tables_on_different_db_are_joinable()
 {
@@ -12546,7 +12568,6 @@ int spider_mbase_handler::reset_sql(
 }
 
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
   int link_idx,
@@ -12560,7 +12581,6 @@ int spider_mbase_handler::set_sql_for_exec(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 int spider_mbase_handler::set_sql_for_exec(
   ulong sql_type,
@@ -13924,7 +13944,6 @@ int spider_mbase_handler::reset_union_table_name(
   DBUG_RETURN(0);
 }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
 int spider_mbase_handler::append_from_and_tables_part(
   spider_fields *fields,
   ulong sql_type
@@ -14020,7 +14039,8 @@ int spider_mbase_handler::append_list_item_select_part(
   uint alias_length,
   bool use_fields,
   spider_fields *fields,
-  ulong sql_type
+  ulong sql_type,
+  int n_aux
 ) {
   int error_num;
   spider_string *str;
@@ -14035,7 +14055,7 @@ int spider_mbase_handler::append_list_item_select_part(
       DBUG_RETURN(0);
   }
   error_num = append_list_item_select(select, str, alias, alias_length,
-    use_fields, fields);
+                                      use_fields, fields, n_aux);
   DBUG_RETURN(error_num);
 }
 
@@ -14045,38 +14065,29 @@ int spider_mbase_handler::append_list_item_select(
   const char *alias,
   uint alias_length,
   bool use_fields,
-  spider_fields *fields
+  spider_fields *fields,
+  int n_aux
 ) {
   int error_num;
   uint32 length, begin;
   List_iterator_fast<Item> it(*select);
   Item *item;
-  Field *field;
   const char *item_name;
   DBUG_ENTER("spider_mbase_handler::append_list_item_select");
   DBUG_PRINT("info",("spider this=%p", this));
   begin = str->length();
   while ((item = it++))
   {
-    if (item->const_item())
-    {
-      DBUG_PRINT("info",("spider const item"));
+    fields->get_next_field_ptr();
+    if (n_aux-- > 0)
       continue;
-    }
     if ((error_num = spider_db_print_item_type(item, NULL, spider, str,
       alias, alias_length, dbton_id, use_fields, fields)))
     {
       DBUG_RETURN(error_num);
     }
-    field = *(fields->get_next_field_ptr());
-    if (field)
-    {
-      item_name = SPIDER_field_name_str(field);
-      length = SPIDER_field_name_length(field);
-    } else {
-      item_name = SPIDER_item_name_str(item);
-      length = SPIDER_item_name_length(item);
-    }
+    item_name = SPIDER_item_name_str(item);
+    length = SPIDER_item_name_length(item);
     if (str->reserve(
       SPIDER_SQL_COMMA_LEN + /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
       SPIDER_SQL_SPACE_LEN + length
@@ -14147,7 +14158,7 @@ int spider_mbase_handler::append_group_by(
     str->q_append(SPIDER_SQL_GROUP_STR, SPIDER_SQL_GROUP_LEN);
     for (; order; order = order->next)
     {
-      if ((error_num = spider_db_print_item_type((*order->item), NULL, spider,
+      if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {
         DBUG_RETURN(error_num);
@@ -14204,7 +14215,7 @@ int spider_mbase_handler::append_order_by(
     str->q_append(SPIDER_SQL_ORDER_STR, SPIDER_SQL_ORDER_LEN);
     for (; order; order = order->next)
     {
-      if ((error_num = spider_db_print_item_type((*order->item), NULL, spider,
+      if ((error_num = spider_db_print_item_type(order->item_ptr, NULL, spider,
         str, alias, alias_length, dbton_id, use_fields, fields)))
       {
         DBUG_RETURN(error_num);
@@ -14225,7 +14236,6 @@ int spider_mbase_handler::append_order_by(
   }
   DBUG_RETURN(0);
 }
-#endif
 
 bool spider_mbase_handler::check_direct_update(
   st_select_lex *select_lex,

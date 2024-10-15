@@ -2330,6 +2330,7 @@ write_buffers:
 				error. */
 				if (!row_geo_field_is_valid(row, buf->index)) {
 					err = DB_CANT_CREATE_GEOMETRY_OBJECT;
+					trx->error_key_num = i;
 					break;
 				}
 

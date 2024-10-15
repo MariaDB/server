@@ -2827,6 +2827,7 @@ int spider_db_get_row_from_tmp_tbl_pos(
   DBUG_RETURN(0);
 }
 
+/* Store one field result from a given row to a given table field. */
 int spider_db_fetch_row(
   SPIDER_SHARE *share,
   Field *field,
@@ -2851,6 +2852,10 @@ int spider_db_fetch_row(
   DBUG_RETURN(error_num);
 }
 
+/*
+  Retrieve a result row and store the results from the row into the
+  given table
+*/
 int spider_db_fetch_table(
   ha_spider *spider,
   uchar *buf,
@@ -2863,6 +2868,7 @@ int spider_db_fetch_table(
   SPIDER_RESULT *current = (SPIDER_RESULT*) result_list->current;
   SPIDER_DB_ROW *row;
   Field **field;
+  int n_aux= result_list->n_aux;
   DBUG_ENTER("spider_db_fetch_table");
     if (result_list->quick_mode == 0)
     {
@@ -2928,22 +2934,20 @@ int spider_db_fetch_table(
         DBUG_RETURN(error_num);
     }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (!spider->use_fields)
     {
-#endif
       if ((error_num = spider_db_append_match_fetch(spider,
         spider->ft_first, spider->ft_current, row)))
         DBUG_RETURN(error_num);
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     }
-#endif
 
     for (
       field = table->field;
       *field;
       field++
     ) {
+      if (n_aux-- > 0)
+        continue;
       if ((
         bitmap_is_set(table->read_set, (*field)->field_index) |
         bitmap_is_set(table->write_set, (*field)->field_index)
@@ -3792,7 +3796,7 @@ int spider_db_store_result(
       }
       current->dbton_id = current->result->dbton_id;
       SPIDER_DB_ROW *row;
-      if (!(row = current->result->fetch_row()))
+      if (!(row = current->result->fetch_row(result_list->skips)))
       {
         error_num = current->result->get_errno();
         DBUG_PRINT("info",("spider set finish_flg point 3"));
@@ -4033,7 +4037,7 @@ int spider_db_store_result_for_reuse_cursor(
     if (!result_list->first)
     {
       if (!(result_list->first = (SPIDER_RESULT *)
-        spider_malloc(spider_current_trx, 4, sizeof(*result_list->first),
+        spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_1, sizeof(*result_list->first),
           MYF(MY_WME | MY_ZEROFILL)))
       ) {
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4059,7 +4063,7 @@ int spider_db_store_result_for_reuse_cursor(
       if (result_list->bgs_current == result_list->last)
       {
         if (!(result_list->last = (SPIDER_RESULT *)
-          spider_malloc(spider_current_trx, 5, sizeof(*result_list->last),
+          spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_2, sizeof(*result_list->last),
              MYF(MY_WME | MY_ZEROFILL)))
         ) {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4088,7 +4092,7 @@ int spider_db_store_result_for_reuse_cursor(
       if (result_list->current == result_list->last)
       {
         if (!(result_list->last = (SPIDER_RESULT *)
-          spider_malloc(spider_current_trx, 6, sizeof(*result_list->last),
+          spider_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_3, sizeof(*result_list->last),
             MYF(MY_WME | MY_ZEROFILL)))
         ) {
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4217,7 +4221,7 @@ int spider_db_store_result_for_reuse_cursor(
     }
     current->field_count = field_count;
     if (!(position = (SPIDER_POSITION *)
-      spider_bulk_malloc(spider_current_trx, 7, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_DB_STORE_RESULT_FOR_REUSE_CURSOR_4, MYF(MY_WME | MY_ZEROFILL),
         &position, (uint) (sizeof(SPIDER_POSITION) * page_size),
         &tmp_row, (uint) (sizeof(SPIDER_DB_ROW) * field_count),
         NullS))
@@ -4521,10 +4525,8 @@ int spider_db_seek_next(
         (SPIDER_RESULT*) result_list->current);
 
     int roop_start = 0, roop_end = 1, roop_count, lock_mode, link_ok = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     if (!spider->use_fields)
     {
-#endif
       lock_mode = spider_conn_lock_mode(spider);
       if (lock_mode)
       {
@@ -4541,14 +4543,11 @@ int spider_db_seek_next(
         roop_start = link_idx;
         roop_end = link_idx + 1;
       }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
     }
-#endif
 
 #ifndef WITHOUT_SPIDER_BG_SEARCH
     if (result_list->bgs_phase > 0)
     {
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
       if (spider->use_fields)
       {
         SPIDER_LINK_IDX_CHAIN *link_idx_chain;
@@ -4572,7 +4571,6 @@ int spider_db_seek_next(
           }
         }
       } else {
-#endif
         for (roop_count = roop_start; roop_count < roop_end;
           roop_count = spider_conn_link_idx_next(share->link_statuses,
             spider->conn_link_idx, roop_count, share->link_count,
@@ -4585,9 +4583,7 @@ int spider_db_seek_next(
             DBUG_RETURN(error_num);
           }
         }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
       }
-#endif
     } else {
 #endif
       if (result_list->current == result_list->bgs_current)
@@ -4639,7 +4635,6 @@ int spider_db_seek_next(
             }
           }
 
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
           if (spider->use_fields)
           {
             SPIDER_LINK_IDX_CHAIN *link_idx_chain;
@@ -4729,7 +4724,6 @@ int spider_db_seek_next(
               }
             }
           } else {
-#endif
             for (roop_count = roop_start; roop_count < roop_end;
               roop_count = spider_conn_link_idx_next(share->link_statuses,
                 spider->conn_link_idx, roop_count, share->link_count,
@@ -4865,9 +4859,7 @@ int spider_db_seek_next(
                 }
               }
             }
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
           }
-#endif
         } else {
           spider->connection_ids[link_idx] = conn->connection_id;
           pthread_mutex_assert_not_owner(&conn->mta_conn_mutex);
