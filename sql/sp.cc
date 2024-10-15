@@ -431,6 +431,7 @@ public:
   Proc_table_intact() : m_print_once(TRUE) { has_keys= TRUE; }
 
 protected:
+  ATTRIBUTE_FORMAT(printf, 3, 4)
   void report_error(uint code, const char *fmt, ...) override;
 };
 

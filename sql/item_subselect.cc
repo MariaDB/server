@@ -797,7 +797,7 @@ bool Item_subselect::exec()
         QT_WITHOUT_INTRODUCERS));
 
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*b",
+                        ER_UNKNOWN_ERROR, "DBUG: Item_subselect::exec %.*sB",
                         print.length(),print.ptr());
   );
   /*

@@ -1201,6 +1201,7 @@ public:
                         const char *user_host, size_t user_host_len, ulonglong query_utime,
                         ulonglong lock_utime, bool is_command,
                         const char *sql_text, size_t sql_text_len)= 0;
+  ATTRIBUTE_FORMAT(printf, 3, 0)
   virtual bool log_error(enum loglevel level, const char *format,
                          va_list args)= 0;
   virtual bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
@@ -1228,6 +1229,7 @@ public:
                         const char *user_host, size_t user_host_len, ulonglong query_utime,
                         ulonglong lock_utime, bool is_command,
                         const char *sql_text, size_t sql_text_len) override;
+  ATTRIBUTE_FORMAT(printf, 3, 0)
   bool log_error(enum loglevel level, const char *format,
                          va_list args) override;
   bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
@@ -1258,6 +1260,7 @@ public:
                         const char *user_host, size_t user_host_len, ulonglong query_utime,
                         ulonglong lock_utime, bool is_command,
                         const char *sql_text, size_t sql_text_len) override;
+  ATTRIBUTE_FORMAT(printf, 3, 0)
   bool log_error(enum loglevel level, const char *format,
                          va_list args) override;
   bool log_general(THD *thd, my_hrtime_t event_time, const char *user_host, size_t user_host_len, my_thread_id thread_id,
@@ -1314,10 +1317,12 @@ public:
   void cleanup_base();
   /* Free memory. Nothing could be logged after this function is called */
   void cleanup_end();
+  ATTRIBUTE_FORMAT(printf, 3, 0) // 1st arg is `LOGGER* this`
   bool error_log_print(enum loglevel level, const char *format,
                       va_list args);
   bool slow_log_print(THD *thd, const char *query, size_t query_length,
                       ulonglong current_utime);
+  ATTRIBUTE_FORMAT(printf, 4, 0)
   bool general_log_print(THD *thd,enum enum_server_command command,
                          const char *format, va_list args);
   bool general_log_write(THD *thd, enum enum_server_command command,
@@ -1355,22 +1360,26 @@ enum enum_binlog_format {
 int query_error_code(THD *thd, bool not_killed);
 uint purge_log_get_error_code(int res);
 
-int vprint_msg_to_log(enum loglevel level, const char *format, va_list args);
-void sql_print_error(const char *format, ...);
-void sql_print_warning(const char *format, ...);
-void sql_print_information(const char *format, ...);
-void sql_print_information_v(const char *format, va_list ap);
-typedef void (*sql_print_message_func)(const char *format, ...);
+int vprint_msg_to_log(enum loglevel level, const char *format, va_list args)
+  ATTRIBUTE_FORMAT(printf, 2, 0);
+void sql_print_error(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+void sql_print_warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
+void sql_print_information(const char *format, ...)
+  ATTRIBUTE_FORMAT(printf, 1, 2);
+void sql_print_information_v(const char *format, va_list ap)
+  ATTRIBUTE_FORMAT(printf, 1, 0);
+typedef void (*sql_print_message_func)(const char *format, ...)
+  ATTRIBUTE_FORMAT_FPTR(printf, 1, 2);
 extern sql_print_message_func sql_print_message_handlers[];
 
 int error_log_print(enum loglevel level, const char *format,
-                    va_list args);
+                    va_list args) ATTRIBUTE_FORMAT(printf, 2, 0);
 
 bool slow_log_print(THD *thd, const char *query, uint query_length,
                     ulonglong current_utime);
 
 bool general_log_print(THD *thd, enum enum_server_command command,
-                       const char *format,...);
+                       const char *format,...) ATTRIBUTE_FORMAT(printf, 3, 4);
 
 bool general_log_write(THD *thd, enum enum_server_command command,
                        const char *query, size_t query_length);

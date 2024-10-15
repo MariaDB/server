@@ -148,7 +148,7 @@ void start_handle_manager()
     if ((err= mysql_thread_create(key_thread_handle_manager, &hThread,
                                   &connection_attrib, handle_manager, 0)))
     {
-      sql_print_warning("Can't create handle_manager thread (errno: %M)", err);
+      sql_print_warning("Can't create handle_manager thread (errno: %iE)", err);
       DBUG_VOID_RETURN;
     }
 
@@ -185,4 +185,3 @@ void stop_handle_manager()
   }
   DBUG_VOID_RETURN;
 }
-
