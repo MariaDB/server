@@ -897,7 +897,11 @@ public:
   bool set(ulong num, CHARSET_INFO *cs) { return set_int(num, true, cs); }
   bool set(longlong num, CHARSET_INFO *cs) { return set_int(num, false, cs); }
   bool set(ulonglong num, CHARSET_INFO *cs) { return set_int((longlong)num, true, cs); }
-  bool set_real(double num,uint decimals, CHARSET_INFO *cs);
+  bool set_real_with_type(double num, uint decimals, CHARSET_INFO *cs, my_gcvt_arg_type);
+  bool set_real(double num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_DOUBLE); }
+  bool set_real(float num,uint decimals, CHARSET_INFO *cs)
+  { return set_real_with_type(num,decimals,cs,MY_GCVT_ARG_FLOAT); }
   bool set_fcvt(double num, uint decimals)
   {
     set_charset(&my_charset_latin1);
@@ -1012,11 +1016,6 @@ public:
     return Binary_string::append(s);
   }
 
-  // Append a float value to the string keeping the string's charset.
-  //
-  // The float value must not be NaN or Inf, it will be represented as 0 in
-  // that case.
-  bool append_float(float num, uint decimals);
   inline bool append(char chr)
   {
     return Binary_string::append_char(chr);
