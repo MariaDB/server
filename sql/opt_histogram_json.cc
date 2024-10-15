@@ -128,6 +128,8 @@ class Histogram_json_builder : public Histogram_builder
   */
   bool force_binary;
 
+  bool is_variable_sized;
+
   /* Data about the bucket we are filling now */
   struct CurBucket
   {
@@ -145,8 +147,9 @@ class Histogram_json_builder : public Histogram_builder
 public:
 
   Histogram_json_builder(Histogram_json_hb *hist, Field *col, uint col_len,
-                         ha_rows rows)
-    : Histogram_builder(col, col_len, rows), histogram(hist)
+                         ha_rows rows, bool is_variable_sized)
+    : Histogram_builder(col, col_len, rows), histogram(hist),
+    is_variable_sized(is_variable_sized)
   {
     /*
       When computing number of rows in the bucket, round it UP. This way, we
@@ -236,8 +239,25 @@ private:
   {
     StringBuffer<MAX_FIELD_WIDTH> val;
 
-    // Get the text representation of the value
-    column->store_field_value((uchar*) elem, col_length);
+    size_t value_length= col_length;
+    uchar *key_arg= (uchar *)elem;
+    if (is_variable_sized)
+    {
+      uchar *key= key_arg;
+      uchar *key_end= key_arg +
+        Variable_size_keys_descriptor::read_packed_length(key_arg);
+      key+= Variable_size_keys_descriptor::SIZE_OF_LENGTH_FIELD;
+      if (column->maybe_null())
+      {
+        key+= 1;
+      }
+      column->unpack(column->ptr, key, key_end);
+    }
+    else
+    {
+      // Get the text representation of the value
+      column->store_field_value(key_arg, value_length);
+    }
     String *str= column->val_str(&val);
 
     // Escape the value for JSON
@@ -395,9 +415,10 @@ public:
 
 
 Histogram_builder *Histogram_json_hb::create_builder(Field *col, uint col_len,
-                                                     ha_rows rows)
+                                                     ha_rows rows,
+                                                     bool is_variable_sized)
 {
-  return new Histogram_json_builder(this, col, col_len, rows);
+  return new Histogram_json_builder(this, col, col_len, rows, is_variable_sized);
 }
 
 

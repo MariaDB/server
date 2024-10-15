@@ -1755,7 +1755,8 @@ public:
 
 
 Histogram_builder *Histogram_binary::create_builder(Field *col, uint col_len,
-                                                    ha_rows rows)
+                                                    ha_rows rows,
+                                                    bool is_variable_sized)
 {
   return new Histogram_binary_builder(col, col_len, rows);
 }
@@ -1948,7 +1949,8 @@ public:
   {
     Histogram_base *hist= table_field->collected_stats->histogram;
     Histogram_builder *hist_builder=
-       hist->create_builder(table_field, tree_key_length, rows);
+       hist->create_builder(table_field, tree_key_length, rows,
+                            tree->is_variable_sized());
 
     if (tree->walk(table_field->table, histogram_build_walk,
                    (void*)hist_builder))

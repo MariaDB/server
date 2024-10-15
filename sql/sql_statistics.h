@@ -185,7 +185,8 @@ public:
   virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                                    ulonglong size)=0;
   virtual Histogram_builder *create_builder(Field *col, uint col_len,
-                                            ha_rows rows)=0;
+                                            ha_rows rows,
+                                            bool is_variable_sized)=0;
 
   /*
     This function checks that histograms should be usable only when
@@ -317,7 +318,8 @@ public:
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
   Histogram_builder *create_builder(Field *col, uint col_len,
-                                    ha_rows rows) override;
+                                    ha_rows rows,
+                                    bool is_variable_sized) override;
 
   void set_value(uint i, double val)
   {

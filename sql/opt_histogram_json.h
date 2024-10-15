@@ -99,7 +99,7 @@ public:
   void serialize(Field *field) override;
 
   Histogram_builder *create_builder(Field *col, uint col_len,
-                                    ha_rows rows) override;
+                                    ha_rows rows, bool is_variable_sized) override;
 
   // returns number of buckets in the histogram
   uint get_width() override
