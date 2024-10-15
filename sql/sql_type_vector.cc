@@ -243,8 +243,8 @@ int Field_vector::reset()
 
 static void do_copy_vec(const Copy_field *copy)
 {
-  uint from_length_bytes= 1 + (copy->from_length > 258);
-  uint to_length_bytes= 1 + (copy->to_length > 258);
+  uint from_length_bytes= 1 + (copy->from_length > 257);
+  uint to_length_bytes= 1 + (copy->to_length > 257);
   uint from_length= copy->from_length - from_length_bytes;
   uint to_length= copy->to_length - to_length_bytes;
   uchar *from= copy->from_ptr + from_length_bytes;
