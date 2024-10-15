@@ -136,3 +136,16 @@ create table t1 (v vector(64) not null);
 insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
 analyze table t1 persistent for all;
 drop table t1;
+
+--echo #
+--echo # MDEV-35147 Inconsistent NULL handling in vector type
+--echo #
+create table t1 (a vector(1));
+show create table t1;
+insert into t1 values ();
+insert into t1 values (default);
+insert into t1 values (default(a));
+select * from t1;
+insert into t1 values (null);
+select * from t1;
+drop table t1;
