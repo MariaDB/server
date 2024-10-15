@@ -58,7 +58,7 @@ DROP TABLE `t`;
 --echo #
 --echo # MDEV-35035 Assertion failure in ha_blackhole::position upon INSERT into blackhole table with vector index
 --echo #
-create table t (a int, v blob not null, vector index (v)) engine=blackhole;
+create table t (a int, v vector(1) not null, vector index (v)) engine=blackhole;
 insert into t values (1,x'00000000');
 drop table t;
 
