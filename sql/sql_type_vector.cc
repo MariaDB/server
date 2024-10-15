@@ -266,6 +266,8 @@ static void do_copy_vec(const Copy_field *copy)
 
 Field::Copy_func *Field_vector::get_copy_func(const Field *from) const
 {
+  if (from->type_handler() != &type_handler_vector)
+    return do_field_string;
   if (field_length == from->field_length)
     return do_field_eq;
   return do_copy_vec;
