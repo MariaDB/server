@@ -31,10 +31,11 @@ const Type_handler *Type_collection_vector::aggregate_for_comparison(
 {
   if (a->type_collection() == this)
     swap_variables(const Type_handler *, a, b);
-  if (a == &type_handler_vector || a == &type_handler_hex_hybrid ||
-      a == &type_handler_tiny_blob || a == &type_handler_blob ||
-      a == &type_handler_medium_blob || a == &type_handler_long_blob ||
-      a == &type_handler_varchar || a == &type_handler_string)
+  if (a == &type_handler_vector      || a == &type_handler_hex_hybrid ||
+      a == &type_handler_tiny_blob   || a == &type_handler_blob       ||
+      a == &type_handler_medium_blob || a == &type_handler_long_blob  ||
+      a == &type_handler_varchar     || a == &type_handler_string     ||
+      a == &type_handler_null)
     return b;
   return NULL;
 }
