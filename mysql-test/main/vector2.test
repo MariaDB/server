@@ -162,3 +162,11 @@ alter table t1 modify a vector(2);
 select hex(a) from t1;
 select vec_totext(a) from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-35158 Assertion `res->length() > 0 && res->length() % 4 == 0' fails upon increasing length of vector column
+--echo #
+create table t1 (a int, v vector(1) not null, vector(v));
+insert t1 values (1, 0x00000000);
+alter table t1 modify v vector(64) not null;
+drop table t1;
