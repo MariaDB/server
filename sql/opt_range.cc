@@ -3106,7 +3106,7 @@ SQL_SELECT::test_quick_select(THD *thd,
         group_by_optimization_used= 1;
         param.table->set_opt_range_condition_rows(group_trp->records);
         DBUG_PRINT("info", ("table_rows: %llu  opt_range_condition_rows: %llu  "
-                            "group_trp->records: %ull",
+                            "group_trp->records: %llu",
                             table_records,
                             param.table->opt_range_condition_rows,
                             group_trp->records));
