@@ -159,3 +159,13 @@ select distinct a from t order by vec_distance_euclidean(v,vec_fromtext('[1]')) 
 a
 #
 drop table t;
+#
+# MDEV-35141 Server crashes in Field_vector::report_wrong_value upon statistic collection
+#
+create table t1 (v vector(64) not null);
+insert into t1 select vec_fromtext(concat('[',group_concat(1),']')) from seq_1_to_64;
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+drop table t1;
