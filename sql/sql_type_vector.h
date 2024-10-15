@@ -126,6 +126,9 @@ public:
   int  store(longlong nr, bool unsigned_val) override;
   int  store_decimal(const my_decimal *) override;
   uint size_of() const  override { return sizeof(*this); }
+  /* disable EITS */
+  bool update_min(Field *, bool) override { return false; }
+  bool update_max(Field *, bool) override { return false; }
 };
 
 #endif // SQL_TYPE_VECTOR_INCLUDED
