@@ -165,3 +165,10 @@ DROP TABLE t;
 create table t (f varchar(1024) not null, v vector(2) not null, unique(f)) engine=innodb charset=utf8mb3;
 alter table t add vector (v);
 drop table t;
+#
+# MDEV-35159 Assertion `tab->join->select_limit < (~ (ha_rows) 0)' fails upon forcing vector key
+#
+create table t (v vector(1) not null, vector vec(v), unique vu(v)) engine=innodb;
+select * from t force index(vec) order by v;
+v
+drop table t;
