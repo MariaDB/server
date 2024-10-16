@@ -2554,7 +2554,17 @@ int spider_internal_xa_commit_by_xid(
   SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
+  bool created_tmp_thd = FALSE;
   DBUG_ENTER("spider_internal_xa_commit_by_xid");
+  if (!thd)
+  {
+    if (!(thd = spider_create_tmp_thd()))
+    {
+      error_num = HA_ERR_OUT_OF_MEM;
+      goto error;
+    }
+    created_tmp_thd= TRUE;
+  }
   /*
     select
       status
@@ -2754,6 +2764,8 @@ xa_delete:
     goto error;
   spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
   table_xa_opened = FALSE;
+  if (created_tmp_thd)
+    spider_free_tmp_thd(thd);
   DBUG_RETURN(0);
 
 error:
@@ -2762,6 +2774,8 @@ error:
   if (table_xa_member_opened)
     spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
 error_open_table:
+  if (created_tmp_thd)
+    spider_free_tmp_thd(thd);
   DBUG_RETURN(error_num);
 }
 
@@ -2786,7 +2800,17 @@ int spider_internal_xa_rollback_by_xid(
   SPIDER_Open_tables_backup open_tables_backup;
   bool table_xa_opened = FALSE;
   bool table_xa_member_opened = FALSE;
+  bool created_tmp_thd= FALSE;
   DBUG_ENTER("spider_internal_xa_rollback_by_xid");
+  if (!thd)
+  {
+    if (!(thd = spider_create_tmp_thd()))
+    {
+      error_num = HA_ERR_OUT_OF_MEM;
+      goto error;
+    }
+    created_tmp_thd= TRUE;
+  }
   /*
     select
       status
@@ -2984,6 +3008,8 @@ xa_delete:
     goto error;
   spider_close_sys_table(thd, table_xa, &open_tables_backup, TRUE);
   table_xa_opened = FALSE;
+  if (created_tmp_thd)
+    spider_free_tmp_thd(thd);
   DBUG_RETURN(0);
 
 error:
@@ -2992,6 +3018,8 @@ error:
   if (table_xa_member_opened)
     spider_close_sys_table(thd, table_xa_member, &open_tables_backup, TRUE);
 error_open_table:
+  if (created_tmp_thd)
+    spider_free_tmp_thd(thd);
   DBUG_RETURN(error_num);
 }
 
@@ -3316,15 +3344,12 @@ int spider_xa_commit_by_xid(
   DBUG_ENTER("spider_xa_commit_by_xid");
 
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
-    goto error_get_trx;
+    DBUG_RETURN(error_num);
 
-  if ((error_num = spider_internal_xa_commit_by_xid(thd, trx, xid)))
-    goto error;
+  error_num = spider_internal_xa_commit_by_xid(thd, trx, xid);
 
-  DBUG_RETURN(0);
-
-error:
-error_get_trx:
+  if (!thd)
+    spider_free_trx(trx, FALSE);
   DBUG_RETURN(error_num);
 }
 
@@ -3338,15 +3363,12 @@ int spider_xa_rollback_by_xid(
   DBUG_ENTER("spider_xa_rollback_by_xid");
 
   if (!(trx = spider_get_trx(thd, TRUE, &error_num)))
-    goto error_get_trx;
+    DBUG_RETURN(error_num);
 
-  if ((error_num = spider_internal_xa_rollback_by_xid(thd, trx, xid)))
-    goto error;
+  error_num = spider_internal_xa_rollback_by_xid(thd, trx, xid);
 
-  DBUG_RETURN(0);
-
-error:
-error_get_trx:
+  if (!thd)
+    spider_free_trx(trx, FALSE);
   DBUG_RETURN(error_num);
 }
 
