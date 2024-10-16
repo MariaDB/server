@@ -296,3 +296,48 @@ UNION ALL
 ;
 
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-34665: Simplify IN predicate processing for NULL-aware
+--echo #             materialization involving only one column
+
+set @save_optimizer_switch=@@optimizer_switch;
+set @@optimizer_switch = "materialization=on,in_to_exists=off,semijoin=off";
+
+create table t1 (a int);
+create table t2 (b int);
+insert into t1 values (null), (1), (2), (3);
+
+--echo # Query against empty t2
+--sorted_result
+select * from t1 where a not in (select b from t2);
+--sorted_result
+select a, a in (select b from t2) from t1;
+
+--echo # Insert some not-NULL values
+insert into t2 values (3), (4);
+--sorted_result
+select * from t1 where a not in (select b from t2);
+--sorted_result
+select a, a in (select b from t2) from t1;
+--echo # Ensure the correct strategy is tested
+--source include/analyze-format.inc
+analyze format=json select * from t1 where a not in (select b from t2);
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
+
+--echo # Insert NULL value
+insert into t2 values (null);
+--sorted_result
+select * from t1 where a not in (select b from t2);
+--sorted_result
+select a, a in (select b from t2) from t1;
+--source include/analyze-format.inc
+analyze format=json select * from t1 where a not in (select b from t2);
+--source include/analyze-format.inc
+analyze format=json select a, a in (select b from t2) from t1;
+
+drop table t1, t2;
+
+set @@optimizer_switch=@save_optimizer_switch;
+
