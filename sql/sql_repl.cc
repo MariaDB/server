@@ -129,6 +129,7 @@ struct binlog_send_info {
   slave_connection_state *until_gtid_state;
   slave_connection_state until_gtid_state_obj;
   Format_description_log_event *fdev;
+  const SQL_CATALOG *catalog_filter;
   int mariadb_slave_capability;
   enum_gtid_skip_type gtid_skip_group;
   enum_gtid_until_state gtid_until_group;
@@ -167,6 +168,7 @@ struct binlog_send_info {
                    char *lfn)
     : thd(thd_arg), net(&thd_arg->net), packet(packet_arg),
       log_file_name(lfn), until_gtid_state(NULL), fdev(NULL),
+      catalog_filter(NULL),
       gtid_skip_group(GTID_SKIP_NOT), gtid_until_group(GTID_UNTIL_NOT_DONE),
       flags(flags_arg), current_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
       slave_gtid_strict_mode(false), send_fake_gtid_list(false),
@@ -456,6 +458,17 @@ inline void fix_checksum(enum_binlog_checksum_alg checksum_alg, String *packet,
   crc= my_checksum(0, (uchar *)packet->ptr() + ev_offset, data_len -
                    BINLOG_CHECKSUM_LEN);
   int4store(packet->ptr() + ev_offset + data_len - BINLOG_CHECKSUM_LEN, crc);
+}
+
+
+static const SQL_CATALOG *get_catalog_filter(THD *thd)
+{
+  if (!using_catalogs)
+    return nullptr;
+  if ((thd->security_ctx->master_access & CATALOG_ACL) &&
+      thd->catalog == default_catalog())
+    return nullptr;
+  return thd->catalog;
 }
 
 
@@ -1751,6 +1764,26 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
     }
   }
 
+  if (info->catalog_filter && event_type == GTID_EVENT)
+  {
+    uchar flags2;
+    LEX_CSTRING cat_name;
+    if (ev_offset > len || Gtid_log_event::peek_catalog(
+          (uchar*) packet->ptr()+ev_offset, len - ev_offset,
+          info->fdev, current_checksum_alg, &flags2, &cat_name))
+    {
+      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+      return "Failed to read Gtid_log_event: corrupt binlog";
+    }
+
+    if (cmp(&info->catalog_filter->name, &cat_name))
+    {
+      /* Skip this event group as it doesn't match the user's catalog. */
+      info->gtid_skip_group= (flags2 & Gtid_log_event::FL_STANDALONE ?
+                              GTID_SKIP_STANDALONE : GTID_SKIP_TRANSACTION);
+    }
+  }
+
   /* Skip GTID event groups until we reach slave position within a domain_id. */
   if (event_type == GTID_EVENT && info->using_gtid_state)
   {
@@ -2128,6 +2161,7 @@ static int init_binlog_sender(binlog_send_info *info,
   /** init last pos */
   info->last_pos= *pos;
 
+  info->catalog_filter= get_catalog_filter(thd);
   info->current_checksum_alg= get_binlog_checksum_value_at_connect(thd);
   info->mariadb_slave_capability= get_mariadb_slave_capability(thd);
   info->using_gtid_state= get_slave_connect_state(thd, &connect_gtid_state);
@@ -3729,6 +3763,9 @@ bool change_master(THD* thd, Master_info* mi, bool *master_info_added)
 
   if (get_string_parameter(mi->host, lex_mi->host, sizeof(mi->host)-1,
                            "MASTER_HOST", system_charset_info) ||
+      get_string_parameter(mi->catalog_name, lex_mi->catalog,
+                           sizeof(mi->catalog_name)-1, "MASTER_CATALOG",
+                           system_charset_info) ||
       get_string_parameter(mi->user, lex_mi->user, sizeof(mi->user)-1,
                            "MASTER_USER", system_charset_info) ||
       get_string_parameter(mi->password, lex_mi->password,

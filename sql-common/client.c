@@ -99,6 +99,7 @@ extern my_bool using_catalogs;
 
 
 #define CONNECT_TIMEOUT 0
+#define MAX_CATALOG_NAME 65   /* Including terminating '\0' */
 
 #include "client_settings.h"
 #include <ssl_compat.h>
@@ -836,9 +837,9 @@ static int add_init_command(struct st_mysql_options *options, const char *cmd)
 
 
 #define ALLOCATE_EXTENSIONS(OPTS)                                \
-      (OPTS)->extension= (struct st_mysql_options_extention *)   \
+      (OPTS)->extension= (struct st_mysql_options_extension *)   \
         my_malloc(key_memory_mysql_options,                      \
-                  sizeof(struct st_mysql_options_extention),     \
+                  sizeof(struct st_mysql_options_extension),     \
                   MYF(MY_WME | MY_ZEROFILL))                     \
 
 
@@ -2089,7 +2090,8 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     see end= buff+32 below, fixed size of the packet is 32 bytes.
      +9 because data is a length encoded binary where meta data size is max 9.
   */
-  buff_size= 33 + USERNAME_LENGTH + data_len + 9 + NAME_LEN + NAME_LEN + connect_attrs_len + 9;
+  buff_size= 33 + USERNAME_LENGTH + data_len + 9 + NAME_LEN + NAME_LEN +
+    connect_attrs_len + 9 + MAX_CATALOG_NAME;
   buff= my_alloca(buff_size);
 
   mysql->client_flag|= mysql->options.client_flag;
@@ -2122,10 +2124,19 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
   if (mysql->client_flag & CLIENT_PROTOCOL_41)
   {
     /* 4.1 server and 4.1 client has a 32 byte option flag */
+    if (!(mysql->server_capabilities & CLIENT_MYSQL))
+      mysql->client_flag&= ~CLIENT_MYSQL;
     int4store(buff,mysql->client_flag);
     int4store(buff+4, net->max_packet_size);
     buff[8]= (char) mysql->charset->number;
     bzero(buff+9, 32-9);
+    if (!(mysql->server_capabilities & CLIENT_MYSQL))
+    {
+      /* ToDo: Should this check if the server has the catalog capability? */
+      uint client_extended_cap= mysql->options.extension->catalog ?
+        (uint)((MARIADB_CLIENT_CONNECT_CATALOG) >> 32) : (uint)0;
+      int4store(buff + 28, client_extended_cap);
+    }
     end= buff+32;
   }
   else
@@ -2273,6 +2284,17 @@ static int send_client_reply_packet(MCPVIO_EXT *mpvio,
     end= strmake(end, mpvio->plugin->name, NAME_LEN) + 1;
 
   end= (char *) send_client_connect_attrs(mysql, (uchar *) end);
+
+  /* Add catalog */
+  if (mysql->options.extension->catalog)
+  {
+    size_t len= strlen(mysql->options.extension->catalog);
+    if (len >= MAX_CATALOG_NAME)
+      len= MAX_CATALOG_NAME - 1;
+    end= (char*)write_length_encoded_string4(
+                     (uchar*)end, buff_size - (end - buff),
+                     (uchar *)mysql->options.extension->catalog, len);
+  }
 
   /* Write authentication package */
   if (my_net_write(net, (uchar*) buff, (size_t) (end-buff)) || net_flush(net))
@@ -3332,6 +3354,7 @@ static void mysql_close_free_options(MYSQL *mysql)
     my_free(mysql->options.extension->plugin_dir);
     my_free(mysql->options.extension->default_auth);
     my_hash_free(&mysql->options.extension->connection_attributes);
+    my_free(mysql->options.extension->catalog);
     my_free(mysql->options.extension);
   }
   bzero((char*) &mysql->options,sizeof(mysql->options));
@@ -3850,9 +3873,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
     break;
   case MYSQL_PROGRESS_CALLBACK:
     if (!mysql->options.extension)
-      mysql->options.extension= (struct st_mysql_options_extention *)
+      mysql->options.extension= (struct st_mysql_options_extension *)
         my_malloc(key_memory_mysql_options,
-                  sizeof(struct st_mysql_options_extention),
+                  sizeof(struct st_mysql_options_extension),
                   MYF(MY_WME | MY_ZEROFILL));
     if (mysql->options.extension)
       mysql->options.extension->report_progress= 
@@ -3917,6 +3940,9 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
         }
       }
     }
+    break;
+  case MARIADB_OPT_CATALOG:
+    EXTENSION_SET_STRING(&mysql->options, catalog, arg);
     break;
   case MYSQL_SHARED_MEMORY_BASE_NAME:
   default:

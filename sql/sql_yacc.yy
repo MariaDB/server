@@ -923,6 +923,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  LOCKS_SYM
 %token  <kwd>  LOGFILE_SYM
 %token  <kwd>  LOGS_SYM
+%token  <kwd>  MASTER_CATALOG_SYM
 %token  <kwd>  MASTER_CONNECT_RETRY_SYM
 %token  <kwd>  MASTER_DELAY_SYM
 %token  <kwd>  MASTER_GTID_POS_SYM
@@ -2125,6 +2126,10 @@ master_def:
           MASTER_HOST_SYM '=' TEXT_STRING_sys
           {
             Lex->mi.host = $3.str;
+          }
+        | MASTER_CATALOG_SYM '=' TEXT_STRING_sys
+          {
+            Lex->mi.catalog = $3.str;
           }
         | MASTER_USER_SYM '=' TEXT_STRING_sys
           {
@@ -15988,6 +15993,7 @@ keyword_sp_var_and_label:
         | MASTER_HEARTBEAT_PERIOD_SYM
         | MASTER_GTID_POS_SYM
         | MASTER_HOST_SYM
+        | MASTER_CATALOG_SYM
         | MASTER_PORT_SYM
         | MASTER_LOG_FILE_SYM
         | MASTER_LOG_POS_SYM

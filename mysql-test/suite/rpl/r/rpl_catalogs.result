@@ -1,0 +1,137 @@
+include/master-slave.inc
+[connection master]
+*** Create some catalogs to work with.
+connection master_config;
+SET SESSION sql_log_bin= 0;
+CREATE CATALOG foo;
+CREATE CATALOG bar;
+CREATE CATALOG baz;
+SET SESSION sql_log_bin= 1;
+connection slave_config;
+SET SESSION sql_log_bin= 0;
+CREATE CATALOG foo;
+CREATE CATALOG bar;
+CREATE CATALOG baz;
+SET SESSION sql_log_bin= 1;
+*** Replicate a few events full-catalogs -> full-catalogs
+connection master_config;
+USE CATALOG foo;
+CREATE DATABASE db1;
+use db1;
+CREATE TABLE t1 (a INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1);
+USE CATALOG baz;
+CREATE DATABASE db3;
+use db3;
+CREATE TABLE t3 (a INT PRIMARY KEY);
+INSERT INTO t3 VALUES (1);
+sync_slave_with_master slave;
+connection slave_config;
+USE CATALOG foo;
+use db1;
+SELECT * FROM t1 ORDER BY a;
+a
+1
+USE CATALOG baz;
+SELECT * FROM db3.t3 ORDER BY a;
+a
+1
+*** Create a normal slave user to replicate single catalog
+connection slave_config;
+include/stop_slave.inc
+CHANGE MASTER TO master_user='rpl_bar', master_password='bar_pw',
+master_catalog="bar";
+connection master_config;
+USE CATALOG bar;
+CREATE USER rpl_bar@localhost;
+GRANT replication slave, select ON *.* TO rpl_bar@localhost IDENTIFIED BY "bar_pw";
+CREATE DATABASE db2;
+use db2;
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT);
+INSERT INTO t2(a) VALUES (1), (2), (3), (4), (5);
+INSERT INTO t2 VALUES (6, 0), (7, 1), (8, 2);
+USE CATALOG foo;
+INSERT INTO db1.t1 VALUES (10), (20), (30);
+USE CATALOG baz;
+INSERT INTO db3.t3 VALUES (10), (20), (30);
+USE CATALOG bar;
+use db2;
+UPDATE t2 SET b=a*a WHERE b IS NULL;
+USE CATALOG bar;
+SELECT * FROM db2.t2 ORDER BY a;
+a	b
+1	1
+2	4
+3	9
+4	16
+5	25
+6	0
+7	1
+8	2
+USE CATALOG foo;
+SELECT * FROM db1.t1 ORDER BY a;
+a
+1
+10
+20
+30
+USE CATALOG baz;
+SELECT * FROM db3.t3 ORDER BY a;
+a
+1
+10
+20
+30
+USE CATALOG def;
+use test;
+connect con1,localhost,rpl_bar,bar_pw,bar.db2;
+SELECT * FROM t2 ORDER BY a;
+a	b
+1	1
+2	4
+3	9
+4	16
+5	25
+6	0
+7	1
+8	2
+disconnect con1;
+connection master;
+save_master_pos;
+connection slave_config;
+include/start_slave.inc
+connection slave;
+sync_with_master;
+connection slave_config;
+USE CATALOG bar;
+SELECT * FROM db2.t2 ORDER BY a;
+a	b
+1	1
+2	4
+3	9
+4	16
+5	25
+6	0
+7	1
+8	2
+USE CATALOG foo;
+SELECT * FROM db1.t1 ORDER BY a;
+a
+1
+USE CATALOG baz;
+SELECT * FROM db3.t3 ORDER BY a;
+a
+1
+*** Clean up.
+connection slave_config;
+include/stop_slave.inc
+CHANGE MASTER TO master_user='root', master_password='', master_catalog='';
+include/start_slave.inc
+connection master_config;
+USE CATALOG def;
+use test;
+DROP CATALOG foo;
+DROP CATALOG bar;
+DROP CATALOG baz;
+connection master;
+include/rpl_end.inc

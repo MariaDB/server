@@ -71,7 +71,7 @@ static inline bool lex_string_cmp(CHARSET_INFO *charset, const LEX_CSTRING *a,
 }
 
 /*
-  Compare to LEX_CSTRING's and return 0 if equal
+  Compare two LEX_CSTRING's and return 0 if equal
 */
 
 static inline bool cmp(const LEX_CSTRING *a, const LEX_CSTRING *b)

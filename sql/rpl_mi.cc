@@ -47,6 +47,7 @@ Master_info::Master_info(LEX_CSTRING *connection_name_arg,
 {
   char *tmp;
   host[0] = 0; user[0] = 0; password[0] = 0;
+  catalog_name[0]= 0;
   ssl_ca[0]= 0; ssl_capath[0]= 0; ssl_cert[0]= 0;
   ssl_cipher[0]= 0; ssl_key[0]= 0;
   ssl_crl[0]= 0; ssl_crlpath[0]= 0;
@@ -644,6 +645,17 @@ file '%s')", fname);
             }
             seen_ignore_domain_ids= true;
           }
+          else if (got_eq && !strcmp(buf, "master_catalog"))
+          {
+            if (init_strvar_from_file(mi->catalog_name,
+                                      sizeof(mi->catalog_name),
+                                      &mi->file, ""))
+
+            {
+              sql_print_error("Failed to initialize master info do_domain_ids");
+              goto errwithmsg;
+            }
+          }
           else if (!got_eq && !strcmp(buf, "END_MARKER"))
           {
             /*
@@ -817,6 +829,7 @@ int flush_master_info(Master_info* mi,
               "using_gtid=%d\n"
               "do_domain_ids=%s\n"
               "ignore_domain_ids=%s\n"
+              "master_catalog=%s\n"
               "END_MARKER\n",
               LINES_IN_MASTER_INFO,
               mi->master_log_name, llstr(mi->master_log_pos, lbuf),
@@ -827,7 +840,7 @@ int flush_master_info(Master_info* mi,
               heartbeat_buf, "", ignore_server_ids_buf,
               "", 0,
               mi->ssl_crl, mi->ssl_crlpath, mi->using_gtid,
-              do_domain_ids_buf, ignore_domain_ids_buf);
+              do_domain_ids_buf, ignore_domain_ids_buf, mi->catalog_name);
   err= flush_io_cache(file);
   if (sync_masterinfo_period && !err &&
       ++(mi->sync_counter) >= sync_masterinfo_period)

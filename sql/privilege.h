@@ -305,7 +305,12 @@ constexpr privilege_t CATALOG_ACLS=
   CATALOG_ACL |
   SHUTDOWN_ACL |
   CREATE_TABLESPACE_ACL |
-  REPL_SLAVE_ACL |
+  /*
+    ToDo: REPL_SLAVE_ACL is needed to be able to replicate from a single
+    catalog to an on-premise slave. However, we may need a way for the catalog
+    superuser to control replication access for a catalog.
+  */
+//  REPL_SLAVE_ACL |
   BINLOG_ADMIN_ACL |
   BINLOG_MONITOR_ACL |
 //  BINLOG_REPLAY_ACL |

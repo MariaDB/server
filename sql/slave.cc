@@ -7140,6 +7140,9 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
 
+  if (mi->catalog_name[0])
+    mysql_options(mysql, MARIADB_OPT_CATALOG, mi->catalog_name);
+
   /* we disallow empty users */
   if (mi->user[0] == 0)
   {

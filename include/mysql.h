@@ -189,14 +189,15 @@ enum mysql_option
   /* MariaDB options */
   MYSQL_PROGRESS_CALLBACK=5999,
   MYSQL_OPT_NONBLOCK,
-  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY
+  MYSQL_OPT_USE_THREAD_SPECIFIC_MEMORY,
+  MARIADB_OPT_CATALOG=7029
 };
 
 /**
   @todo remove the "extension", move st_mysql_options completely
   out of mysql.h
 */
-struct st_mysql_options_extention; 
+struct st_mysql_options_extension;
 
 struct st_mysql_options {
   unsigned int connect_timeout, read_timeout, write_timeout;
@@ -231,7 +232,7 @@ struct st_mysql_options {
   void (*local_infile_end)(void *);
   int (*local_infile_error)(void *, char *, unsigned int);
   void *local_infile_userdata;
-  struct st_mysql_options_extention *extension;
+  struct st_mysql_options_extension *extension;
 };
 
 enum mysql_status 

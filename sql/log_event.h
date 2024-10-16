@@ -3250,13 +3250,16 @@ class Gtid_log_event: public Log_event
 public:
   uint64 seq_no;
   uint64 commit_id;
-  uint32 domain_id;
   uint64 sa_seq_no;   // start alter identifier for CA/RA
+  const LEX_CSTRING *cat_name;  // Points either to catalog object or own buffer
 #ifdef MYSQL_SERVER
   event_xid_t xid;
 #else
   event_mysql_xid_t xid;
 #endif
+  LEX_CSTRING cat_name_int;
+  uint32 domain_id;
+  char cat_name_buf[MAX_CATALOG_NAME];
   uchar flags2;
   /*
     More flags area placed after the regular flags2's area. The type
@@ -3309,11 +3312,15 @@ public:
     FL_EXTRA_MULTI_ENGINE_E1 is set for event group comprising a transaction
     involving multiple storage engines. No flag and extra data are added
     to the event when the transaction involves only one engine.
+
+    FL_CATALOG is set when a catalog name is included in the GTID (happens
+    when not the default catalog).
   */
   static const uchar FL_EXTRA_MULTI_ENGINE_E1= 1;
   static const uchar FL_START_ALTER_E1= 2;
   static const uchar FL_COMMIT_ALTER_E1= 4;
   static const uchar FL_ROLLBACK_ALTER_E1= 8;
+  static const uchar FL_CATALOG= 16;
 
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
@@ -3346,6 +3353,10 @@ public:
                    enum enum_binlog_checksum_alg checksum_alg,
                    uint32 *domain_id, uint32 *server_id, uint64 *seq_no,
                    uchar *flags2, const Format_description_log_event *fdev);
+  static bool peek_catalog(const uchar *event_start, size_t event_len,
+                           const Format_description_log_event *fdev,
+                           enum enum_binlog_checksum_alg checksum_alg,
+                           uchar *out_flags2, LEX_CSTRING *out_catname);
 #endif
 };
 

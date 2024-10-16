@@ -28,7 +28,7 @@ extern const char	*cant_connect_sqlstate;
 extern const char	*not_error_sqlstate;
 
 
-struct st_mysql_options_extention {
+struct st_mysql_options_extension {
   char *plugin_dir;
   char *default_auth;
   char *ssl_crl;				/* PEM CRL file */
@@ -41,6 +41,7 @@ struct st_mysql_options_extention {
                           uint proc_info_length);
   HASH connection_attributes;
   size_t connection_attributes_length;
+  char *catalog;
 };
 
 typedef struct st_mysql_methods

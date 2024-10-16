@@ -2448,6 +2448,26 @@ Gtid_log_event::Gtid_log_event(const uchar *buf, uint event_len,
       sa_seq_no= uint8korr(buf);
       buf+= 8;
     }
+    if (flags_extra & FL_CATALOG)
+    {
+      if (unlikely(buf - buf_0) >= event_len)
+      {
+        seq_no= 0;
+        return;
+      }
+      uint32_t cat_len= *buf++;
+      if (unlikely(cat_len > MAX_CATALOG_NAME) ||
+          unlikely(buf - buf_0 + cat_len) >= event_len)
+      {
+        seq_no= 0;
+        return;
+      }
+      memcpy(cat_name_buf, buf, cat_len);
+      cat_name_int.str= cat_name_buf;
+      cat_name_int.length= cat_len;
+      cat_name= &cat_name_int;
+      buf+= cat_len;
+    }
   }
   /*
     the strict '<' part of the assert corresponds to extra zero-padded

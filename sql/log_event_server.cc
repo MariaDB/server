@@ -2936,6 +2936,13 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE_E1;
   }
+  const SQL_CATALOG *cat= thd_arg->catalog;
+  if (cat != default_catalog())
+  {
+    flags_extra|= FL_CATALOG;
+    cat_name= &cat->name;
+  }
+
   if (thd->get_binlog_flags_for_alter())
   {
     flags_extra |= thd->get_binlog_flags_for_alter();
@@ -2982,10 +2989,80 @@ Gtid_log_event::peek(const uchar *event_start, size_t event_len,
 }
 
 
+/*
+  Obtain the catalog (if any) in the GTID (without constructing the full
+  object).
+
+  This is a separate function from Gtid_log_event::peek(), since this function
+  needs to do a lot of parsing of flags etc. to know where the catalog is, and
+  this overhead is not wanted in the often-used Gtid_log_event::peek(). But if
+  more peek-functionality would be needed in the future, it could make sense to
+  add it to this function which already has the parsing overhead.
+
+  Returns true if error (malformed or short event), false if ok. Returns the
+  name of the default catalog if catalog is not included explicitly in the GTID.
+
+  Note that the returned out_catname will point into the passed-in packet
+  memory, so will only be valid as long as the packet memory is!
+*/
+bool
+Gtid_log_event::peek_catalog(const uchar *event_start, size_t event_len,
+                             const Format_description_log_event *fdev,
+                             enum enum_binlog_checksum_alg checksum_alg,
+                             uchar *out_flags2, LEX_CSTRING *out_catname)
+{
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    if (event_len > BINLOG_CHECKSUM_LEN)
+      event_len-= BINLOG_CHECKSUM_LEN;
+    else
+      event_len= 0;
+  }
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  if (event_len < (uint32)fdev->common_header_len + GTID_HEADER_LEN)
+    return true;
+  const uchar *p= event_start + fdev->common_header_len;
+  const uchar *p_end= event_start + event_len;
+  uchar flags2= *out_flags2= p[12];
+  p+= 13;    /* seq_no, domain_id, and flags2. */
+  if (flags2 & FL_GROUP_COMMIT_ID)
+    p+= 8;
+  if (flags2 & (FL_PREPARED_XA | FL_COMPLETED_XA))
+  {
+    if (p + 6 > p_end)
+      return true;
+    p+= 6 + p[4] + p[5];
+  }
+  uchar flags_extra;
+  if (p >= p_end || !((flags_extra= *p) & FL_CATALOG))
+  {
+    *out_catname= default_catalog_name;
+    return false;
+  }
+  ++p;
+
+  if (flags_extra & FL_EXTRA_MULTI_ENGINE_E1)
+    ++p;
+  if (flags_extra & (FL_COMMIT_ALTER_E1 | FL_ROLLBACK_ALTER_E1))
+    p+= 8;
+
+  uchar cat_len;
+  if (p >= p_end || (p + (cat_len= *p)) >= p_end)
+    return true;
+  out_catname->str= (const char *)p+1;
+  out_catname->length= cat_len;
+
+  return false;
+}
+
+
 bool
 Gtid_log_event::write()
 {
-  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+4];
+  uchar buf[GTID_HEADER_LEN+2+sizeof(XID) + /* flags_extra: */ 1+1+8+MAX_CATALOG_NAME];
   size_t write_len= 13;
 
   int8store(buf, seq_no);
@@ -3024,6 +3101,15 @@ Gtid_log_event::write()
   {
     int8store(buf + write_len, sa_seq_no);
     write_len+= 8;
+  }
+
+  if (flags_extra & FL_CATALOG)
+  {
+    uint32_t cat_len= std::min(cat_name->length, (size_t)(MAX_CATALOG_NAME-1));
+    DBUG_ASSERT(cat_name->length <= MAX_CATALOG_NAME-1);
+    buf[write_len++]= cat_len;
+    memcpy(buf + write_len, cat_name->str, cat_len);
+    write_len+= cat_len;
   }
 
   if (write_len < GTID_HEADER_LEN)
