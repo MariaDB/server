@@ -2037,21 +2037,20 @@ func_exit:
 	mem_heap_free(heap);
 }
 
-
 /************************************************************//**
 Gets the pointer to the next non delete-marked record on the page.
 If all subsequent records are delete-marked, then this function
 will return the supremum record.
 @return pointer to next non delete-marked record or pointer to supremum */
+template<bool comp>
 static
 const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
+page_rec_get_next_non_del_marked(const page_t *page, const rec_t *rec)
 {
-  const page_t *const page= page_align(rec);
+  ut_ad(!!page_is_comp(page) == comp);
+  ut_ad(page_align(rec) == page);
 
-  if (page_is_comp(page))
+  if (comp)
   {
     for (rec= page_rec_get_next_low(rec, TRUE);
          rec && rec_get_deleted_flag(rec, TRUE);
@@ -2111,10 +2110,13 @@ dict_stats_scan_page(
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
 	ut_ad(!!n_core == page_is_leaf(page));
-	const rec_t*	(*get_next)(const rec_t*)
+	const rec_t*	(*get_next)(const page_t*, const rec_t*)
 		= !n_core || srv_stats_include_delete_marked
-		? page_rec_get_next_const
-		: page_rec_get_next_non_del_marked;
+		? (page_is_comp(page)
+		   ? page_rec_next_get<true> : page_rec_next_get<false>)
+		: page_is_comp(page)
+		? page_rec_get_next_non_del_marked<true>
+		: page_rec_get_next_non_del_marked<false>;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
 
@@ -2122,7 +2124,7 @@ dict_stats_scan_page(
 		*n_external_pages = 0;
 	}
 
-	rec = get_next(page_get_infimum_rec(page));
+	rec = get_next(page, page_get_infimum_rec(page));
 
 	if (!rec || page_rec_is_supremum(rec)) {
 		/* the page is empty or contains only delete-marked records */
@@ -2139,7 +2141,7 @@ dict_stats_scan_page(
 			rec, offsets_rec);
 	}
 
-	next_rec = get_next(rec);
+	next_rec = get_next(page, rec);
 
 	*n_diff = 1;
 
@@ -2184,7 +2186,7 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
-		next_rec = get_next(next_rec);
+		next_rec = get_next(page, next_rec);
 	}
 
 	/* offsets1,offsets2 should have been big enough */
@@ -2246,7 +2248,7 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
-	page = page_align(rec);
+	page = btr_cur_get_page(cur);
 	ut_ad(!page_rec_is_leaf(rec));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,

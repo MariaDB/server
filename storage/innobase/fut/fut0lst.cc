@@ -72,13 +72,13 @@ static void flst_write_addr(const buf_block_t& block, byte *faddr,
 @param[in,out]  mtr     mini-transaction */
 static void flst_zero_both(const buf_block_t& b, byte *addr, mtr_t *mtr)
 {
+  const ulint boffset= ulint(addr - b.page.frame);
   if (mach_read_from_4(addr + FIL_ADDR_PAGE) != FIL_NULL)
-    mtr->memset(&b, ulint(addr - b.page.frame) + FIL_ADDR_PAGE, 4, 0xff);
+    mtr->memset(&b, boffset + FIL_ADDR_PAGE, 4, 0xff);
   mtr->write<2,mtr_t::MAYBE_NOP>(b, addr + FIL_ADDR_BYTE, 0U);
   /* Initialize the other address by (MEMMOVE|0x80,offset,FIL_ADDR_SIZE,source)
   which is 4 bytes, or less than FIL_ADDR_SIZE. */
   memcpy(addr + FIL_ADDR_SIZE, addr, FIL_ADDR_SIZE);
-  const uint16_t boffset= page_offset(addr);
   mtr->memmove(b, boffset + FIL_ADDR_SIZE, boffset, FIL_ADDR_SIZE);
 }
 

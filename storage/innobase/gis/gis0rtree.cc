@@ -221,7 +221,7 @@ rtr_update_mbr_field(
 	rec_offs*	offsets2;
 
 	rec = btr_cur_get_rec(cursor);
-	page = page_align(rec);
+	page = btr_cur_get_page(cursor);
 
 	rec_info = rec_get_info_bits(rec, rec_offs_comp(offsets));
 

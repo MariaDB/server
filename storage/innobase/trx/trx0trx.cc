@@ -585,9 +585,8 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
   {
     buf_page_make_young_if_needed(&block->page);
     buf_block_t *undo_block= block;
-    const trx_undo_rec_t *undo_rec= block->page.frame + undo.top_offset;
-
-    do
+    uint16_t undo_rec_offset= undo.top_offset;
+    for (const trx_undo_rec_t *undo_rec= block->page.frame + undo_rec_offset;;)
     {
       byte type;
       byte cmpl_info;
@@ -603,11 +602,14 @@ static dberr_t trx_resurrect_table_locks(trx_t *trx, const trx_undo_t &undo)
       trx_undo_rec_get_pars(undo_rec, &type, &cmpl_info,
                             &updated_extern, &undo_no, &table_id);
       tables.emplace(table_id, type == TRX_UNDO_EMPTY);
-      undo_rec= trx_undo_get_prev_rec(block, page_offset(undo_rec),
+      ut_ad(page_offset(undo_rec) == undo_rec_offset);
+      undo_rec= trx_undo_get_prev_rec(block, undo_rec_offset,
                                       undo.hdr_page_no, undo.hdr_offset,
                                       true, &mtr);
+      if (!undo_rec)
+        break;
+      undo_rec_offset= uint16_t(undo_rec - block->page.frame);
     }
-    while (undo_rec);
   }
 
   mtr.commit();
@@ -1047,13 +1049,13 @@ void trx_t::commit_empty(mtr_t *mtr)
       {
         mtr->memcpy(*u, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_START +
                     u->page.frame, prev + TRX_UNDO_LOG_START, 2);
-        const ulint free= page_offset(last);
+        const ulint free= last - u->page.frame;
         mtr->write<2>(*u, TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_FREE +
                       u->page.frame, free);
         mtr->write<2>(*u, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + u->page.frame,
                       TRX_UNDO_CACHED);
         mtr->write<2>(*u, TRX_UNDO_SEG_HDR + TRX_UNDO_LAST_LOG + u->page.frame,
-                      page_offset(prev));
+                      prev - u->page.frame);
         mtr->write<2>(*u, prev + TRX_UNDO_NEXT_LOG, 0U);
         mtr->memset(u, free, srv_page_size - FIL_PAGE_DATA_END - free, 0);
 

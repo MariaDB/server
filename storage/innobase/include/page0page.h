@@ -196,12 +196,9 @@ extern my_bool srv_immediate_scrub_data_uncompressed;
 /** Get the start of a page frame.
 @param[in]	ptr	pointer within a page frame
 @return start of the page frame */
-MY_ATTRIBUTE((const))
-inline page_t* page_align(void *ptr)
-{
-  return my_assume_aligned<UNIV_PAGE_SIZE_MIN>
-    (reinterpret_cast<page_t*>(ut_align_down(ptr, srv_page_size)));
-}
+MY_ATTRIBUTE((const,nonnull))
+page_t *page_align(void *ptr);
+
 inline const page_t *page_align(const void *ptr)
 {
   return page_align(const_cast<void*>(ptr));
@@ -210,11 +207,8 @@ inline const page_t *page_align(const void *ptr)
 /** Gets the byte offset within a page frame.
 @param[in]	ptr	pointer within a page frame
 @return offset from the start of the page */
-MY_ATTRIBUTE((const))
-inline uint16_t page_offset(const void*	ptr)
-{
-  return static_cast<uint16_t>(ut_align_offset(ptr, srv_page_size));
-}
+MY_ATTRIBUTE((const,nonnull))
+uint16_t page_offset(const void *ptr);
 
 /** Determine whether an index page is not in ROW_FORMAT=REDUNDANT.
 @param[in]	page	index page
@@ -738,6 +732,28 @@ inline uint64_t page_get_autoinc(const page_t *page)
   return mach_read_from_8(p);
 }
 
+/** Get the pointer to the next record on the page.
+@tparam comp whether ROW_FORMAT is not REDUNDANT
+@param page  index page
+@param rec   index record
+@return successor of rec in the page
+@retval nullptr  on corruption */
+template<bool comp>
+inline const rec_t *page_rec_next_get(const page_t *page, const rec_t *rec)
+{
+  ut_ad(!!page_is_comp(page) == comp);
+  ut_ad(page_align(rec) == page);
+  ulint offs= rec_get_next_offs(rec, comp);
+  if (UNIV_UNLIKELY(offs < (comp ? PAGE_NEW_SUPREMUM : PAGE_OLD_SUPREMUM)))
+    return nullptr;
+  if (UNIV_UNLIKELY(offs > page_header_get_field(page, PAGE_HEAP_TOP)))
+    return nullptr;
+  ut_ad(page_rec_is_infimum(rec) ||
+        (!page_is_leaf(page) && !page_has_prev(page)) ||
+        !(rec_get_info_bits(page + offs, comp) & REC_INFO_MIN_REC_FLAG));
+  return page + offs;
+}
+
 /************************************************************//**
 Gets the pointer to the next record on the page.
 @return pointer to next record */
@@ -755,6 +771,7 @@ rec_t*
 page_rec_get_next(
 /*==============*/
 	rec_t*	rec);	/*!< in: pointer to record */
+
 /************************************************************//**
 Gets the pointer to the next record on the page.
 @return pointer to next record */
