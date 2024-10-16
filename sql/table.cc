@@ -1852,6 +1852,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bool *interval_unescaped= NULL;
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
+  key_map sort_keys_in_use(0);
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -3207,7 +3208,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             field->part_of_key.set_bit(key);
           }
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
+          {
             field->part_of_sortkey.set_bit(key);
+            sort_keys_in_use.set_bit(key);
+          }
 
           if (i < keyinfo->user_defined_key_parts)
             field->part_of_key_not_clustered.set_bit(key);
@@ -3216,22 +3220,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             usable_parts == i)
           usable_parts++;			// For FILESORT
         field->flags|= PART_KEY_FLAG;
-        if (key == primary_key)
-        {
-          field->flags|= PRI_KEY_FLAG;
-          /*
-            If this field is part of the primary key and all keys contains
-            the primary key, then we can use any key to find this column
-          */
-          if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
-          {
-            if (field->key_length() == key_part->length &&
-                !(field->flags & BLOB_FLAG))
-              field->part_of_key= share->keys_in_use;
-            if (field->part_of_sortkey.is_set(key))
-              field->part_of_sortkey= share->keys_in_use;
-          }
-        }
         if (field->key_length() != key_part->length)
         {
 #ifndef TO_BE_DELETED_ON_PRODUCTION
@@ -3294,21 +3282,39 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (primary_key < MAX_KEY &&
 	(share->keys_in_use.is_set(primary_key)))
     {
-      DBUG_ASSERT(share->primary_key == primary_key);
+      keyinfo= share->key_info + primary_key;
       /*
 	If we are using an integer as the primary key then allow the user to
 	refer to it as '_rowid'
       */
-      if (share->key_info[primary_key].user_defined_key_parts == 1)
+      if (keyinfo->user_defined_key_parts == 1)
       {
-	Field *field= share->key_info[primary_key].key_part[0].field;
+	Field *field= keyinfo->key_part[0].field;
 	if (field && field->result_type() == INT_RESULT)
         {
           /* note that fieldnr here (and rowid_field_offset) starts from 1 */
-	  share->rowid_field_offset= (share->key_info[primary_key].key_part[0].
-                                      fieldnr);
+	  share->rowid_field_offset= keyinfo->key_part[0].fieldnr;
         }
       }
+      for (i=0; i < keyinfo->user_defined_key_parts; key_part++, i++)
+      {
+	Field *field= keyinfo->key_part[i].field;
+        field->flags|= PRI_KEY_FLAG;
+        /*
+          If this field is part of the primary key and all keys contains
+          the primary key, then we can use any key to find this column
+        */
+        if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
+        {
+          if (field->key_length() == keyinfo->key_part[i].length &&
+              !(field->flags & BLOB_FLAG))
+          {
+            field->part_of_key= share->keys_in_use;
+            field->part_of_sortkey= sort_keys_in_use;
+          }
+        }
+      }
+      DBUG_ASSERT(share->primary_key == primary_key);
     }
     else
     {
