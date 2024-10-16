@@ -103,15 +103,20 @@ struct tablevec_entry {
 
 struct expr_user_lock : private noncopyable {
   expr_user_lock(THD *thd, int timeout)
-    : lck_key(thd, "handlersocket_wr", 16, &my_charset_latin1),
-      lck_timeout(thd, timeout),
-      lck_func_get_lock(thd, &lck_key, &lck_timeout),
-      lck_func_release_lock(thd, &lck_key)
+      : lck_key(thd, &my_charset_latin1,
+                (const char *) STRING_WITH_LEN("handlersocket_wr")),
+        lck_timeout(thd, timeout),
+        lck_func_get_lock(thd, &lck_key, &lck_timeout),
+        lck_func_release_lock(thd, &lck_key)
   {
     lck_key.fix_fields(thd, 0);
     lck_timeout.fix_fields(thd, 0);
     lck_func_get_lock.fix_fields(thd, 0);
     lck_func_release_lock.fix_fields(thd, 0);
+  }
+  void cleanup()
+  {
+    lck_key.val_str(NULL)->free();
   }
   long long get_lock() {
     return lck_func_get_lock.val_int();
@@ -336,6 +341,8 @@ dbcontext::term_thread()
 {
   DBG_THR(fprintf(stderr, "HNDSOCK thread end %p\n", thd));
   close_tables_if();
+  user_lock->cleanup();
+  unlink_thd(thd);
   set_current_thd(nullptr);
   {
     delete thd;
