@@ -1849,14 +1849,6 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
           goto err;
     }
   }
-  if (print_event_info->catalog != catalog)
-  {
-    print_event_info->catalog= catalog;
-    if (my_b_printf(file, "/*!110600 SET CATALOG `%.*s` */%s\n",
-                    catalog_name.length, catalog_name.str,
-                    print_event_info->delimiter))
-      goto err;
-  }
 
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
   if (when_sec_part && when_sec_part <= TIME_MAX_SECOND_PART)
@@ -3017,11 +3009,9 @@ int Table_map_log_event::rewrite_db(const char *new_db, size_t new_len,
   // m_dbnam resides in m_memory together with m_tblnam and m_coltype
   uchar* memory= m_memory;
   char const* tblnam= m_tblnam;
-  char const* catnam= m_catnam.str;
   uchar* coltype= m_coltype;
 
   m_memory= (uchar*) my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME),
-                                     &m_catnam.str, (uint) m_catnam.length,
                                      &m_dbnam, (uint) m_dblen + 1,
                                      &m_tblnam, (uint) m_tbllen + 1,
                                      &m_coltype, (uint) m_colcnt,
@@ -3030,13 +3020,11 @@ int Table_map_log_event::rewrite_db(const char *new_db, size_t new_len,
   if (!m_memory)
   {
     sql_print_error("Table_map_log_event::rewrite_db: "
-                    "failed to allocate new m_memory (%d, %d + %d + %d bytes required)",
-                    (int) m_catnam.length + 1,+ m_dblen + 1, m_tbllen + 1,
-                    m_colcnt);
+                    "failed to allocate new m_memory (%d + %d + %d bytes required)",
+                    m_dblen + 1, m_tbllen + 1, m_colcnt);
     DBUG_RETURN(-1);
   }
 
-  memcpy((void*)m_catnam.str, catnam, m_catnam.length+1);
   memcpy((void*)m_dbnam, new_db, m_dblen + 1);
   memcpy((void*)m_tblnam, tblnam, m_tbllen + 1);
   memcpy(m_coltype, coltype, m_colcnt);
@@ -3051,26 +3039,13 @@ bool Table_map_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
   if (!print_event_info->short_form)
   {
     char llbuff[22];
-    char options[80], *ptr;
-
-    ptr= options;
-    if (m_flags & (TM_BIT_HAS_TRIGGERS_F | TM_BIT_HAS_CATALOG_F))
-    {
-      ptr= strmov(ptr, " (has ");
-      if (m_flags & TM_BIT_HAS_TRIGGERS_F)
-        ptr= strmov(ptr, "triggers,");
-      if (m_flags & TM_BIT_HAS_CATALOG_F)
-        ptr= strmov(ptr, "catalog,");
-      ptr[-1]= ')';
-      ptr++;
-    }
-    *ptr= 0;
 
     print_header(&print_event_info->head_cache, print_event_info, TRUE);
     if (my_b_printf(&print_event_info->head_cache,
                     "\tTable_map: %`s.%`s mapped to number %s%s\n",
                     m_dbnam, m_tblnam, ullstr(m_table_id, llbuff),
-                    options))
+                    ((m_flags & TM_BIT_HAS_TRIGGERS_F) ?
+                     " (has triggers)" : "")))
       goto err;
   }
   if (!print_event_info->short_form || print_event_info->print_row_count)
@@ -3653,8 +3628,8 @@ st_print_event_info::st_print_event_info()
   bzero(db, sizeof(db));
   bzero(charset, sizeof(charset));
   bzero(time_zone_str, sizeof(time_zone_str));
-  // Set catalog to impossible value to ensure that catalog is updated later!
-  catalog= (SQL_CATALOG *) 1;
+  catalog_name[0]= '\0';
+  catalog_length= 0;
   delimiter[0]= ';';
   delimiter[1]= 0;
   flags2_inited= 0;
@@ -3725,6 +3700,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                                Write_on_release_cache::FLUSH_F, this);
   char buf[21];
   char buf2[21];
+  bool different;
 
   if (!print_event_info->short_form && !is_flashback)
   {
@@ -3797,6 +3773,19 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                       buf, print_event_info->delimiter))
         goto err;
   }
+
+  different= print_event_info->catalog_length != cat_name->length ||
+    memcmp(print_event_info->catalog_name, cat_name->str, cat_name->length);
+  if (different)
+  {
+    print_event_info->catalog_length= cat_name->length;
+    memcpy(print_event_info->catalog_name, cat_name->str, cat_name->length);
+    if (my_b_printf(&cache, "/*!110600 SET CATALOG `%.*s` */%s\n",
+                    cat_name->length, cat_name->str,
+                    print_event_info->delimiter))
+      goto err;
+  }
+
   if ((flags2 & FL_PREPARED_XA) && !is_flashback)
   {
     my_b_write_string(&cache, "XA START ");

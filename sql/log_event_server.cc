@@ -995,21 +995,13 @@ void Query_log_event::pack_info(Protocol *protocol)
 {
   char buf_mem[1024];
   String buf(buf_mem, sizeof(buf_mem), system_charset_info);
-  buf.real_alloc(30 + ((catalog ? catalog->name.length : 0 )+ db_len)*2 + q_len);
-  if (!(flags & LOG_EVENT_SUPPRESS_USE_F))
+  buf.real_alloc(9 + db_len + q_len);
+  if (!(flags & LOG_EVENT_SUPPRESS_USE_F)
+      && db && db_len)
   {
-    if (catalog)
-    {
-      buf.append(STRING_WITH_LEN("SET CATALOG "));
-      append_identifier(protocol->thd, &buf, catalog->name.str, catalog->name.length);
-      buf.append(STRING_WITH_LEN("; "));
-    }
-    if (db && db_len)
-    {
-      buf.append(STRING_WITH_LEN("use "));
-      append_identifier(protocol->thd, &buf, db, db_len);
-      buf.append(STRING_WITH_LEN("; "));
-    }
+    buf.append(STRING_WITH_LEN("use "));
+    append_identifier(protocol->thd, &buf, db, db_len);
+    buf.append(STRING_WITH_LEN("; "));
   }
 
   DBUG_ASSERT(!flags2 || flags2_inited);
@@ -1139,7 +1131,7 @@ bool Query_log_event::write()
     int8store(start, (ulonglong)sql_mode);
     start+= 8;
   }
-  store_str_with_code_and_len(&start, catalog->name.str, catalog->name.length,
+  store_str_with_code_and_len(&start, catalog, catalog_len,
                               (uint) Q_CATALOG_NZ_CODE);
   /*
     In 5.0.x where x<4 masters we used to store the end zero here. This was
@@ -1383,7 +1375,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
               ? LOG_EVENT_THREAD_SPECIFIC_F : 0) |
              (suppress_use ? LOG_EVENT_SUPPRESS_USE_F : 0),
 	     using_trans),
-   data_buf(0),  catalog(thd_arg->catalog), query(query_arg),
+   data_buf(0),  catalog(thd_arg->catalog->name.str), query(query_arg),
    q_len((uint32) query_length),
    thread_id(thd_arg->thread_id),
    /* save the original thread id; we already know the server id */
@@ -1422,6 +1414,11 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
 
   end_time= my_time(0);
   exec_time = (ulong) (end_time  - thd_arg->start_time);
+  /**
+    @todo this means that if we have no catalog, then it is replicated
+    as an existing catalog of length zero. is that safe? /sven
+  */
+  catalog_len = (catalog) ? (uint32) strlen(catalog) : 0;
 
   if (!(db= thd->db.str))
     db= "";
@@ -1855,9 +1852,13 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
   bool skip_error_check= false;
   DBUG_ENTER("Query_log_event::do_apply_event");
 
-  DBUG_ASSERT(catalog);
-  if (thd->catalog != catalog)
-    thd->change_catalog(const_cast<SQL_CATALOG*>(catalog));
+  /*
+    Colleagues: please never free(thd->catalog) in MySQL. This would
+    lead to bugs as here thd->catalog is a part of an alloced block,
+    not an entire alloced block (see
+    Query_log_event::do_apply_event()). Same for thd->db.  Thank
+    you.
+  */
   rgi->start_alter_ev= this;
 
   size_t valid_len= Well_formed_prefix(system_charset_info,
@@ -2347,11 +2348,6 @@ Query_log_event::do_shall_skip(rpl_group_info *rgi)
   DBUG_PRINT("debug", ("query: '%s'  q_len: %d", query, q_len));
   DBUG_ASSERT(query && q_len > 0);
   DBUG_ASSERT(thd == rgi->thd);
-
-  /* Set thd to point to the current catalog */
-  DBUG_ASSERT(catalog);
-  if (thd->catalog != catalog)
-    thd->change_catalog(const_cast<SQL_CATALOG*>(catalog));
 
   /*
     An event skipped due to @@skip_replication must not be counted towards the
@@ -3157,9 +3153,22 @@ Gtid_log_event::make_compatible_event(String *packet, bool *need_dummy_event,
 void
 Gtid_log_event::pack_info(Protocol *protocol)
 {
-  char buf[6+5+10+1+10+1+20+1+4+20+1+ ser_buf_size+5 /* sprintf */];
-  char *p;
-  p = strmov(buf, (flags2 & FL_STANDALONE  ? "GTID " :
+  static constexpr int catalog_needed= 12 + 2*MAX_CATALOG_NAME+2 + 2;
+  char buf[catalog_needed+6+5+10+1+10+1+20+1+4+20+1+
+           ser_buf_size+5 /* sprintf */];
+  char *p= buf;
+  if (flags_extra & FL_CATALOG)
+  {
+    char buf_mem[2*MAX_CATALOG_NAME+2];
+    String buf2(buf_mem, sizeof(buf_mem), system_charset_info);
+    append_identifier(protocol->thd, &buf2, cat_name->str, cat_name->length);
+    size_t buf2_len= std::min(buf2.length(), (uint32)(2*MAX_CATALOG_NAME+2));
+    DBUG_ASSERT(buf2_len == buf2.length());
+    p= strmov(p, "SET CATALOG ");
+    memcpy(p, buf2.ptr(), buf2_len);
+    p= strmov(p + buf2_len, "; ");
+  }
+  p = strmov(p, (flags2 & FL_STANDALONE  ? "GTID " :
                    flags2 & FL_PREPARED_XA ? "XA START " : "BEGIN GTID "));
   if (flags2 & FL_PREPARED_XA)
   {
@@ -3213,6 +3222,29 @@ Gtid_log_event::do_apply_event(rpl_group_info *rgi)
     if (mysql_bin_log.check_strict_gtid_sequence(this->domain_id,
                                                  this->server_id, this->seq_no))
       return 1;
+  }
+
+  if (using_catalogs)
+  {
+    if (flags_extra & FL_CATALOG)
+    {
+      if (!thd->catalog || cmp(cat_name, &thd->catalog->name))
+      {
+        SQL_CATALOG *catalog= get_catalog(cat_name, 1);
+        if (!catalog)
+        {
+          my_error(ER_NO_SUCH_CATALOG, MYF(ME_ERROR_LOG),
+                   cat_name->length, cat_name->str);
+          return 1;
+        }
+        thd->change_catalog(catalog);
+      }
+    }
+    else
+    {
+      if (thd->catalog != default_catalog())
+        thd->change_catalog(default_catalog());
+    }
   }
 
   DBUG_ASSERT((bits & OPTION_GTID_BEGIN) == 0);
@@ -5689,8 +5721,6 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
                                          bool is_transactional)
   : Log_event(thd, 0, is_transactional),
     m_table(tbl),
-    m_catalog(thd->catalog),
-    m_catnam(empty_clex_str),
     m_dbnam(tbl->s->db.str),
     m_dblen(m_dbnam ? tbl->s->db.length : 0),
     m_tblnam(tbl->s->table_name.str),
@@ -5736,11 +5766,6 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulong tid,
 
   if (tbl->triggers)
     m_flags|= TM_BIT_HAS_TRIGGERS_F;
-  if (m_catalog != default_catalog())
-  {
-    m_flags|= TM_BIT_HAS_CATALOG_F;
-    m_data_size+= m_catalog->name.length+2;
-  }
 
   /* If malloc fails, caught in is_valid() */
   if ((m_memory= (uchar*) my_malloc(PSI_INSTRUMENT_ME, m_colcnt, MYF(MY_WME))))
@@ -5910,8 +5935,6 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
 
   /* Step the query id to mark what columns that are actually used. */
   thd->set_query_id(next_query_id());
-  if (thd->catalog != m_catalog)
-    thd->change_catalog(const_cast<SQL_CATALOG*>(m_catalog));
 
   if (!(memory= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                                 &table_list, (uint) sizeof(RPL_TABLE_LIST),
@@ -5938,7 +5961,7 @@ int Table_map_log_event::do_apply_event(rpl_group_info *rgi)
   LEX_CSTRING tmp_db_name=  {db_mem, db_mem_length };
   LEX_CSTRING tmp_tbl_name= {tname_mem, tname_mem_length };
 
-  table_list->init_one_table(m_catalog, &tmp_db_name, &tmp_tbl_name, 0,
+  table_list->init_one_table(thd->catalog, &tmp_db_name, &tmp_tbl_name, 0,
                              TL_WRITE);
   table_list->table_id= DBUG_IF("inject_tblmap_same_id_maps_diff_table") ? 0 : m_table_id;
   table_list->updating= 1;
@@ -6079,13 +6102,6 @@ bool Table_map_log_event::write_data_body()
   uchar mbuf[MAX_INT_WIDTH];
   uchar *const mbuf_end= net_store_length(mbuf, m_field_metadata_size);
 
-  if (m_flags & TM_BIT_HAS_CATALOG_F)
-  {
-    uchar const len[]= { (uchar) m_catalog->name.length };
-    if (write_data(len, 1) ||
-        write_data(m_catalog->name.str, m_catalog->name.length+1))
-      return 1;
-  }
   return write_data(dbuf,      sizeof(dbuf)) ||
          write_data(m_dbnam,   m_dblen+1) ||
          write_data(tbuf,      sizeof(tbuf)) ||

@@ -838,7 +838,7 @@ typedef struct st_print_event_info
     them if they are unchanged.
   */
   char db[FN_REFLEN+1]; // TODO: make this a LEX_STRING when thd->db is
-  const SQL_CATALOG *catalog;
+  char catalog_name[MAX_CATALOG_NAME];
   char charset[6]; // 3 variables, each of them storable in 2 bytes
   char time_zone_str[MAX_TIME_ZONE_NAME_LENGTH];
   char delimiter[16];
@@ -2082,8 +2082,7 @@ class Query_log_event: public Log_event
 protected:
   Log_event::Byte* data_buf;
 public:
-  const SQL_CATALOG *catalog;
-  LEX_CSTRING catalog_name;
+  const char *catalog;
   const char *db;
   const char *query;
   /*
@@ -2106,6 +2105,8 @@ public:
     Binlog format 3 and 4 start to differ (as far as class members are
     concerned) from here.
   */
+
+  uint catalog_len;			// <= 255 char; 0 means uninited
 
   /*
     We want to be able to store a variable number of N-bit status vars:
@@ -3791,19 +3792,8 @@ private:
     <td>Has the following bit values</tdd>
     <td>TM_BIT_LEN_EXACT_F= 1 << 0</td>
     <td>TM_BIT_HAS_TRIGGERS=1 << 14</td>
-    <td>TM_BIT_HAS_CATALOG= 1 << 15</td>
   </tr>
 
-  <tr>
-    <td>catalog_name</td>
-    <td>one byte string length, followed by null-terminated string</td>
-    <td>The name of the catalog in which the table resides.  The name
-    is represented as a one byte unsigned integer representing the
-    number of bytes in the name, followed by length bytes containing
-    the database name, followed by a terminating 0 byte.  (Note the
-    redundancy in the representation of the length.)
-    This entry only exists if bit TM_BIT_HAS_CATALOG is set.</td>
-  </tr>
   </table>
 
   The Body has the following components:
@@ -4362,8 +4352,7 @@ public:
     TM_NO_FLAGS = 0U,
     TM_BIT_LEN_EXACT_F = (1U << 0),
     // MariaDB flags (we starts from the other end)
-    TM_BIT_HAS_TRIGGERS_F= (1U << 14),
-    TM_BIT_HAS_CATALOG_F=  (1U << 15),
+    TM_BIT_HAS_TRIGGERS_F= (1U << 14)
   };
 
   flag_set get_flags(flag_set flag) const { return m_flags & flag; }
@@ -4468,8 +4457,6 @@ private:
   class Default_charset_iterator;
   class Column_charset_iterator;
 #endif
-  const SQL_CATALOG   *m_catalog;
-  LEX_CSTRING m_catnam;                      // Used by mysqlbinlog
   char const    *m_dbnam;
   size_t         m_dblen;
   char const    *m_tblnam;
