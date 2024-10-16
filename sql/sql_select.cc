@@ -26088,6 +26088,7 @@ static int test_if_order_by_key(JOIN *join, ORDER *order, TABLE *table,
   DBUG_ENTER("test_if_order_by_key");
  
   if ((table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) && 
+      idx < table->s->keys &&
       table->key_info[idx].ext_key_part_map && pk != MAX_KEY && pk != idx)
   {
     have_pk_suffix= true;
