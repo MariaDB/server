@@ -241,7 +241,7 @@ buf_block_t *btr_block_get(const dict_index_t &index,
       *err= DB_PAGE_CORRUPTED;
       block= nullptr;
     }
-    else if (!buf_page_make_young_if_needed(&block->page) && first)
+    else if (!block->page.flag_accessed() && first)
       *first= true;
   }
   else
@@ -305,7 +305,7 @@ btr_root_block_get(
       block= nullptr;
     }
     else
-      buf_page_make_young_if_needed(&block->page);
+      block->page.flag_accessed();
   }
   else
     btr_read_failed(*err, *index);
@@ -558,7 +558,7 @@ btr_page_alloc_for_ibuf(
                      0, RW_X_LATCH, nullptr, BUF_GET, mtr, err);
   if (new_block)
   {
-    buf_page_make_young_if_needed(&new_block->page);
+    new_block->page.flag_accessed();
     *err= flst_remove(root, PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST, new_block,
                       PAGE_HEADER + PAGE_BTR_IBUF_FREE_LIST_NODE,
                       fil_system.sys_space->free_limit, mtr);
@@ -695,10 +695,7 @@ dberr_t btr_page_free(dict_index_t* index, buf_block_t* block, mtr_t* mtr,
   /* The root page is freed by btr_free_root(). */
   ut_ad(page != index->page);
   ut_ad(mtr->is_named_space(index->table->space));
-
-  /* The page gets invalid for optimistic searches: increment the frame
-  modify clock */
-  buf_block_modify_clock_inc(block);
+  block->invalidate();
 
   /* TODO: Discard any operations for block from mtr->m_log.
   The page will be freed, so previous changes to it by this
@@ -1383,7 +1380,7 @@ btr_write_autoinc(dict_index_t* index, ib_uint64_t autoinc, bool reset)
   if (buf_block_t *root= buf_page_get(page_id_t(space->id, index->page),
 				      space->zip_size(), RW_SX_LATCH, &mtr))
   {
-    buf_page_make_young_if_needed(&root->page);
+    root->page.flag_accessed();
     mtr.set_named_space(space);
     page_set_autoinc(root, autoinc, &mtr, reset);
   }
@@ -2808,7 +2805,7 @@ btr_insert_into_right_sibling(
 
 	if (!rec) {
 		if (is_leaf
-		    && next_block->page.zip.ssize
+		    && next_block->page.zip.ssize()
 		    && !dict_index_is_clust(cursor->index())
 		    && !cursor->index()->table->is_temporary()) {
 			/* Reset the IBUF_BITMAP_FREE bits, because
@@ -2860,7 +2857,7 @@ btr_insert_into_right_sibling(
 		/* Update the free bits of the B-tree page in the
 		insert buffer bitmap. */
 
-		if (next_block->page.zip.ssize) {
+		if (next_block->page.zip.ssize()) {
 			ibuf_update_free_bits_zip(next_block, mtr);
 		} else {
 			ibuf_update_free_bits_if_full(

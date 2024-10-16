@@ -26,6 +26,7 @@ Created 6/9/1994 Heikki Tuuri
 
 #include "mem0mem.h"
 #include "buf0buf.h"
+#include "buf0lru.h"
 #include "srv0srv.h"
 #include <stdarg.h>
 

@@ -116,10 +116,20 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   buf_page_t *bpage= nullptr;
   buf_block_t *block= nullptr;
-  if (!zip_size || unzip || recv_recovery_is_on())
+  uint16_t ssize= 0;
+  if (zip_size)
   {
+    for (ssize= 1; zip_size > (512U << ssize); ssize++) {}
+    ut_ad(ssize < 1U << PAGE_ZIP_SSIZE_BITS);
+    ut_ad(zip_size == 512U << ssize);
+    if (unzip || recv_recovery_is_on())
+      goto allocate_uncompressed;
+  }
+  else
+  {
+  allocate_uncompressed:
     block= buf_LRU_get_free_block(false);
-    block->initialise(page_id, zip_size, buf_page_t::READ_FIX);
+    block->initialise(page_id, ssize, buf_page_t::READ_FIX);
     /* x_unlock() will be invoked
     in buf_page_t::read_complete() by the io-handler thread. */
     block->page.lock.x_lock(true);
@@ -184,10 +194,11 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   }
   else
   {
-    /* The compressed page must be allocated before the
-    control block (bpage), in order to avoid the
-    invocation of buf_buddy_relocate_block() on
-    uninitialized data. */
+    ut_ad(ut_is_2pow(zip_size));
+
+    /* The ROW_FORMAT=COMPRESSED page must be allocated before the
+    block descriptor bpage in order to avoid the invocation of
+    buf_buddy_relocate_block() on uninitialized data. */
     bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
 
@@ -208,12 +219,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
     bpage= static_cast<buf_page_t*>(ut_zalloc_nokey(sizeof *bpage));
 
-    page_zip_des_init(&bpage->zip);
-    page_zip_set_size(&bpage->zip, zip_size);
-    bpage->zip.data = (page_zip_t*) data;
-
     bpage->lock.init();
-    bpage->init(buf_page_t::READ_FIX, page_id);
+    bpage->init(buf_page_t::READ_FIX, page_id, ssize);
+    bpage->zip.data= static_cast<page_zip_t*>(data);
     bpage->lock.x_lock(true);
 
     {
@@ -406,8 +414,13 @@ ulint buf_read_ahead_random(const page_id_t page_id, bool ibuf)
     transactional_shared_lock_guard<page_hash_latch> g
       {buf_pool.page_hash.lock_get(chain)};
     if (const buf_page_t *bpage= buf_pool.page_hash.get(i, chain))
-      if (bpage->is_accessed() && buf_page_peek_if_young(bpage) && !--count)
+    {
+      const auto state= bpage->zip.get_state();
+      if ((bpage->zip.is_accessed(state) ||
+           (!bpage->zip.old(state) && bpage->is_accessed())) &&
+          !--count)
         goto read_ahead;
+    }
   }
 
   goto no_read_ahead;
@@ -435,8 +448,8 @@ read_ahead:
   {
     mariadb_increment_pages_prefetched(count);
     DBUG_PRINT("ib_buf", ("random read-ahead %zu pages from %s: %u",
-			  count, space->chain.start->name,
-			  low.page_no()));
+                          count, space->chain.start->name,
+                          low.page_no()));
     mysql_mutex_lock(&buf_pool.mutex);
     /* Read ahead is considered one I/O operation for the purpose of
     LRU policy decision. */

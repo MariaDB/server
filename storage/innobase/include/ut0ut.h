@@ -37,12 +37,6 @@ Created 1/20/1994 Heikki Tuuri
 
 #include "db0err.h"
 
-#include <time.h>
-
-#ifndef MYSQL_SERVER
-#include <ctype.h>
-#endif /* MYSQL_SERVER */
-
 #include <stdarg.h>
 
 #include <string>
@@ -136,15 +130,6 @@ ulint
 ut_2_exp(
 /*=====*/
 	ulint	n);	/*!< in: number */
-
-/**********************************************************//**
-Returns the number of milliseconds since some epoch.  The
-value may wrap around.  It should only be used for heuristic
-purposes.
-@return ms since epoch */
-ulint
-ut_time_ms(void);
-/*============*/
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Determine how many bytes (groups of 8 bits) are needed to
