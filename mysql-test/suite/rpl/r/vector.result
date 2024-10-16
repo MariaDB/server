@@ -1,0 +1,14 @@
+include/master-slave.inc
+[connection master]
+#
+# MDEV-35160 RBR does not work with vector type, ER_SLAVE_CONVERSION_FAILED
+#
+create table t (pk int primary key, a vector(1) not null);
+insert into t values (1, 0x00000000);
+connection slave;
+select pk, vec_totext(a) from t;
+pk	vec_totext(a)
+1	[0]
+connection master;
+drop table t;
+include/rpl_end.inc
