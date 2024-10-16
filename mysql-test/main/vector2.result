@@ -29,7 +29,7 @@ ERROR 22007: Incorrect vector value: 'ffffffffffffffffffffffffffffffffffffffff' 
 insert t1 values (1, repeat(x'56', 40));
 select b from t1;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	b	b	253	40	40	Y	128	0	63
+def	test	t1	t1	b	b	242	40	40	Y	128	0	63
 b
 VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
 Field   1:  `b`
@@ -38,7 +38,7 @@ Catalog:    `def`
 Database:   `test`
 Table:      `t1`
 Org_table:  `t1`
-Type:       VAR_STRING
+Type:       VECTOR
 Collation:  binary (63)
 Length:     40
 Max_length: 40
