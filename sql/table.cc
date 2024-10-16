@@ -6436,7 +6436,7 @@ int TABLE_LIST::view_check_option(THD *thd, bool ignore_failure)
     /* VIEW's CHECK OPTION CLAUSE */
     Counting_error_handler ceh;
     thd->push_internal_handler(&ceh);
-    bool res= check_option->val_int() == 0;
+    bool res= check_option->val_bool() == false;
     thd->pop_internal_handler();
     if (ceh.errors)
       return(VIEW_CHECK_ERROR);
@@ -6479,7 +6479,7 @@ int TABLE::verify_constraints(bool ignore_failure)
         yes! NULL is ok.
         see 4.23.3.4 Table check constraints, part 2, SQL:2016
       */
-      if (((*chk)->expr->val_int() == 0 && !(*chk)->expr->null_value) ||
+      if (((*chk)->expr->val_bool() == false && !(*chk)->expr->null_value) ||
           in_use->is_error())
       {
         enum_vcol_info_type vcol_type= (*chk)->get_vcol_type();
@@ -9381,6 +9381,14 @@ void TABLE::vers_update_end()
   if (vers_end_field()->store_timestamp(in_use->query_start(),
                                         in_use->query_start_sec_part()))
     DBUG_ASSERT(0);
+<<<<<<< HEAD
+||||||| c6e4ea682cb
+  vers_end_field()->set_has_explicit_value();
+=======
+  vers_end_field()->set_has_explicit_value();
+  if (vfield)
+    update_virtual_fields(file, VCOL_UPDATE_FOR_WRITE);
+>>>>>>> upstream/10.6
 }
 
 /**

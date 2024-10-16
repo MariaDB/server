@@ -5435,5 +5435,22 @@ AsText(g)
 POINT(1 1)
 DROP TABLE t1;
 #
-# End of 10.5 tests
+# MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 #
+create table t1 (c polygon);
+insert into t1 values
+(PolygonFromText('POLYGON((1 2,1 2))')),
+(PolygonFromText('POLYGON((0 0,1 1,0 0))'));
+select length(group_concat(c, c order by 1,2)) from t1;
+length(group_concat(c, c order by 1,2))
+229
+create table t2 as select group_concat(c, c order by 1,2), concat(c), c from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `group_concat(c, c order by 1,2)` mediumblob DEFAULT NULL,
+  `concat(c)` longblob DEFAULT NULL,
+  `c` polygon DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1, t2;
+# End of 10.5 tests

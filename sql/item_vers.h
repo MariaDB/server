@@ -34,8 +34,15 @@ public:
   }
 
   bool val_bool() override;
+<<<<<<< HEAD
   longlong val_int() override { return val_bool(); }
   bool fix_length_and_dec(THD *thd) override
+||||||| c6e4ea682cb
+  longlong val_int() override { return val_bool(); }
+  bool fix_length_and_dec() override
+=======
+  bool fix_length_and_dec() override
+>>>>>>> upstream/10.6
   {
     set_maybe_null();
     null_value= 0;
@@ -126,7 +133,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees") };
     return name;
   }
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };

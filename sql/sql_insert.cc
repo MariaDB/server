@@ -1880,10 +1880,6 @@ int vers_insert_history_row(TABLE *table)
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
 
-  if (table->vfield &&
-      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ))
-    return HA_ERR_GENERIC;
-
   return table->file->ha_write_row(table->record[0]);
 }
 
@@ -4624,20 +4620,24 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   bool save_table_creation_was_logged;
   DBUG_ENTER("select_create::create_table_from_items");
 
+  tmp_table.reset();
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
-
-  tmp_table.s->db_create_options=0;
-  tmp_table.null_row= 0;
-  tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
 
+<<<<<<< HEAD
   if (create_info->fix_create_fields(thd, alter_info, *table_list))
     DBUG_RETURN(NULL);
 
+||||||| c6e4ea682cb
+  if (create_info->fix_create_fields(thd, alter_info, *create_table))
+    DBUG_RETURN(NULL);
+
+=======
+>>>>>>> upstream/10.6
   while ((item=it++))
   {
     Field *tmp_field= item->create_field_for_create_select(thd->mem_root,
@@ -4674,6 +4674,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
+
+  if (create_info->fix_create_fields(thd, alter_info, *create_table))
+    DBUG_RETURN(NULL);
 
   /*
     Item*::type_handler() always returns pointers to

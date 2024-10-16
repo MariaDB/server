@@ -568,7 +568,7 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 }
 
 
-longlong Item_func_json_valid::val_int()
+bool Item_func_json_valid::val_bool()
 {
   String *js= args[0]->val_json(&tmp_value);
 
@@ -649,7 +649,7 @@ bool Item_func_json_exists::fix_length_and_dec(THD *thd)
 }
 
 
-longlong Item_func_json_exists::val_int()
+bool Item_func_json_exists::val_bool()
 {
   json_engine_t je;
   int array_counters[JSON_DEPTH_LIMIT];
@@ -1460,7 +1460,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 }
 
 
-longlong Item_func_json_contains::val_int()
+bool Item_func_json_contains::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
@@ -1678,7 +1678,7 @@ return_null:
 }
 #endif /*DUMMY*/
 
-longlong Item_func_json_contains_path::val_int()
+bool Item_func_json_contains_path::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je;
