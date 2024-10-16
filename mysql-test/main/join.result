@@ -3579,3 +3579,35 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	seq	ALL	NULL	NULL	NULL	NULL	10	Using where; Using join buffer (flat, BNL join)
 drop table t1,t2;
 set @@optimizer_adjust_secondary_key_costs=default;
+#
+# MDEV-35180: ref_to_range rewrite causes poor query plan
+#
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+create table t2 (
+kp1 int,
+kp2 int,
+filler char(100),
+key(kp1, kp2)
+);
+insert into t2
+select
+seq, seq,
+'filler-data'
+from seq_1_to_10000;
+analyze table t1,t2;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	Table is already up to date
+# For t2, this must use type=ref, key_len=5 (not type=range, key_len=10)
+explain
+select *
+from t1, t2
+where
+t2.kp1=t1.a and t2.kp1<=100 and t2.kp2<=20;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
+1	SIMPLE	t2	ref	kp1	kp1	5	test.t1.a	1	Using index condition
+drop table t1,t2;
