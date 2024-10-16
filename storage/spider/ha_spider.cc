@@ -52,13 +52,9 @@ extern pthread_mutex_t spider_lgtm_tblhnd_share_mutex;
 /* UTC time zone for timestamp columns */
 extern Time_zone *UTC;
 
-ha_spider::ha_spider(
-) : handler(spider_hton_ptr, NULL)
+void ha_spider::init_fields()
 {
-  DBUG_ENTER("ha_spider::ha_spider");
-  DBUG_PRINT("info",("spider this=%p", this));
-  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
-  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  DBUG_ENTER("ha_spider::init_fields");
   share = NULL;
   conns = NULL;
   need_mons = NULL;
@@ -87,9 +83,7 @@ ha_spider::ha_spider(
   sql_kinds = 0;
   error_mode = 0;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   dml_inited = FALSE;
   use_pre_call = FALSE;
   use_pre_action = FALSE;
@@ -115,6 +109,20 @@ ha_spider::ha_spider(
   result_list.casual_read = NULL;
   result_list.use_both_key = FALSE;
   result_list.in_cmp_ref = FALSE;
+  result_list.skips= NULL;
+  result_list.n_aux= 0;
+  ref_length = sizeof(SPIDER_POSITION);
+  DBUG_VOID_RETURN;
+}
+
+ha_spider::ha_spider(
+) : handler(spider_hton_ptr, NULL)
+{
+  DBUG_ENTER("ha_spider::ha_spider");
+  DBUG_PRINT("info",("spider this=%p", this));
+  spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_1);
+  spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
@@ -127,63 +135,7 @@ ha_spider::ha_spider(
   DBUG_PRINT("info",("spider this=%p", this));
   spider_alloc_calc_mem_init(mem_calc, SPD_MID_HA_SPIDER_HA_SPIDER_2);
   spider_alloc_calc_mem(spider_current_trx, mem_calc, sizeof(*this));
-  share = NULL;
-  conns = NULL;
-  need_mons = NULL;
-  blob_buff = NULL;
-  conn_keys = NULL;
-  spider_thread_id = 0;
-  trx_conn_adjustment = 0;
-  search_link_query_id = 0;
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-  partition_handler = NULL;
-#endif
-#ifdef HA_MRR_USE_DEFAULT_IMPL
-  multi_range_keys = NULL;
-  mrr_key_buff = NULL;
-#endif
-  append_tblnm_alias = NULL;
-  use_index_merge = FALSE;
-  is_clone = FALSE;
-  pt_clone_source_handler = NULL;
-  pt_clone_last_searcher = NULL;
-  ft_handler = NULL;
-  ft_first = NULL;
-  ft_current = NULL;
-  ft_count = 0;
-  ft_init_without_index_init = FALSE;
-  sql_kinds = 0;
-  error_mode = 0;
-  use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
-  use_fields = FALSE;
-#endif
-  dml_inited = FALSE;
-  use_pre_call = FALSE;
-  use_pre_action = FALSE;
-  do_direct_update = FALSE;
-  prev_index_rnd_init = SPD_NONE;
-  direct_aggregate_item_first = NULL;
-  result_link_idx = 0;
-  result_list.have_sql_kind_backup = FALSE;
-  result_list.sqls = NULL;
-  result_list.insert_sqls = NULL;
-  result_list.update_sqls = NULL;
-  result_list.tmp_sqls = NULL;
-  result_list.tmp_tables_created = FALSE;
-  result_list.bgs_working = FALSE;
-  result_list.direct_order_limit = FALSE;
-  result_list.direct_limit_offset = FALSE;
-  result_list.set_split_read = FALSE;
-  result_list.insert_dup_update_pushdown = FALSE;
-  result_list.tmp_pos_row_first = NULL;
-  result_list.direct_aggregate = FALSE;
-  result_list.snap_direct_aggregate = FALSE;
-  result_list.direct_distinct = FALSE;
-  result_list.casual_read = NULL;
-  result_list.use_both_key = FALSE;
-  result_list.in_cmp_ref = FALSE;
-  ref_length = sizeof(SPIDER_POSITION);
+  init_fields();
   DBUG_VOID_RETURN;
 }
 
@@ -290,7 +242,7 @@ int ha_spider::open(
     uchar *rnd_write_bitmap;
     if (!(wide_handler = (SPIDER_WIDE_HANDLER *)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_1, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -310,7 +262,7 @@ int ha_spider::open(
           (uint) sizeof(SPIDER_PARTITION_HANDLER),
         NullS)
 #else
-      spider_bulk_malloc(spider_current_trx, 16, MYF(MY_WME | MY_ZEROFILL),
+      spider_bulk_malloc(spider_current_trx, SPD_MID_HA_SPIDER_OPEN_2, MYF(MY_WME | MY_ZEROFILL),
         &wide_handler, sizeof(SPIDER_WIDE_HANDLER),
         &searched_bitmap,
           (uint) sizeof(uchar) * no_bytes_in_map(table->read_set),
@@ -1213,9 +1165,7 @@ int ha_spider::reset()
   result_list.set_split_read = FALSE;
   result_list.insert_dup_update_pushdown = FALSE;
   use_spatial_index = FALSE;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   use_fields = FALSE;
-#endif
   error_mode = 0;
   DBUG_RETURN(error_num);
 }
@@ -1223,7 +1173,6 @@ int ha_spider::reset()
 int ha_spider::extra(
   enum ha_extra_function operation
 ) {
-  int error_num;
   DBUG_ENTER("ha_spider::extra");
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_PRINT("info",("spider operation=%d", (int) operation));
@@ -1272,16 +1221,6 @@ int ha_spider::extra(
       break;
     case HA_EXTRA_INSERT_WITH_UPDATE:
       wide_handler->insert_with_update = TRUE;
-      break;
-    case HA_EXTRA_ATTACH_CHILDREN:
-      DBUG_PRINT("info",("spider HA_EXTRA_ATTACH_CHILDREN"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
-      break;
-    case HA_EXTRA_ADD_CHILDREN_LIST:
-      DBUG_PRINT("info",("spider HA_EXTRA_ADD_CHILDREN_LIST"));
-      if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
-        DBUG_RETURN(error_num);
       break;
     case HA_EXTRA_STARTING_ORDERED_INDEX_SCAN:
       DBUG_PRINT("info",("spider HA_EXTRA_STARTING_ORDERED_INDEX_SCAN"));
@@ -5757,13 +5696,6 @@ int ha_spider::info(
   DBUG_PRINT("info",("spider flag=%x", flag));
   auto_inc_temporary = FALSE;
   wide_handler->sql_command = thd_sql_command(thd);
-/*
-  if (
-    sql_command == SQLCOM_DROP_TABLE ||
-    sql_command == SQLCOM_ALTER_TABLE ||
-    sql_command == SQLCOM_SHOW_CREATE
-  ) {
-*/
     if (flag & HA_STATUS_AUTO)
     {
       if (share->lgtm_tblhnd_share->auto_increment_value)
@@ -8142,6 +8074,8 @@ void ha_spider::update_create_info(
   DBUG_PRINT("info",("spider this=%p", this));
   if (wide_handler && wide_handler->sql_command == SQLCOM_ALTER_TABLE)
   {
+    if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &store_error_num)))
+      DBUG_VOID_RETURN;
     SPIDER_TRX *trx = wide_handler->trx;
     THD *thd = trx->thd;
     if (trx->query_id != thd->query_id)
@@ -11632,6 +11566,8 @@ int ha_spider::append_lock_tables_list()
   DBUG_PRINT("info",("spider lock_table_type=%u",
     wide_handler->lock_table_type));
 
+  if (!(wide_handler->trx = spider_get_trx(ha_thd(), TRUE, &error_num)))
+    DBUG_RETURN(error_num);
   if ((error_num = spider_check_trx_and_get_conn(wide_handler->trx->thd, this,
     FALSE)))
   {

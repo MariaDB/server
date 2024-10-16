@@ -2312,11 +2312,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  // check for SET PASSWORD
   if (!plugin)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_PLUGIN_IS_NOT_LOADED,
-                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), plugin_name);
     return ER_PLUGIN_IS_NOT_LOADED;
   }
 
@@ -2370,6 +2369,21 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   res= 0;
 end:
+  switch(res)
+  {
+    case ER_OUTOFMEMORY:        // should be reported by my_malloc
+    case ER_NOT_VALID_PASSWORD: // should be reported by plugin
+    case ER_PASSWD_LENGTH:      // should be reported by plugin
+      DBUG_ASSERT(thd->is_error());
+      /* fall through*/
+    case 0:
+      break;
+    case ER_SET_PASSWORD_AUTH_PLUGIN:
+      my_error(res, MYF(0), plugin_name);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
   if (unlock_plugin)
     plugin_unlock(thd, plugin);
   return res;
@@ -10192,6 +10206,10 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   int result= 0;
   int error;
   TABLE *table= grant_table.table();
+  DBUG_ENTER("handle_grant_table");
+  if (!table)
+    DBUG_RETURN(0);
+
   Field *host_field= table->field[0];
   Field *user_field= table->field[which_table == USER_TABLE ||
                                   which_table == PROXIES_PRIV_TABLE ? 1 : 2];
@@ -10201,7 +10219,6 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
-  DBUG_ENTER("handle_grant_table");
 
   if (which_table == ROLES_MAPPING_TABLE)
   {

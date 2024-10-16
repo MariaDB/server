@@ -4379,6 +4379,7 @@ bool Item_func_group_concat::setup(THD *thd)
   count_field_types(select_lex, tmp_table_param, all_fields, 0);
   tmp_table_param->force_copy_fields= force_copy_fields;
   tmp_table_param->hidden_field_count= (arg_count_order > 0);
+  tmp_table_param->group_concat= true;
   DBUG_ASSERT(table == 0);
   if (order_or_distinct)
   {
@@ -4406,11 +4407,10 @@ bool Item_func_group_concat::setup(THD *thd)
     Note that in the table, we first have the ORDER BY fields, then the
     field list.
   */
-  if (!(table= create_tmp_table(thd, tmp_table_param, all_fields,
-                                (ORDER*) 0, 0, TRUE,
-                                (select_lex->options |
-                                 thd->variables.option_bits),
-                                HA_POS_ERROR, &empty_clex_str)))
+  table= create_tmp_table(thd, tmp_table_param, all_fields, NULL, 0, TRUE,
+                          (select_lex->options | thd->variables.option_bits),
+                          HA_POS_ERROR, &empty_clex_str);
+  if (!table)
     DBUG_RETURN(TRUE);
   table->file->extra(HA_EXTRA_NO_ROWS);
   table->no_rows= 1;
@@ -4421,6 +4421,8 @@ bool Item_func_group_concat::setup(THD *thd)
   */
   if (order_or_distinct && table->s->blob_fields)
     table->blob_storage= new Blob_mem_storage();
+  else
+    table->blob_storage= NULL;
 
   /*
      Need sorting or uniqueness: init tree and choose a function to sort.

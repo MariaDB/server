@@ -647,28 +647,26 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       }
     }
 
+    const KEY *c_key= table->s->key_info + handler->keyno;
+    if (c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+        (ha_rkey_mode != HA_READ_KEY_EXACT &&
+         (table->file->index_flags(handler->keyno, 0, TRUE) &
+          (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
+    {
+      my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+               table->file->index_type(handler->keyno), c_key->name.str);
+      return 1;
+    }
+
     /* Check key parts */
     if (mode == RKEY)
     {
-      TABLE *table= handler->table;
       KEY *keyinfo= table->key_info + handler->keyno;
       KEY_PART_INFO *key_part= keyinfo->key_part;
       List_iterator<Item> it_ke(*key_expr);
       Item *item;
       key_part_map keypart_map;
       uint key_len;
-      const KEY *c_key= table->s->key_info + handler->keyno;
-
-      if ((c_key->flags & HA_SPATIAL) ||
-           c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
-          (ha_rkey_mode != HA_READ_KEY_EXACT &&
-           (table->file->index_flags(handler->keyno, 0, TRUE) &
-            (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
-      {
-        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name.str);
-        return 1;
-      }
 
       if (key_expr->elements > keyinfo->user_defined_key_parts)
       {

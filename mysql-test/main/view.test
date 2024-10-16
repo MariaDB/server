@@ -6726,3 +6726,35 @@ DROP VIEW v2;
 DROP TABLE t;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-29537: Creation of view with UNION and SELECT ... FOR UPDATE
+--echo # in definition is failed with error
+--echo #
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+UNION
+SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE;
+
+SELECT * FROM v1;
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (i INT);
+CREATE VIEW v1 AS SELECT 1 FROM t1
+                  UNION
+                  (SELECT 1 FROM DUAL WHERE 1 GROUP BY 1 HAVING 1 ORDER BY 1
+  FOR UPDATE);
+SELECT * FROM v1;
+
+SHOW CREATE VIEW v1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests

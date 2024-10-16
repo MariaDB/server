@@ -158,7 +158,6 @@ public:
     spider_string *to,
     String *from
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_tables_top_down_check(
     TABLE_LIST *table_list,
     TABLE_LIST **used_table_list,
@@ -188,7 +187,6 @@ public:
   int append_having(
     spider_string *str
   ) override;
-#endif
   bool append_charset_name_before_string() override;
 };
 
@@ -296,7 +294,7 @@ public:
   bool has_result() override;
   void free_result() override;
   SPIDER_DB_ROW *current_row() override;
-  SPIDER_DB_ROW *fetch_row() override;
+  SPIDER_DB_ROW *fetch_row(MY_BITMAP *) override;
   SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
   ) override;
@@ -1348,13 +1346,11 @@ public:
   int reset_sql(
     ulong sql_type
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   ) override;
-#endif
   int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1473,7 +1469,6 @@ public:
     int link_idx,
     ulong sql_type
   ) override;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1498,7 +1493,8 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields,
-    ulong sql_type
+    ulong sql_type,
+    int n_aux=0
   ) override;
   int append_list_item_select(
     List<Item> *select,
@@ -1506,7 +1502,8 @@ public:
     const char *alias,
     uint alias_length,
     bool use_fields,
-    spider_fields *fields
+    spider_fields *fields,
+    int n_aux
   );
   int append_group_by_part(
     ORDER *order,
@@ -1540,7 +1537,6 @@ public:
     bool use_fields,
     spider_fields *fields
   );
-#endif
   bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
