@@ -245,7 +245,7 @@ public:
 	    String &field_term,String &line_start,String &line_term,
 	    String &enclosed,int escape,bool get_it_from_net, bool is_fifo);
   ~READ_INFO();
-  int read_field();
+  int read_field(CHARSET_INFO *cs);
   int read_fixed_length(void);
   int next_line(void);
   char unescape(char chr);
@@ -1124,7 +1124,7 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
     {
       uint length;
       uchar *pos;
-      if (read_info.read_field())
+      if (read_info.read_field(item->charset_for_protocol()))
 	break;
 
       /* If this line is to be skipped we don't want to fill field or var */
@@ -1497,7 +1497,7 @@ inline bool READ_INFO::terminator(const uchar *ptr, uint length)
   must make sure to use escapes properly.
 */
 
-int READ_INFO::read_field()
+int READ_INFO::read_field(CHARSET_INFO *cs)
 {
   int chr,found_enclosed_char;
 
@@ -1533,7 +1533,7 @@ int READ_INFO::read_field()
   for (;;)
   {
     // Make sure we have enough space for the longest multi-byte character.
-    while (data.length() + charset()->mbmaxlen <= data.alloced_length())
+    while (data.length() + cs->mbmaxlen <= data.alloced_length())
     {
       chr = GET;
       if (chr == my_b_EOF)
@@ -1619,7 +1619,7 @@ int READ_INFO::read_field()
 	}
       }
       data.append(chr);
-      if (charset()->use_mb() && read_mbtail(&data))
+      if (cs->use_mb() && read_mbtail(&data))
         goto found_eof;
     }
     /*
