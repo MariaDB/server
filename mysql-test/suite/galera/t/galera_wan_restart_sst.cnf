@@ -1,5 +1,8 @@
 !include ../galera_4nodes.cnf
 
+[mysqld]
+loose-galera-wan-restart-sst=1
+
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;gmcast.segment=1'
 
