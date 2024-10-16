@@ -22,6 +22,7 @@ class Type_handler_vector: public Type_handler_varchar
 {
 public:
   virtual ~Type_handler_vector() {}
+  enum_field_types field_type() const override { return MYSQL_TYPE_VECTOR; }
   uint32 max_display_length_for_field(const Conv_source &src) const override;
   const Type_collection *type_collection() const override;
   const Type_handler *type_handler_for_comparison() const override;

@@ -324,6 +324,7 @@ namespace mrn {
       type = TIME_TYPE;
       break;
     case MYSQL_TYPE_VARCHAR:
+    case MYSQL_TYPE_VECTOR:
       type = STRING_TYPE;
       break;
     case MYSQL_TYPE_BIT:
