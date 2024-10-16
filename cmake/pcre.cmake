@@ -85,6 +85,7 @@ MACRO (CHECK_PCRE)
       PKG_CHECK_MODULES(PCRE libpcre2-8)
       # in case pkg-config or libpcre2-8.pc is not installed:
       CHECK_LIBRARY_EXISTS(pcre2-8 pcre2_match_8 "${PCRE_LIBRARY_DIRS}" HAVE_PCRE2_MATCH_8)
+      link_directories(${PCRE_LIBRARY_DIRS})
     ENDIF()
     IF(NOT HAVE_PCRE2_MATCH_8 OR WITH_PCRE STREQUAL "bundled")
       IF (WITH_PCRE STREQUAL "system")
