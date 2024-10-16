@@ -2620,7 +2620,7 @@ fail_err:
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
 	} else if (index->table->is_temporary()) {
 	} else {
-		srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
+		srw_lock* ahi_latch = btr_search_sys.get_latch(*index);
 		if (!reorg && cursor->flag == BTR_CUR_HASH) {
 			btr_search_update_hash_node_on_insert(
 				cursor, ahi_latch);
@@ -3402,7 +3402,7 @@ btr_cur_update_in_place(
 
 #ifdef BTR_CUR_HASH_ADAPT
 	{
-		srw_spin_lock* ahi_latch = block->index
+		srw_lock* ahi_latch = block->index
 			? btr_search_sys.get_latch(*index) : NULL;
 		if (ahi_latch) {
 			/* TO DO: Can we skip this if none of the fields

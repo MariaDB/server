@@ -28,8 +28,6 @@ Created 6/9/1994 Heikki Tuuri
 #define mem0mem_h
 
 #include "ut0mem.h"
-#include "ut0rnd.h"
-#include "mach0data.h"
 
 #include <memory>
 
@@ -42,22 +40,14 @@ typedef struct mem_block_info_t	mem_block_t;
 /** A memory heap is a nonempty linear list of memory blocks */
 typedef mem_block_t		mem_heap_t;
 
+struct buf_block_t;
+
 /** Types of allocation for memory heaps: DYNAMIC means allocation from the
 dynamic memory pool of the C compiler, BUFFER means allocation from the
 buffer pool; the latter method is used for very big heaps */
 
 #define MEM_HEAP_DYNAMIC	0	/* the most common type */
 #define MEM_HEAP_BUFFER		1
-#define MEM_HEAP_BTR_SEARCH	2	/* this flag can optionally be
-					ORed to MEM_HEAP_BUFFER, in which
-					case heap->free_block is used in
-					some cases for memory allocations,
-					and if it's NULL, the memory
-					allocation functions can return
-					NULL. */
-
-/** Different type of heaps in terms of which datastructure is using them */
-#define MEM_HEAP_FOR_BTR_SEARCH		(MEM_HEAP_BTR_SEARCH | MEM_HEAP_BUFFER)
 #define MEM_HEAP_FOR_LOCK_HEAP		(MEM_HEAP_BUFFER)
 
 /** The following start size is used for the first block in the memory heap if
@@ -110,8 +100,7 @@ A single user buffer of 'size' will fit in the block.
 @param[in]	file_name	File name where created
 @param[in]	line		Line where created
 @param[in]	type		Heap type
-@return own: memory heap, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return own: memory heap */
 UNIV_INLINE
 mem_heap_t*
 mem_heap_create_func(
@@ -145,8 +134,7 @@ mem_heap_zalloc(
 @param[in]	heap	memory heap
 @param[in]	n	number of bytes; if the heap is allowed to grow into
 the buffer pool, this must be <= MEM_MAX_ALLOC_IN_BUF
-@return allocated storage, NULL if did not succeed (only possible for
-MEM_HEAP_BTR_SEARCH type heaps) */
+@return allocated storage */
 UNIV_INLINE
 void*
 mem_heap_alloc(
@@ -319,19 +307,17 @@ struct mem_block_info_t {
 			in the heap. This is defined only in the base
 			node and is set to ULINT_UNDEFINED in others. */
 	ulint	type;	/*!< type of heap: MEM_HEAP_DYNAMIC, or
-			MEM_HEAP_BUF possibly ORed to MEM_HEAP_BTR_SEARCH */
+			MEM_HEAP_BUFFER */
 	ulint	free;	/*!< offset in bytes of the first free position for
 			user data in the block */
 	ulint	start;	/*!< the value of the struct field 'free' at the
 			creation of the block */
 
-	void*	free_block;
-			/* if the MEM_HEAP_BTR_SEARCH bit is set in type,
-			and this is the heap root, this can contain an
-			allocated buffer frame, which can be appended as a
-			free block to the heap, if we need more space;
-			otherwise, this is NULL */
-	void*	buf_block;
+#ifdef BTR_CUR_HASH_ADAPT
+	/** a cached block in the heap root */
+	Atomic_relaxed<buf_block_t*>	ahi_block;
+#endif
+	buf_block_t*	buf_block;
 			/* if this block has been allocated from the buffer
 			pool, this contains the buf_block_t handle;
 			otherwise, this is NULL */
