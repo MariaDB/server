@@ -1553,12 +1553,7 @@ void THD::cleanup(void)
   close_temporary_tables();
 
   if (transaction->xid_state.is_explicit_XA())
-  {
-    if (unlikely(variables.legacy_xa_rollback_at_disconnect))
-      xa_trans_force_rollback(this);
-    else
-      trans_xa_detach(this);
-  }
+    trans_xa_detach(this);
   else
     trans_rollback(this);
 
