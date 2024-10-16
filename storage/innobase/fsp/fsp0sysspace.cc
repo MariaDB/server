@@ -629,7 +629,7 @@ SysTablespace::check_file_status(
 	const Datafile&		file,
 	file_status_t&		reason)
 {
-	os_file_stat_t	stat;
+	thread_local os_file_stat_t	stat;
 
 	memset(&stat, 0x0, sizeof(stat));
 
