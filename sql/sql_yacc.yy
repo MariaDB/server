@@ -1495,6 +1495,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item>
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
+        search_condition
         variable variable_aux
         boolean_test
         predicate bit_expr parenthesized_expr
@@ -4241,6 +4242,7 @@ simple_when_clause:
 searched_when_clause:
           WHEN_SYM expr_lex
           {
+            $2->get_item()->base_flags|= item_base_t::IS_COND;
             if (unlikely($2->case_stmt_action_when(false)))
               MYSQL_YYABORT;
           }
@@ -9123,6 +9125,10 @@ optional_braces:
         | '(' ')' {}
         ;
 
+search_condition:
+          expr { ($$= $1)->base_flags|= item_base_t::IS_COND ; }
+        ;
+
 /* all possible expressions */
 expr:
           expr or expr %prec OR_SYM
@@ -11593,7 +11599,7 @@ join_table:
               MYSQL_YYABORT;
             Select->parsing_place= IN_ON;
           }
-          expr
+          search_condition
           {
             add_join_on(thd, $5, $8);
             $5->on_context= Lex->pop_context();
@@ -11951,7 +11957,7 @@ opt_where_clause:
           {
             Select->parsing_place= IN_WHERE;
           }
-          expr
+          search_condition
           {
             SELECT_LEX *select= Select;
             select->where= normalize_cond(thd, $3);
@@ -11967,7 +11973,7 @@ opt_having_clause:
           {
             Select->parsing_place= IN_HAVING;
           }
-          expr
+          search_condition
           {
             SELECT_LEX *sel= Select;
             sel->having= normalize_cond(thd, $3);
@@ -14095,7 +14101,7 @@ wild_and_where:
               MYSQL_YYABORT;
             $$= $2;
           }
-        | WHERE remember_tok_start expr
+        | WHERE remember_tok_start search_condition
           {
             Select->where= normalize_cond(thd, $3);
             if ($3)

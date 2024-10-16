@@ -777,7 +777,11 @@ enum class item_base_t : item_flags_t
   IS_EXPLICIT_NAME=      (1<<3),   // The name of this Item was set by the user
                                    // (or was auto generated otherwise)
   IS_IN_WITH_CYCLE=      (1<<4),   // This item is in CYCLE clause of WITH.
-  AT_TOP_LEVEL=          (1<<5)    // At top (AND) level of item tree
+  IS_COND=               (1<<5),   // The item is used as <search condition>.
+                                   // Must be evaluated using val_bool().
+                                   // Note, not all items used as a search
+                                   // condition set this flag yet.
+  AT_TOP_LEVEL=          (1<<6)    // At top (AND) level of item tree
 };
 
 
@@ -1092,6 +1096,8 @@ public:
   { return (bool) (base_flags & item_base_t::IS_EXPLICIT_NAME); }
   inline bool is_in_with_cycle() const
   { return (bool) (base_flags & item_base_t::IS_IN_WITH_CYCLE); }
+  inline bool is_cond() const
+  { return (bool) (base_flags & item_base_t::IS_COND); }
 
   inline bool with_sp_var() const
   { return (bool) (with_flags & item_with_t::SP_VAR); }
@@ -1786,6 +1792,7 @@ public:
   int save_str_in_field(Field *field, bool no_conversions);
   int save_real_in_field(Field *field, bool no_conversions);
   int save_int_in_field(Field *field, bool no_conversions);
+  int save_bool_in_field(Field *field, bool no_conversions);
   int save_decimal_in_field(Field *field, bool no_conversions);
 
   int save_str_value_in_field(Field *field, String *result);
@@ -3124,6 +3131,7 @@ public:
     DBUG_ASSERT(0);
     return this;
   }
+  bool val_bool() override = 0;
 };
 
 
@@ -3953,6 +3961,7 @@ public:
   }
   Type type() const override { return NULL_ITEM; }
   bool vcol_assignment_allowed_value() const override { return true; }
+  bool val_bool() override;
   double val_real() override;
   longlong val_int() override;
   String *val_str(String *str) override;
@@ -4538,7 +4547,12 @@ public:
   Field *create_field_for_create_select(MEM_ROOT *root, TABLE *table) override
   { return tmp_table_field_from_field_type(root, table); }
   const longlong *const_ptr_longlong() const override { return &value; }
-  longlong val_int() override { return value; }
+  bool val_bool() override { return value != 0; }
+  longlong val_int() override
+  {
+    DBUG_ASSERT(!is_cond());
+    return value;
+  }
   longlong val_int_min() const override { return value; }
   double val_real() override { return (double) value; }
   my_decimal *val_decimal(my_decimal *) override;
@@ -4659,8 +4673,13 @@ public:
 
   const Type_handler *type_handler() const override
   { return &type_handler_newdecimal; }
+  bool val_bool() override
+  { return decimal_value.to_bool(); }
   longlong val_int() override
-  { return decimal_value.to_longlong(unsigned_flag); }
+  {
+    DBUG_ASSERT(!is_cond());
+    return decimal_value.to_longlong(unsigned_flag);
+  }
   double val_real() override
   { return decimal_value.to_double(); }
   String *val_str(String *to) override
@@ -4709,9 +4728,11 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_double; }
   const double *const_ptr_double() const override { return &value; }
+  bool val_bool() override { return value != 0.0; }
   double val_real() override { return value; }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     if (value <= (double) LONGLONG_MIN)
     {
        return LONGLONG_MIN;
@@ -4832,6 +4853,7 @@ public:
   {
     str_value.print(to);
   }
+  bool val_bool() override { return val_real() != 0.0; }
   double val_real() override;
   longlong val_int() override;
   const String *const_ptr_string() const override { return &str_value; }
@@ -5091,12 +5113,17 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_hex_hybrid; }
   decimal_digits_t decimal_precision() const override;
+  bool val_bool() override
+  {
+    return longlong_from_hex_hybrid(str_value.ptr(), str_value.length()) != 0;
+  }
   double val_real() override
   {
     return (double) (ulonglong) Item_hex_hybrid::val_int();
   }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     return longlong_from_hex_hybrid(str_value.ptr(), str_value.length());
   }
   my_decimal *val_decimal(my_decimal *decimal_value) override
@@ -5132,8 +5159,13 @@ public:
   Item_hex_string(THD *thd): Item_hex_constant(thd) {}
   Item_hex_string(THD *thd, const char *str, size_t str_length):
     Item_hex_constant(thd, str, str_length) {}
+  bool val_bool() override
+  {
+    return double_from_string_with_check(&str_value) != 0.0;
+  }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     return longlong_from_string_with_check(&str_value);
   }
   double val_real() override
@@ -5181,8 +5213,13 @@ public:
     Timestamp_or_zero_datetime_native native(m_value, decimals);
     return native.save_in_field(field, decimals);
   }
+  bool val_bool() override
+  {
+    return m_value.to_bool();
+  }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     return m_value.to_datetime(current_thd).to_longlong();
   }
   double val_real() override
@@ -5281,8 +5318,13 @@ public:
     return cached_time.get_mysql_time();
   }
   Item *clone_item(THD *thd) const override;
+  bool val_bool() override
+  {
+    return update_null() ? false : cached_time.to_bool();
+  }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     return update_null() ? 0 : cached_time.to_longlong();
   }
   double val_real() override
@@ -5331,7 +5373,15 @@ public:
     return cached_time.get_mysql_time();
   }
   Item *clone_item(THD *thd) const override;
-  longlong val_int() override { return cached_time.to_longlong(); }
+  bool val_bool() override
+  {
+    return cached_time.to_bool();
+  }
+  longlong val_int() override
+  {
+    DBUG_ASSERT(!is_cond());
+    return cached_time.to_longlong();
+  }
   double val_real() override { return cached_time.to_double(); }
   String *val_str(String *to) override
   { return cached_time.to_string(to, decimals); }
@@ -5385,8 +5435,13 @@ public:
     return cached_time.get_mysql_time();
   }
   Item *clone_item(THD *thd) const override;
+  bool val_bool() override
+  {
+    return update_null() ? false : cached_time.to_bool();
+  }
   longlong val_int() override
   {
+    DBUG_ASSERT(!is_cond());
     return update_null() ? 0 : cached_time.to_longlong();
   }
   double val_real() override
@@ -7303,6 +7358,7 @@ public:
   {
     example= item;
     Type_std_attributes::set(item);
+    base_flags|= item->base_flags & item_base_t::IS_COND;
     if (item->type() == FIELD_ITEM)
       cached_field= ((Item_field *)item)->field;
     return 0;
@@ -7443,6 +7499,27 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_int>(thd, this); }
   Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+};
+
+
+class Item_cache_bool: public Item_cache_int
+{
+public:
+  Item_cache_bool(THD *thd)
+   :Item_cache_int(thd, &type_handler_bool)
+  { }
+  bool cache_value() override;
+  bool val_bool() override
+  {
+    return !has_value() ? false : (bool) value;
+  }
+  longlong val_int() override
+  {
+    DBUG_ASSERT(!is_cond());
+    return Item_cache_bool::val_bool();
+  }
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_cache_bool>(thd, this); }
 };
 
 

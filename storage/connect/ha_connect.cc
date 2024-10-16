@@ -6478,6 +6478,15 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   PGLOBAL g= xp->g;
 
   DBUG_ENTER("ha_connect::create");
+
+  if (table_arg->versioned())
+  {
+    /* Due to microseconds not supported by CONNECT (MDEV-15967) system versioning
+       cannot work as expected (MDEV-15968, MDEV-28288) */
+    my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CONNECT storage engine");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
+
   /*
     This assignment fixes test failures if some
     "ALTER TABLE t1 ADD KEY(a)" query exits on ER_ACCESS_DENIED_ERROR

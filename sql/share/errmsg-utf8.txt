@@ -8308,10 +8308,8 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         ukr "Доступ заборонено для користувача: '%s'@'%s'"
 
 ER_SET_PASSWORD_AUTH_PLUGIN
-        chi "通过%s插件验证的用户忽略SET PASSWORD"
-        eng "SET PASSWORD is ignored for users authenticating via %s plugin"
-        geo "მომხმარებლებისთვის, რომლებიც ავთენტიკაციას %s დამატებით გადიან, SET PASSWORD იგნორირებულია"
-        spa "SET PASSWORD no tiene significado para usuarios que se autentican vía enchufe (plugin)  %s"
+        eng "SET PASSWORD is not applicable for users authenticating via %s plugin"
+        ukr "SET PASSWORD не можна застосувати для користувачів, що автентифікуються з допомогою плагінy %s"
 
 ER_GRANT_PLUGIN_USER_EXISTS
         chi "由于用户%-.*s已经存在，GRANT IDENTIFIED WITH授权是非法的"

@@ -498,3 +498,27 @@ EXPLAIN DELETE FROM t1 WHERE i < 10;
 DROP TABLE t1;
 
 SET note_verbosity=DEFAULT;
+
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE IF NOT EXISTS t0
+(
+  c0_1 VARCHAR(200),
+  c0_2 TEXT
+);
+INSERT INTO t0 VALUES ('0.67882431850', '97966');
+SELECT (CONCAT(t0.c0_1, t0.c0_2)) AS ref0 FROM t0 WHERE (CONCAT(t0.c0_1, t0.c0_2));
+DROP TABLE t0;
+
+CREATE TABLE t0 (c VARCHAR(200));
+INSERT INTO t0 VALUES ('0.0'),('0.4'),('0.6');
+--source include/search_condition.inc
+DROP TABLE t0;
+
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

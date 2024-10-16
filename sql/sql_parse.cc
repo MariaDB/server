@@ -9170,7 +9170,11 @@ Item *normalize_cond(THD *thd, Item *cond)
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
+      item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
+      cond->base_flags&= ~item_base_t::IS_COND;
       cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+      if (cond)
+        cond->base_flags|= is_cond_flag;
     }
     else
     {

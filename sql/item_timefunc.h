@@ -650,7 +650,10 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_newdate; }
   longlong val_int() override
-  { return Date(this).to_longlong(); }
+  {
+    DBUG_ASSERT(!is_cond());
+    return Date(this).to_longlong();
+  }
   double val_real() override
   { return Date(this).to_double(); }
   String *val_str(String *to) override
@@ -676,7 +679,10 @@ public:
   const Type_handler *type_handler() const override
   { return &type_handler_time2; }
   longlong val_int() override
-  { return Time(this).to_longlong(); }
+  {
+    DBUG_ASSERT(!is_cond());
+    return Time(this).to_longlong();
+  }
   double val_real() override
   { return Time(this).to_double(); }
   String *val_str(String *to) override
@@ -698,7 +704,11 @@ public:
     Item_func(thd, a, b ,c) {}
   const Type_handler *type_handler() const override
   { return &type_handler_datetime2; }
-  longlong val_int() override { return Datetime(this).to_longlong(); }
+  longlong val_int() override
+  {
+    DBUG_ASSERT(!is_cond());
+    return Datetime(this).to_longlong();
+  }
   double val_real() override { return Datetime(this).to_double(); }
   String *val_str(String *to) override
   { return Datetime(this).to_string(to, decimals); }

@@ -300,7 +300,7 @@ public:
   bool has_result() override;
   void free_result() override;
   SPIDER_DB_ROW *current_row() override;
-  SPIDER_DB_ROW *fetch_row() override;
+  SPIDER_DB_ROW *fetch_row(MY_BITMAP *) override;
   SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
   ) override;
@@ -1460,7 +1460,8 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields,
-    ulong sql_type
+    ulong sql_type,
+    int n_aux=0
   ) override;
   int append_list_item_select(
     List<Item> *select,
@@ -1468,7 +1469,8 @@ public:
     const char *alias,
     uint alias_length,
     bool use_fields,
-    spider_fields *fields
+    spider_fields *fields,
+    int n_aux
   );
   int append_group_by_part(
     ORDER *order,

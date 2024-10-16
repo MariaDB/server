@@ -162,7 +162,7 @@ static bool row_build_spatial_index_key(
 
 write_mbr:
 	if (dlen <= GEO_DATA_HEADER_SIZE) {
-		for (uint i = 0; i < SPDIMS; i += 2) {
+		for (uint i = 0; i < 2 * SPDIMS; i += 2) {
 			tmp_mbr[i] = DBL_MAX;
 			tmp_mbr[i + 1] = -DBL_MAX;
 		}
