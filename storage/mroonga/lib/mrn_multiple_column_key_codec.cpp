@@ -449,6 +449,7 @@ namespace mrn {
       *data_type = TYPE_NUMBER;
       *data_size = 3;
       break;
+    case MYSQL_TYPE_VECTOR:
     case MYSQL_TYPE_VARCHAR:
       DBUG_PRINT("info", ("mroonga: MYSQL_TYPE_VARCHAR"));
       *data_type = TYPE_BYTE_BLOB;
