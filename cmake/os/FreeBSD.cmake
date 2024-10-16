@@ -20,9 +20,6 @@
 #   #Legacy option, maybe not needed anymore , taken as is from autotools build
 #   ADD_DEFINITIONS(-DNET_RETRY_COUNT=1000000)
 
-# The below was used for really old versions of FreeBSD, roughly: before 5.1.9
-# ADD_DEFINITIONS(-DHAVE_BROKEN_REALPATH)
-
 # Find libexecinfo (library that contains backtrace_symbols etc)
 SET(EXECINFO_ROOT /usr/local CACHE INTERNAL "Where to find execinfo library and header")
 INCLUDE_DIRECTORIES(${EXECINFO_ROOT}/include)

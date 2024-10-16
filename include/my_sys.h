@@ -654,6 +654,8 @@ extern my_off_t my_fseek(FILE *stream,my_off_t pos,int whence,myf MyFlags);
 extern my_off_t my_ftell(FILE *stream,myf MyFlags);
 extern void (*my_sleep_for_space)(unsigned int seconds);
 
+extern int my_get_exepath(char *buf, size_t size, const char *argv0);
+
 /* implemented in my_memmem.c */
 extern void *my_memmem(const void *haystack, size_t haystacklen,
                        const void *needle, size_t needlelen);

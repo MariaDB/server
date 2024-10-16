@@ -5550,6 +5550,26 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
+static void run_main_loop()
+{
+  select_thread=pthread_self();
+  mysql_mutex_lock(&LOCK_start_thread);
+  select_thread_in_use=1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+#ifdef _WIN32
+  handle_connections_win();
+#else
+  handle_connections_sockets();
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  select_thread_in_use=0;
+  mysql_cond_broadcast(&COND_start_thread);
+  mysql_mutex_unlock(&LOCK_start_thread);
+#endif /* _WIN32 */
+}
+
+
 int mysqld_main(int argc, char **argv)
 {
 #ifndef _WIN32
@@ -5740,9 +5760,6 @@ int mysqld_main(int argc, char **argv)
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
   }
 
-  select_thread=pthread_self();
-  select_thread_in_use=1;
-
 #ifdef HAVE_LIBWRAP
   libwrapName= my_progname+dirname_length(my_progname);
   openlog(libwrapName, LOG_PID, LOG_AUTH);
@@ -5796,7 +5813,6 @@ int mysqld_main(int argc, char **argv)
   // Recover and exit.
   if (wsrep_recovery)
   {
-    select_thread_in_use= 0;
     if (WSREP_ON)
       wsrep_recover();
     else
@@ -5869,7 +5885,6 @@ int mysqld_main(int argc, char **argv)
 
   if (opt_bootstrap)
   {
-    select_thread_in_use= 0;                    // Allow 'kill' to work
     int bootstrap_error= bootstrap(mysql_stdin);
     if (!abort_loop)
       unireg_abort(bootstrap_error);
@@ -5944,16 +5959,7 @@ int mysqld_main(int argc, char **argv)
   /* Memory used when everything is setup */
   start_memory_used= global_status_var.global_memory_used;
 
-#ifdef _WIN32
-  handle_connections_win();
-#else
-  handle_connections_sockets();
-
-  mysql_mutex_lock(&LOCK_start_thread);
-  select_thread_in_use=0;
-  mysql_cond_broadcast(&COND_start_thread);
-  mysql_mutex_unlock(&LOCK_start_thread);
-#endif /* _WIN32 */
+  run_main_loop();
 
   /* Shutdown requested */
   char *user= shutdown_user.load(std::memory_order_relaxed);
@@ -7723,7 +7729,7 @@ static int mysql_init_variables(void)
   /* Things reset to zero */
   opt_skip_slave_start= opt_reckless_slave = 0;
   mysql_home[0]= pidfile_name[0]= log_error_file[0]= 0;
-#if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
+#if defined(HAVE_REALPATH) && !defined(HAVE_valgrind)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
   mysys_test_invalid_symlink= path_starts_from_data_home_dir;
 #endif
@@ -7823,6 +7829,8 @@ static int mysql_init_variables(void)
   lc_messages= (char*) "en_US";
   lc_time_names_name= (char*) "en_US";
   
+  have_symlink= SHOW_OPTION_YES;
+
   /* Variables that depends on compile options */
 #ifndef DBUG_OFF
   default_dbug_option=IF_WIN("d:t:i:O,\\mariadbd.trace",
@@ -7845,11 +7853,6 @@ static int mysql_init_variables(void)
 #endif
 #else
   have_openssl= have_ssl= SHOW_OPTION_NO;
-#endif
-#ifdef HAVE_BROKEN_REALPATH
-  have_symlink=SHOW_OPTION_NO;
-#else
-  have_symlink=SHOW_OPTION_YES;
 #endif
 #ifdef HAVE_DLOPEN
   have_dlopen=SHOW_OPTION_YES;
@@ -8641,7 +8644,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   global_system_variables.sql_mode=
     expand_sql_mode(global_system_variables.sql_mode);
-#if !defined(HAVE_REALPATH) || defined(HAVE_BROKEN_REALPATH)
+#if !defined(HAVE_REALPATH)
   my_use_symdir=0;
   my_disable_symlinks=1;
   have_symlink=SHOW_OPTION_NO;
