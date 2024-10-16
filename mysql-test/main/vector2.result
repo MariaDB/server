@@ -27,9 +27,30 @@ ERROR 22007: Incorrect vector value: 'VVVVVVVVVV' for column `test`.`t1`.`b` at 
 insert t1 values (1, repeat(x'66', 40));
 ERROR 22007: Incorrect vector value: 'ffffffffffffffffffffffffffffffffffffffff' for column `test`.`t1`.`b` at row 1
 insert t1 values (1, repeat(x'56', 40));
-select * from t1;
-a	b
-1	VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+select b from t1;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	b	b	253	40	40	Y	128	0	63
+b
+VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+Field   1:  `b`
+Org_field:  `b`
+Catalog:    `def`
+Database:   `test`
+Table:      `t1`
+Org_table:  `t1`
+Type:       VAR_STRING
+Collation:  binary (63)
+Length:     40
+Max_length: 40
+Decimals:   0
+Flags:      BINARY 
+
+
++------------------------------------------+
+| b                                        |
++------------------------------------------+
+| VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV |
++------------------------------------------+
 select cast(b as char) from t1;
 ERROR HY000: Illegal parameter data type vector for operation 'cast_as_char'
 create table t2 as select b, cast(b as binary) from t1;
