@@ -6792,7 +6792,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -6803,8 +6802,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7100,32 +7099,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)
