@@ -333,6 +333,15 @@ inline dberr_t trx_sys_t::reset_page(mtr_t *mtr)
 
   if (!sys_header) return err;
 
+  if (mach_read_from_4(sys_header->page.frame + TRX_SYS +
+                       TRX_SYS_FSEG_HEADER) != TRX_SYS_SPACE)
+    return DB_CORRUPTION;
+
+  /* Store the TRX_SYS_FSEG_HEADER page, offset */
+  char fseg_addr[6];
+  memcpy(fseg_addr,
+         sys_header->page.frame + TRX_SYS + TRX_SYS_FSEG_HEADER + 4, 6);
+
   const bool dblwr_enabled=
     mach_read_from_4(TRX_SYS_DOUBLEWRITE_MAGIC + TRX_SYS_DOUBLEWRITE +
                      sys_header->page.frame)
@@ -347,6 +356,17 @@ inline dberr_t trx_sys_t::reset_page(mtr_t *mtr)
   mtr->write<2>(*sys_header, FIL_PAGE_TYPE + sys_header->page.frame,
                 FIL_PAGE_TYPE_TRX_SYS);
 
+  DBUG_EXECUTE_IF("sys_fseg_header_fail",
+                  {
+                    fseg_addr[4]= 0;
+                    fseg_addr[5]= 0;
+                  });
+
+  /** Write the TRX_SYS_FSEG_HEADER only if it is not zero-filled */
+  if (!memcmp(fseg_addr + 4, "00", 2))
+    mtr->memcpy(*sys_header,
+                sys_header->page.frame + TRX_SYS + TRX_SYS_FSEG_HEADER + 4,
+                fseg_addr, 6);
   mtr->write<4>(*sys_header,
                 TRX_SYS + TRX_SYS_RSEGS + TRX_SYS_RSEG_PAGE_NO +
                 sys_header->page.frame, FSP_FIRST_RSEG_PAGE_NO);
@@ -1781,7 +1801,7 @@ dberr_t srv_start(bool create_new_db)
 
 		if (!high_level_read_only
 		    && srv_sys_space.can_auto_shrink()) {
-			fsp_system_tablespace_truncate();
+			fsp_system_tablespace_truncate(false);
 			DBUG_EXECUTE_IF("crash_after_sys_truncate",
 					return srv_init_abort(DB_ERROR););
 		}

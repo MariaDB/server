@@ -213,4 +213,12 @@ dict_process_sys_foreign_col_rec(
 					in referenced table */
 	ulint*		pos);		/*!< out: column position */
 
+/** This function gets the next system table record as it scans
+the table.
+@param pcur persistent cursor
+@param mtr  mini-transaction
+@return the next record if found
+@retval nullptr at the end of the table */
+const rec_t*
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr);
 #endif

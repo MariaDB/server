@@ -1578,7 +1578,8 @@ void srv_purge_shutdown()
     purge_sys.coordinator_shutdown();
     srv_shutdown_purge_tasks();
     if (!srv_fast_shutdown && !high_level_read_only && srv_was_started &&
-        !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL)
-      fsp_system_tablespace_truncate();
+        !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL &&
+        !srv_sys_space.is_shrink_fail())
+      fsp_system_tablespace_truncate(true);
   }
 }
