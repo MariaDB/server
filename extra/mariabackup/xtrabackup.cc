@@ -3820,8 +3820,8 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 	ulint		dbpath_len	= 100;
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
-	os_file_stat_t	dbinfo;
-	os_file_stat_t	fileinfo;
+	thread_local os_file_stat_t dbinfo;
+	thread_local os_file_stat_t fileinfo;
 	dberr_t		err		= DB_SUCCESS;
 	size_t len;
 
@@ -5809,11 +5809,11 @@ static ibool xb_process_datadir(const char *path, const char *suffix,
                                 void *func_arg = NULL)
 {
 	ulint		ret;
-	char		dbpath[OS_FILE_MAX_PATH+2];
+	thread_local char dbpath[OS_FILE_MAX_PATH+2];
 	os_file_dir_t	dir;
 	os_file_dir_t	dbdir;
-	os_file_stat_t	dbinfo;
-	os_file_stat_t	fileinfo;
+	thread_local os_file_stat_t dbinfo;
+	thread_local os_file_stat_t fileinfo;
 	ulint		suffix_len;
 	dberr_t		err 		= DB_SUCCESS;
 	static char	current_dir[2];
