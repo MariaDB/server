@@ -1128,7 +1128,6 @@ dbcontext::cmd_exec(dbcallback_i& cb, const cmd_exec_args& args)
   }
   ha_rkey_function find_flag = HA_READ_KEY_EXACT;
   db_write_op wrop = db_write_op_none;
-  init_thd_for_query();
   if (args.op.size() == 1) {
     switch (args.op.begin()[0]) {
     case '=':
@@ -1170,8 +1169,10 @@ dbcontext::cmd_exec(dbcallback_i& cb, const cmd_exec_args& args)
   case db_write_op_none:
     return cmd_find_internal(cb, p, find_flag, args);
   case db_write_op_insert:
+    init_thd_for_query();
     return cmd_insert_internal(cb, p, args.kvals, args.kvalslen);
   case db_write_op_sql:
+    init_thd_for_query();
     return cmd_sql_internal(cb, p, args.kvals, args.kvalslen);
   }
 }
