@@ -170,6 +170,16 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 drop table t1;
 #
+# MDEV-35177 Unexpected ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, diagnostics area assertion failures upon EITS collection with vector type
+#
+create table t (pk int primary key, v vector(1) not null);
+insert into t values (1,vec_fromtext('[-0.196]')),(2,vec_fromtext('[0.709]'));
+analyze table t persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t	analyze	status	Engine-independent statistics collected
+test.t	analyze	status	OK
+drop table t;
+#
 # MDEV-35147 Inconsistent NULL handling in vector type
 #
 create table t1 (a vector(1));
