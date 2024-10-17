@@ -9091,17 +9091,17 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
+  THD *thd;
   uint i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
   TABLE_SHARE share;
-  THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (char*) &thd;
+  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)

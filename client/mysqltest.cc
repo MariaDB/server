@@ -3883,9 +3883,9 @@ void do_move_file(struct st_command *command)
         is_sub_path(ds_to_file.str, to_plen, vardir)) || 
         (is_sub_path(ds_from_file.str, from_plen, tmpdir) && 
         is_sub_path(ds_to_file.str, to_plen, tmpdir)))) {
-        report_or_die("Paths '%s' and '%s' are not both under MYSQLTEST_VARDIR '%s'"
-                "or both under MYSQL_TMP_DIR '%s'",
-                ds_from_file, ds_to_file, vardir, tmpdir);
+        report_or_die("Paths '%s' and '%s' are not both under "
+                      "MYSQLTEST_VARDIR '%s' or both under MYSQL_TMP_DIR '%s'",
+                      ds_from_file.str, ds_to_file.str, vardir, tmpdir);
         DBUG_VOID_RETURN;
   }
   

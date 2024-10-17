@@ -3233,7 +3233,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
   else
   {
     DBUG_ENTER("handle_delayed_insert");
-    thd->thread_stack= (char*) &thd;
     if (init_thr_lock())
     {
       thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);

@@ -302,6 +302,47 @@ drop sequence s;
 # End of 10.4 tests
 #
 #
+# MDEV-32350 Can't selectively restore sequences using innodb tables from
+# backup
+#
+create sequence s2 engine=innodb;
+alter table s2 discard tablespace;
+SELECT NEXTVAL(s2);
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+create sequence s1 engine=innodb;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+flush tables s1 for export;
+unlock tables;
+select * from s2;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+SELECT NEXTVAL(s2);
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+alter sequence s2 restart;
+ERROR HY000: Got error 194 "Tablespace is missing for a table" from storage engine InnoDB
+alter table s2 import tablespace;
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1	1	9223372036854775806	1	1	1000	0	0
+SELECT NEXTVAL(s2);
+NEXTVAL(s2)
+1
+select NEXTVAL(s1);
+NEXTVAL(s1)
+1
+flush table s1,s2;
+select * from s1;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+select * from s2;
+next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_size	cycle_option	cycle_count
+1001	1	9223372036854775806	1	1	1000	0	0
+drop sequence s1,s2;
+#
+# End of 10.5 tests
+#
+#
 # MDEV-31607 ER_DUP_KEY in mysql.table_stats upon REANME on sequence
 #
 CREATE SEQUENCE s1 ENGINE=InnoDB;
