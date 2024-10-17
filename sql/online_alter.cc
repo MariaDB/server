@@ -385,8 +385,9 @@ static int online_alter_rollback(THD *thd, bool all)
 {
   int res;
   bool is_ending_transaction= ending_trans(thd, all);
-  if (is_ending_transaction
-      && thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+  if (is_ending_transaction &&
+      (thd->transaction->xid_state.get_state_code() == XA_PREPARED ||
+       thd->transaction->xid_state.get_state_code() == XA_ROLLBACK_ONLY))
   {
     res= online_alter_rollback_by_xid(thd->transaction->xid_state.get_xid());
     // cleanup was already done by prepare()
