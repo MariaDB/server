@@ -166,3 +166,11 @@ create table t1 (a int, v vector(1) not null, vector(v));
 insert t1 values (1, 0x00000000);
 alter table t1 modify v vector(64) not null;
 drop table t1;
+
+--echo #
+--echo # MDEV-35178 Assertion failure in Field_vector::store upon INSERT IGNORE with a wrong data
+--echo #
+create table t (v vector(2) not null);
+insert ignore into t values (1);
+select hex(v) from t;
+drop table t;
