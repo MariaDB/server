@@ -14,7 +14,9 @@ call mtr.add_suppression("InnoDB: Recovery failed to read page");
 # Suppression for builds where file_key_management plugin is linked statically
 call mtr.add_suppression("Couldn't load plugins from 'file_key_management");
 call mtr.add_suppression("InnoDB: Tablespace for table \`test\`.\`t1\` is set as discarded\\.");
-call mtr.add_suppression("Table .*t1.* is corrupted");
+call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd'");
+call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
+call mtr.add_suppression("Table `test`\\.`t1` is corrupted");
 call mtr.add_suppression("InnoDB: Cannot delete tablespace .* because it is not found in the tablespace memory cache");
 call mtr.add_suppression("InnoDB: ALTER TABLE `test`\\.`t1` DISCARD TABLESPACE failed to find tablespace");
 # for innodb_checksum_algorithm=full_crc32 only
