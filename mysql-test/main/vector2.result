@@ -217,3 +217,15 @@ create table t1 (a int, v vector(1) not null, vector(v));
 insert t1 values (1, 0x00000000);
 alter table t1 modify v vector(64) not null;
 drop table t1;
+#
+# MDEV-35178 Assertion failure in Field_vector::store upon INSERT IGNORE with a wrong data
+#
+create table t (v vector(2) not null);
+insert ignore into t values (1);
+Warnings:
+Warning	4078	Cannot cast 'int' as 'vector' in assignment of `test`.`t`.`v`
+Warning	1366	Incorrect vector value: '1' for column `test`.`t`.`v` at row 1
+select hex(v) from t;
+hex(v)
+0000000000000000
+drop table t;

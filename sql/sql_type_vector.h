@@ -107,7 +107,7 @@ public:
 
 class Field_vector:public Field_varstring
 {
-  int  report_wrong_value(const ErrConv &val) const;
+  int  report_wrong_value(const ErrConv &val);
 public:
   Field_vector(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
               enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
