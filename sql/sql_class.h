@@ -7476,6 +7476,7 @@ public:
 class user_var_entry: public Type_handler_hybrid_field_type
 {
   CHARSET_INFO *m_charset;
+  enum Derivation m_derivation= DERIVATION_COERCIBLE;
  public:
   user_var_entry() = default;                         /* Remove gcc warning */
   LEX_CSTRING name;
@@ -7489,6 +7490,8 @@ class user_var_entry: public Type_handler_hybrid_field_type
   my_decimal *val_decimal(bool *null_value, my_decimal *result);
   CHARSET_INFO *charset() const { return m_charset; }
   void set_charset(CHARSET_INFO *cs) { m_charset= cs; }
+  enum Derivation derivation() const { return m_derivation; }
+  void set_derivation(enum Derivation derivation) { m_derivation= derivation; }
 };
 
 user_var_entry *get_variable(HASH *hash, LEX_CSTRING *name,

@@ -4748,8 +4748,11 @@ bool Item_func_set_user_var::fix_fields(THD *thd, Item **ref)
   */
   null_item= (args[0]->type() == NULL_ITEM);
   if (!m_var_entry->charset() || !null_item)
+  {
     m_var_entry->set_charset(args[0]->collation.derivation == DERIVATION_NUMERIC ?
                              &my_charset_numeric : args[0]->collation.collation);
+    m_var_entry->set_derivation(args[0]->collation.derivation);
+  }
   collation.set(m_var_entry->charset(),
                 args[0]->collation.derivation == DERIVATION_NUMERIC ?
                 DERIVATION_NUMERIC : DERIVATION_COERCIBLE);
@@ -5694,7 +5697,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
         set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_COERCIBLE);
+      collation.set(m_var_entry->charset(), m_var_entry->derivation());
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)

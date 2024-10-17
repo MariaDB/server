@@ -1,0 +1,11 @@
+# original test
+--exec $MYSQL --default-character-set=utf8mb3 -e "select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = 'mysql' limit 1; select @col_type != 'binary(128)'"
+
+# # simplified test
+# set names utf8mb3;
+# select COLUMN_TYPE INTO @col_type from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = 'mysql' limit 1;
+# select @col_type != 'binary(128)';
+
+# # ok either way
+# SET NAMES utf8mb3;
+# SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE COLUMN_TYPE != 'binary(128)';
