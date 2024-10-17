@@ -1545,6 +1545,7 @@ int ha_prepare(THD *thd)
       {
         if (unlikely(prepare_or_error(ht, thd, all)))
         {
+          thd->transaction->xid_state.set_rollback_only();
           ha_rollback_trans(thd, all);
           error=1;
           break;
@@ -1554,6 +1555,7 @@ int ha_prepare(THD *thd)
       {
         my_error(ER_GET_ERRNO, MYF(0), HA_ERR_WRONG_COMMAND,
                  ha_resolve_storage_engine_name(ht));
+        thd->transaction->xid_state.set_rollback_only();
         ha_rollback_trans(thd, all);
         error= 1;
         break;
