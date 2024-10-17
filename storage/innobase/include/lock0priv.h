@@ -474,9 +474,11 @@ inline byte lock_rec_reset_nth_bit(lock_t* lock, ulint i)
 {
 	ut_ad(!lock->is_table());
 #ifdef SUX_LOCK_GENERIC
-	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock));
 #else
 	ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*lock)
 	      || (xtest() && !lock->trx->mutex_is_locked()));
 #endif
 	ut_ad(i < lock->un_member.rec_lock.n_bits);
