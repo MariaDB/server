@@ -303,20 +303,23 @@ int Field_vector::store_decimal(const my_decimal *nr)
 
 int Field_vector::store(const char *from, size_t length, CHARSET_INFO *cs)
 {
-  if (cs != &my_charset_bin) // XXX todo
-    return report_wrong_value(ErrConvString(from, length, cs));
-
-  if (length != field_length)
-    return report_wrong_value(ErrConvString(from, length, cs));
-
-  float abs2= 0.0f;
-  for (const char *v= from, *end= from+length; v < end; v+= sizeof(float))
+  if (table->in_use->count_cuted_fields != CHECK_FIELD_IGNORE)
   {
-    float val= get_float(v);
-    abs2+= val*val;
+    if (cs != &my_charset_bin) // XXX todo
+      return report_wrong_value(ErrConvString(from, length, cs));
+
+    if (length != field_length)
+      return report_wrong_value(ErrConvString(from, length, cs));
+
+    float abs2= 0.0f;
+    for (const char *v= from, *end= from+length; v < end; v+= sizeof(float))
+    {
+      float val= get_float(v);
+      abs2+= val*val;
+    }
+    if (!std::isfinite(abs2))
+      return report_wrong_value(ErrConvString(from, length, cs));
   }
-  if (!std::isfinite(abs2))
-    return report_wrong_value(ErrConvString(from, length, cs));
 
   return Field_varstring::store(from, length, cs);
 }
