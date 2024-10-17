@@ -26,6 +26,7 @@ public:
   const Type_handler *type_handler_for_comparison() const override;
   virtual Item *create_typecast_item(THD *thd, Item *item,
                   const Type_cast_attributes &attr) const override;
+  bool type_can_have_key_part() const override { return false; }
   bool subquery_type_allows_materialization(const Item *, const Item *, bool)
     const override
   {
