@@ -308,12 +308,20 @@ buf_block_modify_clock_inc(
 @return whether the buffer is all zeroes */
 bool buf_is_zeroes(st_::span<const byte> buf);
 
+/** Reason why buf_page_is_corrupted() fails */
+enum buf_page_is_corrupted_reason
+{
+  CORRUPTED_FUTURE_LSN= -1,
+  NOT_CORRUPTED= 0,
+  CORRUPTED_OTHER
+};
+
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
 @param[in]	fsp_flags	tablespace flags
 @return whether the page is corrupted */
-bool
+buf_page_is_corrupted_reason
 buf_page_is_corrupted(
 	bool			check_lsn,
 	const byte*		read_buf,
@@ -773,9 +781,8 @@ public:
   /** Complete a read of a page.
   @param node     data file
   @return whether the operation succeeded
-  @retval DB_PAGE_CORRUPTED    if the checksum fails
-  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted
-  @retval DB_FAIL              if the page contains the wrong ID */
+  @retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
+  @retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
   dberr_t read_complete(const fil_node_t &node);
 
   /** Release a write fix after a page write was completed.
@@ -1352,10 +1359,11 @@ public:
   /** Release and evict a corrupted page.
   @param bpage    x-latched page that was found corrupted
   @param state    expected current state of the page */
-  ATTRIBUTE_COLD void corrupted_evict(buf_page_t *bpage, uint32_t state);
+  ATTRIBUTE_COLD void corrupted_evict(buf_page_t *bpage, uint32_t state)
+    noexcept;
 
   /** Release a memory block to the buffer pool. */
-  ATTRIBUTE_COLD void free_block(buf_block_t *block);
+  ATTRIBUTE_COLD void free_block(buf_block_t *block) noexcept;
 
 #ifdef UNIV_DEBUG
   /** Find a block that points to a ROW_FORMAT=COMPRESSED page

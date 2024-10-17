@@ -326,15 +326,13 @@ buf_read_page_low(
 			     dst, bpage);
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
+		recv_sys.free_corrupted_page(page_id, *space->chain.start);
 		buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
 	} else if (sync) {
 		thd_wait_end(nullptr);
 		/* The i/o was already completed in space->io() */
 		fio.err = bpage->read_complete(*fio.node);
 		space->release();
-		if (fio.err == DB_FAIL) {
-			fio.err = DB_PAGE_CORRUPTED;
-		}
 		if (mariadb_timer) {
 			mariadb_increment_pages_read_time(mariadb_timer);
 		}

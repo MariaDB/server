@@ -234,6 +234,46 @@ Datafile::same_as(
 #endif /* WIN32 */
 }
 
+dberr_t Datafile::read_first_page_flags(const page_t *page) noexcept
+{
+  ut_ad(m_order == 0);
+
+  if (memcmp_aligned<2>(FIL_PAGE_SPACE_ID + page,
+                        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
+  {
+     sql_print_error("InnoDB: Inconsistent tablespace ID in %s", m_filepath);
+     return DB_CORRUPTION;
+  }
+
+  m_space_id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
+  m_flags= fsp_header_get_flags(page);
+  if (!fil_space_t::is_valid_flags(m_flags, m_space_id))
+  {
+    ulint cflags= fsp_flags_convert_from_101(m_flags);
+    if (unsigned(cflags) == ~0U)
+      switch (fsp_flags_is_incompatible_mysql(m_flags)) {
+      case 0:
+        sql_print_error("InnoDB: Invalid flags 0x%zx in %s",
+                        m_flags, m_filepath);
+        return DB_CORRUPTION;
+      case 3:
+      case 2:
+        sql_print_error("InnoDB: MySQL-8.0 tablespace in %s", m_filepath);
+        goto unsupported;
+      case 1:
+        sql_print_error("InnoDB: MySQL Encrypted tablespace in %s",
+                        m_filepath);
+      unsupported:
+        sql_print_error("InnoDB: Restart in MySQL for migration/recovery.");
+        return DB_UNSUPPORTED;
+      }
+    else
+      m_flags= cflags;
+  }
+
+  return DB_SUCCESS;
+}
+
 /** Reads a few significant fields from the first page of the first
 datafile.  The Datafile must already be open.
 @param[in]	read_only_mode	If true, then readonly mode checks are enforced.
@@ -286,56 +326,16 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	if (err != DB_SUCCESS) {
-		return(err);
+	if (err == DB_SUCCESS && m_order == 0) {
+		err = read_first_page_flags(m_first_page);
 	}
 
-	if (m_order == 0) {
-		if (memcmp_aligned<2>(FIL_PAGE_SPACE_ID + m_first_page,
-				      FSP_HEADER_OFFSET + FSP_SPACE_ID
-				      + m_first_page, 4)) {
-			ib::error()
-				<< "Inconsistent tablespace ID in "
-				<< m_filepath;
-			return DB_CORRUPTION;
-		}
-
-		m_space_id = mach_read_from_4(FIL_PAGE_SPACE_ID
-					      + m_first_page);
-		m_flags = fsp_header_get_flags(m_first_page);
-		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
-			ulint cflags = fsp_flags_convert_from_101(m_flags);
-			if (cflags == ULINT_UNDEFINED) {
-				switch (fsp_flags_is_incompatible_mysql(m_flags)) {
-				case 0:
-					sql_print_error("InnoDB: Invalid flags 0x%zx in %s",
-							m_flags, m_filepath);
-					return(DB_CORRUPTION);
-				case 3:
-				case 2:
-					sql_print_error("InnoDB: MySQL-8.0 tablespace in %s",
-							m_filepath);
-					break;
-				case 1:
-					sql_print_error("InnoDB: MySQL Encrypted tablespace in %s",
-							m_filepath);
-					break;
-				}
-				sql_print_error("InnoDB: Restart in MySQL for migration/recovery.");
-				return(DB_UNSUPPORTED);
-			} else {
-				m_flags = cflags;
-			}
-		}
-	}
-
-	const size_t physical_size = fil_space_t::physical_size(m_flags);
-
-	if (physical_size > page_size) {
+	if (err == DB_SUCCESS
+	    && fil_space_t::physical_size(m_flags) > page_size) {
 		ib::error() << "File " << m_filepath
 			<< " should be longer than "
 			<< page_size << " bytes";
-		return(DB_CORRUPTION);
+		err = DB_CORRUPTION;
 	}
 
 	return(err);
@@ -367,7 +367,7 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	/* Validate this single-table-tablespace with the data dictionary,
 	but do not compare the DATA_DIR flag, in case the tablespace was
 	remotely located. */
-	err = validate_first_page(0);
+	err = validate_first_page(m_first_page);
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
@@ -395,6 +395,70 @@ Datafile::validate_to_dd(ulint space_id, ulint flags)
 	return(DB_ERROR);
 }
 
+uint32_t recv_dblwr_t::find_first_page(const char *name, pfs_os_file_t file)
+{
+  os_offset_t file_size= os_file_get_size(file);
+  if (file_size != (os_offset_t) -1)
+  {
+    for (const page_t *page : pages)
+    {
+      uint32_t space_id= page_get_space_id(page);
+      byte *read_page= nullptr;
+      if (page_get_page_no(page) > 0 || space_id == 0)
+      {
+next_page:
+        aligned_free(read_page);
+        continue;
+      }
+      uint32_t flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS +
+                                       page);
+      size_t page_size= fil_space_t::physical_size(flags);
+      if (file_size < 4 * page_size)
+        goto next_page;
+      read_page=
+        static_cast<byte*>(aligned_malloc(3 * page_size, page_size));
+      /* Read 3 pages from the file and match the space id
+      with the space id which is stored in
+      doublewrite buffer page. */
+      if (os_file_read(IORequestRead, file, read_page, page_size,
+                       3 * page_size, nullptr) != DB_SUCCESS)
+        goto next_page;
+      for (ulint j= 0; j <= 2; j++)
+      {
+        byte *cur_page= read_page + j * page_size;
+        if (buf_is_zeroes(span<const byte>(cur_page, page_size)))
+        {
+          aligned_free(read_page);
+          return 0;
+        }
+        if (mach_read_from_4(cur_page + FIL_PAGE_OFFSET) != j + 1 ||
+            memcmp(cur_page + FIL_PAGE_SPACE_ID,
+                   page + FIL_PAGE_SPACE_ID, 4) ||
+            buf_page_is_corrupted(false, cur_page, flags))
+          goto next_page;
+      }
+
+      aligned_free(read_page);
+      page= find_page(page_id_t{space_id, 0}, LSN_MAX);
+
+      if (!page)
+      {
+        /* If the first page of the given user tablespace is not there
+        in the doublewrite buffer, then the recovery is going to fail
+        now. Report error only when doublewrite buffer is not empty */
+        sql_print_error("InnoDB: Corrupted page "
+                        "[page id: space=" UINT32PF ", page number=0]"
+                        " of datafile '%s' could not be found"
+                        " in the doublewrite buffer", space_id, name);
+        break;
+      }
+
+      return space_id;
+    }
+  }
+  return 0;
+}
+
 /** Validates this datafile for the purpose of recovery.  The file should
 exist and be successfully opened. We initially open it in read-only mode
 because we just want to read the SpaceID.  However, if the first page is
@@ -410,7 +474,7 @@ Datafile::validate_for_recovery()
 	ut_ad(is_open());
 	ut_ad(!srv_read_only_mode);
 
-	err = validate_first_page(0);
+	err = validate_first_page(m_first_page);
 
 	switch (err) {
 	case DB_TABLESPACE_EXISTS:
@@ -427,14 +491,7 @@ Datafile::validate_for_recovery()
 		m_space_id is set in read_first_page(). */
 		/* fall through */
 	default:
-		/* Re-open the file in read-write mode  Attempt to restore
-		page 0 from doublewrite and read the space ID from a survey
-		of the first few pages. */
-		close();
-		err = open_read_write();
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
+		const page_t *first_page = nullptr;
 
 		if (!m_space_id) {
 			m_space_id = recv_sys.dblwr.find_first_page(
@@ -460,15 +517,17 @@ Datafile::validate_for_recovery()
 			return DB_SUCCESS; /* empty file */
 		}
 
-		if (recv_sys.dblwr.restore_first_page(
-			m_space_id, m_filepath, m_handle)) {
+		first_page = recv_sys.dblwr.find_page(
+			page_id_t(m_space_id, 0), LSN_MAX);
+
+		if (!first_page) {
 			return m_defer ? err : DB_CORRUPTION;
 		}
 free_first_page:
 		/* Free the previously read first page and then re-validate. */
 		free_first_page();
 		m_defer = false;
-		err = validate_first_page(0);
+		err = validate_first_page(first_page);
 	}
 
 	return(err);
@@ -478,31 +537,24 @@ free_first_page:
 tablespace is opened.  This occurs before the fil_space_t is created
 so the Space ID found here must not already be open.
 m_is_valid is set true on success, else false.
-@param[out]	flush_lsn	contents of FIL_PAGE_FILE_FLUSH_LSN
+@param[in]	first_page	the contents of the first page
 @retval DB_SUCCESS on if the datafile is valid
 @retval DB_CORRUPTION if the datafile is not readable
 @retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-dberr_t Datafile::validate_first_page(lsn_t *flush_lsn)
+dberr_t Datafile::validate_first_page(const page_t *first_page)
 {
 	const char*	error_txt = NULL;
 
 	m_is_valid = true;
+	ut_ad(first_page || !m_first_page);
 
-	if (m_first_page == NULL
-	    && read_first_page(srv_read_only_mode) != DB_SUCCESS) {
-
-		error_txt = "Cannot read first page";
-	} else {
-		ut_ad(m_first_page);
-
-		if (flush_lsn != NULL) {
-
-			*flush_lsn = mach_read_from_8(
-				m_first_page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
+	if (first_page) {
+		if (dberr_t err = read_first_page_flags(first_page)) {
+			m_is_valid = false;
+			return err;
 		}
-	}
-
-	if (error_txt != NULL) {
+	} else if (read_first_page(srv_read_only_mode) != DB_SUCCESS) {
+		error_txt = "Cannot read first page";
 err_exit:
 		free_first_page();
 
@@ -518,11 +570,14 @@ err_exit:
 				m_space_id, m_flags);
 		m_is_valid = false;
 		return DB_CORRUPTION;
+	} else {
+		first_page = m_first_page;
+		ut_ad(first_page);
 	}
 
 	/* Check if the whole page is blank. */
 	if (!m_space_id && !m_flags) {
-		const byte*	b		= m_first_page;
+		const byte*	b		= first_page;
 		ulint		nonzero_bytes	= srv_page_size;
 
 		while (*b == '\0' && --nonzero_bytes != 0) {
@@ -560,7 +615,7 @@ err_exit:
 		return(DB_ERROR);
 	}
 
-	if (page_get_page_no(m_first_page) != 0) {
+	if (page_get_page_no(first_page) != 0) {
 		/* First page must be number 0 */
 		error_txt = "Header page contains inconsistent data";
 		goto err_exit;
@@ -571,8 +626,13 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (buf_page_is_corrupted(false, m_first_page, m_flags)) {
-		/* Look for checksum and other corruptions. */
+	switch (buf_page_is_corrupted(false, first_page, m_flags)) {
+	case NOT_CORRUPTED:
+		break;
+	case CORRUPTED_FUTURE_LSN:
+		error_txt = "LSN is in the future";
+		goto err_exit;
+	case CORRUPTED_OTHER:
 		error_txt = "Checksum mismatch";
 		goto err_exit;
 	}
