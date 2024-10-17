@@ -229,3 +229,8 @@ select hex(v) from t;
 hex(v)
 0000000000000000
 drop table t;
+#
+# MDEV-35176 ASAN errors in Field_vector::store with optimizer_trace enabled
+#
+create table t (pk int primary key, v vector(2) not null, key(v(6)));
+ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys

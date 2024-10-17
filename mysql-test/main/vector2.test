@@ -174,3 +174,9 @@ create table t (v vector(2) not null);
 insert ignore into t values (1);
 select hex(v) from t;
 drop table t;
+
+--echo #
+--echo # MDEV-35176 ASAN errors in Field_vector::store with optimizer_trace enabled
+--echo #
+--error ER_WRONG_SUB_KEY
+create table t (pk int primary key, v vector(2) not null, key(v(6)));
