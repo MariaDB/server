@@ -286,7 +286,7 @@ bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
   @retval FALSE OK
 */
 
-bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
+bool parse_option_list(THD* thd, void *option_struct_arg,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root)
@@ -295,6 +295,7 @@ bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
   size_t option_struct_size= 0;
   engine_option_value *val, *last;
   void **option_struct= (void**)option_struct_arg;
+  engine_option_value::Value default_value;
   DBUG_ENTER("parse_option_list");
   DBUG_PRINT("enter",
              ("struct: %p list: %p rules: %p suppress_warning: %u root: %p",
@@ -313,7 +314,6 @@ bool parse_option_list(THD* thd, st_plugin_int *plugin, void *option_struct_arg,
   for (opt= rules; rules && opt->name; opt++)
   {
     bool seen=false;
-    engine_option_value::Value default_value;
     for (val= *option_list; val; val= val->next)
     {
       last= val;
@@ -445,13 +445,13 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
   MEM_ROOT *root= &share->mem_root;
   DBUG_ENTER("parse_engine_table_options");
 
-  if (parse_option_list(thd, ht, &share->option_struct, & share->option_list,
+  if (parse_option_list(thd, &share->option_struct, & share->option_list,
                         ht->table_options, TRUE, root))
     DBUG_RETURN(TRUE);
 
   for (Field **field= share->field; *field; field++)
   {
-    if (parse_option_list(thd, ht, &(*field)->option_struct,
+    if (parse_option_list(thd, &(*field)->option_struct,
                           & (*field)->option_list,
                           ht->field_options, TRUE, root))
       DBUG_RETURN(TRUE);
@@ -459,7 +459,7 @@ bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share)
 
   for (uint index= 0; index < share->keys; index ++)
   {
-    if (parse_option_list(thd, ht, &share->key_info[index].option_struct,
+    if (parse_option_list(thd, &share->key_info[index].option_struct,
                           & share->key_info[index].option_list,
                           ht->index_options, TRUE, root))
       DBUG_RETURN(TRUE);
@@ -504,7 +504,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
     if (!part_info->is_sub_partitioned())
     {
       ht= part_elem->engine_type;
-      if (parse_option_list(thd, ht, &part_elem->option_struct,
+      if (parse_option_list(thd, &part_elem->option_struct,
                       &tmp_option_list, ht->table_options, TRUE, root))
         DBUG_RETURN(TRUE);
     }
@@ -514,7 +514,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
       while (partition_element *sub_part_elem= sub_it++)
       {
         ht= sub_part_elem->engine_type;
-        if (parse_option_list(thd, ht, &sub_part_elem->option_struct,
+        if (parse_option_list(thd, &sub_part_elem->option_struct,
                       &tmp_option_list, ht->table_options, TRUE, root))
           DBUG_RETURN(TRUE);
       }
