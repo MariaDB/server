@@ -273,29 +273,31 @@ Field::Copy_func *Field_vector::get_copy_func(const Field *from) const
   return do_copy_vec;
 }
 
-int Field_vector::report_wrong_value(const ErrConv &val) const
+int Field_vector::report_wrong_value(const ErrConv &val)
 {
-  my_error(ER_TRUNCATED_WRONG_VALUE_FOR_FIELD, MYF(0), "vector",
-      val.ptr(), table->s->db.str, table->s->table_name.str,
-      field_name.str, table->in_use->get_stmt_da()->current_row_for_warning());
-  return -1;
+  THD *thd= table->in_use;
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_TRUNCATED_WRONG_VALUE_FOR_FIELD,
+                      ER_THD(thd, ER_TRUNCATED_WRONG_VALUE_FOR_FIELD),
+                      "vector", val.ptr(), table->s->db.str,
+                      table->s->table_name.str, field_name.str,
+                      thd->get_stmt_da()->current_row_for_warning());
+  reset();
+  return 1;
 }
 
 int Field_vector::store(double nr)
 {
-  DBUG_ASSERT(0);
   return report_wrong_value(ErrConvDouble(nr));
 }
 
 int Field_vector::store(longlong nr, bool unsigned_val)
 {
-  DBUG_ASSERT(0);
   return report_wrong_value(ErrConvInteger(Longlong_hybrid(nr, unsigned_val)));
 }
 
 int Field_vector::store_decimal(const my_decimal *nr)
 {
-  DBUG_ASSERT(0);
   return report_wrong_value(ErrConvDecimal(nr));
 }
 
