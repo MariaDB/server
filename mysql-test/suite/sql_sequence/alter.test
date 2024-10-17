@@ -239,5 +239,23 @@ drop sequence s1,s2;
 --enable_ps_protocol
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-35144 CREATE TABLE ... LIKE uses current innodb_compression_default instead of the create value
 --echo #
+
+set @@innodb_compression_default= off;
+create or replace sequence s engine=innodb;
+set @@innodb_compression_default= on;
+create or replace table s_import like s;
+
+show create table s;
+show create table s_import;
+
+alter table s_import discard tablespace;
+flush table s for export;
+--copy_file $MYSQLD_DATADIR/test/s.ibd $MYSQLD_DATADIR/test/s_import.ibd
+--copy_file $MYSQLD_DATADIR/test/s.cfg $MYSQLD_DATADIR/test/s_import.cfg
+UNLOCK TABLES;
+alter table s_import import tablespace;
+drop table s,s_import;
+
+--echo # End of 10.5 tests
