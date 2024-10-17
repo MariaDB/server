@@ -351,16 +351,11 @@ ATTRIBUTE_COLD void trx_t::apply_log()
   const trx_undo_t *undo= rsegs.m_redo.undo;
   if (!undo || !undo_no)
     return;
-  page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
+  const page_id_t page_id{rsegs.m_redo.rseg->space->id, undo->hdr_page_no};
   page_id_t next_page_id(page_id);
-  mtr_t mtr;
-  mtr.start();
-  buf_block_t *block= buf_page_get(page_id, 0, RW_S_LATCH, &mtr);
+  buf_block_t *block= buf_pool.page_fix(page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
   if (UNIV_UNLIKELY(!block))
-  {
-    mtr.commit();
     return;
-  }
 
   UndorecApplier log_applier(page_id, id);
 
@@ -370,13 +365,9 @@ ATTRIBUTE_COLD void trx_t::apply_log()
                                                      undo->hdr_offset);
     while (rec)
     {
-      block->page.fix();
-      mtr.commit();
       /* Since we are the only thread who could write to this undo page,
       it is safe to dereference rec while only holding a buffer-fix. */
       log_applier.apply_undo_rec(rec);
-      mtr.start();
-      mtr.page_lock(block, RW_S_LATCH);
       rec= trx_undo_page_get_next_rec(block, page_offset(rec),
                                       page_id.page_no(), undo->hdr_offset);
     }
@@ -384,17 +375,16 @@ ATTRIBUTE_COLD void trx_t::apply_log()
     uint32_t next= mach_read_from_4(TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_NODE +
                                     FLST_NEXT + FIL_ADDR_PAGE +
                                     block->page.frame);
+    block->page.unfix();
     if (next == FIL_NULL)
       break;
     next_page_id.set_page_no(next);
-    mtr.commit();
-    mtr.start();
-    block= buf_page_get_gen(next_page_id, 0, RW_S_LATCH, block, BUF_GET, &mtr);
+    block= buf_pool.page_fix(next_page_id, nullptr, buf_pool_t::FIX_WAIT_READ);
     if (UNIV_UNLIKELY(!block))
       break;
     log_applier.assign_next(next_page_id);
   }
-  mtr.commit();
+
   apply_online_log= false;
 }
 
