@@ -215,6 +215,17 @@ close_and_exit:
 	always refer to an existing undo log record. */
 	ut_ad(row_get_rec_trx_id(rec, index, offsets));
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("enable_row_purge_remove_clust_if_poss_low_sync_point",
+                  debug_sync_set_action
+                  (current_thd,
+                   STRING_WITH_LEN(
+                     "now SIGNAL "
+                       "row_purge_remove_clust_if_poss_low_before_delete "
+                     "WAIT_FOR "
+                       "row_purge_remove_clust_if_poss_low_cont"));
+                  );
+#endif
 	if (mode == BTR_MODIFY_LEAF) {
 		success = DB_FAIL != btr_cur_optimistic_delete(
 			btr_pcur_get_btr_cur(&node->pcur), 0, &mtr);
