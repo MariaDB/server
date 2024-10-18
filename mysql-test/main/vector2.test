@@ -180,3 +180,11 @@ drop table t;
 --echo #
 --error ER_WRONG_SUB_KEY
 create table t (pk int primary key, v vector(2) not null, key(v(6)));
+
+--echo #
+--echo # MDEV-35191 Assertion failure in Create_tmp_table::finalize upon DISTINCT with vector type
+--echo #
+create table t (v vector(1));
+insert into t values (0x55555555),(0x56565656);
+select distinct v from t;
+drop table t;
