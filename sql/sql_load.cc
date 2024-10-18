@@ -1128,7 +1128,8 @@ read_sep_field(THD *thd, COPY_INFO &info, TABLE_LIST *table_list,
       /*
         Avoiding of handling binary data as a text
       */
-      if(item->charset_for_protocol() == &my_charset_bin)
+      if (item->charset_for_protocol() == &my_charset_bin &&
+          !read_info.charset()->escape_with_backslash_is_dangerous)
         cs= &my_charset_bin;
       else
         cs= read_info.charset();
