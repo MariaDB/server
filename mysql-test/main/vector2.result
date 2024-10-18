@@ -234,3 +234,13 @@ drop table t;
 #
 create table t (pk int primary key, v vector(2) not null, key(v(6)));
 ERROR HY000: Incorrect prefix key; the used key part isn't a string, the used length is longer than the key part, or the storage engine doesn't support unique prefix keys
+#
+# MDEV-35191 Assertion failure in Create_tmp_table::finalize upon DISTINCT with vector type
+#
+create table t (v vector(1));
+insert into t values (0x55555555),(0x56565656);
+select distinct v from t;
+v
+UUUU
+VVVV
+drop table t;
