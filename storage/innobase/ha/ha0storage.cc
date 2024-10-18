@@ -29,7 +29,6 @@ Created September 22, 2007 Vasil Dimov
 #include "ha0storage.h"
 #include "hash0hash.h"
 #include "mem0mem.h"
-#include "ut0rnd.h"
 
 /*******************************************************************//**
 Retrieves a data from a storage. If it is present, a pointer to the
@@ -40,17 +39,10 @@ ha_storage_get(
 /*===========*/
 	ha_storage_t*	storage,	/*!< in: hash storage */
 	const void*	data,		/*!< in: data to check for */
-	ulint		data_len)	/*!< in: data length */
+	ulint		data_len,	/*!< in: data length */
+	uint32_t	fold)		/*!< in: my_crc32(data, data_len) */
 {
 	ha_storage_node_t*	node;
-	ulint			fold;
-
-	/* avoid repetitive calls to ut_fold_binary() in the HASH_SEARCH
-	macro */
-	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
-
-#define IS_FOUND	\
-	node->data_len == data_len && memcmp(node->data, data, data_len) == 0
 
 	HASH_SEARCH(
 		next,			/* node->"next" */
@@ -59,7 +51,9 @@ ha_storage_get(
 		ha_storage_node_t*,	/* type of node->next */
 		node,			/* auxiliary variable */
 		,			/* assertion */
-		IS_FOUND);		/* search criteria */
+		node->data_len == data_len
+		&& memcmp(node->data, data, data_len) == 0);
+					/* search criteria */
 
 	if (node == NULL) {
 
@@ -90,10 +84,10 @@ ha_storage_put_memlim(
 	void*			raw;
 	ha_storage_node_t*	node;
 	const void*		data_copy;
-	ulint			fold;
+	const uint32_t fold = my_crc32c(0, data, data_len);
 
 	/* check if data chunk is already present */
-	data_copy = ha_storage_get(storage, data, data_len);
+	data_copy = ha_storage_get(storage, data, data_len, fold);
 	if (data_copy != NULL) {
 
 		return(data_copy);
@@ -120,10 +114,6 @@ ha_storage_put_memlim(
 
 	node->data_len = data_len;
 	node->data = data_copy;
-
-	/* avoid repetitive calls to ut_fold_binary() in the HASH_INSERT
-	macro */
-	fold = ut_fold_binary(static_cast<const byte*>(data), data_len);
 
 	HASH_INSERT(
 		ha_storage_node_t,	/* type used in the hash chain */
