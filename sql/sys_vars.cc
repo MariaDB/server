@@ -3766,7 +3766,7 @@ static const char *sql_mode_names[]=
 };
 
 
-const char *sql_mode_string_representation(uint bit_number)
+const char *sql_mode_string_representation_for_bit(uint bit_number)
 {
   DBUG_ASSERT(bit_number < array_elements(sql_mode_names));
   return sql_mode_names[bit_number];
