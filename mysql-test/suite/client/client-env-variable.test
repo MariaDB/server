@@ -4,14 +4,13 @@
 # The environment variables for client programs have default options file
 # They interfere with the MTR test so I am creating new variables for them
 
---let MARIADB = $MYSQL_BINDIR/client//mariadb
---let MARIADBADMIN = $MYSQL_BINDIR/client//mariadb-admin
---let MARIADBBINLOG = $MYSQL_BINDIR/client//mariadb-binlog
---let MARIADBCHECK = $MYSQL_BINDIR/client//mariadb-check
---let MARIADBDUMP = $MYSQL_BINDIR/client//mariadb-dump
---let MARIADBIMPORT = $MYSQL_BINDIR/client//mariadb-import
---let MARIADBSHOW = $MYSQL_BINDIR/client//mariadb-show
---let MARIADBSLAP = $MYSQL_BINDIR/client//mariadb-slap
+--let MARIADBADMIN = $EXE_MYSQL-admin
+--let MARIADBBINLOG = $EXE_MYSQL-binlog
+--let MARIADBCHECK = $EXE_MYSQL-check
+--let MARIADBDUMP = $EXE_MYSQL-dump
+--let MARIADBIMPORT = $EXE_MYSQL-import
+--let MARIADBSHOW = $EXE_MYSQL-show
+--let MARIADBSLAP = $EXE_MYSQL-slap
 
 # Creating a table for the client programs
 USE test;
@@ -31,7 +30,7 @@ EOF
 --echo $MARIADB_HOST
 
 # Positive test for client program with MARIADB_HOST
---exec $MARIADB $options -e "SHOW DATABASES;" > /dev/null 2>&1
+--exec $EXE_MYSQL $options -e "SHOW DATABASES;" > /dev/null 2>&1
 --exec $MARIADBADMIN $options processlist > /dev/null 2>&1
 --exec $MARIADBBINLOG $options --read-from-remote-server master-bin.000001 > /dev/null 2>&1
 --exec $MARIADBCHECK $options -c --databases test > /dev/null 2>&1
@@ -50,7 +49,7 @@ EOF
 # Some client program fails with error 1 and some fails wtih error 2
 
 --error 1
---exec $MARIADB $options -e "SHOW DATABASES;" > /dev/null 2>&1
+--exec $EXE_MYSQL $options -e "SHOW DATABASES;" > /dev/null 2>&1
 
 --error 1
 --exec $MARIADBADMIN $options processlist > /dev/null 2>&1
@@ -71,7 +70,7 @@ EOF
 --exec $MARIADBSLAP $options > /dev/null 2>&1
 
 # Run the same command but with '--host' to verify command line input overrides env variable
---exec $MARIADB $options --host localhost -e "SHOW DATABASES;" > /dev/null 2>&1
+--exec $EXE_MYSQL $options --host localhost -e "SHOW DATABASES;" > /dev/null 2>&1
 --exec $MARIADBADMIN $options --host localhost processlist > /dev/null 2>&1
 --exec $MARIADBBINLOG $options --host localhost --read-from-remote-server master-bin.000001 > /dev/null 2>&1
 --exec $MARIADBCHECK $options --host localhost -c --databases test > /dev/null 2>&1
