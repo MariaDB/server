@@ -9306,8 +9306,18 @@ choose_plan(JOIN *join, table_map join_tables)
     double limit_cost= DBL_MAX;
     POSITION *limit_plan= NULL;
 
-    /* First, build a join plan that can short-cut ORDER BY...LIMIT */
-    if (join->limit_shortcut_applicable && !join->emb_sjm_nest)
+    /*
+      First, build a join plan that can short-cut ORDER BY...LIMIT.
+      Do it if
+      (1) The SELECT in query makes it possible to do short-cutting for
+          some table TBL.
+      (2) We are optimizing the whole JOIN, not a semi-join nest
+      (3) The table TBL has not been marked as constant (in this case,
+          ORDER BY LIMIT will be optimized away)
+    */
+    if (join->limit_shortcut_applicable &&                  // (1)
+        !join->emb_sjm_nest &&                              // (2)
+        !(join->sort_by_table->map & join->const_table_map)) //(3)
     {
       bool res;
       Json_writer_object wrapper(join->thd);
