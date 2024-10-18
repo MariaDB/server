@@ -1626,6 +1626,19 @@ static Sys_var_ulong Sys_log_warnings(
        CMD_LINE(OPT_ARG, 'W'),
        VALID_RANGE(0, UINT_MAX), DEFAULT(2), BLOCK_SIZE(1));
 
+static Sys_var_uint Sys_log_suppress_repeated_errors(
+        "log_suppress_repeated_errors",
+        "Suppress repeated identical error log messages after a specified number of occurrences. "
+        "Set an integer value representing the maximum number of times an identical error message "
+        "should be printed in the log before suppressing further occurrences. A non-identical "
+        "error message will reset the suppression and allow the specified number of occurrences "
+        "to be printed again. 0 disables suppression.",
+        GLOBAL_VAR(opt_log_suppress_repeated_errors),
+        CMD_LINE(REQUIRED_ARG),
+        VALID_RANGE(0, UINT_MAX32),
+        DEFAULT(0),
+        BLOCK_SIZE(1));
+
 static bool update_cached_long_query_time(sys_var *self, THD *thd,
                                           enum_var_type type)
 {
