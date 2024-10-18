@@ -778,6 +778,9 @@ ALTER TABLE proc ENGINE=Aria transactional=1;
 ALTER TABLE event ENGINE=Aria transactional=1;
 ALTER TABLE proxies_priv ENGINE=Aria transactional=1;
 
+-- system tables shouldn't have FK constraint. If it was forced to innodb, lets remove it.
+ALTER TABLE help_relation drop constraint if exists help_relation_ibfk_1, drop constraint if exists help_relation_ibfk_2, add key if not exists (help_topic_id);
+
 -- The following tables doesn't have to be transactional
 ALTER TABLE help_topic ENGINE=Aria transactional=0;
 ALTER TABLE help_category ENGINE=Aria transactional=0;
