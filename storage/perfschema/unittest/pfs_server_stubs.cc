@@ -50,7 +50,7 @@ void sql_print_warning(const char *format, ...)
   /* Do not pollute the unit test output with annoying messages. */
 }
 
-class sys_var { public: enum where { AUTO }; };
+class sys_var { public: enum where { CONFIG, COMMAND_LINE, AUTO, SQL, COMPILE_TIME, ENV }; };
 void set_sys_var_value_origin(void *, enum sys_var::where, const char *)
 {
 }
