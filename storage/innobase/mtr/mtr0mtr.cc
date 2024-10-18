@@ -1151,6 +1151,8 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
   ut_ad(is_logged());
   ut_ad(m_log.size());
   ut_ad(!m_latch_ex || log_sys.latch_have_wr());
+  ut_ad(!m_user_space ||
+        (m_user_space->id > 0 && m_user_space->id < SRV_SPACE_ID_UPPER_BOUND));
 
 #ifndef DBUG_OFF
   do
@@ -1189,7 +1191,7 @@ std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::do_write()
     log_sys.latch.rd_lock(SRW_LOCK_CALL);
 
   if (UNIV_UNLIKELY(m_user_space && !m_user_space->max_lsn &&
-                    !is_predefined_tablespace(m_user_space->id)))
+                    !srv_is_undo_tablespace((m_user_space->id))))
   {
     if (!m_latch_ex)
     {

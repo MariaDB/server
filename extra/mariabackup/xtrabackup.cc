@@ -3426,7 +3426,8 @@ static bool xtrabackup_copy_mmap_logfile()
     recv_sys_t::parse_mtr_result r;
     const byte *start= &log_sys.buf[recv_sys.offset];
 
-    if (recv_sys.parse_mmap<false>(false) == recv_sys_t::OK)
+    if (recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false) ==
+        recv_sys_t::OK)
     {
       const byte *end;
 
@@ -3446,7 +3447,8 @@ static bool xtrabackup_copy_mmap_logfile()
           start = seq + 1;
         }
       }
-      while ((r= recv_sys.parse_mmap<false>(false)) == recv_sys_t::OK);
+      while ((r= recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
+             recv_sys_t::OK);
 
       end= &log_sys.buf[recv_sys.offset];
 
@@ -3551,7 +3553,8 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false) ==
+          recv_sys_t::OK)
       {
         do
         {
@@ -3561,7 +3564,8 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false)) ==
+               recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -3929,7 +3933,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	for (int i = 0; i < 10; i++) {
 		file->m_defer = false;
-		err = file->validate_first_page();
+		err = file->validate_first_page(file->get_first_page());
 
 		if (file->m_defer) {
 			if (defer_space_id) {
@@ -3971,7 +3975,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			skip_node_page0 ? file->detach() : pfs_os_file_t(),
 			0, false, false);
 		node->deferred= defer;
-		if (!space->read_page0())
+		if (!space->read_page0(nullptr, true))
 			err = DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
@@ -6863,8 +6867,10 @@ error:
 			goto error;
 		}
 
-		ok = fil_system.sys_space->open(false)
-			&& xtrabackup_apply_deltas();
+		mysql_mutex_lock(&recv_sys.mutex);
+		ok = fil_system.sys_space->open(false);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (ok) ok = xtrabackup_apply_deltas();
 
 		xb_data_files_close();
 

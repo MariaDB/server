@@ -65,16 +65,6 @@ Protected by log_sys.latch. */
 bool	recv_no_log_write = false;
 #endif /* UNIV_DEBUG */
 
-/** TRUE if buf_page_is_corrupted() should check if the log sequence
-number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
-recv_recovery_from_checkpoint_start(). */
-bool	recv_lsn_checks_on;
-
-/** The maximum lsn we see for a page during the recovery process. If this
-is bigger than the lsn we are able to scan up to, that is an indication that
-the recovery failed and the database may be corrupt. */
-static lsn_t	recv_max_page_lsn;
-
 /** Stored physical log record */
 struct log_phys_t : public log_rec_t
 {
@@ -845,7 +835,7 @@ processed:
   This is invoked if we found neither a valid first page in the
   data file nor redo log records that would initialize the first
   page. */
-  void deferred_dblwr()
+  void deferred_dblwr(lsn_t max_lsn)
   {
     for (auto d= defers.begin(); d != defers.end(); )
     {
@@ -856,7 +846,7 @@ processed:
         continue;
       }
       const page_id_t page_id{d->first, 0};
-      const byte *page= recv_sys.dblwr.find_page(page_id);
+      const byte *page= recv_sys.dblwr.find_page(page_id, max_lsn);
       if (!page)
         goto next_item;
       const uint32_t space_id= mach_read_from_4(page + FIL_PAGE_SPACE_ID);
@@ -1350,7 +1340,6 @@ void recv_sys_t::create()
 	progress_time = time(NULL);
 	ut_ad(pages.empty());
 	pages_it = pages.end();
-	recv_max_page_lsn = 0;
 
 	memset(truncated_undo_spaces, 0, sizeof truncated_undo_spaces);
 	truncated_sys_space= {0, 0};
@@ -1700,6 +1689,8 @@ dberr_t recv_sys_t::find_checkpoint()
     log_sys.last_checkpoint_lsn= log_sys.next_checkpoint_lsn;
     log_sys.set_recovered_lsn(log_sys.next_checkpoint_lsn);
     lsn= file_checkpoint= log_sys.next_checkpoint_lsn;
+    if (UNIV_LIKELY(lsn != 0))
+      scanned_lsn= lsn;
     log_sys.next_checkpoint_no= 0;
     return DB_SUCCESS;
   }
@@ -2093,17 +2084,10 @@ static void store_freed_or_init_rec(page_id_t page_id, bool freed)
 {
   uint32_t space_id= page_id.space();
   uint32_t page_no= page_id.page_no();
-  if (is_predefined_tablespace(space_id))
+  if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
   {
-    if (!srv_immediate_scrub_data_uncompressed)
-      return;
-    fil_space_t *space;
-    if (space_id == TRX_SYS_SPACE)
-      space= fil_system.sys_space;
-    else
-      space= fil_space_get(space_id);
-
-    space->free_page(page_no, freed);
+    if (srv_immediate_scrub_data_uncompressed)
+      fil_space_get(space_id)->free_page(page_no, freed);
     return;
   }
 
@@ -2414,28 +2398,29 @@ void recv_sys_t::rewind(source &l, source &begin) noexcept
 }
 
 /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-@tparam store     whether to store the records
+@tparam storing   whether to store the records
 @param  l         log data source
 @param  if_exists if store: whether to check if the tablespace exists */
-template<typename source,bool store>
+template<typename source,recv_sys_t::store storing>
 inline
 recv_sys_t::parse_mtr_result recv_sys_t::parse(source &l, bool if_exists)
   noexcept
 {
 restart:
-  ut_ad(log_sys.latch_have_wr() ||
-        srv_operation == SRV_OPERATION_BACKUP ||
-        srv_operation == SRV_OPERATION_BACKUP_NO_DEFER);
+  ut_ad(storing == BACKUP || log_sys.latch_have_wr());
+  ut_ad(storing == BACKUP || !undo_space_trunc);
+  ut_ad(storing == BACKUP || !log_file_op);
+  ut_ad(storing == YES || !if_exists);
+  ut_ad((storing == BACKUP) ==
+        (srv_operation == SRV_OPERATION_BACKUP ||
+         srv_operation == SRV_OPERATION_BACKUP_NO_DEFER));
   mysql_mutex_assert_owner(&mutex);
   ut_ad(log_sys.next_checkpoint_lsn);
   ut_ad(log_sys.is_latest());
-  ut_ad(store || !if_exists);
-  ut_ad(store ||
-        srv_operation != SRV_OPERATION_BACKUP ||
-        srv_operation != SRV_OPERATION_BACKUP_NO_DEFER);
 
   alignas(8) byte iv[MY_AES_BLOCK_SIZE];
-  byte *decrypt_buf= static_cast<byte*>(alloca(srv_page_size));
+  byte *decrypt_buf= storing == YES
+    ? static_cast<byte*>(alloca(srv_page_size)) : nullptr;
 
   const lsn_t start_lsn{lsn};
 
@@ -2491,15 +2476,16 @@ restart:
     crc= my_crc32c(crc, iv, 8);
   }
 
-  DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch",
-                  {
-                    static int c;
-                    if (!c++)
+  if (storing == BACKUP)
+    DBUG_EXECUTE_IF("log_intermittent_checksum_mismatch",
                     {
-                      sql_print_information("Invalid log block checksum");
-                      return GOT_EOF;
-                    }
-                  });
+                      static int c;
+                      if (!c++)
+                      {
+                        sql_print_information("Invalid log block checksum");
+                        return GOT_EOF;
+                      }
+                    });
 
   if (crc != (l + 1).read4())
     return GOT_EOF;
@@ -2577,7 +2563,8 @@ restart:
         }
         sql_print_warning("InnoDB: Ignoring malformed log record at LSN "
                           LSN_PF, lsn);
-        last_offset= 1; /* the next record must not be same_page  */
+        /* the next record must not be same_page */
+        if (storing == YES) last_offset= 1;
         continue;
       }
       if (srv_operation == SRV_OPERATION_BACKUP)
@@ -2587,7 +2574,7 @@ restart:
                   lsn, b, l - recs + rlen, space_id, page_no));
       goto same_page;
     }
-    last_offset= 0;
+    if (storing == YES) last_offset= 0;
     idlen= mlog_decode_varint_length(*l);
     if (UNIV_UNLIKELY(idlen > 5 || idlen >= rlen))
     {
@@ -2618,17 +2605,21 @@ restart:
       goto page_id_corrupted;
     l+= idlen;
     rlen-= idlen;
-    mach_write_to_4(iv + 8, space_id);
-    mach_write_to_4(iv + 12, page_no);
+    if (storing == YES)
+    {
+      mach_write_to_4(iv + 8, space_id);
+      mach_write_to_4(iv + 12, page_no);
+    }
     got_page_op= !(b & 0x80);
     if (!got_page_op);
-    else if (!store && srv_operation == SRV_OPERATION_BACKUP)
+    else if (storing == BACKUP && srv_operation == SRV_OPERATION_BACKUP)
     {
-      if (page_no == 0 && first_page_init && (b & 0x10))
+      if (page_no == 0 && (b & 0xf0) == INIT_PAGE && first_page_init)
         first_page_init(space_id);
       continue;
     }
-    else if (store && file_checkpoint && !is_predefined_tablespace(space_id))
+    else if (storing == YES && file_checkpoint &&
+             space_id != TRX_SYS_SPACE && !srv_is_undo_tablespace(space_id))
     {
       recv_spaces_t::iterator i= recv_spaces.lower_bound(space_id);
       if (i != recv_spaces.end() && i->first == space_id);
@@ -2657,7 +2648,6 @@ restart:
     if (got_page_op)
     {
     same_page:
-      const byte *cl= l.ptr;
       if (!rlen);
       else if (UNIV_UNLIKELY(l - recs + rlen > srv_page_size))
         goto record_corrupted;
@@ -2665,27 +2655,65 @@ restart:
       ut_d(if ((b & 0x70) == INIT_PAGE || (b & 0x70) == OPTION)
              freed.erase(id));
       ut_ad(freed.find(id) == freed.end());
+      const byte *cl= storing == NO ? nullptr : l.ptr;
       switch (b & 0x70) {
       case FREE_PAGE:
         ut_ad(freed.emplace(id).second);
-        last_offset= 1; /* the next record must not be same_page  */
+        /* the next record must not be same_page */
+        if (storing == YES) last_offset= 1;
         goto free_or_init_page;
       case INIT_PAGE:
-        last_offset= FIL_PAGE_TYPE;
+        if (storing == YES) last_offset= FIL_PAGE_TYPE;
       free_or_init_page:
-        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+        if (storing == BACKUP)
+          continue;
         if (UNIV_UNLIKELY(rlen != 0))
           goto record_corrupted;
+        store_freed_or_init_rec(id, (b & 0x70) == FREE_PAGE);
+
+        if (storing == NO)
+        {
+          /* We must update mlog_init for the correct operation of
+          multi-batch recovery, for example to avoid occasional
+          failures of the test innodb.recovery_memory.
+
+          For storing == YES, this will be invoked in recv_sys_t::add(). */
+          mlog_init.add(id, start_lsn);
+
+          /* recv_scan_log() may have stored some log for this page
+          before entering the skip_the_rest: loop. Such records must
+          be discarded, because reading an INIT_PAGE or FREE_PAGE
+          record implies that the page can be recovered based on log
+          records, without reading it from a data file. */
+
+          if (pages_it == pages.end() || pages_it->first != id)
+          {
+            pages_it= pages.find(id);
+            if (pages_it == pages.end())
+              continue;
+          }
+          map::iterator r= pages_it++;
+          ut_ad(!r->second.being_processed);
+          erase(r);
+          continue;
+        }
       copy_if_needed:
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         break;
       case EXTENDED:
+        if (storing != YES)
+          continue;
         if (UNIV_UNLIKELY(!rlen))
           goto record_corrupted;
         cl= l.copy_if_needed(iv, decrypt_buf, recs, rlen);
         if (rlen == 1 && *cl == TRIM_PAGES)
         {
-          if (srv_is_undo_tablespace(space_id))
+          if (storing == BACKUP)
+          {
+            if (space_id && undo_space_trunc)
+              undo_space_trunc(space_id);
+          }
+          else if (srv_is_undo_tablespace(space_id))
 	  {
 	    if (page_no != SRV_UNDO_TABLESPACE_SIZE_IN_PAGES)
               goto record_corrupted;
@@ -2705,15 +2733,14 @@ restart:
 	  }
           static_assert(UT_ARR_SIZE(truncated_undo_spaces) ==
                         TRX_SYS_MAX_UNDO_SPACES, "compatibility");
-          if (!store && undo_space_trunc && space_id)
-            undo_space_trunc(space_id);
-          last_offset= 1; /* the next record must not be same_page  */
+          /* the next record must not be same_page */
+          if (storing == YES) last_offset= 1;
           continue;
         }
-        last_offset= FIL_PAGE_TYPE;
+        if (storing == YES) last_offset= FIL_PAGE_TYPE;
         break;
       case OPTION:
-        if (rlen == 5 && *l == OPT_PAGE_CHECKSUM)
+        if (storing == YES && rlen == 5 && *l == OPT_PAGE_CHECKSUM)
           goto copy_if_needed;
         /* fall through */
       case RESERVED:
@@ -2721,6 +2748,8 @@ restart:
       case WRITE:
       case MEMMOVE:
       case MEMSET:
+        if (storing != YES)
+          continue;
         if (UNIV_UNLIKELY(rlen == 0 || last_offset == 1))
           goto record_corrupted;
         ut_d(const source payload{l});
@@ -2761,7 +2790,7 @@ restart:
                                    last_offset)
                 : file_name_t::initial_flags;
               if (it == recv_spaces.end())
-                ut_ad(!store || space_id == TRX_SYS_SPACE ||
+                ut_ad(space_id == TRX_SYS_SPACE ||
                       srv_is_undo_tablespace(space_id));
               else if (!it->second.space)
               {
@@ -2821,7 +2850,7 @@ restart:
         ut_ad(modified.emplace(id).second || (b & 0x70) != INIT_PAGE);
       }
 #endif
-      if (store)
+      if (storing == YES)
       {
         if (if_exists)
         {
@@ -2844,7 +2873,8 @@ restart:
                                 l - recs + rlen)))
           {
             lsn= start_lsn;
-            log_sys.set_recovered_lsn(start_lsn);
+            if (lsn > log_sys.get_lsn())
+              log_sys.set_recovered_lsn(start_lsn);
             l+= rlen;
             offset= begin.ptr - log_sys.buf;
             rewind(l, begin);
@@ -2856,22 +2886,10 @@ restart:
               goto restart;
             }
             sql_print_information("InnoDB: Multi-batch recovery needed at LSN "
-                                  LSN_PF, lsn);
+                                  LSN_PF, start_lsn);
             return GOT_OOM;
           }
         }
-      }
-      else if ((b & 0x70) <= INIT_PAGE)
-      {
-        mlog_init.add(id, start_lsn);
-        if (pages_it == pages.end() || pages_it->first != id)
-        {
-          pages_it= pages.find(id);
-          if (pages_it == pages.end())
-            continue;
-        }
-        map::iterator r= pages_it++;
-        erase(r);
       }
     }
     else if (rlen)
@@ -2884,7 +2902,7 @@ restart:
           if (rlen < UNIV_PAGE_SIZE_MAX && !l.is_zero(rlen))
             continue;
         }
-        else if (store)
+        else if (storing == YES)
         {
           ut_ad(file_checkpoint);
           continue;
@@ -2962,7 +2980,7 @@ restart:
             goto file_rec_error;
         }
 
-        if (is_predefined_tablespace(space_id))
+        if (space_id == TRX_SYS_SPACE || srv_is_undo_tablespace(space_id))
           goto file_rec_error;
         if (fnend - fn < 4 || memcmp(fnend - 4, DOT_IBD, 4))
           goto file_rec_error;
@@ -2970,9 +2988,7 @@ restart:
         if (UNIV_UNLIKELY(!recv_needed_recovery && srv_read_only_mode))
           continue;
 
-        if (!store &&
-            (srv_operation == SRV_OPERATION_BACKUP ||
-             srv_operation == SRV_OPERATION_BACKUP_NO_DEFER))
+        if (storing == BACKUP)
         {
           if ((b & 0xf0) < FILE_CHECKPOINT && log_file_op)
             log_file_op(space_id, b & 0xf0,
@@ -3014,22 +3030,23 @@ restart:
   return OK;
 }
 
-template<bool store>
+template<recv_sys_t::store storing>
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr(bool if_exists) noexcept
 {
   recv_buf s{&log_sys.buf[recv_sys.offset]};
-  return recv_sys.parse<recv_buf,store>(s, if_exists);
+  return recv_sys.parse<recv_buf,storing>(s, if_exists);
 }
 
 /** for mariadb-backup; @see xtrabackup_copy_logfile() */
 template
-recv_sys_t::parse_mtr_result recv_sys_t::parse_mtr<false>(bool) noexcept;
+recv_sys_t::parse_mtr_result
+recv_sys_t::parse_mtr<recv_sys_t::store::BACKUP>(bool) noexcept;
 
 #ifdef HAVE_INNODB_MMAP
-template<bool store>
+template<recv_sys_t::store storing>
 recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
 {
-  recv_sys_t::parse_mtr_result r{parse_mtr<store>(if_exists)};
+  recv_sys_t::parse_mtr_result r{parse_mtr<storing>(if_exists)};
   if (UNIV_LIKELY(r != PREMATURE_EOF) || !log_sys.is_mmap())
     return r;
   ut_ad(recv_sys.len == log_sys.file_size);
@@ -3039,12 +3056,13 @@ recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap(bool if_exists) noexcept
     {recv_sys.offset == recv_sys.len
      ? &log_sys.buf[log_sys.START_OFFSET]
      : &log_sys.buf[recv_sys.offset]};
-  return recv_sys.parse<recv_ring,store>(s, if_exists);
+  return recv_sys.parse<recv_ring,storing>(s, if_exists);
 }
 
 /** for mariadb-backup; @see xtrabackup_copy_mmap_logfile() */
 template
-recv_sys_t::parse_mtr_result recv_sys_t::parse_mmap<false>(bool) noexcept;
+recv_sys_t::parse_mtr_result
+recv_sys_t::parse_mmap<recv_sys_t::store::BACKUP>(bool) noexcept;
 #endif
 
 /** Apply the hashed log records to the page, if the page lsn is less than the
@@ -3213,11 +3231,18 @@ set_start_lsn:
 			mtr.discard_modifications();
 			mtr.commit();
 
+			fil_space_t* s = space
+				? space
+				: fil_space_t::get(block->page.id().space());
+
 			buf_pool.corrupted_evict(&block->page,
 						 block->page.state() &
 						 buf_page_t::LRU_MASK);
-			block = nullptr;
-			goto done;
+			if (!space) {
+				s->release();
+			}
+
+			return nullptr;
 		}
 
 		if (!start_lsn) {
@@ -3257,29 +3282,26 @@ set_start_lsn:
 	mtr.discard_modifications();
 	mtr.commit();
 
-done:
-	/* FIXME: do this in page read, protected with recv_sys.mutex! */
-	if (recv_max_page_lsn < page_lsn) {
-		recv_max_page_lsn = page_lsn;
-	}
-
 	return block;
 }
 
 /** Remove records for a corrupted page.
-This function should only be called when innodb_force_recovery is set.
-@param page_id  corrupted page identifier */
-ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
+@param page_id  corrupted page identifier
+@param node     file for which an error is to be reported
+@return whether an error message was reported */
+ATTRIBUTE_COLD
+bool recv_sys_t::free_corrupted_page(page_id_t page_id,
+                                     const fil_node_t &node) noexcept
 {
   if (!recovery_on)
-    return;
+    return false;
 
   mysql_mutex_lock(&mutex);
   map::iterator p= pages.find(page_id);
   if (p == pages.end())
   {
     mysql_mutex_unlock(&mutex);
-    return;
+    return false;
   }
 
   p->second.being_processed= -1;
@@ -3287,18 +3309,20 @@ ATTRIBUTE_COLD void recv_sys_t::free_corrupted_page(page_id_t page_id)
     set_corrupt_fs();
   mysql_mutex_unlock(&mutex);
 
-  ib::error_or_warn(!srv_force_recovery)
-    << "Unable to apply log to corrupted page " << page_id;
+  (srv_force_recovery ? sql_print_warning : sql_print_error)
+    ("InnoDB: Unable to apply log to corrupted page " UINT32PF
+     " in file %s", page_id.page_no(), node.name);
+  return true;
 }
 
-ATTRIBUTE_COLD void recv_sys_t::set_corrupt_log()
+ATTRIBUTE_COLD void recv_sys_t::set_corrupt_log() noexcept
 {
   mysql_mutex_lock(&mutex);
   found_corrupt_log= true;
   mysql_mutex_unlock(&mutex);
 }
 
-ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs()
+ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs() noexcept
 {
   mysql_mutex_assert_owner(&mutex);
   if (!srv_force_recovery)
@@ -4044,7 +4068,7 @@ static bool recv_scan_log(bool last_phase)
         for (;;)
         {
           const byte& b{log_sys.buf[recv_sys.offset]};
-          r= recv_sys.parse_mmap<false>(false);
+          r= recv_sys.parse_mmap<recv_sys_t::store::NO>(false);
           switch (r) {
           case recv_sys_t::PREMATURE_EOF:
             goto read_more;
@@ -4074,7 +4098,7 @@ static bool recv_scan_log(bool last_phase)
       else
       {
         ut_ad(recv_sys.file_checkpoint != 0);
-        switch ((r= recv_sys.parse_mmap<true>(false))) {
+        switch ((r= recv_sys.parse_mmap<recv_sys_t::store::YES>(false))) {
         case recv_sys_t::PREMATURE_EOF:
           goto read_more;
         case recv_sys_t::GOT_EOF:
@@ -4096,11 +4120,13 @@ static bool recv_scan_log(bool last_phase)
 
     if (!store)
     skip_the_rest:
-      while ((r= recv_sys.parse_mmap<false>(false)) == recv_sys_t::OK);
+      while ((r= recv_sys.parse_mmap<recv_sys_t::store::NO>(false)) ==
+             recv_sys_t::OK);
     else
     {
       uint16_t count= 0;
-      while ((r= recv_sys.parse_mmap<true>(last_phase)) == recv_sys_t::OK)
+      while ((r= recv_sys.parse_mmap<recv_sys_t::store::YES>(last_phase)) ==
+             recv_sys_t::OK)
         if (!++count && recv_sys.report(time(nullptr)))
         {
           const size_t n= recv_sys.pages.size();
@@ -4130,7 +4156,8 @@ static bool recv_scan_log(bool last_phase)
       ut_ad(recv_sys.is_initialised());
       if (recv_sys.scanned_lsn > 1)
       {
-        ut_ad(recv_sys.scanned_lsn == recv_sys.lsn);
+        ut_ad(recv_sys.is_corrupt_fs() ||
+              recv_sys.scanned_lsn == recv_sys.lsn);
         break;
       }
       recv_sys.scanned_lsn= recv_sys.lsn;
@@ -4247,7 +4274,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	     p != recv_sys.pages.end();) {
 		ut_ad(!p->second.log.empty());
 		const uint32_t space = p->first.space();
-		if (is_predefined_tablespace(space)) {
+		if (space == TRX_SYS_SPACE || srv_is_undo_tablespace(space)) {
 next:
 			p++;
 			continue;
@@ -4499,6 +4526,18 @@ inline void log_t::set_recovered() noexcept
   set_buf_free(offset);
 }
 
+inline bool recv_sys_t::validate_checkpoint() const noexcept
+{
+  if (lsn >= file_checkpoint && lsn >= log_sys.next_checkpoint_lsn)
+    return false;
+  sql_print_error("InnoDB: The log was only scanned up to "
+                  LSN_PF ", while the current LSN at the "
+                  "time of the latest checkpoint " LSN_PF
+                  " was " LSN_PF "!",
+                  lsn, log_sys.next_checkpoint_lsn, file_checkpoint);
+  return true;
+}
+
 /** Start recovering from a redo log checkpoint.
 of first system tablespace page
 @return error code or DB_SUCCESS */
@@ -4526,9 +4565,7 @@ dberr_t recv_recovery_from_checkpoint_start()
 	log_sys.latch.wr_lock(SRW_LOCK_CALL);
 	log_sys.set_capacity();
 
-	/* Start reading the log from the checkpoint lsn. The variable
-	contiguous_lsn contains an lsn up to which the log is known to
-	be contiguously written. */
+	/* Start reading the log from the checkpoint lsn. */
 
 	ut_ad(recv_sys.pages.empty());
 
@@ -4560,12 +4597,12 @@ read_only_recovery:
 			goto err_exit;
 		}
 		ut_ad(recv_sys.file_checkpoint);
+		ut_ad(log_sys.get_lsn() >= recv_sys.scanned_lsn);
 		if (rewind) {
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
 			recv_sys.offset = 0;
 			recv_sys.len = 0;
 		}
-		ut_ad(!recv_max_page_lsn);
 		rescan = recv_scan_log(false);
 
 		if (srv_read_only_mode && recv_needed_recovery) {
@@ -4578,7 +4615,7 @@ read_only_recovery:
 		}
 	}
 
-	log_sys.set_recovered_lsn(recv_sys.lsn);
+	log_sys.set_recovered_lsn(recv_sys.scanned_lsn);
 
 	if (recv_needed_recovery) {
 		bool missing_tablespace = false;
@@ -4622,14 +4659,17 @@ read_only_recovery:
 			tablespaces (not individual pages), while retaining
 			the initial recv_sys.pages. */
 			mysql_mutex_lock(&recv_sys.mutex);
+			ut_ad(log_sys.get_lsn() >= recv_sys.lsn);
 			recv_sys.clear();
 			recv_sys.lsn = log_sys.next_checkpoint_lsn;
 			mysql_mutex_unlock(&recv_sys.mutex);
 		}
 
 		if (srv_operation <= SRV_OPERATION_EXPORT_RESTORED) {
-			deferred_spaces.deferred_dblwr();
+			mysql_mutex_lock(&recv_sys.mutex);
+			deferred_spaces.deferred_dblwr(log_sys.get_lsn());
 			buf_dblwr.recover();
+			mysql_mutex_unlock(&recv_sys.mutex);
 		}
 
 		ut_ad(srv_force_recovery <= SRV_FORCE_NO_UNDO_LOG_SCAN);
@@ -4651,21 +4691,8 @@ read_only_recovery:
 		ut_ad(recv_sys.pages.empty());
 	}
 
-	if (log_sys.is_latest()
-	    && (recv_sys.lsn < log_sys.next_checkpoint_lsn
-		|| recv_sys.lsn < recv_max_page_lsn)) {
-
-		sql_print_error("InnoDB: We scanned the log up to " LSN_PF "."
-				" A checkpoint was at " LSN_PF
-				" and the maximum LSN on a database page was "
-				LSN_PF ". It is possible that the"
-				" database is now corrupt!",
-				recv_sys.lsn,
-				log_sys.next_checkpoint_lsn,
-				recv_max_page_lsn);
-	}
-
-	if (recv_sys.lsn < log_sys.next_checkpoint_lsn) {
+	if (!log_sys.is_latest()) {
+	} else if (recv_sys.validate_checkpoint()) {
 err_exit:
 		err = DB_ERROR;
 		goto func_exit;
@@ -4701,7 +4728,6 @@ err_exit:
 		err = recv_rename_files();
 	}
 
-	recv_lsn_checks_on = true;
 	mysql_mutex_unlock(&recv_sys.mutex);
 
 	/* The database is now ready to start almost normal processing of user
@@ -4715,14 +4741,17 @@ err_exit:
 	goto func_exit;
 }
 
-bool recv_dblwr_t::validate_page(const page_id_t page_id,
-                                 const byte *page,
+bool recv_dblwr_t::validate_page(const page_id_t page_id, lsn_t max_lsn,
                                  const fil_space_t *space,
-                                 byte *tmp_buf)
+                                 const byte *page, byte *tmp_buf)
+  const noexcept
 {
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+  uint32_t flags;
+
   if (page_id.page_no() == 0)
   {
-    uint32_t flags= fsp_header_get_flags(page);
+    flags= fsp_header_get_flags(page);
     if (!fil_space_t::is_valid_flags(flags, page_id.space()))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
@@ -4737,8 +4766,14 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id,
     }
 
     /* Page 0 is never page_compressed or encrypted. */
-    return !buf_page_is_corrupted(true, page, flags);
+    goto check_if_corrupted;
   }
+
+  flags= space->flags;
+
+  if (space->full_crc32())
+  check_if_corrupted:
+    return !buf_page_is_corrupted(max_lsn < LSN_MAX, page, flags);
 
   ut_ad(tmp_buf);
   byte *tmp_frame= tmp_buf;
@@ -4746,9 +4781,6 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id,
   const uint16_t page_type= mach_read_from_2(page + FIL_PAGE_TYPE);
   const bool expect_encrypted= space->crypt_data &&
     space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED;
-
-  if (space->full_crc32())
-    return !buf_page_is_corrupted(true, page, space->flags);
 
   if (expect_encrypted &&
       mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION))
@@ -4776,126 +4808,45 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id,
       return false; /* decompression failed */
     if (decomp == srv_page_size)
       return false; /* the page was not compressed (invalid page type) */
-    return !buf_page_is_corrupted(true, tmp_page, space->flags);
+    page= tmp_page;
   }
 
-  return !buf_page_is_corrupted(true, page, space->flags);
+  goto check_if_corrupted;
 }
 
-byte *recv_dblwr_t::find_page(const page_id_t page_id,
-                              const fil_space_t *space, byte *tmp_buf)
+const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,
+                                    const fil_space_t *space, byte *tmp_buf)
+  const noexcept
 {
-  byte *result= NULL;
-  lsn_t max_lsn= 0;
+  mysql_mutex_assert_owner(&recv_sys.mutex);
+  ut_ad(recv_sys.scanned_lsn <= max_lsn);
 
   for (byte *page : pages)
   {
     if (page_get_page_no(page) != page_id.page_no() ||
         page_get_space_id(page) != page_id.space())
       continue;
+    const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
     if (page_id.page_no() == 0)
     {
+      if (!lsn)
+        continue;
       uint32_t flags= mach_read_from_4(
         FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
       if (!fil_space_t::is_valid_flags(flags, page_id.space()))
         continue;
     }
 
-    const lsn_t lsn= mach_read_from_8(page + FIL_PAGE_LSN);
-    if (lsn <= max_lsn ||
-        !validate_page(page_id, page, space, tmp_buf))
+    if (lsn > max_lsn || lsn < log_sys.next_checkpoint_lsn ||
+        !validate_page(page_id, max_lsn, space, page, tmp_buf))
     {
       /* Mark processed for subsequent iterations in buf_dblwr_t::recover() */
-      memset(page + FIL_PAGE_LSN, 0, 8);
+      memset_aligned<8>(page + FIL_PAGE_LSN, 0, 8);
       continue;
     }
 
-    ut_a(page_get_page_no(page) == page_id.page_no());
-    max_lsn= lsn;
-    result= page;
+    return page;
   }
 
-  return result;
-}
-
-bool recv_dblwr_t::restore_first_page(uint32_t space_id, const char *name,
-                                      pfs_os_file_t file)
-{
-  const page_id_t page_id(space_id, 0);
-  const byte* page= find_page(page_id);
-  if (!page)
-  {
-    /* If the first page of the given user tablespace is not there
-    in the doublewrite buffer, then the recovery is going to fail
-    now. Report error only when doublewrite buffer is not empty */
-    if (pages.size())
-      ib::error() << "Corrupted page " << page_id << " of datafile '"
-                  << name << "' could not be found in the doublewrite buffer.";
-    return true;
-  }
-
-  ulint physical_size= fil_space_t::physical_size(
-    mach_read_from_4(page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS));
-  ib::info() << "Restoring page " << page_id << " of datafile '"
-          << name << "' from the doublewrite buffer. Writing "
-          << physical_size << " bytes into file '" << name << "'";
-
-  return os_file_write(
-           IORequestWrite, name, file, page, 0, physical_size) !=
-         DB_SUCCESS;
-}
-
-uint32_t recv_dblwr_t::find_first_page(const char *name, pfs_os_file_t file)
-{
-  os_offset_t file_size= os_file_get_size(file);
-  if (file_size != (os_offset_t) -1)
-  {
-    for (const page_t *page : pages)
-    {
-      uint32_t space_id= page_get_space_id(page);
-      byte *read_page= nullptr;
-      if (page_get_page_no(page) > 0 || space_id == 0)
-      {
-next_page:
-        aligned_free(read_page);
-        continue;
-      }
-      uint32_t flags= mach_read_from_4(
-        FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
-      page_id_t page_id(space_id, 0);
-      size_t page_size= fil_space_t::physical_size(flags);
-      if (file_size < 4 * page_size)
-        goto next_page;
-      read_page=
-        static_cast<byte*>(aligned_malloc(3 * page_size, page_size));
-      /* Read 3 pages from the file and match the space id
-      with the space id which is stored in
-      doublewrite buffer page. */
-      if (os_file_read(IORequestRead, file, read_page, page_size,
-                       3 * page_size, nullptr) != DB_SUCCESS)
-        goto next_page;
-      for (ulint j= 0; j <= 2; j++)
-      {
-        byte *cur_page= read_page + j * page_size;
-        if (buf_is_zeroes(span<const byte>(cur_page, page_size)))
-        {
-          space_id= 0;
-          goto early_exit;
-        }
-        if (mach_read_from_4(cur_page + FIL_PAGE_OFFSET) != j + 1 ||
-            memcmp(cur_page + FIL_PAGE_SPACE_ID,
-                   page + FIL_PAGE_SPACE_ID, 4) ||
-            buf_page_is_corrupted(false, cur_page, flags))
-          goto next_page;
-      }
-      if (!restore_first_page(space_id, name, file))
-      {
-early_exit:
-        aligned_free(read_page);
-        return space_id;
-      }
-      break;
-    }
-  }
-  return 0;
+  return nullptr;
 }

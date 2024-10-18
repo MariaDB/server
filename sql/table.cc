@@ -1736,9 +1736,9 @@ public:
 */
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-static bool change_to_partiton_engine(LEX_CSTRING *name,
-                                      plugin_ref *se_plugin)
+static bool change_to_partiton_engine(plugin_ref *se_plugin)
 {
+  LEX_CSTRING name= { STRING_WITH_LEN("partition") };
   /*
     Use partition handler
     tmp_plugin is locked with a local lock.
@@ -1746,10 +1746,9 @@ static bool change_to_partiton_engine(LEX_CSTRING *name,
     replacing it with a globally locked version of tmp_plugin
   */
   /* Check if the partitioning engine is ready */
-  if (!plugin_is_ready(name, MYSQL_STORAGE_ENGINE_PLUGIN))
+  if (!plugin_is_ready(&name, MYSQL_STORAGE_ENGINE_PLUGIN))
   {
-    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0),
-             "--skip-partition");
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-partition");
     return 1;
   }
   plugin_unlock(NULL, *se_plugin);
@@ -2047,7 +2046,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
       else if (str_db_type_length == 9 &&
                !strncmp((char *) next_chunk + 2, "partition", 9))
       {
-        if (change_to_partiton_engine(&se_name, &se_plugin))
+        if (change_to_partiton_engine(&se_plugin))
           goto err;
       }
 #endif
@@ -2091,7 +2090,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             share->mysql_version >= 50600 && share->mysql_version <= 50799)
         {
           share->keep_original_mysql_version= 1;
-          if (change_to_partiton_engine(&se_name, &se_plugin))
+          if (change_to_partiton_engine(&se_plugin))
             goto err;
         }
       }

@@ -3935,9 +3935,10 @@ void fil_node_t::find_metadata(os_file_t file
 
 /** Read the first page of a data file.
 @return	whether the page was found valid */
-bool fil_node_t::read_page0()
+bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_ad(!dpage || no_lsn);
   const unsigned psize= space->physical_size();
 #ifndef _WIN32
   struct stat statbuf;
@@ -3961,15 +3962,18 @@ bool fil_node_t::read_page0()
 
   if (!deferred)
   {
-    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-    if (os_file_read(IORequestRead, handle, page, 0, psize, nullptr)
-        != DB_SUCCESS)
+    page_t *apage= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, apage, 0, psize, nullptr) !=
+        DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-      aligned_free(page);
+   err_exit:
+      aligned_free(apage);
       return false;
     }
 
+    const page_t *page= apage;
+  retry:
     const ulint space_id= memcmp_aligned<2>
       (FIL_PAGE_SPACE_ID + page,
        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
@@ -3977,8 +3981,16 @@ bool fil_node_t::read_page0()
       : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     uint32_t flags= fsp_header_get_flags(page);
     const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    if (!space_id && !flags && !size && dpage)
+    {
+    retry_dpage:
+      page= dpage;
+      dpage= nullptr;
+      goto retry;
+    }
     const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
     const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
@@ -3995,7 +4007,6 @@ bool fil_node_t::read_page0()
         }
       }
 
-      aligned_free(page);
       goto invalid;
     }
 
@@ -4004,28 +4015,40 @@ bool fil_node_t::read_page0()
         !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
                                      (flags & ~FSP_FLAGS_MEM_MASK)))
     {
-invalid:
+    invalid:
+      if (dpage)
+        goto retry_dpage;
       sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
                       " in the file %s", space->flags, flags, name);
-      return false;
+      goto err_exit;
     }
 
   flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
+    if (buf_page_is_corrupted(!no_lsn, page, flags) != NOT_CORRUPTED)
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: The first page of file %s is corrupted", name);
+      goto err_exit;
+    }
+
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: Expected tablespace id %zu but found %zu"
+                      " in the file %s", ulint{space->id}, ulint{space_id},
+                      name);
+      goto err_exit;
+    }
+
     /* Try to read crypt_data from page 0 if it is not yet read. */
     if (!space->crypt_data)
       space->crypt_data= fil_space_read_crypt_data(
         fil_space_t::zip_size(flags), page);
-    aligned_free(page);
-
-    if (UNIV_UNLIKELY(space_id != space->id))
-    {
-      ib::error() << "Expected tablespace id " << space->id
-        << " but found " << space_id
-        << " in the file " << name;
-      return false;
-    }
+    aligned_free(apage);
 
     space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
     ut_ad(space->free_limit == 0 || space->free_limit == free_limit);

@@ -1023,7 +1023,7 @@ buf_LRU_block_free_non_file_page(
 }
 
 /** Release a memory block to the buffer pool. */
-ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block)
+ATTRIBUTE_COLD void buf_pool_t::free_block(buf_block_t *block) noexcept
 {
   ut_ad(this == &buf_pool);
   mysql_mutex_lock(&mutex);
@@ -1174,13 +1174,12 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 @param bpage    x-latched page that was found corrupted
 @param state    expected current state of the page */
 ATTRIBUTE_COLD
-void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state)
+void buf_pool_t::corrupted_evict(buf_page_t *bpage, uint32_t state) noexcept
 {
   const page_id_t id{bpage->id()};
   buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(id.fold());
   page_hash_latch &hash_lock= buf_pool.page_hash.lock_get(chain);
 
-  recv_sys.free_corrupted_page(id);
   mysql_mutex_lock(&mutex);
   hash_lock.lock();
 
