@@ -28393,7 +28393,8 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
       enum_field_types type;
       if ((type= field->type()) == MYSQL_TYPE_BLOB)
 	key_length+=MAX_BLOB_WIDTH;		// Can't be used as a key
-      else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING)
+      else if (type == MYSQL_TYPE_VARCHAR || type == MYSQL_TYPE_VAR_STRING ||
+               type == MYSQL_TYPE_VECTOR)
         key_length+= field->field_length + HA_KEY_BLOB_LENGTH;
       else if (type == MYSQL_TYPE_BIT)
       {
