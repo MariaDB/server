@@ -320,3 +320,12 @@ int Field_vector::store(const char *from, size_t length, CHARSET_INFO *cs)
 
   return Field_varstring::store(from, length, cs);
 }
+
+enum_conv_type Field_vector::rpl_conv_type_from(const Conv_source &src,
+                 const Relay_log_info *rli, const Conv_param &param) const
+{
+  if (src.type_handler() == &type_handler_varchar &&
+      field_length == src.type_handler()->max_display_length_for_field(src))
+    return rpl_conv_type_from_same_data_type(src.metadata(), rli, param);
+  return CONV_TYPE_IMPOSSIBLE;
+}
