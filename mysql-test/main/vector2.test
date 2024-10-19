@@ -207,3 +207,19 @@ insert into t2 select seq from seq_1_to_1000;
 set join_cache_level= 0;
 select t2.f from t1 left join t2 on (t1.pk=t2.f) order by vec_distance_euclidean(t1.a,0x00000040) limit 5;
 drop table t1, t2;
+
+--echo #
+--echo # MDEV-35195 Assertion `tab->join->order' fails upon vector search with DISTINCT #2
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert into t values (0x00000000),(0x00000040);
+select distinct vec_distance_euclidean(v,0x00000000) d from t order by d limit 1;
+drop table t;
+
+--echo #
+--echo # MDEV-35337 Server crash or assertion failure in join_read_first upon using vector distance in group by
+--echo #
+create table t (a int, v vector(1) not null, primary key (a), vector(v));
+insert into t values (1,vec_fromtext('[-1]')),(2,vec_fromtext('[1]')),(3,vec_fromtext('[2]'));
+select vec_distance_euclidean(v,vec_fromtext('[0]')) d, count(*) from t group by d order by d limit 2;
+drop table t;
