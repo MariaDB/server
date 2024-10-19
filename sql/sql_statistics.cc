@@ -2444,8 +2444,7 @@ void Column_statistics_collected::init(THD *thd, Field *table_field)
   nulls= 0;
   column_total_length= 0;
   count_distinct= NULL;
-  if (!is_single_pk_col && !(table_field->flags & BLOB_FLAG) &&
-      table_field->type() != MYSQL_TYPE_VECTOR)
+  if (!is_single_pk_col && !(table_field->flags & BLOB_FLAG))
   {
     count_distinct=
       table_field->type() == MYSQL_TYPE_BIT ?

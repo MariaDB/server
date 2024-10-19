@@ -504,7 +504,7 @@ enum enum_field_types { MYSQL_TYPE_DECIMAL, MYSQL_TYPE_TINY,
                         /* Compressed types are only used internally for RBR. */
                         MYSQL_TYPE_BLOB_COMPRESSED= 140,
                         MYSQL_TYPE_VARCHAR_COMPRESSED= 141,
-                        MYSQL_TYPE_VECTOR = 242,
+
                         MYSQL_TYPE_NEWDECIMAL=246,
 			MYSQL_TYPE_ENUM=247,
 			MYSQL_TYPE_SET=248,
