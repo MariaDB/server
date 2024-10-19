@@ -34,6 +34,7 @@ key_map Item_func_vec_distance_common::part_of_sortkey() const
       if (keyinfo[i].algorithm == HA_KEY_ALG_VECTOR && f->key_start.is_set(i)
           && mhnsw_uses_distance(f->table, keyinfo + i, this))
         map.set_bit(i);
+    f->table->keys_in_use_for_group_by.subtract(map); // only ORDER BY
   }
   return map;
 }
