@@ -311,13 +311,7 @@ int Field_vector::store(const char *from, size_t length, CHARSET_INFO *cs)
     if (length != field_length)
       return report_wrong_value(ErrConvString(from, length, cs));
 
-    float abs2= 0.0f;
-    for (const char *v= from, *end= from+length; v < end; v+= sizeof(float))
-    {
-      float val= get_float(v);
-      abs2+= val*val;
-    }
-    if (!std::isfinite(abs2))
+    if (!Type_handler_vector::is_valid(from, length))
       return report_wrong_value(ErrConvString(from, length, cs));
   }
 
