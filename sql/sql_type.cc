@@ -2228,7 +2228,6 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_BLOB:        return &type_handler_blob;
   case MYSQL_TYPE_VAR_STRING:  return &type_handler_varchar; // Map to VARCHAR 
   case MYSQL_TYPE_STRING:      return &type_handler_string;
-  case MYSQL_TYPE_VECTOR:      return &type_handler_vector;
   case MYSQL_TYPE_ENUM:        return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_SET:         return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
@@ -2292,7 +2291,6 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_DATETIME:    return &type_handler_datetime;
   case MYSQL_TYPE_DATETIME2:   return &type_handler_datetime2;
   case MYSQL_TYPE_NEWDATE:     return &type_handler_newdate;
-  case MYSQL_TYPE_VECTOR:      return &type_handler_vector;
   };
   return NULL;
 }

@@ -27,10 +27,7 @@ insert t1 values (1, repeat(x'56', 10));
 --error ER_TRUNCATED_WRONG_VALUE_FOR_FIELD
 insert t1 values (1, repeat(x'66', 40));
 insert t1 values (1, repeat(x'56', 40));
---enable_metadata
-select b from t1;
---disable_metadata
---exec $MYSQL --column-type-info --table -e "select b from t1" test 2>&1
+select * from t1;
 --error ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION
 select cast(b as char) from t1;
 create table t2 as select b, cast(b as binary) from t1;

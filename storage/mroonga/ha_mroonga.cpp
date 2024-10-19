@@ -1433,7 +1433,6 @@ static grn_builtin_type mrn_grn_type_from_field(grn_ctx *ctx, Field *field,
     type = GRN_DB_TIME;         // 8bytes
     break;
   case MYSQL_TYPE_VARCHAR:      // VARCHAR; <= 64KB * 4 + 2bytes
-  case MYSQL_TYPE_VECTOR:       // same
     if (for_index_key) {
       type = GRN_DB_SHORT_TEXT; // 4Kbytes
     } else {
@@ -11257,7 +11256,6 @@ void ha_mroonga::storage_store_field(Field *field,
   case MYSQL_TYPE_NEWDATE:
     storage_store_field_new_date(field, value, value_length);
     break;
-  case MYSQL_TYPE_VECTOR:
   case MYSQL_TYPE_VARCHAR:
     storage_store_field_string(field, value, value_length);
     break;
