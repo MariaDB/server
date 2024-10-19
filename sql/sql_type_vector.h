@@ -125,6 +125,8 @@ public:
   int  store(double nr) override;
   int  store(longlong nr, bool unsigned_val) override;
   int  store_decimal(const my_decimal *) override;
+  enum_conv_type rpl_conv_type_from(const Conv_source &, const Relay_log_info *,
+                                    const Conv_param &) const override;
   uint size_of() const  override { return sizeof(*this); }
   bool update_min(Field *, bool) override { return false; } // disable EITS
   bool update_max(Field *, bool) override { return false; } // disable EITS
