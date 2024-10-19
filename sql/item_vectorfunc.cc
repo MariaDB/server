@@ -22,6 +22,7 @@
 
 #include "item_vectorfunc.h"
 #include "vector_mhnsw.h"
+#include "sql_type_vector.h"
 
 key_map Item_func_vec_distance_common::part_of_sortkey() const
 {
@@ -191,18 +192,22 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   if (!end_ok)
     goto error_format;
 
-  return buf;
+  if (Type_handler_vector::is_valid(buf->ptr(), buf->length()))
+    return buf;
+
+  null_value= true;
+  push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                      ER_TRUNCATED_WRONG_VALUE, ER(ER_TRUNCATED_WRONG_VALUE),
+                      "vector", value->ptr());
+  return nullptr;
 
 error_format:
   {
     int position= (int)((const char *) je.s.c_str - value->ptr());
     null_value= true;
-    THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_VECTOR_FORMAT_INVALID,
-                        ER_THD(thd, ER_VECTOR_FORMAT_INVALID),
-                        position,
-                        value->ptr());
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_VECTOR_FORMAT_INVALID, ER(ER_VECTOR_FORMAT_INVALID),
+                        position, value->ptr());
     return nullptr;
   }
 

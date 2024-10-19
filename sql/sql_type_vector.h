@@ -87,6 +87,17 @@ public:
          override;
   bool Item_datetime_typecast_fix_length_and_dec(Item_datetime_typecast *) const
          override;
+
+  static bool is_valid(const char *from, size_t length)
+  {
+    float abs2= 0.0f;
+    for (const char *v= from, *end= from+length; v < end; v+= sizeof(float))
+    {
+      float val= get_float(v);
+      abs2+= val*val;
+    }
+    return std::isfinite(abs2);
+  }
 };
 
 extern Named_type_handler<Type_handler_vector> type_handler_vector;
