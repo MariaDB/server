@@ -3749,7 +3749,6 @@ static const char *fieldtype2str(enum enum_field_types type)
     case MYSQL_TYPE_TINY:        return "TINY";
     case MYSQL_TYPE_TINY_BLOB:   return "TINY_BLOB";
     case MYSQL_TYPE_VAR_STRING:  return "VAR_STRING";
-    case MYSQL_TYPE_VECTOR:      return "VECTOR";
     case MYSQL_TYPE_YEAR:        return "YEAR";
     default:                     return "?-unknown-?";
   }

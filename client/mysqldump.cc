@@ -4500,7 +4500,6 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
                    field->type == MYSQL_TYPE_LONG_BLOB ||
                    field->type == MYSQL_TYPE_MEDIUM_BLOB ||
                    field->type == MYSQL_TYPE_TINY_BLOB ||
-                   field->type == MYSQL_TYPE_VECTOR ||
                    field->type == MYSQL_TYPE_GEOMETRY)) ? 1 : 0;
         if (extended_insert && !opt_xml)
         {
