@@ -174,3 +174,10 @@ create table t (v vector(1) not null, vector vec(v), unique vu(v)) engine=innodb
 select * from t force index(vec) order by v;
 v
 drop table t;
+#
+# MDEV-35203 ASAN errors or assertion failures in row_sel_convert_mysql_key_to_innobase upon query from table with usual key on vector field
+#
+create table t (v vector(1), key(v)) engine=innodb;
+select v from t where v = vec_fromtext('[1]');
+v
+drop table t;
