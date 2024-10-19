@@ -53,3 +53,8 @@ create table t1 as select vec_totext(x'55555555') x;
 show create table t1;
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-35212 Server crashes in Item_func_vec_fromtext::val_str upon query from empty table
+--echo #
+select vec_fromtext(NULL);
