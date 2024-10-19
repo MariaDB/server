@@ -25145,13 +25145,14 @@ join_read_first(JOIN_TAB *tab)
   tab->read_record.table=table;
   if (tab->index >= table->s->keys)
   {
+    ORDER *order= tab->join->order ? tab->join->order : tab->join->group_list;
     DBUG_ASSERT(tab->index < table->s->total_keys);
     DBUG_ASSERT(tab->index == table->s->keys);
     DBUG_ASSERT(tab->sorted);
-    DBUG_ASSERT(tab->join->order);
-    DBUG_ASSERT(tab->join->order->next == NULL);
+    DBUG_ASSERT(order);
+    DBUG_ASSERT(order->next == NULL);
     tab->read_record.read_record_func= join_hlindex_read_next;
-    error= tab->table->hlindex_read_first(tab->index, *tab->join->order->item,
+    error= tab->table->hlindex_read_first(tab->index, *order->item,
                                           tab->join->select_limit);
   }
   else
