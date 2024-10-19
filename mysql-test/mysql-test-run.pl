@@ -1474,7 +1474,6 @@ sub command_line_setup {
       mtr_warning ("Port base $opt_port_base rounded down to multiple of 10");
       $opt_port_base-= $rem;
     }
-    $opt_build_thread= $opt_port_base / 10 - 1000;
   }
 
   # --------------------------------------------------------------------------
@@ -1702,11 +1701,6 @@ sub command_line_setup {
 # an environment variable can be used to control all ports. A small
 # number is to be used, 0 - 16 or similar.
 #
-# Note the MASTER_MYPORT has to be set the same in all 4.x and 5.x
-# versions of this script, else a 4.0 test run might conflict with a
-# 5.1 test run, even if different MTR_BUILD_THREAD is used. This means
-# all port numbers might not be used in this version of the script.
-#
 # Also note the limitation of ports we are allowed to hand out. This
 # differs between operating systems and configuration, see
 # http://www.ncftp.com/ncftpd/doc/misc/ephemeral_ports.html
@@ -1717,10 +1711,14 @@ sub set_build_thread_ports($) {
 
   if ( lc($opt_build_thread) eq 'auto' ) {
     my $found_free = 0;
-    $build_thread = 300;	# Start attempts from here
-    my $build_thread_upper = $build_thread + ($opt_parallel > 1500
-                                              ? 3000
-                                              : 2 * $opt_parallel) + 300;
+    if ($opt_port_base eq "auto") {
+      $build_thread = 16000;
+    } else {
+      $build_thread = $opt_port_base;
+    }
+    $build_thread += ($thread - 1) * $opt_port_group_size;
+    my $build_thread_upper = $build_thread + $opt_parallel * 2;
+
     while (! $found_free)
     {
       $build_thread= mtr_get_unique_id($build_thread, $build_thread_upper);
@@ -1737,7 +1735,7 @@ sub set_build_thread_ports($) {
   }
   else
   {
-    $build_thread = $opt_build_thread + $thread - 1;
+    $build_thread = $opt_port_base + $thread - 1;
     if (! check_ports_free($build_thread)) {
       # Some port was not free(which one has already been printed)
       mtr_error("Some port(s) was not free")
@@ -1746,7 +1744,7 @@ sub set_build_thread_ports($) {
   $ENV{MTR_BUILD_THREAD}= $build_thread;
 
   # Calculate baseport
-  $baseport= $build_thread * $opt_port_group_size + 10000;
+  $baseport= $build_thread;
   if ( $baseport < 5001 or $baseport + $opt_port_group_size >= 32767 )
   {
     mtr_error("MTR_BUILD_THREAD number results in a port",
@@ -2943,7 +2941,7 @@ sub kill_leftovers ($) {
 sub check_ports_free ($)
 {
   my $bthread= shift;
-  my $portbase = $bthread * $opt_port_group_size + 10000;
+  my $portbase = $bthread;
   for ($portbase..$portbase+($opt_port_group_size-1)){
     if (mtr_ping_port($_)){
       mtr_report(" - 'localhost:$_' was not free");
