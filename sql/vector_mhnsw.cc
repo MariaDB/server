@@ -1233,6 +1233,8 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   auto *fun= static_cast<Item_func_vec_distance_common*>(dist->real_item());
   DBUG_ASSERT(fun);
 
+  limit= std::min<ulonglong>(limit, THDVAR(thd, min_limit)*1000);
+
   String buf, *res= fun->get_const_arg()->val_str(&buf);
   MHNSW_Share *ctx;
 
