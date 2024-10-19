@@ -196,3 +196,14 @@ create table t (v vector(1));
 insert into t values (0x55555555),(0x56565656);
 select distinct v from t;
 drop table t;
+
+--echo #
+--echo # MDEV-35194 non-BNL join fails on assertion
+--echo #
+create table t1 (pk int primary key, a vector(2) not null, vector(a));
+insert into t1 select seq, vec_fromtext(json_array(seq, -seq)) from seq_1_to_1000;
+create table t2 (f int);
+insert into t2 select seq from seq_1_to_1000;
+set join_cache_level= 0;
+select t2.f from t1 left join t2 on (t1.pk=t2.f) order by vec_distance_euclidean(t1.a,0x00000040) limit 5;
+drop table t1, t2;
