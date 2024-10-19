@@ -25150,7 +25150,6 @@ join_read_first(JOIN_TAB *tab)
     DBUG_ASSERT(tab->sorted);
     DBUG_ASSERT(tab->join->order);
     DBUG_ASSERT(tab->join->order->next == NULL);
-    DBUG_ASSERT(tab->join->select_limit < HA_POS_ERROR);
     tab->read_record.read_record_func= join_hlindex_read_next;
     error= tab->table->hlindex_read_first(tab->index, *tab->join->order->item,
                                           tab->join->select_limit);
