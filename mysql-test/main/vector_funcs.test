@@ -58,3 +58,9 @@ drop table t1;
 --echo # MDEV-35212 Server crashes in Item_func_vec_fromtext::val_str upon query from empty table
 --echo #
 select vec_fromtext(NULL);
+
+--echo #
+--echo # MDEV-35210 Vector type cannot store values which VEC_FromText produces and VEC_ToText accepts
+--echo #
+select vec_totext(0x77777777);
+select hex(vec_fromtext('[5.01922e33]'));
