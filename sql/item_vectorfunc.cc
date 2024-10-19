@@ -139,16 +139,12 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   json_engine_t je;
   bool end_ok= false;
   String *value = args[0]->val_json(&tmp_js);
-  CHARSET_INFO *cs= value->charset();
+
+  if ((null_value= !value))
+    return nullptr;
 
   buf->length(0);
-
-  if (!value)
-  {
-    null_value= true;
-    return nullptr;
-  }
-
+  CHARSET_INFO *cs= value->charset();
   const uchar *start= reinterpret_cast<const uchar *>(value->ptr());
   const uchar *end= start + value->length();
 
