@@ -1,0 +1,202 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+--echo MDEV-35217: Provide information for debugging parallel replication conflicts and hangs
+
+--connection master
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+CREATE TABLE t1 (a INT PRIMARY KEY AUTO_INCREMENT, b INT, c INT, INDEX (c)) ENGINE=InnoDB;
+INSERT INTO t1 (b,c) VALUES (0, 1), (0, 1), (0, 2), (0,3), (0, 5), (0, 7), (0, 8);
+
+CREATE TABLE t2 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t2 VALUES (10,1), (20,2), (30,3), (40,4), (50,5);
+
+# A table to help order slave worker threads to setup the desired scenario.
+CREATE TABLE t3 (a VARCHAR(20) PRIMARY KEY, b INT) ENGINE=InnoDB;
+INSERT INTO t3 VALUES ('row for T1', 0), ('row for T2', 0), ('row for T3', 0);
+--source include/save_master_gtid.inc
+
+--connection slave
+--source include/sync_with_master_gtid.inc
+--source include/stop_slave.inc
+SET @save_innodb_lock_wait_timeout= @@global.innodb_lock_wait_timeout;
+SET @save_slave_parallel_print_all_deadlocks= @@global.slave_parallel_print_all_deadlocks;
+SET @save_slave_parallel_threads= @@global.slave_parallel_threads;
+SET @save_slave_parallel_mode= @@global.slave_parallel_mode;
+SET @save_slave_transaction_retries= @@global.slave_transaction_retries;
+SET @save_innodb_status_output_locks= @@global.innodb_status_output_locks;
+set @@global.slave_parallel_threads= 3;
+set @@global.slave_parallel_mode= OPTIMISTIC;
+SET @@global.innodb_status_output_locks= 1;
+CHANGE MASTER TO master_use_gtid= Slave_pos;
+
+let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.2.err;
+
+
+let $i= 0;
+while ($i < 3) {
+  --echo *** Test --slave-parallel-print-all-deadlocks set to $i:
+  --connection slave
+  eval SET GLOBAL slave_parallel_print_all_deadlocks= $i;
+
+  --echo *** 1. Provoke a lock wait timeout.
+  SET GLOBAL innodb_lock_wait_timeout= 1;
+  SET @@global.slave_transaction_retries= 2;
+  --source include/start_slave.inc
+  --connection slave1
+  # Block the replication thread from applying its event.
+  BEGIN;
+  SELECT COUNT(*) FROM t1 FOR UPDATE;
+
+  --connection master
+  eval INSERT INTO t1 (b, c) VALUES ($i, 100 + $i*10);
+  --let $gtid= `SELECT @@last_gtid`
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  --let $slave_sql_errno= 1205
+  --source include/wait_for_slave_sql_error.inc
+
+  --connection slave1
+  ROLLBACK;
+
+  if ($i > 0) {
+    --echo *** Lock wait timeout printed also for first retry.
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry 1 for event group GTID $gtid .*error: 1205.*Lock wait timeout exceeded; try restarting transaction
+    --let SEARCH_ABORT= NOT FOUND
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry 2 for event group GTID $gtid .*error: 1205.*Lock wait timeout exceeded; try restarting transaction
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= END OF INNODB MONITOR OUTPUT
+    --source include/search_pattern_in_file.inc
+  }
+
+  --connection slave
+  SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+  SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+  START SLAVE SQL_THREAD;
+  --source include/sync_with_master_gtid.inc
+
+  --echo *** 2. A normal conflict that causes only a single retry.
+  --connection slave1
+  # Block T1 temporarily so it will reliably get a conflict with T2.
+  BEGIN;
+  SELECT * FROM t3 WHERE a="row for T1" FOR UPDATE;
+  --connection master
+  # T1.
+  BEGIN;
+  UPDATE t3 SET b=b+1 WHERE a="row for T1";
+  eval UPDATE t2 SET b=101 + 10*$i WHERE a=10;
+  COMMIT;
+  --let $gtid1= `SELECT @@last_gtid`
+  # T2.
+  eval UPDATE t2 SET b=102 + 10*$i WHERE a=10;
+  --let $gtid2= `SELECT @@last_gtid`
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  # Wait for T2 to have gotten its lock that will block T1.
+  --let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state='Waiting for prior transaction to commit' and command LIKE 'Slave_worker';
+  --source include/wait_condition.inc
+  --connection slave1
+  # Release T1; it will deadlock kill T2 and eventually both will complete.
+  ROLLBACK;
+  --connection slave
+  --source include/sync_with_master_gtid.inc
+  if ($i == 1) {
+    --echo *** Normal conflict and retry _not_ printed when --slave-parallel-print-all-deadlocks=1
+    --let SEARCH_PATTERN= GTID $gtid1: MySQL thread id
+    --let SEARCH_ABORT= FOUND
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= GTID $gtid2: MySQL thread id
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry [0-9]* for event group GTID $gtid2
+    --source include/search_pattern_in_file.inc
+  }
+  if ($i == 2) {
+    --echo *** Any conflict and retry printed when --slave-parallel-print-all-deadlocks=2
+    --let SEARCH_PATTERN= Slave SQL thread: Deadlock detected, aborting second event group
+    --let SEARCH_ABORT= NOT FOUND
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= GTID $gtid1: MySQL thread id
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= GTID $gtid2: MySQL thread id
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry 1 for event group GTID $gtid2 .*error: 1213.*Deadlock found when trying to get lock
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= END OF INNODB MONITOR OUTPUT
+    --source include/search_pattern_in_file.inc
+  }
+
+  --echo *** 3. Simulate a double retry.
+  --connection slave
+  SET @old_dbug= @@GLOBAL.debug_dbug;
+  SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
+
+  --connection master
+  # The seq_no=100/200/300 triggers the DBUG injection that simulates double retry.
+  eval SET gtid_seq_no = 100*($i+1);
+  BEGIN;
+  eval INSERT INTO t2 VALUES (100 + 10*$i + 4, 1);
+  UPDATE t2 SET b=b+1 WHERE a=20;
+  eval INSERT INTO t2 VALUES (100 + 10*$i + 5, 1);
+  eval INSERT INTO t2 VALUES (100 + 10*$i + 6, 1);
+  COMMIT;
+  --let $gtid= `SELECT @@last_gtid`
+  --source include/save_master_gtid.inc
+
+  --connection slave
+  --source include/sync_with_master_gtid.inc
+  SET GLOBAL debug_dbug=@old_dbug;
+
+  if ($i > 0) {
+    --echo *** Double retry printed for both --slave-parallel-print-all-deadlocks=1 and =2
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry 2 for event group GTID $gtid .*error: 1213.*Deadlock found when trying to get lock
+    --let SEARCH_ABORT= NOT FOUND
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= END OF INNODB MONITOR OUTPUT
+    --source include/search_pattern_in_file.inc
+    --echo *** First retry only printed in --slave-parallel-print-all-deadlocks=2
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry 1 for event group GTID $gtid .*error: 1213.*Deadlock found when trying to get lock
+    if ($i == 1) {
+      --let SEARCH_ABORT= FOUND
+    }
+    --source include/search_pattern_in_file.inc
+  }
+
+
+  if ($i == 0) {
+    --echo *** No debug output when disabled.
+    --let SEARCH_PATTERN= Slave SQL thread: Deadlock detected, aborting
+    --let SEARCH_ABORT= FOUND
+    --source include/search_pattern_in_file.inc
+    --let SEARCH_PATTERN= Slave SQL thread: Parallel replication retry
+    --source include/search_pattern_in_file.inc
+  }
+    --let SEARCH_ABORT=
+
+  --connection slave
+  --source include/stop_slave.inc
+  inc $i;
+}
+
+
+# Cleanup.
+--connection slave
+SET GLOBAL innodb_lock_wait_timeout= @save_innodb_lock_wait_timeout;
+SET GLOBAL slave_parallel_print_all_deadlocks= @save_slave_parallel_print_all_deadlocks;
+SET GLOBAL slave_parallel_threads= @save_slave_parallel_threads;
+SET GLOBAL slave_parallel_mode= @save_slave_parallel_mode;
+SET GLOBAL slave_transaction_retries= @save_slave_transaction_retries;
+SET GLOBAL innodb_status_output_locks= @save_innodb_status_output_locks;
+--source include/start_slave.inc
+
+--connection master
+CALL mtr.add_suppression("Slave worker thread retried transaction");
+DROP TABLE t1, t2, t3;
+
+--connection slave
+--source include/rpl_end.inc
