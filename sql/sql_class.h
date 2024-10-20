@@ -2135,6 +2135,8 @@ struct wait_for_commit
     used by another transaction coordinator for similar purposes.
   */
   void *opaque_pointer;
+  /* The owning THD, if any. */
+  THD *owner_thd;
   /* The wakeup error code from the waitee. 0 means no error. */
   int wakeup_error;
   /*
