@@ -2367,6 +2367,18 @@ static Sys_var_bit Sys_skip_parallel_replication(
        DEFAULT(FALSE));
 
 
+static Sys_var_uint Sys_slave_parallel_print_all_deadlocks(
+       "slave_parallel_print_all_deadlocks",
+       "Used to debug conflicts and deadlocks in parallel replication. "
+       "When set to 1, additional information will be printed to the error "
+       "log if a replicated transaction gets a lock wait timeout or needs to "
+       "retry more than once due to a conflict or deadlock. When set to 2, "
+       "all conflicts and deadlocks will print additional information; this "
+       "should be used with care as it can generate a lot of output",
+       GLOBAL_VAR(opt_slave_parallel_print_all_deadlocks),
+       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1));
+
+
 static bool
 check_gtid_ignore_duplicates(sys_var *self, THD *thd, set_var *var)
 {

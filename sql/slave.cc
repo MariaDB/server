@@ -5386,7 +5386,8 @@ pthread_handler_t handle_slave_sql(void *arg)
     In single thread replication this is the THD for the thread that is
     executing SQL queries too.
   */
-  serial_rgi->thd= rli->sql_driver_thd= thd;
+  serial_rgi->thd= serial_rgi->commit_orderer.owner_thd=
+    rli->sql_driver_thd= thd;
 
   thd->set_psi(PSI_CALL_get_thread());
   

@@ -806,6 +806,97 @@ is_group_ending(Log_event *ev, Log_event_type event_type)
 }
 
 
+static bool
+rpl_parallel_print_engine(THD *thd, const char *type, size_t type_len,
+                          const char *file, size_t file_len,
+                          const char *status, size_t status_len)
+{
+  /*
+    Annoyingly, we have to zero-terminate the string for
+    sql_print_information().
+  */
+  StringBuffer<32> engine_str;
+  engine_str.append(type, type_len);
+  sql_print_information("Slave SQL thread: Engine '%s' status:",
+                        engine_str.c_ptr_safe());
+  /*
+    Write the engine status directly to stderr. This is necessary to get a
+    useful amount of information, as sql_print_information() cuts the length
+    to 1024 max. The similar innobase_print_all_deadlocks option works in a
+    similar way.
+  */
+  fwrite(status, sizeof(char), status_len, stderr);
+  return false;
+}
+
+
+/*
+  Output some information to the error log to help debug problems or conflicts
+  in parallel replication.
+
+  Arguments:
+    thd              THD of the thread calling this function
+    conflicting_thd  THD that caused a conflict or a retry; the information
+                     output will be based on the open transaction in this THD.
+*/
+static void
+rpl_parallel_print_info(THD *thd, THD *conflicting_thd)
+{
+  char buf[1024];
+
+  sql_print_information("Slave SQL thread: Event groups in reverse "
+                        "commit order:");
+  wait_for_commit *wfc= conflicting_thd->wait_for_commit_ptr;
+  if (wfc)
+  {
+    mysql_mutex_lock(&wfc->LOCK_wait_commit);
+    for (;;)
+    {
+      THD *info_thd= wfc->owner_thd;
+      if (info_thd)
+      {
+        char *info=
+          thd_get_error_context_description(info_thd, buf, sizeof(buf), 512);
+        const rpl_group_info *rgi= info_thd->rgi_slave;
+        if (rgi)
+          sql_print_information("Slave SQL thread:   GTID %u-%u-%llu, %s",
+                                rgi->current_gtid.domain_id,
+                                rgi->current_gtid.server_id,
+                                (ulonglong)rgi->current_gtid.seq_no, info);
+        else
+          sql_print_information("Slave SQL thread:   --- %s", info);
+      }
+      else
+        sql_print_information("Slave SQL thread:   (unknown commit_orderer %p)",
+                              wfc);
+
+      wait_for_commit *parent_wfc= wfc->waitee.load(std::memory_order_relaxed);
+      if (!parent_wfc)
+        break;
+      mysql_mutex_lock(&parent_wfc->LOCK_wait_commit);
+      mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+      wfc= parent_wfc;
+    }
+    mysql_mutex_unlock(&wfc->LOCK_wait_commit);
+  }
+
+  Ha_trx_info *ha_list= conflicting_thd->transaction->all.ha_list;
+  if (ha_list && ha_list->is_started())
+  {
+    sql_print_information("Slave SQL thread: Status from engines participating "
+                          "in active transaction:");
+    do
+    {
+      handlerton *engine= ha_list->ht();
+      if (engine->show_status)
+        (*engine->show_status)(engine, thd, rpl_parallel_print_engine,
+                               HA_ENGINE_STATUS);
+      ha_list= ha_list->next();
+    } while (ha_list);
+  }
+}
+
+
 static int
 retry_event_group(rpl_group_info *rgi, rpl_parallel_thread *rpt,
                   rpl_parallel_thread::queued_event *orig_qev)
@@ -834,6 +925,38 @@ do_retry:
   thd->wsrep_cs().reset_error();
   WSREP_DEBUG("retrying async replication event");
 #endif /* WITH_WSREP */
+
+  if (unlikely(opt_slave_parallel_print_all_deadlocks))
+  {
+    uint error_code= rli->last_error().number;
+    const char *error_msg= "";
+    if (thd->is_error())
+    {
+      error_code= thd->get_stmt_da()->sql_errno();
+      error_msg= thd->get_stmt_da()->message();
+    }
+    /*
+      Output debug info if this is an unexpected retry. It is unexpected to
+      retry more than once, since we do wait_for_prior_commit() before the
+      retry. It is also unexpected to ever get lock wait timeout, that could
+      mean an unhandled conflict (which would indicate a bug).
+
+      Or if user requested it, then output the info for any retry.
+    */
+    if (retries >= 1 ||
+        error_code == ER_LOCK_WAIT_TIMEOUT ||
+        opt_slave_parallel_print_all_deadlocks == 2)
+    {
+      sql_print_information("Slave SQL thread: Parallel replication retry %lu "
+                            "for event group GTID %u-%u-%llu (error: %u %s); "
+                            "additional information follows:", retries+1,
+                            rgi->current_gtid.domain_id,
+                            rgi->current_gtid.server_id,
+                            (ulonglong)rgi->current_gtid.seq_no,
+                            error_code, error_msg);
+      rpl_parallel_print_info(thd, thd);
+    }
+  }
 
   /*
     If we already started committing before getting the deadlock (or other
@@ -895,6 +1018,7 @@ do_retry:
   thd->reset_killed();
   thd->clear_error();
   rgi->killed_for_retry = rpl_group_info::RETRY_KILL_NONE;
+  rgi->trans_retries= retries + 1;
 #ifdef ENABLED_DEBUG_SYNC
     DBUG_EXECUTE_IF("hold_worker2_favor_worker3", {
       if (rgi->current_gtid.seq_no == 2003) {
@@ -1365,7 +1489,7 @@ handle_rpl_parallel_thread(void *arg)
                  Gtid_log_event::FL_STANDALONE));
 
         event_gtid_sub_id= rgi->gtid_sub_id;
-        rgi->thd= thd;
+        rgi->thd= rgi->commit_orderer.owner_thd= thd;
 
         DBUG_EXECUTE_IF("gco_wait_delay_gtid_0_x_99", {
             if (rgi->current_gtid.domain_id == 0 && rgi->current_gtid.seq_no == 99) {

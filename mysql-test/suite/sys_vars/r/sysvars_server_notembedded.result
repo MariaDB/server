@@ -3732,6 +3732,16 @@ NUMERIC_BLOCK_SIZE	NULL
 ENUM_VALUE_LIST	none,minimal,conservative,optimistic,aggressive
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	NULL
+VARIABLE_NAME	SLAVE_PARALLEL_PRINT_ALL_DEADLOCKS
+VARIABLE_SCOPE	GLOBAL
+VARIABLE_TYPE	INT UNSIGNED
+VARIABLE_COMMENT	Used to debug conflicts and deadlocks in parallel replication. When set to 1, additional information will be printed to the error log if a replicated transaction gets a lock wait timeout or needs to retry more than once due to a conflict or deadlock. When set to 2, all conflicts and deadlocks will print additional information; this should be used with care as it can generate a lot of output
+NUMERIC_MIN_VALUE	0
+NUMERIC_MAX_VALUE	2
+NUMERIC_BLOCK_SIZE	1
+ENUM_VALUE_LIST	NULL
+READ_ONLY	NO
+COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	SLAVE_PARALLEL_THREADS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED

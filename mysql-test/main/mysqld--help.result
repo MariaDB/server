@@ -1223,6 +1223,15 @@ The following specify which files/extra groups are read (specified before remain
  parallelism, possibly at the cost of increased conflict
  rate. "minimal" only parallelizes the commit steps of
  transactions. "none" disables parallel apply completely.
+ --slave-parallel-print-all-deadlocks=# 
+ Used to debug conflicts and deadlocks in parallel
+ replication. When set to 1, additional information will
+ be printed to the error log if a replicated transaction
+ gets a lock wait timeout or needs to retry more than once
+ due to a conflict or deadlock. When set to 2, all
+ conflicts and deadlocks will print additional
+ information; this should be used with care as it can
+ generate a lot of output
  --slave-parallel-threads=# 
  If non-zero, number of threads to spawn to apply in
  parallel events on the slave that were group-committed on
@@ -1783,6 +1792,7 @@ slave-max-allowed-packet 1073741824
 slave-net-timeout 60
 slave-parallel-max-queued 131072
 slave-parallel-mode conservative
+slave-parallel-print-all-deadlocks 0
 slave-parallel-threads 0
 slave-parallel-workers 0
 slave-run-triggers-for-rbr NO

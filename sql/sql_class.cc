@@ -5377,6 +5377,27 @@ thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd)
     releasing the lock for this transaction so replication can proceed.
   */
 #ifdef HAVE_REPLICATION
+  if (unlikely(opt_slave_parallel_print_all_deadlocks) &&
+      (other_rgi->trans_retries >= 1 ||
+       opt_slave_parallel_print_all_deadlocks == 2))
+  {
+    char thd_info[400];
+    char other_thd_info[400];
+    thd_get_error_context_description(thd, thd_info, sizeof(thd_info), 350);
+    thd_get_error_context_description(other_thd, other_thd_info,
+                                      sizeof(other_thd_info), 350);
+    sql_print_information("Slave SQL thread: Deadlock detected, aborting "
+                          "second event group:\nGTID %u-%u-%llu: %s\n"
+                          "GTID %u-%u-%llu: %s",
+                          rgi->current_gtid.domain_id,
+                          rgi->current_gtid.server_id,
+                          (ulonglong)rgi->current_gtid.seq_no,
+                          thd_info,
+                          other_rgi->current_gtid.domain_id,
+                          other_rgi->current_gtid.server_id,
+                          (ulonglong)other_rgi->current_gtid.seq_no,
+                          other_thd_info);
+  }
   slave_background_kill_request(other_thd);
 #endif
   return 1;
@@ -7950,6 +7971,7 @@ wait_for_commit::reinit()
   next_subsequent_commit= NULL;
   waitee.store(NULL, std::memory_order_relaxed);
   opaque_pointer= NULL;
+  owner_thd= NULL;
   wakeup_error= 0;
   wakeup_subsequent_commits_running= false;
   commit_started= false;
@@ -8093,7 +8115,7 @@ wait_for_commit::register_wait_for_prior_commit(wait_for_commit *waitee)
 
   If ALLOW_KILL is set to true (the default), the wait can be aborted by a
   kill. In case of kill, the wait registration is still removed, so another
-  call of unregister_wait_for_prior_commit() is needed to later retry the
+  call of register_wait_for_prior_commit() is needed to later retry the
   wait. If ALLOW_KILL is set to false, then kill will be ignored and this
   function will not return until the prior commit (if any) has called
   wakeup_subsequent_commits().
