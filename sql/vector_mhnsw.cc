@@ -31,6 +31,7 @@ static constexpr float NEAREST = -1.0f;
 // Algorithm parameters
 static constexpr float alpha = 1.1f;
 static constexpr uint ef_construction= 10;
+static constexpr uint max_ef= 10000;
 
 static ulonglong mhnsw_cache_size;
 static MYSQL_SYSVAR_ULONGLONG(cache_size, mhnsw_cache_size,
@@ -41,7 +42,7 @@ static MYSQL_THDVAR_UINT(min_limit, PLUGIN_VAR_RQCMDARG,
        "vector index for ORDER BY ... LIMIT N queries. The search will never "
        "search for less rows than that, even if LIMIT is smaller. "
        "This notably improves the search quality at low LIMIT values, "
-       "at the expense of search time", nullptr, nullptr, 20, 1, 65535, 1);
+       "at the expense of search time", nullptr, nullptr, 20, 1, max_ef, 1);
 static MYSQL_THDVAR_UINT(max_edges_per_node, PLUGIN_VAR_RQCMDARG,
        "Larger values means slower INSERT, larger index size and higher "
        "memory consumption, but better search results",
@@ -877,7 +878,7 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
 {
   Queue<Visited> pq; // working queue
 
-  if (pq.init(10000, false, Visited::cmp))
+  if (pq.init(max_ef, false, Visited::cmp))
     return my_errno= HA_ERR_OUT_OF_MEM;
 
   MEM_ROOT * const root= graph->in_use->mem_root;
@@ -1039,7 +1040,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   const uint est_size= static_cast<uint>(est_heuristic * std::pow(ef, ctx->ef_power));
   VisitedSet visited(root, target, est_size);
 
-  candidates.init(10000, false, Visited::cmp);
+  candidates.init(max_ef, false, Visited::cmp);
   best.init(ef, true, Visited::cmp);
 
   DBUG_ASSERT(inout->num <= result_size);
