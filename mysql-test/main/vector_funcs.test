@@ -64,3 +64,13 @@ select vec_fromtext(NULL);
 --echo #
 select vec_totext(0x77777777);
 select hex(vec_fromtext('[5.01922e33]'));
+
+--echo #
+--echo # MDEV-35215 ASAN errors in Item_func_vec_fromtext::val_str upon VEC_FROMTEXT with an invalid argument
+--echo #
+create table t (v vector(1));
+insert into t values (vec_fromtext('[0.93]'));
+select vec_fromtext(v) from t;
+drop table t;
+
+select vec_fromtext(0x00000000);

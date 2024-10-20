@@ -198,7 +198,7 @@ String *Item_func_vec_fromtext::val_str(String *buf)
   null_value= true;
   push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                       ER_TRUNCATED_WRONG_VALUE, ER(ER_TRUNCATED_WRONG_VALUE),
-                      "vector", value->ptr());
+                      "vector", value->c_ptr_safe());
   return nullptr;
 
 error_format:
@@ -207,7 +207,7 @@ error_format:
     null_value= true;
     push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                         ER_VECTOR_FORMAT_INVALID, ER(ER_VECTOR_FORMAT_INVALID),
-                        position, value->ptr());
+                        position, value->c_ptr_safe());
     return nullptr;
   }
 
