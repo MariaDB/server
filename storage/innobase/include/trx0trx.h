@@ -399,6 +399,9 @@ struct trx_lock_t
 
   /** number of record locks; protected by lock_sys.assert_locked(page_id) */
   ulint n_rec_locks;
+  /** number of lock_rec_set_nth_bit() calls since the start of transaction;
+  protected by lock_sys.is_writer() or trx->mutex_is_owner(). */
+  ulint set_nth_bit_calls;
 };
 
 /** Logical first modification time of a table in a transaction */
