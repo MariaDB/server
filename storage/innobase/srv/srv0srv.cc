@@ -182,10 +182,6 @@ with mysql_mutex_lock(), which will wait until it gets the mutex. */
 ulint	srv_buf_pool_size;
 /** Requested buffer pool chunk size */
 size_t	srv_buf_pool_chunk_unit;
-/** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
-ulong	srv_LRU_scan_depth;
-/** innodb_flush_neighbors; whether or not to flush neighbors of a block */
-ulong	srv_flush_neighbors;
 /** Previously requested size */
 ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */

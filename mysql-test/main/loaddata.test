@@ -832,3 +832,61 @@ CREATE TABLE t1 (id integer not null auto_increment primary key);
 LOAD DATA INFILE '../../std_data/loaddata/nl.txt' INTO TABLE t1 FIELDS TERMINATED BY '';
 SELECT * FROM t1;
 DROP TABLE t1;
+
+
+--echo #
+--echo # MDEV-34883: LOAD DATA INFILE with geometry data fails
+--echo #
+
+CREATE OR REPLACE TABLE t1 (
+  p point NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'));
+
+--disable_ps2_protocol
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval SELECT * FROM t1 INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv';
+--enable_ps2_protocol
+
+CREATE OR REPLACE TABLE t2 LIKE t1;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2;
+
+--remove_file '$MYSQLTEST_VARDIR/tmp/t1.tsv'
+drop table t1, t2;
+
+
+CREATE OR REPLACE TABLE t1 (
+  p point NOT NULL,
+  chr char(20)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'),"їєі");
+--disable_ps2_protocol
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval SELECT * FROM t1 INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv';
+--enable_ps2_protocol
+
+CREATE OR REPLACE TABLE t2 LIKE t1;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval  LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2 CHARACTER SET latin1;
+
+select ST_AsText(p), chr from t1;
+--echo # incorrect string (but correct geom)
+select ST_AsText(p), chr from t2;
+
+delete from t2;
+
+--replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
+eval  LOAD DATA INFILE '$MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2 CHARACTER SET utf8mb4;
+
+select ST_AsText(p), chr from t1;
+--echo # all is correct
+select ST_AsText(p), chr from t2;
+
+--remove_file '$MYSQLTEST_VARDIR/tmp/t1.tsv'
+drop table t1, t2;
+
+--echo # End of 10.5 tests

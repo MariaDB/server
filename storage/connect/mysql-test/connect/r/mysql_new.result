@@ -41,7 +41,7 @@ t1	CREATE TABLE `t1` (
   `y` char(10) DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1' `TABLE_TYPE`=MYSQL
 SELECT * FROM t1;
-ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'field list' [SELECT `x`, `y` FROM `t1`]' from CONNECT
+ERROR HY000: Got error 174 '(1054) Unknown column 'x' in 'SELECT' [SELECT `x`, `y` FROM `t1`]' from CONNECT
 DROP TABLE t1;
 CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=MYSQL
 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT/test/t1';

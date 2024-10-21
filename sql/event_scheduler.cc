@@ -219,12 +219,10 @@ pre_init_event_thread(THD* thd)
 pthread_handler_t
 event_scheduler_thread(void *arg)
 {
-  /* needs to be first for thread_stack */
   THD *thd= (THD *) ((struct scheduler_param *) arg)->thd;
   Event_scheduler *scheduler= ((struct scheduler_param *) arg)->scheduler;
   bool res;
-
-  thd->thread_stack= (char *)&thd;              // remember where our stack is
+  thd->reset_stack();
 
   mysql_thread_set_psi_id(thd->thread_id);
 
@@ -285,8 +283,6 @@ event_worker_thread(void *arg)
 void
 Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
 {
-  /* needs to be first for thread_stack */
-  char my_stack;
   Event_job_data job_data;
   bool res;
 
@@ -302,7 +298,6 @@ Event_worker_thread::run(THD *thd, Event_queue_element_for_exec *event)
                                               thd->charset(), NULL);
 #endif
 
-  thd->thread_stack= &my_stack;                // remember where our stack is
   res= post_init_event_thread(thd);
 
   DBUG_ENTER("Event_worker_thread::run");

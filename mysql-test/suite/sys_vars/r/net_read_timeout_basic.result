@@ -148,11 +148,11 @@ SELECT @@net_read_timeout;
 @@net_read_timeout
 1
 SELECT local.net_read_timeout;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.net_read_timeout;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT net_read_timeout = @@session.net_read_timeout;
-ERROR 42S22: Unknown column 'net_read_timeout' in 'field list'
+ERROR 42S22: Unknown column 'net_read_timeout' in 'SELECT'
 SET @@global.net_read_timeout = @start_global_value;
 SELECT @@global.net_read_timeout;
 @@global.net_read_timeout

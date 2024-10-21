@@ -2922,22 +2922,8 @@ os_file_set_size(
 
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
-	sparse and normal files.
-
-	However, 10.2 up until 10.2.9 made every file sparse in innodb,
-	causing NTFS fragmentation issues(MDEV-13941). We try to undo
-	the damage, and unsparse the file.*/
-
-	if (!is_sparse && os_is_sparse_file_supported(file)) {
-		if (!os_file_set_sparse_win32(file, false))
-			/* Unsparsing file failed. Fallback to writing binary
-			zeros, to avoid even higher fragmentation.*/
-			goto fallback;
-	}
-
+	sparse and normal files. */
 	return os_file_change_size_win32(name, file, size);
-
-fallback:
 #else
 	struct stat statbuf;
 

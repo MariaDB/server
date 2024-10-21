@@ -3636,7 +3636,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     return false;
 
   Item **array= static_cast<Item**>(
-    thd->active_stmt_arena_to_use()->alloc(sizeof(Item*) * n_elems));
+    thd->active_stmt_arena_to_use()->calloc(sizeof(Item*) * n_elems));
   if (likely(array != NULL))
     ref_pointer_array= Ref_ptr_array(array, n_elems);
   return array == NULL;

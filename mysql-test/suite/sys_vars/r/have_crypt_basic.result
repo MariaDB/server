@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.have_crypt)
 1
 1 Expected
 SELECT have_crypt = @@SESSION.have_crypt;
-ERROR 42S22: Unknown column 'have_crypt' in 'field list'
+ERROR 42S22: Unknown column 'have_crypt' in 'SELECT'
 Expected error 'Readonly variable'

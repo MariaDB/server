@@ -464,7 +464,7 @@ set timestamp= default;
 create table t1(x int) with system versioning;
 insert into t1(x) values (1);
 insert into t1(x, row_start, row_end) values (2, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
-ERROR 42S22: Unknown column 'row_start' in 'field list'
+ERROR 42S22: Unknown column 'row_start' in 'INSERT INTO'
 set @@system_versioning_insert_history= 1;
 insert into t1(x, row_start, row_end) values (3, '1980-01-01 00:00:00', '1980-01-01 00:00:01');
 update t1 set x= x + 1;

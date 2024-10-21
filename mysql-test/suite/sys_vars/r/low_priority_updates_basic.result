@@ -145,11 +145,11 @@ SELECT @@low_priority_updates;
 @@low_priority_updates
 1
 SELECT local.low_priority_updates;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.low_priority_updates;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT low_priority_updates = @@session.low_priority_updates;
-ERROR 42S22: Unknown column 'low_priority_updates' in 'field list'
+ERROR 42S22: Unknown column 'low_priority_updates' in 'SELECT'
 SET @@global.low_priority_updates = @start_global_value;
 SELECT @@global.low_priority_updates;
 @@global.low_priority_updates

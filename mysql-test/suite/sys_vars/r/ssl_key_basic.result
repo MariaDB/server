@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.ssl_key)
 1
 1 Expected
 SELECT ssl_key = @@SESSION.ssl_key;
-ERROR 42S22: Unknown column 'ssl_key' in 'field list'
+ERROR 42S22: Unknown column 'ssl_key' in 'SELECT'
 Expected error 'Readonly variable'

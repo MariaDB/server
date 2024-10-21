@@ -1492,8 +1492,8 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(want_privilege);
 #endif
   thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
-  res= setup_fields(thd, Ref_ptr_array(),
-                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
+  res= setup_fields(thd, Ref_ptr_array(), select->item_list, MARK_COLUMNS_READ,
+                    0, NULL, 0, THD_WHERE::SET_LIST);
   thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
   if (res)
     goto error;
@@ -1504,8 +1504,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
+  if (setup_fields(thd, Ref_ptr_array(), stmt->lex->value_list, COLUMNS_READ,
+                   0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1680,8 +1680,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(), *values, COLUMNS_READ, 0,
+                           NULL, 0, THD_WHERE::DO_STATEMENT));
 }
 
 
@@ -1713,6 +1713,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     goto error;
 
+  thd->where= THD_WHERE::SET_LIST;
   while ((var= it++))
   {
     if (var->light_check(thd))
@@ -6299,7 +6300,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   {
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &result;
+    p->thd->thread_stack= (void*) &result;      // Big stack
     p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
@@ -6479,7 +6480,6 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
 
     new_thd= new THD(0);
     local_connection_thread_count++;
-    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;

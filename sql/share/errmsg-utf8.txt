@@ -8308,6 +8308,7 @@ ER_ACCESS_DENIED_NO_PASSWORD_ERROR 28000
         ukr "Доступ заборонено для користувача: '%s'@'%s'"
 
 ER_SET_PASSWORD_AUTH_PLUGIN
+        chi "SET PASSWORD不适用于通过%s插件验证的用户"
         eng "SET PASSWORD is not applicable for users authenticating via %s plugin"
         ukr "SET PASSWORD не можна застосувати для користувачів, що автентифікуються з допомогою плагінy %s"
 

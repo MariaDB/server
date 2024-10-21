@@ -105,11 +105,11 @@ SELECT @@autocommit;
 @@autocommit
 1
 SELECT local.autocommit;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.autocommit;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT autocommit = @@session.autocommit;
-ERROR 42S22: Unknown column 'autocommit' in 'field list'
+ERROR 42S22: Unknown column 'autocommit' in 'SELECT'
 SET @@global.autocommit = @start_value;
 SELECT @@global.autocommit;
 @@global.autocommit

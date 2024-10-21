@@ -9430,8 +9430,18 @@ choose_plan(JOIN *join, table_map join_tables)
     double limit_cost= DBL_MAX;
     POSITION *limit_plan= NULL;
 
-    /* First, build a join plan that can short-cut ORDER BY...LIMIT */
-    if (join->limit_shortcut_applicable && !join->emb_sjm_nest)
+    /*
+      First, build a join plan that can short-cut ORDER BY...LIMIT.
+      Do it if
+      (1) The SELECT in query makes it possible to do short-cutting for
+          some table TBL.
+      (2) We are optimizing the whole JOIN, not a semi-join nest
+      (3) The table TBL has not been marked as constant (in this case,
+          ORDER BY LIMIT will be optimized away)
+    */
+    if (join->limit_shortcut_applicable &&                  // (1)
+        !join->emb_sjm_nest &&                              // (2)
+        !(join->sort_by_table->map & join->const_table_map)) //(3)
     {
       bool res;
       Json_writer_object wrapper(join->thd);
@@ -13337,11 +13347,41 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
 
       used_tables|=current_map;
 
+      /*
+        Change from using ref access to using quick select on the same index
+        if the quick select uses more key parts.
+
+        There are two cases.
+        A. ref access is ref(const). quick select was also constructed using
+        equality restrictions that ref used, and so it will scan a subset of
+        rows that ref access scans.
+        Example: suppose the index is INDEX(kp1, kp2) and the WHERE has:
+
+          kp1='foo' and kp2 <= 10
+
+        here, ref access will use kp1='foo' and quick select will use
+        (foo) <= (kp1,kp2) <=(foo,10)
+
+        B. ref access is not constant.  In this case, quick select was
+        constructed from some other restriction and in general will scan
+        totally different set of rows (it maybe larger or smaller).
+        Example: for INDEX(kp1, kp2) and the WHERE:
+
+        kp1 <='foo' and kp1=prev_table.col and kp2 <= 10
+
+        the ref access will use kp1=prev_table.col, while quick select will
+        use (-inf) < (kp1, kp2) <= ('foo',10).
+
+        Because of the above, we perform the rewrite ONLY when ref is
+        ref(const).
+      */
       if (tab->type == JT_REF && tab->quick &&
 	  (((uint) tab->ref.key == tab->quick->index &&
 	    tab->ref.key_length < tab->quick->max_used_key_length) ||
            (!is_hash_join_key_no(tab->ref.key) &&
-            tab->table->intersect_keys.is_set(tab->ref.key))))
+            tab->table->intersect_keys.is_set(tab->ref.key))) &&
+          tab->ref.const_ref_part_map ==                       // (ref-is-const)
+              make_prev_keypart_map(tab->ref.key_parts))       // (ref-is-const)
       {
         /* Range uses longer key;  Use this instead of ref on key */
         Json_writer_object ref_to_range(thd);

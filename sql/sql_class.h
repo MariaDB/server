@@ -2667,13 +2667,19 @@ enum class THD_WHERE
   DEFAULT_WHERE,
   ON_CLAUSE,
   WHERE_CLAUSE,
-  CONVERT_CHARSET_CONST,
+  SET_LIST,
+  INSERT_LIST,
+  VALUES_CLAUSE,
+  UPDATE_CLAUSE,
+  RETURNING,
   FOR_SYSTEM_TIME,
   ORDER_CLAUSE,
   HAVING_CLAUSE,
   GROUP_STATEMENT,
   PROCEDURE_LIST,
   CHECK_OPTION,
+  DO_STATEMENT,
+  HANDLER_STATEMENT,
   USE_WHERE_STRING, // ugh, a compromise for vcol...
 };
 
@@ -2805,7 +2811,7 @@ public:
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
   */
-  char	  *thread_stack;
+  void *thread_stack;
 
   /**
     Currently selected catalog.
@@ -3900,6 +3906,10 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void reset_stack()
+  {
+    thread_stack= 0;
+  }
   void reset_globals();
   bool trace_started()
   {

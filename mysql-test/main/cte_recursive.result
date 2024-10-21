@@ -4655,33 +4655,33 @@ insert into t1 values (3), (7), (1);
 with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 explain with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 create procedure sp1() with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
 select * from t1 as t;
 call sp1();
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 call sp1();
-ERROR 42S22: Unknown column 'r.b' in 'where clause'
+ERROR 42S22: Unknown column 'r.b' in 'WHERE'
 with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 explain with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 create procedure sp2() with recursive
 r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
 select * from t1 as t;
 call sp2();
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 call sp2();
-ERROR 42S22: Unknown column 's1.b' in 'where clause'
+ERROR 42S22: Unknown column 's1.b' in 'WHERE'
 drop procedure sp1;
 drop procedure sp2;
 drop table t1;

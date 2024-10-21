@@ -251,7 +251,6 @@ bool servers_init(bool dont_read_servers_table)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(TRUE);
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   /*
     It is safe to call servers_reload() since servers_* arrays and hashes which

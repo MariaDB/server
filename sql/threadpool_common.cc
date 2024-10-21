@@ -196,13 +196,13 @@ static void thread_attach(THD* thd)
   wsrep_wait_rollback_complete_and_acquire_ownership(thd);
 #endif /* WITH_WSREP */
   set_mysys_var(thd->mysys_var);
-  thd->thread_stack=(char*)&thd;
+  const OS_thread_info *tinfo= get_os_thread_info();
+
   set_current_thd(thd);
-  auto tinfo= get_os_thread_info();
+  my_get_stack_bounds(&thd->thread_stack, &thd->mysys_var->stack_ends_here,
+                      (void*) &tinfo, my_thread_stack_size);
   thd->real_id= tinfo->self;
   thd->os_thread_id= tinfo->thread_id;
-  DBUG_ASSERT(thd->mysys_var == my_thread_var);
-  thd->mysys_var->stack_ends_here= thd->thread_stack + tinfo->stack_size;
   PSI_CALL_set_thread(thd->get_psi());
 }
 
