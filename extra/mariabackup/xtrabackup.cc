@@ -3912,7 +3912,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	for (int i = 0; i < 10; i++) {
 		file->m_defer = false;
-		err = file->validate_first_page();
+		err = file->validate_first_page(file->get_first_page());
 
 		if (file->m_defer) {
 			if (defer_space_id) {
@@ -3954,7 +3954,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			skip_node_page0 ? file->detach() : pfs_os_file_t(),
 			0, false, false);
 		node->deferred= defer;
-		if (!space->read_page0())
+		if (!space->read_page0(nullptr, true))
 			err = DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
@@ -6852,8 +6852,10 @@ error:
 			goto error;
 		}
 
-		ok = fil_system.sys_space->open(false)
-			&& xtrabackup_apply_deltas();
+		mysql_mutex_lock(&recv_sys.mutex);
+		ok = fil_system.sys_space->open(false);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (ok) ok = xtrabackup_apply_deltas();
 
 		xb_data_files_close();
 

@@ -510,43 +510,46 @@ buf_page_is_checksum_valid_crc32(
 	return checksum_field1 == crc32;
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /** Checks whether the lsn present in the page is lesser than the
 peek current lsn.
-@param[in]	check_lsn	lsn to check
-@param[in]	read_buf	page. */
-static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
+@param check_lsn    lsn to check
+@param read_buf     page frame
+@return whether the FIL_PAGE_LSN is invalid */
+static bool buf_page_check_lsn(bool check_lsn, const byte *read_buf)
 {
-#ifndef UNIV_INNOCHECKSUM
-	if (check_lsn && recv_lsn_checks_on) {
-		const lsn_t current_lsn = log_sys.get_lsn();
-		const lsn_t	page_lsn
-			= mach_read_from_8(read_buf + FIL_PAGE_LSN);
+  if (!check_lsn)
+    return false;
+  lsn_t current_lsn= log_sys.get_lsn();
+  if (UNIV_UNLIKELY(current_lsn == log_sys.FIRST_LSN) &&
+      srv_force_recovery == SRV_FORCE_NO_LOG_REDO)
+    return false;
+  const lsn_t page_lsn= mach_read_from_8(read_buf + FIL_PAGE_LSN);
 
-		/* Since we are going to reset the page LSN during the import
-		phase it makes no sense to spam the log with error messages. */
-		if (current_lsn < page_lsn) {
+  if (UNIV_LIKELY(current_lsn >= page_lsn))
+    return false;
 
-			const uint32_t space_id = mach_read_from_4(
-				read_buf + FIL_PAGE_SPACE_ID);
-			const uint32_t page_no = mach_read_from_4(
-				read_buf + FIL_PAGE_OFFSET);
+  const uint32_t space_id= mach_read_from_4(read_buf + FIL_PAGE_SPACE_ID);
+  const uint32_t page_no= mach_read_from_4(read_buf + FIL_PAGE_OFFSET);
 
-			ib::error() << "Page " << page_id_t(space_id, page_no)
-				<< " log sequence number " << page_lsn
-				<< " is in the future! Current system"
-				<< " log sequence number "
-				<< current_lsn << ".";
+  sql_print_error("InnoDB: Page "
+                  "[page id: space=" UINT32PF ", page number=" UINT32PF "]"
+                  " log sequence number " LSN_PF
+                  " is in the future! Current system log sequence number "
+                  LSN_PF ".",
+                  space_id, page_no, page_lsn, current_lsn);
 
-			ib::error() << "Your database may be corrupt or"
-				" you may have copied the InnoDB"
-				" tablespace but not the InnoDB"
-				" log files. "
-				<< FORCE_RECOVERY_MSG;
+  if (srv_force_recovery)
+    return false;
 
-		}
-	}
-#endif /* !UNIV_INNOCHECKSUM */
+  sql_print_error("InnoDB: Your database may be corrupt or"
+                  " you may have copied the InnoDB"
+                  " tablespace but not the ib_logfile0. %s",
+                  FORCE_RECOVERY_MSG);
+
+  return true;
 }
+#endif
 
 
 /** Check if a buffer is all zeroes.
@@ -563,35 +566,36 @@ bool buf_is_zeroes(span<const byte> buf)
 @param read_buf    database page
 @param fsp_flags   contents of FIL_SPACE_FLAGS
 @return whether the page is corrupted */
-bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
-                           uint32_t fsp_flags)
+buf_page_is_corrupted_reason
+buf_page_is_corrupted(bool check_lsn, const byte *read_buf, uint32_t fsp_flags)
 {
 	if (fil_space_t::full_crc32(fsp_flags)) {
 		bool compressed = false, corrupted = false;
 		const uint size = buf_page_full_crc32_size(
 			read_buf, &compressed, &corrupted);
 		if (corrupted) {
-			return true;
+			return CORRUPTED_OTHER;
 		}
 		const byte* end = read_buf + (size - FIL_PAGE_FCRC32_CHECKSUM);
 		uint crc32 = mach_read_from_4(end);
 
 		if (!crc32 && size == srv_page_size
 		    && buf_is_zeroes(span<const byte>(read_buf, size))) {
-			return false;
+			return NOT_CORRUPTED;
 		}
 
 		DBUG_EXECUTE_IF(
 			"page_intermittent_checksum_mismatch", {
 			static int page_counter;
-			if (page_counter++ == 3) {
+			if (mach_read_from_4(FIL_PAGE_OFFSET + read_buf)
+			    && page_counter++ == 3) {
 				crc32++;
 			}
 		});
 
 		if (crc32 != my_crc32c(0, read_buf,
 				       size - FIL_PAGE_FCRC32_CHECKSUM)) {
-			return true;
+			return CORRUPTED_OTHER;
 		}
 		static_assert(FIL_PAGE_FCRC32_KEY_VERSION == 0, "alignment");
 		static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
@@ -603,11 +607,15 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 					 end - (FIL_PAGE_FCRC32_END_LSN
 						- FIL_PAGE_FCRC32_CHECKSUM),
 					 4)) {
-			return true;
+			return CORRUPTED_OTHER;
 		}
 
-		buf_page_check_lsn(check_lsn, read_buf);
-		return false;
+		return
+#ifndef UNIV_INNOCHECKSUM
+			buf_page_check_lsn(check_lsn, read_buf)
+			? CORRUPTED_FUTURE_LSN :
+#endif
+			NOT_CORRUPTED;
 	}
 
 	const ulint zip_size = fil_space_t::zip_size(fsp_flags);
@@ -628,7 +636,13 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 	    && FSP_FLAGS_HAS_PAGE_COMPRESSION(fsp_flags)
 #endif
 	) {
-		return(false);
+	check_lsn:
+		return
+#ifndef UNIV_INNOCHECKSUM
+			buf_page_check_lsn(check_lsn, read_buf)
+			? CORRUPTED_FUTURE_LSN :
+#endif
+			NOT_CORRUPTED;
 	}
 
 	static_assert(FIL_PAGE_LSN % 4 == 0, "alignment");
@@ -641,15 +655,16 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		/* Stored log sequence numbers at the start and the end
 		of page do not match */
 
-		return(true);
+		return CORRUPTED_OTHER;
 	}
-
-	buf_page_check_lsn(check_lsn, read_buf);
 
 	/* Check whether the checksum fields have correct values */
 
 	if (zip_size) {
-		return !page_zip_verify_checksum(read_buf, zip_size);
+		if (!page_zip_verify_checksum(read_buf, zip_size)) {
+			return CORRUPTED_OTHER;
+		}
+		goto check_lsn;
 	}
 
 	const uint32_t checksum_field1 = mach_read_from_4(
@@ -686,7 +701,7 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 		}
 
 		if (all_zeroes) {
-			return false;
+			return NOT_CORRUPTED;
 		}
 	}
 
@@ -695,13 +710,17 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
 #endif /* !UNIV_INNOCHECKSUM */
-		return !buf_page_is_checksum_valid_crc32(
-			read_buf, checksum_field1, checksum_field2);
+		if (!buf_page_is_checksum_valid_crc32(read_buf,
+						      checksum_field1,
+						      checksum_field2)) {
+			return CORRUPTED_OTHER;
+		}
+		goto check_lsn;
 #ifndef UNIV_INNOCHECKSUM
 	default:
 		if (checksum_field1 == BUF_NO_CHECKSUM_MAGIC
 		    && checksum_field2 == BUF_NO_CHECKSUM_MAGIC) {
-			return false;
+			goto check_lsn;
 		}
 
 		const uint32_t crc32 = buf_calc_page_crc32(read_buf);
@@ -719,27 +738,35 @@ bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
 			DBUG_EXECUTE_IF(
 				"page_intermittent_checksum_mismatch", {
 				static int page_counter;
-				if (page_counter++ == 3) return true;
+				if (mach_read_from_4(FIL_PAGE_OFFSET
+						     + read_buf)
+				    && page_counter++ == 3)
+					return CORRUPTED_OTHER;
 			});
 
 			if ((checksum_field1 != crc32
 			     || checksum_field2 != crc32)
 			    && checksum_field2
 			    != buf_calc_page_old_checksum(read_buf)) {
-				return true;
+				return CORRUPTED_OTHER;
 			}
 		}
 
 		switch (checksum_field1) {
 		case 0:
 		case BUF_NO_CHECKSUM_MAGIC:
-			return false;
+			break;
+		default:
+			if ((checksum_field1 != crc32
+			     || checksum_field2 != crc32)
+			    && checksum_field1
+			    != buf_calc_page_new_checksum(read_buf)) {
+				return CORRUPTED_OTHER;
+			}
 		}
-		return (checksum_field1 != crc32 || checksum_field2 != crc32)
-			&& checksum_field1
-			!= buf_calc_page_new_checksum(read_buf);
 	}
 #endif /* !UNIV_INNOCHECKSUM */
+	goto check_lsn;
 }
 
 #ifndef UNIV_INNOCHECKSUM
@@ -830,6 +857,7 @@ public:
       my_close(m_fds[m_num_fds].fd, MYF(MY_WME));
       m_fds[m_num_fds].fd= -1;
     }
+    m_event_fd= -1;
   }
 
   static void pressure_routine(mem_pressure *m);
@@ -838,10 +866,8 @@ public:
   void trigger_collection()
   {
     uint64_t u= 1;
-    if (m_event_fd >=0 && write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
+    if (m_event_fd < 0 || write(m_event_fd, &u, sizeof(uint64_t)) != sizeof(uint64_t))
       sql_print_information("InnoDB: (Debug) Failed to trigger memory pressure");
-    else /* assumed failed to meet intialization criteria, so trigger directy */
-      buf_pool.garbage_collect();
   }
 #endif
 
@@ -900,7 +926,7 @@ void mem_pressure::pressure_routine(mem_pressure *m)
       else
         break;
     }
-    if (!m->m_abort)
+    if (m->m_abort)
       break;
 
     for (pollfd &p : st_::span<pollfd>(m->m_fds, m->m_num_fds))
@@ -3927,6 +3953,7 @@ or decrypt/decompress just failed.
 @return	whether the operation succeeded
 @retval	DB_SUCCESS		if page has been read and is not corrupted
 @retval	DB_PAGE_CORRUPTED	if page based on checksum check is corrupted
+@retval DB_CORRUPTION		if the page LSN is in the future
 @retval	DB_DECRYPTION_FAILED	if page post encryption checksum matches but
 after decryption normal page checksum does not match. */
 static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
@@ -3963,8 +3990,18 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 			    node.space->is_compressed())) {
 			err = DB_PAGE_CORRUPTED;
 		}
-	} else if (buf_page_is_corrupted(true, dst_frame, node.space->flags)) {
-		err = DB_PAGE_CORRUPTED;
+	} else {
+		switch (buf_page_is_corrupted(true, dst_frame,
+					      node.space->flags)) {
+		case NOT_CORRUPTED:
+			break;
+		case CORRUPTED_OTHER:
+			err = DB_PAGE_CORRUPTED;
+			break;
+		case CORRUPTED_FUTURE_LSN:
+			err = DB_CORRUPTION;
+			break;
+		}
 	}
 
 	if (seems_encrypted && err == DB_PAGE_CORRUPTED
@@ -3984,9 +4021,8 @@ static dberr_t buf_page_check_corrupt(buf_page_t *bpage,
 /** Complete a read of a page.
 @param node     data file
 @return whether the operation succeeded
-@retval DB_PAGE_CORRUPTED    if the checksum fails
-@retval DB_DECRYPTION_FAILED if the page cannot be decrypted
-@retval DB_FAIL              if the page contains the wrong ID */
+@retval DB_PAGE_CORRUPTED    if the checksum or the page ID is incorrect
+@retval DB_DECRYPTION_FAILED if the page cannot be decrypted */
 dberr_t buf_page_t::read_complete(const fil_node_t &node)
 {
   const page_id_t expected_id{id()};
@@ -4014,9 +4050,8 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
 
     if (!ok)
     {
-      ib::info() << "Page " << expected_id << " zip_decompress failure.";
       err= DB_PAGE_CORRUPTED;
-      goto database_corrupted;
+      goto database_corrupted_compressed;
     }
   }
 
@@ -4041,15 +4076,21 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
              node.space->crypt_data &&
              node.space->crypt_data->type != CRYPT_SCHEME_UNENCRYPTED)
     {
-      ib::error() << "Cannot decrypt " << expected_id;
       err= DB_DECRYPTION_FAILED;
       goto release_page;
     }
     else
     {
-      ib::error() << "Space id and page no stored in the page, read in are "
-                  << read_id << ", should be " << expected_id;
-      err= DB_PAGE_CORRUPTED;
+      sql_print_error("InnoDB: Space id and page no stored in the page,"
+                      " read in from %s are "
+                      "[page id: space=" UINT32PF ", page number=" UINT32PF
+                      "], should be "
+                      "[page id: space=" UINT32PF ", page number=" UINT32PF
+                      "]",
+                      node.name,
+                      read_id.space(), read_id.page_no(),
+                      expected_id.space(), expected_id.page_no());
+      err= DB_FAIL;
       goto release_page;
     }
   }
@@ -4059,23 +4100,8 @@ dberr_t buf_page_t::read_complete(const fil_node_t &node)
   {
 database_corrupted:
     if (belongs_to_unzip_LRU())
+database_corrupted_compressed:
       memset_aligned<UNIV_PAGE_SIZE_MIN>(frame, 0, srv_page_size);
-
-    if (err == DB_PAGE_CORRUPTED)
-    {
-      ib::error() << "Database page corruption on disk"
-                     " or a failed read of file '"
-                  << node.name << "' page " << expected_id
-                  << ". You may have to recover from a backup.";
-
-      buf_page_print(read_frame, zip_size());
-
-      node.space->set_corrupted();
-
-      ib::info() << " You can use CHECK TABLE to scan"
-                    " your table for corruption. "
-                 << FORCE_RECOVERY_MSG;
-    }
 
     if (!srv_force_recovery)
       goto release_page;
@@ -4084,6 +4110,24 @@ database_corrupted:
   if (err == DB_PAGE_CORRUPTED || err == DB_DECRYPTION_FAILED)
   {
 release_page:
+    if (recv_sys.free_corrupted_page(expected_id, node));
+    else if (err == DB_FAIL)
+      err= DB_PAGE_CORRUPTED;
+    else
+    {
+      sql_print_error("InnoDB: Failed to read page " UINT32PF
+                      " from file '%s': %s", expected_id.page_no(),
+                      node.name, ut_strerr(err));
+
+      buf_page_print(read_frame, zip_size());
+
+      if (node.space->set_corrupted() &&
+          !is_predefined_tablespace(node.space->id))
+        sql_print_information("InnoDB: You can use CHECK TABLE to scan"
+                              " your table for corruption. %s",
+                              FORCE_RECOVERY_MSG);
+    }
+
     buf_pool.corrupted_evict(this, buf_page_t::READ_FIX);
     return err;
   }
