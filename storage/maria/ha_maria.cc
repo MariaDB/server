@@ -425,7 +425,7 @@ static void _ma_check_print(HA_CHECK *param, const LEX_CSTRING *msg_type,
 
 
 // collect errors printed by maria_check routines
-
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
                                 const char *fmt, va_list args)
 {
@@ -2133,7 +2133,7 @@ int ha_maria::enable_indexes(key_map map, bool persist)
     {
       sql_print_warning("Warning: Enabling keys got errno %d on %s, "
                         "retrying",
-                        my_errno, file->s->open_file_name);
+                        my_errno, file->s->open_file_name.str);
       /* Repairing by sort failed. Now try standard repair method. */
       param->testflag &= ~T_REP_BY_SORT;
       file->state->records= start_rows;
