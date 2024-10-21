@@ -77,10 +77,10 @@ void test_stack_detection(int stage, size_t stack_allocation)
   stack_allocation_total= 0;
   res= test_stack(stack_start, stack_end, 1, stack_allocation);
   if (!res)
-    ok(1, "%ld bytes allocated on stack of size %ld with %ld alloc size",
-       stack_allocation_total,
+    ok(1, "%llu bytes allocated on stack of size %ld with %lu alloc size",
+       (unsigned long long) stack_allocation_total,
        (long) available_stack_size(stack_start, stack_end),
-       (long) stack_allocation);
+       (unsigned long) stack_allocation);
   else
     ok(0, "stack checking failed");
 }
