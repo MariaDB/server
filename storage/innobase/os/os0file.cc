@@ -1106,12 +1106,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	true, if read only checks should be enforcedm
 @param[in]	success		true if succeeded
@@ -1121,7 +1115,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -1189,7 +1182,6 @@ os_file_create_func(
 	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
 #endif
 
-	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 	/* We let O_DSYNC only affect log files */
 
@@ -2032,12 +2024,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
@@ -2046,7 +2032,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -2115,31 +2100,7 @@ os_file_create_func(
 		return(OS_FILE_CLOSED);
 	}
 
-	DWORD		attributes = 0;
-
-	if (purpose == OS_FILE_AIO) {
-
-#ifdef WIN_ASYNC_IO
-		/* If specified, use asynchronous (overlapped) io and no
-		buffering of writes in the OS */
-
-		if (srv_use_native_aio) {
-			attributes |= FILE_FLAG_OVERLAPPED;
-		}
-#endif /* WIN_ASYNC_IO */
-
-	} else if (purpose == OS_FILE_NORMAL) {
-
-		/* Use default setting. */
-
-	} else {
-
-		ib::error()
-			<< "Unknown purpose flag (" << purpose << ") "
-			<< "while opening file '" << name << "'";
-
-		return(OS_FILE_CLOSED);
-	}
+	DWORD attributes= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		/* There is not reason to use buffered write to logs.*/
