@@ -252,7 +252,7 @@ dberr_t file_os_io::open(const char *path, bool read_only) noexcept
   bool success;
   auto tmp_fd= os_file_create(
       innodb_log_file_key, path, OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-      OS_FILE_NORMAL, OS_LOG_FILE, read_only, &success);
+      OS_LOG_FILE, read_only, &success);
   if (!success)
     return DB_ERROR;
 

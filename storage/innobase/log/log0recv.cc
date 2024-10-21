@@ -858,7 +858,7 @@ processed:
       handle= os_file_create(innodb_data_file_key, filename,
                              OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT |
                              OS_FILE_ON_ERROR_SILENT,
-                             OS_FILE_AIO, OS_DATA_FILE, false, &success);
+                             OS_DATA_FILE, false, &success);
     }
     space->add(filename, handle, size, false, false);
     space->recv_size= it->second.size;

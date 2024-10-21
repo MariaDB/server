@@ -145,9 +145,6 @@ static const ulint OS_FILE_READ_WRITE = 444;
 /** Used by MySQLBackup */
 static const ulint OS_FILE_READ_ALLOW_DELETE = 555;
 
-/* Options for file_create */
-static const ulint OS_FILE_AIO = 61;
-static const ulint OS_FILE_NORMAL = 62;
 /* @} */
 
 /** Types for file create @{ */
@@ -409,12 +406,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	if true read only mode checks are enforced
 @param[in]	success		true if succeeded
@@ -424,7 +415,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	ulint		create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -564,9 +554,9 @@ os_file_write
 
 The wrapper functions have the prefix of "innodb_". */
 
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	pfs_os_file_create_func(key, name, create, purpose,	type,	\
+	pfs_os_file_create_func(key, name, create,	type,	\
 		read_only, success, __FILE__, __LINE__)
 
 # define os_file_create_simple(key, name, create, access,		\
@@ -669,12 +659,6 @@ Add instrumentation to monitor file creation/open.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	read_only	if true read only mode checks are enforced
 @param[out]	success		true if succeeded
 @param[in]	src_file	file name where func invoked
@@ -687,7 +671,6 @@ pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
 	ulint		create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success,
@@ -837,9 +820,9 @@ pfs_os_file_delete_if_exists_func(
 
 /* If UNIV_PFS_IO is not defined, these I/O APIs point
 to original un-instrumented file I/O APIs */
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	os_file_create_func(name, create, purpose, type, read_only,	\
+	os_file_create_func(name, create, type, read_only,	\
 			success)
 
 # define os_file_create_simple(key, name, create_mode, access,		\
