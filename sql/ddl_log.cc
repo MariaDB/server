@@ -1084,7 +1084,8 @@ static handler *create_handler(THD *thd, MEM_ROOT *mem_root,
   like connect, needs the .frm file to exists to be able to do an rename.
 */
 
-static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
+static void execute_rename_table(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
+                                 handler *file,
                                  const LEX_CSTRING *from_db,
                                  const LEX_CSTRING *from_table,
                                  const LEX_CSTRING *to_db,
@@ -1112,6 +1113,24 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
                                     to_db->str, to_table->str, "",
                                     flags & FN_TO_IS_TMP);
   }
+
+  uint keys, total_keys;
+
+  if (!get_hlindex_keys_by_open(thd, from_db, from_table, from_path, &keys,
+                                &total_keys))
+  {
+    char idx_from[FN_REFLEN + 1], idx_to[FN_REFLEN + 1];
+    char *idx_from_end= strmov(idx_from, from_path);
+    char *idx_to_end= strmov(idx_to, to_path);
+
+    for (uint i= keys; i < total_keys; i++)
+    {
+      my_snprintf(idx_from_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      my_snprintf(idx_to_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      file->ha_rename_table(idx_from, idx_to);
+    }
+  }
+
   file->ha_rename_table(from_path, to_path);
   if (file->needs_lower_case_filenames())
   {
@@ -1134,6 +1153,36 @@ static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
   if (!access(from_path, F_OK))
     (void) mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME));
   DBUG_VOID_RETURN;
+}
+
+
+static int execute_drop_table(THD *thd, handlerton *hton, const LEX_CSTRING *db,
+                              const LEX_CSTRING *table, const char *path)
+{
+  uint keys, total_keys;
+  int error, first_error= 0;
+  DBUG_ENTER("execute_drop_table");
+
+  if (get_hlindex_keys_by_open(thd, db, table, path, &keys, &total_keys) == 0)
+  {
+    char idx_path[FN_REFLEN + 1];
+    char *idx_path_end= strmov(idx_path, path);
+
+    for (uint i= keys; i < total_keys; i++)
+    {
+      my_snprintf(idx_path_end, HLINDEX_BUF_LEN, HLINDEX_TEMPLATE, i);
+      error= hton->drop_table(hton, idx_path);
+      if (!non_existing_table_error(error) && !first_error)
+        first_error= error;
+    }
+  }
+  if (!first_error)
+  {
+    error= hton->drop_table(hton, path);
+    if (!non_existing_table_error(error))
+      first_error= error;
+  }
+  DBUG_RETURN(first_error);
 }
 
 
@@ -1463,7 +1512,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     /* fall through */
     case DDL_RENAME_PHASE_TABLE:
       /* Restore frm and table to original names */
-      execute_rename_table(ddl_log_entry, file,
+      execute_rename_table(thd, ddl_log_entry, file,
                            &ddl_log_entry->db, &ddl_log_entry->name,
                            &ddl_log_entry->from_db, &ddl_log_entry->from_name,
                            0,
@@ -1551,14 +1600,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (hton)
       {
         no_such_table_handler.only_ignore_non_existing_errors= 1;
-        error= hton->drop_table(hton, path.str);
+        error= execute_drop_table(thd, hton, &db, &table, path.str);
         no_such_table_handler.only_ignore_non_existing_errors= 0;
         if (error)
-        {
-          if (!non_existing_table_error(error))
-            break;
-          error= -1;
-        }
+          break;
       }
       else
         error= ha_delete_table_force(thd, path.str, &db, &table);
@@ -1754,14 +1799,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     if (ddl_log_entry->flags == 0)
     {
       if (hton)
-      {
-        if ((error= hton->drop_table(hton, path.str)))
-        {
-          if (!non_existing_table_error(error))
-            break;
-          error= -1;
-        }
-      }
+        error= execute_drop_table(thd, hton, &db, &table, path.str);
       else
         error= ha_delete_table_force(thd, path.str, &db, &table);
     }
@@ -1988,7 +2026,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       quick_rm_table(thd, hton, &db, &table, QRMT_DEFAULT | FN_IS_TMP);
       if (!is_renamed)
       {
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->from_db,
                              &ddl_log_entry->extra_name, // #sql-backup
                              &ddl_log_entry->from_db,
@@ -2081,7 +2119,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         /* After the renames above, the original table is now in from_name */
         ddl_log_entry->name= ddl_log_entry->from_name;
         /* Rename db.name -> db.extra_name */
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db, &ddl_log_entry->name,
                              &ddl_log_entry->db, &ddl_log_entry->extra_name,
                              0,
@@ -2109,9 +2147,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       from_end= strend(from_path);
       if (likely(org_hton))
       {
-        error= org_hton->drop_table(org_hton, from_path);
-        if (non_existing_table_error(error))
-          error= 0;
+        error= execute_drop_table(thd, org_hton, &ddl_log_entry->from_db,
+                                  &ddl_log_entry->from_name, from_path);
       }
       strmov(from_end, reg_ext);
       mysql_file_delete(key_file_frm, from_path,
@@ -2132,7 +2169,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       {
         uint length;
         /* Rename new "temporary" table to the original wanted name */
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db,
                              &ddl_log_entry->name,
                              &ddl_log_entry->from_db,
@@ -2158,19 +2195,19 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
                                  ddl_log_entry->from_db.str,
                                  ddl_log_entry->from_name.str,
                                  "", 0);
-            error= org_hton->drop_table(org_hton, to_path);
+            error= execute_drop_table(thd, org_hton, &ddl_log_entry->from_db,
+                                      &ddl_log_entry->from_name, to_path);
           }
           else
-            error= org_hton->drop_table(org_hton, from_path);
-          if (non_existing_table_error(error))
-            error= 0;
+            error= execute_drop_table(thd, org_hton, &ddl_log_entry->from_db,
+                                      &ddl_log_entry->from_name, from_path);
         }
         strmov(from_path + length, reg_ext);
         mysql_file_delete(key_file_frm, from_path,
                           MYF(MY_WME|MY_IGNORE_ENOENT));
       }
       else
-        execute_rename_table(ddl_log_entry, file,
+        execute_rename_table(thd, ddl_log_entry, file,
                              &ddl_log_entry->db, &ddl_log_entry->name,
                              &ddl_log_entry->db, &ddl_log_entry->extra_name,
                              FN_FROM_IS_TMP,
@@ -2236,9 +2273,9 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       */
       if (likely(hton))
       {
-        error= hton->drop_table(hton, ddl_log_entry->tmp_name.str);
-        if (non_existing_table_error(error))
-          error= 0;
+        error= execute_drop_table(thd, hton, &ddl_log_entry->from_db,
+                                  &ddl_log_entry->from_name,
+                                  ddl_log_entry->tmp_name.str);
       }
       (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_INIT);
     }
