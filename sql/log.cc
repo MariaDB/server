@@ -3595,6 +3595,9 @@ void MYSQL_BIN_LOG::init_pthread_objects()
 
   mysql_mutex_init(m_key_LOCK_binlog_end_pos, &LOCK_binlog_end_pos,
                    MY_MUTEX_INIT_SLOW);
+
+  /* Fix correct mutex order to catch violations quicker (MDEV-35197). */
+  mysql_mutex_record_order(&LOCK_log, &LOCK_global_system_variables);
 }
 
 
@@ -11753,6 +11756,7 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   bool check_purge= false;
   ulong UNINIT_VAR(prev_binlog_id);
 
+  mysql_mutex_unlock(&LOCK_global_system_variables);
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   if(mysql_bin_log.is_open())
   {
@@ -11771,6 +11775,7 @@ binlog_checksum_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
   mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   if (check_purge)
     mysql_bin_log.checkpoint_and_purge(prev_binlog_id);
+  mysql_mutex_lock(&LOCK_global_system_variables);
 }
 
 
