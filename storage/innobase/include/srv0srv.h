@@ -287,10 +287,6 @@ extern ulint		srv_buf_pool_size;
 /** Requested buffer pool chunk size. Each buffer pool instance consists
 of one or more chunks. */
 extern ulong		srv_buf_pool_chunk_unit;
-/** Scan depth for LRU flush batch i.e.: number of blocks scanned*/
-extern ulong	srv_LRU_scan_depth;
-/** Whether or not to flush neighbors of a block */
-extern ulong	srv_flush_neighbors;
 /** Previously requested size */
 extern ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */

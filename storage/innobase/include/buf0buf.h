@@ -1583,8 +1583,6 @@ public:
   /** Number of pages to read ahead */
   static constexpr uint32_t READ_AHEAD_PAGES= 64;
 
-  /** Buffer pool mutex */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
   /** current statistics; protected by mutex */
   buf_pool_stat_t stat;
   /** old statistics; protected by mutex */
@@ -1730,6 +1728,16 @@ public:
     /** Release all latches */
     inline void write_unlock_all();
   };
+
+  /** Buffer pool mutex */
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
+
+  /** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch;
+  protected by buf_pool_t::mutex */
+  ulong LRU_scan_depth;
+  /** innodb_flush_neighbors; whether or not to flush neighbors of a block;
+  protected by buf_pool_t::mutex */
+  ulong flush_neighbors;
 
   /** Hash table of file pages (buf_page_t::in_file() holds),
   indexed by page_id_t. Protected by both mutex and page_hash.lock_get(). */
