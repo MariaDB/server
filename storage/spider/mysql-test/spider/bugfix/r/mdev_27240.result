@@ -5,7 +5,7 @@ CREATE DATABASE auto_test_local;
 USE auto_test_local;
 CREATE TABLE tbl_a (a INT KEY) ENGINE=SPIDER;
 SELECT a.z FROM tbl_a AS a,tbl_a b WHERE a.z=b.z;
-ERROR 42S22: Unknown column 'a.z' in 'field list'
+ERROR 42S22: Unknown column 'a.z' in 'SELECT'
 ALTER TABLE tbl_a CHANGE c c INT;
 ERROR 42S22: Unknown column 'c' in 'tbl_a'
 LOCK TABLE tbl_a READ;

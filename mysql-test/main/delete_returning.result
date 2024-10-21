@@ -42,7 +42,7 @@ a	b
 5	EEEEE
 7	GGGGGGG
 DELETE FROM t1 WHERE a=2 RETURNING c;
-ERROR 42S22: Unknown column 'c' in 'field list'
+ERROR 42S22: Unknown column 'c' in 'RETURNING'
 INSERT INTO t1 VALUES (2,'BB'), (2,'bb');
 DELETE FROM t1 WHERE a=2 RETURNING a, UPPER(b);
 a	UPPER(b)

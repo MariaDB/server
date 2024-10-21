@@ -118,11 +118,11 @@ SELECT @@slow_launch_time;
 @@slow_launch_time
 1
 SELECT local.slow_launch_time;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.slow_launch_time;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT slow_launch_time = @@session.slow_launch_time;
-ERROR 42S22: Unknown column 'slow_launch_time' in 'field list'
+ERROR 42S22: Unknown column 'slow_launch_time' in 'SELECT'
 SET @@global.slow_launch_time = @start_value;
 SELECT @@global.slow_launch_time;
 @@global.slow_launch_time

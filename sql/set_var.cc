@@ -790,6 +790,7 @@ int set_var::check(THD *thd)
   if (!value)
     return 0;
 
+  thd->where= THD_WHERE::SET_LIST;
   if (value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
   if (var->check_update_type(value))
@@ -896,6 +897,7 @@ int set_var_user::check(THD *thd)
     Item_func_set_user_var can't substitute something else on its place =>
     0 can be passed as last argument (reference on item)
   */
+  thd->where= THD_WHERE::SET_LIST;
   return (user_var_item->fix_fields(thd, (Item**) 0) ||
           user_var_item->check(0)) ? -1 : 0;
 }

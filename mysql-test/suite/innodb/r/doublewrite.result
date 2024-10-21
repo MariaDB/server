@@ -21,8 +21,8 @@ connection default;
 flush table t1 for export;
 # Kill the server
 # restart
-FOUND 1 /InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile/ in mysqld.1.err
-FOUND 1 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\]/ in mysqld.1.err
+FOUND 1 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=0\]/ in mysqld.1.err
+# restart
 XA ROLLBACK 'x';
 check table t1;
 Table	Op	Msg_type	Msg_text
@@ -44,7 +44,7 @@ connection default;
 flush table t1 for export;
 # Kill the server
 # restart
-FOUND 1 /InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile/ in mysqld.1.err
+FOUND 4 /InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=[03]\]/ in mysqld.1.err
 XA ROLLBACK 'x';
 check table t1;
 Table	Op	Msg_type	Msg_text

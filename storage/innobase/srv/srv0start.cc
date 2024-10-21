@@ -509,13 +509,14 @@ static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
   ulint n_retries = 5;
   os_offset_t size= os_file_get_size(fh);
   ut_a(size != os_offset_t(-1));
+  page_t *apage= nullptr;
+  const page_t *page= nullptr;
 
   if (!create)
   {
-    page_t *page= static_cast<byte*>(aligned_malloc(srv_page_size,
-                                                    srv_page_size));
+    apage= static_cast<byte*>(aligned_malloc(srv_page_size, srv_page_size));
 undo_retry:
-    if (os_file_read(IORequestRead, fh, page, 0, srv_page_size, nullptr) !=
+    if (os_file_read(IORequestRead, fh, apage, 0, srv_page_size, nullptr) !=
         DB_SUCCESS)
     {
 err_exit:
@@ -526,11 +527,12 @@ err_exit:
         n_retries--;
         goto undo_retry;
       }
-      ib::error() << "Unable to read first page of file " << name;
-      aligned_free(page);
+      sql_print_error("InnoDB: Unable to read first page of file %s", name);
+      aligned_free(apage);
       return ULINT_UNDEFINED;
     }
 
+    page= apage;
     DBUG_EXECUTE_IF("undo_space_read_fail", goto err_exit;);
 
     uint32_t id= mach_read_from_4(FIL_PAGE_SPACE_ID + page);
@@ -538,18 +540,30 @@ err_exit:
         memcmp_aligned<2>(FIL_PAGE_SPACE_ID + page,
                           FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4))
     {
-      ib::error() << "Inconsistent tablespace ID in file " << name;
+      sql_print_error("InnoDB: Inconsistent tablespace ID in file %s", name);
       goto err_exit;
     }
 
     space_id= id;
     fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
 
-    if (buf_page_is_corrupted(false, page, fsp_flags) &&
-        recv_sys.dblwr.restore_first_page(space_id, name, fh))
-      goto err_exit;
+    if (buf_page_is_corrupted(false, page, fsp_flags))
+    {
+      page= recv_sys.dblwr.find_page(page_id_t{space_id, 0}, LSN_MAX);
+      if (!page)
+      {
+        /* If the first page of the given user tablespace is not there
+        in the doublewrite buffer, then the recovery is going to fail
+        now. Report error only when doublewrite buffer is not empty */
+        sql_print_error("InnoDB: Corrupted page "
+                        "[page id: space=" UINT32PF ", page number=0]"
+                        " of datafile '%s' could not be found"
+                        " in the doublewrite buffer", space_id, name);
+        goto err_exit;
+      }
 
-    aligned_free(page);
+      fsp_flags= mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page);
+    }
   }
 
   /* Load the tablespace into InnoDB's internal data structures. */
@@ -572,7 +586,7 @@ err_exit:
     space->set_sizes(SRV_UNDO_TABLESPACE_SIZE_IN_PAGES);
     space->size= file->size= uint32_t(size >> srv_page_size_shift);
   }
-  else if (!file->read_page0())
+  else if (!file->read_page0(page, true))
   {
     os_file_close(file->handle);
     file->handle= OS_FILE_CLOSED;
@@ -581,6 +595,7 @@ err_exit:
   }
 
   mysql_mutex_unlock(&fil_system.mutex);
+  aligned_free(apage);
   return space_id;
 }
 
@@ -743,29 +758,30 @@ srv_undo_tablespaces_init(bool create_new_db)
                  srv_operation == SRV_OPERATION_RESTORE_DELTA)
     ? srv_undo_tablespaces : TRX_SYS_N_RSEGS;
 
-  if (dberr_t err= srv_all_undo_tablespaces_open(create_new_db, n_undo))
-    return err;
+  mysql_mutex_lock(&recv_sys.mutex);
+  dberr_t err= srv_all_undo_tablespaces_open(create_new_db, n_undo);
+  mysql_mutex_unlock(&recv_sys.mutex);
 
   /* Initialize srv_undo_space_id_start=0 when there are no
   dedicated undo tablespaces. */
   if (srv_undo_tablespaces_open == 0)
     srv_undo_space_id_start= 0;
 
-  if (create_new_db)
+  if (err == DB_SUCCESS && create_new_db)
   {
     mtr_t mtr;
     for (ulint i= 0; i < srv_undo_tablespaces; ++i)
     {
       mtr.start();
-      dberr_t err= fsp_header_init(fil_space_get(srv_undo_space_id_start + i),
-                                   SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
+      err= fsp_header_init(fil_space_get(srv_undo_space_id_start + i),
+                           SRV_UNDO_TABLESPACE_SIZE_IN_PAGES, &mtr);
       mtr.commit();
       if (err)
-        return err;
+        break;
     }
   }
 
-  return DB_SUCCESS;
+  return err;
 }
 
 /** Create the temporary file tablespace.
@@ -1278,13 +1294,17 @@ dberr_t srv_start(bool create_new_db)
 			return srv_init_abort(err);
 		}
 
-		/* Open data files for system tablespace. */
-		if (!fil_system.sys_space->open(false)) {
-			return srv_init_abort(DB_ERROR);
-		}
+		mysql_mutex_lock(&recv_sys.mutex);
+		bool all_opened = fil_system.sys_space->open(false);
+		mysql_mutex_unlock(&recv_sys.mutex);
 
-		/* Open undo tablespaces. */
-		err = srv_undo_tablespaces_init(false);
+		/* Open data files for system tablespace. */
+		if (!all_opened) {
+			err = DB_ERROR;
+		} else {
+			/* Open undo tablespaces. */
+			err = srv_undo_tablespaces_init(false);
+		}
 		if (err != DB_SUCCESS) {
 			return srv_init_abort(err);
 		}
@@ -1393,13 +1413,17 @@ dberr_t srv_start(bool create_new_db)
 		flushed_lsn = log_sys.get_lsn();
 	}
 
-	/* Open data files in the systemtablespace: we keep
-        them open until database shutdown */
+	/* Open data files in the system tablespace: we keep
+	them open until database shutdown */
+	mysql_mutex_lock(&recv_sys.mutex);
 	ut_d(fil_system.sys_space->recv_size = srv_sys_space_size_debug);
-
 	err = fil_system.sys_space->open(create_new_db)
-		? srv_undo_tablespaces_init(create_new_db)
-		: DB_ERROR;
+		? DB_SUCCESS : DB_ERROR;
+	mysql_mutex_unlock(&recv_sys.mutex);
+
+	if (err == DB_SUCCESS) {
+		err = srv_undo_tablespaces_init(create_new_db);
+	}
 
 	/* If the force recovery is set very high then we carry on regardless
 	of all errors. Basically this is fingers crossed mode. */

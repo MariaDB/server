@@ -85,11 +85,11 @@ SELECT @@slow_query_log = @@global.slow_query_log;
 0
 '#---------------------FN_DYNVARS_004_09----------------------#'
 SELECT local.slow_query_log;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.slow_query_log;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT slow_query_log = @@session.slow_query_log;
-ERROR 42S22: Unknown column 'slow_query_log' in 'field list'
+ERROR 42S22: Unknown column 'slow_query_log' in 'SELECT'
 SET @@global.slow_query_log = @start_value;
 SELECT @@global.slow_query_log;
 @@global.slow_query_log

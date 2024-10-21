@@ -2018,7 +2018,7 @@ PARTITION BY RANGE (t2.b) (
 PARTITION p1 VALUES LESS THAN (10),
 PARTITION p2 VALUES LESS THAN (20)
 ) select * from t2;
-ERROR 42S22: Unknown column 't2.b' in 'partition function'
+ERROR 42S22: Unknown column 't2.b' in 'PARTITION BY'
 create table t1 (a int)
 PARTITION BY RANGE (b) (
 PARTITION p1 VALUES LESS THAN (10),

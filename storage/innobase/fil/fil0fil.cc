@@ -53,10 +53,14 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
-ATTRIBUTE_COLD void fil_space_t::set_corrupted() const
+ATTRIBUTE_COLD bool fil_space_t::set_corrupted() const noexcept
 {
   if (!is_stopping() && !is_corrupted.test_and_set())
+  {
     sql_print_error("InnoDB: File '%s' is corrupted", chain.start->name);
+    return true;
+  }
+  return false;
 }
 
 /** Determine if the space id is a user tablespace id or not.
@@ -351,11 +355,14 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	return node;
 }
 
-__attribute__((warn_unused_result, nonnull))
+__attribute__((warn_unused_result, nonnull(1)))
 /** Open a tablespace file.
 @param node  data file
+@param page  first page of the tablespace, or nullptr
+@param no_lsn  whether to skip the FIL_PAGE_LSN check
 @return whether the file was successfully opened */
-static bool fil_node_open_file_low(fil_node_t *node)
+static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
+                                   bool no_lsn)
 {
   ut_ad(!node->is_open());
   ut_ad(node->space->is_closing());
@@ -405,7 +412,8 @@ static bool fil_node_open_file_low(fil_node_t *node)
   }
 
   if (node->size);
-  else if (!node->read_page0() || !fil_comp_algo_validate(node->space))
+  else if (!node->read_page0(page, no_lsn) ||
+           !fil_comp_algo_validate(node->space))
   {
 #ifndef _WIN32
   fail:
@@ -425,8 +433,10 @@ static bool fil_node_open_file_low(fil_node_t *node)
 
 /** Open a tablespace file.
 @param node  data file
+@param page  first page of the tablespace, or nullptr
+@param no_lsn  whether to skip the FIL_PAGE_LSN check
 @return whether the file was successfully opened */
-static bool fil_node_open_file(fil_node_t *node)
+static bool fil_node_open_file(fil_node_t *node, const byte *page, bool no_lsn)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   ut_ad(!node->is_open());
@@ -465,7 +475,7 @@ static bool fil_node_open_file(fil_node_t *node)
 
   /* The node can be opened beween releasing and acquiring fil_system.mutex
   in the above code */
-  return node->is_open() || fil_node_open_file_low(node);
+  return node->is_open() || fil_node_open_file_low(node, page, no_lsn);
 }
 
 /** Close the file handle. */
@@ -676,7 +686,8 @@ ATTRIBUTE_COLD bool fil_space_t::prepare_acquired()
   ut_ad(!id || purpose == FIL_TYPE_TEMPORARY ||
         node == UT_LIST_GET_FIRST(chain));
 
-  const bool is_open= node && (node->is_open() || fil_node_open_file(node));
+  const bool is_open= node &&
+    (node->is_open() || fil_node_open_file(node, nullptr, false));
 
   if (!is_open)
     release();
@@ -1109,8 +1120,10 @@ fil_assign_new_space_id(
 }
 
 /** Read the first page of a data file.
+@param dpage   copy of a first page, from the doublewrite buffer, or nullptr
+@param no_lsn  whether to skip the FIL_PAGE_LSN check
 @return whether the page was found valid */
-bool fil_space_t::read_page0()
+bool fil_space_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 {
   ut_ad(fil_system.is_initialised());
   mysql_mutex_assert_owner(&fil_system.mutex);
@@ -1127,31 +1140,25 @@ bool fil_space_t::read_page0()
     ut_ad("this should not happen" == 0);
     return false;
   }
-  const bool ok= node->is_open() || fil_node_open_file(node);
+  const bool ok= node->is_open() || fil_node_open_file(node, dpage, no_lsn);
   release();
   return ok;
-}
-
-/** Look up a tablespace and ensure that its first page has been validated. */
-static fil_space_t *fil_space_get_space(ulint id)
-{
-  if (fil_space_t *space= fil_space_get_by_id(id))
-    if (space->read_page0())
-      return space;
-  return nullptr;
 }
 
 void fil_space_set_recv_size_and_flags(ulint id, uint32_t size, uint32_t flags)
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
+  mysql_mutex_assert_owner(&recv_sys.mutex);
   mysql_mutex_lock(&fil_system.mutex);
-  if (fil_space_t *space= fil_space_get_space(id))
-  {
-    if (size)
-      space->recv_size= size;
-    if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
-      space->flags= flags;
-  }
+  if (fil_space_t *space= fil_space_get_by_id(id))
+    if (space->read_page0(recv_sys.dblwr.find_page(page_id_t(id, 0), LSN_MAX),
+                          true))
+    {
+      if (size)
+        space->recv_size= size;
+      if (flags != FSP_FLAGS_FCRC32_MASK_MARKER)
+        space->flags= flags;
+    }
   mysql_mutex_unlock(&fil_system.mutex);
 }
 
@@ -1166,12 +1173,16 @@ bool fil_space_t::open(bool create_new_db)
   bool success= true;
   bool skip_read= create_new_db;
 
+  const page_t *page= skip_read
+    ? nullptr
+    : recv_sys.dblwr.find_page(page_id_t{id, 0}, LSN_MAX);
+
   mysql_mutex_lock(&fil_system.mutex);
 
   for (fil_node_t *node= UT_LIST_GET_FIRST(chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
   {
-    if (!node->is_open() && !fil_node_open_file_low(node))
+    if (!node->is_open() && !fil_node_open_file_low(node, page, page))
     {
 err_exit:
       success= false;
@@ -1189,7 +1200,7 @@ err_exit:
       continue;
     }
 
-    if (!node->read_page0())
+    if (!node->read_page0(page, true))
     {
       fil_system.n_open--;
       os_file_close(node->handle);
@@ -1198,6 +1209,7 @@ err_exit:
     }
 
     skip_read= true;
+    page= nullptr;
   }
 
   if (!create_new_db)
@@ -2930,6 +2942,7 @@ void IORequest::read_complete(int io_error) const
   {
     sql_print_error("InnoDB: Read error %d of page " UINT32PF " in file %s",
                     io_error, id.page_no(), node->name);
+    recv_sys.free_corrupted_page(id, *node);
     buf_pool.corrupted_evict(bpage, buf_page_t::READ_FIX);
   corrupted:
     if (recv_recovery_is_on() && !srv_force_recovery)
@@ -2939,13 +2952,8 @@ void IORequest::read_complete(int io_error) const
       mysql_mutex_unlock(&recv_sys.mutex);
     }
   }
-  else if (dberr_t err= bpage->read_complete(*node))
-  {
-    if (err != DB_FAIL)
-      ib::error() << "Failed to read page " << id.page_no()
-                  << " from file '" << node->name << "': " << err;
+  else if (bpage->read_complete(*node))
     goto corrupted;
-  }
 
   node->space->release();
 }

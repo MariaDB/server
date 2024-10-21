@@ -125,9 +125,9 @@ SELECT @@max_connections;
 @@max_connections
 5000
 SELECT local.max_connections;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.max_connections;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT max_connections = @@session.max_connections;
-ERROR 42S22: Unknown column 'max_connections' in 'field list'
+ERROR 42S22: Unknown column 'max_connections' in 'SELECT'
 SET @@global.max_connections = @start_value;

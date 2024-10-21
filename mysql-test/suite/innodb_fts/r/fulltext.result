@@ -641,9 +641,9 @@ ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*
 SELECT 1 FROM q WHERE (SELECT MATCH(b) AGAINST ('*') FROM z);
 ERROR 42000: syntax error, unexpected $end, expecting FTS_TERM or FTS_NUMB or '*'
 EXPLAIN SELECT MATCH(b) AGAINST ('*') FROM z;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 SELECT MATCH(b) AGAINST ('*') FROM z;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SELECT'
 EXPLAIN SELECT MATCH(a) AGAINST ('*') FROM z;
 ERROR HY000: Can't find FULLTEXT index matching the column list
 SELECT MATCH(a) AGAINST ('*') FROM z;

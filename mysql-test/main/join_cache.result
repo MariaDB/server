@@ -6187,7 +6187,7 @@ explain format=json
 select *
 from t1 a, t3 b
 where
-b.kp1=a.a and
+b.kp1+1=a.a+1 and
 b.kp1 <= 10 and
 b.kp2 <= 10 and
 b.col1 +1 < 33333;
@@ -6197,14 +6197,12 @@ EXPLAIN
     "select_id": 1,
     "table": {
       "table_name": "a",
-      "access_type": "range",
-      "possible_keys": ["PRIMARY"],
+      "access_type": "index",
       "key": "PRIMARY",
       "key_length": "4",
       "used_key_parts": ["a"],
       "rows": 10,
       "filtered": 100,
-      "attached_condition": "a.a <= 10",
       "using_index": true
     },
     "block-nl-join": {
@@ -6216,14 +6214,14 @@ EXPLAIN
         "key_length": "10",
         "used_key_parts": ["kp1", "kp2"],
         "rows": 836,
-        "filtered": 76.43428802,
-        "index_condition": "b.kp2 <= 10",
-        "attached_condition": "b.kp2 <= 10 and b.col1 + 1 < 33333"
+        "filtered": 100,
+        "index_condition": "b.kp1 <= 10 and b.kp2 <= 10",
+        "attached_condition": "b.kp1 <= 10 and b.kp2 <= 10 and b.col1 + 1 < 33333"
       },
       "buffer_type": "flat",
       "buffer_size": "54",
       "join_type": "BNL",
-      "attached_condition": "b.kp1 = a.a"
+      "attached_condition": "b.kp1 + 1 = a.a + 1"
     }
   }
 }

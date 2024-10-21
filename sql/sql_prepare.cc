@@ -1488,8 +1488,8 @@ static int mysql_test_update(Prepared_statement *stmt,
   table_list->register_want_access(want_privilege);
 #endif
   thd->lex->first_select_lex()->no_wrap_view_item= TRUE;
-  res= setup_fields(thd, Ref_ptr_array(),
-                    select->item_list, MARK_COLUMNS_READ, 0, NULL, 0);
+  res= setup_fields(thd, Ref_ptr_array(), select->item_list, MARK_COLUMNS_READ,
+                    0, NULL, 0, THD_WHERE::SET_LIST);
   thd->lex->first_select_lex()->no_wrap_view_item= FALSE;
   if (res)
     goto error;
@@ -1500,8 +1500,8 @@ static int mysql_test_update(Prepared_statement *stmt,
     (SELECT_ACL & ~table_list->table->grant.privilege);
   table_list->register_want_access(SELECT_ACL);
 #endif
-  if (setup_fields(thd, Ref_ptr_array(),
-                   stmt->lex->value_list, COLUMNS_READ, 0, NULL, 0) ||
+  if (setup_fields(thd, Ref_ptr_array(), stmt->lex->value_list, COLUMNS_READ,
+                   0, NULL, 0, THD_WHERE::SET_LIST) ||
       check_unique_table(thd, table_list))
     goto error;
   /* TODO: here we should send types of placeholders to the client. */
@@ -1676,8 +1676,8 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
                                      DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
-  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
-                           *values, COLUMNS_READ, 0, NULL, 0));
+  DBUG_RETURN(setup_fields(thd, Ref_ptr_array(), *values, COLUMNS_READ, 0,
+                           NULL, 0, THD_WHERE::DO_STATEMENT));
 }
 
 
@@ -1709,6 +1709,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
                                      DT_INIT | DT_PREPARE))
     goto error;
 
+  thd->where= THD_WHERE::SET_LIST;
   while ((var= it++))
   {
     if (var->light_check(thd))

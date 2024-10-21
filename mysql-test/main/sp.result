@@ -4448,7 +4448,7 @@ begin
 update t3 set id=2, county=value(c);
 end|
 call bug15441('county')|
-ERROR 42S22: Unknown column 'c' in 'field list'
+ERROR 42S22: Unknown column 'c' in 'SET'
 drop procedure bug15441|
 create procedure bug15441(county varchar(25))
 begin
@@ -6940,9 +6940,9 @@ BEGIN
 SELECT a FROM t1 A WHERE A.b IN (SELECT b FROM t2 AS B);
 END|
 CALL p1;
-ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY'
 CALL p1;
-ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'A.b' in 'IN/ALL/ANY'
 DROP PROCEDURE p1;
 DROP TABLE t1, t2;
 #
@@ -7251,7 +7251,7 @@ insert into t1 (a) values (1), (2), (3), (4), (5);
 # we drop and re-create the procedure.
 #
 call p1();
-ERROR 42S22: Unknown column 'test.t1.c1' in 'field list'
+ERROR 42S22: Unknown column 'test.t1.c1' in 'SELECT'
 # 
 # Drop and recreate the procedure, then repeat
 #
@@ -7915,11 +7915,11 @@ drop table t1,t2;
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 CREATE PROCEDURE sp() SELECT * FROM t1 AS t1x JOIN t1 AS t1y USING (c);
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 CALL sp;
-ERROR 42S22: Unknown column 'c' in 'from clause'
+ERROR 42S22: Unknown column 'c' in 'FROM'
 alter table t1 add column c int;
 CALL sp;
 c	a	b	a	b
@@ -7938,11 +7938,11 @@ CALL sp;
 ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'order clause'
+ERROR 42S22: Unknown column 'b' in 'ORDER BY'
 DROP PROCEDURE sp;
 CREATE PROCEDURE sp() UPDATE v1 SET a = 1 WHERE a=1 and b=2;
 LOCK TABLE t2 READ;
@@ -7950,11 +7950,11 @@ CALL sp;
 ERROR HY000: Table 'v1' was not locked with LOCK TABLES
 UNLOCK TABLES;
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 CALL sp;
-ERROR 42S22: Unknown column 'b' in 'where clause'
+ERROR 42S22: Unknown column 'b' in 'WHERE'
 DROP PROCEDURE sp;
 DROP VIEW v1;
 DROP TABLE t1, t2;
@@ -8386,7 +8386,7 @@ DROP PROCEDURE p1;
 #
 CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT 1;
 CALL p1(a);
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'CALL'
 drop procedure p1;
 CREATE OR REPLACE PROCEDURE p1 (a VARCHAR(10)) SELECT a|
 CREATE OR REPLACE PROCEDURE p2 ()
