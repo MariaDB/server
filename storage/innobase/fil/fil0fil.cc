@@ -372,7 +372,7 @@ static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
     node->handle= os_file_create(innodb_data_file_key, node->name,
                                  node->is_raw_disk
                                  ? OS_FILE_OPEN_RAW : OS_FILE_OPEN,
-                                 OS_FILE_AIO, type,
+                                 type,
                                  srv_read_only_mode, &success);
 
     if (success && node->is_open())
@@ -1958,7 +1958,7 @@ fil_ibd_create(
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE,
-		OS_FILE_AIO, type, srv_read_only_mode, &success);
+		type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */

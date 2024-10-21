@@ -129,12 +129,6 @@ Add instrumentation to monitor file creation/open.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really us
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	read_only	if true read only mode checks are enforced
 @param[out]	success		true if succeeded
 @param[in]	src_file	file name where func invoked
@@ -147,7 +141,6 @@ pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success,
@@ -165,7 +158,7 @@ pfs_os_file_create_func(
 		name, src_file, src_line);
 
 	pfs_os_file_t	file = os_file_create_func(
-		name, create_mode, purpose, type, read_only, success);
+		name, create_mode, type, read_only, success);
 
 	register_pfs_file_open_end(locker, file,
 				(*success == TRUE ? success : 0));

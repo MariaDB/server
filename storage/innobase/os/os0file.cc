@@ -1143,12 +1143,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	true, if read only checks should be enforcedm
 @param[in]	success		true if succeeded
@@ -1158,7 +1152,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -1234,7 +1227,7 @@ skip_o_direct:
 	ut_a(type == OS_LOG_FILE || type == OS_DATA_FILE);
 	constexpr int direct_flag = 0;
 #endif
-	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
+
 
 	/* We let O_DSYNC only affect log files */
 
@@ -1296,7 +1289,7 @@ not_found:
 			os_file_log_buffered();
 		} else {
 			close(file);
-			return os_file_create_func(name, OS_FILE_OPEN, purpose,
+			return os_file_create_func(name, OS_FILE_OPEN,
 						   type, false, success);
 		}
 	}
@@ -1988,12 +1981,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
@@ -2002,7 +1989,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -2044,8 +2030,7 @@ os_file_create_func(
 		break;
 	}
 
-	DWORD attributes = (purpose == OS_FILE_AIO && srv_use_native_aio)
-		? FILE_FLAG_OVERLAPPED : 0;
+	DWORD attributes= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {

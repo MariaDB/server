@@ -53,7 +53,7 @@ Datafile::open_or_create(bool read_only_mode)
 
 	m_handle = os_file_create(
 		innodb_data_file_key, m_filepath, m_open_flags,
-		OS_FILE_NORMAL, OS_DATA_FILE, read_only_mode, &success);
+		OS_DATA_FILE, read_only_mode, &success);
 
 	if (!success) {
 		m_last_os_error = os_file_get_last_error(true);

@@ -2664,7 +2664,7 @@ static bool innodb_init()
   const std::string ib_logfile0{get_log_file_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
-                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_FILE_CREATE,
 #if defined _WIN32 || defined O_DIRECT
                                       OS_DATA_FILE_NO_O_DIRECT,
 #else
