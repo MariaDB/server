@@ -3953,7 +3953,7 @@ static dberr_t xb_assign_undo_space_start()
 	ulint		fsp_flags;
 
 	file = os_file_create(0, srv_sys_space.first_datafile()->filepath(),
-		OS_FILE_OPEN, OS_FILE_NORMAL, OS_DATA_FILE, true, &ret);
+		OS_FILE_OPEN, OS_DATA_FILE, true, &ret);
 
 	if (!ret) {
 		msg("Error opening %s", srv_sys_space.first_datafile()->filepath());
