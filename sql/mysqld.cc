@@ -7315,6 +7315,21 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
+static int show_stack_usage(THD *thd, SHOW_VAR *var, void *buff,
+                            system_status_var *, enum_var_type scope)
+{
+  var->type= SHOW_ULONGLONG;
+  var->value= buff;
+  // We cannot get stack usage for 'global' or for another thread
+  if (scope == OPT_GLOBAL || thd != current_thd)
+    *(ulonglong*) buff= 0;
+  else
+    *(ulonglong*) buff= (ulonglong) (available_stack_size((char*) thd->thread_stack,
+                                                          my_get_stack_pointer(0)));
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
 static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
                              system_status_var *, enum_var_type)
@@ -7581,6 +7596,7 @@ SHOW_VAR status_vars[]= {
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
+  SHOW_FUNC_ENTRY("stack_usage", &show_stack_usage),
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
   /*
     Expression cache used only for caching subqueries now, so its statistic
