@@ -262,7 +262,9 @@ JS
         {
             "index_name": "key1",
             "selectivity_from_index": 0.399,
-            "selectivity_multiplier": 90.9091
+            "selectivity_multiplier": 90.9091,
+            "note": "multiplier too high, clipping",
+            "clipped_multiplier": 2.506265664
         }
     ]
 ]
@@ -279,16 +281,16 @@ JS
         [
             {
                 "access_type": "range",
-                "resulting_rows": 181.3636545,
-                "cost": 1.79769e308,
+                "resulting_rows": 5,
+                "cost": 6.83879845,
                 "chosen": true
             }
         ],
         "chosen_access_method": 
         {
             "type": "range",
-            "records": 181.3636545,
-            "cost": 1.79769e308,
+            "records": 5,
+            "cost": 6.83879845,
             "uses_join_buffering": false
         }
     }

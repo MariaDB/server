@@ -82,7 +82,7 @@ json_detailed(json_extract(@trace, '$**.considered_access_paths'))
 drop table t1, name, flag2;
 select @@optimizer_adjust_secondary_key_costs;
 @@optimizer_adjust_secondary_key_costs
-fix_reuse_range_for_ref
+fix_reuse_range_for_ref,fix_card_multiplier
 set @@optimizer_adjust_secondary_key_costs=7;
 select @@optimizer_adjust_secondary_key_costs;
 @@optimizer_adjust_secondary_key_costs

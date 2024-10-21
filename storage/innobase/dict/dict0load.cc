@@ -2472,24 +2472,21 @@ corrupted:
 			only to delete the .ibd files. */
 			goto corrupted;
 		} else {
-			const page_id_t page_id{table->space->id, pk->page};
 			mtr.start();
-			buf_block_t* block = buf_page_get(
-				page_id, table->space->zip_size(),
-				RW_S_LATCH, &mtr);
-			const bool corrupted = !block
-				|| page_get_space_id(block->page.frame)
-				!= page_id.space()
-				|| page_get_page_no(block->page.frame)
-				!= page_id.page_no()
-				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->page.frame)
-				    != FIL_PAGE_INDEX
-				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->page.frame)
-				    != FIL_PAGE_TYPE_INSTANT);
+			bool ok = false;
+			if (buf_block_t* b = buf_page_get(
+				    page_id_t(table->space->id, pk->page),
+				    table->space->zip_size(),
+				    RW_S_LATCH, &mtr)) {
+				switch (mach_read_from_2(FIL_PAGE_TYPE
+							 + b->page.frame)) {
+				case FIL_PAGE_INDEX:
+				case FIL_PAGE_TYPE_INSTANT:
+					ok = true;
+				}
+			}
 			mtr.commit();
-			if (corrupted) {
+			if (!ok) {
 				goto corrupted;
 			}
 

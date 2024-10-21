@@ -278,7 +278,7 @@ btr_root_block_get(
   guess=
 #endif
   block=
-    buf_page_get_gen(page_id_t{index->table->space->id, index->page},
+    buf_page_get_gen({index->table->space->id, index->page},
                      index->table->space->zip_size(), mode, guess, BUF_GET,
                      mtr, err, false);
   ut_ad(!block == (*err != DB_SUCCESS));
@@ -1202,10 +1202,17 @@ dberr_t dict_index_t::clear(que_thr_t *thr)
   mtr_sx_lock_index(this, &mtr);
 
   dberr_t err;
-  if (buf_block_t *root_block=
-      buf_page_get_gen(page_id_t(table->space->id, page),
-                       table->space->zip_size(),
-                       RW_X_LATCH, nullptr, BUF_GET, &mtr, &err))
+  buf_block_t *root_block;
+#ifndef BTR_CUR_ADAPT
+  static constexpr buf_block_t *guess= nullptr;
+#else
+  buf_block_t *&guess= btr_search_get_info(this)->root_guess;
+  guess=
+#endif
+  root_block= buf_page_get_gen({table->space_id, page},
+                               table->space->zip_size(),
+                               RW_X_LATCH, guess, BUF_GET, &mtr, &err);
+  if (root_block)
   {
     btr_free_but_not_root(root_block, mtr.get_log_mode()
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1258,9 +1265,14 @@ void btr_drop_temporary_table(const dict_table_t &table)
   for (const dict_index_t *index= table.indexes.start; index;
        index= dict_table_get_next_index(index))
   {
-    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page}, 0,
-                                             RW_X_LATCH, nullptr, BUF_GET, &mtr,
-                                             nullptr, false))
+#ifndef BTR_CUR_ADAPT
+    static constexpr buf_block_t *guess= nullptr;
+#else
+    buf_block_t *guess= index->search_info->root_guess;
+#endif
+    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page},
+                                             0, RW_X_LATCH, guess, BUF_GET,
+                                             &mtr, nullptr, false))
     {
       btr_free_but_not_root(block, MTR_LOG_NO_REDO);
       mtr.set_log_mode(MTR_LOG_NO_REDO);
@@ -1279,22 +1291,19 @@ void btr_drop_temporary_table(const dict_table_t &table)
 ib_uint64_t
 btr_read_autoinc(dict_index_t* index)
 {
-	ut_ad(index->is_primary());
-	ut_ad(index->table->persistent_autoinc);
-	ut_ad(!index->table->is_temporary());
-	mtr_t		mtr;
-	mtr.start();
-	ib_uint64_t	autoinc;
-	if (buf_block_t* block = buf_page_get(
-		    page_id_t(index->table->space_id, index->page),
-		    index->table->space->zip_size(),
-		    RW_S_LATCH, &mtr)) {
-		autoinc = page_get_autoinc(block->page.frame);
-	} else {
-		autoinc = 0;
-	}
-	mtr.commit();
-	return autoinc;
+  ut_ad(index->is_primary());
+  ut_ad(index->table->persistent_autoinc);
+  ut_ad(!index->table->is_temporary());
+  mtr_t mtr;
+  mtr.start();
+  dberr_t err;
+  uint64_t autoinc;
+  if (buf_block_t *root= btr_root_block_get(index, RW_S_LATCH, &mtr, &err))
+    autoinc= page_get_autoinc(root->page.frame);
+  else
+    autoinc= 0;
+  mtr.commit();
+  return autoinc;
 }
 
 dict_index_t *dict_table_t::get_index(const dict_col_t &col) const
