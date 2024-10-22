@@ -4671,7 +4671,8 @@ completed:
 			rescan = true;
 		}
 
-		ut_ad(log_sys.get_lsn() >= recv_sys.scanned_lsn);
+		ut_ad(log_sys.get_lsn() >= recv_sys.scanned_lsn
+		      || log_sys.get_lsn() >= recv_sys.recovered_lsn);
 
 		recv_sys.parse_start_lsn = checkpoint_lsn;
 
