@@ -693,9 +693,7 @@ CREATE OR REPLACE TABLE t1 (
 p point NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'));
-SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
 CREATE OR REPLACE TABLE t2 LIKE t1;
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2;
 drop table t1, t2;
@@ -704,9 +702,7 @@ p point NOT NULL,
 chr char(20)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'),"їєі");
-SELECT * FROM t1 INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv';
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
 CREATE OR REPLACE TABLE t2 LIKE t1;
 LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2 CHARACTER SET latin1;
 select ST_AsText(p), chr from t1;
