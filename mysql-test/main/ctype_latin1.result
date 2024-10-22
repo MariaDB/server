@@ -1144,7 +1144,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select hex(concat(coercibility('a')));
 hex(concat(coercibility('a')))
-35
+36
 create table t1 as select concat(coercibility('a')) as c1;
 show create table t1;
 Table	Create Table
@@ -1532,7 +1532,7 @@ t1	CREATE TABLE `t1` (
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-6	4
+7	4
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1

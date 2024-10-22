@@ -162,13 +162,13 @@ collation(@a:=_latin2'test')
 latin2_general_ci
 select coercibility(@a:=_latin2'test');
 coercibility(@a:=_latin2'test')
-5
+6
 select collation(@a:=_latin2'test' collate latin2_bin);
 collation(@a:=_latin2'test' collate latin2_bin)
 latin2_bin
 select coercibility(@a:=_latin2'test' collate latin2_bin);
 coercibility(@a:=_latin2'test' collate latin2_bin)
-5
+6
 select (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST';
 (@a:=_latin2'test' collate latin2_bin) = _latin2'TEST'
 0
@@ -188,7 +188,7 @@ NULL	5
 set @v1=null, @v2=1, @v3=1.1, @v4=now();
 select coercibility(@v1),coercibility(@v2),coercibility(@v3),coercibility(@v4);
 coercibility(@v1)	coercibility(@v2)	coercibility(@v3)	coercibility(@v4)
-5	6	6	5
+5	7	7	5
 set session @honk=99;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '@honk=99' at line 1
 select @@local.max_allowed_packet;

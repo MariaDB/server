@@ -1918,7 +1918,7 @@ insert into t1 values('t1_val');
 create view v1 as select 'v1_val' as col1;
 select coercibility(col1), collation(col1) from v1;
 coercibility(col1)	collation(col1)
-5	utf8mb4_general_ci
+6	utf8mb4_general_ci
 create view v2 as select col1 from v1 union select col1 from t1;
 select coercibility(col1), collation(col1)from v2;
 coercibility(col1)	collation(col1)

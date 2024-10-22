@@ -3018,7 +3018,7 @@ static inline my_repertoire_t &operator|=(my_repertoire_t &a,
 
 enum Derivation
 {
-  DERIVATION_IGNORABLE= 7, // Explicit NULL
+  DERIVATION_IGNORABLE= 8, // Explicit NULL
 
   /*
     Explicit or implicit conversion from numeric/temporal data to string:
@@ -3026,17 +3026,20 @@ enum Derivation
     - Numeric user variables
     - CAST(numeric_or_temporal_expr AS CHAR)
   */
-  DERIVATION_NUMERIC= 6,
+  DERIVATION_NUMERIC= 7,
 
   /*
     - String literals
+  */
+  DERIVATION_COERCIBLE= 6,
+
+  /*
     - String user variables
   */
-  DERIVATION_COERCIBLE= 5,
+  DERIVATION_USERVAR= 5,
 
   /*
     String cast and conversion functions:
-    - BINARY(expr)
     - CAST(string_expr AS CHAR)
     - CONVERT(expr USING cs)
   */
@@ -3162,6 +3165,7 @@ public:
       case DERIVATION_NUMERIC:   return "NUMERIC";
       case DERIVATION_IGNORABLE: return "IGNORABLE";
       case DERIVATION_COERCIBLE: return "COERCIBLE";
+      case DERIVATION_USERVAR:   return "USERVAR";
       case DERIVATION_CAST:      return "CAST";
       case DERIVATION_IMPLICIT:  return "IMPLICIT";
       case DERIVATION_SYSCONST:  return "SYSCONST";
