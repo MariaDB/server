@@ -520,7 +520,7 @@ charset(load_file('../../std_data/words.dat')),
 collation(load_file('../../std_data/words.dat')),
 coercibility(load_file('../../std_data/words.dat'));
 charset(load_file('../../std_data/words.dat'))	collation(load_file('../../std_data/words.dat'))	coercibility(load_file('../../std_data/words.dat'))
-binary	binary	5
+binary	binary	6
 explain extended select
 charset(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),
 collation(load_file('MYSQLTEST_VARDIR/std_data/words.dat')),

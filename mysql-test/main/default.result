@@ -2970,7 +2970,7 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 (a) VALUES ('test');
 SELECT * FROM t1;
 a	b	c
-test	2	6
+test	2	7
 DROP TABLE t1;
 #
 # String result metadata functions

@@ -2535,3 +2535,25 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.9 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-35041 Simple comparison causes "Illegal mix of collations" even with default server settings
+--echo #
+
+CREATE TABLE t1 (a INT);
+SET NAMES utf8mb3;
+SELECT COLUMN_TYPE INTO @col_type FROM INFORMATION_SCHEMA.COLUMNS
+  WHERE TABLE_NAME='t1';
+SELECT @col_type != 'binary(128)';
+SELECT COERCIBILITY(@col_type), COERCIBILITY('binary(128)');
+DROP TABLE t1;
+
+
+--echo #
+--echo # End of 11.6 tests
+--echo #

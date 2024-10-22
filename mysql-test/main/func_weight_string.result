@@ -69,7 +69,7 @@ weight_string	reverse
 1	2
 select coercibility(weight_string('test'));
 coercibility(weight_string('test'))
-5
+6
 select coercibility(weight_string('test' collate latin1_swedish_ci));
 coercibility(weight_string('test' collate latin1_swedish_ci))
 0

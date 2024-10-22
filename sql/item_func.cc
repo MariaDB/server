@@ -5694,7 +5694,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
         set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_COERCIBLE);
+      collation.set(m_var_entry->charset(), DERIVATION_USERVAR);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)
@@ -5714,7 +5714,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
   }
   else
   {
-    collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    collation.set(&my_charset_bin, DERIVATION_USERVAR);
     null_value= 1;
     set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;

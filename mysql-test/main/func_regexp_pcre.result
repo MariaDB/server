@@ -869,12 +869,21 @@ SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
 0
 Warnings:
 Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
-# Since 11.4 user variables have DERIVATION_COERCIBLE
-# so a user variable and a literal in the pattern give equal results
+# Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
+# so a user variable and a literal in the pattern gave equal results
+# But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
+# so the query with a literal is performece as binary:
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
+c1
+1
+# while the query with a user variable is performed as string
+# with a warning, like in 11.4
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1, 0xE001 REGEXP @regCheck AS c2;
-c1	c2
-1	1
+SELECT 0xE001 REGEXP @regCheck AS c2;
+c2
+0
+Warnings:
+Warning	1139	Regex error 'UTF-8 error: 1 byte missing at end'
 # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;
 SET @regCheck= X'E001';
