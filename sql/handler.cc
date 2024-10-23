@@ -5534,7 +5534,8 @@ handler::ha_optimize(THD* thd, HA_CHECK_OPT* check_opt)
               m_lock_type == F_WRLCK);
   mark_trx_read_write();
 
-  return optimize(thd, check_opt);
+  // in-engine optimize can modify rowids, which will break hlindexes
+  return table->s->hlindexes() ? HA_ADMIN_TRY_ALTER : optimize(thd, check_opt);
 }
 
 
