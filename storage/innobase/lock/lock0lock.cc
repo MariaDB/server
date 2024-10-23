@@ -46,6 +46,7 @@ Created 5/7/1996 Heikki Tuuri
 #include "srv0mon.h"
 #include "que0que.h"
 #include "scope.h"
+#include "buf0buf.h"
 #include <debug_sync.h>
 #include <mysql/service_thd_mdl.h>
 
@@ -60,12 +61,31 @@ my_bool innodb_deadlock_detect;
 /** The value of innodb_deadlock_report */
 ulong innodb_deadlock_report;
 
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+/** Enable unmodified records unlocking on XA PREPARE for master. */
+extern my_bool innodb_enable_xap_unlock_unmodified_for_primary_debug;
+#else
+static
+constexpr bool innodb_enable_xap_unlock_unmodified_for_primary_debug= false;
+#endif
+
 #ifdef HAVE_REPLICATION
 extern "C" void thd_rpl_deadlock_check(MYSQL_THD thd, MYSQL_THD other_thd);
 extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 extern "C" int thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2);
+extern "C" bool thd_is_slave(const MYSQL_THD thd);
 #endif
+
+/** Describes of how lock_sys was latched */
+enum lock_sys_latch_type
+{
+  /** Global lock_sys latch, i.e. lock_sys.wr_lock().  */
+  GLOBAL,
+  /** A combination of lock_sys.rd_lock() and lock hash cell latch. */
+  CELL
+};
 
 /** Functor for accessing the embedded node within a table lock. */
 struct TableLockGetNode
@@ -1224,6 +1244,8 @@ lock_sec_rec_some_has_impl(
 	dict_index_t*	index,	/*!< in: secondary index */
 	const rec_offs*	offsets)/*!< in: rec_get_offsets(rec, index) */
 {
+  /* lock_sys must be unlocked to preserve latching order, i.e. page must be
+  latched before lock_sys. */
   lock_sys.assert_unlocked();
   ut_ad(!dict_index_is_clust(index));
   ut_ad(page_rec_is_user_rec(rec));
@@ -2332,8 +2354,8 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 
 	const page_id_t page_id{in_lock->un_member.rec_lock.page_id};
 	auto& lock_hash = lock_sys.hash_get(in_lock->type_mode);
-	ut_ad(lock_sys.is_writer() || in_lock->trx->mutex_is_owner());
-
+	ut_ad(lock_sys.is_writer() || in_lock->trx->mutex_is_owner()
+	      || lock_sys.is_cell_locked(*in_lock));
 	ut_d(auto old_n_locks=)
 	in_lock->index->table->n_rec_locks--;
 	ut_ad(old_n_locks);
@@ -2343,7 +2365,6 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 	lock_sys.assert_locked(cell);
 
 	HASH_DELETE(lock_t, hash, &lock_hash, rec_fold, in_lock);
-	ut_ad(lock_sys.is_writer() || in_lock->trx->mutex_is_owner());
 	UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
 
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
@@ -3751,7 +3772,8 @@ lock_table_remove_low(
 	trx = lock->trx;
 	table = lock->un_member.tab_lock.table;
 	lock_sys.assert_locked(*table);
-	ut_ad(trx->mutex_is_owner());
+	ut_ad(lock_sys.is_writer() || trx->mutex_is_owner()
+		|| lock->un_member.tab_lock.table->lock_mutex_is_owner());
 
 	/* Remove the table from the transaction's AUTOINC vector, if
 	the lock that is being released is an AUTOINC lock. */
@@ -4013,7 +4035,8 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 #ifdef SAFE_MUTEX
 	ut_ad(owns_wait_mutex == mysql_mutex_is_owner(&lock_sys.wait_mutex));
 #endif
-	ut_ad(in_lock->trx->mutex_is_owner());
+	ut_ad(lock_sys.is_writer() || in_lock->trx->mutex_is_owner()
+		|| in_lock->un_member.tab_lock.table->lock_mutex_is_owner());
 	lock_t*	lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, in_lock);
 
 	const dict_table_t* table = lock_table_remove_low(in_lock);
@@ -4449,6 +4472,7 @@ released:
   }
 
   trx->lock.n_rec_locks= 0;
+  trx->lock.set_nth_bit_calls= 0;
 
 #ifdef UNIV_DEBUG
   if (to_evict.empty())
@@ -4505,7 +4529,8 @@ static void lock_rec_unlock(hash_cell_t &cell, lock_t *lock, ulint heap_no)
   ut_ad(!mysql_mutex_is_owner(&lock_sys.wait_mutex));
 #endif /* SAFE_MUTEX */
   ut_ad(!lock->is_table());
-  ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner());
+  ut_ad(lock_sys.is_writer() || lock->trx->mutex_is_owner() ||
+        lock_sys.is_cell_locked(*lock));
 
   lock_rec_reset_nth_bit(lock, heap_no);
 
@@ -4520,64 +4545,107 @@ static void lock_rec_unlock(hash_cell_t &cell, lock_t *lock, ulint heap_no)
 }
 
 /** Release locks to unmodified records on a clustered index page.
-@param cell     lock_sys.rec_hash cell of lock
-@param lock     record lock
-@param offsets  storage for rec_get_offsets()
-@param heap     storage for rec_get_offsets()
-@param mtr      mini-transaction (will be started and committed) */
-static void lock_rec_unlock_unmodified(hash_cell_t &cell, lock_t *lock,
-                                       rec_offs *&offsets, mem_heap_t *&heap,
-                                       mtr_t &mtr)
+@param  block      the block containing locked records
+@param  cell       lock_sys.rec_hash cell of lock
+@param  lock       record lock
+@param  offsets    storage for rec_get_offsets()
+@tparam latch_type how the caller of the function latched lock_sys,
+                   GLOBAL or CELL
+@return true if the cell was latched successfully or if latch_type is GLOBAL,
+        false otherwise */
+template <lock_sys_latch_type latch_type>
+bool lock_rec_unlock_unmodified(buf_block_t *block, hash_cell_t *cell,
+                                lock_t *lock, rec_offs *offsets)
 {
+  DEBUG_SYNC_C("lock_rec_unlock_unmodified_start");
+  lock_sys.assert_locked(*lock);
   ut_ad(!lock->is_waiting());
 
   dict_index_t *const index= lock->index;
 
-  mtr.start();
-  if (buf_block_t *block=
-      btr_block_get(*index, lock->un_member.rec_lock.page_id.page_no(),
-                    RW_S_LATCH, true, &mtr))
+  if (UNIV_UNLIKELY(!page_is_leaf(block->page.frame)))
   {
-    if (UNIV_UNLIKELY(!page_is_leaf(block->page.frame)))
-    {
-      ut_ad("corrupted lock system" == 0);
-      goto func_exit;
-    }
+    /* There can be locks with clean bitmap on non-leaf pages.
+    See lock_update_root_raise() for details. */
+    ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
+    return true;
+  }
 
-    for (ulint i= PAGE_HEAP_NO_USER_LOW; i < lock_rec_get_n_bits(lock); ++i)
+  for (ulint i= PAGE_HEAP_NO_USER_LOW; i < lock_rec_get_n_bits(lock); ++i)
+  {
+    if (!lock_rec_get_nth_bit(lock, i));
+    else if (const rec_t *rec=
+                 page_find_rec_with_heap_no(block->page.frame, i))
     {
-      if (!lock_rec_get_nth_bit(lock, i));
-      else if (const rec_t *rec=
-               page_find_rec_with_heap_no(block->page.frame, i))
+      if (index->is_clust())
       {
-        if (index->is_clust())
+        if (trx_read_trx_id(rec + row_trx_id_offset(rec, index)) ==
+            lock->trx->id)
+          continue;
+      unlock_rec:
+        lock_rec_unlock(*cell, lock, i);
+      }
+      else
+      {
+        /* lock_sec_rec_some_has_impl() must be invoked with released lock_sys
+        to preserve latching order, i.e. page latch must be acquired before
+        lock_sys latching. Release lock_sys latch. */
+
+        if (latch_type == GLOBAL)
+          lock_sys.wr_unlock();
+        else
         {
-          if (trx_read_trx_id(rec + row_trx_id_offset(rec, index)) ==
-              lock->trx->id)
-            continue;
-        unlock_rec:
-          lock_rec_unlock(cell, lock, i);
+          lock_sys_t::hash_table::latch(cell)->release();
+          lock_sys.rd_unlock();
+        }
+        mem_heap_t *heap= nullptr;
+        std::ignore= rec_get_offsets(rec, index, offsets, index->n_core_fields,
+                                     ULINT_UNDEFINED, &heap);
+        /* Make sure there was not dynamical memory allocation */
+        ut_ad(!heap);
+        trx_t *impl_trx=
+            lock_sec_rec_some_has_impl(lock->trx, rec, index, offsets);
+        /* row_vers_impl_x_locked_low() references trx in both cases, i.e.
+        when caller trx is equal to trx, which modified the record, it
+        references the trx directly, otherwise it invokes trx_sys.find(),
+        which also references trx, so the trx must be released anyway. */
+        if (impl_trx)
+          impl_trx->release_reference();
+
+        /* If new locks were added when lock_sys had been released, the callers
+        must invoke this function to reiterate bitmap of the lock. */
+
+        if (latch_type == GLOBAL) {
+          lock_sys.wr_lock(SRW_LOCK_CALL);
+          /* concurent lock_sys_t::resize() call could make a previously
+          computed cell address invalid */
+          cell= lock_sys.rec_hash.cell_get(
+              lock->un_member.rec_lock.page_id.fold());
         }
         else
         {
-          offsets= rec_get_offsets(rec, index, offsets, index->n_core_fields,
-                                   ULINT_UNDEFINED, &heap);
-          if (lock->trx !=
-              lock_sec_rec_some_has_impl(lock->trx, rec, index, offsets))
-            goto unlock_rec;
+          lock_sys.rd_lock(SRW_LOCK_CALL);
+          /* concurent lock_sys_t::resize() call could make a previously
+          computed cell address invalid */
+          cell= lock_sys.rec_hash.cell_get(
+              lock->un_member.rec_lock.page_id.fold());
+          if (!lock_sys_t::hash_table::latch(cell)->try_acquire())
+            return false;
         }
+        if (lock->trx != impl_trx)
+          goto unlock_rec;
       }
     }
   }
-func_exit:
-  mtr.commit();
+  return true;
 }
 
 /** Release non-exclusive locks on XA PREPARE,
 and wake up possible other transactions waiting because of these locks.
-@param trx   transaction in XA PREPARE state
+@param trx               transaction in XA PREPARE state
+@param unlock_unmodified must unmodified by the trx records be unlocked or not
 @return whether all locks were released */
-static bool lock_release_on_prepare_try(trx_t *trx)
+static bool lock_release_on_prepare_try(trx_t *trx, bool unlock_unmodified)
 {
   /* At this point, trx->lock.trx_locks can still be modified by other
   threads to convert implicit exclusive locks into explicit ones.
@@ -4591,12 +4659,11 @@ static bool lock_release_on_prepare_try(trx_t *trx)
   mtr_t mtr;
   rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
   rec_offs *offsets= offsets_;
-  mem_heap_t *heap= nullptr;
   rec_offs_init(offsets_);
 
   lock_sys.rd_lock(SRW_LOCK_CALL);
   trx->mutex_lock();
-
+reiterate:
   /* Note: Normally, trx->mutex is not held while acquiring
   a lock table latch, but here we are following the opposite order.
   To avoid deadlocks, we only try to acquire the lock table latches
@@ -4613,22 +4680,73 @@ static bool lock_release_on_prepare_try(trx_t *trx)
       bool supremum_bit= lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM);
       bool rec_granted_exclusive_not_gap=
         lock->is_rec_granted_exclusive_not_gap();
-      if (!supremum_bit && rec_granted_exclusive_not_gap)
-        continue;
       if (UNIV_UNLIKELY(lock->type_mode & (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
         continue; /* SPATIAL INDEX locking is broken. */
-      auto cell=
-        lock_sys.rec_hash.cell_get(lock->un_member.rec_lock.page_id.fold());
+      const auto fold = lock->un_member.rec_lock.page_id.fold();
+      auto cell= lock_sys.rec_hash.cell_get(fold);
       auto latch= lock_sys_t::hash_table::latch(cell);
       if (latch->try_acquire())
       {
         if (!rec_granted_exclusive_not_gap)
+        {
           lock_rec_dequeue_from_page(lock, false);
+          latch->release();
+        }
         else if (supremum_bit)
+        {
           lock_rec_unlock(*cell, lock, PAGE_HEAP_NO_SUPREMUM);
+          latch->release();
+        }
+        else if (unlock_unmodified)
+        {
+          ulint set_nth_bit_calls= trx->lock.set_nth_bit_calls;
+          latch->release();
+          lock_sys.rd_unlock();
+          trx->mutex_unlock();
+          mtr.start();
+          /* The curr thread is asociated with trx, which was just
+          moved to XA PREPARE state.  Other threads may not modify the
+          existing lock objects of trx; they may only create new ones
+          in lock_rec_convert_impl_to_expl() or lock_rec_move(). */
+          buf_block_t *block= btr_block_get(*lock->index,
+              lock->un_member.rec_lock.page_id.page_no(), RW_S_LATCH, true,
+              &mtr, nullptr, nullptr
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+              , BUF_GET_POSSIBLY_FREED
+#endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
+          );
+          lock_sys.rd_lock(SRW_LOCK_CALL);
+          if (block)
+          {
+            /* concurent lock_sys_t::resize() call could make a previously
+            computed cell address invalid */
+            cell= lock_sys.rec_hash.cell_get(fold);
+            latch= lock_sys_t::hash_table::latch(cell);
+            if (latch->try_acquire())
+            {
+              if (!lock_rec_unlock_unmodified<CELL>(block, cell, lock,
+                                                     offsets))
+                all_released= false;
+              else
+                latch->release();
+            }
+            else
+              all_released= false;
+          }
+          else
+            /* The block could be freed during merging pages when lock_sys
+            was unlocked. In this case the locks bitmap must be empty,
+            see lock_move_rec_list_start() and its callers for details. */
+            ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
+          mtr.commit();
+          trx->mutex_lock();
+          /* If some locks were added during pages merge/split or during
+          implicit to explicit locks conversion, re-scan trx->lock.trx_locks.*/
+          if (set_nth_bit_calls != trx->lock.set_nth_bit_calls)
+            goto reiterate;
+        }
         else
-          lock_rec_unlock_unmodified(*cell, lock, offsets, heap, mtr);
-        latch->release();
+          latch->release();
       }
       else
         all_released= false;
@@ -4660,8 +4778,6 @@ static bool lock_release_on_prepare_try(trx_t *trx)
 
   lock_sys.rd_unlock();
   trx->mutex_unlock();
-  if (UNIV_LIKELY_NULL(heap))
-    mem_heap_free(heap);
   return all_released;
 }
 
@@ -4702,77 +4818,119 @@ and release possible other transactions waiting because of these locks. */
 void lock_release_on_prepare(trx_t *trx)
 {
   trx->set_skip_lock_inheritance();
+  bool unlock_unmodified=
+#ifdef HAVE_REPLICATION
+      thd_is_slave(trx->mysql_thd) ||
+#endif
+      innodb_enable_xap_unlock_unmodified_for_primary_debug;
 
+#ifdef ENABLED_DEBUG_SYNC
+  DBUG_EXECUTE_IF("skip_lock_release_on_prepare_try", goto skip_try;);
+#endif
   for (ulint count= 5; count--; )
-    if (lock_release_on_prepare_try(trx))
+    if (lock_release_on_prepare_try(trx, unlock_unmodified))
       return;
+#ifdef ENABLED_DEBUG_SYNC
+skip_try:
+#endif
 
   mtr_t mtr;
-  rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
+  /* Reserve enough offsets for the key and PRIMARY KEY. */
+  rec_offs offsets_[REC_OFFS_HEADER_SIZE + 2 * MAX_REF_PARTS + 1];
   rec_offs *offsets= offsets_;
-  mem_heap_t *heap= nullptr;
 
   rec_offs_init(offsets_);
 
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  trx->mutex_lock();
+reiterate:
+  for (lock_t *prev, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock;
+       lock= prev)
   {
-    LockMutexGuard g{SRW_LOCK_CALL};
-    trx->mutex_lock();
-
-    for (lock_t *prev, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock;
-         lock= prev)
+    ut_ad(lock->trx == trx);
+    prev= UT_LIST_GET_PREV(trx_locks, lock);
+    if (!lock->is_table())
     {
-      ut_ad(lock->trx == trx);
-      prev= UT_LIST_GET_PREV(trx_locks, lock);
-      if (!lock->is_table())
-      {
-        ut_ad(!lock->index->table->is_temporary());
-        if (!lock->is_rec_granted_exclusive_not_gap())
-          lock_rec_dequeue_from_page(lock, false);
-        else if (UNIV_UNLIKELY(lock->type_mode &
-                               (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
-          /* SPATIAL INDEX locking is broken. */;
-        else
-        {
-          auto cell= lock_sys.rec_hash.cell_get(lock->un_member.rec_lock.
-                                                page_id.fold());
-          if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
-            lock_rec_unlock(*cell, lock, PAGE_HEAP_NO_SUPREMUM);
-          else
-          {
-            ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
-                  /* Insert-intention lock is valid for supremum for isolation
-                     level > TRX_ISO_READ_COMMITTED */
-                  lock->mode() == LOCK_X ||
-                  !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
-            lock_rec_unlock_unmodified(*cell, lock, offsets, heap, mtr);
-          }
-        }
-      }
+      ut_ad(!lock->index->table->is_temporary());
+      if (!lock->is_rec_granted_exclusive_not_gap())
+        lock_rec_dequeue_from_page(lock, false);
+      else if (UNIV_UNLIKELY(lock->type_mode &
+                             (LOCK_PREDICATE | LOCK_PRDT_PAGE)))
+        /* SPATIAL INDEX locking is broken. */;
       else
       {
-        ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
-        ut_ad(!table->is_temporary());
-        switch (lock->mode()) {
-        case LOCK_IS:
-        case LOCK_S:
-          lock_table_dequeue(lock, false);
-          lock_trx_table_locks_remove(lock);
-          break;
-        case LOCK_IX:
-        case LOCK_X:
-          ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
-          /* fall through */
-        default:
-          break;
+        const auto fold= lock->un_member.rec_lock.page_id.fold();
+        auto cell= lock_sys.rec_hash.cell_get(fold);
+        if (lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM))
+          lock_rec_unlock(*cell, lock, PAGE_HEAP_NO_SUPREMUM);
+        else if (unlock_unmodified)
+        {
+          ut_ad(lock->trx->isolation_level > TRX_ISO_READ_COMMITTED ||
+                /* Insert-intention lock is valid for supremum for isolation
+                   level > TRX_ISO_READ_COMMITTED */
+                lock->mode() == LOCK_X ||
+                !lock_rec_get_nth_bit(lock, PAGE_HEAP_NO_SUPREMUM));
+          ulint set_nth_bit_calls= trx->lock.set_nth_bit_calls;
+          lock_sys.wr_unlock();
+          trx->mutex_unlock();
+          mtr.start();
+          /* The current thread is associated with trx, which was just
+          moved to XA PREPARE state.  Other threads may not modify the
+          existing lock objects of trx; they may only create new ones
+          in lock_rec_convert_impl_to_expl() or lock_rec_move(). */
+          buf_block_t *block= btr_block_get(*lock->index,
+              lock->un_member.rec_lock.page_id.page_no(), RW_S_LATCH, true,
+              &mtr, nullptr, nullptr
+#if defined(UNIV_DEBUG) || !defined(DBUG_OFF)
+              , BUF_GET_POSSIBLY_FREED
+#endif /* defined(UNIV_DEBUG) || !defined(DBUG_OFF) */
+          );
+          lock_sys.wr_lock(SRW_LOCK_CALL);
+          if (block)
+          {
+            /* concurent lock_sys_t::resize() call could make a previously
+            computed cell address invalid */
+            cell= lock_sys.rec_hash.cell_get(fold);
+            std::ignore=
+                lock_rec_unlock_unmodified<GLOBAL>(block, cell, lock, offsets);
+          }
+          else
+            /* The block could be freed during merging pages when lock_sys
+            was unlocked. In this case the locks bitmap must be empty,
+            see lock_move_rec_list_start() and its callers for details. */
+            ut_ad(lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
+          mtr.commit();
+          trx->mutex_lock();
+          /* If some locks were added during pages merge/split or during
+          implicit to explicit locks conversion, re-scan trx->lock.trx_locks.*/
+          if (set_nth_bit_calls != trx->lock.set_nth_bit_calls)
+            goto reiterate;
         }
+      }
+    }
+    else
+    {
+      ut_d(dict_table_t *table= lock->un_member.tab_lock.table);
+      ut_ad(!table->is_temporary());
+      switch (lock->mode())
+      {
+      case LOCK_IS:
+      case LOCK_S:
+        lock_table_dequeue(lock, false);
+        lock_trx_table_locks_remove(lock);
+        break;
+      case LOCK_IX:
+      case LOCK_X:
+        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
+        /* fall through */
+      default:
+        break;
       }
     }
   }
 
+  lock_sys.wr_unlock();
   trx->mutex_unlock();
-
-  if (UNIV_LIKELY_NULL(heap))
-    mem_heap_free(heap);
 }
 
 /** Release locks on a table whose creation is being rolled back */

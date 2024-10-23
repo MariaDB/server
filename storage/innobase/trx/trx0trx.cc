@@ -114,6 +114,8 @@ trx_init(
 
 	trx->lock.n_rec_locks = 0;
 
+	trx->lock.set_nth_bit_calls = 0;
+
 	trx->dict_operation = false;
 
 	trx->error_state = DB_SUCCESS;
@@ -353,6 +355,7 @@ trx_t *trx_create()
 
 	ut_ad(trx->mod_tables.empty());
 	ut_ad(trx->lock.n_rec_locks == 0);
+	ut_ad(trx->lock.set_nth_bit_calls == 0);
 	ut_ad(trx->lock.table_cached == 0);
 	ut_ad(trx->lock.rec_cached == 0);
 	ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
