@@ -7571,6 +7571,11 @@ public:
   DDL statement that may be subject to error filtering.
 */
 #define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 25)
+
 #endif /* WITH_WSREP */
 
 

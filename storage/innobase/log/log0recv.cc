@@ -4847,7 +4847,7 @@ const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,
   const noexcept
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-  ut_ad(recv_sys.scanned_lsn <= max_lsn);
+  ut_ad(recv_sys.recovered_lsn <= max_lsn);
 
   for (byte *page : pages)
   {

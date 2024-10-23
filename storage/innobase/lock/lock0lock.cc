@@ -634,9 +634,10 @@ static bool wsrep_will_BF_abort(const lock_t *lock, const trx_t *trx)
 
 /** check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
-@param trx    transaction owning the lock
+@param trx        transaction owning the lock
 @return false for regular lock timeout */
-ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
+ATTRIBUTE_NOINLINE static
+bool wsrep_is_BF_lock_timeout(const trx_t &trx)
 {
   ut_ad(trx.is_wsrep());
 
@@ -645,7 +646,28 @@ ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
     return false;
 
   ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
+             << " error: " << trx.error_state
              << " query: " << wsrep_thd_query(trx.mysql_thd);
+
+  if (const lock_t*wait_lock = trx.lock.wait_lock)
+  {
+    const my_hrtime_t now= my_hrtime_coarse();
+    const my_hrtime_t suspend_time= trx.lock.suspend_time;
+    fprintf(stderr,
+            "------- TRX HAS BEEN WAITING %llu us"
+            " FOR THIS LOCK TO BE GRANTED:\n",
+            now.val - suspend_time.val);
+
+    if (!wait_lock->is_table()) {
+      mtr_t mtr;
+      lock_rec_print(stderr, wait_lock, mtr);
+    } else {
+      lock_table_print(stderr, wait_lock);
+    }
+
+    fprintf(stderr, "------------------\n");
+  }
+
   return true;
 }
 
