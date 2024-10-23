@@ -247,9 +247,11 @@ static const size_t ha_option_type_sizeof[]=
 
 bool extend_option_list(THD* thd, handlerton *hton, bool create,
                         engine_option_value **option_list,
-                        ha_create_table_option *rules, MEM_ROOT *root)
+                        ha_create_table_option *rules)
 {
   DBUG_ENTER("extend_option_list");
+  MEM_ROOT *root= thd->mem_root;
+  bool extended= false;
 
   for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
   {
@@ -280,8 +282,16 @@ bool extend_option_list(THD* thd, handlerton *hton, bool create,
           if (found)
             found->value= value;
           else
+          {
+            if (!extended)
+            {
+              void *pos= *option_list ? &(last->next) : option_list;
+              thd->register_item_tree_change((Item**)pos);
+              extended= true;
+            }
             new (root) engine_option_value(name, value,
                          opt->type != HA_OPTION_TYPE_ULL, option_list, &last);
+          }
         }
       }
     }
@@ -803,4 +813,3 @@ bool is_engine_option_known(engine_option_value *opt,
   }
   return false;
 }
-
