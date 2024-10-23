@@ -13,13 +13,6 @@ explain format=json select * from t1 where a in (select b from t2);
 analyze format=json select * from t1 where a in (select b from t2);
 
 --echo # "Partial match" is used due to NOT IN
---echo # Force rowid-merge partial partial matching
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
---source include/analyze-format.inc
-analyze format=json select * from t1 where a not in (select b from t2);
-
---echo # Force table scan partial matching
-set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=on";
 --source include/analyze-format.inc
 analyze format=json select * from t1 where a not in (select b from t2);
 
@@ -27,11 +20,9 @@ analyze format=json select * from t1 where a not in (select b from t2);
 --source include/analyze-format.inc
 analyze format=json select a from t1 group by a in (select b from t2);
 
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
 --source include/analyze-format.inc
 analyze format=json select a from t1 group by a not in (select b from t2);
 
-set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=on";
 --echo # Subselect in ORDER BY
 --source include/analyze-format.inc
 analyze format=json select a from t1 order by a in (select b from t2);
@@ -68,11 +59,13 @@ insert into t1 values (null, 'b');
 create table t2 (b1 char(1), b2 char(2));
 insert into t2 values ('a','b'), ('c', 'd'), (null, 'e'), ('f', 'g');
 
+--echo # Force rowid-merge partial matching
 set @@optimizer_switch="partial_match_rowid_merge=on,partial_match_table_scan=off";
 explain format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 --source include/analyze-format.inc
 analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
 
+--echo # Force table scan partial matching
 set @@optimizer_switch="partial_match_rowid_merge=off,partial_match_table_scan=on";
 --source include/analyze-format.inc
 analyze format=json select * from t1 where (a1, a2) not in (select b1, b2 from t2);
