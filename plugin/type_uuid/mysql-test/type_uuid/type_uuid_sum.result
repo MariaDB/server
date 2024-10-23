@@ -15,3 +15,24 @@ DROP TABLE t1;
 #
 # End of 10.7 tests
 #
+#
+# Start of 11.6 tests
+#
+#
+# MDEV-34922 Assertion `value.length() == FbtImpl::binary_length()' failed in Type_handler_fbt<FbtImpl, TypeCollectionImpl>::Field_fbt::store_native, Assertion `item->null_value' failed in Type_handler::Item_send_str
+#
+CREATE OR REPLACE TABLE t1 (a datetime) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (NULL);
+SELECT * FROM (SELECT uuid(),min(1) FROM t1 WHERE if(uuid(), a,1)) dt;
+uuid()	min(1)
+00000000-0000-0000-0000-000000000000	NULL
+DROP TABLE t1;
+CREATE OR REPLACE TABLE t1 (a datetime) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (NULL);
+SELECT uuid(),min(1) FROM t1 WHERE if(uuid(), a,1);
+uuid()	min(1)
+00000000-0000-0000-0000-000000000000	NULL
+DROP TABLE t1;
+#
+# End of 11.6 tests
+#

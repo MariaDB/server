@@ -834,7 +834,11 @@ public:
   {
     NativeBuffer<Fbt::binary_length()+1> m_value;
   public:
-    Item_copy_fbt(THD *thd, Item *item_arg): Item_copy(thd, item_arg) {}
+    Item_copy_fbt(THD *thd, Item *item_arg): Item_copy(thd, item_arg)
+    {
+      // This code can be removed when MDEV-35238 is fixed
+      Fbt::zero().to_native(&m_value);
+    }
 
     bool val_native(THD *thd, Native *to) override
     {
