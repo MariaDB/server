@@ -338,9 +338,9 @@ CREATE TABLE t1 (g GEOMETRY NOT NULL, SPATIAL gi(g));
 INSERT INTO t1 VALUES (POINT(0,0));
 HANDLER t1 OPEN AS h;
 HANDLER h READ `gi`= (10);
-ERROR HY000: SPATIAL index `gi` does not support this operation
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 HANDLER h READ `gi`> (10);
-ERROR HY000: SPATIAL index `gi` does not support this operation
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
 HANDLER h CLOSE;
 DROP TABLE t1;
 CREATE TABLE t1 (w VARCHAR(100), FULLTEXT fk(w));
@@ -352,3 +352,12 @@ HANDLER h READ `fk`> (10);
 ERROR HY000: FULLTEXT index `fk` does not support this operation
 HANDLER h CLOSE;
 DROP TABLE t1;
+#
+# MDEV-35082 HANDLER with FULLTEXT keys is not always rejected
+#
+create table t (a int primary key, v text not null, fulltext(v));
+handler t open;
+handler t read v next;
+ERROR HY000: FULLTEXT index `v` does not support this operation
+drop table t;
+# End of 10.5 tests

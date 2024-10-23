@@ -1018,9 +1018,7 @@ void close_thread_table(THD *thd, TABLE **table_ptr)
 
   file->update_global_table_stats();
   file->update_global_index_stats();
-  if (unlikely(thd->variables.log_slow_verbosity &
-               LOG_SLOW_VERBOSITY_ENGINE) &&
-      likely(file->handler_stats))
+  if (unlikely(file->handler_stats) && file->handler_stats->active)
   {
     Exec_time_tracker *tracker;
     if ((tracker= file->get_time_tracker()))
@@ -8040,7 +8038,7 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &fields, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func)
+                  bool allow_sum_func, THD_WHERE where)
 {
   Item *item;
   LEX * const lex= thd->lex;
@@ -8066,7 +8064,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
               lex->current_select->nest_level);
   if (allow_sum_func)
     lex->allow_sum_func.set_bit(lex->current_select->nest_level);
-  thd->where= THD_WHERE::DEFAULT_WHERE;
+  thd->where= where;
   save_is_item_list_lookup= lex->current_select->is_item_list_lookup;
   lex->current_select->is_item_list_lookup= 0;
 
@@ -8146,7 +8144,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   lex->allow_sum_func= save_allow_sum_func;
   thd->column_usage= saved_column_usage;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
-  DBUG_RETURN(MY_TEST(thd->is_error()));
+  DBUG_RETURN(thd->is_error());
 }
 
 /*
@@ -8199,7 +8197,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list)
   return setup_wild(thd, table_list, thd->lex->returning()->item_list, NULL,
                     thd->lex->returning(), true)
       || setup_fields(thd, Ref_ptr_array(), thd->lex->returning()->item_list,
-                      MARK_COLUMNS_READ, NULL, NULL, false);
+                      MARK_COLUMNS_READ, NULL, NULL, 0, THD_WHERE::RETURNING);
 }
 
 
@@ -9465,17 +9463,17 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
+  THD *thd;
   size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
   TABLE_SHARE share;
-  THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (char*) &thd;
+  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)

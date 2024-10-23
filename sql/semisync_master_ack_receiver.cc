@@ -251,7 +251,6 @@ void Ack_receiver::run()
 
   sql_print_information("Starting ack receiver thread");
   thd->system_thread= SYSTEM_THREAD_SEMISYNC_MASTER_BACKGROUND;
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->security_ctx->skip_grants();
   thd->set_command(COM_DAEMON);

@@ -1202,6 +1202,9 @@ public:
   /** Get the undo log empty value */
   bool is_undo_empty() const { return !undo_log_nonempty; }
 
+  /** @return whether XA transaction is in PREPARED state */
+  static bool is_xa_exist() noexcept;
+
   /* Reset the trx_sys page and retain the dblwr information,
   system rollback segment header page
   @return error code */

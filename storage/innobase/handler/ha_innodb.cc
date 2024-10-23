@@ -8210,6 +8210,7 @@ calc_row_difference(
 			to block it. */
 			if (DATA_GEOMETRY_MTYPE(col_type)
 			    && o_len != 0 && n_len == 0) {
+				trx->error_info = clust_index;
 				return(DB_CANT_CREATE_GEOMETRY_OBJECT);
 			}
 
@@ -12633,7 +12634,10 @@ create_table_info_t::create_foreign_keys()
 				}
 			}
 		}
-
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
 		switch (fk->delete_opt) {
 		case FK_OPTION_UNDEF:
 		case FK_OPTION_RESTRICT:
@@ -12675,6 +12679,9 @@ create_table_info_t::create_foreign_keys()
 			ut_ad(0);
 			break;
 		}
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	}
 
 	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
@@ -18291,6 +18298,16 @@ innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 	return(fts_retrieve_ranking(result, ft_prebuilt->fts_doc_id));
 }
 
+/** Update a field that is protected by buf_pool.mutex */
+template<typename T>
+static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
+                                   void *val, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  *static_cast<T*>(val)= *static_cast<const T*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 #ifdef UNIV_DEBUG
 static my_bool	innodb_log_checkpoint_now = TRUE;
 static my_bool	innodb_buf_flush_list_now = TRUE;
@@ -19233,18 +19250,18 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_load_at_startup, srv_buffer_pool_load_at_st
   "Load the buffer pool from a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
+static MYSQL_SYSVAR_ULONG(lru_scan_depth, buf_pool.LRU_scan_depth,
   PLUGIN_VAR_RQCMDARG,
   "How deep to scan LRU to keep it clean",
-  NULL, NULL, 1536, 100, ~0UL, 0);
+  NULL, innodb_buf_pool_update<ulong>, 1536, 100, ~0UL, 0);
 
-static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
+static MYSQL_SYSVAR_ULONG(flush_neighbors, buf_pool.flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
   "Set to 0 (don't flush neighbors from buffer pool),"
   " 1 (flush contiguous neighbors from buffer pool)"
   " or 2 (flush neighbors from buffer pool),"
   " when flushing a block",
-  NULL, NULL, 1, 0, 2, 0);
+  NULL, innodb_buf_pool_update<ulong>, 1, 0, 2, 0);
 
 static MYSQL_SYSVAR_BOOL(deadlock_detect, innodb_deadlock_detect,
   PLUGIN_VAR_NOCMDARG,

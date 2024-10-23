@@ -4570,7 +4570,7 @@ bool JOIN_CACHE_BKA::skip_index_tuple(range_id_t range_info)
 {
   DBUG_ENTER("JOIN_CACHE_BKA::skip_index_tuple");
   get_record_by_pos((uchar*)range_info);
-  DBUG_RETURN(!join_tab->cache_idx_cond->val_int());
+  DBUG_RETURN(!join_tab->cache_idx_cond->val_bool());
 }
 
 
@@ -4834,7 +4834,7 @@ bool JOIN_CACHE_BKAH::skip_index_tuple(range_id_t range_info)
     next_rec_ref_ptr= get_next_rec_ref(next_rec_ref_ptr);
     uchar *rec_ptr= next_rec_ref_ptr + rec_fields_offset;
     get_record_by_pos(rec_ptr);
-    if (join_tab->cache_idx_cond->val_int())
+    if (join_tab->cache_idx_cond->val_bool())
       DBUG_RETURN(FALSE);
   } while(next_rec_ref_ptr != last_rec_ref_ptr);
   DBUG_RETURN(TRUE);

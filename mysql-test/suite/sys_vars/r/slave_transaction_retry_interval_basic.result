@@ -115,7 +115,7 @@ SELECT @@slave_transaction_retry_interval = @@global.slave_transaction_retry_int
 SET slave_transaction_retry_interval = 2048;
 ERROR HY000: Variable 'slave_transaction_retry_interval' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT slave_transaction_retry_interval;
-ERROR 42S22: Unknown column 'slave_transaction_retry_interval' in 'field list'
+ERROR 42S22: Unknown column 'slave_transaction_retry_interval' in 'SELECT'
 SELECT @@slave_transaction_retry_interval;
 @@slave_transaction_retry_interval
 3600

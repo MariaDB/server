@@ -138,11 +138,11 @@ SELECT @@max_binlog_cache_size;
 @@max_binlog_cache_size
 4096
 SELECT local.max_binlog_cache_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.max_binlog_cache_size;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT max_binlog_cache_size = @@session.max_binlog_cache_size;
-ERROR 42S22: Unknown column 'max_binlog_cache_size' in 'field list'
+ERROR 42S22: Unknown column 'max_binlog_cache_size' in 'SELECT'
 SET @@global.max_binlog_cache_size = @start_value;
 SELECT @@global.max_binlog_cache_size;
 @@global.max_binlog_cache_size

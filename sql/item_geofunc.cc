@@ -1154,7 +1154,7 @@ LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
 }
 
 
-longlong Item_func_spatial_mbr_rel::val_int()
+bool Item_func_spatial_mbr_rel::val_bool()
 {
   DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
@@ -1362,7 +1362,7 @@ public:
 };
 
 
-longlong Item_func_spatial_relate::val_int()
+bool Item_func_spatial_relate::val_bool()
 {
   DBUG_ENTER("Item_func_spatial_relate::val_int");
   DBUG_ASSERT(fixed());
@@ -1399,7 +1399,7 @@ exit:
 }
 
 
-longlong Item_func_spatial_precise_rel::val_int()
+bool Item_func_spatial_precise_rel::val_bool()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
   DBUG_ASSERT(fixed());
@@ -2062,7 +2062,7 @@ mem_error:
 }
 
 
-longlong Item_func_isempty::val_int()
+bool Item_func_isempty::val_bool()
 {
   DBUG_ASSERT(fixed());
   String tmp;

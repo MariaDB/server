@@ -1136,12 +1136,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	true, if read only checks should be enforcedm
 @param[in]	success		true if succeeded
@@ -1151,7 +1145,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -1179,8 +1172,6 @@ os_file_create_func(
 		      || create_mode == OS_FILE_OPEN_RAW);
 		create_flag = O_RDWR | O_CLOEXEC;
 	}
-
-	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
 
 #ifdef O_DIRECT
 # ifdef __linux__
@@ -1272,7 +1263,7 @@ not_found:
 			os_file_log_buffered();
 		} else {
 			close(file);
-			return os_file_create_func(name, OS_FILE_OPEN, purpose,
+			return os_file_create_func(name, OS_FILE_OPEN,
 						   type, false, success);
 		}
 	}
@@ -1972,12 +1963,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use async
-				I/O or unbuffered I/O: look in the function
-				source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	success		true if succeeded
 @return handle to the file, not defined if error, error number
@@ -1986,7 +1971,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -2028,8 +2012,7 @@ os_file_create_func(
 		break;
 	}
 
-	DWORD attributes = (purpose == OS_FILE_AIO && srv_use_native_aio)
-		? FILE_FLAG_OVERLAPPED : 0;
+	DWORD attributes= FILE_FLAG_OVERLAPPED;
 
 	if (type == OS_LOG_FILE) {
 		if (!log_sys.is_opened() && !log_sys.log_buffered) {
@@ -2897,22 +2880,8 @@ os_file_set_size(
 
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
-	sparse and normal files.
-
-	However, 10.2 up until 10.2.9 made every file sparse in innodb,
-	causing NTFS fragmentation issues(MDEV-13941). We try to undo
-	the damage, and unsparse the file.*/
-
-	if (!is_sparse && os_is_sparse_file_supported(file)) {
-		if (!os_file_set_sparse_win32(file, false))
-			/* Unsparsing file failed. Fallback to writing binary
-			zeros, to avoid even higher fragmentation.*/
-			goto fallback;
-	}
-
+	sparse and normal files. */
 	return os_file_change_size_win32(name, file, size);
-
-fallback:
 #else
 	struct stat statbuf;
 
@@ -3935,9 +3904,10 @@ void fil_node_t::find_metadata(os_file_t file
 
 /** Read the first page of a data file.
 @return	whether the page was found valid */
-bool fil_node_t::read_page0()
+bool fil_node_t::read_page0(const byte *dpage, bool no_lsn) noexcept
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_ad(!dpage || no_lsn);
   const unsigned psize= space->physical_size();
 #ifndef _WIN32
   struct stat statbuf;
@@ -3961,15 +3931,18 @@ bool fil_node_t::read_page0()
 
   if (!deferred)
   {
-    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-    if (os_file_read(IORequestRead, handle, page, 0, psize, nullptr)
-        != DB_SUCCESS)
+    page_t *apage= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, apage, 0, psize, nullptr) !=
+        DB_SUCCESS)
     {
       sql_print_error("InnoDB: Unable to read first page of file %s", name);
-      aligned_free(page);
+   err_exit:
+      aligned_free(apage);
       return false;
     }
 
+    const page_t *page= apage;
+  retry:
     const ulint space_id= memcmp_aligned<2>
       (FIL_PAGE_SPACE_ID + page,
        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
@@ -3977,8 +3950,16 @@ bool fil_node_t::read_page0()
       : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
     uint32_t flags= fsp_header_get_flags(page);
     const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    if (!space_id && !flags && !size && dpage)
+    {
+    retry_dpage:
+      page= dpage;
+      dpage= nullptr;
+      goto retry;
+    }
     const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
     const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
       uint32_t cflags= fsp_flags_convert_from_101(flags);
@@ -3995,7 +3976,6 @@ bool fil_node_t::read_page0()
         }
       }
 
-      aligned_free(page);
       goto invalid;
     }
 
@@ -4004,28 +3984,40 @@ bool fil_node_t::read_page0()
         !fil_space_t::is_flags_equal((space->flags & ~FSP_FLAGS_MEM_MASK),
                                      (flags & ~FSP_FLAGS_MEM_MASK)))
     {
-invalid:
+    invalid:
+      if (dpage)
+        goto retry_dpage;
       sql_print_error("InnoDB: Expected tablespace flags 0x%zx but found 0x%zx"
                       " in the file %s", space->flags, flags, name);
-      return false;
+      goto err_exit;
     }
 
   flags_ok:
     ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
+    if (buf_page_is_corrupted(!no_lsn, page, flags) != NOT_CORRUPTED)
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: The first page of file %s is corrupted", name);
+      goto err_exit;
+    }
+
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      if (dpage)
+        goto retry_dpage;
+      sql_print_error("InnoDB: Expected tablespace id %zu but found %zu"
+                      " in the file %s", ulint{space->id}, ulint{space_id},
+                      name);
+      goto err_exit;
+    }
+
     /* Try to read crypt_data from page 0 if it is not yet read. */
     if (!space->crypt_data)
       space->crypt_data= fil_space_read_crypt_data(
         fil_space_t::zip_size(flags), page);
-    aligned_free(page);
-
-    if (UNIV_UNLIKELY(space_id != space->id))
-    {
-      ib::error() << "Expected tablespace id " << space->id
-        << " but found " << space_id
-        << " in the file " << name;
-      return false;
-    }
+    aligned_free(apage);
 
     space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
     ut_ad(space->free_limit == 0 || space->free_limit == free_limit);

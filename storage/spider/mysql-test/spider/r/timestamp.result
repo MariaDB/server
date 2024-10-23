@@ -400,7 +400,7 @@ select t0.`col_d` `col_d`,t0.`col_t` `col_t` from `ts_test_remote`.`tbl_f` t0
 select (timestamp(t0.`col_d` , t0.`col_t`)) `TIMESTAMP(col_d, col_t)` from `ts_test_remote`.`tbl_f` t0
 select (timestamp('2018-06-25' , t0.`col_t`)) `TIMESTAMP('2018-06-25', col_t)` from `ts_test_remote`.`tbl_f` t0
 select (timestamp(t0.`col_d` , '10:43:21')) `TIMESTAMP(col_d, '10:43:21')` from `ts_test_remote`.`tbl_f` t0
-select 1 from `ts_test_remote`.`tbl_f` t0
+select (timestamp('2018-06-25' , '10:43:21')) `TIMESTAMP('2018-06-25', '10:43:21')` from `ts_test_remote`.`tbl_f` t0
 SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT col_d, col_t FROM tbl_f;
 col_d	col_t

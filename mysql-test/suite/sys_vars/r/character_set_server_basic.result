@@ -17,17 +17,17 @@ SELECT @session_start_value;
 latin1
 '#--------------------FN_DYNVARS_009_01------------------#'
 SELECT character_set_server;
-ERROR 42S22: Unknown column 'character_set_server' in 'field list'
+ERROR 42S22: Unknown column 'character_set_server' in 'SELECT'
 SET character_set_server=utf8;
 SELECT @@session.character_set_server;
 @@session.character_set_server
 utf8mb3
 SET session character_set_server=utf8;
 SELECT session character_set_server;
-ERROR 42S22: Unknown column 'session' in 'field list'
+ERROR 42S22: Unknown column 'session' in 'SELECT'
 SET global character_set_server=utf8;
 SELECT global character_set_server;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 SET @@character_set_server = null;
 ERROR 42000: Variable 'character_set_server' can't be set to the value of 'NULL'
 '#--------------------FN_DYNVARS_009_02-------------------------#'
@@ -73,7 +73,7 @@ res
 1
 '#--------------------FN_DYNVARS_009_05-------------------------#'
 SET @@character_set_server = utf8 + latin2;
-ERROR 42S22: Unknown column 'utf8' in 'field list'
+ERROR 42S22: Unknown column 'utf8' in 'SET'
 '#--------------------FN_DYNVARS_009_06-------------------------#'
 SET @@session.character_set_server = big5;
 SELECT @@session.character_set_server;
