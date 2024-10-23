@@ -590,6 +590,15 @@ The following specify which files/extra groups are read (specified before remain
  Verbosity level for the slow log. Any combination of: 
  innodb, query_plan, explain, engine, warnings, full, or
  ALL to set all combinations
+ --log-suppress-repeated-errors=# 
+ Suppress repeated identical error log messages after a
+ specified number of occurrences. Set an integer value
+ representing the maximum number of times an identical
+ error message should be printed in the log before
+ suppressing further occurrences. A non-identical error
+ message will reset the suppression and allow the
+ specified number of occurrences to be printed again. 0
+ disables suppression.
  --log-tc=name       Path to transaction coordinator log (used for
  transactions that affect more than one storage engine,
  when binary log is disabled)
@@ -1777,6 +1786,7 @@ log-slow-query-time 10
 log-slow-rate-limit 1
 log-slow-slave-statements TRUE
 log-slow-verbosity 
+log-suppress-repeated-errors 0
 log-tc tc.log
 log-warnings 2
 long-query-time 10

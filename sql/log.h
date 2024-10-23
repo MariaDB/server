@@ -1259,6 +1259,11 @@ class Log_to_file_event_handler: public Log_event_handler
 {
   MYSQL_QUERY_LOG mysql_log;
   MYSQL_QUERY_LOG mysql_slow_log;
+  struct {
+      char message[1024];
+      uint count;
+      enum loglevel level;
+  } last_message;
   bool is_initialized;
 public:
   Log_to_file_event_handler(): is_initialized(FALSE)
