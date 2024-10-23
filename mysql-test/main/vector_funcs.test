@@ -74,3 +74,8 @@ select vec_fromtext(v) from t;
 drop table t;
 
 select vec_fromtext(0x00000000);
+
+--echo #
+--echo # MDEV-35220 Assertion `!item->null_value' failed upon VEC_TOTEXT call
+--echo #
+select vec_totext(`null`) from (values (null),(0x00000000)) x;

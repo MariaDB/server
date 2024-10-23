@@ -65,11 +65,8 @@ bool Item_func_vec_totext::fix_length_and_dec(THD *thd)
 String *Item_func_vec_totext::val_str_ascii(String *str)
 {
   String *r1= args[0]->val_str();
-  if (args[0]->null_value)
-  {
-    null_value= true;
+  if ((null_value= args[0]->null_value))
     return nullptr;
-  }
 
   // Wrong size returns null
   if (r1->length() % 4)
