@@ -176,3 +176,9 @@ drop table t;
 create table t (v vector(1), key(v)) engine=innodb;
 select v from t where v = vec_fromtext('[1]');
 drop table t;
+
+--echo #
+--echo # MDEV-35130 Assertion fails in trx_t::check_bulk_buffer upon CREATE.. SELECT with vector key
+--echo #
+CREATE TABLE t (pk INT PRIMARY KEY, v VECTOR(5) NOT NULL, VECTOR(v)) ENGINE=InnoDB SELECT 1 AS pk, x'f09baa3ea172763f123def3e0c7fe53e288bf33e' AS v;
+DROP TABLE t;
