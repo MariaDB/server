@@ -4811,14 +4811,19 @@ public:
     return !stmt_arena->is_conventional();
   }
 
+  void register_item_tree_change(Item **place)
+  {
+    /* TODO: check for OOM condition here */
+    if (is_item_tree_change_register_required())
+      nocheck_register_item_tree_change(place, *place, mem_root);
+  }
+
   void change_item_tree(Item **place, Item *new_value)
   {
     DBUG_ENTER("THD::change_item_tree");
     DBUG_PRINT("enter", ("Register: %p (%p) <- %p",
                        *place, place, new_value));
-    /* TODO: check for OOM condition here */
-    if (is_item_tree_change_register_required())
-      nocheck_register_item_tree_change(place, *place, mem_root);
+    register_item_tree_change(place);
     *place= new_value;
     DBUG_VOID_RETURN;
   }
