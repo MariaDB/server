@@ -2234,6 +2234,7 @@ convert_error_code_to_mysql(
 		return(HA_ERR_NO_ACTIVE_RECORD);
 
 	case DB_DEADLOCK:
+	case DB_RECORD_CHANGED:
 		/* Since we rolled back the whole transaction, we must
 		tell it also to MySQL so that MySQL knows to empty the
 		cached binlog for this transaction */
@@ -2242,10 +2243,8 @@ convert_error_code_to_mysql(
 			thd_mark_transaction_to_rollback(thd, 1);
 		}
 
-		return(HA_ERR_LOCK_DEADLOCK);
-
-	case DB_RECORD_CHANGED:
-		return HA_ERR_RECORD_CHANGED;
+		return error == DB_DEADLOCK
+			? HA_ERR_LOCK_DEADLOCK : HA_ERR_RECORD_CHANGED;
 
 	case DB_LOCK_WAIT_TIMEOUT:
 		/* Starting from 5.0.13, we let MySQL just roll back the
