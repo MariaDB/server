@@ -3865,7 +3865,7 @@ static void log_sort_flush_list()
             [](const buf_page_t *lhs, const buf_page_t *rhs) {
               const lsn_t l{lhs->oldest_modification()};
               const lsn_t r{rhs->oldest_modification()};
-              DBUG_ASSERT(l > 2); DBUG_ASSERT(r > 2);
+              DBUG_ASSERT(l == 1 || l > 2); DBUG_ASSERT(r == 1 || r > 2);
               return r < l;
             });
 
@@ -3873,8 +3873,12 @@ static void log_sort_flush_list()
 
   for (size_t i= 0; i < idx; i++)
   {
-    UT_LIST_ADD_LAST(buf_pool.flush_list, list[i]);
-    DBUG_ASSERT(list[i]->oldest_modification() > 2);
+    buf_page_t *b= list[i];
+    const lsn_t lsn{b->oldest_modification()};
+    if (lsn == 1)
+      continue;
+    DBUG_ASSERT(lsn > 2);
+    UT_LIST_ADD_LAST(buf_pool.flush_list, b);
   }
 
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
@@ -4865,7 +4869,6 @@ const byte *recv_dblwr_t::find_page(const page_id_t page_id, lsn_t max_lsn,
   const noexcept
 {
   mysql_mutex_assert_owner(&recv_sys.mutex);
-  ut_ad(recv_sys.scanned_lsn <= max_lsn);
 
   for (byte *page : pages)
   {
