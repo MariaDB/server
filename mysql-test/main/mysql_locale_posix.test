@@ -203,3 +203,17 @@ DROP DATABASE `Ã³`;
 DROP DATABASE `Ăł`;
 DROP DATABASE `цЁ`;
 DROP DATABASE `ó`;
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-22217 Make OS character sets "utf8" and "utf-8" map to MariaDB character set "utf8mb4"
+--echo #
+
+--exec LC_ALL=en_US.utf8 $MYSQL --default-character-set=auto test -e "select * from information_schema.session_variables where variable_name rlike 'character_set_(connection|client|results)' order by variable_name"
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
