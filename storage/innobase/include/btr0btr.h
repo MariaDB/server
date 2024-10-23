@@ -333,7 +333,7 @@ inline void btr_set_min_rec_mark(rec_t *rec, const buf_block_t &block,
   ut_ad(!page_is_leaf(block.page.frame));
   ut_ad(has_prev == page_has_prev(block.page.frame));
 
-  rec-= page_rec_is_comp(rec) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
+  rec-= page_is_comp(block.page.frame) ? REC_NEW_INFO_BITS : REC_OLD_INFO_BITS;
 
   if (block.page.zip.data)
     /* This flag is computed from other contents on a ROW_FORMAT=COMPRESSED
@@ -502,15 +502,15 @@ btr_print_index(
 Checks the size and number of fields in a record based on the definition of
 the index.
 @return TRUE if ok */
-ibool
+bool
 btr_index_rec_validate(
 /*===================*/
-	const rec_t*		rec,		/*!< in: index record */
+	const page_cur_t&	cur,		/*!< in: index record */
 	const dict_index_t*	index,		/*!< in: index */
-	ibool			dump_on_error)	/*!< in: TRUE if the function
+	bool			dump_on_error)	/*!< in: true if the function
 						should print hex dump of record
 						and page on error */
-	MY_ATTRIBUTE((warn_unused_result));
+	noexcept MY_ATTRIBUTE((warn_unused_result));
 /**************************************************************//**
 Checks the consistency of an index tree.
 @return	DB_SUCCESS if ok, error code if not */

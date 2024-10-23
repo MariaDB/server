@@ -2010,7 +2010,7 @@ static
 ulint
 ibuf_get_merge_page_nos_func(
 /*=========================*/
-	const rec_t*	rec,	/*!< in: insert buffer record */
+	const btr_cur_t&cur,	/*!< in: insert buffer record */
 #ifdef UNIV_DEBUG
 	mtr_t*		mtr,	/*!< in: mini-transaction holding rec */
 #endif /* UNIV_DEBUG */
@@ -2032,6 +2032,8 @@ ibuf_get_merge_page_nos_func(
 	ulint	rec_volume;
 	ulint	limit;
 	ulint	n_pages;
+	const rec_t* rec= btr_cur_get_rec(&cur);
+	const page_t* page= btr_cur_get_page(&cur);
 
 	ut_ad(mtr->memo_contains_page_flagged(rec, MTR_MEMO_PAGE_X_FIX
 					      | MTR_MEMO_PAGE_S_FIX));
@@ -2039,7 +2041,7 @@ ibuf_get_merge_page_nos_func(
 
 	*n_stored = 0;
 
-	if (page_rec_is_supremum(rec)) {
+	if (page_rec_is_supremum_low(rec - page)) {
 
 		rec = page_rec_get_prev_const(rec);
 		if (UNIV_UNLIKELY(!rec)) {
@@ -2049,9 +2051,9 @@ corruption:
 		}
 	}
 
-	if (page_rec_is_infimum(rec)) {
-		rec = page_rec_get_next_const(rec);
-		if (!rec || page_rec_is_supremum(rec)) {
+	if (page_rec_is_infimum_low(rec - page)) {
+		rec = page_rec_next_get<false>(page, rec);
+		if (!rec || page_rec_is_supremum_low(rec - page)) {
 			return 0;
 		}
 	}
@@ -2069,7 +2071,8 @@ corruption:
 	'merge area', or the page start or the limit of storeable pages is
 	reached */
 
-	while (!page_rec_is_infimum(rec) && UNIV_LIKELY(n_pages < limit)) {
+	while (!page_rec_is_infimum_low(rec - page)
+	       && UNIV_LIKELY(n_pages < limit)) {
 
 		rec_page_no = ibuf_rec_get_page_no(mtr, rec);
 		rec_space_id = ibuf_rec_get_space(mtr, rec);
@@ -2094,7 +2097,7 @@ corruption:
 		}
 	}
 
-	rec = page_rec_get_next_const(rec);
+	rec = page_rec_next_get<false>(page, rec);
 
 	/* At the loop start there is no prev page; we mark this with a pair
 	of space id, page no (0, 0) for which there can never be entries in
@@ -2106,7 +2109,7 @@ corruption:
 	volume_for_page = 0;
 
 	while (*n_stored < limit && rec) {
-		if (page_rec_is_supremum(rec)) {
+		if (page_rec_is_supremum_low(rec - page)) {
 			/* When no more records available, mark this with
 			another 'impossible' pair of space id, page no */
 			rec_page_no = 1;
@@ -2168,7 +2171,7 @@ corruption:
 		prev_page_no = rec_page_no;
 		prev_space_id = rec_space_id;
 
-		rec = page_rec_get_next_const(rec);
+		rec = page_rec_next_get<false>(page, rec);
 	}
 
 #ifdef UNIV_IBUF_DEBUG
@@ -2434,7 +2437,7 @@ ATTRIBUTE_COLD ulint ibuf_contract()
 	}
 
 	ulint n_pages = 0;
-	sum_sizes = ibuf_get_merge_page_nos(btr_cur_get_rec(&cur), &mtr,
+	sum_sizes = ibuf_get_merge_page_nos(cur, &mtr,
 					    space_ids, page_nos, &n_pages);
 	ibuf_mtr_commit(&mtr);
 
@@ -2726,7 +2729,7 @@ ibuf_get_volume_buffered(
 	}
 
 	rec = btr_pcur_get_rec(pcur);
-	page = page_align(rec);
+	page = btr_pcur_get_page(pcur);
 	ut_ad(page_validate(page, ibuf.index));
 
 	if (page_rec_is_supremum(rec)
@@ -4214,7 +4217,8 @@ loop:
 			dict_index_t*	dummy_index;
 			ibuf_op_t	op = ibuf_rec_get_op_type(&mtr, rec);
 
-			max_trx_id = page_get_max_trx_id(page_align(rec));
+			max_trx_id =
+				page_get_max_trx_id(btr_pcur_get_page(&pcur));
 			page_update_max_trx_id(block,
 					       buf_block_get_page_zip(block),
 					       max_trx_id, &mtr);

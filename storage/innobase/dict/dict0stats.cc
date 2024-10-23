@@ -1312,7 +1312,7 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 		rec = page_rec_get_next(cursor.page_cur.rec);
 		const ulint n_core = index->n_core_fields;
 
-		if (rec && !page_rec_is_supremum(rec)) {
+		if (rec && rec != page_get_supremum_rec(page)) {
 			not_empty_flag = 1;
 			offsets_rec = rec_get_offsets(rec, index, offsets_rec,
 						      n_core,
@@ -1324,10 +1324,11 @@ btr_estimate_number_of_different_key_vals(dict_index_t* index,
 			}
 		}
 
-		while (!page_rec_is_supremum(rec)) {
+		while (rec != page_get_supremum_rec(page)) {
 			ulint	matched_fields;
 			rec_t*	next_rec = page_rec_get_next(rec);
-			if (!next_rec || page_rec_is_supremum(next_rec)) {
+			if (!next_rec
+			    || next_rec == page_get_supremum_rec(page)) {
 				total_external_size +=
 					btr_rec_get_externally_stored_len(
 						rec, offsets_rec);
@@ -1848,14 +1849,12 @@ dict_stats_analyze_index_level(
 		/* If rec and prev_rec are on different pages, then prev_rec
 		must have been copied, because we hold latch only on the page
 		where rec resides. */
-		if (prev_rec != NULL
-		    && page_align(rec) != page_align(prev_rec)) {
+		ut_ad(!prev_rec
+		      || btr_pcur_get_page(&pcur) == page_align(prev_rec)
+		      || prev_rec_is_copied);
 
-			ut_a(prev_rec_is_copied);
-		}
-
-		rec_is_last_on_page =
-			page_rec_is_supremum(page_rec_get_next_const(rec));
+		rec_is_last_on_page = page_rec_get_next_const(rec)
+			== page_get_supremum_rec(btr_pcur_get_page(&pcur));
 
 		/* increment the pages counter at the end of each page */
 		if (rec_is_last_on_page) {
@@ -1872,7 +1871,8 @@ dict_stats_analyze_index_level(
 
 		if (level == 0
 		    && !srv_stats_include_delete_marked
-		    && rec_get_deleted_flag(rec, page_rec_is_comp(rec))) {
+		    && rec_get_deleted_flag(
+			    rec, page_is_comp(btr_pcur_get_page(&pcur)))) {
 			if (rec_is_last_on_page
 			    && !prev_rec_is_copied
 			    && prev_rec != NULL) {
@@ -2037,32 +2037,31 @@ func_exit:
 	mem_heap_free(heap);
 }
 
-
 /************************************************************//**
 Gets the pointer to the next non delete-marked record on the page.
 If all subsequent records are delete-marked, then this function
 will return the supremum record.
 @return pointer to next non delete-marked record or pointer to supremum */
+template<bool comp>
 static
 const rec_t*
-page_rec_get_next_non_del_marked(
-/*=============================*/
-	const rec_t*	rec)	/*!< in: pointer to record */
+page_rec_get_next_non_del_marked(const page_t *page, const rec_t *rec)
 {
-  const page_t *const page= page_align(rec);
+  ut_ad(!!page_is_comp(page) == comp);
+  ut_ad(page_align(rec) == page);
 
-  if (page_is_comp(page))
+  if (comp)
   {
-    for (rec= page_rec_get_next_low(rec, TRUE);
+    for (rec= page_rec_next_get<true>(page, rec);
          rec && rec_get_deleted_flag(rec, TRUE);
-         rec= page_rec_get_next_low(rec, TRUE));
+         rec= page_rec_next_get<true>(page, rec));
     return rec ? rec : page + PAGE_NEW_SUPREMUM;
   }
   else
   {
-    for (rec= page_rec_get_next_low(rec, FALSE);
+    for (rec= page_rec_next_get<false>(page, rec);
          rec && rec_get_deleted_flag(rec, FALSE);
-         rec= page_rec_get_next_low(rec, FALSE));
+         rec= page_rec_next_get<false>(page, rec));
     return rec ? rec : page + PAGE_OLD_SUPREMUM;
   }
 }
@@ -2111,10 +2110,13 @@ dict_stats_scan_page(
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
 	ut_ad(!!n_core == page_is_leaf(page));
-	const rec_t*	(*get_next)(const rec_t*)
+	const rec_t*	(*get_next)(const page_t*, const rec_t*)
 		= !n_core || srv_stats_include_delete_marked
-		? page_rec_get_next_const
-		: page_rec_get_next_non_del_marked;
+		? (page_is_comp(page)
+		   ? page_rec_next_get<true> : page_rec_next_get<false>)
+		: page_is_comp(page)
+		? page_rec_get_next_non_del_marked<true>
+		: page_rec_get_next_non_del_marked<false>;
 
 	const bool	should_count_external_pages = n_external_pages != NULL;
 
@@ -2122,9 +2124,9 @@ dict_stats_scan_page(
 		*n_external_pages = 0;
 	}
 
-	rec = get_next(page_get_infimum_rec(page));
+	rec = get_next(page, page_get_infimum_rec(page));
 
-	if (!rec || page_rec_is_supremum(rec)) {
+	if (!rec || rec == page_get_supremum_rec(page)) {
 		/* the page is empty or contains only delete-marked records */
 		*n_diff = 0;
 		*out_rec = NULL;
@@ -2139,11 +2141,11 @@ dict_stats_scan_page(
 			rec, offsets_rec);
 	}
 
-	next_rec = get_next(rec);
+	next_rec = get_next(page, rec);
 
 	*n_diff = 1;
 
-	while (next_rec && !page_rec_is_supremum(next_rec)) {
+	while (next_rec && next_rec != page_get_supremum_rec(page)) {
 
 		ulint	matched_fields;
 
@@ -2184,7 +2186,7 @@ dict_stats_scan_page(
 				rec, offsets_rec);
 		}
 
-		next_rec = get_next(next_rec);
+		next_rec = get_next(page, next_rec);
 	}
 
 	/* offsets1,offsets2 should have been big enough */
@@ -2246,8 +2248,8 @@ dict_stats_analyze_index_below_cur(
 	rec_offs_set_n_alloc(offsets2, size);
 
 	rec = btr_cur_get_rec(cur);
-	page = page_align(rec);
-	ut_ad(!page_rec_is_leaf(rec));
+	page = btr_cur_get_page(cur);
+	ut_ad(!page_is_leaf(page));
 
 	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,
 				      ULINT_UNDEFINED, &heap);

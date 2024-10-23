@@ -687,7 +687,7 @@ btr_search_update_hash_ref(
 	ut_ad(cursor->flag == BTR_CUR_HASH_FAIL);
 
 	ut_ad(block->page.lock.have_x() || block->page.lock.have_s());
-	ut_ad(page_align(btr_cur_get_rec(cursor)) == block->page.frame);
+	ut_ad(btr_cur_get_page(cursor) == block->page.frame);
 	ut_ad(page_is_leaf(block->page.frame));
 	assert_block_ahi_valid(block);
 
@@ -1281,21 +1281,30 @@ retry:
 	/* Calculate and cache fold values into an array for fast deletion
 	from the hash index */
 
-	rec = page_get_infimum_rec(page);
-	rec = page_rec_get_next_low(rec, page_is_comp(page));
-
+	const auto comp = page_is_comp(page);
 	ulint* folds;
 	ulint n_cached = 0;
 	ulint prev_fold = 0;
 
-	if (rec && rec_is_metadata(rec, *index)) {
-		rec = page_rec_get_next_low(rec, page_is_comp(page));
-		if (!--n_recs) {
-			/* The page only contains the hidden metadata record
-			for instant ALTER TABLE that the adaptive hash index
-			never points to. */
-			folds = nullptr;
-			goto all_deleted;
+	if (UNIV_LIKELY(comp != 0)) {
+		rec = page_rec_next_get<true>(page, page + PAGE_NEW_INFIMUM);
+		if (rec && rec_is_metadata(rec, TRUE)) {
+			rec = page_rec_next_get<true>(page, rec);
+skipped_metadata:
+			if (!--n_recs) {
+				/* The page only contains the hidden
+				metadata record for instant ALTER
+				TABLE that the adaptive hash index
+				never points to. */
+				folds = nullptr;
+				goto all_deleted;
+			}
+		}
+	} else {
+		rec = page_rec_next_get<false>(page, page + PAGE_OLD_INFIMUM);
+		if (rec && rec_is_metadata(rec, FALSE)) {
+			rec = page_rec_next_get<false>(page, rec);
+			goto skipped_metadata;
 		}
 	}
 
@@ -1326,9 +1335,16 @@ retry:
 		folds[n_cached++] = fold;
 
 next_rec:
-		rec = page_rec_get_next_low(rec, page_rec_is_comp(rec));
-		if (!rec || page_rec_is_supremum(rec)) {
-			break;
+		if (comp) {
+			rec = page_rec_next_get<true>(page, rec);
+			if (!rec || rec == page + PAGE_NEW_SUPREMUM) {
+				break;
+			}
+		} else {
+			rec = page_rec_next_get<false>(page, rec);
+			if (!rec || rec == page + PAGE_OLD_SUPREMUM) {
+				break;
+			}
 		}
 		prev_fold = fold;
 	}

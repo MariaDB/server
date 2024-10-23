@@ -3190,7 +3190,7 @@ fts_fetch_doc_from_rec(
 	parser = get_doc->index_cache->index->parser;
 
 	clust_rec = btr_pcur_get_rec(pcur);
-	ut_ad(!page_rec_is_comp(clust_rec)
+	ut_ad(!page_is_comp(btr_pcur_get_page(pcur))
 	      || rec_get_status(clust_rec) == REC_STATUS_ORDINARY);
 
 	for (ulint i = 0; i < index->n_fields; i++) {

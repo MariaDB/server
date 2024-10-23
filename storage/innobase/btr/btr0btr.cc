@@ -2163,7 +2163,7 @@ converging to the left.
 rec_t* btr_page_get_split_rec_to_left(const btr_cur_t* cursor)
 {
 	rec_t* split_rec = btr_cur_get_rec(cursor);
-	const page_t* page = page_align(split_rec);
+	const page_t* page = btr_cur_get_page(cursor);
 
 	if (page_header_get_ptr(page, PAGE_LAST_INSERT)
 	    != page_rec_get_next(split_rec)) {
@@ -2211,7 +2211,7 @@ bool
 btr_page_get_split_rec_to_right(const btr_cur_t* cursor, rec_t** split_rec)
 {
 	rec_t* insert_point = btr_cur_get_rec(cursor);
-	const page_t* page = page_align(insert_point);
+	const page_t* page = btr_cur_get_page(cursor);
 
 	/* We use eager heuristics: if the new insert would be right after
 	the previous insert on the same page, we assume that there is a
@@ -4695,30 +4695,30 @@ btr_index_rec_validate_report(
 		<< " of table " << index->table->name
 		<< ", page " << page_id_t(page_get_space_id(page),
 					  page_get_page_no(page))
-		<< ", at offset " << page_offset(rec);
+		<< ", at offset " << rec - page;
 }
 
 /************************************************************//**
 Checks the size and number of fields in a record based on the definition of
 the index.
 @return TRUE if ok */
-ibool
+bool
 btr_index_rec_validate(
 /*===================*/
-	const rec_t*		rec,		/*!< in: index record */
+	const page_cur_t&	cur,		/*!< in: cursor to index record */
 	const dict_index_t*	index,		/*!< in: index */
-	ibool			dump_on_error)	/*!< in: TRUE if the function
+	bool			dump_on_error)	/*!< in: true if the function
 						should print hex dump of record
 						and page on error */
+	noexcept
 {
 	ulint		len;
-	const page_t*	page;
+	const rec_t*	rec = page_cur_get_rec(&cur);
+	const page_t*	page = cur.block->page.frame;
 	mem_heap_t*	heap	= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets	= offsets_;
 	rec_offs_init(offsets_);
-
-	page = page_align(rec);
 
 	ut_ad(index->n_core_fields);
 
@@ -4900,7 +4900,7 @@ btr_index_page_validate(
 			return true;
 		}
 
-		if (!btr_index_rec_validate(cur.rec, index, TRUE)) {
+		if (!btr_index_rec_validate(cur, index, TRUE)) {
 			break;
 		}
 
