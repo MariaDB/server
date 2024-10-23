@@ -304,3 +304,15 @@ test.t	optimize	note	Table does not support optimize, doing recreate + analyze i
 test.t	optimize	status	OK
 insert into t select * from t;
 drop table t;
+#
+# MDEV-35230 ASAN errors upon reading from joined temptable views with vector type
+#
+create table t (f vector(1));
+insert into t values (0x30303030),(0x31313131);
+create algorithm=temptable view v as select * from t;
+select v1.f from v v1 natural join v v2;
+f
+0000
+1111
+drop view v;
+drop table t;
