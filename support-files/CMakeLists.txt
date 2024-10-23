@@ -61,15 +61,16 @@ IF(WITH_WSREP AND NOT WITHOUT_SERVER)
   CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep.cnf.sh
                  ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension} @ONLY)
   INSTALL(FILES ${CMAKE_CURRENT_BINARY_DIR}/wsrep.${ini_file_extension}
-          DESTINATION ${inst_location} COMPONENT IniFiles)
+          DESTINATION ${inst_location} COMPONENT Server_Galera)
+  CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/wsrep_notify.sh
+                 ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify @ONLY )
+  INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/wsrep_notify
+          DESTINATION ${inst_location} COMPONENT Server_Galera)
 ENDIF()
 
 IF(UNIX AND NOT WITHOUT_SERVER)
   SET(prefix ${CMAKE_INSTALL_PREFIX})
   SET(SCRIPTS mysqld_multi.server mariadb.logrotate binary-configure mini-benchmark)
-  IF(WITH_WSREP)
-    SET(SCRIPTS ${SCRIPTS} wsrep_notify)
-  ENDIF()
   FOREACH(script ${SCRIPTS})
     CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${script}.sh
                    ${CMAKE_CURRENT_BINARY_DIR}/${script} @ONLY )
@@ -151,7 +152,7 @@ IF(UNIX AND NOT WITHOUT_SERVER)
 
     IF(WITH_WSREP)
       INSTALL(FILES use_galera_new_cluster.conf
-              DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
+              DESTINATION ${inst_location}/systemd COMPONENT Server_Galera)
     ENDIF()
     INSTALL(FILES
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
