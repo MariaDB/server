@@ -292,3 +292,15 @@ d	count(*)
 1	2
 2	1
 drop table t;
+#
+# MDEV-35219 Unexpected ER_DUP_KEY after OPTIMIZE on MyISAM table with vector key
+#
+create table t (v vector(1) not null default 0x30303030, vector(v)) engine=myisam;
+insert into t () values (),(),(),();
+delete from t limit 1;
+optimize table t;
+Table	Op	Msg_type	Msg_text
+test.t	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t	optimize	status	OK
+insert into t select * from t;
+drop table t;
