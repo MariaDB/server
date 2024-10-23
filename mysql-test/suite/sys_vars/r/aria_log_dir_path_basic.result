@@ -33,4 +33,4 @@ SELECT COUNT(@@GLOBAL.aria_log_dir_path);
 COUNT(@@GLOBAL.aria_log_dir_path)
 1
 SELECT aria_log_dir_path = @@SESSION.aria_log_dir_path;
-ERROR 42S22: Unknown column 'aria_log_dir_path' in 'field list'
+ERROR 42S22: Unknown column 'aria_log_dir_path' in 'SELECT'

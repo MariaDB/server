@@ -169,11 +169,11 @@ SELECT @@query_alloc_block_size;
 @@query_alloc_block_size
 1024
 SELECT local.query_alloc_block_size;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.query_alloc_block_size;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT query_alloc_block_size = @@session.query_alloc_block_size;
-ERROR 42S22: Unknown column 'query_alloc_block_size' in 'field list'
+ERROR 42S22: Unknown column 'query_alloc_block_size' in 'SELECT'
 SET @@global.query_alloc_block_size = @start_global_value;
 SELECT @@global.query_alloc_block_size;
 @@global.query_alloc_block_size

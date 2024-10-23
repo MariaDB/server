@@ -1609,8 +1609,8 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     DBUG_RETURN(true);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
-  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
-                                *fields, MARK_COLUMNS_WRITE, 0, 0))
+  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), *fields,
+                                MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);
 
   // Check if we have a view in the list ...

@@ -2679,13 +2679,19 @@ enum class THD_WHERE
   DEFAULT_WHERE,
   ON_CLAUSE,
   WHERE_CLAUSE,
-  CONVERT_CHARSET_CONST,
+  SET_LIST,
+  INSERT_LIST,
+  VALUES_CLAUSE,
+  UPDATE_CLAUSE,
+  RETURNING,
   FOR_SYSTEM_TIME,
   ORDER_CLAUSE,
   HAVING_CLAUSE,
   GROUP_STATEMENT,
   PROCEDURE_LIST,
   CHECK_OPTION,
+  DO_STATEMENT,
+  HANDLER_STATEMENT,
   USE_WHERE_STRING, // ugh, a compromise for vcol...
 };
 
@@ -2819,7 +2825,7 @@ public:
     A pointer to the stack frame of handle_one_connection(),
     which is called first in the thread for handling a client
   */
-  char	  *thread_stack;
+  void *thread_stack;
 
   /**
     Currently selected catalog.
@@ -3909,6 +3915,10 @@ public:
   void free_connection();
   void reset_for_reuse();
   void store_globals();
+  void reset_stack()
+  {
+    thread_stack= 0;
+  }
   void reset_globals();
   bool trace_started()
   {
@@ -5793,10 +5803,18 @@ public:
     lex= backup_lex;
   }
 
-  bool should_collect_handler_stats() const
+  bool should_collect_handler_stats()
   {
-    return (variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
-           lex->analyze_stmt;
+    /*
+      We update handler_stats.active to ensure that we have the same
+      value across the whole statement.
+      This function is only called from TABLE::init() so the value will
+      be the same for the whole statement.
+    */
+    handler_stats.active=
+      ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE) ||
+       lex->analyze_stmt);
+    return handler_stats.active;
   }
 
   /* Return true if we should create a note when an unusable key is found */
@@ -6537,6 +6555,7 @@ public:
     aggregate functions as normal functions.
   */
   bool precomputed_group_by;
+  bool group_concat;
   bool force_copy_fields;
   /*
     If TRUE, create_tmp_field called from create_tmp_table will convert
@@ -6555,7 +6574,7 @@ public:
      group_length(0), group_null_parts(0),
      using_outer_summary_function(0),
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
-     precomputed_group_by(0),
+     precomputed_group_by(0), group_concat(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
   {
     init();

@@ -823,7 +823,7 @@ processed:
       bool success;
       handle= os_file_create(innodb_data_file_key, filename,
                              OS_FILE_CREATE_SILENT,
-                             OS_FILE_AIO, OS_DATA_FILE, false, &success);
+                             OS_DATA_FILE, false, &success);
     }
     space->add(filename, handle, size, false, false);
     space->recv_size= it->second.size;
@@ -1613,7 +1613,7 @@ dberr_t recv_sys_t::find_checkpoint()
     bool success;
     os_file_t file{os_file_create_func(path.c_str(),
                                        OS_FILE_OPEN,
-                                       OS_FILE_NORMAL, OS_LOG_FILE,
+                                       OS_LOG_FILE,
                                        srv_read_only_mode, &success)};
     if (file == OS_FILE_CLOSED)
       return DB_ERROR;
@@ -1643,7 +1643,7 @@ dberr_t recv_sys_t::find_checkpoint()
       path= get_log_file_path(LOG_FILE_NAME_PREFIX).append(std::to_string(i));
       file= os_file_create_func(path.c_str(),
                                 OS_FILE_OPEN_SILENT,
-                                OS_FILE_NORMAL, OS_LOG_FILE, true, &success);
+                                OS_LOG_FILE, true, &success);
       if (file == OS_FILE_CLOSED)
         break;
       const os_offset_t sz{os_file_get_size(file)};

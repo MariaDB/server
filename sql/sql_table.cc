@@ -2857,7 +2857,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
+  select_field_pos= get_select_field_pos(alter_info, select_field_count,
+                                         create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
@@ -2896,7 +2897,16 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
 	  redefinition if we are changing a field in the SELECT part
+
+          The cases are:
+
+          field_no < select_field_pos: both field and dup are table fields;
+          dup_no >= select_field_pos: both field and dup are select fields or
+            field is implicit systrem field and dup is select field.
+
+          We are not allowed to put row_start/row_end into SELECT expression.
 	*/
+        DBUG_ASSERT(dup_no < field_no);
 	if (field_no < select_field_pos || dup_no >= select_field_pos ||
             dup_field->invisible >= INVISIBLE_SYSTEM)
 	{
@@ -2955,7 +2965,11 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
-    if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
+    extend_option_list(thd, create_info->db_type, !sql_field->field,
+                       &sql_field->option_list,
+                       create_info->db_type->field_options,
+                       thd->stmt_arena->mem_root);
+    if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
                           thd->mem_root))
@@ -3229,7 +3243,10 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
+    extend_option_list(thd, create_info->db_type, !key->old,
+                  &key_info->option_list, create_info->db_type->index_options,
+                  thd->stmt_arena->mem_root);
+    if (parse_option_list(thd, &key_info->option_struct,
                           &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
@@ -3823,10 +3840,13 @@ without_overlaps_err:
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
                         ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
-  if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
-                          &create_info->option_list,
-                          file->partition_ht()->table_options, FALSE,
-                          thd->mem_root))
+  extend_option_list(thd, file->partition_ht(),
+              !thd->lex->create_like() && create_table_mode > C_ALTER_TABLE,
+              &create_info->option_list, file->partition_ht()->table_options,
+              thd->stmt_arena->mem_root);
+  if (parse_option_list(thd, &create_info->option_struct,
+                    &create_info->option_list,
+                    file->partition_ht()->table_options, FALSE, thd->mem_root))
       DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE_IF("key",
@@ -12921,8 +12941,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;

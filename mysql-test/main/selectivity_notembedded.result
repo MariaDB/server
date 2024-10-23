@@ -234,26 +234,28 @@ index (key1, pk),
 primary key (pk)
 );
 insert into t1
-select 
+select
 seq, FLOOR(seq/100), 'filler'
-from 
+from
 seq_1_to_1000;
 analyze table t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	Table is already up to date
 set optimizer_trace=1;
-explain select * from t1 
+explain select * from t1
 where
 pk in (1,2,3,4,5) and
 key1 <= 4;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	PRIMARY,key1	PRIMARY	4	NULL	5	Using index condition; Using where
+create temporary table opt_trace as
+select * from information_schema.optimizer_trace;
 # 11.0+ will not attempt to use selectivity(key1): 
-select 
+select
 json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
-from 
-information_schema.optimizer_trace;
+from
+opt_trace;
 JS
 [
     [
@@ -264,10 +266,10 @@ JS
     ]
 ]
 # Must not include 1.79...e308 as cost:
-select 
+select
 json_detailed(json_extract(trace,'$**.best_access_path')) as JS
-from 
-information_schema.optimizer_trace;
+from
+opt_trace;
 JS
 [
     {
@@ -298,6 +300,7 @@ JS
         }
     }
 ]
+drop table opt_trace;
 drop table t1;
 #
 # Clean up

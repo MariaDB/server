@@ -560,7 +560,7 @@ void log_t::set_buffered(bool buffered)
     log_buffered= buffered;
     bool success;
     log.m_file= os_file_create_func(path.c_str(),
-                                    OS_FILE_OPEN, OS_FILE_NORMAL, OS_LOG_FILE,
+                                    OS_FILE_OPEN, OS_LOG_FILE,
                                     false, &success);
     ut_a(log.m_file != OS_FILE_CLOSED);
     log_file_message();
@@ -584,7 +584,7 @@ void log_t::set_write_through(bool write_through)
     log_write_through= write_through;
     bool success;
     log.m_file= os_file_create_func(path.c_str(),
-                                    OS_FILE_OPEN, OS_FILE_NORMAL, OS_LOG_FILE,
+                                    OS_FILE_OPEN, OS_LOG_FILE,
                                     false, &success);
     ut_a(log.m_file != OS_FILE_CLOSED);
     sql_print_information(log_write_through
@@ -625,7 +625,7 @@ log_t::resize_start_status log_t::resize_start(os_offset_t size) noexcept
     resize_target= 0;
     resize_log.m_file=
       os_file_create_func(path.c_str(), OS_FILE_CREATE,
-                          OS_FILE_NORMAL, OS_LOG_FILE, false, &success);
+                          OS_LOG_FILE, false, &success);
     if (success)
     {
       ut_ad(!(size_t(file_size) & (write_size - 1)));

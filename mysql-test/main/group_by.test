@@ -2152,6 +2152,21 @@ drop table t20, t21, t22;
 --echo #
 
 --echo #
+--echo # MDEV-29351 SIGSEGV when doing forward reference of item in select list
+--echo #
+
+CREATE TABLE t1 (a INT);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+--error ER_BAD_FIELD_ERROR
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
+
+--echo #
 --echo # Test new group_min_max optimization
 --echo #
 

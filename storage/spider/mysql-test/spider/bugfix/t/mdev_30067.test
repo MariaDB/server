@@ -1,0 +1,40 @@
+--disable_query_log
+--disable_result_log
+--source ../../t/test_init.inc
+--enable_result_log
+--enable_query_log
+
+set spider_same_server_link= 1;
+evalp CREATE SERVER srv FOREIGN DATA WRAPPER mysql
+OPTIONS (SOCKET "$MASTER_1_MYSOCK", DATABASE 'test',user 'root');
+
+# simplified case; triggering DBUG_ASSERT(!error)
+CREATE TABLE t (c INT);
+INSERT INTO t VALUES (13);
+CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' PARTITION BY LIST (c) (PARTITION p VALUES IN (42));
+DELETE FROM a1 USING t1 AS a1;
+drop table t, t1;
+
+# original case; triggering DBUG_ASSERT(!error)
+CREATE TABLE t (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0,1,0),(1,0,0),(2,0,0);
+CREATE TABLE t1 (c INT KEY,c1 BLOB,c2 TEXT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"';
+ALTER TABLE t1 ENGINE=Spider PARTITION BY LIST (c) (PARTITION p VALUES IN (1,2));
+DELETE FROM a2,a1 USING t1 AS a1 JOIN t1 AS a2,t1 AS a3;
+drop table t, t1;
+
+# triggering DBUG_ASSERT(part_id == m_last_part)
+CREATE TABLE t (c INT);
+CREATE TABLE t1 (c INT) ENGINE=Spider COMMENT='WRAPPER "mysql",srv "srv",TABLE "t"' PARTITION BY LIST (c) (PARTITION p1 VALUES IN (42), PARTITION p2 VALUES IN (13));
+INSERT INTO t1 VALUES (13);
+ALTER TABLE t1 PARTITION BY LIST (c) (PARTITION p1 VALUES IN (13), PARTITION p2 VALUES IN (87));
+DELETE FROM a1 USING t1 AS a1;
+drop table t, t1;
+
+drop server srv;
+
+--disable_query_log
+--disable_result_log
+--source ../../t/test_deinit.inc
+--enable_result_log
+--enable_query_log

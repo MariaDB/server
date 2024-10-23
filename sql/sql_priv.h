@@ -272,6 +272,9 @@
                                   OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING | \
                                   OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE |\
                                   OPTIMIZER_SWITCH_HASH_JOIN_CARDINALITY)
+
+#define OPTIMIZER_ADJ_DEFAULT (OPTIMIZER_ADJ_FIX_REUSE_RANGE_FOR_REF | \
+                               OPTIMIZER_ADJ_FIX_CARD_MULT)
 /*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should

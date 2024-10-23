@@ -856,6 +856,7 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
         int    hlen = 0;
         bool    q = Qot && Quoted > 0;
         PCOLDEF cdp;
+        char *pos, *end;
 
         // Estimate the length of the header list
         for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext()) {
@@ -871,23 +872,26 @@ bool TDBCSV::SkipHeader(PGLOBAL g)
 
         // File is empty, write a header record
         memset(To_Line, 0, Lrecl);
+        pos= To_Line;
+        end= To_Line + Lrecl-1;
 
         // The column order in the file is given by the offset value
         for (i = 1; i <= n; i++)
           for (cdp = To_Def->GetCols(); cdp; cdp = cdp->GetNext())
             if (cdp->GetOffset() == i) {
-              if (q)
-                To_Line[strlen(To_Line)] = Qot;
+              if (q && pos < end)
+                *pos++= Qot;
 
-              safe_strcat(To_Line, Lrecl, cdp->GetName());
+              pos= strnmov(pos, cdp->GetName(), (size_t) (end-pos));
 
-              if (q)
-                To_Line[strlen(To_Line)] = Qot;
+              if (q && pos < end)
+                *pos++= Qot;
 
-              if (i < n)
-                To_Line[strlen(To_Line)] = Sep;
+              if (i < n && pos < end)
+                *pos++= Sep;
 
               } // endif Offset
+        *pos= 0;
 
         rc = (Txfp->WriteBuffer(g) == RC_FX);
         } // endif !FileLength

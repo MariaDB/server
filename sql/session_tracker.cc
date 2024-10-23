@@ -443,6 +443,7 @@ bool Session_sysvars_tracker::vars_list::store(THD *thd, String *buf)
     if (!*node->test_load)
     {
       mysql_mutex_unlock(&LOCK_plugin);
+      mysql_mutex_unlock(&LOCK_global_system_variables);
       continue;
     }
     sys_var *svar= node->m_svar;

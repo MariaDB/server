@@ -3760,7 +3760,6 @@ void* start_wsrep_THD(void *arg)
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
-  thd->thread_stack= (char*) &thd;
   wsrep_assign_from_threadvars(thd);
   wsrep_store_threadvars(thd);
 

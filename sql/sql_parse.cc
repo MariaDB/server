@@ -989,7 +989,6 @@ int bootstrap(MYSQL_FILE *file)
 #endif
 
   /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
@@ -7359,7 +7358,9 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
+  DBUG_ASSERT(thd->thread_stack);
+  if ((stack_used= available_stack_size(thd->thread_stack,
+                                        my_get_stack_pointer(&stack_used))) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;
@@ -8947,7 +8948,11 @@ Item *normalize_cond(THD *thd, Item *cond)
     Item::Type type= cond->type();
     if (type == Item::FIELD_ITEM || type == Item::REF_ITEM)
     {
+      item_base_t is_cond_flag= cond->base_flags & item_base_t::IS_COND;
+      cond->base_flags&= ~item_base_t::IS_COND;
       cond= new (thd->mem_root) Item_func_ne(thd, cond, new (thd->mem_root) Item_int(thd, 0));
+      if (cond)
+        cond->base_flags|= is_cond_flag;
     }
     else
     {

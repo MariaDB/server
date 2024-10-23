@@ -4284,7 +4284,7 @@ int subselect_uniquesubquery_engine::scan_table()
       }
     }
 
-    if (!cond || cond->val_int())
+    if (!cond || cond->val_bool())
     {
       empty_result_set= FALSE;
       break;
@@ -4594,7 +4594,7 @@ int subselect_indexsubquery_engine::exec()
       table->null_row= 0;
       if (!table->status)
       {
-        if ((!cond || cond->val_int()) && (!having || having->val_int()))
+        if ((!cond || cond->val_bool()) && (!having || having->val_bool()))
         {
           empty_result_set= FALSE;
           if (null_finding)
