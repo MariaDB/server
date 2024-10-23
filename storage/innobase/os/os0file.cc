@@ -1511,10 +1511,7 @@ bool os_file_close_func(os_file_t file)
 os_offset_t
 os_file_get_size(os_file_t file)
 {
-  struct stat statbuf;
-  if (fstat(file, &statbuf)) return os_offset_t(-1);
-  MSAN_STAT_WORKAROUND(&statbuf);
-  return statbuf.st_size;
+  return lseek(file, 0, SEEK_END);
 }
 
 /** Gets a file size.
@@ -3213,8 +3210,6 @@ os_file_set_size(
 	sparse and normal files. */
 	return os_file_change_size_win32(name, file, size);
 #else
-	struct stat statbuf;
-
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3228,11 +3223,10 @@ os_file_set_size(
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		if (fstat(file, &statbuf)) {
+		os_offset_t current_size = os_file_get_size(file);
+		if (current_size == os_offset_t(-1)) {
 			err = errno;
 		} else {
-			MSAN_STAT_WORKAROUND(&statbuf);
-			os_offset_t current_size = statbuf.st_size;
 			if (current_size >= size) {
 				return true;
 			}
@@ -3272,8 +3266,8 @@ os_file_set_size(
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
+	os_offset_t current_size = os_file_get_size(file);
 #ifdef _WIN32
-	os_offset_t	current_size = os_file_get_size(file);
 	FILE_STORAGE_INFO info;
 	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
 					 sizeof info)) {
@@ -3283,10 +3277,10 @@ os_file_set_size(
 		}
 	}
 #else
-	if (fstat(file, &statbuf)) {
+	if (current_size == os_offset_t(-1)) {
 		return false;
 	}
-	os_offset_t current_size = statbuf.st_size & ~4095ULL;
+	current_size &= ~4095ULL;
 #endif
 	if (current_size >= size) {
 		return true;
