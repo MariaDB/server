@@ -88,3 +88,26 @@ xa prepare 'x';
 ERROR HY000: Got error 138 "Unsupported extension used for table" from storage engine mhnsw
 connection con1;
 drop table t1;
+#
+# MDEV-35223 REPAIR does not fix MyISAM table with vector key after crash recovery
+#
+call mtr.add_suppression('t#i#00'' is marked as crashed and should be repaired');
+create table t (v vector(1) not null, vector(v)) engine=myisam;
+insert into t (v) values (0x30303030),(0x31313131);
+# restart
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	warning	1 client is using or hasn't closed the table properly
+test.t	check	Error	Table './test/t#i#00' is marked as crashed and should be repaired
+test.t	check	status	Operation failed
+repair table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	repair	note	Table does not support optimize, doing recreate + analyze instead
+test.t	repair	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select v from t order by vec_distance_euclidean(0x323233232,v) limit 1;
+v
+0000
+drop table t;
