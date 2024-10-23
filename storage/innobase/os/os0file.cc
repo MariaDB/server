@@ -1511,10 +1511,7 @@ bool os_file_close_func(os_file_t file)
 os_offset_t
 os_file_get_size(os_file_t file)
 {
-  struct stat statbuf;
-  if (fstat(file, &statbuf)) return os_offset_t(-1);
-  MSAN_STAT_WORKAROUND(&statbuf);
-  return statbuf.st_size;
+  return lseek(file, 0, SEEK_END);
 }
 
 /** Gets a file size.
@@ -3213,8 +3210,6 @@ os_file_set_size(
 	sparse and normal files. */
 	return os_file_change_size_win32(name, file, size);
 #else
-	struct stat statbuf;
-
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3225,31 +3220,29 @@ os_file_set_size(
 		return(success);
 	}
 
+	os_offset_t current_size;
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		if (fstat(file, &statbuf)) {
-			err = errno;
-		} else {
-			MSAN_STAT_WORKAROUND(&statbuf);
-			os_offset_t current_size = statbuf.st_size;
-			if (current_size >= size) {
-				return true;
-			}
-			current_size &= ~4095ULL;
-#  ifdef __linux__
-			if (!fallocate(file, 0, current_size,
-				       size - current_size)) {
-				err = 0;
-				break;
-			}
-
-			err = errno;
-#  else
-			err = posix_fallocate(file, current_size,
-					      size - current_size);
-#  endif
+		current_size = os_file_get_size(file);
+		if (current_size == os_offset_t(-1)) {
+			return false;
 		}
+		else if (current_size >= size) {
+			return true;
+		}
+		current_size &= ~4095ULL;
+#  ifdef __linux__
+		if (!fallocate(file, 0, current_size,
+			       size - current_size)) {
+			err = 0;
+			break;
+		}
+		err = errno;
+#  else
+		err = posix_fallocate(file, current_size,
+				      size - current_size);
+#  endif
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -3270,24 +3263,11 @@ os_file_set_size(
 		break;
 	}
 # endif /* HAVE_POSIX_ALLOCATE */
-#endif /* _WIN32*/
-
-#ifdef _WIN32
-	os_offset_t	current_size = os_file_get_size(file);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
-					 sizeof info)) {
-		if (info.LogicalBytesPerSector) {
-			current_size &= ~os_offset_t(info.LogicalBytesPerSector
-						     - 1);
-		}
-	}
-#else
-	if (fstat(file, &statbuf)) {
+	current_size = os_file_get_size(file);
+	if (current_size == os_offset_t(-1)) {
 		return false;
 	}
-	os_offset_t current_size = statbuf.st_size & ~4095ULL;
-#endif
+	current_size &= ~4095ULL;
 	if (current_size >= size) {
 		return true;
 	}
@@ -3325,6 +3305,7 @@ os_file_set_size(
 	aligned_free(buf);
 
 	return(current_size >= size && os_file_flush(file));
+#endif /* _WIN32*/
 }
 
 /** Truncate a file to a specified size in bytes.
@@ -4098,11 +4079,7 @@ static bool is_file_on_ssd(HANDLE handle, char *file_path)
 
 /** Determine some file metadata when creating or reading the file.
 @param	file	the file that is being created, or OS_FILE_CLOSED */
-void fil_node_t::find_metadata(os_file_t file
-#ifndef _WIN32
-			       , struct stat* statbuf
-#endif
-			       )
+void fil_node_t::find_metadata(os_file_t file)
 {
 	if (file == OS_FILE_CLOSED) {
 		file = handle;
@@ -4139,8 +4116,8 @@ void fil_node_t::find_metadata(os_file_t file
 		block_size = 512;
 	}
 #else
-	struct stat sbuf;
-	if (!statbuf && !fstat(file, &sbuf)) {
+	struct stat sbuf, *statbuf = nullptr;
+	if (!fstat(file, &sbuf)) {
 		MSAN_STAT_WORKAROUND(&sbuf);
 		statbuf = &sbuf;
 	}
@@ -4180,17 +4157,10 @@ bool fil_node_t::read_page0()
 {
 	ut_ad(mutex_own(&fil_system.mutex));
 	const unsigned psize = space->physical_size();
-#ifndef _WIN32
-	struct stat statbuf;
-	if (fstat(handle, &statbuf)) {
+	os_offset_t size_bytes = os_file_get_size(handle);
+	if(size_bytes == (os_offset_t) -1) {
 		return false;
 	}
-	MSAN_STAT_WORKAROUND(&statbuf);
-	os_offset_t size_bytes = statbuf.st_size;
-#else
-	os_offset_t size_bytes = os_file_get_size(handle);
-	ut_a(size_bytes != (os_offset_t) -1);
-#endif
 	const uint32_t min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
 
 	if (size_bytes < min_size) {
@@ -4258,11 +4228,8 @@ invalid:
 		return false;
 	}
 
-#ifdef __linux__
-	find_metadata(handle, &statbuf);
-#else
 	find_metadata();
-#endif
+
 	/* Truncate the size to a multiple of extent size. */
 	ulint	mask = psize * FSP_EXTENT_SIZE - 1;
 
