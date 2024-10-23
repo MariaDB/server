@@ -5366,6 +5366,14 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   }
   if (unlikely((error= check(thd, check_opt))))
     return error;
+  for (uint i= table->s->keys; i < table->s->total_keys; i++)
+  {
+    DBUG_ASSERT(table->s->hlindexes() == 1);
+    if (table->hlindex_open(i))
+      return HA_ADMIN_FAILED;
+    if ((error= table->hlindex->file->check(thd, check_opt)))
+      return error;
+  }
   /* Skip updating frm version if not main handler. */
   if (table->file != this || opt_readonly)
     return error;
@@ -5424,7 +5432,7 @@ int handler::ha_repair(THD* thd, HA_CHECK_OPT* check_opt)
   if (result == HA_ADMIN_OK && !opt_readonly &&
       table->file->ha_check_for_upgrade(check_opt) == HA_ADMIN_OK)
     result= update_frm_version(table);
-  return result;
+  return table->s->hlindexes() ? HA_ADMIN_TRY_ALTER : result;
 }
 
 

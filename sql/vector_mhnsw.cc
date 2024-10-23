@@ -1287,12 +1287,18 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   {
     if (int err= search_layer(ctx, graph, target, NEAREST,
                               1, cur_layer, &candidates, false))
+    {
+      graph->file->ha_rnd_end();
       return err;
+    }
   }
 
   if (int err= search_layer(ctx, graph, target, NEAREST,
                             static_cast<uint>(limit), 0, &candidates, false))
+  {
+    graph->file->ha_rnd_end();
     return err;
+  }
 
   auto result= new (thd->mem_root) Search_context(&candidates, ctx, target);
   graph->context= result;
