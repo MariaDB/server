@@ -90,15 +90,6 @@ source include/wait_for_status_var.inc;
 set @@global.binlog_commit_wait_count=@save_bgc_count;
 set @@global.binlog_commit_wait_usec=@save_bgc_usec;
 set @@global.debug_dbug=@save_debug_dbug;
-set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
-set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
-
---connection slave
---source include/stop_slave.inc
-set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
---source include/start_slave.inc
-
---connection master
 drop table t1, t2, t3;
 --sync_slave_with_master
 
@@ -215,5 +206,12 @@ drop table tn;
 set @@global.rpl_semi_sync_master_wait_point= @old_master_wait_point;
 set @@global.rpl_semi_sync_master_wait_no_slave= @old_master_wait_no_slave;
 set @@global.debug_dbug=@save_debug_dbug;
+set @@global.rpl_semi_sync_master_enabled= @save_semi_sync_master_enabled;
+set @@global.rpl_semi_sync_master_wait_point= @save_semi_sync_wp;
+
+--connection slave
+--source include/stop_slave.inc
+set @@global.rpl_semi_sync_slave_enabled= @save_semi_sync_slave_enabled;
+--source include/start_slave.inc
 
 --source include/rpl_end.inc
