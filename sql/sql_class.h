@@ -2921,6 +2921,17 @@ public:
 
   /* Needed by MariaDB semi sync replication */
   Trans_binlog_info *semisync_info;
+
+#ifndef DBUG_OFF
+  /*
+    If Active_tranx is missing an entry for a transaction which is planning to
+    await an ACK, this ensures that the reason is because semi-sync was turned
+    off then on in-between the binlogging of the transaction, and before it had
+    started waiting for the ACK.
+  */
+  ulong expected_semi_sync_offs;
+#endif
+
   /* If this is a semisync slave connection. */
   bool semi_sync_slave;
   ulonglong client_capabilities;  /* What the client supports */
@@ -7593,6 +7604,11 @@ public:
   DDL statement that may be subject to error filtering.
 */
 #define CF_WSREP_MAY_IGNORE_ERRORS (1U << 24)
+/**
+   Basic DML statements that create writeset.
+*/
+#define CF_WSREP_BASIC_DML (1u << 25)
+
 #endif /* WITH_WSREP */
 
 
