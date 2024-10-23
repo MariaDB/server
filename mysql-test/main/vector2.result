@@ -141,6 +141,9 @@ execute stmt;
 Warnings:
 Note	1091	Can't DROP INDEX `v`; check that it exists
 execute stmt;
+prepare stmt from 'alter table t drop index if exists v, add vector (v)';
+execute stmt;
+execute stmt;
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
