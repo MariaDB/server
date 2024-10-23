@@ -1463,8 +1463,8 @@ static const MY_CSET_OS_NAME charsets[] =
 
   {"US-ASCII",       "latin1",   my_cs_approx},
 
-  {"utf8",           "utf8",     my_cs_exact},
-  {"utf-8",          "utf8",     my_cs_exact},
+  {"utf8",           "utf8mb4",  my_cs_exact},
+  {"utf-8",          "utf8mb4",  my_cs_exact},
 #endif
   {NULL,             NULL,       0}
 };

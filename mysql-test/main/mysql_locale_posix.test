@@ -203,3 +203,20 @@ DROP DATABASE `Ã³`;
 DROP DATABASE `Ăł`;
 DROP DATABASE `цЁ`;
 DROP DATABASE `ó`;
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-22217 Make OS character sets "utf8" and "utf-8" map to MariaDB character set "utf8mb4"
+--echo #
+
+--exec LC_ALL=en_US.utf8 $MYSQL --default-character-set=auto test -e "SELECT @@character_set_client"
+--exec LC_ALL=en_US.utf8 $MYSQL --default-character-set=auto test -e "SELECT @@character_set_connection"
+--exec LC_ALL=en_US.utf8 $MYSQL --default-character-set=auto test -e "SELECT @@character_set_results"
+
+
+--echo #
+--echo # End of 11.8 tests
+--echo #
