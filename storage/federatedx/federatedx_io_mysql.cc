@@ -75,7 +75,8 @@ public:
   federatedx_io_mysql(FEDERATEDX_SERVER *);
   ~federatedx_io_mysql() override;
 
-  int simple_query(const char *fmt, ...);
+  // 1st arg is `federatedx_io_mysql* this`
+  int simple_query(const char *fmt, ...) ATTRIBUTE_FORMAT(printf, 2, 3);
   int query(const char *buffer, size_t length) override;
   FEDERATEDX_IO_RESULT *store_result() override;
 

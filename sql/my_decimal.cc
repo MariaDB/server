@@ -59,7 +59,7 @@ int decimal_operation_results(int result, const char *value, const char *type)
 			value, type);
     break;
   case E_DEC_DIV_ZERO:
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_DIVISION_BY_ZERO, ER_THD(thd, ER_DIVISION_BY_ZERO));
     break;
   case E_DEC_BAD_NUM:

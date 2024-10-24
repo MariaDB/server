@@ -722,9 +722,11 @@ extern FILE *my_fopen(const char *FileName,int Flags,myf MyFlags);
 extern FILE *my_fdopen(File Filedes,const char *name, int Flags,myf MyFlags);
 extern FILE *my_freopen(const char *path, const char *mode, FILE *stream);
 extern int my_fclose(FILE *fd,myf MyFlags);
-extern int my_vfprintf(FILE *stream, const char* format, va_list args);
+extern int my_vfprintf(FILE *stream, const char* format, va_list args)
+  ATTRIBUTE_FORMAT(printf, 2, 0);
 extern const char* my_strerror(char *buf, size_t len, int nr);
-extern int my_fprintf(FILE *stream, const char* format, ...);
+extern int my_fprintf(FILE *stream, const char* format, ...)
+  ATTRIBUTE_FORMAT(printf, 2, 3);
 extern File my_fileno(FILE *fd);
 extern int my_chsize(File fd,my_off_t newlength, int filler, myf MyFlags);
 extern int my_chmod(const char *name, mode_t mode, myf my_flags);

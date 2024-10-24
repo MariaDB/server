@@ -173,6 +173,7 @@ static void mi_check_print(HA_CHECK *param, const LEX_CSTRING* msg_type,
 
 // collect errors printed by mi_check routines
 
+ATTRIBUTE_FORMAT(printf, 3, 0)
 static void mi_check_print_msg(HA_CHECK *param,	const LEX_CSTRING *msg_type,
 			       const char *fmt, va_list args)
 {
@@ -1507,7 +1508,7 @@ int ha_myisam::assign_to_keycache(THD* thd, HA_CHECK_OPT *check_opt)
     param->db_name=    table->s->db.str;
     param->table_name= table->s->table_name.str;
     param->testflag= 0;
-    mi_check_print_error(param, errmsg);
+    mi_check_print_error(param, "%s", errmsg);
   }
   DBUG_RETURN(error);
 }
@@ -1573,7 +1574,7 @@ int ha_myisam::preload_keys(THD* thd, HA_CHECK_OPT *check_opt)
     param->db_name=    table->s->db.str;
     param->table_name= table->s->table_name.str;
     param->testflag=   0;
-    mi_check_print_error(param, errmsg);
+    mi_check_print_error(param, "%s", errmsg);
     DBUG_RETURN(error);
   }
 }
