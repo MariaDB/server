@@ -60,7 +60,7 @@ create table t2 (x int) engine innodb;
 connection server_2;
 insert into t1 values (1);
 create or replace function foo(x int, d1 varchar(500), d2 varchar(500))
-returns int deterministic
+returns int not deterministic
 begin
 if d1 != '' then
 set debug_sync= d1;
@@ -76,12 +76,12 @@ connect  m2,localhost,root,,test;
 connection m1;
 set @@session.gtid_domain_id= 1;
 insert into t2 values (foo(1,
-'after_lock_clust_rec_read_check_and_lock wait_for clust_locked', ''));
+'after_lock_clust_rec_read_check_and_lock signal delete1_blocked wait_for clust_locked', ''));
 delete from t1;
 connection m2;
 set @@session.gtid_domain_id= 2;
 insert into t2 values (foo(2,
-'after_lock_clust_rec_read_check_and_lock signal clust_locked', ''));
+'now wait_for delete1_blocked', 'after_lock_clust_rec_read_check_and_lock signal clust_locked'));
 delete from t1 where a = 1;
 connection server_2;
 set debug_sync="ha_commit_one_phase wait_for retries_at_max";
@@ -92,10 +92,8 @@ update t2 set x= 6;
 connection server_2;
 set global debug_dbug= @old_dbug;
 flush error logs;
-MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
 x-x-x x:x:x [Tx] InnoDB: *** WAITING FOR THIS LOCK TO BE GRANTED:
 MariaDB thread id x, OS thread handle x, query id x, GTID x-x-x Updating
-x-x-x x:x:x [Tx] InnoDB: *** WAITING FOR THIS LOCK TO BE GRANTED:
 x-x-x x:x:x [Tx] [Rx] [SUCCESS] event: x of x log_pos: x GTID: x-x-x query_id: x result: x
 include/stop_slave.inc
 set global slave_parallel_threads= @old_parallel_threads;
