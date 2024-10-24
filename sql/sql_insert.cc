@@ -4377,9 +4377,10 @@ bool select_insert::prepare_eof()
 
 #ifdef WITH_WSREP
   error= (thd->wsrep_cs().current_error()) ? -1 :
-    (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
+    (thd->locked_tables_mode <= LTM_LOCK_TABLES && !table->s->hlindexes()) ?
 #else
-    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
+    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
+            !table->s->hlindexes()) ?
 #endif /* WITH_WSREP */
     table->file->ha_end_bulk_insert() : 0;
 
@@ -4389,7 +4390,7 @@ bool select_insert::prepare_eof()
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
       if (table->file->ha_table_flags() & HA_DUPLICATE_POS)
         table->file->ha_rnd_end();
-  if (error <= 0)
+  if (!table->s->hlindexes() && error <= 0)
   {
     error= table->file->extra(HA_EXTRA_END_ALTER_COPY);
     if (error == HA_ERR_FOUND_DUPP_KEY)
@@ -5002,7 +5003,8 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      !table->s->long_unique_table)
+      !table->s->long_unique_table &&
+      !table->s->hlindexes())
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
     if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)
