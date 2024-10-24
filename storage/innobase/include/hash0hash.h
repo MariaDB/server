@@ -39,7 +39,7 @@ struct hash_cell_t
   @param insert  the being-inserted element
   @param next    the next-element pointer in T */
   template<typename T>
-  void append(T &insert, T *T::*next)
+  void append(T &insert, T *T::*next) noexcept
   {
     void **after;
     for (after= &node; *after;
@@ -174,17 +174,21 @@ struct hash_table_t
 
   /** Create the hash table.
   @param n  the lower bound of n_cells */
-  void create(ulint n)
+  void create(ulint n) noexcept
   {
     n_cells= ut_find_prime(n);
     array= static_cast<hash_cell_t*>(ut_zalloc_nokey(n_cells * sizeof *array));
   }
 
   /** Clear the hash table. */
-  void clear() { memset(array, 0, n_cells * sizeof *array); }
+  void clear() noexcept { memset(array, 0, n_cells * sizeof *array); }
 
   /** Free the hash table. */
-  void free() { ut_free(array); array= nullptr; }
+  void free() noexcept { ut_free(array); array= nullptr; }
 
-  ulint calc_hash(ulint fold) const { return ut_hash_ulint(fold, n_cells); }
+  ulint calc_hash(ulint fold) const noexcept
+  { return ut_hash_ulint(fold, n_cells); }
+
+  hash_cell_t *cell_get(ulint fold) const noexcept
+  { return &array[calc_hash(fold)]; }
 };
