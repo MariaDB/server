@@ -352,7 +352,7 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 	this->size += size;
 	UT_LIST_ADD_LAST(chain, node);
 	if (node->is_open()) {
-		node->find_metadata(node->handle);
+		node->find_metadata();
 		n_pending.fetch_and(~CLOSING, std::memory_order_relaxed);
 		if (++fil_system.n_open >= srv_max_n_open_files) {
 			reacquire();
@@ -1197,7 +1197,7 @@ err_exit:
 
     if (create_new_db)
     {
-      node->find_metadata(node->handle);
+      node->find_metadata();
       continue;
     }
     if (skip_read)
