@@ -1863,28 +1863,38 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         str.qs_append('\'');
         str.qs_append(field->val_int(), 2);
         str.qs_append('\'');
-        quoted= 0;
+        def_value->append(str);
       }
       else
       {
         field->val_str(&str);
         if (!field->str_needs_quotes())
           quoted= 0;
+        if (str.length())
+        {
+          if (str.charset() == &my_charset_bin)
+          {
+            def_value->append('x');
+            def_value->append('\'');
+            def_value->append_hex(str.ptr(), str.length());
+            def_value->append('\'');
+          }
+          else
+          {
+            StringBuffer<MAX_FIELD_WIDTH> def_val;
+            uint dummy_errors;
+            /* convert to system_charset_info == utf8 */
+            def_val.copy(str.ptr(), str.length(), field->charset(),
+                         system_charset_info, &dummy_errors);
+            if (quoted)
+              append_unescaped(def_value, def_val.ptr(), def_val.length());
+            else
+              def_value->append(def_val);
+          }
+        }
+        else if (quoted)
+          def_value->set(STRING_WITH_LEN("''"), system_charset_info);
       }
-      if (str.length())
-      {
-        StringBuffer<MAX_FIELD_WIDTH> def_val;
-        uint dummy_errors;
-        /* convert to system_charset_info == utf8 */
-        def_val.copy(str.ptr(), str.length(), field->charset(),
-                     system_charset_info, &dummy_errors);
-        if (quoted)
-          append_unescaped(def_value, def_val.ptr(), def_val.length());
-        else
-          def_value->append(def_val);
-      }
-      else if (quoted)
-        def_value->set(STRING_WITH_LEN("''"), system_charset_info);
     }
     else if (field->maybe_null() && quoted)
       def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
