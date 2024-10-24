@@ -4604,6 +4604,7 @@ int Gis_geometry_collection::make_clockwise(String *result) const
         !(geometry= Geometry::construct(&buffer, wkb.ptr(), wkb.length())))
       return 1;
 
+    result->reserve(sizeof(char) + sizeof(uint32));
     result->q_append((char) wkb_ndr);
     result->q_append((uint32) geometry->get_class_info()->m_type_id);
     if (geometry->get_class_info()->m_type_id == Geometry::wkb_polygon ||
