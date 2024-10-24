@@ -47,6 +47,7 @@ ut_hash_ulint(
 	return(key % table_size);
 }
 
+# if SIZEOF_SIZE_T < 8
 /*************************************************************//**
 Folds a 64-bit integer.
 @return folded value */
@@ -59,6 +60,7 @@ ut_fold_ull(
 	return(ut_fold_ulint_pair((ulint) d & ULINT32_MASK,
 				  (ulint) (d >> 32)));
 }
+# endif /* SIZEOF_SIZE_T < 8 */
 #endif /* !UNIV_INNOCHECKSUM */
 
 /*************************************************************//**
