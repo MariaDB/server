@@ -599,8 +599,8 @@ bool trans_xa_prepare(THD *thd)
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
     }
+    trans_xa_release_backup_lock(thd);
   }
-  trans_xa_release_backup_lock(thd);
 
   DBUG_RETURN(res);
 }
