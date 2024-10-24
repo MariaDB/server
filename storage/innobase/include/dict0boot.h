@@ -47,7 +47,7 @@ dict_hdr_get_new_id(
 /** Update dict_sys.row_id in the dictionary header file page. */
 void dict_hdr_flush_row_id(row_id_t id);
 /** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
-inline row_id_t dict_sys_t::get_new_row_id()
+inline row_id_t dict_sys_t::get_new_row_id() noexcept
 {
   row_id_t id= row_id.fetch_add(1);
   if (!(id % ROW_ID_WRITE_MARGIN))
@@ -56,7 +56,7 @@ inline row_id_t dict_sys_t::get_new_row_id()
 }
 
 /** Ensure that row_id is not smaller than id, on IMPORT TABLESPACE */
-inline void dict_sys_t::update_row_id(row_id_t id)
+inline void dict_sys_t::update_row_id(row_id_t id) noexcept
 {
   row_id_t sys_id= row_id;
   while (id >= sys_id)

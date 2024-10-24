@@ -227,24 +227,15 @@ fil_validate_skip(void)
 }
 #endif /* UNIV_DEBUG */
 
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found.
-It is unsafe to dereference the returned pointer. It is fine to check
-for NULL. */
-fil_space_t*
-fil_space_get_by_id(
-/*================*/
-	ulint	id)	/*!< in: space id */
+fil_space_t *fil_space_get_by_id(ulint id) noexcept
 {
-	fil_space_t*	space;
-
-	ut_ad(fil_system.is_initialised());
-	mysql_mutex_assert_owner(&fil_system.mutex);
-
-	HASH_SEARCH(hash, &fil_system.spaces, id,
-		    fil_space_t*, space,, space->id == id);
-
-	return(space);
+  ut_ad(fil_system.is_initialised());
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  for (fil_space_t *space= static_cast<fil_space_t*>
+       (fil_system.spaces.cell_get(id)->node); space; space= space->hash)
+    if (space->id == id)
+      return space;
+  return nullptr;
 }
 
 /** Look up a tablespace.
@@ -810,7 +801,7 @@ inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  HASH_DELETE(fil_space_t, hash, &spaces, space->id, space);
+  spaces.cell_get(space->id)->remove(*space, &fil_space_t::hash);
 
   if (space->is_in_unflushed_spaces)
   {
@@ -979,9 +970,15 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 
 	DBUG_EXECUTE_IF("fil_space_create_failure", return(NULL););
 
+	fil_space_t** after = reinterpret_cast<fil_space_t**>(
+		&fil_system.spaces.cell_get(id)->node);
+	for (; *after; after = &(*after)->hash) {
+		ut_a((*after)->id != id);
+	}
+
 	/* FIXME: if calloc() is defined as an inline function that calls
 	memset() or bzero(), then GCC 6 -flifetime-dse can optimize it away */
-	space= new (ut_zalloc_nokey(sizeof(*space))) fil_space_t;
+	*after = space = new (ut_zalloc_nokey(sizeof(*space))) fil_space_t;
 
 	space->id = id;
 
@@ -1004,20 +1001,6 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 	}
 
 	space->latch.SRW_LOCK_INIT(fil_space_latch_key);
-
-	if (const fil_space_t *old_space = fil_space_get_by_id(id)) {
-		ib::error() << "Trying to add tablespace with id " << id
-			    << " to the cache, but tablespace '"
-			    << (old_space->chain.start
-				? old_space->chain.start->name
-				: "")
-			    << "' already exists in the cache!";
-		space->~fil_space_t();
-		ut_free(space);
-		return(NULL);
-	}
-
-	HASH_INSERT(fil_space_t, hash, &fil_system.spaces, id, space);
 
 	if (opened)
 	  fil_system.add_opened_last_to_space_list(space);

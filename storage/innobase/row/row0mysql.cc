@@ -2321,6 +2321,9 @@ row_discard_tablespace(
 	trx_t*		trx,	/*!< in/out: transaction handle */
 	dict_table_t*	table)	/*!< in/out: table to be discarded */
 {
+	ut_ad(table->magic_n == DICT_TABLE_MAGIC_N);
+	ut_ad(!table->is_temporary());
+
 	dberr_t err;
 
 	/* How do we prevent crashes caused by ongoing operations on
@@ -2378,8 +2381,14 @@ row_discard_tablespace(
 
 	/* All persistent operations successful, update the
 	data dictionary memory cache. */
+	ut_ad(dict_sys.locked());
 
-	dict_table_change_id_in_cache(table, new_id);
+	/* Remove the table from the hash table of id's */
+	dict_sys.table_id_hash.cell_get(ut_fold_ull(table->id))
+		->remove(*table, &dict_table_t::id_hash);
+	table->id = new_id;
+	dict_sys.table_id_hash.cell_get(ut_fold_ull(table->id))
+		->append(*table, &dict_table_t::id_hash);
 
 	dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 

@@ -2363,8 +2363,7 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 	const ulint rec_fold = page_id.fold();
 	hash_cell_t &cell = *lock_hash.cell_get(rec_fold);
 	lock_sys.assert_locked(cell);
-
-	HASH_DELETE(lock_t, hash, &lock_hash, rec_fold, in_lock);
+	cell.remove(*in_lock, &lock_t::hash);
 	UT_LIST_REMOVE(in_lock->trx->lock.trx_locks, in_lock);
 
 	MONITOR_INC(MONITOR_RECLOCK_REMOVED);
@@ -2414,16 +2413,14 @@ static void lock_rec_dequeue_from_page(lock_t *in_lock, bool owns_wait_mutex)
 }
 
 /** Remove a record lock request, waiting or granted, on a discarded page
-@param hash     hash table
-@param in_lock  lock object */
+@param in_lock  lock object
+@param cell     hash table cell containing in_lock */
 TRANSACTIONAL_TARGET
-void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock)
+void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept
 {
   ut_ad(!in_lock->is_table());
-  lock_hash.assert_locked(in_lock->un_member.rec_lock.page_id);
 
-  HASH_DELETE(lock_t, hash, &lock_hash,
-              in_lock->un_member.rec_lock.page_id.fold(), in_lock);
+  cell.remove(*in_lock, &lock_t::hash);
   ut_d(uint32_t old_locks);
   {
     trx_t *trx= in_lock->trx;
@@ -2441,17 +2438,16 @@ void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock)
 Removes record lock objects set on an index page which is discarded. This
 function does not move locks, or check for waiting locks, therefore the
 lock bitmaps must already be reset when this function is called. */
+template<bool assert= IF_DBUG(true,false)>
 static void
-lock_rec_free_all_from_discard_page(page_id_t id, const hash_cell_t &cell,
-                                    lock_sys_t::hash_table &lock_hash)
+lock_rec_free_all_from_discard_page(page_id_t id, hash_cell_t &cell) noexcept
 {
   for (lock_t *lock= lock_sys_t::get_first(cell, id); lock; )
   {
-    ut_ad(&lock_hash != &lock_sys.rec_hash ||
-          lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
+    ut_ad(!assert || lock_rec_find_set_bit(lock) == ULINT_UNDEFINED);
     ut_ad(!lock->is_waiting());
     lock_t *next_lock= lock_rec_get_next_on_page(lock);
-    lock_rec_discard(lock_hash, lock);
+    lock_rec_discard(lock, cell);
     lock= next_lock;
   }
 }
@@ -2468,15 +2464,15 @@ ATTRIBUTE_COLD void lock_discard_for_index(const dict_index_t &index)
   const ulint n= lock_sys.rec_hash.pad(lock_sys.rec_hash.n_cells);
   for (ulint i= 0; i < n; i++)
   {
-    for (lock_t *lock= static_cast<lock_t*>(lock_sys.rec_hash.array[i].node);
-         lock; )
+    hash_cell_t &cell= lock_sys.rec_hash.array[i];
+    for (lock_t *lock= static_cast<lock_t*>(cell.node); lock; )
     {
       ut_ad(!lock->is_table());
       if (lock->index == &index)
       {
         ut_ad(!lock->is_waiting());
-        lock_rec_discard(lock_sys.rec_hash, lock);
-        lock= static_cast<lock_t*>(lock_sys.rec_hash.array[i].node);
+        lock_rec_discard(lock, cell);
+        lock= static_cast<lock_t*>(cell.node);
       }
       else
         lock= lock->hash;
@@ -3269,7 +3265,7 @@ lock_update_merge_right(
   /* Reset the locks on the supremum of the left page, releasing
   waiting transactions */
   lock_rec_reset_and_release_wait(g.cell1(), l, PAGE_HEAP_NO_SUPREMUM);
-  lock_rec_free_all_from_discard_page(l, g.cell1(), lock_sys.rec_hash);
+  lock_rec_free_all_from_discard_page(l, g.cell1());
 
   ut_d(lock_assert_no_spatial(l));
 }
@@ -3301,7 +3297,7 @@ void lock_update_copy_and_discard(const buf_block_t &new_block, page_id_t old)
   /* Move the locks on the supremum of the old page to the supremum of new */
   lock_rec_move(g.cell1(), new_block, id, g.cell2(), old,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
-  lock_rec_free_all_from_discard_page(old, g.cell2(), lock_sys.rec_hash);
+  lock_rec_free_all_from_discard_page(old, g.cell2());
 }
 
 /*************************************************************//**
@@ -3359,7 +3355,7 @@ void lock_update_merge_left(const buf_block_t& left, const rec_t *orig_pred,
   of the left page */
   lock_rec_move(g.cell1(), left, l, g.cell2(), right,
                 PAGE_HEAP_NO_SUPREMUM, PAGE_HEAP_NO_SUPREMUM);
-  lock_rec_free_all_from_discard_page(right, g.cell2(), lock_sys.rec_hash);
+  lock_rec_free_all_from_discard_page(right, g.cell2());
 
   /* there should exist no page lock on the right page,
   otherwise, it will be blocked from merge */
@@ -3450,21 +3446,18 @@ lock_update_discard(
 			} while (heap_no != PAGE_HEAP_NO_SUPREMUM);
 		}
 
-		lock_rec_free_all_from_discard_page(page_id, g.cell2(),
-						    lock_sys.rec_hash);
+		lock_rec_free_all_from_discard_page(page_id, g.cell2());
 	} else {
 		const auto fold = page_id.fold();
 		auto cell = lock_sys.prdt_hash.cell_get(fold);
 		auto latch = lock_sys_t::hash_table::latch(cell);
 		latch->acquire();
-		lock_rec_free_all_from_discard_page(page_id, *cell,
-						    lock_sys.prdt_hash);
+		lock_rec_free_all_from_discard_page<false>(page_id, *cell);
 		latch->release();
 		cell = lock_sys.prdt_page_hash.cell_get(fold);
 		latch = lock_sys_t::hash_table::latch(cell);
 		latch->acquire();
-		lock_rec_free_all_from_discard_page(page_id, *cell,
-						    lock_sys.prdt_page_hash);
+		lock_rec_free_all_from_discard_page<false>(page_id, *cell);
 		latch->release();
 	}
 }
@@ -5118,25 +5111,13 @@ Calculates the number of record lock structs in the record lock hash table.
 TRANSACTIONAL_TARGET
 static ulint lock_get_n_rec_locks()
 {
-	ulint	n_locks	= 0;
-	ulint	i;
-
-	lock_sys.assert_locked();
-
-	for (i = 0; i < lock_sys.rec_hash.n_cells; i++) {
-		const lock_t*	lock;
-
-		for (lock = static_cast<const lock_t*>(
-			     HASH_GET_FIRST(&lock_sys.rec_hash, i));
-		     lock != 0;
-		     lock = static_cast<const lock_t*>(
-				HASH_GET_NEXT(hash, lock))) {
-
-			n_locks++;
-		}
-	}
-
-	return(n_locks);
+  ulint n_locks= 0;
+  lock_sys.assert_locked();
+  for (ulint i= 0; i < lock_sys.rec_hash.n_cells; i++)
+    for (auto lock= static_cast<lock_t*>(lock_sys.rec_hash.array[i].node);
+         lock; lock= lock->hash)
+      n_locks++;
+  return n_locks;
 }
 #endif /* PRINT_NUM_OF_LOCK_STRUCTS */
 
@@ -5645,10 +5626,8 @@ lock_rec_validate(
 	lock_sys.assert_locked();
 
 	for (const lock_t* lock = static_cast<const lock_t*>(
-		     HASH_GET_FIRST(&lock_sys.rec_hash, start));
-	     lock != NULL;
-	     lock = static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))) {
-
+		     lock_sys.rec_hash.array[start].node);
+	     lock; lock = lock->hash) {
 		ut_ad(!lock->trx->read_only
 		      || !lock->trx->is_autocommit_non_locking());
 		ut_ad(!lock->is_table());

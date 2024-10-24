@@ -153,7 +153,6 @@ using the call command. */
 						ut_ad(lock_rec_validate_page())
 						assertions. */
 #define UNIV_LRU_DEBUG				/* debug the buffer pool LRU */
-#define UNIV_HASH_DEBUG				/* debug HASH_ macros */
 #define UNIV_IBUF_DEBUG				/* debug the insert buffer */
 #define UNIV_PERF_DEBUG                         /* debug flag that enables
                                                 light weight performance

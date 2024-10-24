@@ -543,9 +543,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
   ut_a(del_node->block->n_pointers-- < MAX_N_POINTERS);
 #endif /* UNIV_AHI_DEBUG || UNIV_DEBUG */
 
-  const ulint fold= del_node->fold;
-
-  HASH_DELETE(ha_node_t, next, table, fold, del_node);
+  table->cell_get(del_node->fold)->remove(*del_node, &ha_node_t::next);
 
   ha_node_t *top= static_cast<ha_node_t*>(mem_heap_get_top(heap, sizeof *top));
 
@@ -564,8 +562,7 @@ static void ha_delete_hash_node(hash_table_t *table, mem_heap_t *heap,
       /* We have to look for the predecessor */
       ha_node_t *node= static_cast<ha_node_t*>(cell->node);
 
-      while (top != HASH_GET_NEXT(next, node))
-        node= static_cast<ha_node_t*>(HASH_GET_NEXT(next, node));
+      while (top != node->next) node= node->next;
 
       /* Now we have the predecessor node */
       node->next= del_node;

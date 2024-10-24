@@ -2559,7 +2559,7 @@ corrupted:
 }
 
 dict_table_t *dict_sys_t::load_table(const span<const char> &name,
-                                     dict_err_ignore_t ignore)
+                                     dict_err_ignore_t ignore) noexcept
 {
   if (dict_table_t *table= find_table(name))
     return table;

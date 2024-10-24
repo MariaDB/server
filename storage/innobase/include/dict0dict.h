@@ -395,15 +395,6 @@ dict_index_remove_from_cache(
 	dict_index_t*	index);
 
 /**********************************************************************//**
-Change the id of a table object in the dictionary cache. This is used in
-DISCARD TABLESPACE. */
-void
-dict_table_change_id_in_cache(
-/*==========================*/
-	dict_table_t*	table,	/*!< in/out: table object already in cache */
-	table_id_t	new_id)	/*!< in: new id to set */
-	MY_ATTRIBUTE((nonnull));
-/**********************************************************************//**
 Removes a foreign constraint struct from the dictionary cache. */
 void
 dict_foreign_remove_from_cache(
@@ -1385,19 +1376,19 @@ public:
   static const char fatal_msg[];
 
   /** @return A new value for GEN_CLUST_INDEX(DB_ROW_ID) */
-  inline row_id_t get_new_row_id();
+  inline row_id_t get_new_row_id() noexcept;
 
   /** Ensure that row_id is not smaller than id, on IMPORT TABLESPACE */
-  inline void update_row_id(row_id_t id);
+  inline void update_row_id(row_id_t id) noexcept;
 
   /** Recover the global DB_ROW_ID sequence on database startup */
-  void recover_row_id(row_id_t id)
+  void recover_row_id(row_id_t id) noexcept
   {
     row_id= ut_uint64_align_up(id, ROW_ID_WRITE_MARGIN) + ROW_ID_WRITE_MARGIN;
   }
 
   /** @return a new temporary table ID */
-  table_id_t acquire_temporary_table_id()
+  table_id_t acquire_temporary_table_id() noexcept
   {
     return temp_table_id.fetch_add(1, std::memory_order_relaxed);
   }
@@ -1407,55 +1398,32 @@ public:
   @return          temporary table
   @retval nullptr  if the table does not exist
   (should only happen during the rollback of CREATE...SELECT) */
-  dict_table_t *acquire_temporary_table(table_id_t id)
-  {
-    ut_ad(frozen());
-    dict_table_t *table;
-    ulint fold = ut_fold_ull(id);
-    HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
-                ut_ad(table->cached), table->id == id);
-    if (UNIV_LIKELY(table != nullptr))
-    {
-      DBUG_ASSERT(table->is_temporary());
-      DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
-      table->acquire();
-    }
-    return table;
-  }
+  dict_table_t *acquire_temporary_table(table_id_t id) const noexcept;
 
   /** Look up a persistent table.
   @param id     table ID
   @return table
   @retval nullptr if not cached */
-  dict_table_t *find_table(table_id_t id)
-  {
-    ut_ad(frozen());
-    dict_table_t *table;
-    ulint fold= ut_fold_ull(id);
-    HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
-                ut_ad(table->cached), table->id == id);
-    DBUG_ASSERT(!table || !table->is_temporary());
-    return table;
-  }
+  dict_table_t *find_table(table_id_t id) const noexcept;
 
-  bool is_initialised() const { return m_initialised; }
+  bool is_initialised() const noexcept { return m_initialised; }
 
   /** Initialise the data dictionary cache. */
-  void create();
+  void create() noexcept;
 
   /** Close the data dictionary cache on shutdown. */
-  void close();
+  void close() noexcept;
 
   /** Resize the hash tables based on the current buffer pool size. */
-  void resize();
+  void resize() noexcept;
 
   /** Add a table definition to the data dictionary cache */
-  inline void add(dict_table_t* table);
+  inline void add(dict_table_t *table) noexcept;
   /** Remove a table definition from the data dictionary cache.
   @param[in,out]	table	cached table definition to be evicted
   @param[in]	lru	whether this is part of least-recently-used evictiono
   @param[in]	keep	whether to keep (not free) the object */
-  void remove(dict_table_t* table, bool lru = false, bool keep = false);
+  void remove(dict_table_t *table, bool lru= false, bool keep= false) noexcept;
 
 #ifdef UNIV_DEBUG
   /** Find a table */
@@ -1552,24 +1520,13 @@ public:
   /** Evict unused, unlocked tables from table_LRU.
   @param half whether to consider half the tables only (instead of all)
   @return number of tables evicted */
-  ulint evict_table_LRU(bool half);
+  ulint evict_table_LRU(bool half) noexcept;
 
   /** Look up a table in the dictionary cache.
   @param name   table name
   @return table handle
   @retval nullptr if not found */
-  dict_table_t *find_table(const span<const char> &name) const
-  {
-    ut_ad(frozen());
-    for (dict_table_t *table= static_cast<dict_table_t*>
-         (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
-                         (my_crc32c(0, name.data(), name.size()))));
-         table; table= table->name_hash)
-      if (strlen(table->name.m_name) == name.size() &&
-          !memcmp(table->name.m_name, name.data(), name.size()))
-        return table;
-    return nullptr;
-  }
+  dict_table_t *find_table(const span<const char> &name) const noexcept;
 
   /** Look up or load a table definition
   @param name   table name
@@ -1577,13 +1534,14 @@ public:
   @return table handle
   @retval nullptr if not found */
   dict_table_t *load_table(const span<const char> &name,
-                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE);
+                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE)
+    noexcept;
 
   /** Attempt to load the system tables on startup
   @return whether any discrepancy with the expected definition was found */
-  bool load_sys_tables();
+  bool load_sys_tables() noexcept;
   /** Create or check system tables on startup */
-  dberr_t create_or_check_sys_tables();
+  dberr_t create_or_check_sys_tables() noexcept;
 };
 
 /** the data dictionary cache */
