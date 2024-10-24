@@ -1309,7 +1309,7 @@ function_exit:
 	return(thr);
 }
 
-bool dict_sys_t::load_sys_tables()
+bool dict_sys_t::load_sys_tables() noexcept
 {
   ut_ad(!srv_any_background_activity());
   bool mismatch= false;
@@ -1352,7 +1352,7 @@ bool dict_sys_t::load_sys_tables()
   return mismatch;
 }
 
-dberr_t dict_sys_t::create_or_check_sys_tables()
+dberr_t dict_sys_t::create_or_check_sys_tables() noexcept
 {
   if (sys_tables_exist())
     return DB_SUCCESS;

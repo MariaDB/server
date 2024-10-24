@@ -1174,9 +1174,9 @@ lock_rec_create(
 					trx mutex */
 
 /** Remove a record lock request, waiting or granted, on a discarded page
-@param hash     hash table
-@param in_lock  lock object */
-void lock_rec_discard(lock_sys_t::hash_table &lock_hash, lock_t *in_lock);
+@param in_lock  lock object
+@param cell     hash table cell containing in_lock */
+void lock_rec_discard(lock_t *in_lock, hash_cell_t &cell) noexcept;
 
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
