@@ -316,3 +316,14 @@ f
 1111
 drop view v;
 drop table t;
+#
+# MDEV-35245 SHOW CREATE TABLE produces unusable statement for vector fields with constant default value
+#
+create table t1 (f vector(1) default 0x30313233, v vector(2) default x'4041424344454647');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` vector(1) DEFAULT x'30313233',
+  `v` vector(2) DEFAULT x'4041424344454647'
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+drop table t1;

@@ -246,3 +246,10 @@ create algorithm=temptable view v as select * from t;
 select v1.f from v v1 natural join v v2;
 drop view v;
 drop table t;
+
+--echo #
+--echo # MDEV-35245 SHOW CREATE TABLE produces unusable statement for vector fields with constant default value
+--echo #
+create table t1 (f vector(1) default 0x30313233, v vector(2) default x'4041424344454647');
+show create table t1;
+drop table t1;
