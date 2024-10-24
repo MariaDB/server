@@ -192,6 +192,11 @@ override_dh_installinit-arch:
 override_dh_gencontrol:
 	dh_gencontrol -- -Tdebian/substvars
 
+# When running compat level 12 or higher this is needed
+# to preserve --fail-missing
+#override_dh_missing:
+#	dh_missing --list-missing --fail-missing
+
 # If a file is not supposed to be included anywhere, add it to the not-installed
 # file and document the reason. Note that dh_install supports the above mentioned
 # white list file only starting from Debian Stretch and Ubuntu Xenial.
