@@ -686,7 +686,7 @@ public:
   size_t to_string(char *to, size_t nbytes) const
   {
     return m_usec ?
-      my_snprintf(to, nbytes, "%s%llu.%06lu",
+      my_snprintf(to, nbytes, "%s%llu.%06u",
                   m_neg ? "-" : "", m_sec, (uint) m_usec) :
       my_snprintf(to, nbytes, "%s%llu", m_neg ? "-" : "", m_sec);
   }

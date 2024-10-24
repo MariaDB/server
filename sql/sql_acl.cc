@@ -12115,9 +12115,9 @@ void Sql_cmd_grant::warn_hostname_requires_resolving(THD *thd,
   while ((user= it++))
   {
     if (opt_skip_name_resolve && hostname_requires_resolving(user->host.str))
-      push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                          ER_WARN_HOSTNAME_WONT_WORK,
-                          ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
+      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                   ER_WARN_HOSTNAME_WONT_WORK,
+                   ER_THD(thd, ER_WARN_HOSTNAME_WONT_WORK));
   }
 }
 
@@ -13295,7 +13295,7 @@ static bool secure_auth(THD *thd)
   else
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(thd, COM_CONNECT,
+    general_log_print(thd, COM_CONNECT, "%s",
                       ER_THD(thd, ER_NOT_SUPPORTED_AUTH_MODE));
   }
   return 1;
@@ -13368,7 +13368,7 @@ static bool send_plugin_request_packet(MPVIO_EXT *mpvio,
   if (switch_from_short_to_long_scramble)
   {
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -13458,7 +13458,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
       !ignore_max_password_errors(mpvio->acl_user))
   {
     my_error(ER_USER_IS_BLOCKED, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
       ER_THD(mpvio->auth_info.thd, ER_USER_IS_BLOCKED));
     DBUG_RETURN(1);
   }
@@ -13473,7 +13473,7 @@ static bool find_mpvio_user(MPVIO_EXT *mpvio)
     DBUG_ASSERT(my_strcasecmp(system_charset_info,
       mpvio->acl_user->auth->plugin.str, old_password_plugin_name.str));
     my_error(ER_NOT_SUPPORTED_AUTH_MODE, MYF(0));
-    general_log_print(mpvio->auth_info.thd, COM_CONNECT,
+    general_log_print(mpvio->auth_info.thd, COM_CONNECT, "%s",
                       ER_THD(mpvio->auth_info.thd, ER_NOT_SUPPORTED_AUTH_MODE));
     DBUG_RETURN (1);
   }
@@ -15019,5 +15019,3 @@ extern "C" void maria_update_hostname(
   *ip_mask= h.ip_mask;
 #endif
 }
-
-

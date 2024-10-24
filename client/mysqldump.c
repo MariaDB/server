@@ -1739,7 +1739,7 @@ static int switch_character_set_results(MYSQL *mysql, const char *cs_name)
   query_length= my_snprintf(query_buffer,
                             sizeof (query_buffer),
                             "SET SESSION character_set_results = '%s'",
-                            (const char *) cs_name);
+                            cs_name);
 
   return mysql_real_query(mysql, query_buffer, (ulong)query_length);
 }
