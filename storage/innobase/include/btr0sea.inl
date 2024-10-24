@@ -28,26 +28,10 @@ Created 2/17/1996 Heikki Tuuri
 #include "btr0cur.h"
 #include "buf0buf.h"
 
-/** Create and initialize search info.
-@param[in,out]	heap		heap where created
-@return own: search info struct */
-static inline btr_search_t* btr_search_info_create(mem_heap_t* heap)
-{
-	btr_search_t*	info = static_cast<btr_search_t*>(
-		mem_heap_zalloc(heap, sizeof(btr_search_t)));
-	ut_d(info->magic_n = BTR_SEARCH_MAGIC_N);
-#ifdef BTR_CUR_HASH_ADAPT
-	info->n_fields = 1;
-	info->left_side = TRUE;
-#endif /* BTR_CUR_HASH_ADAPT */
-	return(info);
-}
-
 #ifdef BTR_CUR_HASH_ADAPT
 /** Updates the search info.
-@param[in,out]	info	search info
-@param[in,out]	cursor	cursor which was just positioned */
-void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor);
+@param cursor   cursor which was just positioned */
+void btr_search_info_update_slow(const btr_cur_t *cursor);
 
 /*********************************************************************//**
 Updates the search info. */
@@ -61,57 +45,40 @@ btr_search_info_update(
 	ut_ad(!index->is_spatial());
 	ut_ad(!index->table->is_temporary());
 
-	if (!btr_search_enabled) {
+	if (!btr_search.enabled) {
 		return;
 	}
 
-	btr_search_t*	info;
-	info = btr_search_get_info(index);
-
-	info->hash_analysis++;
-
-	if (info->hash_analysis < BTR_SEARCH_HASH_ANALYSIS) {
-
-		/* Do nothing */
-
+	if (!index->search_info.hash_analysis_useful()) {
 		return;
-
 	}
 
 	ut_ad(cursor->flag != BTR_CUR_HASH);
 
-	btr_search_info_update_slow(info, cursor);
+	btr_search_info_update_slow(cursor);
 }
 
 /** Lock all search latches in exclusive mode. */
 static inline void btr_search_x_lock_all()
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.wr_lock(SRW_LOCK_CALL);
-	}
+	btr_search.parts.latch.wr_lock(SRW_LOCK_CALL);
 }
 
 /** Unlock all search latches from exclusive mode. */
 static inline void btr_search_x_unlock_all()
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.wr_unlock();
-	}
+	btr_search.parts.latch.wr_unlock();
 }
 
 /** Lock all search latches in shared mode. */
 static inline void btr_search_s_lock_all()
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.rd_lock(SRW_LOCK_CALL);
-	}
+	btr_search.parts.latch.rd_lock(SRW_LOCK_CALL);
 }
 
 /** Unlock all search latches from shared mode. */
 static inline void btr_search_s_unlock_all()
 {
-	for (ulint i = 0; i < btr_ahi_parts; ++i) {
-		btr_search_sys.parts[i].latch.rd_unlock();
-	}
+	btr_search.parts.latch.rd_unlock();
 }
 #endif /* BTR_CUR_HASH_ADAPT */

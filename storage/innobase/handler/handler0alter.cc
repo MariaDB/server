@@ -5968,12 +5968,11 @@ static bool innobase_instant_try(
 #ifdef BTR_CUR_HASH_ADAPT
 	/* Acquire the ahi latch to avoid a race condition
 	between ahi access and instant alter table */
-	srw_spin_lock* ahi_latch = btr_search_sys.get_latch(*index);
-	ahi_latch->wr_lock(SRW_LOCK_CALL);
+	btr_search_s_lock_all();
 #endif /* BTR_CUR_HASH_ADAPT */
 	const bool metadata_changed = ctx->instant_column();
 #ifdef BTR_CUR_HASH_ADAPT
-	ahi_latch->wr_unlock();
+	btr_search_s_unlock_all();
 #endif /* BTR_CUR_HASH_ADAPT */
 
 	DBUG_ASSERT(index->n_fields >= n_old_fields);

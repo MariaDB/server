@@ -1594,10 +1594,10 @@ inline void buf_pool_t::resize()
 	buf_resize_status("Disabling adaptive hash index.");
 
 	btr_search_s_lock_all();
-	const bool btr_search_disabled = btr_search_enabled;
+	const bool btr_search_disabled = btr_search.enabled;
 	btr_search_s_unlock_all();
 
-	btr_search_disable();
+	btr_search.disable();
 
 	if (btr_search_disabled) {
 		ib::info() << "disabled adaptive hash index.";
@@ -1900,7 +1900,7 @@ calc_buf_pool_size:
 #ifdef BTR_CUR_HASH_ADAPT
 	/* enable AHI if needed */
 	if (btr_search_disabled) {
-		btr_search_enable(true);
+		btr_search.enable(true);
 		ib::info() << "Re-enabled adaptive hash index.";
 	}
 #endif /* BTR_CUR_HASH_ADAPT */

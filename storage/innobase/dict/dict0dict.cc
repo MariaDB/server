@@ -1217,7 +1217,7 @@ static bool dict_table_can_be_evicted(dict_table_t *table)
 		for (const dict_index_t* index
 			     = dict_table_get_first_index(table);
 		     index; index = dict_table_get_next_index(index)) {
-			if (index->n_ahi_pages()) {
+			if (index->any_ahi_pages()) {
 				return false;
 			}
 		}
@@ -1244,9 +1244,6 @@ dict_index_t *dict_index_t::clone() const
   ut_ad(!rtr_track);
 
   const size_t size= sizeof *this + n_fields * sizeof(*fields) +
-#ifdef BTR_CUR_ADAPT
-    sizeof *search_info +
-#endif
     1 + strlen(name) +
     n_uniq * (sizeof *stat_n_diff_key_vals +
               sizeof *stat_n_sample_sizes +
@@ -1261,9 +1258,6 @@ dict_index_t *dict_index_t::clone() const
   index->name= mem_heap_strdup(heap, name);
   index->fields= static_cast<dict_field_t*>
     (mem_heap_dup(heap, fields, n_fields * sizeof *fields));
-#ifdef BTR_CUR_ADAPT
-  index->search_info= btr_search_info_create(index->heap);
-#endif /* BTR_CUR_ADAPT */
   index->stat_n_diff_key_vals= static_cast<ib_uint64_t*>
     (mem_heap_zalloc(heap, n_uniq * sizeof *stat_n_diff_key_vals));
   index->stat_n_sample_sizes= static_cast<ib_uint64_t*>
@@ -1278,7 +1272,7 @@ dict_index_t *dict_index_t::clone() const
 @return this or a clone */
 dict_index_t *dict_index_t::clone_if_needed()
 {
-  if (!search_info->ref_count)
+  if (!search_info.ref_count)
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
@@ -2035,9 +2029,6 @@ dict_index_add_to_cache(
 	/* Add the new index as the last index for the table */
 
 	UT_LIST_ADD_LAST(new_index->table->indexes, new_index);
-#ifdef BTR_CUR_ADAPT
-	new_index->search_info = btr_search_info_create(new_index->heap);
-#endif /* BTR_CUR_ADAPT */
 
 	new_index->page = unsigned(page_no);
 	new_index->lock.SRW_LOCK_INIT(index_tree_rw_lock_key);
@@ -2103,7 +2094,7 @@ dict_index_remove_from_cache_low(
 	only free the dict_index_t struct when this count drops to
 	zero. See also: dict_table_can_be_evicted() */
 
-	if (index->n_ahi_pages()) {
+	if (index->any_ahi_pages()) {
 		table->autoinc_mutex.wr_lock();
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);

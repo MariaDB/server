@@ -2739,7 +2739,7 @@ err_exit:
 #endif /* WITH_WSREP */
 
 #ifdef BTR_CUR_HASH_ADAPT
-			if (btr_search_enabled) {
+			if (btr_search.enabled) {
 				btr_search_x_lock_all();
 				index->table->bulk_trx_id = trx->id;
 				btr_search_x_unlock_all();

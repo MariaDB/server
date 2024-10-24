@@ -583,8 +583,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
 #ifndef BTR_CUR_ADAPT
   buf_block_t *guess= nullptr;
 #else
-  btr_search_t *const info= btr_search_get_info(index);
-  buf_block_t *guess= info->root_guess;
+  buf_block_t *&guess= index->search_info.root_guess;
 #endif
 
   /* Store the position of the tree latch we push to mtr so that we
@@ -733,7 +732,7 @@ dberr_t rtr_search_to_nth_level(ulint level, const dtuple_t *tuple,
     rtr_get_mbr_from_tuple(tuple, &cur->rtr_info->mbr);
 
 #ifdef BTR_CUR_ADAPT
-    info->root_guess= block;
+    guess= block;
 #endif
   }
 
