@@ -19,4 +19,4 @@ copy_file $MYSQL_TEST_DIR/std_data/cacert.pem $MYSQL_TMP_DIR/ed1f42db.0;
 #
 
 disable_abort_on_error;
-exec $MYSQL --ssl-verify-server-cert -Ee "select (variable_value <> '') as have_ssl from information_schema.session_status where variable_name='ssl_cipher'" 2>&1;
+exec $MYSQL --ssl-verify-server-cert --protocol tcp -Ee "select (variable_value <> '') as have_ssl from information_schema.session_status where variable_name='ssl_cipher'" 2>&1;
