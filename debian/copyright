@@ -151,141 +151,30 @@ Files: mysys/array.c
  vio/viossl.c
  vio/viosslfactories.c
  vio/viotest-ssl.c
-Copyright: 2000, 2010, Oracle and/or its affiliates.
-  1985, 2011, Monty Program Ab
-  2000-2001, 2005-2008, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000-2002, 2006-2007, MySQL AB
-  2000-2003, 2005-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2003-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2004-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2006-2007, MySQL AB, 2009 Sun Microsystems, Inc.
+Copyright: 1985, 2011, Monty Program Ab
+  2000-2003, 2005-2008, MySQL AB, 2009 Sun Microsystems, Inc.
   2000-2007, MySQL AB
-  2000-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000-2008, MySQL AB, 2008 Sun Microsystems, Inc.
-  2000, 2010, Oracle and/or its affiliates
-  2000, 2010, Oracle and/or its affiliates.
-  2000, 2011, Oracle and/or its affiliates
-  2000, 2011, Oracle and/or its affiliates.
-  2000, 2012, Oracle and/or its affiliates
-  2000, 2012, Oracle and/or its affiliates.
-  2000, 2013, Oracle and/or its affiliates
-  2000, 2013, Oracle and/or its affiliates.
-  2000, 2014, Oracle and/or its affiliates
-  2000, 2014, Oracle and/or its affiliates.
-  2000, 2015, Oracle and/or its affiliates.
-  2000, 2016, Oracle and/or its affiliates.
-  2000, 2017, Oracle and/or its affiliates.
-  2000, 2018, Oracle and/or its affiliates.
+  2000-2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
+  2000-2001, 2003-2018, 2022 Oracle and/or its affiliates
   2000, MySQL AB, 2011 Monty Program Ab
-  2001, 2010, Oracle and/or its affiliates
-  2001, 2010, Oracle and/or its affiliates.
-  2001, 2011, Oracle and/or its affiliates
-  2001, 2011, Oracle and/or its affiliates.
-  2001, 2012, Oracle and/or its affiliates
-  2001, 2013, Oracle and/or its affiliates.
-  2002, 2012, Oracle and/or its affiliates.
-  2002, 2013, Oracle and/or its affiliates
-  2002, 2013, Oracle and/or its affiliates.
-  2002, 2014, Oracle and/or its affiliates.
-  2002, 2015, Oracle and/or its affiliates.
   2003-2004, 2006, MySQL AB
-  2003, 2010, Oracle and/or its affiliates
-  2003, 2010, Oracle and/or its affiliates.
-  2003, 2011, Oracle and/or its affiliates
-  2003, 2011, Oracle and/or its affiliates.
-  2003, 2016, Oracle and/or its affiliates.
-  2004, 2006, MySQL AB
-  2004, 2010, Oracle and/or its affiliates
-  2004, 2010, Oracle and/or its affiliates.
-  2004, 2011, Oracle and/or its affiliates.
-  2004, 2012, Oracle and/or its affiliates.
-  2004, 2013, Oracle and/or its affiliates.
-  2004, 2014, Oracle and/or its affiliates.
-  2005, 2011, Oracle and/or its affiliates.
-  2005, 2015, Oracle and/or its affiliates.
-  2006-2008, MySQL AB, 2009 Sun Microsystems, Inc.
-  2006, 2010, Oracle and/or its affiliates
-  2006, 2010, Oracle and/or its affiliates.
-  2006, 2011, Oracle and/or its affiliates.
-  2006, 2013, Oracle and/or its affiliates.
   2007-2008, Sun Microsystems, Inc,
-  2007, MySQL AB, 2009 Sun Microsystems, Inc.
   2007, MySQL AB & Michael Widenius
   2007, MySQL AB, Sergei Golubchik & Michael Widenius
-  2008, 2010, Oracle and/or its affiliates.
   2008, 2011, Monty Program Ab
-  2008, 2021, MariaDB Corporation.
-  2008, 2022, MariaDB
-  2008, 2022, MariaDB Corporation.
-  2008-2023, MariaDB Corporation
+  2008-2024, MariaDB Corporation
   2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
-  2008, MySQL AB, 2009 Sun Microsystems, Inc.
   2008, Sun Microsystems, Inc
-  2009, 2011, Monty Program Ab
-  2009-2011, Monty Program Ab
-  2009, 2013, Monty Program Ab.
-  2009, 2014, Monty Program Ab.
+  2009-2014, Monty Program Ab
   2009, 2014, SkySQL Ab
-  2009, 2016, MariaDB
-  2009, 2018, MariaDB Corporation
-  2009, 2019, MariaDB Corporation.
-  2009, 2020, MariaDB
-  2009, 2020, MariaDB Corporation.
-  2009, 2021, MariaDB Corporation.
-  2009, 2023, MariaDB Corporation.
   2009, Sun Microsystems, Inc.
-  2010-2011, Monty Program Ab
-  2010-2011, Oracle and/or its affiliates.
-  2010, 2016, MariaDB
-  2010, 2017, MariaDB Corporation.
-  2010, 2020, MariaDB
-  2010, 2021, MariaDB
-  2010, 2022, MariaDB
-  2010, 2024, MariaDB
-  2010, 2024, MariaDB Corporation.
-  2010, Oracle and/or its affiliates.
   2010, Sergei Golubchik and Monty Program Ab
-  2011-2012, Monty Program Ab
-  2011, 2013, Monty Program Ab.
-  2011, 2015, Oracle and/or its affiliates.
-  2011, 2016, MariaDB
-  2011, 2018, MariaDB Corporation
-  2011, 2020, MariaDB Corporation.
-  2011, 2022, Oracle and/or its affiliates.
-  2011, 2024, MariaDB
-  2011, Monty Program Ab
-  2011, Oracle and/or its affiliates.
+  2011-2024, MariaDB Corporation
   2012, 2014, SkySQL Ab
-  2012, 2017, MariaDB Corporation.
-  2012, 2020, MariaDB Corporation.
-  2012, 2022, MariaDB Corporation.
-  2012, Monty Program Ab
-  2012, Monty Program Ab.
   2013, MariaDB Foundation
-  2013, MariaDB Foundation.
-  2013, Monty Program Ab
-  2013, Monty Program Ab.
-  2014, MariaDB
-  2014, Monty Program Ab
-  2014, SkySQL Ab.
-  2015, MariaDB
-  2016, 2021, MariaDB Corporation.
-  2016, 2022, MariaDB Corporation.
-  2016, MariaDB
-  2017, 2022, MariaDB Corporation.
-  2017, MariaDB
-  2017, MariaDB Corporation
-  2017, MariaDB Corporation.
-  2018, MariaDB Corporation Ab.
   2018, Monty Program Ab
   2019-2020, IBM.
-  2019-2020, MariaDB Corporation.
-  2019, IBM.
-  2019, MariaDB Corporation.
-  2020, MariaDB Corporation.
   2021, Eric Herman and MariaDB Foundation.
-  2021, MariaDB
-  2022, MariaDB Corporation.
   2024, MariaDB Plc
 License: GPL-2.0
 
@@ -659,226 +548,32 @@ Files: client/client_metadata.h
  tpool/tpool.h
  tpool/tpool_structs.h
  vio/vio_priv.h
-Copyright: 2000, 2010, Oracle and/or its affiliates.
-  1991, 2021, MariaDB Corporation.
-  1995-2008, MySQL AB, 2009 Sun Microsystems, Inc.
-  1995, 2021, MariaDB Corporation.
-  2000-2002, 2004, 2006-2008, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000-2002, 2004, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2003-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000-2004, 2006-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000-2005, 2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2006, MySQL AB, 2009 Sun Microsystems, Inc.
-  2000, 2010, Oracle and/or its affiliates.
-  2000, 2011, Oracle and/or its affiliates
-  2000, 2011, Oracle and/or its affiliates.
-  2000, 2012, Oracle and/or its affiliates.
-  2000, 2013, Oracle and/or its affiliates.
-  2000, 2014, Oracle and/or its affiliates.
-  2000, 2015, Oracle and/or its affiliates.
-  2000, 2016, Oracle and/or its affiliates.
-  2000, 2017, Oracle and/or its affiliates.
-  2000, 2018, Oracle and/or its affiliates.
-  2000, 2019, MariaDB Corporation.
-  2000, 2019, Oracle and/or its affiliates.
-  2001, 2010, Oracle and/or its affiliates.
-  2001, 2011, Oracle and/or its affiliates.
-  2001, 2012, Oracle and/or its affiliates.
-  2001, 2013, Oracle and/or its affiliates.
-  2002, 2010, Oracle and/or its affiliates.
-  2002, 2011, Oracle and/or its affiliates.
-  2002, 2012, Oracle and/or its affiliates.
-  2002, 2013, Oracle and/or its affiliates.
-  2003, 2005-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2003, 2010, Oracle and/or its affiliates.
-  2003, 2011, Oracle and/or its affiliates.
-  2003, 2013, Oracle and/or its affiliates
-  2003, 2018, Oracle and/or its affiliates.
-  2004, 2006-2007, MySQL AB, 2009 Sun Microsystems, Inc.
-  2004, 2010, Oracle and/or its affiliates.
-  2004, 2011, Oracle and/or its affiliates.
-  2004, 2012, Oracle and/or its affiliates.
-  2004, 2013, Oracle and/or its affiliates.
-  2005, 2010, Oracle and/or its affiliates.
-  2005, 2011, Oracle and/or its affiliates.
-  2005, 2012, Oracle and/or its affiliates.
-  2005, 2013, Oracle and/or its affiliates.
-  2005, 2016, Oracle and/or its affiliates.
-  2005, 2017, Oracle and/or its affiliates.
+Copyright: 1995-2008, MySQL AB, 2009 Sun Microsystems, Inc.
+  2000-2019, Oracle and/or its affiliates.
+  2003-2007, MySQL AB, 2009 Sun Microsystems, Inc.
   2006-2008, MySQL AB, 2008 Sun Microsystems, Inc.
-  2006, 2010, Oracle and/or its affiliates.
-  2006, 2011, Oracle and/or its affiliates.
-  2006, 2012, Oracle and/or its affiliates.
-  2006, 2014, Oracle and/or its affiliates.
-  2006, 2015, Oracle and/or its affiliates.
-  2006, 2016, Oracle and/or its affiliates.
-  2006, 2017, Oracle and/or its affiliates.
   2006, MySQL AB, 2009 Sun Microsystems, Inc.
   2007-2008, Sun Microsystems, Inc,
-  2007, 2010, Oracle and/or its affiliates.
-  2007, 2011, Oracle and/or its affiliates.
-  2007, 2013, Oracle and/or its affiliates.
   2007, Google Inc.
   2007, MySQL AB, 2008 Sun Microsystems, Inc.
-  2008, 2010, Oracle and/or its affiliates.
-  2008, 2011, Oracle and/or its affiliates.
-  2008, 2013, Oracle and/or its affiliates.
-  2008, 2013, SkySQL Ab.
-  2008, 2015, Oracle and/or its affiliates.
-  2008, 2020, MariaDB Corporation.
-  2008, 2021, MariaDB Corporation.
-  2008, 2022, MariaDB
-  2008, 2022, MariaDB Corporation.
+  2008, 2011, 2013 SkySQL Ab.
+  2008-2024, MariaDB Corporation
   2008-2023, Codership Oy <http://www.codership.com>
-  2008, 2023, MariaDB Corporation.
   2008, MySQL AB
   2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
-  2008, MySQL AB, 2009 Sun Microsystems, Inc.
   2008, Sun Microsystems, Inc.
-  2009-2010, Oracle and/or its affiliates.
-  2009, 2011, Monty Program Ab
-  2009-2011, Monty Program Ab
-  2009, 2012, Oracle and/or its affiliates.
-  2009, 2013, Monty Program Ab.
-  2009, 2015, MariaDB
-  2009, 2016, MariaDB
-  2009, 2017, MariaDB Corporation
-  2009, 2017, MariaDB Corporation.
-  2009, 2019, MariaDB
-  2009, 2019, MariaDB Corporation.
-  2009, 2020, MariaDB
-  2009, 2020, MariaDB Corporation.
-  2009, 2021, MariaDB
-  2009, 2022, MariaDB
-  2009, 2022, MariaDB Corporation.
-  2009, 2023, MariaDB
-  2009, 2023, MariaDB Corporation.
-  2009, 2024, MariaDB
-  2010-2011, Monty Program Ab
-  2010-2011, Oracle and/or its affiliates.
-  2010, 2012, Oracle and/or its affiliates.
-  2010, 2013, Oracle and/or its affiliates.
-  2010, 2014, Oracle and/or its affiliates.
-  2010, 2015, MariaDB
-  2010, 2017, MariaDB Corporation.
-  2010, 2018, MariaDB
-  2010, 2019, MariaDB
-  2010, 2021, MariaDB
-  2010, 2021, MariaDB Corporation.
-  2010, 2022, MariaDB Corporation.
-  2010-2023, Codership Oy <http://www.codership.com>
-  2010, Oracle and/or its affiliates.
-  2011-2012, Monty Program Ab
-  2011-2012, Oracle and/or its affiliates.
-  2011, 2013, Monty Program Ab.
-  2011, 2013, SkySQL Ab.
-  2011, 2014, SkySQL Ab.
-  2011, 2017, MariaDB
-  2011, 2017, MariaDB Corporation.
-  2011, 2017, Oracle and/or its affiliates.
-  2011, 2018, MariaDB
-  2011, 2020, MariaDB
-  2011, 2021, MariaDB
-  2011, Monty Program Ab
-  2011, Monty Program Ab.
-  2011, Oracle and/or its affiliates.
-  2012, 2015, Oracle and/or its affiliates.
-  2012, 2016, MariaDB
-  2012, 2020, MariaDB
-  2012, 2020, MariaDB Corporation.
-  2012, 2021, MariaDB
-  2012, Monty Program Ab
-  2012, Monty Program Ab.
-  2012, Oracle and/or its affiliates.
-  2013-2015, Codership Oy <info@codership.com>
-  2013, 2015, Oracle and/or its affiliates.
-  2013-2018, Codership Oy <info@codership.com>
-  2013-2019, Codership Oy <http://www.codership.com>
-  2013, 2020, MariaDB
-  2013-2021, Codership Oy <info@codership.com>
-  2013, 2021, MariaDB Corporation.
-  2013-2023, Codership Oy <info@codership.com>
-  2013, Codership Oy <info@codership.com>
+  2009-2011, 2013, 2017, 2020, Monty Program Ab
   2013, Kristian Nielsen and MariaDB Services Ab.
-  2013, MariaDB Foundation.
-  2013, Monty Program Ab
-  2013, Oracle and/or its affiliates.
   2013, Sergei Golubchik and Monty Program Ab
   2013, Sergey Vojtovich and MariaDB Foundation
-  2014-2015, MariaDB Corporation
   2014-2015, SkySQL Ab & MariaDB Foundation
-  2014, Codership Oy <http://www.codership.com> & SkySQL Ab
   2014, Google Inc.
-  2014, Oracle and/or its affiliates.
-  2014, SkySQL Ab, MariaDB Corporation Ab
-  2015-2019, Codership Oy <info@codership.com>
-  2015, 2020, MariaDB Corporation.
-  2015, 2022, MariaDB Corporation.
-  2015, Codership Oy <info@codership.com>
+  2014, SkySQL Ab, MariaDB Corporation
   2015, Daniel Black.
-  2015, MariaDB
-  2015, MariaDB Foundation
-  2015, MariaDB Foundation.
-  2015, Oracle and/or its affiliates.
-  2016-2017, MariaDB
-  2016-2017, MariaDB Corporation.
-  2016, 2020, MariaDB
-  2016, 2021, MariaDB
-  2016, 2022, MariaDB
-  2016, 2022, MariaDB Corporation.
-  2016-2023, Codership Oy <http://www.codership.com>
-  2016, MariaDB
-  2016, MariaDB corporation
-  2017-2018, MariaDB Corporation.
-  2017, 2020, MariaDB Corporation.
-  2017, 2022, MariaDB Corporation.
-  2017, Aliyun and/or its affiliates.
-  2017, MariaDB
-  2017, MariaDB corporation
-  2017, MariaDB corporation.
-  2017, MariaDB Corporation.
-  2017, MariaDB Foundation
-  2017, Monty Program Ab.
-  2018-2019, MariaDB
-  2018, 2020, MariaDB Corporation.
-  2018, 2020, MariaDB Corporation Ab
-  2018, 2021, MariaDB
-  2018, 2022, MariaDB
-  2018, 2023, MariaDB Corporation
-  2018, Codership Oy <http://www.codership.com>
-  2018, Codership Oy <info@codership.com>
-  2018, MariaDB Corporation
-  2018, MariaDB Corporation.
-  2018, MariaDB Foundation
-  2019-2020, MariaDB
-  2019-2020, MariaDB Corporation.
-  2019, 2021, MariaDB
-  2019, 2021, MariaDB Corporation
-  2019, 2021, MariaDB Corporation.
-  2019, 20222, MariaDB Corporation.
-  2019, 2022, MariaDB Corporation.
-  2019, MariaDB
-  2019, MariaDB.
-  2019, MariaDB Corporation.
-  2019, MariaDB corporation AB
-  2020-2021, MariaDB
-  2020, 2022, MariaDB
-  2020, MariaDB
-  2020, MariaDB Corporation.
-  2020, MariaDB Foundation
-  2020, Monty Program Ab
-  2021-2022, MariaDB Corporation.
-  2021, Codership Oy <info@codership.com>
-  2021, MariaDB Corporation
-  2021, MariaDB Corporation.
-  2022, Codership Oy <http://www.codership.com>
-  2022, MariaDB
-  2022, MariaDB Corporation.
-  2023, MariaDB
-  2023, MariaDB Corporation.
-  2023, MariaDB Foundation
+  2016-2024, MariaDB Corporation
+  2017, Aliyun and/or its affiliates
+  2017-2018, MariaDB Foundation
   2023, MariaDB Plc
-  2024, MariaDB Corporation.
 License: GPL-2.0
 
 Files: mysys/psi_noop.c
@@ -952,22 +647,9 @@ Files: zlib/adler32.c
  zlib/zlib.h
  zlib/zutil.c
  zlib/zutil.h
-Copyright: 1995-2003, 2010, 2014, 2016, Jean-loup Gailly, Mark Adler
-  1995-2003, 2010, Mark Adler
-  1995-2005, 2010, Mark Adler
-  1995-2005, 2014, 2016, Jean-loup Gailly, Mark Adler
-  1995-2011, 2017, Mark Adler
-  1995-2017, Mark Adler
-  1995-2019, Mark Adler
-  1995-2022, Mark Adler
+Copyright: 1995-2022, Mark Adler
   1995-2024, Jean-loup Gailly
   1995-2024, Jean-loup Gailly, Mark Adler
-  1995-2024, Mark Adler
-  2004, 2010, Mark Adler
-  2004-2017, Mark Adler
-  2004-2019, Mark Adler
-  2004-2024, Mark Adler
-  Copyright: 1995-2024, Jean-loup Gailly and Mark Adler
 License: Zlib
  
 Files: include/ma_dyncol.h
@@ -993,16 +675,12 @@ Files: include/ma_dyncol.h
  strings/strxmov.c
  strings/strxnmov.c
 Copyright: 2000, TXT DataKonsult Ab & Monty Program Ab
-  2000, TXT DataKonsult Ab & Monty Program Ab
   2003, TXT DataKonsult Ab
-  2009-2011, Monty Program Ab
-  2009, 2013, Monty Program Ab
-  2010, Monty Program Ab
+  2009-2011, 2013, Monty Program Ab
   2011-2012, Oleksandr Byelkin
-  2011, 2017, MariaDB Corporation.
-  2011, Monty Program Ab
+  2011, 2017, MariaDB Corporation
   2011, Oleksandr Byelkin
-  Richard A. O'Keefe
+  1984 Richard A. O'Keefe
 License: MIT
 
 Files: BUILD/FINISH.sh
@@ -1014,12 +692,7 @@ Files: BUILD/FINISH.sh
  scripts/mysqlaccess.sh
  scripts/mysqldumpslow.sh
  scripts/mysqlhotcopy.sh
-Copyright: 2000, 2010, Oracle and/or its affiliates.
-  2000, 2011, Oracle and/or its affiliates.
-  2000, 2017, Oracle and/or its affiliates.
-  2001, 2017, Oracle and/or its affiliates.
-  2005, 2010, Oracle and/or its affiliates.
-  2009-2010, Oracle and/or its affiliates.
+Copyright: 2000, 2005, 2009-2011, 2017, Oracle and/or its affiliates.
 License: LGPL-2.0
 
 Files: client/completion_hash.h
@@ -1034,21 +707,11 @@ Files: client/completion_hash.h
  strings/ctype-utf8.c
  strings/dtoa.c
 Copyright: 2000-2002, 2006, MySQL AB
-  2000, 2013, Oracle and/or its affiliates.
-  2000, 2017, Oracle and/or its affiliates.
+  2000, 2003-2004, 2007, 2013-2014, 2017, Oracle and/or its affiliates.
   2002-2007, MySQL AB & tommy@valley.ne.jp
-  2002, 2014, Oracle and/or its affiliates.
   2002, MySQL AB
-  2002, MySQL AB & tommy@valley.ne.jp
-  2003, 2013, Oracle and/or its affiliates
-  2004, 2013, Oracle and/or its affiliates.
-  2007, 2012, Oracle and/or its affiliates.
   2009, 2014, SkySQL Ab.
-  2009, 2020, MariaDB
-  2009, 2020, MariaDB Corporation.
-  2010, 2017, MariaDB Corporation
-  2017, 2020, MariaDB Corporation.
-  2021, MariaDB
+  2009, 2017, 2020-2021, MariaDB Corporation.
 License: LGPL-2.0
 
 Files: scripts/mysqld_multi.sh
@@ -1063,16 +726,10 @@ Files: include/maria.h
  mysys/thr_timer.c
  sql/log_slow.h
 Copyright:   2003-2007, MySQL AB
-  2003, MySQL AB
   2006-2008, MySQL AB, 2008-2009 Sun Microsystems, Inc.
   2006, MySQL AB
-  2009, 2017, MariaDB Corporation.
-  2009, 2019, MariaDB Corporation.
-  2012, Monty Program Ab
-  2013, Monty Program Ab
-  2013, Monty Program Ab
-  2014, Monty Program Ab
-  2017, MariaDB Corporation.
+  2009, 2017, 2019, MariaDB Corporation.
+  2012-2014, 2017, Monty Program Ab
 License: GPL-2.0+
 
 Files: client/async_example.c
@@ -1104,9 +761,8 @@ Files: libmysqld/libmysql.c
  sql-common/errmsg.c
 Copyright: 2000, 2014, Oracle and/or its affiliates
   2002, 2006, MySQL AB, 2009 Sun Microsystems, Inc.
-  2020, MariaDB Corporation.
   2009, 2020, MariaDB Corporation
-License: GPL
+License: GPL-2.0
  This program is free software; you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
  the Free Software Foundation.
