@@ -2264,3 +2264,54 @@ $$
 #
 # End of 10.6 tests
 #
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+#
+CREATE TABLE nocopy (a INT);
+DROP TABLE nocopy;
+CREATE TABLE t1 (nocopy int);
+SELECT nocopy AS nocopy FROM t1 AS nocopy;
+nocopy
+DROP TABLE t1;
+CREATE TABLE nocopy (nocopy INT);
+CREATE TRIGGER nocopy AFTER INSERT ON nocopy FOR EACH ROW BEGIN END;
+DROP TRIGGER nocopy;
+DROP TABLE nocopy;
+PREPARE nocopy FROM 'select 1';
+EXECUTE nocopy;
+1
+1
+DEALLOCATE PREPARE nocopy;
+CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+SELECT nocopy(1);
+nocopy(1)
+1
+Warnings:
+Note	1585	This function 'nocopy' has the same name as a native function
+DROP FUNCTION nocopy;
+CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
+CALL nocopy(1);
+nocopy
+1
+DROP PROCEDURE nocopy;
+BEGIN NOT ATOMIC
+DECLARE nocopy INT DEFAULT 1;
+nocopy:
+WHILE 1 DO
+BEGIN
+SELECT nocopy;
+LEAVE nocopy;
+END;
+END WHILE;
+END;
+$$
+nocopy
+1
+#
+# End of 11.7 tests
+#

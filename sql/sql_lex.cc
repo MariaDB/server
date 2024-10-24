@@ -1412,6 +1412,9 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
     if (m_thd->variables.sql_mode & MODE_ORACLE)
     {
       switch (symbol->tok) {
+      case ORACLE_SP_PARAM_MODE_NOCOPY_SYM:
+        return m_thd->lex->current_select->parsing_place == ORACLE_SP_PARAM ?
+               ORACLE_SP_PARAM_MODE_NOCOPY_SYM : 0;
       case BEGIN_MARIADB_SYM:          return BEGIN_ORACLE_SYM;
       case BLOB_MARIADB_SYM:           return BLOB_ORACLE_SYM;
       case BODY_MARIADB_SYM:           return BODY_ORACLE_SYM;
@@ -1432,6 +1435,13 @@ int Lex_input_stream::find_keyword(Lex_ident_cli_st *kwd,
       case RETURN_MARIADB_SYM:         return RETURN_ORACLE_SYM;
       case ROWTYPE_MARIADB_SYM:        return ROWTYPE_ORACLE_SYM;
       case VARCHAR2_MARIADB_SYM:       return VARCHAR2_ORACLE_SYM;
+      }
+    }
+    else
+    {
+      switch (symbol->tok) {
+      case ORACLE_SP_PARAM_MODE_NOCOPY_SYM:
+        return 0;
       }
     }
 

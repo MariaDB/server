@@ -333,6 +333,7 @@ enum enum_parsing_place
   AFTER_LIST,
   FOR_LOOP_BOUND,
   IN_RETURNING,
+  ORACLE_SP_PARAM,
   PARSING_PLACE_SIZE /* always should be the last */
 };
 

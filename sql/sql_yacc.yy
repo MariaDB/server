@@ -332,7 +332,6 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   enum vers_kind_t vers_range_unit;
   enum Column_definition::enum_column_versioning vers_column_versioning;
   enum plsql_cursor_attr_t plsql_cursor_attr;
-  enum Alter_info::enum_alter_table_algorithm alter_table_algo_val;
   privilege_t privilege;
   struct
   {
@@ -729,7 +728,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ELSIF_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  EXCEPTION_ORACLE_SYM          // SQL-2003-N, PLSQL-R
 %token  <kwd>  GOTO_MARIADB_SYM              // Oracle-R
-%token  <kwd>  NOCOPY_SYM
+%token  <kwd>  ORACLE_SP_PARAM_MODE_NOCOPY_SYM // PLSQL-R
 %token  <kwd>  OTHERS_MARIADB_SYM            // SQL-2011-N, PLSQL-R
 %token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
@@ -1472,8 +1471,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
-
-%type <alter_table_algo_val> alter_algorithm_option_is_kwd
 
 %type <object_ddl_options>
         create_or_replace
@@ -8039,15 +8036,11 @@ opt_index_lock_algorithm:
         | alter_algorithm_option alter_lock_option
         ;
 
-alter_algorithm_option_is_kwd:
-           DEFAULT    { $$ = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT; }
-        |  NOCOPY_SYM { $$ = Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY; }
-        ;
-
 alter_algorithm_option:
-          ALGORITHM_SYM opt_equal alter_algorithm_option_is_kwd
+          ALGORITHM_SYM opt_equal DEFAULT
           {
-            Lex->alter_info.set_requested_algorithm($3);
+            Lex->alter_info.set_requested_algorithm(
+              Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT);
           }
         | ALGORITHM_SYM opt_equal ident
           {
@@ -19253,7 +19246,7 @@ sp_opt_default:
 
 sp_opt_nocopy:
           _empty
-        | NOCOPY_SYM
+        | ORACLE_SP_PARAM_MODE_NOCOPY_SYM
         ;
 
 sp_opt_inout:
@@ -19669,9 +19662,10 @@ sp_decl_variable_list_anchored:
         ;
 
 sp_param_name_and_mode:
-          sp_param_name sp_opt_inout sp_opt_nocopy
+          sp_param_name              { Select->parsing_place= ORACLE_SP_PARAM; }
+          sp_opt_inout sp_opt_nocopy { Select->parsing_place= NO_MATTER; }
           {
-             $1->mode= $2;
+             $1->mode= $3;
              $$= $1;
           }
         ;

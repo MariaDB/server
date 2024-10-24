@@ -2067,3 +2067,41 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+--echo #
+
+--let $keyword=nocopy
+--source include/keyword_non_reserved.inc
+
+CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+SELECT nocopy(1);
+DROP FUNCTION nocopy;
+
+CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
+CALL nocopy(1);
+DROP PROCEDURE nocopy;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE nocopy INT DEFAULT 1;
+nocopy:
+  WHILE 1 DO
+    BEGIN
+      SELECT nocopy;
+      LEAVE nocopy;
+    END;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
