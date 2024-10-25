@@ -56,9 +56,22 @@ TARGET_LINK_LIBRARIES(mariadb-check ${CLIENT_LIB})
 MYSQL_ADD_EXECUTABLE(mariadb-dump mysqldump.cc ../sql-common/my_user.c connection_pool.cc)
 TARGET_LINK_LIBRARIES(mariadb-dump ${CLIENT_LIB})
 
+add_library(import_util STATIC import_util.cc import_util.h)
+if (PCRE2_DEBIAN_HACK)
+  set_source_files_properties(import_util.cc PROPERTIES COMPILE_FLAGS "${PCRE2_DEBIAN_HACK}")
+endif()
+target_link_libraries(import_util PRIVATE pcre2-posix pcre2-8)
+
+if(WITH_UNIT_TESTS)
+  add_executable(import_util-t import_util-t.cc)
+  target_link_libraries(import_util-t PRIVATE import_util mytap)
+  add_test(import_util import_util-t)
+endif()
+
 MYSQL_ADD_EXECUTABLE(mariadb-import mysqlimport.cc)
 target_include_directories(mariadb-import PRIVATE ${CMAKE_SOURCE_DIR}/tpool)
-target_link_libraries(mariadb-import PRIVATE tpool ${CLIENT_LIB})
+target_link_libraries(mariadb-import PRIVATE tpool ${CLIENT_LIB} import_util)
+
 
 MYSQL_ADD_EXECUTABLE(mariadb-upgrade mysql_upgrade.c COMPONENT Server)
 TARGET_LINK_LIBRARIES(mariadb-upgrade ${CLIENT_LIB})

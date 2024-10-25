@@ -28,7 +28,7 @@ select * from t1;
 
 # Test --dir
 --replace_result $MYSQLTEST_VARDIR vardir
-# Ignore mtr.test_suppressions (may have suppressions or now), mysql.proc is smaller without perfschema/sys schema
+# Ignore mtr.test_suppressions (may have suppressions or not), mysql.proc is smaller without perfschema/sys schema
 --exec $MYSQL_IMPORT --local --verbose --dir $MYSQLTEST_VARDIR/tmp/dump --ignore-table=mtr.test_suppressions --ignore-table=mysql.proc
 
 drop table t1;
@@ -45,28 +45,68 @@ CREATE TABLE parent (
 CREATE TABLE child (
     id INT,
     parent_id INT,
+    c CHAR(4),
     INDEX par_ind (parent_id),
+    UNIQUE INDEX(c),
     FOREIGN KEY (parent_id)
         REFERENCES parent(id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CHECK (c >= 'a')
 ) ENGINE=INNODB;
 insert into parent values(1),(2);
-insert into child values (1,1),(1,2),(2,1),(2,2);
+insert into child values (1,1,'a'),(1,2,'b'),(2,1,'c'),(2,2,'d');
+
+# Example from https://github.com/mydumper/mydumper/issues/395  (can't repeat now)
+CREATE TABLE offices (
+  id int NOT NULL AUTO_INCREMENT,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+
+CREATE TABLE users (
+  id int NOT NULL AUTO_INCREMENT,
+  office_id int DEFAULT NULL,
+  slogan text GENERATED ALWAYS AS (concat('Hello world #',office_id)) STORED,
+  PRIMARY KEY (id),
+  KEY office_id (office_id),
+  CONSTRAINT users_ibfk_1 FOREIGN KEY (office_id) REFERENCES offices (id)
+) ENGINE=InnoDB;
+
+insert into offices values();
+insert into offices values();
+insert into offices values();
+insert into offices values();
+
+insert into users (office_id) values (1);
+insert into users (office_id) values (2);
+insert into users (office_id) values (3);
 
 --mkdir $MYSQLTEST_VARDIR/tmp/dump
 --exec $MYSQL_DUMP --dir=$MYSQLTEST_VARDIR/tmp/dump --all-databases
+
 drop database db2;
 --replace_result $MYSQLTEST_VARDIR vardir
 --exec $MYSQL_IMPORT --local --silent --dir $MYSQLTEST_VARDIR/tmp/dump --database=db2 --parallel=2
 use db2;
 select * from parent;
 select * from child;
-drop table child;
-drop table parent;
+show create table parent;
+show create table child;
+drop database db2;
+
+--echo # Repeat import with --verbose to see "Adding secondary keys" in the output
+--replace_result $MYSQLTEST_VARDIR vardir
+--exec $MYSQL_IMPORT --verbose --dir $MYSQLTEST_VARDIR/tmp/dump --database=db2
+
+--echo # Repeat import with --verbose and --innodb-optimize-indexes=0, to "not" see "Adding secondary indexes"
+--replace_result $MYSQLTEST_VARDIR vardir
+--exec $MYSQL_IMPORT --verbose --dir $MYSQLTEST_VARDIR/tmp/dump --database=db2 --innodb-optimize-keys=0
 --rmdir $MYSQLTEST_VARDIR/tmp/dump
 
-# Test with triggers (using https://mariadb.com/kb/en/trigger-overview/ example)
+drop database db2;
+create database db2;
+use db2;
 
+# Test with triggers (using https://mariadb.com/kb/en/trigger-overview/ example)
 CREATE TABLE animals (id mediumint(9)
 NOT NULL AUTO_INCREMENT,
 name char(30) NOT NULL,
@@ -145,4 +185,3 @@ use test;
 --exec $MYSQL_IMPORT --dir $MYSQLTEST_VARDIR/tmp/dump --parallel=300 2>&1
 
 --rmdir $MYSQLTEST_VARDIR/tmp/dump
-
