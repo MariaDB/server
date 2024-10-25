@@ -7259,8 +7259,14 @@ add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
     {
       if (!(form->keys_in_use_for_query.is_set(key)))
 	continue;
-      if (form->key_info[key].flags & (HA_FULLTEXT | HA_SPATIAL))
+      if (form->key_info[key].flags & (HA_FULLTEXT|HA_SPATIAL|HA_UNIQUE_HASH))
+      {
+        /*
+         HA_UNIQUE_HASH indexes are excluded since they cannot be used
+         for lookups. See Create_tmp_field::finalize() for details
+        */
 	continue;    // ToDo: ft-keys in non-ft queries.   SerG
+      }
 
       KEY *keyinfo= form->key_info+key;
       uint key_parts= form->actual_n_key_parts(keyinfo);
