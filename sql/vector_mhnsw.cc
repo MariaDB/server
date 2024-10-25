@@ -906,7 +906,7 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
     const float target_dista= vec->distance_to_target / alpha;
     bool discard= false;
     for (size_t i=0; i < neighbors.num; i++)
-      if ((discard= node->distance_to(neighbors.links[i]->vec) < target_dista))
+      if ((discard= node->distance_to(neighbors.links[i]->vec) <= target_dista))
         break;
     if (!discard)
       target.push_neighbor(layer, node);
