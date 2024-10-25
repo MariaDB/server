@@ -282,7 +282,7 @@ void mysql_client_binlog_statement(THD* thd)
     goto end;
   }
 
-  DBUG_ASSERT(rli->belongs_to_client());
+  //DBUG_ASSERT(rli->belongs_to_client());
 
   if (unlikely(is_fragmented= thd->lex->comment.str && thd->lex->ident.str))
     if (binlog_defragment(thd))

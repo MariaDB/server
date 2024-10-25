@@ -2243,6 +2243,8 @@ public:
   Log_event_type get_type_code() override { return QUERY_EVENT; }
   static int dummy_event(String *packet, ulong ev_offset,
                          enum_binlog_checksum_alg checksum_alg);
+  static int from_rows_event(String *packet, ulong ev_offset,
+                         enum_binlog_checksum_alg checksum_alg);
   static int begin_event(String *packet, ulong ev_offset,
                          enum_binlog_checksum_alg checksum_alg);
 #ifdef MYSQL_SERVER

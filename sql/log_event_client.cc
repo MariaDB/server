@@ -1727,10 +1727,13 @@ bool Log_event::print_base64(IO_CACHE* file,
     if (!(tmp_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, tmp_str_sz, MYF(MY_WME))))
       goto err;
 
+
     if (my_base64_encode(ptr, (size_t) size, tmp_str))
     {
       DBUG_ASSERT(0);
     }
+
+    fprintf(stdout, "\n\tEncoding ptr of len %d\nData is %s\nBase64: %s\n\n", (int) size, ptr, tmp_str);
 
     my_b_printf(file, "%s\n", tmp_str);
     my_free(tmp_str);

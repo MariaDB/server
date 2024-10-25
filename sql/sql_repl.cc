@@ -2251,6 +2251,44 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       return NULL;
   }
 
+  if (event_type == WRITE_ROWS_EVENT)
+  {
+    fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT\n");
+  }
+
+  if (event_type == WRITE_ROWS_EVENT_V1)
+  {
+    //const char* c_data= packet->ptr();
+    //size_t const tmp_str_sz= my_base64_needed_encoded_length((int) packet->length());
+    //char *tmp_str;
+    //tmp_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, tmp_str_sz, MYF(MY_WME));
+
+    //if (my_base64_encode(c_data, (size_t) packet->length(), tmp_str))
+    //{
+    //  DBUG_ASSERT(0);
+    //}
+    //fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT_V1\nData: %s\nBase64: %s\n\n", c_data, tmp_str);
+    //my_free(tmp_str);
+    fprintf(stderr, "\n\tConverting WRITE_ROWS_EVENT_V1 to Query_log_event with BINLOG ''\n");
+    //packet->realloc(512);
+    //Query_log_event qev(
+    //    current_thd,
+    //    C_STRING_WITH_LEN(
+    //        "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='"),
+    //    false, false, false, 0);
+    if (Query_log_event::from_rows_event(packet, ev_offset, current_checksum_alg))
+    {
+      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+      return "Failed to replace rows event with query BINLOG ''.";
+    }
+
+
+
+    //Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
+    //                          suppress_use, errcode);
+
+  }
+
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
   pos= my_b_tell(log);
