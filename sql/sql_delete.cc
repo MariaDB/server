@@ -523,12 +523,6 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
 
-    if (!thd->lex->current_select->leaf_tables_saved)
-    {
-      thd->lex->current_select->save_leaf_tables(thd);
-      thd->lex->current_select->leaf_tables_saved= true;
-    }
-
     my_ok(thd, 0);
     DBUG_RETURN(0);
   }
