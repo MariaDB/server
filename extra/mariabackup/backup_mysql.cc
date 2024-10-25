@@ -614,7 +614,7 @@ detect_mysql_capabilities_for_backup()
 	}
 
 	if (opt_slave_info && have_multi_threaded_slave &&
-	    !have_gtid_slave) {
+	    !have_gtid_slave && server_flavor != FLAVOR_MARIADB) {
 	    	msg("The --slave-info option requires GTID enabled for a "
 			"multi-threaded slave.");
 		return(false);
