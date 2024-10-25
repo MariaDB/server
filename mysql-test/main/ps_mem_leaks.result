@@ -118,15 +118,6 @@ CALL p1(2);
 # Clean up
 DROP TABLE t1;
 DROP PROCEDURE p1;
-#
-# MDEV-33858: Assertion `(mem_root->flags & 4) == 0' fails on 2nd execution of PS with -DWITH_PROTECT_STATEMENT_MEMROOT=ON
-#
-CREATE TABLE t (a INT);
-INSERT INTO t VALUES (1),(2);
-PREPARE stmt FROM "UPDATE t SET a = 0 LIMIT ?";
-EXECUTE stmt USING 0;
-EXECUTE stmt USING 1;
-DROP TABLE t;
 # End of 10.5 tests
 #
 # MDEV-33769: Memory leak found in the test main.rownum run with --ps-protocol against a server built with the option -DWITH_PROTECT_STATEMENT_MEMROOT
