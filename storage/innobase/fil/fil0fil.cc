@@ -1186,7 +1186,7 @@ err_exit:
 
     if (create_new_db)
     {
-      node->find_metadata(node->handle);
+      node->find_metadata();
       continue;
     }
     if (skip_read)
@@ -2038,7 +2038,7 @@ err_exit:
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode, true)) {
 		fil_node_t* node = space->add(path, file, size, false, true);
-		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
+		node->find_metadata(IF_WIN(,true));
 		mysql_mutex_unlock(&fil_system.mutex);
 		mtr.start();
 		mtr.set_named_space(space);
