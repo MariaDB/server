@@ -3955,6 +3955,14 @@ void fil_node_t::find_metadata(IF_WIN(,bool create)) noexcept
     block_size= info.PhysicalBytesPerSectorForAtomicity;
   else
     block_size= 512;
+  if (space->purpose != FIL_TYPE_TABLESPACE)
+  {
+    /* For temporary tablespace or during IMPORT TABLESPACE, we
+    disable neighbour flushing and do not care about atomicity. */
+    on_ssd= true;
+    atomic_write= true;
+    return;
+  }
 #else
   if (space->purpose != FIL_TYPE_TABLESPACE)
   {
