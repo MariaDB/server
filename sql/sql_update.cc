@@ -571,12 +571,6 @@ int mysql_update(THD *thd,
     if (thd->is_error())
       DBUG_RETURN(1);
 
-    if (!thd->lex->current_select->leaf_tables_saved)
-    {
-      thd->lex->current_select->save_leaf_tables(thd);
-      thd->lex->current_select->leaf_tables_saved= true;
-    }
-
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
