@@ -1193,10 +1193,6 @@ public:
     can be transformed into IN-subselect defined with TVC.
   */
   List<Item_func_in> in_funcs;
-  /**
-    Flag to guard against double initialization of leaf tables list
-  */
-  bool leaf_tables_saved;
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
