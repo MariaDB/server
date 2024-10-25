@@ -111,6 +111,9 @@ eval $check_no_innodb;
 #let SEARCH_PATTERN= \[Note\] InnoDB: Cannot read first page of .*t2.ibd;
 #--source include/search_pattern_in_file.inc
 
+--let SEARCH_PATTERN= InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'
+--source include/search_pattern_in_file.inc
+
 --rmdir $MYSQLD_DATADIR/test/t2.ibd
 
 # Create a short file.
@@ -148,10 +151,11 @@ DROP TABLE t0;
 --disable_query_log
 # The following are for the orphan file t0.ibd or for the directory t2.ibd:
 call mtr.add_suppression("InnoDB: Operating system error number [0-9]* in a file operation");
-call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory)'");
+call mtr.add_suppression("InnoDB: Error number [0-9]* means '(File exists|Is a directory|Invalid argument)'");
 call mtr.add_suppression("InnoDB: Cannot create file '.*t0.ibd'");
 call mtr.add_suppression("InnoDB: The file '.*t0\.ibd' already exists");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-write: '.*t2\.ibd'");
+call mtr.add_suppression("InnoDB: Could not measure the size of single-table tablespace file '.*test/t2\\.ibd'");
 # The following are for aborted startup without --innodb-force-recovery:
 call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*test");
 call mtr.add_suppression("InnoDB: Set innodb_force_recovery=1 to ignore this and to permanently lose all changes to the tablespace");
