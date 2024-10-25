@@ -246,3 +246,14 @@ drop table t;
 create table t1 (f vector(1) default 0x30313233, v vector(2) default x'4041424344454647');
 show create table t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-35246 Vector search skips a row in the table
+--echo #
+set rand_seed1=1, rand_seed2=2;
+create or replace table t1 (a int, v vector(1) not null, vector(v) max_edges_per_node=6);
+insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
+update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
+--sorted_result
+select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
+drop table t1;
