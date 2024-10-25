@@ -3023,7 +3023,6 @@ void st_select_lex::init_query()
   olap= UNSPECIFIED_OLAP_TYPE;
   having_fix_field= 0;
   having_fix_field_for_pushed_cond= 0;
-  leaf_tables_saved= false;
   context.select_lex= this;
   context.init();
   cond_count= between_count= with_wild= 0;

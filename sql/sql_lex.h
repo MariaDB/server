@@ -1183,10 +1183,6 @@ public:
   */
   bool have_merged_subqueries;
 
-  /**
-    Flag to guard against double initialization of leaf tables list
-  */
-  bool leaf_tables_saved;
   List<TABLE_LIST> leaf_tables;
   List<TABLE_LIST> leaf_tables_exec;
   List<TABLE_LIST> leaf_tables_prep;
