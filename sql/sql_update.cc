@@ -611,12 +611,6 @@ int mysql_update(THD *thd,
     if (thd->binlog_for_noop_dml(transactional_table))
       DBUG_RETURN(1);
 
-    if (!thd->lex->current_select->leaf_tables_saved)
-    {
-      thd->lex->current_select->save_leaf_tables(thd);
-      thd->lex->current_select->leaf_tables_saved= true;
-    }
-
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
@@ -1391,10 +1385,10 @@ update_end:
   }
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;		/* calc cuted fields */
   thd->abort_on_warning= 0;
-  if (!thd->lex->current_select->leaf_tables_saved)
+  if (thd->lex->current_select->first_cond_optimization)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= 0;
   }
   *found_return= found;
   *updated_return= updated;
