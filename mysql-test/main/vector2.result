@@ -321,3 +321,38 @@ t1	CREATE TABLE `t1` (
   `v` vector(2) DEFAULT x'4041424344454647'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t1;
+#
+# MDEV-35246 Vector search skips a row in the table
+#
+set rand_seed1=1, rand_seed2=2;
+create or replace table t1 (a int, v vector(1) not null, vector(v) max_edges_per_node=6);
+insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
+update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
+select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
+a	vec_totext(v)
+1	[33]
+10	[33]
+11	[33]
+12	[33]
+13	[33]
+14	[33]
+15	[33]
+2	[33]
+28	[28]
+29	[29]
+3	[33]
+30	[30]
+31	[31]
+32	[32]
+33	[33]
+34	[34]
+35	[35]
+36	[36]
+37	[37]
+4	[33]
+5	[33]
+6	[33]
+7	[33]
+8	[33]
+9	[33]
+drop table t1;
