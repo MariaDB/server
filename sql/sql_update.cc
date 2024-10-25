@@ -467,6 +467,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -507,6 +508,7 @@ bool Sql_cmd_update::update_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -1287,6 +1289,7 @@ update_end:
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= 0;
   }
   ((multi_update *)result)->set_found(found);
   ((multi_update *)result)->set_updated(updated);

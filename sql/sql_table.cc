@@ -2967,8 +2967,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
       auto_increment++;
     extend_option_list(thd, create_info->db_type, !sql_field->field,
                        &sql_field->option_list,
-                       create_info->db_type->field_options,
-                       thd->stmt_arena->mem_root);
+                       create_info->db_type->field_options);
     if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
@@ -3244,8 +3243,7 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
     extend_option_list(thd, create_info->db_type, !key->old,
-                  &key_info->option_list, create_info->db_type->index_options,
-                  thd->stmt_arena->mem_root);
+                  &key_info->option_list, create_info->db_type->index_options);
     if (parse_option_list(thd, &key_info->option_struct,
                           &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
@@ -3842,8 +3840,7 @@ without_overlaps_err:
 
   extend_option_list(thd, file->partition_ht(),
               !thd->lex->create_like() && create_table_mode > C_ALTER_TABLE,
-              &create_info->option_list, file->partition_ht()->table_options,
-              thd->stmt_arena->mem_root);
+              &create_info->option_list, file->partition_ht()->table_options);
   if (parse_option_list(thd, &create_info->option_struct,
                     &create_info->option_list,
                     file->partition_ht()->table_options, FALSE, thd->mem_root))

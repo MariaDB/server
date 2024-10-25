@@ -7282,6 +7282,9 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
   Item *copy_or_same(THD *) override { return this; }
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_trigger_field>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
 private:
   void set_required_privilege(bool rw) override;

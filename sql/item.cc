@@ -8023,6 +8023,7 @@ static
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              item->type() == Item::TRIGGER_FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
   Item_field *field_item= NULL;

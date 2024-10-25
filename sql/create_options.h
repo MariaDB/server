@@ -84,7 +84,7 @@ bool parse_option_list(THD* thd, void *option_struct,
                        bool suppress_warning, MEM_ROOT *root);
 bool extend_option_list(THD* thd, handlerton *hton, bool create,
                         engine_option_value **option_list,
-                        ha_create_table_option *rules, MEM_ROOT *root);
+                        ha_create_table_option *rules);
 
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share);
