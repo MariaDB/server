@@ -143,8 +143,8 @@ static int test_space_compress(HUFF_COUNTS *huff_counts,my_off_t records,
 static HUFF_TREE* make_huff_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_tree(HUFF_TREE *tree,HUFF_COUNTS *huff_counts);
 static int compare_huff_elements(void *not_used, const void *a, const void *b);
-static int save_counts_in_queue(uchar *key,element_count count,
-				    HUFF_TREE *tree);
+static int save_counts_in_queue(void *key, element_count count,
+				    void *tree);
 static my_off_t calc_packed_length(HUFF_COUNTS *huff_counts,uint flag);
 static uint join_same_trees(HUFF_COUNTS *huff_counts,uint trees);
 static int make_huff_decode_table(HUFF_TREE *huff_tree,uint trees);
@@ -1728,9 +1728,10 @@ static int compare_tree(void *cmp_arg __attribute__((unused)), const void *s_,
     0
  */
 
-static int save_counts_in_queue(uchar *key, element_count count,
-				HUFF_TREE *tree)
+static int save_counts_in_queue(void *key_, element_count count, void *tree_)
 {
+  uchar *key= key_;
+  HUFF_TREE *tree= tree_;
   HUFF_ELEMENT *new_huff_el;
 
   new_huff_el=tree->element_buffer+(tree->elements++);
