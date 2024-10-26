@@ -68,8 +68,7 @@ static int sort_one_index(HA_CHECK *param, MARIA_HA *info,
 static int sort_key_read(MARIA_SORT_PARAM *sort_param, uchar *key);
 static int sort_maria_ft_key_read(MARIA_SORT_PARAM *sort_param, uchar *key);
 static int sort_get_next_record(MARIA_SORT_PARAM *sort_param);
-static int sort_key_cmp(MARIA_SORT_PARAM *sort_param, const void *a,
-                        const void *b);
+static int sort_key_cmp(void *sort_param, const void *a, const void *b);
 static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
                                    const uchar *a);
 static int sort_key_write(MARIA_SORT_PARAM *sort_param, const uchar *a);
@@ -5645,9 +5644,9 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
 
 /* Compare two keys from _ma_create_index_by_sort */
 
-static int sort_key_cmp(MARIA_SORT_PARAM *sort_param, const void *a,
-			const void *b)
+static int sort_key_cmp(void *sort_param_, const void *a, const void *b)
 {
+  const MARIA_SORT_PARAM *sort_param= sort_param_;
   uint not_used[2];
   return (ha_key_cmp(sort_param->seg, *((uchar* const *) a),
                      *((uchar* const *) b),

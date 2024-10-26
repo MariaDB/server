@@ -679,7 +679,6 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
-typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
@@ -697,10 +696,10 @@ static DYNAMIC_ARRAY acl_wild_hosts;
 static Hash_filo<acl_entry> *acl_cache;
 static uint grant_version=0; /* Version of priv tables. incremented by acl_load */
 static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field=0);
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b);
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b);
+static int acl_compare(const void *a, const void *b);
+static int acl_user_compare(const void *a, const void *b);
 static void rebuild_acl_users();
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b);
+static int acl_db_compare(const void *a, const void *b);
 static void rebuild_acl_dbs();
 static void init_check_host(void);
 static void rebuild_check_host(void);
@@ -3026,8 +3025,10 @@ static privilege_t get_access(TABLE *form, uint fieldnr, uint *next_field)
 }
 
 
-static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
+static int acl_compare(const void *a_, const void *b_)
 {
+  const ACL_ACCESS *a= static_cast<const ACL_ACCESS *>(a_);
+  const ACL_ACCESS *b= static_cast<const ACL_ACCESS *>(b_);
   if (a->sort > b->sort)
     return -1;
   if (a->sort < b->sort)
@@ -3035,8 +3036,11 @@ static int acl_compare(const ACL_ACCESS *a, const ACL_ACCESS *b)
   return 0;
 }
 
-static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
+static int acl_user_compare(const void *a_, const void *b_)
 {
+  const ACL_USER *a= static_cast<const ACL_USER *>(a_);
+  const ACL_USER *b= static_cast<const ACL_USER *>(b_);
+
   int res= strcmp(a->user.str, b->user.str);
   if (res)
     return res;
@@ -3055,8 +3059,10 @@ static int acl_user_compare(const ACL_USER *a, const ACL_USER *b)
   return -strcmp(a->host.hostname, b->host.hostname);
 }
 
-static int acl_db_compare(const ACL_DB *a, const ACL_DB *b)
+static int acl_db_compare(const void *a_, const void *b_)
 {
+  const ACL_DB *a= static_cast<const ACL_DB *>(a_);
+  const ACL_DB *b= static_cast<const ACL_DB *>(b_);
   int res= strcmp(a->user, b->user);
   if (res)
     return res;
@@ -6545,8 +6551,10 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
   return old != grantee->access;
 }
 
-static int db_name_sort(const int *db1, const int *db2)
+static int db_name_sort(const void *db1_, const void *db2_)
 {
+  auto db1= static_cast<const int *>(db1_);
+  auto db2= static_cast<const int *>(db2_);
   return strcmp(acl_dbs.at(*db1).db, acl_dbs.at(*db2).db);
 }
 
@@ -6699,8 +6707,10 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   return update_flags;
 }
 
-static int table_name_sort(GRANT_TABLE * const *tbl1, GRANT_TABLE * const *tbl2)
+static int table_name_sort(const void *tbl1_, const void *tbl2_)
 {
+  auto tbl1= static_cast<const GRANT_TABLE *const *>(tbl1_);
+  auto tbl2= static_cast<const GRANT_TABLE *const *>(tbl2_);
   int res = strcmp((*tbl1)->db, (*tbl2)->db);
   if (res) return res;
   return strcmp((*tbl1)->tname, (*tbl2)->tname);
@@ -6901,8 +6911,10 @@ static bool merge_role_table_and_column_privileges(ACL_ROLE *grantee,
   return update_flags;
 }
 
-static int routine_name_sort(GRANT_NAME * const *r1, GRANT_NAME * const *r2)
+static int routine_name_sort(const void *r1_,  const void *r2_)
 {
+  auto r1= static_cast<const GRANT_NAME *const *>(r1_);
+  auto r2= static_cast<const GRANT_NAME *const *>(r2_);
   int res= strcmp((*r1)->db, (*r2)->db);
   if (res) return res;
   return strcmp((*r1)->tname, (*r2)->tname);

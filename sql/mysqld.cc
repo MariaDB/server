@@ -7609,10 +7609,10 @@ static void print_version(void)
 }
 
 /** Compares two options' names, treats - and _ the same */
-static int option_cmp(my_option *a, my_option *b)
+static int option_cmp(const void *a, const void *b)
 {
-  const char *sa= a->name;
-  const char *sb= b->name;
+  const char *sa= static_cast<const my_option *>(a)->name;
+  const char *sb= static_cast<const my_option *>(b)->name;
   for (; *sa || *sb; sa++, sb++)
   {
     if (*sa < *sb)

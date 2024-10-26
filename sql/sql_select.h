@@ -1903,7 +1903,7 @@ int opt_sum_query(THD* thd,
                   List<TABLE_LIST> &tables, List<Item> &all_fields, COND *conds);
 
 /* from sql_delete.cc, used by opt_range.cc */
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b);
+extern "C" int refpos_order_cmp(void *arg, const void *a,const void *b);
 
 /** class to copying an field/item to a key struct */
 

@@ -551,10 +551,10 @@ int key_cmp(KEY_PART_INFO *key_part, const uchar *key, uint key_length)
     @retval +1                  first_rec is greater than second_rec
 */
 
-int key_rec_cmp(void *key_p, uchar *first_rec, uchar *second_rec)
+int key_rec_cmp(const KEY *const *key, const uchar *first_rec,
+                const uchar *second_rec)
 {
-  KEY **key= (KEY**) key_p;
-  KEY *key_info= *(key++);                     // Start with first key
+  const KEY *key_info= *(key++);                     // Start with first key
   uint key_parts, key_part_num;
   KEY_PART_INFO *key_part= key_info->key_part;
   uchar *rec0= key_part->field->ptr - key_part->offset;
@@ -642,10 +642,10 @@ next_loop:
     @retval +1  key1 > key2 
 */
 
-int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2, 
+int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
                   uint tuple_length)
 {
-  uchar *key1_end= key1 + tuple_length;
+  const uchar *key1_end= key1 + tuple_length;
   int UNINIT_VAR(len);
   int res;
   for (;key1 < key1_end; key1 += len, key2 += len, part++)
@@ -671,7 +671,6 @@ int key_tuple_cmp(KEY_PART_INFO *part, uchar *key1, uchar *key2,
   }
   return 0;
 }
-
 
 /**
   Get hash value for the key from a key buffer 

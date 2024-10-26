@@ -29,6 +29,7 @@ C_MODE_START
 #include <stdarg.h>
 #include <typelib.h>
 #include <my_alloca.h>
+#include <my_cmp.h>
 #include <mysql/plugin.h>
 #include <mysql/service_my_print_error.h>
 
@@ -475,8 +476,6 @@ typedef struct st_io_cache		/* Used when caching files */
   size_t alloced_buffer;
 } IO_CACHE;
 
-typedef int (*qsort2_cmp)(const void *, const void *, const void *);
-
 typedef void (*my_error_reporter)(enum loglevel level, const char *format, ...)
   ATTRIBUTE_FORMAT_FPTR(printf, 2, 3);
 
@@ -777,8 +776,8 @@ extern void radixsort_for_str_ptr(uchar* base[], uint number_of_elements,
 extern qsort_t my_qsort(void *base_ptr, size_t total_elems, size_t size,
                         qsort_cmp cmp);
 extern qsort_t my_qsort2(void *base_ptr, size_t total_elems, size_t size,
-                         qsort2_cmp cmp, void *cmp_argument);
-extern qsort2_cmp get_ptr_compare(size_t);
+                         qsort_cmp2 cmp, void *cmp_argument);
+extern qsort_cmp2 get_ptr_compare(size_t);
 void my_store_ptr(uchar *buff, size_t pack_length, my_off_t pos);
 my_off_t my_get_ptr(uchar *ptr, size_t pack_length);
 extern int init_io_cache(IO_CACHE *info,File file,size_t cachesize,

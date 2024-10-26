@@ -451,8 +451,8 @@ bool spider_check_index_merge(
 );
 
 int spider_compare_for_sort(
-  SPIDER_SORT *a,
-  SPIDER_SORT *b
+  const void *a,
+  const void *b
 );
 
 ulong spider_calc_for_sort(
