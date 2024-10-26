@@ -95,9 +95,7 @@ public:
   friend  class analyse;
 };
 
-
-int collect_string(String *element, element_count count,
-		   TREE_INFO *info);
+int collect_string(void *element, element_count count, void *info);
 
 int sortcmp2(void *, const void *a, const void *b);
 
@@ -139,15 +137,14 @@ public:
   friend int collect_string(String *element, element_count count,
 			    TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_string; }
+  { return collect_string; }
   String *std(String *s __attribute__((unused)),
 	      ha_rows rows __attribute__((unused))) override
   { return (String*) 0; }
 };
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info);
+int collect_decimal(void *element, element_count count, void *info);
 
 class field_decimal :public field_info
 {
@@ -171,12 +168,12 @@ public:
   friend int collect_decimal(uchar *element, element_count count,
                              TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_decimal; }
+  { return collect_decimal; }
   String *std(String *s, ha_rows rows) override;
 };
 
 
-int collect_real(double *element, element_count count, TREE_INFO *info);
+int collect_real(void *element, element_count count, void *info);
 
 class field_real: public field_info
 {
@@ -229,11 +226,10 @@ public:
   friend int collect_real(double *element, element_count count,
 			  TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_real;}
+  { return collect_real;}
 };
 
-int collect_longlong(longlong *element, element_count count,
-		     TREE_INFO *info);
+int collect_longlong(void *element, element_count count, void *info);
 
 class field_longlong: public field_info
 {
@@ -276,11 +272,10 @@ public:
   friend int collect_longlong(longlong *element, element_count count,
 			      TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_longlong;}
+  { return collect_longlong;}
 };
 
-int collect_ulonglong(ulonglong *element, element_count count,
-		      TREE_INFO *info);
+int collect_ulonglong(void *element, element_count count, void *info);
 
 class field_ulonglong: public field_info
 {
@@ -324,7 +319,7 @@ public:
   friend int collect_ulonglong(ulonglong *element, element_count count,
 			       TREE_INFO *info);
   tree_walk_action collect_enum() override
-  { return (tree_walk_action) collect_ulonglong; }
+  { return collect_ulonglong; }
 };
 
 
