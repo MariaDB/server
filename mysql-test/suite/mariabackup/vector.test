@@ -28,3 +28,23 @@ select id, Vec_ToText(v) from t1;
 select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
 drop table t1;
 rmdir $targetdir;
+
+--echo #
+--echo # MDEV-35258 Mariabackup does not work with MyISAM tables with vector keys
+--echo #
+
+create table t1 (a int, v vector(1) not null, vector(v)) engine=MyISAM;
+insert into t1 values (1,0x31313131),(2,0x32323232);
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+exec $XTRABACKUP --prepare --target-dir=$targetdir;
+--enable_result_log
+
+drop table t1;
+--list_files $targetdir/test
+--source include/restart_and_restore.inc
+
+show create table t1;
+select * from t1 order by vec_distance_euclidean(v, 0x30303030) limit 1;
+drop table t1;
+rmdir $targetdir;
