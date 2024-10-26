@@ -96,8 +96,10 @@ static handler *tina_create_handler(handlerton *hton,
 /*
   Used for sorting chains with qsort().
 */
-int sort_set (tina_set *a, tina_set *b)
+int sort_set (const void *a_, const void *b_)
 {
+  const tina_set *a= static_cast<const tina_set*>(a_);
+  const tina_set *b= static_cast<const tina_set*>(b_);
   /*
     We assume that intervals do not intersect. So, it is enought to compare
     any two points. Here we take start of intervals for comparison.
