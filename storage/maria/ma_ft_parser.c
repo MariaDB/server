@@ -32,10 +32,12 @@ typedef struct st_my_maria_ft_parser_param
 } MY_FT_PARSER_PARAM;
 
 
-static int FT_WORD_cmp(CHARSET_INFO* cs, FT_WORD *w1, FT_WORD *w2)
+static int FT_WORD_cmp(void *cs_, const void *w1_, const void *w2_)
 {
-  return ha_compare_word(cs, (uchar*) w1->pos, w1->len,
-                             (uchar*) w2->pos, w2->len);
+  CHARSET_INFO *cs= cs_;
+  const FT_WORD *w1= w1_;
+  const FT_WORD *w2= w2_;
+  return ha_compare_word(cs, w1->pos, w1->len, w2->pos, w2->len);
 }
 
 static int walk_and_copy(FT_WORD *word,uint32 count,FT_DOCSTAT *docstat)
@@ -234,8 +236,8 @@ void maria_ft_parse_init(TREE *wtree, CHARSET_INFO *cs)
 {
   DBUG_ENTER("maria_ft_parse_init");
   if (!is_tree_inited(wtree))
-    init_tree(wtree,0,0,sizeof(FT_WORD),(qsort_cmp2)&FT_WORD_cmp, NULL,
-              (void*) cs, MYF(0));
+    init_tree(wtree, 0, 0, sizeof(FT_WORD), &FT_WORD_cmp, NULL, (void *) cs,
+              MYF(0));
   DBUG_VOID_RETURN;
 }
 

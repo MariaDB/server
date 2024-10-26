@@ -3170,9 +3170,10 @@ void store_master_info(THD *thd, Master_info *mi, TABLE *table,
 
 /* Used to sort connections by name */
 
-int cmp_mi_by_name(const Master_info **arg1,
-                   const Master_info **arg2)
+int cmp_mi_by_name(const void *arg1_, const void *arg2_)
 {
+  auto arg1= static_cast<const Master_info *const *>(arg1_);
+  auto arg2= static_cast<const Master_info *const *>(arg2_);
   return Lex_ident_master_info::charset_info()->strnncoll(
                                                      (*arg1)->connection_name,
                                                      (*arg2)->connection_name);
