@@ -559,3 +559,38 @@ drop table t1, t2;
 --echo #
 --echo # End of 10.3 test
 --echo #
+
+--echo #
+--echo # MDEV-26427 MariaDB Server SEGV on INSERT .. SELECT
+--echo #
+
+CREATE TABLE t1 (a int);
+
+INSERT INTO t1 SELECT AVG(1);
+--sorted_result
+SELECT * FROM t1;
+
+INSERT INTO t1 SELECT MIN(2) OVER ();
+--sorted_result
+SELECT * FROM t1;
+
+CREATE VIEW v1 AS SELECT * FROM t1 ORDER BY a;
+
+INSERT INTO v1 SELECT SUM(3);
+--sorted_result
+SELECT * FROM v1;
+
+INSERT INTO v1 SELECT * FROM v1;
+--sorted_result
+SELECT * FROM t1;
+
+INSERT INTO t1 SELECT * FROM v1;
+--sorted_result
+SELECT * FROM t1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 test
+--echo #

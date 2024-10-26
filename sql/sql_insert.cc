@@ -1570,7 +1570,7 @@ static bool mysql_prepare_insert_check_table(THD *thd, TABLE_LIST *table_list,
   if (insert_into_view && !fields.elements)
   {
     thd->lex->empty_field_list_on_rset= 1;
-    if (!thd->lex->select_lex.leaf_tables.head()->table ||
+    if (!thd->lex->first_select_lex()->leaf_tables.head()->table ||
         table_list->is_multitable())
     {
       my_error(ER_VIEW_NO_INSERT_FIELD_LIST, MYF(0),

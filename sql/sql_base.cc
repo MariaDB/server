@@ -7834,18 +7834,19 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
       while ((table_list= ti++))
         leaves.push_back(table_list, thd->mem_root);
     }
-      
+
+    bool is_insert_tables_num_set= false;
     while ((table_list= ti++))
     {
       TABLE *table= table_list->table;
       if (table)
         table->pos_in_table_list= table_list;
-      if (first_select_table &&
+      if (select_insert && !is_insert_tables_num_set &&
           table_list->top_table() == first_select_table)
       {
         /* new counting for SELECT of INSERT ... SELECT command */
-        first_select_table= 0;
-        thd->lex->select_lex.insert_tables= tablenr;
+        thd->lex->first_select_lex()->insert_tables= tablenr;
+        is_insert_tables_num_set= true;
         tablenr= 0;
       }
       if(table_list->jtbm_subselect)
@@ -7866,6 +7867,15 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
     {
       my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
       DBUG_RETURN(1);
+    }
+    if (select_insert && !is_insert_tables_num_set)
+    {
+      /*
+        This happens for statements like `INSERT INTO t1 SELECT 1`,
+        when there are no tables in the SELECT part.
+        In this case all leaf tables belong to the INSERT part
+      */
+      thd->lex->first_select_lex()->insert_tables= tablenr;
     }
   }
   else
