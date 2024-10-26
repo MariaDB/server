@@ -1130,10 +1130,11 @@ int mysql_prepare_delete(THD *thd, TABLE_LIST *table_list, Item **conds,
 ***************************************************************************/
 
 
-extern "C" int refpos_order_cmp(void* arg, const void *a,const void *b)
+extern "C" int refpos_order_cmp(void *arg, const void *a, const void *b)
 {
-  handler *file= (handler*)arg;
-  return file->cmp_ref((const uchar*)a, (const uchar*)b);
+  auto file= static_cast<handler *>(arg);
+  return file->cmp_ref(static_cast<const uchar *>(a),
+                       static_cast<const uchar *>(b));
 }
 
 /*

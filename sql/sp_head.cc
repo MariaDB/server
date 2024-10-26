@@ -997,9 +997,10 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
 }
 
 
-int cmp_rqp_locations(Rewritable_query_parameter * const *a,
-                      Rewritable_query_parameter * const *b)
+int cmp_rqp_locations(const void *a_, const void *b_)
 {
+  auto a= static_cast<const Rewritable_query_parameter *const *>(a_);
+  auto b= static_cast<const Rewritable_query_parameter *const *>(b_);
   return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
 
