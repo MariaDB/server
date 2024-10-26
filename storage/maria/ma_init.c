@@ -22,8 +22,9 @@
 #include "ma_checkpoint.h"
 #include <hash.h>
 
-void history_state_free(MARIA_STATE_HISTORY_CLOSED *closed_history)
+void history_state_free(void *closed_history_)
 {
+  MARIA_STATE_HISTORY_CLOSED *closed_history= closed_history_;
   MARIA_STATE_HISTORY *history, *next;
 
   /*
@@ -72,7 +73,7 @@ int maria_init(void)
     maria_create_trn_hook= dummy_maria_create_trn_hook;
   }
   my_hash_init(PSI_INSTRUMENT_ME, &maria_stored_state, &my_charset_bin, 32, 0,
-               sizeof(LSN), 0, (my_hash_free_key) history_state_free, 0);
+               sizeof(LSN), 0, history_state_free, 0);
   DBUG_PRINT("info",("dummy_transaction_object: %p", &dummy_transaction_object));
   return 0;
 }

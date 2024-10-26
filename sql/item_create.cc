@@ -38,13 +38,12 @@
 #include <mysql/plugin_function.h>
 
 
-extern "C" uchar*
-get_native_fct_hash_key(const uchar *buff, size_t *length,
-                        my_bool /* unused */)
+extern "C" const uchar *get_native_fct_hash_key(const void *buff,
+                                                size_t *length, my_bool)
 {
-  Native_func_registry *func= (Native_func_registry*) buff;
+  auto func= static_cast<const Native_func_registry *>(buff);
   *length= func->name.length;
-  return (uchar*) func->name.str;
+  return reinterpret_cast<const uchar *>(func->name.str);
 }
 
 
@@ -5708,9 +5707,8 @@ bool Native_functions_hash::init(size_t count)
 {
   DBUG_ENTER("Native_functions_hash::init");
 
-  if (my_hash_init(key_memory_native_functions, this,
-                   system_charset_info, (ulong) count, 0, 0, (my_hash_get_key)
-                   get_native_fct_hash_key, NULL, MYF(0)))
+  if (my_hash_init(key_memory_native_functions, this, system_charset_info,
+                   (ulong) count, 0, 0, get_native_fct_hash_key, NULL, MYF(0)))
     DBUG_RETURN(true);
 
   DBUG_RETURN(false);
