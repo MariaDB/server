@@ -84,7 +84,7 @@ typedef struct st_stack
 /****************************************************************************
 ** 'standard' quicksort with the following extensions:
 **
-** Can be compiled with the qsort2_cmp compare function
+** Can be compiled with the qsort_cmp2 compare function
 ** Store ranges on stack to avoid recursion
 ** Use insert sort on small ranges
 ** Optimize for sorting of pointers (used often by MySQL)
@@ -92,7 +92,7 @@ typedef struct st_stack
 *****************************************************************************/
 
 #ifdef QSORT_EXTRA_CMP_ARGUMENT
-qsort_t my_qsort2(void *base_ptr, size_t count, size_t size, qsort2_cmp cmp,
+qsort_t my_qsort2(void *base_ptr, size_t count, size_t size, qsort_cmp2 cmp,
 	       void *cmp_argument)
 #else
 qsort_t my_qsort(void *base_ptr, size_t count, size_t size, qsort_cmp cmp)
