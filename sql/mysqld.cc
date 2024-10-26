@@ -4924,7 +4924,7 @@ init_gtid_pos_auto_engines(void)
 
 
 #define us_to_ms(X) if (X > 0) X/= 1000;
-static int adjust_optimizer_costs(void *, OPTIMIZER_COSTS *oc, void *)
+static int adjust_optimizer_costs(const LEX_CSTRING *, OPTIMIZER_COSTS *oc, TABLE *)
 {
   us_to_ms(oc->disk_read_cost);
   us_to_ms(oc->index_block_copy_cost);
@@ -5307,7 +5307,7 @@ static int init_server_components()
     if (ddl_log_initialize())
       unireg_abort(1);
 
-    process_optimizer_costs((process_optimizer_costs_t)adjust_optimizer_costs, 0);
+    process_optimizer_costs(adjust_optimizer_costs, 0);
     us_to_ms(global_system_variables.optimizer_where_cost);
     us_to_ms(global_system_variables.optimizer_scan_setup_cost);
   }
