@@ -603,25 +603,22 @@ static const char *mrn_inspect_extra_function(enum ha_extra_function operation)
 }
 #endif
 
-static uchar *mrn_open_tables_get_key(const uchar *record,
-                                      size_t *length,
-                                      my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_open_tables_get_key(const void *record, size_t *length,
+                                            my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  MRN_SHARE *share = reinterpret_cast<MRN_SHARE *>(const_cast<uchar *>(record));
+  auto share = static_cast<const MRN_SHARE *>(record);
   *length = share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<uchar *>(share->table_name));
+  DBUG_RETURN(reinterpret_cast<const uchar *>(share->table_name));
 }
 
-static uchar *mrn_long_term_share_get_key(const uchar *record,
-                                          size_t *length,
-                                          my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_long_term_share_get_key(const void *record,
+                                                size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
-  MRN_LONG_TERM_SHARE *long_term_share =
-    reinterpret_cast<MRN_LONG_TERM_SHARE *>(const_cast<uchar *>(record));
+  auto long_term_share= static_cast<const MRN_LONG_TERM_SHARE *>(record);
   *length = long_term_share->table_name_length;
-  DBUG_RETURN(reinterpret_cast<uchar *>(long_term_share->table_name));
+  DBUG_RETURN(reinterpret_cast<const uchar *>(long_term_share->table_name));
 }
 
 /* status */
@@ -699,13 +696,12 @@ static grn_logger mrn_logger = {
   NULL
 };
 
-static uchar *mrn_allocated_thds_get_key(const uchar *record,
-                                         size_t *length,
-                                         my_bool not_used __attribute__ ((unused)))
+static const uchar *mrn_allocated_thds_get_key(const void *record,
+                                               size_t *length, my_bool)
 {
   MRN_DBUG_ENTER_FUNCTION();
   *length = sizeof(THD *);
-  DBUG_RETURN(const_cast<uchar *>(record));
+  DBUG_RETURN(static_cast<const uchar *>(record));
 }
 
 /* system functions */

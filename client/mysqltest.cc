@@ -2400,13 +2400,12 @@ static void strip_parentheses(struct st_command *command)
 
 C_MODE_START
 
-static uchar *get_var_key(const uchar* var, size_t *len,
-                          my_bool __attribute__((unused)) t)
+static const uchar *get_var_key(const void *var, size_t *len, my_bool)
 {
   char* key;
-  key = ((VAR*)var)->name;
-  *len = ((VAR*)var)->name_len;
-  return (uchar*)key;
+  key= (static_cast<const VAR *>(var))->name;
+  *len= (static_cast<const VAR *>(var))->name_len;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 

@@ -3906,12 +3906,13 @@ mysql_options(MYSQL *mysql,enum mysql_option option, const void *arg)
 /**
   A function to return the key from a connection attribute
 */
-uchar *
-get_attr_key(LEX_STRING *part, size_t *length,
+const uchar *
+get_attr_key(const void *part_, size_t *length,
              my_bool not_used __attribute__((unused)))
 {
+  const LEX_STRING *part= part_;
   *length= part[0].length;
-  return (uchar *) part[0].str;
+  return (const uchar *) part[0].str;
 }
 
 int STDCALL
@@ -3960,7 +3961,7 @@ mysql_options4(MYSQL *mysql,enum mysql_option option,
       {
         if (my_hash_init(key_memory_mysql_options,
                          &mysql->options.extension->connection_attributes,
-                         &my_charset_bin, 0, 0, 0, (my_hash_get_key)
+                         &my_charset_bin, 0, 0, 0,
                          get_attr_key, my_free, HASH_UNIQUE))
         {
           set_mysql_error(mysql, CR_OUT_OF_MEMORY, unknown_sqlstate);

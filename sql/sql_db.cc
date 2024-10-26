@@ -146,16 +146,17 @@ private:
   Hash_set<LEX_STRING> m_set;
   mysql_rwlock_t m_lock;
 
-  static uchar *get_key(const LEX_STRING *ls, size_t *sz, my_bool)
+  static const uchar *get_key(const void *ls_, size_t *sz, my_bool)
   {
+    const LEX_STRING *ls= static_cast<const LEX_STRING *>(ls_);
     *sz= ls->length;
-    return (uchar *) ls->str;
+    return reinterpret_cast<const uchar *>(ls->str);
   }
 
 public:
   dbname_cache_t()
       : m_set(key_memory_dbnames_cache, table_alias_charset, 10, 0,
-              sizeof(char *), (my_hash_get_key) get_key, my_free, 0)
+              sizeof(char *), get_key, my_free, 0)
   {
     mysql_rwlock_init(key_rwlock_LOCK_dbnames, &m_lock);
   }
@@ -239,14 +240,14 @@ static int my_rmdir(const char *dir)
   Function we use in the creation of our hash to get key.
 */
 
-extern "C" uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                                    my_bool not_used);
+extern "C" const uchar *dboptions_get_key(const void *opt, size_t *length,
+                                          my_bool);
 
-uchar* dboptions_get_key(my_dbopt_t *opt, size_t *length,
-                         my_bool not_used __attribute__((unused)))
+const uchar *dboptions_get_key(const void *opt_, size_t *length, my_bool)
 {
+  auto opt= static_cast<const my_dbopt_t *>(opt_);
   *length= opt->name_length;
-  return (uchar*) opt->name;
+  return reinterpret_cast<const uchar *>(opt->name);
 }
 
 
@@ -298,8 +299,8 @@ bool my_dboptions_cache_init(void)
   {
     dboptions_init= 1;
     error= my_hash_init(key_memory_dboptions_hash, &dboptions,
-                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
-                        dboptions_get_key, free_dbopt, 0);
+                        table_alias_charset, 32, 0, 0, dboptions_get_key,
+                        free_dbopt, 0);
   }
   dbname_cache_init();
   return error;
@@ -332,7 +333,7 @@ void my_dbopt_cleanup(void)
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
   my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
-               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
+               0, 0, dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 

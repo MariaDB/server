@@ -107,11 +107,11 @@ int sort_set (const void *a_, const void *b_)
   return ( a->begin > b->begin ? 1 : ( a->begin < b->begin ? -1 : 0 ) );
 }
 
-static uchar* tina_get_key(TINA_SHARE *share, size_t *length,
-                          my_bool not_used __attribute__((unused)))
+static const uchar *tina_get_key(const void *share_, size_t *length, my_bool)
 {
+  const TINA_SHARE *share= static_cast<const TINA_SHARE *>(share_);
   *length=share->table_name_length;
-  return (uchar*) share->table_name;
+  return reinterpret_cast<const uchar *>(share->table_name);
 }
 
 static PSI_memory_key csv_key_memory_tina_share;
@@ -186,9 +186,8 @@ static int tina_init_func(void *p)
   tina_hton= (handlerton *)p;
   mysql_mutex_init(csv_key_mutex_tina, &tina_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(csv_key_memory_tina_share, &tina_open_tables,
-                      Lex_ident_table::charset_info(),
-                      32, 0, 0, (my_hash_get_key)
-                      tina_get_key, 0, 0);
+                      Lex_ident_table::charset_info(), 32, 0, 0, tina_get_key,
+                      0, 0);
   tina_hton->db_type= DB_TYPE_CSV_DB;
   tina_hton->create= tina_create_handler;
   tina_hton->flags= (HTON_CAN_RECREATE | HTON_SUPPORT_LOG_TABLES | 
