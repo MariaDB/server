@@ -588,13 +588,13 @@ void Session_sysvars_tracker::mark_all_as_changed(THD *thd)
   @return Pointer to the key buffer.
 */
 
-uchar *Session_sysvars_tracker::sysvars_get_key(const char *entry,
-                                                size_t *length,
-                                                my_bool not_used __attribute__((unused)))
+const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
+                                                      size_t *length, my_bool)
 {
-  auto key=&(((sysvar_node_st *) entry)->m_svar->offset);
+  ptrdiff_t *key=
+      &((static_cast<const sysvar_node_st *>(entry))->m_svar->offset);
   *length= sizeof(*key);
-  return (uchar *) key;
+  return reinterpret_cast<const uchar *>(key);
 }
 
 

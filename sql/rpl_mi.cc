@@ -870,12 +870,12 @@ void end_master_info(Master_info* mi)
 }
 
 /* Multi-Master By P.Linux */
-uchar *get_key_master_info(Master_info *mi, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_key_master_info(const void *mi_, size_t *length, my_bool)
 {
+  auto mi= static_cast<const Master_info *>(mi_);
   /* Return lower case name */
   *length= mi->cmp_connection_name.length;
-  return (uchar*) mi->cmp_connection_name.str;
+  return reinterpret_cast<const uchar *>(mi->cmp_connection_name.str);
 }
 
 /*
@@ -885,8 +885,9 @@ uchar *get_key_master_info(Master_info *mi, size_t *length,
   Stops associated slave threads and frees master_info
 */
 
-void free_key_master_info(Master_info *mi)
+void free_key_master_info(void *mi_)
 {
+  Master_info *mi= static_cast<Master_info*>(mi_);
   DBUG_ENTER("free_key_master_info");
   mysql_mutex_unlock(&LOCK_active_mi);
 
@@ -1125,9 +1126,8 @@ bool Master_info_index::init_all_master_info()
   /* Initialize Master_info Hash Table */
   if (my_hash_init(PSI_INSTRUMENT_ME, &master_info_hash,
                    Lex_ident_master_info::charset_info(),
-                   MAX_REPLICATION_THREAD, 0, 0, 
-                   (my_hash_get_key) get_key_master_info, 
-                   (my_hash_free_key)free_key_master_info, HASH_UNIQUE))
+                   MAX_REPLICATION_THREAD, 0, 0, get_key_master_info,
+                   free_key_master_info, HASH_UNIQUE))
   {                                                      
     sql_print_error("Initializing Master_info hash table failed");
     DBUG_RETURN(1);
