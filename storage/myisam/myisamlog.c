@@ -58,11 +58,10 @@ static void get_options(int *argc,char ***argv);
 static int examine_log(char * file_name,char **table_names);
 static int read_string(IO_CACHE *file,uchar* *to,uint length);
 static int file_info_compare(void *cmp_arg, const void *a, const void *b);
-static int test_if_open(struct file_info *key,element_count count,
-			struct test_if_open_param *param);
+static int test_if_open(void *key, element_count count, void *param);
 static void fix_blob_pointers(MI_INFO *isam,uchar *record);
-static int test_when_accessed(struct file_info *key,element_count count,
-			      struct st_access_param *access_param);
+static int test_when_accessed(void *key, element_count count,
+                              void *access_param);
 static int file_info_free(void*, TREE_FREE, void *);
 static int close_some_file(TREE *tree);
 static int reopen_closed_file(TREE *tree,struct file_info *file_info);
@@ -411,7 +410,7 @@ static int examine_log(char * file_name, char **table_names)
       }
       open_param.name=file_info.name;
       open_param.max_id=0;
-      (void) tree_walk(&tree,(tree_walk_action) test_if_open,(void*) &open_param,
+      (void) tree_walk(&tree, test_if_open,(void*) &open_param,
 		     left_root_right);
       file_info.id=open_param.max_id+1;
       /*
@@ -709,10 +708,12 @@ static int file_info_compare(void *cmp_arg __attribute__((unused)),
 
 	/* ARGSUSED */
 
-static int test_if_open (struct file_info *key,
+static int test_if_open (void *key_,
 			 element_count count __attribute__((unused)),
-			 struct test_if_open_param *param)
+			 void *param_)
 {
+  struct file_info *key= key_;
+  struct test_if_open_param *param= param_;
   if (!strcmp(key->name,param->name) && key->id > param->max_id)
     param->max_id=key->id;
   return 0;
@@ -737,10 +738,12 @@ static void fix_blob_pointers(MI_INFO *info, uchar *record)
 	/* close the file with hasn't been accessed for the longest time */
 	/* ARGSUSED */
 
-static int test_when_accessed (struct file_info *key,
+static int test_when_accessed (void *key_,
 			       element_count count __attribute__((unused)),
-			       struct st_access_param *access_param)
+			       void *access_param_)
 {
+  struct file_info *key= key_;
+  struct st_access_param *access_param= access_param_;
   if (key->accessed < access_param->min_accessed && ! key->closed)
   {
     access_param->min_accessed=key->accessed;
@@ -776,7 +779,7 @@ static int close_some_file(TREE *tree)
   access_param.min_accessed=LONG_MAX;
   access_param.found=0;
 
-  (void) tree_walk(tree,(tree_walk_action) test_when_accessed,
+  (void) tree_walk(tree, test_when_accessed,
 		 (void*) &access_param,left_root_right);
   if (!access_param.found)
     return 1;			/* No open file that is possibly to close */
