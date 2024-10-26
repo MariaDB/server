@@ -3753,8 +3753,10 @@ static void free_block(SIMPLE_KEY_CACHE_CB *keycache, BLOCK_LINK *block)
 }
 
 
-static int cmp_sec_link(BLOCK_LINK **a, BLOCK_LINK **b)
+static int cmp_sec_link(const void *_a, const void *_b)
 {
+  BLOCK_LINK *const *a= _a;
+  BLOCK_LINK *const *b= _b;
   return (((*a)->hash_link->diskpos < (*b)->hash_link->diskpos) ? -1 :
       ((*a)->hash_link->diskpos > (*b)->hash_link->diskpos) ? 1 : 0);
 }

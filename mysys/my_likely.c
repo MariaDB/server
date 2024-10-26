@@ -55,8 +55,10 @@ void init_my_likely()
   pthread_mutex_init(&likely_mutex, MY_MUTEX_INIT_FAST);
 }
 
-static int likely_cmp(LIKELY_ENTRY **a, LIKELY_ENTRY **b)
+static int likely_cmp(const void  *a_, const void *b_)
 {
+  const LIKELY_ENTRY *const *a= a_;
+  const LIKELY_ENTRY *const *b= b_;
   int cmp;
   if ((cmp= strcmp((*a)->key, (*b)->key)))
     return cmp;
