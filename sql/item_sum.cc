@@ -673,10 +673,11 @@ bool Item_sum::check_vcol_func_processor(void *arg)
     @retval > 0       if key1 > key2
 */
 
-int simple_str_key_cmp(void* arg, uchar* key1, uchar* key2)
+int simple_str_key_cmp(void *arg, const void *key1, const void *key2)
 {
-  Field *f= (Field*) arg;
-  return f->cmp(key1, key2);
+  Field *f= static_cast<Field *>(arg);
+  return f->cmp(static_cast<const uchar *>(key1),
+                static_cast<const uchar *>(key2));
 }
 
 
@@ -706,9 +707,12 @@ C_MODE_END
     @retval >0       if key1 > key2
 */
 
-int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
+int Aggregator_distinct::composite_key_cmp(void *arg, const void *key1_,
+                                           const void *key2_)
 {
-  Aggregator_distinct *aggr= (Aggregator_distinct *) arg;
+  const uchar *key1= static_cast<const uchar *>(key1_);
+  const uchar *key2= static_cast<const uchar *>(key2_);
+  Aggregator_distinct *aggr= static_cast<Aggregator_distinct *>(arg);
   Field **field    = aggr->table->field;
   Field **field_end= field + aggr->table->s->fields;
   uint32 *lengths=aggr->field_lengths;
@@ -725,7 +729,6 @@ int Aggregator_distinct::composite_key_cmp(void* arg, uchar* key1, uchar* key2)
   return 0;
 }
 
-
 /***************************************************************************/
 
 C_MODE_START
@@ -734,7 +737,7 @@ C_MODE_START
 
 int simple_raw_key_cmp(void* arg, const void* key1, const void* key2)
 {
-    return memcmp(key1, key2, *(uint *) arg);
+  return memcmp(key1, key2, *(static_cast<uint *>(arg)));
 }
 
 
@@ -847,7 +850,7 @@ bool Aggregator_distinct::setup(THD *thd)
       if (all_binary)
       {
         cmp_arg= (void*) &tree_key_length;
-        compare_key= (qsort_cmp2) simple_raw_key_cmp;
+        compare_key= simple_raw_key_cmp;
       }
       else
       {
@@ -859,14 +862,14 @@ bool Aggregator_distinct::setup(THD *thd)
             compare method that can take advantage of not having to worry
             about other fields.
           */
-          compare_key= (qsort_cmp2) simple_str_key_cmp;
+          compare_key= simple_str_key_cmp;
           cmp_arg= (void*) table->field[0];
           /* tree_key_length has been set already */
         }
         else
         {
           uint32 *length;
-          compare_key= (qsort_cmp2) composite_key_cmp;
+          compare_key= composite_key_cmp;
           cmp_arg= (void*) this;
           field_lengths= (uint32*) thd->alloc(table->s->fields * sizeof(uint32));
           for (tree_key_length= 0, length= field_lengths, field= table->field;
@@ -3571,11 +3574,10 @@ String *Item_sum_udf_str::val_str(String *str)
   @retval  1 : key1 > key2 
 */
 
-extern "C"
-int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
-                                       const void* key2)
+extern "C" int group_concat_key_cmp_with_distinct(void *arg, const void *key1,
+                                                  const void *key2)
 {
-  Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
+  auto item_func= static_cast<const Item_func_group_concat *>(arg);
 
   for (uint i= 0; i < item_func->arg_count_field; i++)
   {
@@ -3614,11 +3616,11 @@ int group_concat_key_cmp_with_distinct(void* arg, const void* key1,
     Used for JSON_ARRAYAGG function
 */
 
-int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
-                                                  const void* key1_arg,
-                                                  const void* key2_arg)
+int group_concat_key_cmp_with_distinct_with_nulls(void *arg,
+                                                  const void *key1_arg,
+                                                  const void *key2_arg)
 {
-  Item_func_group_concat *item_func= (Item_func_group_concat*)arg;
+  auto item_func= static_cast<Item_func_group_concat *>(arg);
 
   uchar *key1= (uchar*)key1_arg + item_func->table->s->null_bytes;
   uchar *key2= (uchar*)key2_arg + item_func->table->s->null_bytes;
@@ -3667,11 +3669,10 @@ int group_concat_key_cmp_with_distinct_with_nulls(void* arg,
   function of sort for syntax: GROUP_CONCAT(expr,... ORDER BY col,... )
 */
 
-extern "C"
-int group_concat_key_cmp_with_order(void* arg, const void* key1, 
-                                    const void* key2)
+extern "C" int group_concat_key_cmp_with_order(void *arg, const void *key1,
+                                               const void *key2)
 {
-  Item_func_group_concat* grp_item= (Item_func_group_concat*) arg;
+  auto grp_item= static_cast<Item_func_group_concat *>(arg);
   ORDER **order_item, **end;
 
   for (order_item= grp_item->order, end=order_item+ grp_item->arg_count_order;
@@ -3727,10 +3728,11 @@ int group_concat_key_cmp_with_order(void* arg, const void* key1,
     Used for JSON_ARRAYAGG function
 */
 
-int group_concat_key_cmp_with_order_with_nulls(void *arg, const void *key1_arg,
+int group_concat_key_cmp_with_order_with_nulls(void *arg,
+                                               const void *key1_arg,
                                                const void *key2_arg)
 {
-  Item_func_group_concat* grp_item= (Item_func_group_concat*) arg;
+  auto grp_item= static_cast<const Item_func_group_concat *>(arg);
   ORDER **order_item, **end;
 
   uchar *key1= (uchar*)key1_arg + grp_item->table->s->null_bytes;

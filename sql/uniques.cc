@@ -429,11 +429,13 @@ Unique::reset()
 
 C_MODE_START
 
-static int buffpek_compare(void *arg, uchar *key_ptr1, uchar *key_ptr2)
+static int buffpek_compare(void *arg, const void *key_ptr1,
+                           const void *key_ptr2)
 {
-  BUFFPEK_COMPARE_CONTEXT *ctx= (BUFFPEK_COMPARE_CONTEXT *) arg;
+  auto ctx= static_cast<const BUFFPEK_COMPARE_CONTEXT *>(arg);
   return ctx->key_compare(ctx->key_compare_arg,
-                          *((uchar **) key_ptr1), *((uchar **)key_ptr2));
+                          *(static_cast<const uchar *const *>(key_ptr1)),
+                          *(static_cast<const uchar *const *>(key_ptr2)));
 }
 
 C_MODE_END
@@ -734,7 +736,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
   sort_param.unique_buff= buff +(sort_param.max_keys_per_buffer *
 				       sort_param.sort_length);
 
-  sort_param.compare= (qsort2_cmp) buffpek_compare;
+  sort_param.compare= buffpek_compare;
   sort_param.cmp_context.key_compare= tree.compare;
   sort_param.cmp_context.key_compare_arg= tree.custom_arg;
 

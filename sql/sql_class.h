@@ -7145,10 +7145,10 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  int compare_packed_fixed_size_vals(uchar *a, size_t *a_len,
-                                     uchar *b, size_t *b_len);
-  int compare_packed_varstrings(uchar *a, size_t *a_len,
-                                uchar *b, size_t *b_len);
+  int compare_packed_fixed_size_vals(const uchar *a, size_t *a_len,
+                                     const uchar *b, size_t *b_len);
+  int compare_packed_varstrings(const uchar *a, size_t *a_len,
+                                const uchar *b, size_t *b_len);
   bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() { return type == VARIABLE_SIZE; }
   void set_length_and_original_length(THD *thd, uint length_arg);

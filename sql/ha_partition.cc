@@ -5635,7 +5635,7 @@ bool ha_partition::init_record_priority_queue()
   m_start_key.key= (const uchar*)ptr;
 
   /* Initialize priority queue, initialized to reading forward. */
-  int (*cmp_func)(void *, uchar *, uchar *);
+  int (*cmp_func)(void *, const void *, const void *);
   void *cmp_arg= (void*) this;
   if (!m_using_extended_keys && !(table_flags() & HA_SLOW_CMP_REF))
     cmp_func= cmp_key_rowid_part_id;
@@ -5883,8 +5883,10 @@ int ha_partition::index_read_map(uchar *buf, const uchar *key,
 
 
 /* Compare two part_no partition numbers */
-static int cmp_part_ids(uchar *ref1, uchar *ref2)
+static int cmp_part_ids(const void *ref1_, const void *ref2_)
 {
+  auto ref1= static_cast<const uchar *>(ref1_);
+  auto ref2= static_cast<const uchar *>(ref2_);
   uint32 diff2= uint2korr(ref2);
   uint32 diff1= uint2korr(ref1);
   if (diff2 > diff1)
@@ -5900,9 +5902,12 @@ static int cmp_part_ids(uchar *ref1, uchar *ref2)
     Provide ordering by (key_value, part_no).
 */
 
-extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_part_id(void *ptr, const void *ref1_, const void *ref2_)
 {
-  ha_partition *file= (ha_partition*)ptr;
+  const ha_partition *file= static_cast<const ha_partition *>(ptr);
+  const uchar *ref1= static_cast<const uchar *>(ref1_);
+  const uchar *ref2= static_cast<const uchar *>(ref2_);
+
   if (int res= key_rec_cmp(file->m_curr_key_info,
                            ref1 + PARTITION_BYTES_IN_POS,
                            ref2 + PARTITION_BYTES_IN_POS))
@@ -5914,9 +5919,13 @@ extern "C" int cmp_key_part_id(void *ptr, uchar *ref1, uchar *ref2)
   @brief
     Provide ordering by (key_value, underying_table_rowid, part_no).
 */
-extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2)
+extern "C" int cmp_key_rowid_part_id(void *ptr, const void *ref1_,
+                                     const void *ref2_)
 {
-  ha_partition *file= (ha_partition*)ptr;
+  const ha_partition *file= static_cast<const ha_partition *>(ptr);
+  const uchar *ref1= static_cast<const uchar *>(ref1_);
+  const uchar *ref2= static_cast<const uchar *>(ref2_);
+
   int res;
 
   if ((res= key_rec_cmp(file->m_curr_key_info, ref1 + PARTITION_BYTES_IN_POS,
@@ -8468,10 +8477,12 @@ int ha_partition::handle_ordered_prev(uchar *buf)
   Helper function for sorting according to number of rows in descending order.
 */
 
-int ha_partition::compare_number_of_records(ha_partition *me,
-                                            const uint32 *a,
-                                            const uint32 *b)
+int ha_partition::compare_number_of_records(void *me_, const void *a_,
+                                            const void *b_)
 {
+  const ha_partition *me= static_cast<const ha_partition *>(me_);
+  const uint32 *a= static_cast<const uint32 *>(a_);
+  const uint32 *b= static_cast<const uint32 *>(b_);
   handler **file= me->m_file;
   /* Note: sorting in descending order! */
   if (file[*a]->stats.records > file[*b]->stats.records)
@@ -8771,7 +8782,7 @@ int ha_partition::info(uint flag)
     my_qsort2((void*) m_part_ids_sorted_by_num_of_records,
               m_tot_parts,
               sizeof(uint32),
-              (qsort2_cmp) compare_number_of_records,
+              compare_number_of_records,
               this);
 
     file= m_file[handler_instance];

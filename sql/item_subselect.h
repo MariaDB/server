@@ -1296,9 +1296,9 @@ protected:
     Quick sort comparison function that compares two rows of the same table
     indentfied with their row numbers.
   */
-  int cmp_keys_by_row_data(rownum_t a, rownum_t b);
-  static int cmp_keys_by_row_data_and_rownum(Ordered_key *key,
-                                             rownum_t* a, rownum_t* b);
+  int cmp_keys_by_row_data(const rownum_t a, const rownum_t b) const;
+  static int cmp_keys_by_row_data_and_rownum(void *key, const void *a,
+                                             const void *b);
 
   int cmp_key_with_search_key(rownum_t row_num);
 
@@ -1314,23 +1314,23 @@ public:
   /* Initialize a single-column index. */
   bool init(int col_idx);
 
-  uint get_column_count() { return key_column_count; }
-  uint get_keyid() { return keyid; }
-  Field *get_field(uint i)
+  uint get_column_count() const { return key_column_count; }
+  uint get_keyid() const { return keyid; }
+  Field *get_field(uint i) const
   {
     DBUG_ASSERT(i < key_column_count);
     return key_columns[i]->field;
   }
-  rownum_t get_min_null_row() { return min_null_row; }
-  rownum_t get_max_null_row() { return max_null_row; }
+  rownum_t get_min_null_row() const { return min_null_row; }
+  rownum_t get_max_null_row() const { return max_null_row; }
   MY_BITMAP * get_null_key() { return &null_key; }
-  ha_rows get_null_count() { return null_count; }
-  ha_rows get_key_buff_elements() { return key_buff_elements; }
+  ha_rows get_null_count() const { return null_count; }
+  ha_rows get_key_buff_elements() const { return key_buff_elements; }
   /*
     Get the search key element that corresponds to the i-th key part of this
     index.
   */
-  Item *get_search_key(uint i)
+  Item *get_search_key(uint i) const
   {
     return search_key->element_index(key_columns[i]->field->field_index);
   }
@@ -1343,7 +1343,7 @@ public:
   }
 
   bool sort_keys();
-  double null_selectivity();
+  inline double null_selectivity() const;
 
   /*
     Position the current element at the first row that matches the key.
@@ -1371,7 +1371,7 @@ public:
     return FALSE;
   };
   /* Return the current index element. */
-  rownum_t current()
+  rownum_t current() const
   {
     DBUG_ASSERT(key_buff_elements && cur_key_idx < key_buff_elements);
     return key_buff[cur_key_idx];
@@ -1381,7 +1381,7 @@ public:
   {
     bitmap_set_bit(&null_key, (uint)row_num);
   }
-  bool is_null(rownum_t row_num)
+  bool is_null(rownum_t row_num) const
   {
     /*
       Indexes consisting of only NULLs do not have a bitmap buffer at all.
@@ -1397,7 +1397,7 @@ public:
       return FALSE;
     return bitmap_is_set(&null_key, (uint)row_num);
   }
-  void print(String *str);
+  void print(String *str) const;
 };
 
 
@@ -1516,12 +1516,12 @@ protected:
     Comparison function to compare keys in order of decreasing bitmap
     selectivity.
   */
-  static int cmp_keys_by_null_selectivity(Ordered_key **k1, Ordered_key **k2);
+  static int cmp_keys_by_null_selectivity(const void *k1, const void *k2);
   /*
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(void *arg, uchar *k1, uchar *k2);
+  static int cmp_keys_by_cur_rownum(void *, const void *k1, const void *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
