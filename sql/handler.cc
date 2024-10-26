@@ -588,9 +588,10 @@ static int hton_drop_table(handlerton *hton, const char *path)
 }
 
 
-int ha_finalize_handlerton(st_plugin_int *plugin)
+int ha_finalize_handlerton(void *plugin_)
 {
   int deinit_status= 0;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -674,7 +675,7 @@ static bool ddl_recovery_done= false;
 
 int setup_transaction_participant(st_plugin_int *plugin)
 {
-  auto tp= (transaction_participant *)(plugin->data);
+  auto tp= static_cast<transaction_participant *>(plugin->data);
   ulong fslot;
   for (fslot= 0; fslot < total_ha; fslot++)
     if (!hton2plugin[fslot])
@@ -714,8 +715,9 @@ int setup_transaction_participant(st_plugin_int *plugin)
   return 0;
 }
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
+int ha_initialize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
   int ret= 0;
   DBUG_ENTER("ha_initialize_handlerton");

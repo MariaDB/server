@@ -10799,8 +10799,9 @@ ST_SCHEMA_TABLE schema_tables[]=
 static_assert(array_elements(schema_tables) == SCH_ENUM_SIZE + 1,
               "Update enum_schema_tables as well.");
 
-int initialize_schema_table(st_plugin_int *plugin)
+int initialize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table;
   int err;
   DBUG_ENTER("initialize_schema_table");
@@ -10845,10 +10846,11 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-int finalize_schema_table(st_plugin_int *plugin)
+int finalize_schema_table(void *plugin_)
 {
   int deinit_status= 0;
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)
