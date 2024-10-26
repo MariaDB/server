@@ -1856,10 +1856,10 @@ int spider_db_mbase::init()
 {
   DBUG_ENTER("spider_db_mbase::init");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (
-    my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash, spd_charset_utf8mb3_bin, 32, 0, 0,
-      (my_hash_get_key) spider_link_get_key, 0, 0)
-  ) {
+  if (my_hash_init(PSI_INSTRUMENT_ME, &lock_table_hash,
+                   spd_charset_utf8mb3_bin, 32, 0, 0, spider_link_get_key, 0,
+                   0))
+  {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
   spider_alloc_calc_mem_init(lock_table_hash, SPD_MID_DB_MBASE_INIT_1);
