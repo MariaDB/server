@@ -1083,10 +1083,10 @@ String *field_decimal::std(String *s, ha_rows rows)
 }
 
 
-int collect_string(String *element,
-		   element_count count __attribute__((unused)),
-		   TREE_INFO *info)
+int collect_string(void *element_, element_count, void *info_)
 {
+  String *element= static_cast<String*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   if (info->found)
     info->str->append(',');
   else
@@ -1099,9 +1099,10 @@ int collect_string(String *element,
 } // collect_string
 
 
-int collect_real(double *element, element_count count __attribute__((unused)),
-		 TREE_INFO *info)
+int collect_real(void *element_, element_count, void *info_)
 {
+  double *element= static_cast<double*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),current_thd->charset());
 
@@ -1117,9 +1118,10 @@ int collect_real(double *element, element_count count __attribute__((unused)),
 } // collect_real
 
 
-int collect_decimal(uchar *element, element_count count,
-                    TREE_INFO *info)
+int collect_decimal(void *element_, element_count count, void *info_)
 {
+  uchar *element= static_cast<uchar*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[DECIMAL_MAX_STR_LENGTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1136,10 +1138,10 @@ int collect_decimal(uchar *element, element_count count,
 }
 
 
-int collect_longlong(longlong *element,
-		     element_count count __attribute__((unused)),
-		     TREE_INFO *info)
+int collect_longlong(void *element_, element_count, void *info_)
 {
+  longlong *element= static_cast<longlong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
@@ -1155,10 +1157,10 @@ int collect_longlong(longlong *element,
 } // collect_longlong
 
 
-int collect_ulonglong(ulonglong *element,
-		      element_count count __attribute__((unused)),
-		      TREE_INFO *info)
+int collect_ulonglong(void *element_, element_count, void *info_)
 {
+  ulonglong *element= static_cast<ulonglong*>(element_);
+  TREE_INFO *info= static_cast<TREE_INFO*>(info_);
   char buff[MAX_FIELD_WIDTH];
   String s(buff, sizeof(buff),&my_charset_bin);
 
