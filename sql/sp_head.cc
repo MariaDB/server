@@ -1006,6 +1006,175 @@ sp_head::create_result_field(uint field_max_length, const LEX_CSTRING *field_nam
 }
 
 
+<<<<<<< HEAD
+=======
+int cmp_rqp_locations(const void *a_, const void *b_)
+{
+  auto a= static_cast<const Rewritable_query_parameter *const *>(a_);
+  auto b= static_cast<const Rewritable_query_parameter *const *>(b_);
+  return (int)((*a)->pos_in_query - (*b)->pos_in_query);
+}
+
+
+/*
+  StoredRoutinesBinlogging
+  This paragraph applies only to statement-based binlogging. Row-based
+  binlogging does not need anything special like this.
+
+  Top-down overview:
+
+  1. Statements
+
+  Statements that have is_update_query(stmt) == TRUE are written into the
+  binary log verbatim.
+  Examples:
+    UPDATE tbl SET tbl.x = spfunc_w_side_effects()
+    UPDATE tbl SET tbl.x=1 WHERE spfunc_w_side_effect_that_returns_false(tbl.y)
+
+  Statements that have is_update_query(stmt) == FALSE (e.g. SELECTs) are not
+  written into binary log. Instead we catch function calls the statement
+  makes and write it into binary log separately (see #3).
+
+  2. PROCEDURE calls
+
+  CALL statements are not written into binary log. Instead
+  * Any FUNCTION invocation (in SET, IF, WHILE, OPEN CURSOR and other SP
+    instructions) is written into binlog separately.
+
+  * Each statement executed in SP is binlogged separately, according to rules
+    in #1, with the exception that we modify query string: we replace uses
+    of SP local variables with NAME_CONST('spvar_name', <spvar-value>) calls.
+    This substitution is done in subst_spvars().
+
+  3. FUNCTION calls
+
+  In sp_head::execute_function(), we check
+   * If this function invocation is done from a statement that is written
+     into the binary log.
+   * If there were any attempts to write events to the binary log during
+     function execution (grep for start_union_events and stop_union_events)
+
+   If the answers are No and Yes, we write the function call into the binary
+   log as "SELECT spfunc(<param1value>, <param2value>, ...)"
+
+
+  4. Miscellaneous issues.
+
+  4.1 User variables.
+
+  When we call mysql_bin_log.write() for an SP statement, thd->user_var_events
+  must hold set<{var_name, value}> pairs for all user variables used during
+  the statement execution.
+  This set is produced by tracking user variable reads during statement
+  execution.
+
+  For SPs, this has the following implications:
+  1) thd->user_var_events may contain events from several SP statements and
+     needs to be valid after exection of these statements was finished. In
+     order to achieve that, we
+     * Allocate user_var_events array elements on appropriate mem_root (grep
+       for user_var_events_alloc).
+     * Use is_query_in_union() to determine if user_var_event is created.
+
+  2) We need to empty thd->user_var_events after we have wrote a function
+     call. This is currently done by making
+     reset_dynamic(&thd->user_var_events);
+     calls in several different places. (TODO cosider moving this into
+     mysql_bin_log.write() function)
+
+  4.2 Auto_increment storage in binlog
+
+  As we may write two statements to binlog from one single logical statement
+  (case of "SELECT func1(),func2()": it is binlogged as "SELECT func1()" and
+  then "SELECT func2()"), we need to reset auto_increment binlog variables
+  after each binlogged SELECT. Otherwise, the auto_increment value of the
+  first SELECT would be used for the second too.
+*/
+
+
+/**
+  Replace thd->query{_length} with a string that one can write to
+  the binlog.
+
+  The binlog-suitable string is produced by replacing references to SP local
+  variables with NAME_CONST('sp_var_name', value) calls.
+
+  @param thd        Current thread.
+  @param instr      Instruction (we look for Item_splocal instances in
+                    instr->free_list)
+  @param query_str  Original query string
+
+  @return
+    - FALSE  on success.
+    thd->query{_length} either has been appropriately replaced or there
+    is no need for replacements.
+    - TRUE   out of memory error.
+*/
+
+static bool
+subst_spvars(THD *thd, sp_instr *instr, LEX_STRING *query_str)
+{
+  DBUG_ENTER("subst_spvars");
+
+  Dynamic_array<Rewritable_query_parameter*> rewritables(PSI_INSTRUMENT_MEM);
+  char *pbuf;
+  StringBuffer<512> qbuf;
+  Copy_query_with_rewrite acc(thd, query_str->str, query_str->length, &qbuf);
+
+  /* Find rewritable Items used in this statement */
+  for (Item *item= instr->free_list; item; item= item->next)
+  {
+    Rewritable_query_parameter *rqp= item->get_rewritable_query_parameter();
+    if (rqp && rqp->pos_in_query)
+      rewritables.append(rqp);
+  }
+  if (!rewritables.elements())
+    DBUG_RETURN(FALSE);
+
+  rewritables.sort(cmp_rqp_locations);
+
+  thd->query_name_consts= (uint)rewritables.elements();
+
+  for (Rewritable_query_parameter **rqp= rewritables.front();
+       rqp <= rewritables.back(); rqp++)
+  {
+    if (acc.append(*rqp))
+      DBUG_RETURN(TRUE);
+  }
+  if (acc.finalize())
+    DBUG_RETURN(TRUE);
+
+  /*
+    Allocate additional space at the end of the new query string for the
+    query_cache_send_result_to_client function.
+
+    The query buffer layout is:
+       buffer :==
+            <statement>   The input statement(s)
+            '\0'          Terminating null char
+            <length>      Length of following current database name 2
+            <db_name>     Name of current database
+            <flags>       Flags struct
+  */
+  size_t buf_len= (qbuf.length() + 1 + QUERY_CACHE_DB_LENGTH_SIZE +
+                thd->db.length + QUERY_CACHE_FLAGS_SIZE + 1);
+  if ((pbuf= (char *) alloc_root(thd->mem_root, buf_len)))
+  {
+    char *ptr= pbuf + qbuf.length();
+    memcpy(pbuf, qbuf.ptr(), qbuf.length());
+    *ptr= 0;
+    int2store(ptr+1, thd->db.length);
+  }
+  else
+    DBUG_RETURN(TRUE);
+
+  thd->set_query(pbuf, qbuf.length());
+
+  DBUG_RETURN(FALSE);
+}
+
+
+>>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
 void Sp_handler_procedure::recursion_level_error(THD *thd,
                                                  const sp_head *sp) const
 {

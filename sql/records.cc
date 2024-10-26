@@ -43,7 +43,7 @@ template<bool,bool> static int rr_unpack_from_buffer(READ_RECORD *info);
 int rr_from_pointers(READ_RECORD *info);
 static int rr_from_cache(READ_RECORD *info);
 static int init_rr_cache(THD *thd, READ_RECORD *info);
-static int rr_cmp(uchar *a,uchar *b);
+static int rr_cmp(const void *a, const void *b);
 static int rr_index_first(READ_RECORD *info);
 static int rr_index_last(READ_RECORD *info);
 static int rr_index(READ_RECORD *info);
@@ -766,8 +766,10 @@ static int rr_from_cache(READ_RECORD *info)
 } /* rr_from_cache */
 
 
-static int rr_cmp(uchar *a,uchar *b)
+static int rr_cmp(const void *a_, const void *b_)
 {
+  auto a= static_cast<const uchar *>(a_);
+  auto b= static_cast<const uchar *>(b_);
   if (a[0] != b[0])
     return (int) a[0] - (int) b[0];
   if (a[1] != b[1])

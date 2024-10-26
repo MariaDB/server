@@ -339,11 +339,15 @@ public:
 
   inline uint elements() const { return (uint) array.elements; }
 
-  void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
-                         void *cmp_arg)
+  void sort(qsort_cmp2 cmp, void *cmp_arg)
   {
+<<<<<<< HEAD
     my_qsort2(array.buffer, array.elements,
               elem_size, (qsort2_cmp) cmp, cmp_arg);
+=======
+    my_qsort2(array->front(), array->elements() / elem_size, elem_size, cmp,
+              cmp_arg);
+>>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
   }
 };
 
@@ -468,10 +472,14 @@ public:
 
   Rowid_filter_container *create_container();
 
+<<<<<<< HEAD
   double get_setup_cost() { return cost_of_building_range_filter; }
   double get_lookup_cost();
   double get_gain() { return gain; }
   uint get_key_no() { return key_no; }
+=======
+  double get_a() const { return a; }
+>>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
 
   void trace_info(THD *thd);
 
