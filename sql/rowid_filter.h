@@ -343,11 +343,10 @@ public:
 
   uint elements() { return (uint) (array->elements() / elem_size); }
 
-  void sort (int (*cmp) (void *ctxt, const void *el1, const void *el2),
-                         void *cmp_arg)
+  void sort(qsort_cmp2 cmp, void *cmp_arg)
   {
-    my_qsort2(array->front(), array->elements()/elem_size,
-              elem_size, (qsort2_cmp) cmp, cmp_arg);
+    my_qsort2(array->front(), array->elements() / elem_size, elem_size, cmp,
+              cmp_arg);
   }
 
   bool is_empty() { return elements() == 0; }
@@ -464,7 +463,7 @@ public:
 
   Rowid_filter_container *create_container();
 
-  double get_a() { return a; }
+  double get_a() const { return a; }
 
   void trace_info(THD *thd);
 
