@@ -9596,9 +9596,11 @@ Charset::eq_collation_specific_names(CHARSET_INFO *cs) const
   return name0.length && !cmp(&name0, &name1);
 }
 
-int initialize_data_type_plugin(st_plugin_int *plugin)
+int initialize_data_type_plugin(void *plugin_)
 {
-  st_mariadb_data_type *data= (st_mariadb_data_type*) plugin->plugin->info;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  st_mariadb_data_type *data=
+      static_cast<st_mariadb_data_type *>(plugin->plugin->info);
   data->type_handler->set_name(Name(plugin->name));
   if (plugin->plugin->init && plugin->plugin->init(NULL))
   {
