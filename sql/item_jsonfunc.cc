@@ -5115,7 +5115,7 @@ static bool create_hash(json_engine_t *value, HASH *items, bool &hash_inited,
 {
   int level= value->stack_p;
   if (my_hash_init(PSI_INSTRUMENT_ME, items, value->s.cs, 0, 0, 0,
-                   (my_hash_get_key) get_key_name, NULL, 0))
+                   get_key_name, NULL, 0))
     return true;
   hash_inited= true;
 
