@@ -857,11 +857,11 @@ static void write_footer(FILE *sql_file)
 } /* write_footer */
 
 
-uchar* get_table_key(const char *entry, size_t *length,
-                     my_bool not_used __attribute__((unused)))
+const uchar *get_table_key(const void *entry, size_t *length,
+                           my_bool not_used __attribute__((unused)))
 {
   *length= strlen(entry);
-  return (uchar*) entry;
+  return entry;
 }
 
 
@@ -1096,11 +1096,11 @@ static int get_options(int *argc, char ***argv)
   load_defaults_or_exit("my", load_default_groups, argc, argv);
   defaults_argv= *argv;
 
-  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+  if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_database, charset_info, 16, 0,
+                   0, get_table_key, my_free, 0))
     return(EX_EOM);
   if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_table, charset_info, 16, 0, 0,
-        (my_hash_get_key) get_table_key, my_free, 0))
+                   get_table_key, my_free, 0))
     return(EX_EOM);
   /* Don't copy internal log tables */
   if (my_hash_insert(&ignore_table, (uchar*) my_strdup(PSI_NOT_INSTRUMENTED,
@@ -1116,7 +1116,7 @@ static int get_options(int *argc, char ***argv)
     return(EX_EOM);
 
   if (my_hash_init(PSI_NOT_INSTRUMENTED, &ignore_data, charset_info, 16, 0, 0,
-                   (my_hash_get_key) get_table_key, my_free, 0))
+                   get_table_key, my_free, 0))
     return(EX_EOM);
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))

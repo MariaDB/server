@@ -81,16 +81,17 @@ static int update_server_record_in_cache(FOREIGN_SERVER *existing,
 /* utility functions */
 static void merge_server_struct(FOREIGN_SERVER *from, FOREIGN_SERVER *to);
 
-static uchar *servers_cache_get_key(FOREIGN_SERVER *server, size_t *length,
-			       my_bool not_used __attribute__((unused)))
+static const uchar *servers_cache_get_key(const void *server_, size_t *length,
+                                          my_bool)
 {
+  auto server= static_cast<const FOREIGN_SERVER *>(server_);
   DBUG_ENTER("servers_cache_get_key");
   DBUG_PRINT("info", ("server_name_length %zd server_name %s",
                       server->server_name_length,
                       server->server_name));
 
-  *length= (uint) server->server_name_length;
-  DBUG_RETURN((uchar*) server->server_name);
+  *length= server->server_name_length;
+  DBUG_RETURN(reinterpret_cast<const uchar *>(server->server_name));
 }
 
 static PSI_memory_key key_memory_servers;
@@ -232,8 +233,8 @@ bool servers_init(bool dont_read_servers_table)
     DBUG_RETURN(TRUE);
 
   /* initialise our servers cache */
-  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32, 0, 0,
-                   (my_hash_get_key) servers_cache_get_key, 0, 0))
+  if (my_hash_init(key_memory_servers, &servers_cache, system_charset_info, 32,
+                   0, 0, servers_cache_get_key, 0, 0))
   {
     return_val= TRUE; /* we failed, out of memory? */
     goto end;

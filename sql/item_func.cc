@@ -4114,13 +4114,12 @@ public:
 
 /** Extract a hash key from User_level_lock. */
 
-uchar *ull_get_key(const uchar *ptr, size_t *length,
-                   my_bool not_used __attribute__((unused)))
+const uchar *ull_get_key(const void *ptr, size_t *length, my_bool)
 {
   User_level_lock *ull = (User_level_lock*) ptr;
   MDL_key *key = ull->lock->get_key();
   *length= key->length();
-  return (uchar*) key->ptr();
+  return key->ptr();
 }
 
 
