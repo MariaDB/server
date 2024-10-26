@@ -49,3 +49,30 @@ id
 5
 4
 drop table t1;
+#
+# MDEV-35258 Mariabackup does not work with MyISAM tables with vector keys
+#
+create table t1 (a int, v vector(1) not null, vector(v)) engine=MyISAM;
+insert into t1 values (1,0x31313131),(2,0x32323232);
+drop table t1;
+db.opt
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
+t1.frm
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 order by vec_distance_euclidean(v, 0x30303030) limit 1;
+a	v
+1	1111
+drop table t1;

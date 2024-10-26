@@ -895,6 +895,8 @@ void parse_db_table_from_file_path(
 		*ptr = '\0';
 	if ((ptr = strstr(tablename, "#P#")))
 		*ptr = '\0';
+	if ((ptr = strstr(tablename, "#i#")))
+		*ptr = '\0';
 }
 
 bool is_system_table(const char *dbname, const char *tablename)
