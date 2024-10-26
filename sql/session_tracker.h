@@ -145,8 +145,9 @@ class Session_sysvars_tracker: public State_tracker
     void init()
     {
       my_hash_init(PSI_INSTRUMENT_ME, &m_registered_sysvars, &my_charset_bin,
-                   0, 0, 0, (my_hash_get_key) sysvars_get_key, my_free,
-                   HASH_UNIQUE | (mysqld_server_initialized ?  HASH_THREAD_SPECIFIC : 0));
+                   0, 0, 0, sysvars_get_key, my_free,
+                   HASH_UNIQUE |
+                       (mysqld_server_initialized ? HASH_THREAD_SPECIFIC : 0));
     }
     void free_hash()
     {
@@ -216,8 +217,8 @@ public:
   void mark_as_changed(THD *thd, const sys_var *var);
   void deinit() { orig_list.deinit(); }
   /* callback */
-  static uchar *sysvars_get_key(const char *entry, size_t *length,
-                                my_bool not_used __attribute__((unused)));
+  static const uchar *sysvars_get_key(const void *entry, size_t *length,
+                                      my_bool);
 
   friend bool sysvartrack_global_update(THD *thd, char *str, size_t len);
 };
