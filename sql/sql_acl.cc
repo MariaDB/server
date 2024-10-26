@@ -719,9 +719,9 @@ static bool add_role_user_mapping(const char *uname, const char *hname, const ch
 static bool get_YN_as_bool(Field *field);
 
 #define ROLE_CYCLE_FOUND 2
-static int traverse_role_graph_up(ACL_ROLE *, void *,
-                                  int (*) (ACL_ROLE *, void *),
-                                  int (*) (ACL_ROLE *, ACL_ROLE *, void *));
+static int
+traverse_role_graph_up(ACL_ROLE *, void *, int (*)(ACL_USER_BASE *, void *),
+                       int (*)(ACL_USER_BASE *, ACL_ROLE *, void *));
 
 static int traverse_role_graph_down(ACL_USER_BASE *, void *,
                              int (*) (ACL_USER_BASE *, void *),
@@ -2870,7 +2870,7 @@ void acl_free(bool end)
   my_hash_free(&acl_roles);
   free_root(&acl_memroot,MYF(0));
   delete_dynamic(&acl_hosts);
-  delete_dynamic_with_callback(&acl_users, (FREE_FUNC) free_acl_user);
+  delete_dynamic_with_callback(&acl_users, free_acl_user);
   acl_dbs.free_memory();
   delete_dynamic(&acl_wild_hosts);
   delete_dynamic(&acl_proxy_users);
@@ -2978,7 +2978,7 @@ bool acl_reload(THD *thd)
     my_hash_free(&old_acl_roles);
     free_root(&old_mem,MYF(0));
     delete_dynamic(&old_acl_hosts);
-    delete_dynamic_with_callback(&old_acl_users, (FREE_FUNC) free_acl_user);
+    delete_dynamic_with_callback(&old_acl_users, free_acl_user);
     delete_dynamic(&old_acl_proxy_users);
     my_hash_free(&old_acl_roles_mappings);
   }
@@ -6245,19 +6245,20 @@ static enum PRIVS_TO_MERGE::what sp_privs_to_merge(enum_sp_type type)
 }
 
 
-static int init_role_for_merging(ACL_ROLE *role, void *context)
+static int init_role_for_merging(ACL_USER_BASE *role_, void *context)
 {
+  ACL_ROLE *role= static_cast<ACL_ROLE *>(role_);
   role->counter= 0;
   return 0;
 }
 
-static int count_subgraph_nodes(ACL_ROLE *role, ACL_ROLE *grantee, void *context)
+static int count_subgraph_nodes(ACL_USER_BASE *, ACL_ROLE *grantee, void *context)
 {
   grantee->counter++;
   return 0;
 }
 
-static int merge_role_privileges(ACL_ROLE *, ACL_ROLE *, void *);
+static int merge_role_privileges(ACL_USER_BASE *, ACL_ROLE *, void *);
 static bool merge_one_role_privileges(ACL_ROLE *grantee, PRIVS_TO_MERGE what);
 
 /**
@@ -6497,13 +6498,11 @@ end:
 */
 
 static int traverse_role_graph_up(ACL_ROLE *role, void *context,
-       int (*on_node) (ACL_ROLE *role, void *context),
-       int (*on_edge) (ACL_ROLE *current, ACL_ROLE *neighbour, void *context))
+       int (*on_node) (ACL_USER_BASE *role, void *context),
+       int (*on_edge) (ACL_USER_BASE *current, ACL_ROLE *neighbour, void *context))
 {
-  return traverse_role_graph_impl(role, context,
-                    my_offsetof(ACL_ROLE, parent_grantee),
-                    (int (*)(ACL_USER_BASE *, void *))on_node,
-                    (int (*)(ACL_USER_BASE *, ACL_ROLE *, void *))on_edge);
+  return traverse_role_graph_impl(
+      role, context, my_offsetof(ACL_ROLE, parent_grantee), on_node, on_edge);
 }
 
 /**
@@ -7043,7 +7042,7 @@ static bool merge_role_routine_grant_privileges(ACL_ROLE *grantee,
 /**
   update privileges of the 'grantee' from all roles, granted to it
 */
-static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
+static int merge_role_privileges(ACL_USER_BASE *,
                                  ACL_ROLE *grantee, void *context)
 {
   PRIVS_TO_MERGE *data= (PRIVS_TO_MERGE *)context;
