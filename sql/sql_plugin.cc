@@ -1517,25 +1517,23 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
 }
 
 
-extern "C" uchar *get_plugin_hash_key(const uchar *, size_t *, my_bool);
-extern "C" uchar *get_bookmark_hash_key(const uchar *, size_t *, my_bool);
+extern "C" const uchar *get_plugin_hash_key(const void *, size_t *, my_bool);
+extern "C" const uchar *get_bookmark_hash_key(const void *, size_t *, my_bool);
 
 
-uchar *get_plugin_hash_key(const uchar *buff, size_t *length,
-                           my_bool not_used __attribute__((unused)))
+const uchar *get_plugin_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_plugin_int *plugin= (st_plugin_int *)buff;
-  *length= (uint)plugin->name.length;
-  return((uchar *)plugin->name.str);
+  auto plugin= static_cast<const st_plugin_int *>(buff);
+  *length= plugin->name.length;
+  return reinterpret_cast<const uchar *>(plugin->name.str);
 }
 
 
-uchar *get_bookmark_hash_key(const uchar *buff, size_t *length,
-                             my_bool not_used __attribute__((unused)))
+const uchar *get_bookmark_hash_key(const void *buff, size_t *length, my_bool)
 {
-  struct st_bookmark *var= (st_bookmark *)buff;
+  auto var= static_cast<const st_bookmark *>(buff);
   *length= var->name_len + 1;
-  return (uchar*) var->key;
+  return reinterpret_cast<const uchar *>(var->key);
 }
 
 static inline void convert_dash_to_underscore(char *str, size_t len)
