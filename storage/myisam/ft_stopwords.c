@@ -39,9 +39,10 @@ static int FT_STOPWORD_cmp(void *cmp_arg __attribute__((unused)),
                          (uchar *) w2->pos, w2->len);
 }
 
-static int FT_STOPWORD_free(FT_STOPWORD *w, TREE_FREE action,
+static int FT_STOPWORD_free(void *w_, TREE_FREE action,
                             void *arg __attribute__((unused)))
 {
+  FT_STOPWORD *w= w_;
   if (action == free_free)
     my_free((void*)w->pos);
   return 0;

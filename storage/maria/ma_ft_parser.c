@@ -40,8 +40,11 @@ static int FT_WORD_cmp(void *cs_, const void *w1_, const void *w2_)
   return ha_compare_word(cs, w1->pos, w1->len, w2->pos, w2->len);
 }
 
-static int walk_and_copy(FT_WORD *word,uint32 count,FT_DOCSTAT *docstat)
+
+static int walk_and_copy(void *word_, element_count count, void *docstat_)
 {
+    FT_WORD *word= word_;
+    FT_DOCSTAT *docstat= docstat_;
     word->weight=LWS_IN_USE;
     docstat->sum+=word->weight;
     memcpy((docstat->list)++, word, sizeof(FT_WORD));
@@ -62,7 +65,7 @@ FT_WORD * maria_ft_linearize(TREE *wtree, MEM_ROOT *mem_root)
     docstat.list=wlist;
     docstat.uniq=wtree->elements_in_tree;
     docstat.sum=0;
-    tree_walk(wtree,(tree_walk_action)&walk_and_copy,&docstat,left_root_right);
+    tree_walk(wtree,&walk_and_copy,&docstat,left_root_right);
   }
   delete_tree(wtree, 0);
   if (!wlist)
