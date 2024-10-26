@@ -585,9 +585,10 @@ static int hton_drop_table(handlerton *hton, const char *path)
 }
 
 
-int ha_finalize_handlerton(st_plugin_int *plugin)
+int ha_finalize_handlerton(void *plugin_)
 {
   int deinit_status= 0;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -630,8 +631,9 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 const char *hton_no_exts[]= { 0 };
 static bool ddl_recovery_done= false;
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
+int ha_initialize_handlerton(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
   int ret= 0;
   DBUG_ENTER("ha_initialize_handlerton");
