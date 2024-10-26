@@ -152,7 +152,7 @@ typedef struct st_plugin_int **plugin_ref;
 #define plugin_equals(p1,p2) ((p1) && (p2) && (p1)[0] == (p2)[0])
 #endif
 
-typedef int (*plugin_type_init)(struct st_plugin_int *);
+typedef int (*plugin_type_init)(void *);
 
 extern I_List<i_string> *opt_plugin_load_list_ptr;
 extern char *opt_plugin_dir_ptr;
