@@ -12,8 +12,6 @@ Case: Default, must not see warning.
 # MYSQL_BINLOG --short-form MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
 Case: Stop datetime before EOF, must not see warning.
 # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:50' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
-Case: Stop datetime between records, must not see warning.
-# MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
 Case: Stop datetime at EOF, must not see warning.
 # MYSQL_BINLOG --short-form --stop-datetime='2001-09-08 21:46:55' MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
 Case: Stop datetime after EOF, must see warning.
