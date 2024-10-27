@@ -6789,7 +6789,8 @@ public:
     DBUG_ASSERT(sane());
     if (null_value)
       return set_field_to_null(field);
-    Timestamp_or_zero_datetime_native native(m_value, decimals);
+    decimal_digits_t dec= MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+    Timestamp_or_zero_datetime_native native(m_value, dec);
     return native.save_in_field(field, decimals);
   }
   longlong val_int() override
@@ -6826,7 +6827,8 @@ public:
   bool val_native(THD *thd, Native *to) override
   {
     DBUG_ASSERT(sane());
-    return null_value || m_value.to_native(to, decimals);
+    decimal_digits_t dec= MY_MIN(decimals, TIME_SECOND_PART_DIGITS);
+    return null_value || m_value.to_native(to, dec);
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_timestamp>(thd, this); }

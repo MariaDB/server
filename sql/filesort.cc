@@ -1282,7 +1282,8 @@ Type_handler_timestamp_common::make_sort_key_part(uchar *to, Item *item,
                                              String *tmp_buffer) const
 {
   THD *thd= current_thd;
-  uint binlen= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  uint binlen= my_timestamp_binary_length(dec);
   Timestamp_or_zero_datetime_native_null native(thd, item);
   if (native.is_null() || native.is_zero_datetime())
   {
@@ -2083,7 +2084,8 @@ Type_handler_timestamp_common::sort_length(THD *thd,
                                            const Type_std_attributes *item,
                                            SORT_FIELD_ATTR *sortorder) const
 {
-  sortorder->length= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  sortorder->length= my_timestamp_binary_length(dec);
   sortorder->original_length= sortorder->length;
 }
 
@@ -2619,7 +2621,8 @@ Type_handler_timestamp_common::make_packed_sort_key_part(uchar *to, Item *item,
                                             String *tmp) const
 {
  THD *thd= current_thd;
-  uint binlen= my_timestamp_binary_length(item->decimals);
+  decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  uint binlen= my_timestamp_binary_length(dec);
   Timestamp_or_zero_datetime_native_null native(thd, item);
   if (native.is_null() || native.is_zero_datetime())
   {

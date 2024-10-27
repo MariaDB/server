@@ -2336,3 +2336,64 @@ DROP TABLE t1;
 #
 # End of 11.3 tests
 #
+#
+# Start of 11.7 tests
+#
+#
+# MDEV-35250 Assertion `dec <= 6' failed in my_timestamp_binary_length
+#
+SET time_zone='+00:00';
+SELECT FROM_UNIXTIME('1922-02-10'), BIT_AND(1);
+FROM_UNIXTIME('1922-02-10')	BIT_AND(1)
+1970-01-01 00:32:02	1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: '1922-02-10'
+SELECT FROM_UNIXTIME('1922'), BIT_AND(1);
+FROM_UNIXTIME('1922')	BIT_AND(1)
+1970-01-01 00:32:02	1
+SELECT FROM_UNIXTIME('1922.1'), BIT_AND(1);
+FROM_UNIXTIME('1922.1')	BIT_AND(1)
+1970-01-01 00:32:02.100000	1
+SELECT FROM_UNIXTIME('1922.1');
+FROM_UNIXTIME('1922.1')
+1970-01-01 00:32:02.100000
+SELECT * FROM (SELECT FROM_UNIXTIME('1'), BIT_AND(1)) t;
+FROM_UNIXTIME('1')	BIT_AND(1)
+1970-01-01 00:00:01.000000	1
+SELECT * FROM (SELECT FROM_UNIXTIME('1.1'), BIT_AND(1)) t;
+FROM_UNIXTIME('1.1')	BIT_AND(1)
+1970-01-01 00:00:01.100000	1
+CREATE TABLE t1 (a TEXT, b TEXT);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1'), BIT_AND(1);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1.1'), BIT_AND(1);
+SELECT * FROM t1;
+a	b
+1970-01-01 00:00:01	1
+1970-01-01 00:00:01.100000	1
+DROP TABLE t1;
+SELECT 1 FROM (values(1),(2)) dt GROUP BY from_unixtime('a') WITH ROLLUP;
+1
+1
+1
+Warnings:
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+Warning	1292	Truncated incorrect DECIMAL value: 'a'
+Warning	1292	Truncated incorrect unixtime value: '0.0'
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 ORDER BY from_unixtime(a);
+a
+1
+2
+DROP TABLE t1;
+SET time_zone=DEFAULT;
+#
+# End of 11.7 tests
+#

@@ -1368,3 +1368,40 @@ DROP TABLE t1;
 --echo #
 --echo # End of 11.3 tests
 --echo #
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-35250 Assertion `dec <= 6' failed in my_timestamp_binary_length
+--echo #
+
+SET time_zone='+00:00';
+SELECT FROM_UNIXTIME('1922-02-10'), BIT_AND(1);
+SELECT FROM_UNIXTIME('1922'), BIT_AND(1);
+# Disable PS protocol to workaround CONC-739
+--disable_ps_protocol
+SELECT FROM_UNIXTIME('1922.1'), BIT_AND(1);
+SELECT FROM_UNIXTIME('1922.1');
+--enable_ps_protocol
+SELECT * FROM (SELECT FROM_UNIXTIME('1'), BIT_AND(1)) t;
+SELECT * FROM (SELECT FROM_UNIXTIME('1.1'), BIT_AND(1)) t;
+CREATE TABLE t1 (a TEXT, b TEXT);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1'), BIT_AND(1);
+INSERT INTO t1 SELECT FROM_UNIXTIME('1.1'), BIT_AND(1);
+SELECT * FROM t1;
+DROP TABLE t1;
+
+SELECT 1 FROM (values(1),(2)) dt GROUP BY from_unixtime('a') WITH ROLLUP;
+
+CREATE TABLE t1 (a TEXT);
+INSERT INTO t1 VALUES (1),(2);
+SELECT * FROM t1 ORDER BY from_unixtime(a);
+DROP TABLE t1;
+
+SET time_zone=DEFAULT;
+
+--echo #
+--echo # End of 11.7 tests
+--echo #
