@@ -7,6 +7,10 @@ let SSL_CERT_DIR=$MYSQL_TMP_DIR;
 
 source include/not_embedded.inc;
 
+# doesn't work on windows since C/C 3.4.2 that completely disables
+# cert verification on Windows on localhost
+source include/not_windows.inc;
+
 if (`select @@version_ssl_library not like 'OpenSSL%'`) {
   skip Needs OpenSSL;
 }
@@ -19,4 +23,4 @@ copy_file $MYSQL_TEST_DIR/std_data/cacert.pem $MYSQL_TMP_DIR/ed1f42db.0;
 #
 
 disable_abort_on_error;
-exec $MYSQL --ssl-verify-server-cert -Ee "select (variable_value <> '') as have_ssl from information_schema.session_status where variable_name='ssl_cipher'" 2>&1;
+exec $MYSQL --ssl-verify-server-cert --protocol tcp -Ee "select (variable_value <> '') as have_ssl from information_schema.session_status where variable_name='ssl_cipher'" 2>&1;
