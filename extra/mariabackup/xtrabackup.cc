@@ -2676,13 +2676,9 @@ static bool innodb_init()
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
 
-#ifdef _WIN32
-  DWORD len;
-  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
-                 &len, nullptr) && len == sizeof log_hdr_buf;
-#else
-  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
-#endif
+  ret = os_file_write_func(IORequestWrite, ib_logfile0.c_str(), file,
+                           log_hdr_buf, 0,
+                           sizeof(log_hdr_buf)) == DB_SUCCESS;
   if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;

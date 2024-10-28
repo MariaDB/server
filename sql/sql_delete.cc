@@ -504,6 +504,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);
@@ -546,6 +547,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);

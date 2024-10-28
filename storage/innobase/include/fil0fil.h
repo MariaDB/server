@@ -1056,14 +1056,8 @@ struct fil_node_t final
   @param no_lsn  whether to skip the FIL_PAGE_LSN check
   @return whether the page was found valid */
   bool read_page0(const byte *dpage, bool no_lsn) noexcept;
-
-  /** Determine some file metadata when creating or reading the file.
-  @param file   the file that is being created, or OS_FILE_CLOSED */
-  void find_metadata(os_file_t file= OS_FILE_CLOSED
-#ifndef _WIN32
-                     , bool create= false, struct stat *statbuf= nullptr
-#endif
-                     );
+  /** Determine some file metadata when creating or reading the file. */
+  void find_metadata(IF_WIN(,bool create= false)) noexcept;
 
   /** Close the file handle. */
   void close();

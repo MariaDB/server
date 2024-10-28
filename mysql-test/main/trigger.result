@@ -2447,9 +2447,17 @@ SELECT * FROM t1;
 a	b	total
 10	20	30
 DROP TABLE t1;
-#
 # End of 10.3 tests
 #
+# MDEV-32022 ERROR 1054 (42S22): Unknown column 'X' in 'NEW' in trigger
+#
+create table t1 (m set('sms') not null);
+create table t2 (i int);
+create table t3 (j int);
+create trigger t1 after insert on t1 for each row insert ignore into t2 select t3.j from t3 join (select 'sms' as method) m on find_in_set(m.method, new.m);
+insert into t1 values ('sms');
+drop table t1, t2, t3;
+# End of 10.5 tests
 #
 # Test dropping orphan .trn file
 #
@@ -2485,6 +2493,4 @@ Error	1360	Trigger does not exist
 Warning	4181	Dropped orphan trigger 't1_trg', originally created for table: 't1'
 drop trigger t1_trg_2;
 drop table t1;
-#
 # End of 10.6 tests
-#

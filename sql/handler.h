@@ -3485,20 +3485,7 @@ public:
   
   int ha_open(TABLE *table, const char *name, int mode, uint test_if_locked,
               MEM_ROOT *mem_root= 0, List<String> *partitions_to_open=NULL);
-  int ha_index_init(uint idx, bool sorted)
-  {
-    DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
-    int result;
-    DBUG_ENTER("ha_index_init");
-    DBUG_ASSERT(inited==NONE);
-    if (!(result= index_init(idx, sorted)))
-    {
-      inited=       INDEX;
-      active_index= idx;
-      end_range= NULL;
-    }
-    DBUG_RETURN(result);
-  }
+  int ha_index_init(uint idx, bool sorted);
   int ha_index_end()
   {
     DBUG_ENTER("ha_index_end");
