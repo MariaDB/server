@@ -50,6 +50,18 @@ select current_user();
 disconnect con1;
 connection default;
 
+create user test2@localhost identified via ed25519 using PASSWORD('');
+show grants for test2@localhost;
+connect con2, localhost, test2,;
+select current_user();
+disconnect con2;
+
+replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect con3, localhost, test2, "wrong_pwd";
+connection default;
+drop user test2@localhost;
+
 drop user test1@localhost;
 uninstall plugin ed25519;
 error ER_CANT_INITIALIZE_UDF;
