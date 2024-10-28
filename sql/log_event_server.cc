@@ -3328,7 +3328,8 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
 
   XID_STATE &xid_state= thd->transaction->xid_state;
   if (is_transactional && xid_state.is_explicit_XA() &&
-      (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
+      ((thd->lex->sql_command == SQLCOM_XA_PREPARE &&
+	likely(!thd_arg->is_error())) ||
        xid_state.get_state_code() == XA_PREPARED))
   {
     DBUG_ASSERT(!(thd->lex->sql_command == SQLCOM_XA_COMMIT &&

@@ -1890,8 +1890,9 @@ binlog_rollback_flush_trx_cache(THD *thd, bool all,
 
   if (thd->transaction->xid_state.is_explicit_XA())
   {
-    /* for not prepared use plain ROLLBACK */
-    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED)
+    /* for not prepared or errorred-out use plain ROLLBACK */
+    if (thd->transaction->xid_state.get_state_code() == XA_PREPARED &&
+	!thd->is_error())
       buflen= serialize_with_xid(thd->transaction->xid_state.get_xid(),
                                  buf, query, q_len);
   }
@@ -7747,7 +7748,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.all= all;
   entry.using_stmt_cache= using_stmt_cache;
   entry.using_trx_cache= using_trx_cache;
-  entry.need_unlog= is_preparing_xa(thd);
+  entry.need_unlog= is_preparing_xa(thd) && !thd->is_error();
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.end_event= end_ev;
   auto has_xid= entry.end_event->get_type_code() == XID_EVENT;

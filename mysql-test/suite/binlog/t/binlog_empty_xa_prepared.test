@@ -1,5 +1,7 @@
-# The test verifies execution and binary logging of user XA that produce empty
-# XA-PREPARE group of events.
+# The test verifies execution and binary logging of user XA that either
+# produce empty XA-PREPARE group of events, or
+# logging is forced by an error in combination with modified
+# non-transactional tables.
 
 --source include/have_binlog_format_mixed.inc
 --source include/have_innodb.inc
@@ -134,3 +136,34 @@ XA ROLLBACK '1';
 --source include/show_binlog_events.inc
 DROP TABLE tm;
 
+--echo # MDEV-28988 Assertion in Ha_trx_info::is_trx_read_write or shutdown hang
+--connection default
+CREATE TABLE ti_28988 (a INT) ENGINE=InnoDB;
+CREATE TABLE ta_28988 (b INT) ENGINE=Aria;
+set lock_wait_timeout=0;
+FLUSH LOGS;
+
+XA START 'xid';
+  INSERT INTO ti_28988 VALUES (1);
+  INSERT INTO ta_28988 VALUES (2);
+
+--connect (con_28988,localhost,root,,)
+FLUSH TABLES WITH READ LOCK;
+
+--connection default
+XA END 'xid';
+--error ER_LOCK_WAIT_TIMEOUT
+XA PREPARE 'xid';
+
+--connection con_28988
+UNLOCK TABLES;
+--disconnect con_28988
+
+--connection default
+XA RECOVER;
+
+--let $binlog_file =  query_get_value(SHOW MASTER STATUS, File, 1)
+--source include/show_binlog_events.inc
+
+--source include/restart_mysqld.inc
+DROP TABLE ti_28988, ta_28988;
