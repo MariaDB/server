@@ -285,8 +285,8 @@ bool extend_option_list(THD* thd, handlerton *hton, bool create,
           {
             if (!extended)
             {
-              void *pos= *option_list ? &(last->next) : option_list;
-              thd->register_item_tree_change((Item**)pos);
+              if (*option_list)
+                thd->register_item_tree_change((Item**)&(last->next));
               extended= true;
             }
             new (root) engine_option_value(name, value,
