@@ -266,8 +266,8 @@ bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
                                         value, opt->type != HA_OPTION_TYPE_ULL);
             if (!extended)
             {
-              void *pos= *option_list ? &(last->next) : option_list;
-              thd->register_item_tree_change((Item**)pos);
+              if (*option_list)
+                thd->register_item_tree_change((Item**)&(last->next));
               extended= true;
             }
             val->link(option_list, &last);
