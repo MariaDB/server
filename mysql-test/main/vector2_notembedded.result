@@ -71,3 +71,20 @@ create table t (a int primary key, v vector(10) not null, vector index(v));
 alter table t modify a int auto_increment, lock=none;
 ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
 drop table t;
+#
+# MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+#
+create table t1 (v vector(1) not null, vector(v)) engine=innodb;
+insert into t1 select 0x00000000 as v from seq_1_to_1000;
+connect con1,localhost,root;
+alter table t1 add column x int, algorithm=copy;;
+connection default;
+xa start 'x';
+select * from non_existing_table;
+ERROR 42S02: Table 'test.non_existing_table' doesn't exist
+delete from t1;
+xa end 'x';
+xa prepare 'x';
+ERROR HY000: Got error 138 "Unsupported extension used for table" from storage engine mhnsw
+connection con1;
+drop table t1;

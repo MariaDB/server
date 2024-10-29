@@ -1,4 +1,6 @@
 --source include/not_embedded.inc
+--source include/have_innodb.inc
+--source include/have_sequence.inc
 
 --echo #
 --echo # mysqldump
@@ -32,3 +34,23 @@ create table t (a int primary key, v vector(10) not null, vector index(v));
 --error ER_ALTER_OPERATION_NOT_SUPPORTED_REASON
 alter table t modify a int auto_increment, lock=none;
 drop table t;
+
+--echo #
+--echo # MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+--echo #
+create table t1 (v vector(1) not null, vector(v)) engine=innodb;
+insert into t1 select 0x00000000 as v from seq_1_to_1000;
+
+--connect con1,localhost,root
+--send alter table t1 add column x int, algorithm=copy;
+--connection default
+xa start 'x';
+--error ER_NO_SUCH_TABLE
+select * from non_existing_table;
+delete from t1;
+xa end 'x';
+--error ER_GET_ERRNO
+xa prepare 'x';
+--connection con1
+--reap
+drop table t1;
