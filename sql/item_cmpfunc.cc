@@ -1902,6 +1902,58 @@ Item *Item_func_eq::do_build_clone(THD *thd) const
   return (Item_func_eq*) Item_bool_rowready_func2::do_build_clone(thd);
 }
 
+/*
+  Whether the Item_bool_func is sargable because of a substr()
+
+  Returns true if the Item_bool_func is in the form of
+
+  substr(col, 1, ...) = "..."
+
+  or
+
+  "..." = substr(col, 1, ...)
+
+  where "..." is a const and inexpensive item.
+
+  @param  field      The first argument of substr if sargable,
+                     otherwise deferenced to NULL
+  @param  value_idx  The index of argument that is the prefix string
+                     if sargable, otherwise dereferenced to -1
+*/
+bool Item_bool_func::with_sargable_substr(Item_field **field, int *value_idx) const
+{
+  if (functype() == EQ_FUNC &&
+      args[0]->type() == FUNC_ITEM &&
+      !strcmp(((Item_func *) args[0])->func_name(), "substr") &&
+      ((Item_func *) args[0])->arguments()[0]->type() == FIELD_ITEM &&
+      ((Item_func *) args[0])->arguments()[1]->val_int() == 1 &&
+      args[1]->can_eval_in_optimize())
+  {
+    if (field != NULL)
+      *field= (Item_field *) ((Item_func *) args[0])->arguments()[0];
+    if (value_idx != NULL)
+      *value_idx= 1;
+    return true;
+  }
+  if (functype() == EQ_FUNC &&
+      args[1]->type() == FUNC_ITEM &&
+      !strcmp(((Item_func *) args[1])->func_name(), "substr") &&
+      ((Item_func *) args[1])->arguments()[0]->type() == FIELD_ITEM &&
+      ((Item_func *) args[1])->arguments()[1]->val_int() == 1 &&
+      args[0]->can_eval_in_optimize())
+  {
+    if (field != NULL)
+      *field= (Item_field *) ((Item_func *) args[1])->arguments()[0];
+    if (value_idx != NULL)
+      *value_idx= 0;
+    return true;
+  }
+  if (field != NULL)
+    *field= NULL;
+  if (value_idx != NULL)
+    *value_idx= -1;
+  return false;
+}
 
 /** Same as Item_func_eq, but NULL = NULL. */
 

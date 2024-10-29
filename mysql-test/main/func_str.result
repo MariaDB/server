@@ -5721,4 +5721,102 @@ coercibility(database())	3
 #
 # End of 11.5 tests
 #
+#
+# MDEV-34911 Make conditions SUBSTR(col, 1, n) = const_str sargable
+#
+create table t (c varchar(4), key (c));
+insert into t values ('ddd'), ('bbcd'), ('bba'), ('aaa');
+explain select * from t where substr(c, 1, 2) = 'bb';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1, 2) = 'bb';
+c
+bba
+bbcd
+explain select * from t where 'bb' = substr(c, 1, 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where 'bb' = substr(c, 1, 2);
+c
+bba
+bbcd
+explain select * from t where substr(c, 1, 2) = concat('b', 'b');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1, 2) = concat('b', 'b');
+c
+bba
+bbcd
+explain select * from t where substr(c, 1, 2) = substr('bb1', 1, 2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1, 2) = substr('bb1', 1, 2);
+c
+bba
+bbcd
+explain select * from t where substr(c, 1, 1) = 'bb';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1, 1) = 'bb';
+c
+explain select * from t where substr(c, 1, 3) = 'bb';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1, 3) = 'bb';
+c
+explain select * from t where substr(c, 1) = 'bb';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	range	c	c	7	NULL	2	Using where; Using index
+select * from t where substr(c, 1) = 'bb';
+c
+explain select * from t where substr(c, 1, 2) = substr(c, 2, 3);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	index	NULL	c	7	NULL	4	Using where; Using index
+select * from t where substr(c, 1, 2) = substr(c, 2, 3);
+c
+aaa
+ddd
+drop index c on t;
+explain select * from t where substr(c, 1, 2) = 'bb';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t	ALL	NULL	NULL	NULL	NULL	4	Using where
+select * from t where substr(c, 1, 2) = 'bb';
+c
+bbcd
+bba
+drop table t;
+set @old_collation_connection=@@collation_connection;
+SET collation_connection=utf32_czech_ci;
+CREATE TABLE t1 AS SELECT REPEAT(' ', 10) AS s1 LIMIT 0;
+INSERT INTO t1 VALUES ('c'),('ce'),('cé'),('ch');
+SELECT * FROM t1 WHERE s1 LIKE 'c%';
+s1
+c
+ce
+cé
+ch
+SELECT * FROM t1 WHERE substr(s1, 1, 1) = 'c';
+s1
+c
+ce
+cé
+ch
+ALTER TABLE t1 ADD KEY s1 (s1);
+SELECT * FROM t1 WHERE s1 LIKE 'c%';
+s1
+c
+ce
+cé
+ch
+SELECT * FROM t1 WHERE substr(s1, 1, 1) = 'c';
+s1
+c
+ce
+cé
+ch
+DROP TABLE t1;
+set collation_connection=@old_collation_connection;
+#
+# End of 11.8 tests
+#
 ALTER DATABASE test CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci;

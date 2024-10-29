@@ -246,6 +246,7 @@ public:
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
+  bool with_sargable_substr(Item_field **field = NULL, int *value_idx = NULL) const;
 };
 
 
@@ -521,6 +522,10 @@ public:
     DBUG_ENTER("Item_bool_func2_with_rev::get_mm_tree");
     DBUG_ASSERT(arg_count == 2);
     SEL_TREE *ftree;
+    Item_field *field= NULL;
+    int value_idx= -1;
+    if (with_sargable_substr(&field, &value_idx))
+      DBUG_RETURN(get_full_func_mm_tree_for_args(param, field, args[value_idx]));
     /*
       Even if get_full_func_mm_tree_for_args(param, args[0], args[1]) will not
       return a range predicate it may still be possible to create one

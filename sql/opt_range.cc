@@ -8980,6 +8980,139 @@ static bool is_field_an_unique_index(Field *field)
   DBUG_RETURN(false);
 }
 
+/*
+  Get mm leaf for sargable string functions.
+
+  Use for
+
+  ... LIKE "...%"
+
+  and
+
+  substr(..., 1, ...) = "..."
+*/
+static SEL_ARG *
+get_mm_leaf_for_sargable(Item_bool_func *item,
+                         RANGE_OPT_PARAM *param,
+                         Field *field, KEY_PART *key_part,
+                         Item_func::Functype type, Item *value)
+{
+  DBUG_ENTER("get_mm_leaf_for_sargable");
+  DBUG_ASSERT(value);
+
+  if (key_part->image_type != Field::itRAW)
+    DBUG_RETURN(0);
+
+  uint keynr= param->real_keynr[key_part->key];
+  if (param->using_real_indexes &&
+      !field->optimize_range(keynr, key_part->part))
+    DBUG_RETURN(0);
+
+  if (field->result_type() == STRING_RESULT &&
+      field->charset() != item->compare_collation())
+  {
+    if (param->note_unusable_keys & Item_func::BITMAP_LIKE)
+      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
+                                            item->func_name_cstring(),
+                                            item->compare_collation(),
+                                            value,
+                                            Data_type_compatibility::
+                                            INCOMPATIBLE_COLLATION);
+    DBUG_RETURN(0);
+  }
+
+  StringBuffer<MAX_FIELD_WIDTH> tmp(value->collation.collation);
+  String *res;
+
+  if (!(res= value->val_str(&tmp)))
+    DBUG_RETURN(&null_element);
+
+  if (field->cmp_type() != STRING_RESULT ||
+      field->type_handler() == &type_handler_enum ||
+      field->type_handler() == &type_handler_set)
+  {
+    if (param->note_unusable_keys & Item_func::BITMAP_LIKE)
+      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
+                                            item->func_name_cstring(),
+                                            item->compare_collation(),
+                                            value,
+                                            Data_type_compatibility::
+                                            INCOMPATIBLE_DATA_TYPE);
+    DBUG_RETURN(0);
+  }
+
+  /*
+    TODO:
+    Check if this was a function. This should have be optimized away
+    in the sql_select.cc
+  */
+  if (res != &tmp)
+  {
+    tmp.copy(*res);				// Get own copy
+    res= &tmp;
+  }
+
+  /*
+    If the item is sargable because it is in the form of substr(...,
+    1, n) = ..., then append a LIKE wildcard for the like_range()
+    call
+  */
+  if (item->with_sargable_substr())
+    res->append("%", 1);
+
+  uint maybe_null= (uint) field->real_maybe_null();
+  size_t field_length= field->pack_length() + maybe_null;
+  size_t offset= maybe_null;
+  size_t length= key_part->store_length;
+
+  if (length != key_part->length + maybe_null)
+  {
+    /* key packed with length prefix */
+    offset+= HA_KEY_BLOB_LENGTH;
+    field_length= length - HA_KEY_BLOB_LENGTH;
+  }
+  else
+  {
+    if (unlikely(length < field_length))
+    {
+      /*
+        This can only happen in a table created with UNIREG where one key
+        overlaps many fields
+      */
+      length= field_length;
+    }
+    else
+      field_length= length;
+  }
+  length+= offset;
+  uchar *min_str,*max_str;
+  if (!(min_str= (uchar*) alloc_root(param->mem_root, length*2)))
+    DBUG_RETURN(0);
+  max_str= min_str + length;
+  if (maybe_null)
+    max_str[0]= min_str[0]=0;
+
+  size_t min_length, max_length;
+  field_length-= maybe_null;
+  /* If the item is a LIKE, use its escape, otherwise use backslash */
+  int escape= type == Item_func::LIKE_FUNC ?
+    ((Item_func_like *) item)->escape : '\\';
+  if (field->charset()->like_range(res->ptr(), res->length(),
+                                   escape, wild_one, wild_many,
+                                   field_length,
+                                   (char*) min_str + offset,
+                                   (char*) max_str + offset,
+                                   &min_length, &max_length))
+    DBUG_RETURN(0);              // Can't optimize with LIKE
+
+  if (offset != maybe_null)			// BLOB or VARCHAR
+  {
+    int2store(min_str + maybe_null, min_length);
+    int2store(max_str + maybe_null, max_length);
+  }
+  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
+  DBUG_RETURN(tree);
+}
 
 SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
@@ -9017,7 +9150,10 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
         */
         MEM_ROOT *tmp_root= param->mem_root;
         param->thd->mem_root= param->old_root;
-        sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+        if (with_sargable_substr())
+          sel_arg= get_mm_leaf_for_sargable(this, param, key_part->field, key_part, type, value);
+        else
+          sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
         param->thd->mem_root= tmp_root;
 
 	if (!sel_arg)
@@ -9085,109 +9221,7 @@ Item_func_like::get_mm_leaf(RANGE_OPT_PARAM *param,
                             Item_func::Functype type, Item *value)
 {
   DBUG_ENTER("Item_func_like::get_mm_leaf");
-  DBUG_ASSERT(value);
-
-  if (key_part->image_type != Field::itRAW)
-    DBUG_RETURN(0);
-
-  uint keynr= param->real_keynr[key_part->key];
-  if (param->using_real_indexes &&
-      !field->optimize_range(keynr, key_part->part))
-    DBUG_RETURN(0);
-
-  if (field->result_type() == STRING_RESULT &&
-      field->charset() != compare_collation())
-  {
-    if (param->note_unusable_keys & BITMAP_LIKE)
-      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(),
-                                            compare_collation(),
-                                            value,
-                                            Data_type_compatibility::
-                                            INCOMPATIBLE_COLLATION);
-    DBUG_RETURN(0);
-  }
-
-  StringBuffer<MAX_FIELD_WIDTH> tmp(value->collation.collation);
-  String *res;
-
-  if (!(res= value->val_str(&tmp)))
-    DBUG_RETURN(&null_element);
-
-  if (field->cmp_type() != STRING_RESULT ||
-      field->type_handler() == &type_handler_enum ||
-      field->type_handler() == &type_handler_set)
-  {
-    if (param->note_unusable_keys & BITMAP_LIKE)
-      field->raise_note_cannot_use_key_part(param->thd, keynr, key_part->part,
-                                            func_name_cstring(),
-                                            compare_collation(),
-                                            value,
-                                            Data_type_compatibility::
-                                            INCOMPATIBLE_DATA_TYPE);
-    DBUG_RETURN(0);
-  }
-
-  /*
-    TODO:
-    Check if this was a function. This should have be optimized away
-    in the sql_select.cc
-  */
-  if (res != &tmp)
-  {
-    tmp.copy(*res);				// Get own copy
-    res= &tmp;
-  }
-
-  uint maybe_null= (uint) field->real_maybe_null();
-  size_t field_length= field->pack_length() + maybe_null;
-  size_t offset= maybe_null;
-  size_t length= key_part->store_length;
-
-  if (length != key_part->length + maybe_null)
-  {
-    /* key packed with length prefix */
-    offset+= HA_KEY_BLOB_LENGTH;
-    field_length= length - HA_KEY_BLOB_LENGTH;
-  }
-  else
-  {
-    if (unlikely(length < field_length))
-    {
-      /*
-        This can only happen in a table created with UNIREG where one key
-        overlaps many fields
-      */
-      length= field_length;
-    }
-    else
-      field_length= length;
-  }
-  length+= offset;
-  uchar *min_str,*max_str;
-  if (!(min_str= (uchar*) alloc_root(param->mem_root, length*2)))
-    DBUG_RETURN(0);
-  max_str= min_str + length;
-  if (maybe_null)
-    max_str[0]= min_str[0]=0;
-
-  size_t min_length, max_length;
-  field_length-= maybe_null;
-  if (field->charset()->like_range(res->ptr(), res->length(),
-                                   escape, wild_one, wild_many,
-                                   field_length,
-                                   (char*) min_str + offset,
-                                   (char*) max_str + offset,
-                                   &min_length, &max_length))
-    DBUG_RETURN(0);              // Can't optimize with LIKE
-
-  if (offset != maybe_null)			// BLOB or VARCHAR
-  {
-    int2store(min_str + maybe_null, min_length);
-    int2store(max_str + maybe_null, max_length);
-  }
-  SEL_ARG *tree= new (param->mem_root) SEL_ARG(field, min_str, max_str);
-  DBUG_RETURN(tree);
+  DBUG_RETURN(get_mm_leaf_for_sargable(this, param, field, key_part, type, value));
 }
 
 

@@ -7096,6 +7096,16 @@ Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
                          (Item_field*) args[0]->real_item(), equal_func,
                          args + 1, 1, usable_tables, sargables);
   }
+  else
+  {
+    Item_field *field= NULL;
+    int value_idx= -1;
+    if (with_sargable_substr(&field, &value_idx))
+    {
+      add_key_equal_fields(join, key_fields, *and_level, this, field,
+                           false, args + value_idx, 1, usable_tables, sargables);
+    }
+  }
   if (is_local_field(args[1]))
   {
     add_key_equal_fields(join, key_fields, *and_level, this, 
