@@ -3425,6 +3425,7 @@ double Item_field::val_real()
 
 longlong Item_field::val_int()
 {
+  DBUG_ASSERT(!is_cond());
   DBUG_ASSERT(fixed());
   if ((null_value=field->is_null()))
     return 0;
@@ -4046,6 +4047,7 @@ double Item_string::val_real()
 */
 longlong Item_string::val_int()
 {
+  DBUG_ASSERT(!is_cond());
   return longlong_from_string_with_check(&str_value);
 }
 
@@ -4056,6 +4058,12 @@ my_decimal *Item_string::val_decimal(my_decimal *decimal_value)
 }
 
 
+bool Item_null::val_bool()
+{
+  null_value= true;
+  return false;
+}
+
 double Item_null::val_real()
 {
   null_value=1;
@@ -4063,6 +4071,7 @@ double Item_null::val_real()
 }
 longlong Item_null::val_int()
 {
+  DBUG_ASSERT(!is_cond());
   null_value=1;
   return 0;
 }
@@ -7053,6 +7062,16 @@ int Item::save_int_in_field(Field *field, bool no_conversions)
 }
 
 
+int Item::save_bool_in_field(Field *field, bool no_conversions)
+{
+  bool nr= val_bool();
+  if (null_value)
+    return set_field_to_null_with_conversions(field, no_conversions);
+  field->set_notnull();
+  return field->store((longlong) nr, false/*unsigned_flag*/);
+}
+
+
 int Item::save_in_field(Field *field, bool no_conversions)
 {
   int error= type_handler()->Item_save_in_field(this, field, no_conversions);
@@ -8004,6 +8023,7 @@ static
 Item *find_producing_item(Item *item, st_select_lex *sel)
 {
   DBUG_ASSERT(item->type() == Item::FIELD_ITEM ||
+              item->type() == Item::TRIGGER_FIELD_ITEM ||
               (item->type() == Item::REF_ITEM &&
                ((Item_ref *) item)->ref_type() == Item_ref::VIEW_REF)); 
   Item_field *field_item= NULL;
@@ -8976,7 +8996,8 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   Type_std_attributes::set(orig_item);
 
   base_flags|= (item_base_t::FIXED |
-                (orig_item->base_flags & item_base_t::MAYBE_NULL));
+                (orig_item->base_flags &
+                 (item_base_t::MAYBE_NULL | item_base_t::IS_COND)));
   with_flags|= orig_item->with_flags;
 
   name= item_arg->name;
@@ -9796,7 +9817,8 @@ bool Item_default_value::fix_fields(THD *thd, Item **items)
 
 void Item_default_value::cleanup()
 {
-  delete field;                        // Free cached blob data
+  if (!m_share_field)
+    delete field;                      // Free cached blob data
   Item_field::cleanup();
 }
 
@@ -10392,6 +10414,18 @@ void Item_cache::set_null()
     null_value= TRUE;
     value_cached= TRUE;
   }
+}
+
+
+bool Item_cache_bool::cache_value()
+{
+  if (!example)
+    return false;
+  value_cached= true;
+  value= example->val_bool_result();
+  null_value_inside= null_value= example->null_value;
+  unsigned_flag= false;
+  return true;
 }
 
 

@@ -632,51 +632,47 @@ const char *thd_where(THD *thd)
 {
     switch(thd->where) {
     case THD_WHERE::CHECKING_TRANSFORMED_SUBQUERY:
-        return "checking transformed subquery";
-        break;
     case THD_WHERE::IN_ALL_ANY_SUBQUERY:
-        return "IN/ALL/ANY subquery";
-        break;
+        return "IN/ALL/ANY";
     case THD_WHERE::JSON_TABLE_ARGUMENT:
-        return "JSON_TABLE argument";
-        break;
-    case THD_WHERE::DEFAULT_WHERE:  // same as FIELD_LIST
+        return "JSON_TABLE";
+    case THD_WHERE::DEFAULT_WHERE:
+        return "SELECT";
     case THD_WHERE::FIELD_LIST:
-        return "field list";
-        break;
     case THD_WHERE::PARTITION_FUNCTION:
-        return "partition function";
-        break;
+        return "PARTITION BY";
     case THD_WHERE::FROM_CLAUSE:
-        return "from clause";
-        break;
+        return "FROM";
     case THD_WHERE::ON_CLAUSE:
-        return "on clause";
-        break;
+        return "ON";
     case THD_WHERE::WHERE_CLAUSE:
-        return "where clause";
-        break;
-    case THD_WHERE::CONVERT_CHARSET_CONST:
-        return "convert character set partition constant";
-        break;
+        return "WHERE";
+    case THD_WHERE::SET_LIST:
+        return "SET";
+    case THD_WHERE::INSERT_LIST:
+        return "INSERT INTO";
+    case THD_WHERE::RETURNING:
+        return "RETURNING";
+    case THD_WHERE::UPDATE_CLAUSE:
+        return "UPDATE";
+    case THD_WHERE::VALUES_CLAUSE:
+        return "VALUES";
     case THD_WHERE::FOR_SYSTEM_TIME:
         return "FOR SYSTEM_TIME";
-        break;
     case THD_WHERE::ORDER_CLAUSE:
-        return "order clause";
-        break;
+        return "ORDER BY";
     case THD_WHERE::HAVING_CLAUSE:
-        return "having clause";
-        break;
+        return "HAVING";
     case THD_WHERE::GROUP_STATEMENT:
-        return "group statement";
-        break;
+        return "GROUP BY";
     case THD_WHERE::PROCEDURE_LIST:
-        return "procedure list";
-        break;
+        return "PROCEDURE";
     case THD_WHERE::CHECK_OPTION:
-        return "check option";
-        break;
+        return "CHECK OPTION";
+    case THD_WHERE::DO_STATEMENT:
+        return "DO";
+    case THD_WHERE::HANDLER_STATEMENT:
+        return "HANDLER ... READ";
     case THD_WHERE::USE_WHERE_STRING:
         return thd->where_str;
     default:
@@ -852,6 +848,11 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   query_id= 0;
   query_name_consts= 0;
   semisync_info= 0;
+
+#ifndef DBUG_OFF
+  expected_semi_sync_offs= 0;
+#endif
+
   db_charset= global_system_variables.collation_database;
   bzero((void*) ha_data, sizeof(ha_data));
   mysys_var=0;
@@ -2230,12 +2231,6 @@ void THD::reset_killed()
 
 void THD::store_globals()
 {
-  /*
-    Assert that thread_stack is initialized: it's necessary to be able
-    to track stack overrun.
-  */
-  DBUG_ASSERT(thread_stack);
-
   set_current_thd(this);
   /*
     mysys_var is concurrently readable by a killer thread.
@@ -2267,8 +2262,11 @@ void THD::store_globals()
   os_thread_id= 0;
 #endif
   real_id= pthread_self();                      // For debugging
-  mysys_var->stack_ends_here= thread_stack +    // for consistency, see libevent_thread_proc
-                              STACK_DIRECTION * (long)my_thread_stack_size;
+
+  /* Set stack start and stack end */
+  my_get_stack_bounds(&thread_stack, &mysys_var->stack_ends_here,
+                      thread_stack, my_thread_stack_size);
+
   if (net.vio)
   {
     net.thd= this;
@@ -2279,6 +2277,7 @@ void THD::store_globals()
   */
   thr_lock_info_init(&lock_info, mysys_var);
 }
+
 
 /**
    Untie THD from current thread
@@ -5051,7 +5050,6 @@ TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
 MYSQL_THD create_thd()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
@@ -5131,7 +5129,6 @@ void *thd_attach_thd(MYSQL_THD thd)
 
   auto save_mysysvar= pthread_getspecific(THR_KEY_mysys);
   pthread_setspecific(THR_KEY_mysys, thd->mysys_var);
-  thd->thread_stack= (char *) &thd;
   thd->store_globals();
   return save_mysysvar;
 }
@@ -5628,6 +5625,10 @@ thd_deadlock_victim_preference(const MYSQL_THD thd1, const MYSQL_THD thd2)
   return 0;
 }
 
+/* Returns whether the thd is slave worker thread */
+extern "C" bool thd_is_slave(const MYSQL_THD thd) {
+  return thd->rgi_slave;
+}
 
 extern "C" int thd_non_transactional_update(const MYSQL_THD thd)
 {
@@ -5984,7 +5985,7 @@ void THD::store_slow_query_state(Sub_statement_state *backup)
   backup->tmp_tables_disk_used=    tmp_tables_disk_used;
   backup->tmp_tables_size=         tmp_tables_size;
   backup->tmp_tables_used=         tmp_tables_used;
-  backup->handler_stats=            handler_stats;
+  backup->handler_stats=           handler_stats;
 }
 
 /* Reset variables related to slow query log */
@@ -6002,6 +6003,8 @@ void THD::reset_slow_query_state()
   tmp_tables_used=              0;
   if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
     handler_stats.reset();
+  else
+    handler_stats.active= 0;
 }
 
 /*
@@ -6020,7 +6023,7 @@ void THD::add_slow_query_state(Sub_statement_state *backup)
   tmp_tables_disk_used+=         backup->tmp_tables_disk_used;
   tmp_tables_size+=              backup->tmp_tables_size;
   tmp_tables_used+=              backup->tmp_tables_used;
-  if ((variables.log_slow_verbosity & LOG_SLOW_VERBOSITY_ENGINE))
+  if (handler_stats.active && backup->handler_stats.active)
     handler_stats.add(&backup->handler_stats);
 }
 

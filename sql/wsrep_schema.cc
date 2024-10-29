@@ -729,7 +729,6 @@ int Wsrep_schema::init()
     WSREP_ERROR("Unable to get thd");
     DBUG_RETURN(1);
   }
-  thd->thread_stack= (char*)&thd;
   wsrep_init_thd_for_schema(thd);
 
   if (Wsrep_schema_impl::execute_SQL(thd, create_cluster_table_str.c_str(),

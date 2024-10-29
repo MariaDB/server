@@ -396,7 +396,7 @@ retry:
 got_block:
     const ulint LRU_size= UT_LIST_GET_LEN(buf_pool.LRU);
     const ulint available= UT_LIST_GET_LEN(buf_pool.free);
-    const ulint scan_depth= srv_LRU_scan_depth / 2;
+    const ulint scan_depth= buf_pool.LRU_scan_depth / 2;
     ut_ad(LRU_size <= BUF_LRU_MIN_LEN ||
           available >= scan_depth || buf_pool.need_LRU_eviction());
 

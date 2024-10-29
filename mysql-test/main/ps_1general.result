@@ -91,11 +91,11 @@ prepare stmt1 from @arg01;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL' at line 1
 prepare stmt1 from ' select * from t1 where a <= 2 ' ;
 prepare stmt1 from ' select * from t1 where x <= 2 ' ;
-ERROR 42S22: Unknown column 'x' in 'where clause'
+ERROR 42S22: Unknown column 'x' in 'WHERE'
 prepare stmt1 from ' insert into t1(a,x) values(?,?) ' ;
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42S22: Unknown column 'x' in 'INSERT INTO'
 prepare stmt1 from ' insert into t1(x,a) values(?,?) ' ;
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42S22: Unknown column 'x' in 'INSERT INTO'
 drop table if exists not_exist ;
 prepare stmt1 from ' select * from not_exist where a <= 2 ' ;
 ERROR 42S02: Table 'test.not_exist' doesn't exist

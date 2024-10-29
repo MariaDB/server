@@ -174,11 +174,11 @@ SELECT @@max_delayed_threads;
 @@max_delayed_threads
 16384
 SELECT local.max_delayed_threads;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_delayed_threads;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_delayed_threads = @@session.max_delayed_threads;
-ERROR 42S22: Unknown column 'max_delayed_threads' in 'field list'
+ERROR 42S22: Unknown column 'max_delayed_threads' in 'SELECT'
 SET @@global.max_delayed_threads = @start_global_value;
 SELECT @@global.max_delayed_threads;
 @@global.max_delayed_threads

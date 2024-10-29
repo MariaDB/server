@@ -1186,27 +1186,25 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	switch(type) {
+	const static std::string spacename{filename_to_spacename(name, len)};
+	switch (type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		fail = !check_if_skip_table(spacename.c_str());
 		break;
 	case FILE_MODIFY:
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str())
+		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
 		break;
 	case FILE_DELETE:
-		fail = !check_if_skip_table(
-                                filename_to_spacename(name, len).c_str())
-                       && !check_if_fts_table(reinterpret_cast<const char*>(name));
-                msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		fail = !check_if_skip_table(spacename.c_str())
+			&& !check_if_fts_table(spacename.c_str());
+		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -2651,7 +2649,7 @@ static bool innodb_init()
   const std::string ib_logfile0{get_log_file_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
-                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_FILE_CREATE,
 #if defined _WIN32 || defined O_DIRECT
                                       OS_DATA_FILE_NO_O_DIRECT,
 #else
@@ -2676,13 +2674,9 @@ static bool innodb_init()
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
 
-#ifdef _WIN32
-  DWORD len;
-  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
-                 &len, nullptr) && len == sizeof log_hdr_buf;
-#else
-  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
-#endif
+  ret = os_file_write_func(IORequestWrite, ib_logfile0.c_str(), file,
+                           log_hdr_buf, 0,
+                           sizeof(log_hdr_buf)) == DB_SUCCESS;
   if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;
@@ -3913,16 +3907,18 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	if (is_remote) {
 		RemoteDatafile* rf = new RemoteDatafile();
-		if (!rf->open_link_file(n)) {
-			die("Can't open datafile %s", name);
-		}
 		file = rf;
+		if (!rf->open_link_file(n)) {
+			goto cant_open;
+		}
 	} else {
 		file = new Datafile();
 		file->make_filepath(".", n, IBD);
 	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
+	cant_open:
+		delete file;
 		// Ignore FTS tables, as they can be removed for intermediate tables,
 		// this code must be executed under stronger or equal to BLOCK_DDL lock,
 		// so there must not be errors for non-intermediate FTS tables.
@@ -7551,7 +7547,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -7562,8 +7557,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7847,32 +7842,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)

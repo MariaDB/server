@@ -3175,7 +3175,7 @@ protected:
 
   ha_rows estimation_rows_to_insert;
   handler *lookup_handler;
-  /* Statistics for the query. Updated if handler_stats.in_use is set */
+  /* Statistics for the query. Updated if handler_stats.active is set */
   ha_handler_stats active_handler_stats;
   void set_handler_stats();
 public:
@@ -3427,7 +3427,6 @@ public:
     */
     MEM_UNDEFINED(&optimizer_where_cost, sizeof(optimizer_where_cost));
     MEM_UNDEFINED(&optimizer_scan_setup_cost, sizeof(optimizer_scan_setup_cost));
-    active_handler_stats.active= 0;
   }
   virtual ~handler(void)
   {
@@ -5391,6 +5390,12 @@ public:
   virtual handlerton *partition_ht() const
   { return ht; }
   virtual bool partition_engine() { return 0;}
+  /*
+    Used with 'wrapper' engines, like SEQUENCE, to access to the
+    underlaying engine used for storage.
+  */
+  virtual handlerton *storage_ht() const
+  { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
   inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
@@ -5738,4 +5743,6 @@ inline void Cost_estimate::reset(handler *file)
   avg_io_cost= file->DISK_READ_COST * file->DISK_READ_RATIO;
 }
 
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned);
 #endif /* HANDLER_INCLUDED */

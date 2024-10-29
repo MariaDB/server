@@ -7086,7 +7086,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
     return CHECK_OUT_OF_RANGE;
   h->increment_statistics(&SSV::ha_icp_attempts);
   res= CHECK_NEG;
-  if  (h->pushed_idx_cond->val_int())
+  if  (h->pushed_idx_cond->val_bool())
   {
     res= CHECK_POS;
     h->fast_increment_statistics(&SSV::ha_icp_match);
@@ -8588,6 +8588,21 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 }
 
 
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned)
+{
+  int select_field_pos= alter_info->create_list.elements - select_field_count;
+  if (select_field_count && versioned &&
+      /*
+        ALTER_PARSER_ADD_COLUMN indicates system fields was created implicitly,
+        select_field_count guarantees it's not ALTER TABLE
+      */
+      alter_info->flags & ALTER_PARSER_ADD_COLUMN)
+    select_field_pos-= 2;
+  return select_field_pos;
+}
+
+
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_table_name &table_name,
         const Lex_table_name &db, int select_count)
@@ -8601,6 +8616,8 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   {
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
+    uint select_field_pos= (uint) get_select_field_pos(alter_info, select_count,
+                                                       true);
     while (Create_field *f= field_it++)
     {
       /*
@@ -8611,7 +8628,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->create_list.elements - select_count)
+      if (fieldnr >= select_field_pos && f->invisible < INVISIBLE_SYSTEM)
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)

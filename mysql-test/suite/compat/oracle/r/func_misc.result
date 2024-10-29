@@ -6,9 +6,9 @@ SET sql_mode=ORACLE;
 # Using SQLCODE and SQLERRM outside of an SP
 #
 SELECT SQLCODE;
-ERROR 42S22: Unknown column 'SQLCODE' in 'field list'
+ERROR 42S22: Unknown column 'SQLCODE' in 'SELECT'
 SELECT SQLERRM;
-ERROR 42S22: Unknown column 'SQLERRM' in 'field list'
+ERROR 42S22: Unknown column 'SQLERRM' in 'SELECT'
 CREATE TABLE t1 (SQLCODE INT, SQLERRM VARCHAR(10));
 INSERT INTO t1 VALUES (10, 'test');
 SELECT SQLCODE, SQLERRM FROM t1;

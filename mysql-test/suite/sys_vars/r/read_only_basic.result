@@ -103,11 +103,11 @@ SELECT @@read_only;
 @@read_only
 1
 SELECT local.read_only;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.read_only;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT read_only = @@session.read_only;
-ERROR 42S22: Unknown column 'read_only' in 'field list'
+ERROR 42S22: Unknown column 'read_only' in 'SELECT'
 SET @@global.read_only = @start_value;
 SELECT @@global.read_only;
 @@global.read_only

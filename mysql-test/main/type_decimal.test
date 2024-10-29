@@ -827,6 +827,24 @@ SET sql_mode=DEFAULT;
 --echo # End of 10.4 tests
 --echo #
 
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c DECIMAL(10, 1));
+INSERT INTO t0 VALUES (0.0),(0.4),(0.6);
+--source include/search_condition.inc
+DROP TABLE t0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
+
 --echo #
 --echo # Start of 10.11 tests
 --echo #
