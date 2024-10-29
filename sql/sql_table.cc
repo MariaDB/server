@@ -11973,6 +11973,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to, bool ignore,
   }
 
   backup_set_alter_copy_lock(thd, from);
+  DEBUG_SYNC(thd, "copy_data_between_tables_after_set_backup_lock");
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(),
                           alter_info->keys_onoff);
