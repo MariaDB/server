@@ -2607,5 +2607,16 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
 
+template<typename T> T prev_bits(T n_bits)
+{
+  if (!n_bits)
+    return 0;
+  T tmp= ((T)1 << (n_bits - 1));
+  return (tmp - 1) | tmp;
+}
+// A wrapper for the above function:
+#define PREV_BITS(type, A) prev_bits<type>(A)
+
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+
 #endif /* SQL_SELECT_INCLUDED */

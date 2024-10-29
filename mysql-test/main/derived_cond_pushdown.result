@@ -21588,6 +21588,33 @@ EXPLAIN
   }
 }
 drop table t1, t2;
+#
+# MDEV-35276: Assertion failure in find_producing_item upon a query
+# from a view
+#
+# Note: for all followng queries with DEFAULT(f) hishdown is
+# prohibited
+CREATE VIEW v AS select 0 AS f;
+SELECT * FROM v WHERE f = DEFAULT(f);
+f
+0
+CREATE TABLE t1 (c int DEFAULT 0);
+insert into t1 values (0), (1);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+0	0
+0	1
+ALTER TABLE t1 ALTER c SET DEFAULT 1;
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	c
+drop table t1;
+create table t1 (a int, c int DEFAULT a);
+insert into t1 values (0, -1), (1, -2);
+SELECT * FROM v,t1 WHERE f = DEFAULT(c);
+f	a	c
+0	0	-1
+DROP VIEW v;
+DROP TABLE t1;
 # End of 10.5 tests
 #
 # MDEV-28958: condition pushable into view after simplification
