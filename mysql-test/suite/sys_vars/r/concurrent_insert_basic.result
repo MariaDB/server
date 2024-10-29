@@ -102,9 +102,9 @@ SELECT @@concurrent_insert;
 @@concurrent_insert
 AUTO
 SELECT global.concurrent_insert;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT concurrent_insert = @@session.concurrent_insert;
-ERROR 42S22: Unknown column 'concurrent_insert' in 'field list'
+ERROR 42S22: Unknown column 'concurrent_insert' in 'SELECT'
 SET @@global.concurrent_insert = @start_value;
 SELECT @@global.concurrent_insert;
 @@global.concurrent_insert

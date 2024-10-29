@@ -4,8 +4,10 @@ source include/have_innodb.inc;
 --echo #
 let $datadir=`select @@datadir`;
 copy_file std_data/mysql57part.frm $datadir/test/mysql57part.frm;
+--disable_view_protocol
 select table_name, concat('<',table_comment,'>') from information_schema.tables
   where table_schema='test';
+--enable_view_protocol
 drop table mysql57part;
 
 --echo # End of 10.11 tests

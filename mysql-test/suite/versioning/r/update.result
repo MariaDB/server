@@ -329,9 +329,9 @@ create or replace table t1 (a int) with system versioning;
 create or replace view v1 as select * from t1;
 create or replace procedure sp() update v1 set xx = 1;
 call sp;
-ERROR 42S22: Unknown column 'xx' in 'field list'
+ERROR 42S22: Unknown column 'xx' in 'SET'
 call sp;
-ERROR 42S22: Unknown column 'xx' in 'field list'
+ERROR 42S22: Unknown column 'xx' in 'SET'
 drop procedure sp;
 drop view v1;
 drop table t1;

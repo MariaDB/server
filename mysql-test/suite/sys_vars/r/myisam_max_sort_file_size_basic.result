@@ -119,7 +119,7 @@ SELECT @@myisam_max_sort_file_size = @@global.myisam_max_sort_file_size;
 SET myisam_max_sort_file_size = 2048;
 ERROR HY000: Variable 'myisam_max_sort_file_size' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT myisam_max_sort_file_size;
-ERROR 42S22: Unknown column 'myisam_max_sort_file_size' in 'field list'
+ERROR 42S22: Unknown column 'myisam_max_sort_file_size' in 'SELECT'
 SELECT @@myisam_max_sort_file_size;
 @@myisam_max_sort_file_size
 0

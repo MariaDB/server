@@ -2662,7 +2662,7 @@ static bool innodb_init()
   const std::string ib_logfile0{get_log_file_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
-                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_FILE_CREATE,
 #if defined _WIN32 || defined O_DIRECT
                                       OS_DATA_FILE_NO_O_DIRECT,
 #else
@@ -2687,13 +2687,9 @@ static bool innodb_init()
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
 
-#ifdef _WIN32
-  DWORD len;
-  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
-                 &len, nullptr) && len == sizeof log_hdr_buf;
-#else
-  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
-#endif
+  ret = os_file_write_func(IORequestWrite, ib_logfile0.c_str(), file,
+                           log_hdr_buf, 0,
+                           sizeof(log_hdr_buf)) == DB_SUCCESS;
   if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;
@@ -7536,7 +7532,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -7547,8 +7542,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7844,32 +7839,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)

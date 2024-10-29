@@ -1238,7 +1238,8 @@ enum wsrep_warning_type {
   WSREP_DISABLED = 0,
   WSREP_REQUIRE_PRIMARY_KEY= 1,
   WSREP_REQUIRE_INNODB= 2,
-  WSREP_REQUIRE_MAX=3,
+  WSREP_EXPERIMENTAL= 3,
+  WSREP_REQUIRE_MAX=4,
 };
 
 static ulonglong wsrep_warning_start_time=0;
@@ -1275,6 +1276,9 @@ static const char* wsrep_warning_name(const enum wsrep_warning_type type)
     return "WSREP_REQUIRE_PRIMARY_KEY"; break;
   case WSREP_REQUIRE_INNODB:
     return "WSREP_REQUIRE_INNODB"; break;
+  case WSREP_EXPERIMENTAL:
+    return "WSREP_EXPERIMENTAL"; break;
+
   default: assert(0); return " "; break; // for compiler
   }
 }
@@ -1408,7 +1412,22 @@ static void wsrep_push_warning(THD *thd,
                  ha_resolve_storage_engine_name(hton),
                  tables->db.str, tables->table_name.str);
     break;
-
+  case WSREP_EXPERIMENTAL:
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_ERROR_DURING_COMMIT,
+                        "WSREP: Replication of non-transactional engines is experimental. "
+                        "Storage engine %s for table '%s'.'%s' is "
+                        "not supported in Galera",
+                        ha_resolve_storage_engine_name(hton),
+                        tables->db.str, tables->table_name.str);
+    if (global_system_variables.log_warnings > 1 &&
+	!wsrep_protect_against_warning_flood(type))
+      WSREP_WARN("Replication of non-transactional engines is experimental. "
+                 "Storage engine %s for table '%s'.'%s' is "
+                 "not supported in Galera",
+                 ha_resolve_storage_engine_name(hton),
+                 tables->db.str, tables->table_name.str);
+    break;
   default: assert(0); break;
   }
 }
@@ -1418,15 +1437,8 @@ bool wsrep_check_mode_after_open_table (THD *thd,
 	TABLE_LIST *tables)
 {
   enum_sql_command sql_command= thd->lex->sql_command;
-  bool is_dml_stmt= thd->get_command() != COM_STMT_PREPARE &&
-                    (sql_command == SQLCOM_INSERT ||
-                     sql_command == SQLCOM_INSERT_SELECT ||
-                     sql_command == SQLCOM_REPLACE ||
-                     sql_command == SQLCOM_REPLACE_SELECT ||
-                     sql_command == SQLCOM_UPDATE ||
-                     sql_command == SQLCOM_UPDATE_MULTI ||
-                     sql_command == SQLCOM_LOAD ||
-                     sql_command == SQLCOM_DELETE);
+  bool is_dml_stmt= (thd->get_command() != COM_STMT_PREPARE &&
+                     (sql_command_flags[sql_command] & CF_WSREP_BASIC_DML));
 
   if (!is_dml_stmt)
     return true;
@@ -1453,9 +1465,24 @@ bool wsrep_check_mode_after_open_table (THD *thd,
         wsrep_push_warning(thd, WSREP_REQUIRE_PRIMARY_KEY, hton, tables);
       }
 
+      // Check are we inside a transaction
+      uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, thd->transaction->all.ha_list, true);
+      bool changes= wsrep_has_changes(thd);
+
+      // Roll back current stmt if exists
       wsrep_before_rollback(thd, true);
       wsrep_after_rollback(thd, true);
       wsrep_after_statement(thd);
+
+      // If there is updates, they would be lost above rollback
+      if (rw_ha_count > 0 && changes)
+      {
+	my_message(ER_ERROR_DURING_COMMIT, "Transactional commit not supported "
+                     "by involved engine(s)", MYF(0));
+        wsrep_push_warning(thd, WSREP_EXPERIMENTAL, hton, tables);
+	return false;
+      }
+
       WSREP_TO_ISOLATION_BEGIN(NULL, NULL, (tables));
     }
   } else if (db_type != DB_TYPE_UNKNOWN &&
@@ -2786,6 +2813,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   WSREP_DEBUG("wsrep_TOI_begin for %s", wsrep_thd_query(thd));
   THD_STAGE_INFO(thd, stage_waiting_isolation);
 
+  DEBUG_SYNC(thd, "wsrep_before_toi_begin");
+
   wsrep::client_state& cs(thd->wsrep_cs());
 
   int ret= cs.enter_toi_local(key_array,
@@ -3755,7 +3784,6 @@ void* start_wsrep_THD(void *arg)
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
-  thd->thread_stack= (char*) &thd;
   wsrep_assign_from_threadvars(thd);
   wsrep_store_threadvars(thd);
 

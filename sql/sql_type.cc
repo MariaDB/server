@@ -4434,6 +4434,13 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 }
 
 
+int Type_handler_bool::Item_save_in_field(Item *item, Field *field,
+                                          bool no_conversions) const
+{
+  return item->save_bool_in_field(field, no_conversions);
+}
+
+
 /***********************************************************************/
 
 bool Type_handler_row::
@@ -4592,6 +4599,12 @@ Item_cache *
 Type_handler_int_result::Item_get_cache(THD *thd, const Item *item) const
 {
   return new (thd->mem_root) Item_cache_int(thd, item->type_handler());
+}
+
+Item_cache *
+Type_handler_bool::Item_get_cache(THD *thd, const Item *item) const
+{
+  return new (thd->mem_root) Item_cache_bool(thd);
 }
 
 Item_cache *
@@ -5224,7 +5237,22 @@ bool Type_handler_real_result::Item_val_bool(Item *item) const
 
 bool Type_handler_int_result::Item_val_bool(Item *item) const
 {
-  return item->val_int() != 0;
+  /*
+    Some Item descendants have DBUG_ASSERT(!is_cond()) is their
+    val_int() implementations, which means val_int() must not be used
+    to evaluate a condition: val_bool() must be used instead.
+    If we come here, it means item's class does not override val_bool()
+    and we need to evaluate the boolean value from the integer value
+    as a fall-back method. To avoid the assert, let's hide the IS_COND flag.
+    Eventually we'll need to implement val_bool() in all Item descendants and
+    remove the trick with flags. This change would be too ricky for 10.6.
+    Let's do it in a later version.
+  */
+  item_base_t flags= item->base_flags;
+  item->base_flags &= ~item_base_t::IS_COND;
+  bool rc= item->val_int() != 0;
+  item->base_flags= flags;
+  return rc;
 }
 
 bool Type_handler_temporal_result::Item_val_bool(Item *item) const

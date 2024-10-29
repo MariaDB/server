@@ -5,11 +5,11 @@ update t1 set a=a+10 where a > 34;
 update t1 set a=a+100 where a > 0;
 update t1 set a=a+100 where a=1 and a=2;
 update t1 set a=b+100 where a=1 and a=2;
-ERROR 42S22: Unknown column 'b' in 'field list'
+ERROR 42S22: Unknown column 'b' in 'SET'
 update t1 set a=b+100 where c=1 and a=2;
-ERROR 42S22: Unknown column 'c' in 'where clause'
+ERROR 42S22: Unknown column 'c' in 'WHERE'
 update t1 set d=a+100 where a=1;
-ERROR 42S22: Unknown column 'd' in 'field list'
+ERROR 42S22: Unknown column 'd' in 'SET'
 select * from t1;
 a
 101
@@ -399,7 +399,7 @@ update t1 set `*f2`=1;
 drop table t1;
 create table t1(f1 int);
 update t1 set f2=1 order by f2;
-ERROR 42S22: Unknown column 'f2' in 'order clause'
+ERROR 42S22: Unknown column 'f2' in 'ORDER BY'
 drop table t1;
 CREATE TABLE t1 (
 request_id int unsigned NOT NULL auto_increment,

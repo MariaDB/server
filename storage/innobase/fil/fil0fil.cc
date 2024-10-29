@@ -372,7 +372,7 @@ static bool fil_node_open_file_low(fil_node_t *node, const byte *page,
     node->handle= os_file_create(innodb_data_file_key, node->name,
                                  node->is_raw_disk
                                  ? OS_FILE_OPEN_RAW : OS_FILE_OPEN,
-                                 OS_FILE_AIO, type,
+                                 type,
                                  srv_read_only_mode, &success);
 
     if (success && node->is_open())
@@ -1186,7 +1186,7 @@ err_exit:
 
     if (create_new_db)
     {
-      node->find_metadata(node->handle);
+      node->find_metadata();
       continue;
     }
     if (skip_read)
@@ -1958,7 +1958,7 @@ fil_ibd_create(
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE,
-		OS_FILE_AIO, type, srv_read_only_mode, &success);
+		type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */
@@ -2038,7 +2038,7 @@ err_exit:
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode, true)) {
 		fil_node_t* node = space->add(path, file, size, false, true);
-		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
+		node->find_metadata(IF_WIN(,true));
 		mysql_mutex_unlock(&fil_system.mutex);
 		mtr.start();
 		mtr.set_named_space(space);

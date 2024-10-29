@@ -1,0 +1,16 @@
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-34123 CONCAT Function Returns Unexpected Empty Set in Query
+--echo #
+
+CREATE TABLE t0 (c INET6);
+INSERT INTO t0 VALUES ('::'),('::1'),('::2');
+--source include/search_condition.inc
+DROP TABLE t0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

@@ -45,7 +45,7 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 INSERT INTO t1 values (1,'abba');
 CREATE TABLE t2 (c1 INT PRIMARY KEY AUTO_INCREMENT, c2 VARCHAR(10)) ENGINE=Memory;
-ERROR 42000: Unknown storage engine 'MEMORY'
+ERROR HY000: The MariaDB server is running with the NO_ENGINE_SUBSTITUTION option so it cannot execute this statement
 SET SESSION sql_mode='';
 SET SESSION enforce_storage_engine=MyISAM;
 select @@session.enforce_storage_engine;

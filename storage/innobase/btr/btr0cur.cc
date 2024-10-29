@@ -5900,18 +5900,23 @@ btr_blob_get_next_page_no(
 @param mtr     mini-transaction to commit */
 static void btr_blob_free(buf_block_t *block, bool all, mtr_t *mtr)
 {
-  const page_id_t page_id(block->page.id());
   ut_ad(mtr->memo_contains_flagged(block, MTR_MEMO_PAGE_X_FIX));
+  block->page.fix();
+#ifdef UNIV_DEBUG
+  const page_id_t page_id{block->page.id()};
+  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
+#endif
   mtr->commit();
 
-  buf_pool_t::hash_chain &chain= buf_pool.page_hash.cell_get(page_id.fold());
   mysql_mutex_lock(&buf_pool.mutex);
+  block->page.unfix();
+  ut_ad(block->page.id() == page_id);
+  ut_ad(&block->page == buf_pool.page_hash.get(page_id, chain));
 
-  if (buf_page_t *bpage= buf_pool.page_hash.get(page_id, chain))
-    if (!buf_LRU_free_page(bpage, all) && all && bpage->zip.data)
-      /* Attempt to deallocate the redundant copy of the uncompressed page
-      if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
-      buf_LRU_free_page(bpage, false);
+  if (!buf_LRU_free_page(&block->page, all) && all && block->page.zip.data)
+    /* Attempt to deallocate the redundant copy of the uncompressed page
+    if the whole ROW_FORMAT=COMPRESSED block cannot be deallocted. */
+    buf_LRU_free_page(&block->page, false);
 
   mysql_mutex_unlock(&buf_pool.mutex);
 }

@@ -500,8 +500,9 @@ int mysql_update(THD *thd,
   if (table_list->is_view())
     unfix_fields(fields);
 
-  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
-                                fields, MARK_COLUMNS_WRITE, 0, 0))
+  ;
+  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), fields,
+                                MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);                     /* purecov: inspected */
   if (check_fields(thd, table_list, fields, table_list->view))
   {
@@ -522,7 +523,8 @@ int mysql_update(THD *thd,
   table_list->grant.want_privilege= table->grant.want_privilege=
     (SELECT_ACL & ~table->grant.privilege);
 #endif
-  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, NULL, 0))
+  if (setup_fields(thd, Ref_ptr_array(), values, MARK_COLUMNS_READ, 0, NULL, 0,
+                   THD_WHERE::SET_LIST))
   {
     free_underlaid_joins(thd, select_lex);
     DBUG_RETURN(1);				/* purecov: inspected */
@@ -581,6 +583,7 @@ int mysql_update(THD *thd,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -621,6 +624,7 @@ int mysql_update(THD *thd,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -1401,6 +1405,7 @@ update_end:
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= 0;
   }
   *found_return= found;
   *updated_return= updated;
@@ -1785,8 +1790,8 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
-  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(),
-                                *fields, MARK_COLUMNS_WRITE, 0, 0))
+  if (setup_fields_with_no_wrap(thd, Ref_ptr_array(), *fields,
+                                MARK_COLUMNS_WRITE, 0, 0, THD_WHERE::SET_LIST))
     DBUG_RETURN(1);
 
   // Check if we have a view in the list ...

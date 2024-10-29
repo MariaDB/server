@@ -162,7 +162,7 @@ static void wsrep_rollback_high_priority(THD *thd, THD *rollbacker)
 {
   WSREP_DEBUG("Rollbacker aborting SR applier thd (%llu %lu)",
               thd->thread_id, thd->real_id);
-  char* orig_thread_stack= thd->thread_stack;
+  void* orig_thread_stack= thd->thread_stack;
   thd->thread_stack= rollbacker->thread_stack;
   DBUG_ASSERT(thd->wsrep_cs().mode() == Wsrep_client_state::m_high_priority);
   /* Must be streaming and must have been removed from the
@@ -193,7 +193,7 @@ static void wsrep_rollback_local(THD *thd, THD *rollbacker)
 {
   WSREP_DEBUG("Rollbacker aborting local thd (%llu %lu)",
               thd->thread_id, thd->real_id);
-  char* orig_thread_stack= thd->thread_stack;
+  void* orig_thread_stack= thd->thread_stack;
   thd->thread_stack= rollbacker->thread_stack;
   if (thd->wsrep_trx().is_streaming())
   {

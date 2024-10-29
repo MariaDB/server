@@ -2741,7 +2741,6 @@ int ddl_log_execute_recovery()
     DBUG_RETURN(1);
   }
   original_thd= current_thd;                    // Probably NULL
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->init();                                  // Needed for error messages
 

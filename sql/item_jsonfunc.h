@@ -47,7 +47,7 @@ void report_path_error_ex(const char *ps, json_path_t *p,
 void report_json_error_ex(const char *js, json_engine_t *je,
                           const char *fname, int n_param,
                           Sql_condition::enum_warning_level lv);
-int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
+bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole);
 int json_find_overlap_with_object(json_engine_t *js,
                                               json_engine_t *value,
                                               bool compare_whole);
@@ -95,7 +95,7 @@ protected:
 
 public:
   Item_func_json_valid(THD *thd, Item *json) : Item_bool_func(thd, json) {}
-  longlong val_int() override;
+  bool val_bool() override;
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("json_valid") };
@@ -133,7 +133,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_equals>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -154,7 +154,7 @@ public:
   bool fix_length_and_dec(THD *thd) override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_exists>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -343,7 +343,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains>(thd, this); }
 };
@@ -370,7 +370,7 @@ public:
   }
   bool fix_fields(THD *thd, Item **ref) override;
   bool fix_length_and_dec(THD *thd) override;
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_contains_path>(thd, this); }
 };
@@ -807,7 +807,7 @@ public:
     return name;
   }
   bool fix_length_and_dec(THD *thd) override;
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_json_overlaps>(thd, this); }
 };

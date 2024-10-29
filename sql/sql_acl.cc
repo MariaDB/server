@@ -2379,11 +2379,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  // check for SET PASSWORD
   if (!plugin)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_PLUGIN_IS_NOT_LOADED,
-                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), plugin_name);
     return ER_PLUGIN_IS_NOT_LOADED;
   }
 
@@ -2437,6 +2436,21 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   res= 0;
 end:
+  switch(res)
+  {
+    case ER_OUTOFMEMORY:        // should be reported by my_malloc
+    case ER_NOT_VALID_PASSWORD: // should be reported by plugin
+    case ER_PASSWD_LENGTH:      // should be reported by plugin
+      DBUG_ASSERT(thd->is_error());
+      /* fall through*/
+    case 0:
+      break;
+    case ER_SET_PASSWORD_AUTH_PLUGIN:
+      my_error(res, MYF(0), plugin_name);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
   if (unlock_plugin)
     plugin_unlock(thd, plugin);
   return res;
@@ -2562,7 +2576,6 @@ bool acl_init(bool dont_read_acl_tables)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(1); /* purecov: inspected */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   /*
     It is safe to call acl_reload() since acl_* arrays and hashes which
@@ -8059,7 +8072,6 @@ bool grant_init()
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);				/* purecov: deadcode */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   return_val=  grant_reload(thd);
   delete thd;
