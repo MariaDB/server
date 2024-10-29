@@ -2067,3 +2067,49 @@ DELIMITER ;$$
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.7 tests
+--echo #
+
+--echo #
+--echo # MDEV-35229 NOCOPY has become reserved word bringing wide incompatibility
+--echo #
+
+--let $keyword=nocopy
+--source include/keyword_non_reserved.inc
+
+# Statements like "CREATE FUNCTION nocopy" and "SELECT nocopy()" below
+# erroneously prints a warning:
+#   This function 'nocopy' has the same name as a native function
+# Though it's not really a function, it's just a keyword.
+# This warning is not printed with ps protocol. Let's disable ps protocol.
+
+--disable_ps_protocol
+CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+SELECT nocopy(1);
+DROP FUNCTION nocopy;
+--enable_ps_protocol
+
+CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
+CALL nocopy(1);
+DROP PROCEDURE nocopy;
+
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE nocopy INT DEFAULT 1;
+nocopy:
+  WHILE 1 DO
+    BEGIN
+      SELECT nocopy;
+      LEAVE nocopy;
+    END;
+  END WHILE;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # End of 11.7 tests
+--echo #

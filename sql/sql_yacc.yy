@@ -357,7 +357,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %ifdef MARIADB
 %expect 62
 %else
-%expect 62
+%expect 63
 %endif
 
 /*
@@ -1472,8 +1472,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
-
-%type <alter_table_algo_val> alter_algorithm_option_is_kwd
 
 %type <object_ddl_options>
         create_or_replace
@@ -8039,15 +8037,10 @@ opt_index_lock_algorithm:
         | alter_algorithm_option alter_lock_option
         ;
 
-alter_algorithm_option_is_kwd:
-           DEFAULT    { $$ = Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT; }
-        |  NOCOPY_SYM { $$ = Alter_info::ALTER_TABLE_ALGORITHM_NOCOPY; }
-        ;
-
 alter_algorithm_option:
-          ALGORITHM_SYM opt_equal alter_algorithm_option_is_kwd
+          ALGORITHM_SYM opt_equal DEFAULT
           {
-            Lex->alter_info.set_requested_algorithm($3);
+            Lex->alter_info.set_requested_algorithm(Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT);
           }
         | ALGORITHM_SYM opt_equal ident
           {
@@ -16388,6 +16381,7 @@ keyword_func_sp_var_and_label:
         | NOMINVALUE_SYM
         | NOMAXVALUE_SYM
         | NO_WAIT_SYM
+        | NOCOPY_SYM
         | NOWAIT_SYM
         | NODEGROUP_SYM
         | NONE_SYM
