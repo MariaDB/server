@@ -6906,8 +6906,9 @@ public:
 
 class Item_default_value : public Item_field
 {
-  bool vcol_assignment_ok;
-  bool m_associated= false;
+  bool vcol_assignment_ok:1;
+  bool m_associated:1;
+  bool m_share_field:1;
 
   void calculate();
 public:
@@ -6915,7 +6916,11 @@ public:
   Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
                      bool vcol_assignment_arg)
     : Item_field(thd, context_arg),
-      vcol_assignment_ok(vcol_assignment_arg), arg(a) {}
+      vcol_assignment_ok(vcol_assignment_arg), arg(a)
+  {
+    m_associated= false;
+    m_share_field= false;
+  }
   Type type() const override { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const override;
   bool fix_fields(THD *, Item **) override;
@@ -6975,6 +6980,10 @@ public:
   }
   Item *transform(THD *thd, Item_transformer transformer, uchar *args)
     override;
+  Item *derived_field_transformer_for_having(THD *thd, uchar *arg) override
+  { return NULL; }
+  Item *derived_field_transformer_for_where(THD *thd, uchar *arg) override
+  { return NULL; }
   Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param) override;
 
@@ -6984,7 +6993,13 @@ public:
   */
   bool associate_with_target_field(THD *thd, Item_field *field) override;
   Item *do_get_copy(THD *thd) const override
-  { return get_item_copy<Item_default_value>(thd, this); }
+  {
+    Item_default_value *new_item=
+      (Item_default_value *) get_item_copy<Item_default_value>(thd, this);
+    // This is a copy so do not manage the field and should not delete it
+    new_item->m_share_field= 1;
+    return new_item;
+  }
   Item* do_build_clone(THD *thd) const override { return get_copy(thd); }
 private:
   bool tie_field(THD *thd);
@@ -7230,6 +7245,9 @@ Item_trigger_field(THD *thd, Name_resolution_context *context_arg,
   Item *copy_or_same(THD *) override { return this; }
   Item *get_tmp_table_item(THD *thd) override { return copy_or_same(thd); }
   void cleanup() override;
+  Item *do_get_copy(THD *thd) const override
+  { return get_item_copy<Item_trigger_field>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
 private:
   void set_required_privilege(bool rw) override;

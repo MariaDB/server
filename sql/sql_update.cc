@@ -575,6 +575,7 @@ int mysql_update(THD *thd,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -612,6 +613,7 @@ int mysql_update(THD *thd,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd);				// No matching records
@@ -1392,6 +1394,7 @@ update_end:
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= 0;
   }
   *found_return= found;
   *updated_return= updated;

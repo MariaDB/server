@@ -8286,7 +8286,7 @@ best_access_path(JOIN      *join,
         loose_scan_opt.check_ref_access_part1(s, key, start_key, found_part);
 
         /* Check if we found full key */
-        const key_part_map all_key_parts= PREV_BITS(uint, key_parts);
+        const key_part_map all_key_parts= PREV_BITS(key_part_map, key_parts);
         if (found_part == all_key_parts && !ref_or_null_part)
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
@@ -8426,7 +8426,8 @@ best_access_path(JOIN      *join,
           */
           if ((found_part & 1) &&
               (!(table->file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
-               found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
+               found_part == PREV_BITS(key_part_map,
+                                       keyinfo->user_defined_key_parts)))
           {
             max_key_part= max_part_bit(found_part);
             bool all_used_equalities_are_const;
@@ -24801,7 +24802,7 @@ static int test_if_order_by_key(JOIN *join,
     if (have_pk_suffix &&
         reverse == 0 && // all were =const so far
         key_parts == table->key_info[idx].ext_key_parts && 
-        table->const_key_parts[pk] == PREV_BITS(uint, 
+        table->const_key_parts[pk] == PREV_BITS(key_part_map,
                                                 table->key_info[pk].
                                                 user_defined_key_parts))
     {

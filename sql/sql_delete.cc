@@ -398,9 +398,10 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   if (returning)
     (void) result->prepare(returning->item_list, NULL);
 
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
+    thd->lex->current_select->leaf_tables_saved= true;
     thd->lex->current_select->first_cond_optimization= 0;
   }
   /* check ORDER BY even if it can be ignored */
@@ -523,6 +524,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);
@@ -561,6 +563,7 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);
@@ -941,6 +944,7 @@ cleanup:
   {
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->leaf_tables_saved= true;
+    thd->lex->current_select->first_cond_optimization= 0;
   }
 
   delete deltempfile;

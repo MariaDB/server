@@ -83,10 +83,14 @@ class Create_field;
 bool resolve_sysvar_table_options(handlerton *hton);
 void free_sysvar_table_options(handlerton *hton);
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
-bool parse_option_list(THD* thd, handlerton *hton, void *option_struct,
+bool parse_option_list(THD* thd, void *option_struct,
                        engine_option_value **option_list,
                        ha_create_table_option *rules,
                        bool suppress_warning, MEM_ROOT *root);
+bool extend_option_list(THD* thd, handlerton *hton, bool create,
+                        engine_option_value **option_list,
+                        ha_create_table_option *rules);
+
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share);
 engine_option_value *merge_engine_table_options(engine_option_value *source,

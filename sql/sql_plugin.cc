@@ -1892,7 +1892,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (global_system_variables.log_warnings >= 9)
     sql_print_information("Initializing installed plugins");
 
-  new_thd->thread_stack= (char*) &tables;
+  new_thd->thread_stack= (void*) &tables;       // Big stack
   new_thd->store_globals();
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
