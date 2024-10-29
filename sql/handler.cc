@@ -2684,7 +2684,8 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
 
   if (xarecover_decide_to_commit(member, ptr_commit_max))
     rc= hton->commit_by_xid(hton, &x);
-  else if (hton->recover_rollback_by_xid)
+  else if (hton->recover_rollback_by_xid &&
+           IF_WSREP(!(WSREP_ON || wsrep_recovery), true))
     rc= hton->recover_rollback_by_xid(&x);
   else
     rc= hton->rollback_by_xid(hton, &x);

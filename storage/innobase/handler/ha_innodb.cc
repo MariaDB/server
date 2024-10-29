@@ -17211,7 +17211,8 @@ int innobase_recover_rollback_by_xid(const XID *xid)
   ut_ad(trx->state == TRX_STATE_PREPARED);
 
 #ifdef WITH_WSREP
-  ut_ad(!wsrep_is_wsrep_xid(&trx->xid));
+  // prepared transactions must not be rolled back asynchronously when wsrep is on
+  ut_ad(!(WSREP_ON || wsrep_recovery));
 #endif
 
   if (trx->rsegs.m_redo.undo)
