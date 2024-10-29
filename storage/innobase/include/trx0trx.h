@@ -1172,10 +1172,6 @@ public:
     return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
-  /** Do the bulk insert for the buffered insert operation of a table.
-  @param table bulk insert operation
-  @return DB_SUCCESS or error code. */
-  dberr_t bulk_insert_apply_for_table(dict_table_t *table);
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();

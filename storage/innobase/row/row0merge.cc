@@ -5345,21 +5345,6 @@ void trx_t::bulk_rollback_low()
   rollback(&bulk_save);
 }
 
-dberr_t trx_t::bulk_insert_apply_for_table(dict_table_t *table)
-{
-  auto it= mod_tables.find(table);
-  if (it != mod_tables.end())
-  {
-    if (dberr_t err= it->second.write_bulk(table, this))
-    {
-      bulk_rollback_low();
-      return err;
-    }
-    it->second.end_bulk_insert();
-  }
-  return DB_SUCCESS;
-}
-
 dberr_t trx_t::bulk_insert_apply_low()
 {
   ut_ad(bulk_insert);

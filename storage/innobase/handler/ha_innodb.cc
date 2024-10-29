@@ -15902,20 +15902,17 @@ ha_innobase::start_stmt(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			ut_ad(!trx->duplicates);
 			break;
 		}
 		/* fall through */
 	default:
-		trx->bulk_insert_apply_for_table(m_prebuilt->table);
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		if (!trx->bulk_insert) {
 			break;
 		}
 
-		/* Trigger could've initiated another stmt.
-		So apply all bulk operation and mark as
-		end bulk insert for all tables */
-		trx->bulk_insert_apply();
-		trx->end_bulk_insert();
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 	}
@@ -16096,11 +16093,13 @@ ha_innobase::external_lock(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			ut_ad(!trx->duplicates);
 			break;
 		}
 		/* fall through */
 	default:
-		trx->bulk_insert_apply_for_table(m_prebuilt->table);
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		if (!trx->bulk_insert) {
 			break;
 		}
