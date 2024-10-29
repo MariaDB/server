@@ -8796,7 +8796,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (!(alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING))
   {
-    List_iterator_fast<Create_field> it(alter_info->create_list);
+    List_iterator<Create_field> it(alter_info->create_list);
     while (Create_field *f= it++)
     {
       if (f->flags & VERS_SYSTEM_FIELD)
@@ -8806,9 +8806,27 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
           my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
           return true;
         }
-        my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
-                 f->flags & VERS_ROW_START ? "START" : "END", f->field_name.str);
-        return true;
+        if (!table->vers_implicit())
+        {
+          my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
+                  f->flags & VERS_ROW_START ? "START" : "END", f->field_name.str);
+
+          return true;
+        }
+        Field *old= f->flags & VERS_ROW_START ? table->vers_start_field() : table->vers_end_field();
+        if (old->type_handler() == f->type_handler() &&
+            old->field_length == f->length &&
+            (old->flags & UNSIGNED_FLAG) == (f->flags & UNSIGNED_FLAG))
+        {
+          alter_info->flags|= ALTER_VERS_EXPLICIT;
+          alter_info->add_alter_list(thd, old->field_name, f->field_name, false);
+          it.remove();
+        }
+        else
+        {
+          my_error(ER_WRONG_FIELD_SPEC, MYF(0), f->field_name.str);
+          return true;
+        }
       }
     }
   }
@@ -8822,7 +8840,8 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
   if (share->versioned)
   {
-    if (alter_info->flags & ALTER_ADD_PERIOD)
+    if (!table->vers_implicit() &&
+        (alter_info->flags & ALTER_ADD_PERIOD))
     {
       my_error(ER_VERS_ALREADY_VERSIONED, MYF(0), table_name.str);
       return true;
@@ -8833,41 +8852,40 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
 
     DBUG_ASSERT(share->vers_start_field());
     DBUG_ASSERT(share->vers_end_field());
-    Lex_ident_column start(share->vers_start_field()->field_name);
-    Lex_ident_column end(share->vers_end_field()->field_name);
-    DBUG_ASSERT(start.str);
-    DBUG_ASSERT(end.str);
 
-    as_row= start_end_t(start, end);
-    period= as_row;
-
-    if (alter_info->create_list.elements)
+    if (!(alter_info->flags & ALTER_VERS_EXPLICIT))
     {
-      List_iterator_fast<Create_field> it(alter_info->create_list);
-      while (Create_field *f= it++)
-      {
-        if (f->versioning == Column_definition::WITHOUT_VERSIONING)
-          f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
+      Lex_ident_column start(share->vers_start_field()->field_name);
+      Lex_ident_column end(share->vers_end_field()->field_name);
+      DBUG_ASSERT(start.str);
+      DBUG_ASSERT(end.str);
 
-        if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
+      as_row= start_end_t(start, end);
+      period= as_row;
+
+      if (alter_info->create_list.elements)
+      {
+        List_iterator_fast<Create_field> it(alter_info->create_list);
+        while (Create_field *f= it++)
         {
-          my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
-          return true;
+          if (f->versioning == Column_definition::WITHOUT_VERSIONING)
+            f->flags|= VERS_UPDATE_UNVERSIONED_FLAG;
+
+          if (f->change.str && (start.streq(f->change) || end.streq(f->change)))
+          {
+            my_error(ER_VERS_ALTER_SYSTEM_FIELD, MYF(0), f->change.str);
+            return true;
+          }
         }
       }
-    }
+    } /* if (!convert_explicit) */
+    return check_conditions(table_name, share->db);
+  } /* if (share->versioned) */
 
-    return false;
-  }
-
-  if (fix_implicit(thd, alter_info))
+  if ((alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING) &&
+      (fix_implicit(thd, alter_info) ||
+        check_sys_fields(table_name, share->db, alter_info)))
     return true;
-
-  if (alter_info->flags & ALTER_ADD_SYSTEM_VERSIONING)
-  {
-    if (check_sys_fields(table_name, share->db, alter_info))
-      return true;
-  }
 
   return false;
 }
