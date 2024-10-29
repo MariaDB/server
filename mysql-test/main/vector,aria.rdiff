@@ -19,7 +19,7 @@
 @@ -27,7 +27,7 @@ t1	CREATE TABLE `t1` (
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
-   VECTOR KEY `v` (`v`) `max_edges_per_node`=7
+   VECTOR KEY `v` (`v`) `m`=7
 -) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
  show keys from t1;
@@ -28,7 +28,7 @@
 @@ -42,7 +42,7 @@ t1	CREATE TABLE `t1` (
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
-   VECTOR KEY `v` (`v`) `max_edges_per_node`=5
+   VECTOR KEY `v` (`v`) `m`=5
 -) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
  show keys from t1;
@@ -129,7 +129,7 @@
 @@ -442,7 +472,7 @@ t1	CREATE TABLE `t1` (
    `v` vector(5) NOT NULL,
    PRIMARY KEY (`id`),
-   VECTOR KEY `v` (`v`) `distance_function`=cosine
+   VECTOR KEY `v` (`v`) `distance`=cosine
 -) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 +) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
  insert t1 (v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),

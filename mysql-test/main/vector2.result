@@ -76,15 +76,15 @@ drop table t;
 #
 # MDEV-35029 ASAN errors in Lex_ident<Compare_ident_ci>::is_valid_ident upon DDL on table with vector index
 #
-create table t (a int, v vector(10) not null, vector key (v) distance_function=euclidean);
+create table t (a int, v vector(10) not null, vector key (v) distance=euclidean);
 show create table t;
 Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(10) NOT NULL,
-  VECTOR KEY `v` (`v`) `distance_function`=euclidean
+  VECTOR KEY `v` (`v`) `distance`=euclidean
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-set session mhnsw_max_edges_per_node = @@mhnsw_max_edges_per_node + 1;
+set session mhnsw_default_m = @@mhnsw_default_m + 1;
 create table t2 like t;
 alter table t force;
 drop table t, t2;
@@ -103,7 +103,7 @@ drop table t;
 #
 # MDEV-35078 Server crash or ASAN errors in mhnsw_insert
 #
-set session mhnsw_max_edges_per_node = 4;
+set session mhnsw_default_m = 4;
 create table t (a int, v vector(1) not null);
 insert into t select seq, x'00000000' from seq_1_to_10;
 alter table t add vector(v);
@@ -112,7 +112,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(1) NOT NULL,
-  VECTOR KEY `v` (`v`) `max_edges_per_node`=4
+  VECTOR KEY `v` (`v`) `m`=4
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 create table x like t;
 show create table x;
@@ -120,17 +120,17 @@ Table	Create Table
 x	CREATE TABLE `x` (
   `a` int(11) DEFAULT NULL,
   `v` vector(1) NOT NULL,
-  VECTOR KEY `v` (`v`) `max_edges_per_node`=4
+  VECTOR KEY `v` (`v`) `m`=4
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 insert into t values (11,x'00000000');
 drop table t, x;
-set session mhnsw_max_edges_per_node = default;
+set session mhnsw_default_m = default;
 #
 # MDEV-35092 Server crash, hang or ASAN errors in mysql_create_frm_image upon using non-default table options and system variables
 #
-set mhnsw_distance_function= cosine;
+set mhnsw_default_distance= cosine;
 create table t (a int, v vector(10) not null);
-prepare stmt from 'alter table t drop index if exists v, add vector (v) max_edges_per_node=10';
+prepare stmt from 'alter table t drop index if exists v, add vector (v) m=10';
 execute stmt;
 Warnings:
 Note	1091	Can't DROP INDEX `v`; check that it exists
@@ -143,10 +143,10 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(10) NOT NULL,
-  VECTOR KEY `v` (`v`) `max_edges_per_node`=10 `distance_function`='cosine'
+  VECTOR KEY `v` (`v`) `m`=10 `distance`='cosine'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
-set mhnsw_distance_function= default;
+set mhnsw_default_distance= default;
 #
 # MDEV-35105 Assertion `tab->join->order' fails upon vector search with DISTINCT
 #
@@ -325,7 +325,7 @@ drop table t1;
 # MDEV-35246 Vector search skips a row in the table
 #
 set rand_seed1=1, rand_seed2=2;
-create or replace table t1 (a int, v vector(1) not null, vector(v) max_edges_per_node=6);
+create or replace table t1 (a int, v vector(1) not null, vector(v) m=6);
 insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
 update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
 select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
