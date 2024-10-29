@@ -5369,7 +5369,7 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
   for (uint i= table->s->keys; i < table->s->total_keys; i++)
   {
     DBUG_ASSERT(table->s->hlindexes() == 1);
-    if (table->hlindex_open(i))
+    if (table->hlindex_open(i) || table->hlindex_lock(i))
       return HA_ADMIN_FAILED;
     if ((error= table->hlindex->file->check(thd, check_opt)))
       return error;
@@ -5502,9 +5502,10 @@ handler::ha_truncate()
   mark_trx_read_write();
 
   int err= truncate();
-  if (!err && table->s->hlindexes())
+  for (uint i= table->s->keys; !err && i < table->s->total_keys; i++)
   {
-    if (!(err= table->hlindex_open(table->s->keys)))
+    DBUG_ASSERT(table->s->hlindexes() == 1);
+    if (!(err= table->hlindex_open(i)) && !(err= table->hlindex_lock(i)))
       err= table->hlindexes_on_delete_all(true);
   }
 

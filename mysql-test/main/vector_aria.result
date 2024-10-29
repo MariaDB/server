@@ -8,3 +8,12 @@ check table t extended;
 Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 drop table t;
+#
+# MDEV-35267 Server crashes in _ma_reset_history upon altering on Aria table with vector key under lock
+#
+create table t (v vector(1) not null, vector(v)) engine=aria;
+insert into t values (0x31313131);
+lock table t write;
+alter table t force;
+unlock tables;
+drop table t;

@@ -9891,8 +9891,17 @@ int TABLE::hlindex_open(uint nr)
                     db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
       return 1;
     hlindex= table;
+    hlindex->in_use= NULL;
   }
-  else if (hlindex->in_use == in_use)
+  return 0;
+}
+
+int TABLE::hlindex_lock(uint nr)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+  DBUG_ASSERT(hlindex);
+  if (hlindex->in_use == in_use)
     return 0;
   hlindex->in_use= in_use;      // mark in use for this query
   hlindex->use_all_columns();
@@ -9920,7 +9929,7 @@ int TABLE::open_hlindexes_for_write()
 {
   DBUG_ASSERT(s->hlindexes() <= 1);
   for (uint i= s->keys; i < s->total_keys; i++)
-    if (hlindex_open(i))
+    if (hlindex_open(i) || hlindex_lock(i))
       return 1;
   return 0;
 }
@@ -9983,7 +9992,7 @@ int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
   DBUG_ASSERT(s->hlindexes() == 1);
   DBUG_ASSERT(nr == s->keys);
 
-  if (hlindex_open(nr))
+  if (hlindex_open(nr) || hlindex_lock(nr))
     return HA_ERR_CRASHED;
 
   DBUG_ASSERT(hlindex->in_use == in_use);

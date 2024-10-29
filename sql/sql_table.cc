@@ -11555,8 +11555,13 @@ alter_copy:
   new_table= thd->create_and_open_tmp_table(&frm, alter_ctx.get_tmp_path(),
                                             alter_ctx.new_db,
                                             alter_ctx.new_name, true);
-  if (!new_table || new_table->open_hlindexes_for_write())
+  if (!new_table)
     goto err_new_table_cleanup;
+
+  DBUG_ASSERT(new_table->s->hlindexes() <= 1);
+  for (uint i= new_table->s->keys; i < new_table->s->total_keys; i++)
+    if (new_table->hlindex_open(i))
+      goto err_new_table_cleanup;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
