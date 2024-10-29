@@ -34267,6 +34267,7 @@ bool Sql_cmd_dml::execute(THD *thd)
   if (res)
     goto err;
 
+  thd->push_final_warnings();
   res= unit->cleanup();
 
   /* "Unprepare" this object since unit->cleanup actually unprepares */

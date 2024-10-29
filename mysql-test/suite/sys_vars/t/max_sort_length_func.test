@@ -282,6 +282,27 @@ drop function f1;
 drop view v1;
 drop table t1, t2, t3;
 
+set max_sort_length = default;
+
+--echo #
+--echo # MDEV-35275 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+--echo #            failure in diagnostics area
+--echo #
+
+create table t1 (a int, b varchar(1024));
+insert into t1 values (1,repeat('x',513)), (2,repeat('y',650));
+
+insert into t1 select * from t1 order by b limit 1;
+
+update t1 set a = 3 order by b limit 1;
+
+delete from t1 where a < 3 order by b;
+
+--echo # Make sure warnings from previous statements do not overflow to next ones
+select a from t1;
+
+drop table t1;
+
 #
 # Cleanup
 #

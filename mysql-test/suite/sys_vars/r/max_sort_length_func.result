@@ -492,6 +492,27 @@ Warning	4202	30 values were longer than max_sort_length. Sorting used only the f
 drop function f1;
 drop view v1;
 drop table t1, t2, t3;
+set max_sort_length = default;
+#
+# MDEV-35275 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+#            failure in diagnostics area
+#
+create table t1 (a int, b varchar(1024));
+insert into t1 values (1,repeat('x',513)), (2,repeat('y',650));
+insert into t1 select * from t1 order by b limit 1;
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+update t1 set a = 3 order by b limit 1;
+Warnings:
+Warning	4202	3 values were longer than max_sort_length. Sorting used only the first 70 bytes
+delete from t1 where a < 3 order by b;
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+# Make sure warnings from previous statements do not overflow to next ones
+select a from t1;
+a
+3
+drop table t1;
 connection default;
 disconnect test_con1;
 disconnect test_con2;

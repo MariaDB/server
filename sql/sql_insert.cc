@@ -1434,6 +1434,7 @@ values_loop_end:
     thd->lex->current_select->leaf_tables_saved= true;
   }
 
+  thd->push_final_warnings();
   my_free(readbuff);
 #ifndef EMBEDDED_LIBRARY
   if (lock_type == TL_WRITE_DELAYED && table->expr_arena)
