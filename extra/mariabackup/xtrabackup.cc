@@ -1186,27 +1186,25 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	switch(type) {
+	const static std::string spacename{filename_to_spacename(name, len)};
+	switch (type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		fail = !check_if_skip_table(spacename.c_str());
 		break;
 	case FILE_MODIFY:
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str())
+		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
 		break;
 	case FILE_DELETE:
-		fail = !check_if_skip_table(
-                                filename_to_spacename(name, len).c_str())
-                       && !check_if_fts_table(reinterpret_cast<const char*>(name));
-                msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		fail = !check_if_skip_table(spacename.c_str())
+			&& !check_if_fts_table(spacename.c_str());
+		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -3909,16 +3907,18 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	if (is_remote) {
 		RemoteDatafile* rf = new RemoteDatafile();
-		if (!rf->open_link_file(n)) {
-			die("Can't open datafile %s", name);
-		}
 		file = rf;
+		if (!rf->open_link_file(n)) {
+			goto cant_open;
+		}
 	} else {
 		file = new Datafile();
 		file->make_filepath(".", n, IBD);
 	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
+	cant_open:
+		delete file;
 		// Ignore FTS tables, as they can be removed for intermediate tables,
 		// this code must be executed under stronger or equal to BLOCK_DDL lock,
 		// so there must not be errors for non-intermediate FTS tables.
