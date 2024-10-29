@@ -3759,11 +3759,11 @@ int handler::ha_index_init(uint idx, bool sorted)
     inited=       INDEX;
     active_index= idx;
     end_range= NULL;
+    /*
+      Do not allow reads from UNIQUE HASH indexes.
+    */
+    DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
   }
-  /*
-    Do not allow reads from UNIQUE HASH indexes.
-  */
-  DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
 
   DBUG_RETURN(result);
 }
