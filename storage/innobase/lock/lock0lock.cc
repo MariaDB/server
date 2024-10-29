@@ -6375,7 +6375,9 @@ lock_clust_rec_read_check_and_lock(
             && trx->snapshot_isolation
 	    && trx->read_view.is_open()
 	    && !trx->read_view.changes_visible(
-		trx_read_trx_id(rec + row_trx_id_offset(rec, index)))) {
+		trx_read_trx_id(rec + row_trx_id_offset(rec, index)))
+	    && IF_WSREP(!(trx->is_wsrep()
+			&& wsrep_thd_skip_locking(trx->mysql_thd)), true)) {
 		return DB_RECORD_CHANGED;
 	}
 

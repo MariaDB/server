@@ -5561,9 +5561,11 @@ public:
   query_id_t                wsrep_last_query_id;
   XID                       wsrep_xid;
 
-  /** This flag denotes that record locking should be skipped during INSERT
-  and gap locking during SELECT. Only used by the streaming replication thread
-  that only modifies the wsrep_schema.SR table. */
+  /** This flag denotes that record locking should be skipped during INSERT,
+     gap locking during SELECT, and write-write conflicts due to innodb
+     snapshot isolation during DELETE.
+     Only used by the streaming replication thread that only modifies the
+     mysql.wsrep_streaming_log table. */
   my_bool                   wsrep_skip_locking;
 
   mysql_cond_t              COND_wsrep_thd;

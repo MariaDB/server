@@ -183,6 +183,25 @@ private:
   my_bool m_wsrep_ignore_table;
 };
 
+class wsrep_skip_locking
+{
+public:
+  wsrep_skip_locking(THD *thd)
+      : m_thd(thd)
+      , m_wsrep_skip_locking(thd->wsrep_skip_locking)
+  {
+    thd->wsrep_skip_locking= true;
+  }
+  ~wsrep_skip_locking()
+  {
+    m_thd->wsrep_skip_locking= m_wsrep_skip_locking;
+  }
+
+private:
+  THD *m_thd;
+  my_bool m_wsrep_skip_locking;
+};
+
 class thd_server_status
 {
 public:
@@ -1235,6 +1254,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   Wsrep_schema_impl::wsrep_ignore_table wsrep_ignore_table(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
+  Wsrep_schema_impl::wsrep_skip_locking skip_locking(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
