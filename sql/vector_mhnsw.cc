@@ -33,27 +33,27 @@ static constexpr float alpha = 1.1f;
 static constexpr uint ef_construction= 10;
 static constexpr uint max_ef= 10000;
 
-static ulonglong mhnsw_cache_size;
-static MYSQL_SYSVAR_ULONGLONG(cache_size, mhnsw_cache_size,
-       PLUGIN_VAR_RQCMDARG, "Size of the cache for the MHNSW vector index",
+static ulonglong mhnsw_max_cache_size;
+static MYSQL_SYSVAR_ULONGLONG(max_cache_size, mhnsw_max_cache_size,
+       PLUGIN_VAR_RQCMDARG, "Upper limit for one MHNSW vector index cache",
        nullptr, nullptr, 16*1024*1024, 1024*1024, SIZE_T_MAX, 1);
-static MYSQL_THDVAR_UINT(min_limit, PLUGIN_VAR_RQCMDARG,
+static MYSQL_THDVAR_UINT(ef_search, PLUGIN_VAR_RQCMDARG,
+       "Larger values mean slower SELECTs but more accurate results. "
        "Defines the minimal number of result candidates to look for in the "
        "vector index for ORDER BY ... LIMIT N queries. The search will never "
-       "search for less rows than that, even if LIMIT is smaller. "
-       "This notably improves the search quality at low LIMIT values, "
-       "at the expense of search time", nullptr, nullptr, 20, 1, max_ef, 1);
-static MYSQL_THDVAR_UINT(max_edges_per_node, PLUGIN_VAR_RQCMDARG,
-       "Larger values means slower INSERT, larger index size and higher "
-       "memory consumption, but better search results",
+       "search for less rows than that, even if LIMIT is smaller",
+       nullptr, nullptr, 20, 1, max_ef, 1);
+static MYSQL_THDVAR_UINT(default_m, PLUGIN_VAR_RQCMDARG,
+       "Larger values mean slower SELECTs and INSERTs, larger index size "
+       "and higher memory consumption but more accurate results",
        nullptr, nullptr, 6, 3, 200, 1);
 
 enum metric_type : uint { EUCLIDEAN, COSINE };
-static const char *distance_function_names[]= { "euclidean", "cosine", nullptr };
-static TYPELIB distance_functions= CREATE_TYPELIB_FOR(distance_function_names);
-static MYSQL_THDVAR_ENUM(distance_function, PLUGIN_VAR_RQCMDARG,
+static const char *distance_names[]= { "euclidean", "cosine", nullptr };
+static TYPELIB distances= CREATE_TYPELIB_FOR(distance_names);
+static MYSQL_THDVAR_ENUM(default_distance, PLUGIN_VAR_RQCMDARG,
        "Distance function to build the vector index for",
-       nullptr, nullptr, EUCLIDEAN, &distance_functions);
+       nullptr, nullptr, EUCLIDEAN, &distances);
 
 struct ha_index_option_struct
 {
@@ -262,7 +262,7 @@ struct Neighborhood: public Sql_alloc
   on the number of layers this node is on.
 
   There can be millions of nodes in the cache and the cache size
-  is constrained by mhnsw_cache_size, so every byte matters here
+  is constrained by mhnsw_max_cache_size, so every byte matters here
 */
 #pragma pack(push, 1)
 class FVectorNode
@@ -416,7 +416,7 @@ public:
   {
     if (can_commit)
       mysql_rwlock_unlock(&commit_lock);
-    if (root_size(&root) > mhnsw_cache_size)
+    if (root_size(&root) > mhnsw_max_cache_size)
       reset(share);
     if (--refcnt == 0)
       this->~MHNSW_Share(); // XXX reuse
@@ -506,7 +506,7 @@ public:
   }
   void release(bool, TABLE_SHARE *) override
   {
-    if (root_size(&root) > mhnsw_cache_size)
+    if (root_size(&root) > mhnsw_max_cache_size)
       reset(nullptr);
   }
 
@@ -1032,7 +1032,7 @@ static int search_layer(MHNSW_Share *ctx, TABLE *graph, const FVector *target,
   {
     skip_deleted= layer == 0;
     if (ef > 1 || layer == 0)
-      ef= std::max(THDVAR(graph->in_use, min_limit), ef);
+      ef= std::max(THDVAR(graph->in_use, ef_search), ef);
   }
 
   // WARNING! heuristic here
@@ -1469,8 +1469,8 @@ bool mhnsw_uses_distance(const TABLE *table, KEY *keyinfo, const Item *dist)
 
 ha_create_table_option mhnsw_index_options[]=
 {
-  HA_IOPTION_SYSVAR("max_edges_per_node", M, max_edges_per_node),
-  HA_IOPTION_SYSVAR("distance_function", metric, distance_function),
+  HA_IOPTION_SYSVAR("m", M, default_m),
+  HA_IOPTION_SYSVAR("distance", metric, default_distance),
   HA_IOPTION_END
 };
 
@@ -1497,10 +1497,10 @@ static struct st_mysql_storage_engine mhnsw_daemon=
 
 static struct st_mysql_sys_var *mhnsw_sys_vars[]=
 {
-  MYSQL_SYSVAR(cache_size),
-  MYSQL_SYSVAR(max_edges_per_node),
-  MYSQL_SYSVAR(distance_function),
-  MYSQL_SYSVAR(min_limit),
+  MYSQL_SYSVAR(max_cache_size),
+  MYSQL_SYSVAR(default_m),
+  MYSQL_SYSVAR(default_distance),
+  MYSQL_SYSVAR(ef_search),
   NULL
 };
 
