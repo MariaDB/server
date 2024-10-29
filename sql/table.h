@@ -1797,6 +1797,7 @@ public:
   inline ha_rows stat_records() { return used_stat_records; }
 
   int hlindex_open(uint nr);
+  int hlindex_lock(uint nr);
   int hlindex_read_first(uint nr, Item *item, ulonglong limit);
   int hlindex_read_next();
   int hlindex_read_end();
