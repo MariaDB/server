@@ -168,6 +168,7 @@ call mtr.add_suppression("InnoDB: Could not find a valid tablespace file for `te
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/u[1-3] because it could not be opened\\.");
 call mtr.add_suppression("InnoDB: Failed to find tablespace for table .* in the cache. Attempting to load the tablespace with space id");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("Plugin 'InnoDB' \(init function returned error\|registration as a STORAGE ENGINE failed\)");
 call mtr.add_suppression("InnoDB: Table test/u[123] in the InnoDB data dictionary has tablespace id [1-9][0-9]*, but tablespace with that id or name does not exist\\. Have you deleted or moved \\.ibd files\\?");
 call mtr.add_suppression("InnoDB: Cannot replay rename of tablespace.*");
