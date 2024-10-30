@@ -6,3 +6,4 @@ FOUND 1 /page id mismatch/ in result.log
 InnoDB		0 transactions not purged
 drop table t1;
 call mtr.add_suppression("InnoDB: Failed to read page 3 from file '.*test/t1\\.ibd': Page read from tablespace is corrupted\\.");
+call mtr.add_suppression("InnoDB: File '.*t1\\.ibd' is corrupted");

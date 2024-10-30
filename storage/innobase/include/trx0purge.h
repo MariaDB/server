@@ -125,7 +125,8 @@ class purge_sys_t
 
 public:
   /** latch protecting view, m_enabled */
-  alignas(CPU_LEVEL1_DCACHE_LINESIZE) mutable srw_spin_lock latch;
+  alignas(CPU_LEVEL1_DCACHE_LINESIZE)
+  mutable IF_DBUG(srw_lock_debug,srw_spin_lock) latch;
 private:
   /** Read view at the start of a purge batch. Any encountered index records
   that are older than view will be removed. */

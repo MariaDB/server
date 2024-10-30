@@ -191,7 +191,7 @@ int setup_returning_fields(THD* thd, TABLE_LIST* table_list);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_column_usage column_usage,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
-                  bool allow_sum_func);
+                  bool allow_sum_func, THD_WHERE where= THD_WHERE::DEFAULT_WHERE);
 void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
                  List<Item> &values, bool ignore_errors, bool update);
@@ -384,14 +384,15 @@ inline bool setup_fields_with_no_wrap(THD *thd, Ref_ptr_array ref_pointer_array,
                                       List<Item> &item,
                                       enum_column_usage column_usage,
                                       List<Item> *sum_func_list,
-                                      bool allow_sum_func)
+                                      bool allow_sum_func,
+                                      THD_WHERE where= THD_WHERE::DEFAULT_WHERE)
 {
   bool res;
   SELECT_LEX *first= thd->lex->first_select_lex();
   DBUG_ASSERT(thd->lex->current_select == first);
   first->no_wrap_view_item= TRUE;
   res= setup_fields(thd, ref_pointer_array, item, column_usage,
-                    sum_func_list, NULL,  allow_sum_func);
+                    sum_func_list, NULL,  allow_sum_func, where);
   first->no_wrap_view_item= FALSE;
   return res;
 }

@@ -205,6 +205,12 @@ extern uint srv_n_fil_crypt_iops;
 my_bool innodb_evict_tables_on_commit_debug;
 #endif
 
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+my_bool innodb_enable_xap_unlock_unmodified_for_primary_debug;
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
+
 /** File format constraint for ALTER TABLE */
 ulong innodb_instant_alter_column_allowed;
 
@@ -2131,6 +2137,7 @@ convert_error_code_to_mysql(
 		return(HA_ERR_NO_ACTIVE_RECORD);
 
 	case DB_DEADLOCK:
+	case DB_RECORD_CHANGED:
 		/* Since we rolled back the whole transaction, we must
 		tell it also to MySQL so that MySQL knows to empty the
 		cached binlog for this transaction */
@@ -2139,10 +2146,8 @@ convert_error_code_to_mysql(
 			thd_mark_transaction_to_rollback(thd, 1);
 		}
 
-		return(HA_ERR_LOCK_DEADLOCK);
-
-	case DB_RECORD_CHANGED:
-		return HA_ERR_RECORD_CHANGED;
+		return error == DB_DEADLOCK
+			? HA_ERR_LOCK_DEADLOCK : HA_ERR_RECORD_CHANGED;
 
 	case DB_LOCK_WAIT_TIMEOUT:
 		/* Starting from 5.0.13, we let MySQL just roll back the
@@ -8210,6 +8215,7 @@ calc_row_difference(
 			to block it. */
 			if (DATA_GEOMETRY_MTYPE(col_type)
 			    && o_len != 0 && n_len == 0) {
+				trx->error_info = clust_index;
 				return(DB_CANT_CREATE_GEOMETRY_OBJECT);
 			}
 
@@ -12633,7 +12639,10 @@ create_table_info_t::create_foreign_keys()
 				}
 			}
 		}
-
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
 		switch (fk->delete_opt) {
 		case FK_OPTION_UNDEF:
 		case FK_OPTION_RESTRICT:
@@ -12675,6 +12684,9 @@ create_table_info_t::create_foreign_keys()
 			ut_ad(0);
 			break;
 		}
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	}
 
 	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
@@ -15886,20 +15898,17 @@ ha_innobase::start_stmt(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			ut_ad(!trx->duplicates);
 			break;
 		}
 		/* fall through */
 	default:
-		trx->bulk_insert_apply_for_table(m_prebuilt->table);
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		if (!trx->bulk_insert) {
 			break;
 		}
 
-		/* Trigger could've initiated another stmt.
-		So apply all bulk operation and mark as
-		end bulk insert for all tables */
-		trx->bulk_insert_apply();
-		trx->end_bulk_insert();
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 	}
@@ -16080,11 +16089,13 @@ ha_innobase::external_lock(
 		if (trx->is_bulk_insert()) {
 			/* Allow a subsequent INSERT into an empty table
 			if !unique_checks && !foreign_key_checks. */
+			ut_ad(!trx->duplicates);
 			break;
 		}
 		/* fall through */
 	default:
-		trx->bulk_insert_apply_for_table(m_prebuilt->table);
+		trx->bulk_insert_apply();
+		trx->end_bulk_insert();
 		if (!trx->bulk_insert) {
 			break;
 		}
@@ -18291,6 +18302,16 @@ innobase_fts_find_ranking(FT_INFO* fts_hdl, uchar*, uint)
 	return(fts_retrieve_ranking(result, ft_prebuilt->fts_doc_id));
 }
 
+/** Update a field that is protected by buf_pool.mutex */
+template<typename T>
+static void innodb_buf_pool_update(THD *thd, st_mysql_sys_var *,
+                                   void *val, const void *save)
+{
+  mysql_mutex_lock(&buf_pool.mutex);
+  *static_cast<T*>(val)= *static_cast<const T*>(save);
+  mysql_mutex_unlock(&buf_pool.mutex);
+}
+
 #ifdef UNIV_DEBUG
 static my_bool	innodb_log_checkpoint_now = TRUE;
 static my_bool	innodb_buf_flush_list_now = TRUE;
@@ -19233,18 +19254,18 @@ static MYSQL_SYSVAR_BOOL(buffer_pool_load_at_startup, srv_buffer_pool_load_at_st
   "Load the buffer pool from a file named @@innodb_buffer_pool_filename",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_ULONG(lru_scan_depth, srv_LRU_scan_depth,
+static MYSQL_SYSVAR_ULONG(lru_scan_depth, buf_pool.LRU_scan_depth,
   PLUGIN_VAR_RQCMDARG,
   "How deep to scan LRU to keep it clean",
-  NULL, NULL, 1536, 100, ~0UL, 0);
+  NULL, innodb_buf_pool_update<ulong>, 1536, 100, ~0UL, 0);
 
-static MYSQL_SYSVAR_ULONG(flush_neighbors, srv_flush_neighbors,
+static MYSQL_SYSVAR_ULONG(flush_neighbors, buf_pool.flush_neighbors,
   PLUGIN_VAR_OPCMDARG,
   "Set to 0 (don't flush neighbors from buffer pool),"
   " 1 (flush contiguous neighbors from buffer pool)"
   " or 2 (flush neighbors from buffer pool),"
   " when flushing a block",
-  NULL, NULL, 1, 0, 2, 0);
+  NULL, innodb_buf_pool_update<ulong>, 1, 0, 2, 0);
 
 static MYSQL_SYSVAR_BOOL(deadlock_detect, innodb_deadlock_detect,
   PLUGIN_VAR_NOCMDARG,
@@ -19733,6 +19754,15 @@ static MYSQL_SYSVAR_UINT(saved_page_number_debug,
   NULL, NULL, 0, 0, UINT_MAX32, 0);
 #endif /* UNIV_DEBUG */
 
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+static MYSQL_SYSVAR_BOOL(enable_xap_unlock_unmodified_for_primary_debug,
+  innodb_enable_xap_unlock_unmodified_for_primary_debug, PLUGIN_VAR_NOCMDARG,
+  "Unlock unmodified records on XA PREPARE for primary.",
+  NULL, NULL, FALSE);
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
+
 static MYSQL_SYSVAR_BOOL(force_primary_key,
   srv_force_primary_key,
   PLUGIN_VAR_OPCMDARG,
@@ -19977,6 +20007,11 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(fil_make_page_dirty_debug),
   MYSQL_SYSVAR(saved_page_number_debug),
 #endif /* UNIV_DEBUG */
+#if defined(UNIV_DEBUG) || \
+    defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY)
+  MYSQL_SYSVAR(enable_xap_unlock_unmodified_for_primary_debug),
+#endif /* defined(UNIV_DEBUG) ||
+          defined(INNODB_ENABLE_XAP_UNLOCK_UNMODIFIED_FOR_PRIMARY) */
   MYSQL_SYSVAR(force_primary_key),
   MYSQL_SYSVAR(alter_copy_bulk),
   MYSQL_SYSVAR(fatal_semaphore_wait_threshold),

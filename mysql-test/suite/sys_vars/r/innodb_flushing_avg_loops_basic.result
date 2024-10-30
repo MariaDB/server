@@ -15,7 +15,7 @@ SELECT @@innodb_flushing_avg_loops;
 @@innodb_flushing_avg_loops
 30
 SELECT local.innodb_flushing_avg_loops;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_flushing_avg_loops = 1;
 SELECT @@global.innodb_flushing_avg_loops;
 @@global.innodb_flushing_avg_loops

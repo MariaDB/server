@@ -14,7 +14,7 @@ SELECT @@innodb_compression_pad_pct_max;
 @@innodb_compression_pad_pct_max
 50
 SELECT local.innodb_compression_pad_pct_max;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SET global innodb_compression_pad_pct_max = 0;
 SELECT @@global.innodb_compression_pad_pct_max;
 @@global.innodb_compression_pad_pct_max

@@ -49,5 +49,5 @@ COUNT(@@GLOBAL.have_openssl)
 1
 1 Expected
 SELECT have_openssl = @@SESSION.have_openssl;
-ERROR 42S22: Unknown column 'have_openssl' in 'field list'
+ERROR 42S22: Unknown column 'have_openssl' in 'SELECT'
 Expected error 'Readonly variable'

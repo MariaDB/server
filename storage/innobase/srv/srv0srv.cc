@@ -180,10 +180,6 @@ with mysql_mutex_lock(), which will wait until it gets the mutex. */
 ulint	srv_buf_pool_size;
 /** Requested buffer pool chunk size */
 size_t	srv_buf_pool_chunk_unit;
-/** innodb_lru_scan_depth; number of blocks scanned in LRU flush batch */
-ulong	srv_LRU_scan_depth;
-/** innodb_flush_neighbors; whether or not to flush neighbors of a block */
-ulong	srv_flush_neighbors;
 /** Previously requested size */
 ulint	srv_buf_pool_old_size;
 /** Current size as scaling factor for the other components */
@@ -1578,7 +1574,8 @@ void srv_purge_shutdown()
     purge_sys.coordinator_shutdown();
     srv_shutdown_purge_tasks();
     if (!srv_fast_shutdown && !high_level_read_only && srv_was_started &&
-        !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL)
-      fsp_system_tablespace_truncate();
+        !opt_bootstrap && srv_operation == SRV_OPERATION_NORMAL &&
+        !srv_sys_space.is_shrink_fail())
+      fsp_system_tablespace_truncate(true);
   }
 }

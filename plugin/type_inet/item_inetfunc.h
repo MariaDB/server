@@ -181,7 +181,7 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4>(thd, this); }
 
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -204,7 +204,7 @@ public:
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv6>(thd, this); }
 
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -225,7 +225,7 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_compat>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 
@@ -246,7 +246,7 @@ public:
   }
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_is_ipv4_mapped>(thd, this); }
-  longlong val_int() override;
+  bool val_bool() override;
 };
 
 #endif // ITEM_INETFUNC_INCLUDED
