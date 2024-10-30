@@ -10857,11 +10857,8 @@ int TC_LOG_MMAP::recover()
     number of storage engines on startup
   */
   if (data[sizeof(tc_log_magic)] > total_ha_2pc)
-  {
-    sql_print_error("Recovery failed! You must enable "
-                    "all engines that were enabled at the moment of the crash");
-    goto err1;
-  }
+    sql_print_error("Fewer engines are enabled now than were before the crash. "
+                    "Recovery might be incomplete!");
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &xids, &my_charset_bin,
                    tc_log_page_size/3, 0, sizeof(my_xid), 0, 0, MYF(0)))

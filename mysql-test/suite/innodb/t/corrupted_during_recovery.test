@@ -10,6 +10,7 @@ call mtr.add_suppression("InnoDB: (Unable to apply log to|Discarding log for) co
 call mtr.add_suppression("Table `test`.`t1` is corrupted. Please drop the table and recreate.");
 call mtr.add_suppression("InnoDB: File '.*test/t1\\.ibd' is corrupted");
 call mtr.add_suppression("InnoDB: A long wait .* was observed for dict_sys");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
