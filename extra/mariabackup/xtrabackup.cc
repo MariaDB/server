@@ -1187,27 +1187,25 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	switch(type) {
+	const static std::string spacename{filename_to_spacename(name, len)};
+	switch (type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str());
+		fail = !check_if_skip_table(spacename.c_str());
 		break;
 	case FILE_MODIFY:
 		break;
 	case FILE_RENAME:
 		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
-		fail = !check_if_skip_table(
-				filename_to_spacename(name, len).c_str())
+		fail = !check_if_skip_table(spacename.c_str())
 		       || !check_if_skip_table(
 				filename_to_spacename(new_name, new_len).c_str());
 		break;
 	case FILE_DELETE:
-		fail = !check_if_skip_table(
-                                filename_to_spacename(name, len).c_str())
-                       && !check_if_fts_table(reinterpret_cast<const char*>(name));
-                msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
+		fail = !check_if_skip_table(spacename.c_str())
+			&& !check_if_fts_table(spacename.c_str());
+		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
 		break;
 	default:
 		ut_ad(0);
@@ -2653,7 +2651,7 @@ static bool innodb_init()
   const std::string ib_logfile0{get_log_file_path()};
   os_file_delete_if_exists_func(ib_logfile0.c_str(), nullptr);
   os_file_t file= os_file_create_func(ib_logfile0.c_str(),
-                                      OS_FILE_CREATE, OS_FILE_NORMAL,
+                                      OS_FILE_CREATE,
 #if defined _WIN32 || defined O_DIRECT
                                       OS_DATA_FILE_NO_O_DIRECT,
 #else
@@ -2678,13 +2676,9 @@ static bool innodb_init()
   mach_write_to_4(b + 12, my_crc32c(0, b, 11));
   static_assert(12 + 4 == SIZE_OF_FILE_CHECKPOINT, "compatibility");
 
-#ifdef _WIN32
-  DWORD len;
-  ret= WriteFile(file, log_hdr_buf, sizeof log_hdr_buf,
-                 &len, nullptr) && len == sizeof log_hdr_buf;
-#else
-  ret= sizeof log_hdr_buf == write(file, log_hdr_buf, sizeof log_hdr_buf);
-#endif
+  ret = os_file_write_func(IORequestWrite, ib_logfile0.c_str(), file,
+                           log_hdr_buf, 0,
+                           sizeof(log_hdr_buf)) == DB_SUCCESS;
   if (!os_file_close_func(file) || !ret)
     goto invalid_log;
   return false;
@@ -3428,7 +3422,8 @@ static bool xtrabackup_copy_mmap_logfile()
     recv_sys_t::parse_mtr_result r;
     const byte *start= &log_sys.buf[recv_sys.offset];
 
-    if (recv_sys.parse_mmap<false>(false) == recv_sys_t::OK)
+    if (recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false) ==
+        recv_sys_t::OK)
     {
       const byte *end;
 
@@ -3448,7 +3443,8 @@ static bool xtrabackup_copy_mmap_logfile()
           start = seq + 1;
         }
       }
-      while ((r= recv_sys.parse_mmap<false>(false)) == recv_sys_t::OK);
+      while ((r= recv_sys.parse_mmap<recv_sys_t::store::BACKUP>(false)) ==
+             recv_sys_t::OK);
 
       end= &log_sys.buf[recv_sys.offset];
 
@@ -3553,7 +3549,8 @@ static bool xtrabackup_copy_logfile()
       if (log_sys.buf[recv_sys.offset] <= 1)
         break;
 
-      if (recv_sys.parse_mtr<false>(false) == recv_sys_t::OK)
+      if (recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false) ==
+          recv_sys_t::OK)
       {
         do
         {
@@ -3563,7 +3560,8 @@ static bool xtrabackup_copy_logfile()
                                                  sequence_offset));
           *seq= 1;
         }
-        while ((r= recv_sys.parse_mtr<false>(false)) == recv_sys_t::OK);
+        while ((r= recv_sys.parse_mtr<recv_sys_t::store::BACKUP>(false)) ==
+               recv_sys_t::OK);
 
         if (ds_write(dst_log_file, log_sys.buf + start_offset,
                      recv_sys.offset - start_offset))
@@ -3911,16 +3909,18 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	if (is_remote) {
 		RemoteDatafile* rf = new RemoteDatafile();
-		if (!rf->open_link_file(n)) {
-			die("Can't open datafile %s", name);
-		}
 		file = rf;
+		if (!rf->open_link_file(n)) {
+			goto cant_open;
+		}
 	} else {
 		file = new Datafile();
 		file->make_filepath(".", n, IBD);
 	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
+	cant_open:
+		delete file;
 		// Ignore FTS tables, as they can be removed for intermediate tables,
 		// this code must be executed under stronger or equal to BLOCK_DDL lock,
 		// so there must not be errors for non-intermediate FTS tables.
@@ -3931,7 +3931,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	for (int i = 0; i < 10; i++) {
 		file->m_defer = false;
-		err = file->validate_first_page();
+		err = file->validate_first_page(file->get_first_page());
 
 		if (file->m_defer) {
 			if (defer_space_id) {
@@ -3973,7 +3973,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			skip_node_page0 ? file->detach() : pfs_os_file_t(),
 			0, false, false);
 		node->deferred= defer;
-		if (!space->read_page0())
+		if (!space->read_page0(nullptr, true))
 			err = DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
@@ -6865,8 +6865,10 @@ error:
 			goto error;
 		}
 
-		ok = fil_system.sys_space->open(false)
-			&& xtrabackup_apply_deltas();
+		mysql_mutex_lock(&recv_sys.mutex);
+		ok = fil_system.sys_space->open(false);
+		mysql_mutex_unlock(&recv_sys.mutex);
+		if (ok) ok = xtrabackup_apply_deltas();
 
 		xb_data_files_close();
 
@@ -7549,7 +7551,6 @@ void handle_options(int argc, char **argv, char ***argv_server,
 }
 
 static int main_low(char** argv);
-static int get_exepath(char *buf, size_t size, const char *argv0);
 
 /* ================= main =================== */
 int main(int argc, char **argv)
@@ -7560,8 +7561,8 @@ int main(int argc, char **argv)
 
 	my_getopt_prefix_matching= 0;
 
-	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
-    strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
+	if (my_get_exepath(mariabackup_exe, FN_REFLEN, argv[0]))
+		strncpy(mariabackup_exe, argv[0], FN_REFLEN-1);
 
 
 	if (argc > 1 )
@@ -7853,32 +7854,6 @@ static int main_low(char** argv)
 	return(EXIT_SUCCESS);
 }
 
-
-static int get_exepath(char *buf, size_t size, const char *argv0)
-{
-#ifdef _WIN32
-  DWORD ret = GetModuleFileNameA(NULL, buf, (DWORD)size);
-  if (ret > 0)
-    return 0;
-#elif defined(__linux__)
-  ssize_t ret = readlink("/proc/self/exe", buf, size-1);
-  if(ret > 0)
-    return 0;
-#elif defined(__APPLE__)
-  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
-  if (ret > 0) {
-    buf[ret] = 0;
-    return 0;
-  }
-#elif defined(__FreeBSD__)
-  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
-  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
-    return 0;
-  }
-#endif
-
-  return my_realpath(buf, argv0, 0);
-}
 
 
 #if defined (__SANITIZE_ADDRESS__) && defined (__linux__)

@@ -1418,16 +1418,6 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */
   thd->start_utime= thr_create_utime;
-
-  /*
-    handle_one_connection() is normally the only way a thread would
-    start and would always be on the very high end of the stack ,
-    therefore, the thread stack always starts at the address of the
-    first local variable of handle_one_connection, which is thd. We
-    need to know the start of the stack so that we could check for
-    stack overruns.
-  */
-  thd->thread_stack= (char*) &thd;
   setup_connection_thread_globals(thd);
 
   for (;;)

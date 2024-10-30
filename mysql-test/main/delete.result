@@ -53,7 +53,7 @@ CREATE TABLE `t1` (
 PRIMARY KEY  (`i`)
 );
 DELETE FROM t1 USING t1 WHERE post='1';
-ERROR 42S22: Unknown column 'post' in 'where clause'
+ERROR 42S22: Unknown column 'post' in 'WHERE'
 drop table t1;
 CREATE TABLE t1 (
 bool     char(0) default NULL,
@@ -236,11 +236,11 @@ drop table t1;
 CREATE TABLE t1 (a INT);
 INSERT INTO t1 VALUES (1);
 DELETE FROM t1 ORDER BY x;
-ERROR 42S22: Unknown column 'x' in 'order clause'
+ERROR 42S22: Unknown column 'x' in 'ORDER BY'
 DELETE FROM t1 ORDER BY t2.x;
-ERROR 42S22: Unknown column 't2.x' in 'order clause'
+ERROR 42S22: Unknown column 't2.x' in 'ORDER BY'
 DELETE FROM t1 ORDER BY (SELECT x);
-ERROR 42S22: Unknown column 'x' in 'field list'
+ERROR 42S22: Unknown column 'x' in 'SELECT'
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT

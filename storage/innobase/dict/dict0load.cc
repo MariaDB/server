@@ -172,36 +172,24 @@ name_of_col_is(
 }
 #endif /* UNIV_DEBUG */
 
-/********************************************************************//**
-This function gets the next system table record as it scans the table.
-@return the next record if found, NULL if end of scan */
-static
 const rec_t*
-dict_getnext_system_low(
-/*====================*/
-	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor to the
-					record*/
-	mtr_t*		mtr)		/*!< in: the mini-transaction */
+dict_getnext_system_low(btr_pcur_t *pcur, mtr_t *mtr)
 {
-	rec_t*	rec = NULL;
-
-	while (!rec) {
-		btr_pcur_move_to_next_user_rec(pcur, mtr);
-
-		rec = btr_pcur_get_rec(pcur);
-
-		if (!btr_pcur_is_on_user_rec(pcur)) {
-			/* end of index */
-			btr_pcur_close(pcur);
-
-			return(NULL);
-		}
-	}
-
-	/* Get a record, let's save the position */
-	btr_pcur_store_position(pcur, mtr);
-
-	return(rec);
+  rec_t *rec = nullptr;
+  while (!rec)
+  {
+    btr_pcur_move_to_next_user_rec(pcur, mtr);
+    rec = btr_pcur_get_rec(pcur);
+    if (!btr_pcur_is_on_user_rec(pcur))
+    {
+      /* end of index */
+      btr_pcur_close(pcur);
+      return nullptr;
+    }
+  }
+  /* Get a record, let's save the position */
+  btr_pcur_store_position(pcur, mtr);
+  return rec;
 }
 
 /********************************************************************//**
@@ -2469,24 +2457,21 @@ corrupted:
 			only to delete the .ibd files. */
 			goto corrupted;
 		} else {
-			const page_id_t page_id{table->space->id, pk->page};
 			mtr.start();
-			buf_block_t* block = buf_page_get(
-				page_id, table->space->zip_size(),
-				RW_S_LATCH, &mtr);
-			const bool corrupted = !block
-				|| page_get_space_id(block->page.frame)
-				!= page_id.space()
-				|| page_get_page_no(block->page.frame)
-				!= page_id.page_no()
-				|| (mach_read_from_2(FIL_PAGE_TYPE
-						    + block->page.frame)
-				    != FIL_PAGE_INDEX
-				    && mach_read_from_2(FIL_PAGE_TYPE
-							+ block->page.frame)
-				    != FIL_PAGE_TYPE_INSTANT);
+			bool ok = false;
+			if (buf_block_t* b = buf_page_get(
+				    page_id_t(table->space->id, pk->page),
+				    table->space->zip_size(),
+				    RW_S_LATCH, &mtr)) {
+				switch (mach_read_from_2(FIL_PAGE_TYPE
+							 + b->page.frame)) {
+				case FIL_PAGE_INDEX:
+				case FIL_PAGE_TYPE_INSTANT:
+					ok = true;
+				}
+			}
 			mtr.commit();
-			if (corrupted) {
+			if (!ok) {
 				goto corrupted;
 			}
 

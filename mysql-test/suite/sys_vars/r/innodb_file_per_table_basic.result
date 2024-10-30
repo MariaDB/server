@@ -70,7 +70,7 @@ COUNT(@@GLOBAL.innodb_file_per_table)
 1
 1 Expected
 SELECT innodb_file_per_table = @@SESSION.innodb_file_per_table;
-ERROR 42S22: Unknown column 'innodb_file_per_table' in 'field list'
+ERROR 42S22: Unknown column 'innodb_file_per_table' in 'SELECT'
 SET @@global.innodb_file_per_table = @start_global_value;
 Warnings:
 Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release

@@ -633,7 +633,9 @@ drop table t1,t2,t3;
 --echo #
 
 SET @sort_buffer_size_save= @@sort_buffer_size;
+--disable_warnings
 SET sort_buffer_size=1125899906842624;
+--enable_warnings
 CREATE TABLE t1 (a INT,b CHAR,KEY(a,b));
 DELETE a1 FROM t1 AS a1,t1 AS a2 WHERE a1.a=a2.a;
 DROP TABLE t1;

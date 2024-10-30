@@ -123,11 +123,11 @@ SELECT @@storage_engine;
 @@storage_engine
 MEMORY
 SELECT local.storage_engine;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.storage_engine;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT storage_engine = @@session.storage_engine;
-ERROR 42S22: Unknown column 'storage_engine' in 'field list'
+ERROR 42S22: Unknown column 'storage_engine' in 'SELECT'
 SET @@storage_engine = @start_global_value;
 Warnings:
 Warning	1287	'@@storage_engine' is deprecated and will be removed in a future release. Please use '@@default_storage_engine' instead

@@ -216,10 +216,11 @@ public:
 	tablespace is opened.  This occurs before the fil_space_t is created
 	so the Space ID found here must not already be open.
 	m_is_valid is set true on success, else false.
+	@param first_page   the contents of the first page
 	@retval DB_SUCCESS on if the datafile is valid
 	@retval DB_CORRUPTION if the datafile is not readable
 	@retval DB_TABLESPACE_EXISTS if there is a duplicate space_id */
-	dberr_t validate_first_page()
+	dberr_t validate_first_page(const byte *first_page) noexcept
 		MY_ATTRIBUTE((warn_unused_result));
 
 	/** Get Datafile::m_filepath.
@@ -359,6 +360,13 @@ private:
 	@return DB_SUCCESS or DB_IO_ERROR if page cannot be read */
 	dberr_t read_first_page(bool read_only_mode)
 		MY_ATTRIBUTE((warn_unused_result));
+
+	/** Read m_space_id, m_flags from a page frame.
+	@param page	       a copy of the first page of the tablespace
+	@retval DB_SUCCESS     if the page seems to be valid
+	@retval DB_CORRUPTION  if the page looks corrupted
+	@retval DB_UNSUPPORTED if the page is in an unsupported format */
+	dberr_t read_first_page_flags(const byte *page) noexcept;
 
 	/** Free the first page from memory when it is no longer needed. */
 	void free_first_page();

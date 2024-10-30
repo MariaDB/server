@@ -158,16 +158,11 @@ set @old_session_track_system_variables=@@global.session_track_system_variables;
 set global session_track_system_variables="autocommit,character_set_client,character_set_connection,redirect_url,time_zone";
 connect foo,localhost,root;
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
--- autocommit
--- ON
--- time_zone
--- SYSTEM
--- character_set_client
--- latin1
--- character_set_connection
--- latin1
--- redirect_url
--- 
+-- autocommit: ON
+-- character_set_client: latin1
+-- character_set_connection: latin1
+-- redirect_url: 
+-- time_zone: SYSTEM
 
 connection default;
 disconnect foo;

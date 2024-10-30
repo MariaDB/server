@@ -498,7 +498,7 @@ insert into t2 values(1,7503),(2,1);
 explain select count(*) 
 from t1 
 where fid IN (select fid from t2 where (id between 7502 and 8420) order by fid );
-ERROR 42S22: Unknown column 'fid' in 'IN/ALL/ANY subquery'
+ERROR 42S22: Unknown column 'fid' in 'IN/ALL/ANY'
 drop table t1, t2;
 create table t1 (a int, b int, key (a), key (b));
 insert into t1 values (2,4),(2,4),(2,4);

@@ -999,11 +999,11 @@ int ha_myisam::write_row(const uchar *buf)
   return mi_write(file,buf);
 }
 
-void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
+int ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
 {
   DBUG_ASSERT(file->s->base.reclength <= file->s->vreclength);
   if (!table->vfield)
-    return;
+    return 0;
 
   if (file->s->base.reclength == file->s->vreclength)
   {
@@ -1020,13 +1020,17 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
       }
     }
     if (!indexed_vcols)
-      return;
+      return 0;
     file->s->vreclength= new_vreclength;
+    if (!mi_alloc_rec_buff(file, -1, &file->rec_buff))
+      return HA_ERR_OUT_OF_MEM;
+    bzero(file->rec_buff, mi_get_rec_buff_len(file, file->rec_buff));
   }
   DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
               !table->s->stored_fields);
   param->fix_record= compute_vcols;
   table->use_all_columns();
+  return 0;
 }
 
 int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
@@ -1062,7 +1066,11 @@ int ha_myisam::check(THD* thd, HA_CHECK_OPT* check_opt)
 				      (uint) (share->global_changed ? 1 : 0)))))
     return HA_ADMIN_ALREADY_DONE;
 
-  setup_vcols_for_repair(param);
+  if ((error = setup_vcols_for_repair(param)))
+  {
+    thd_proc_info(thd, old_proc_info);
+    return error;
+  }
 
   error = chk_status(param, file);		// Not fatal
   error = chk_size(param, file);
@@ -1158,7 +1166,8 @@ int ha_myisam::analyze(THD *thd, HA_CHECK_OPT* check_opt)
   if (!(share->state.changed & STATE_NOT_ANALYZED))
     return HA_ADMIN_ALREADY_DONE;
 
-  setup_vcols_for_repair(param);
+  if ((error = setup_vcols_for_repair(param)))
+    return error;
 
   error = chk_key(param, file);
   if (!error)
@@ -1193,7 +1202,8 @@ int ha_myisam::repair(THD* thd, HA_CHECK_OPT *check_opt)
   param->backup_time= check_opt->start_time;
   start_records=file->state->records;
 
-  setup_vcols_for_repair(param);
+  if ((error = setup_vcols_for_repair(param)))
+    return error;
 
   while ((error=repair(thd,*param,0)) && param->retry_repair)
   {
@@ -1246,7 +1256,8 @@ int ha_myisam::optimize(THD* thd, HA_CHECK_OPT *check_opt)
   param->tmpfile_createflag= O_RDWR | O_TRUNC;
   param->sort_buffer_length=  THDVAR(thd, sort_buffer_size);
 
-  setup_vcols_for_repair(param);
+  if ((error = setup_vcols_for_repair(param)))
+    return error;
 
   if ((error= repair(thd,*param,1)) && param->retry_repair)
   {
@@ -1695,7 +1706,11 @@ int ha_myisam::enable_indexes(key_map map, bool persist)
     param->stats_method= (enum_handler_stats_method)THDVAR(thd, stats_method);
     param->tmpdir=&mysql_tmpdir_list;
 
-    setup_vcols_for_repair(param);
+    if ((error = setup_vcols_for_repair(param)))
+    {
+      thd_proc_info(thd, save_proc_info);
+      DBUG_RETURN(error);
+    }
 
     if ((error= (repair(thd,*param,0) != HA_ADMIN_OK)) && param->retry_repair)
     {

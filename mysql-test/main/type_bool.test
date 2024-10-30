@@ -1,0 +1,13 @@
+--echo #
+--echo # MDEV-35135: Assertion `!is_cond()' failed in Item_bool_func::val_int /
+--echo # do_select
+--echo #
+
+CREATE TABLE t (a INT) ENGINE=MyISAM;
+INSERT INTO t VALUES (1);
+SELECT VARIANCE(a) AS f1, VARIANCE(a) AS f2 FROM t WHERE ROWNUM() = 2 HAVING f1 > 1;
+
+# Cleanup
+DROP TABLE t;
+
+--echo # End of 10.6 tests

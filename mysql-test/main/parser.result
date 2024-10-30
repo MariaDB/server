@@ -2226,11 +2226,11 @@ drop table t1;
 # MDEV-19682 sql_mode="oracle" does not support sysdate
 #
 SELECT sysdate LIKE '____-__-__ __:__:__';
-ERROR 42S22: Unknown column 'sysdate' in 'field list'
+ERROR 42S22: Unknown column 'sysdate' in 'SELECT'
 SELECT sysdate = sysdate();
-ERROR 42S22: Unknown column 'sysdate' in 'field list'
+ERROR 42S22: Unknown column 'sysdate' in 'SELECT'
 SELECT sysdate = sysdate(0);
-ERROR 42S22: Unknown column 'sysdate' in 'field list'
+ERROR 42S22: Unknown column 'sysdate' in 'SELECT'
 CREATE DATABASE sysdate;
 DROP DATABASE sysdate;
 CREATE TABLE sysdate (a INT);

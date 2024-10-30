@@ -94,11 +94,11 @@ SELECT @@delayed_insert_timeout;
 @@delayed_insert_timeout
 1
 SELECT local.delayed_insert_timeout;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT global.delayed_insert_timeout;
-ERROR 42S02: Unknown table 'global' in field list
+ERROR 42S02: Unknown table 'global' in SELECT
 SELECT delayed_insert_timeout = @@session.delayed_insert_timeout;
-ERROR 42S22: Unknown column 'delayed_insert_timeout' in 'field list'
+ERROR 42S22: Unknown column 'delayed_insert_timeout' in 'SELECT'
 SET @@global.delayed_insert_timeout = @start_value;
 SELECT @@global.delayed_insert_timeout;
 @@global.delayed_insert_timeout

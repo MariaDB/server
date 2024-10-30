@@ -906,7 +906,7 @@ extern "C" void unireg_clear(int exit_code);
 #define unireg_abort(exit_code) do { unireg_clear(exit_code); DBUG_RETURN(exit_code); } while(0)
 #endif
 
-extern void set_server_version(char *buf, size_t size);
+extern char *set_server_version(char *buf, size_t size);
 
 #define current_thd _current_thd()
 void set_current_thd(THD *thd);
