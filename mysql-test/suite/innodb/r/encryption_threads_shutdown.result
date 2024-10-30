@@ -2,6 +2,7 @@ call mtr.add_suppression("Creating system tablespace with existing redo log file
 call mtr.add_suppression("InnoDB: Database creation was aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 CREATE TABLE t(a INT) ENGINE=InnoDB;
 # Kill the server
 # restart
