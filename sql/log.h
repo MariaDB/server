@@ -1193,6 +1193,8 @@ public:
 };
 
 extern bool load_global_binlog_state(rpl_binlog_state_base *state);
+extern bool binlog_recover_gtid_state(rpl_binlog_state_base *state,
+                                      handler_binlog_reader *reader);
 
 
 class Log_event_handler
