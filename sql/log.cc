@@ -1156,11 +1156,64 @@ bool Log_to_csv_event_handler::
   return FALSE;
 }
 
+static void print_buffer_to_file(enum loglevel level, const char *buffer, size_t length);
+
+/*
+  Print the buffer to the log file.
+
+  Handle the suppression of repeated error log messages based on the
+  `opt_log_suppress_repeated_errors` option. If suppression is enabled,
+  it will print the message only if it differs from the previous one
+  or if the number of repetitions hasn't reached the suppression limit.
+*/
 bool Log_to_file_event_handler::
-  log_error(enum loglevel level, const char *format,
-            va_list args)
-{
-  return vprint_msg_to_log(level, format, args);
+log_error(enum loglevel level, const char *format, va_list args) {
+  char buff[1024];
+  size_t length;
+  DBUG_ENTER("Log_to_file_event_handler::log_error");
+
+  // Buffer to be printed
+  length= my_vsnprintf(buff, sizeof(buff), format, args);
+
+  if (opt_log_suppress_repeated_errors > 0) {
+    // Suppression enabled, perform repetition check
+
+    if (strncmp(buff, last_message.message, sizeof(buff)) == 0)  {
+      // Strings match
+      if (last_message.count < opt_log_suppress_repeated_errors) {
+        // Repetitions have not reached the suppression limit
+        print_buffer_to_file(level, buff, length);
+      }
+      // Increment the message counter
+      last_message.count++;
+    } else {
+      // Strings differ, print the message
+      if (last_message.count > opt_log_suppress_repeated_errors) {
+        // If message has been suppressed before, record how many times the previous message was emitted
+        char count_buff[1024];
+        int count_buff_length = my_snprintf(count_buff, sizeof(count_buff),
+                                            "The following message was emitted %u times "
+                                            "(repeated instances suppressed): %s",
+                                            last_message.count, last_message.message);
+        print_buffer_to_file(last_message.level, count_buff, count_buff_length);
+      }
+      // Print the new message
+      print_buffer_to_file(level, buff, length);
+      // Update last_message with the current message, and reset the counter
+      strncpy(last_message.message, buff, sizeof(buff));
+      last_message.count= 1;
+      last_message.level= level;
+    }
+  } else {
+    // Suppression disabled, print the error message
+    print_buffer_to_file(level, buff, length);
+  }
+#ifdef _WIN32
+  // Always print to the Windows event log, regardless of suppression
+  print_buffer_to_nt_eventlog(level, buff, length, sizeof(buff));
+#endif
+
+  DBUG_RETURN(0);
 }
 
 void Log_to_file_event_handler::init_pthread_objects()
@@ -1220,6 +1273,12 @@ bool Log_to_file_event_handler::init()
 
     if (opt_log)
       mysql_log.open_query_log(opt_logname);
+
+    if (opt_log_suppress_repeated_errors > 0) {
+      last_message.message[0]= '\0';
+      last_message.count= 0;
+      last_message.level= ERROR_LEVEL;
+    }
 
     is_initialized= TRUE;
   }
