@@ -1,18 +1,39 @@
+--source include/big_test.inc
 --source include/have_innodb_binlog.inc
---source include/have_binlog_format_mixed.inc
+--source include/have_binlog_format_row.inc
+--source include/have_sequence.inc
 
 CREATE TABLE t1 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
 INSERT INTO t1 VALUES (1, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+1000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
+SELECT @@GLOBAL.gtid_binlog_state;
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog1.txt
 
 --source include/restart_mysqld.inc
 
+SELECT @@GLOBAL.gtid_binlog_state;
 INSERT INTO t1 VALUES (2, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+2000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
+SELECT @@GLOBAL.gtid_binlog_state;
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog2.txt
 
 --source include/restart_mysqld.inc
 
+SELECT @@GLOBAL.gtid_binlog_state;
 INSERT INTO t1 VALUES (3, 0);
+let $i= 0;
+while ($i < 10) {
+  eval INSERT INTO t1 SELECT seq+3000000+100000*$i, seq FROM seq_1_to_4000;
+  inc $i;
+}
 
 --exec $MYSQL_BINLOG --read-from-remote-server --user=root --host=127.0.0.1 --port=$MASTER_MYPORT master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog3.txt
 
