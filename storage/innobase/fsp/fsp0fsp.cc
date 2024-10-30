@@ -3645,14 +3645,15 @@ public:
       {
         const fseg_inode_t *inode=
           fsp_seg_inode_page_get_nth_inode(block->page.frame, i);
-        ulint seg_id= mach_read_from_8(FSEG_ID + inode);
         /* Consider TRX_SYS_FSEG_HEADER as used segment.
         While reinitializing the undo tablespace, InnoDB
         fail to reset the value of TRX_SYS_FSEG_HEADER
         in TRX_SYS page. so InnoDB shouldn't consider
         this segment as unused one */
-        if (seg_id == 0 || seg_id == 2)
+        switch (mach_read_from_8(FSEG_ID + inode)) {
+        case 0: case 2:
           continue;
+        }
 	uint16_t offset= uint16_t(inode - block->page.frame);
         if (offset < FIL_PAGE_DATA ||
             offset >= block->physical_size() - FIL_PAGE_DATA_END)
