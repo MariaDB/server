@@ -248,3 +248,11 @@ insert into t1 select seq, vec_fromtext(concat('[',seq,']')) from seq_1_to_200;
 update t1 set v = vec_fromtext(concat('[33]')) where a <= 15;
 select a, vec_totext(v) from t1 order by vec_distance_euclidean(v,vec_fromtext('[33]')) limit 25;
 drop table t1;
+
+--echo #
+--echo # MDEV-35296 DESC does not work in ORDER BY with vector key
+--echo #
+create table t (v vector(1) not null, vector(v));
+insert into t select vec_fromtext(concat('[',seq,']')) FROM seq_1_to_10;
+select vec_totext(v) from t order by vec_distance_euclidean(v,vec_fromtext('[0]')) desc limit 5;
+drop table t;
