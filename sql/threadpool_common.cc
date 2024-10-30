@@ -155,12 +155,13 @@ static inline void set_thd_idle(THD *thd)
 struct OS_thread_info
 {
   pthread_t self;
-  ssize_t stack_size;
+  void *thread_stack_start;
+  void *thread_stack_end;
   uint32_t thread_id;
 
-  inline bool initialized() { return stack_size != 0; }
+  inline bool initialized() { return thread_stack_start != nullptr; }
 
-  void init(ssize_t ssize)
+  void init(void *p_stack_var)
   {
 #if _WIN32
    self= thread_id= GetCurrentThreadId();
@@ -172,7 +173,9 @@ struct OS_thread_info
 #endif
     self= pthread_self();
 #endif
-    stack_size= ssize;
+    my_get_stack_bounds(&thread_stack_start, &thread_stack_end,
+                       p_stack_var, my_thread_stack_size);
+
   }
 };
 static thread_local OS_thread_info os_thread_info;
@@ -181,7 +184,7 @@ static const OS_thread_info *get_os_thread_info()
 {
   auto *res= &os_thread_info;
   if (!res->initialized())
-    res->init((ssize_t) (my_thread_stack_size * STACK_DIRECTION));
+    res->init(&res);
   return res;
 }
 
@@ -199,10 +202,10 @@ static void thread_attach(THD* thd)
   const OS_thread_info *tinfo= get_os_thread_info();
 
   set_current_thd(thd);
-  my_get_stack_bounds(&thd->thread_stack, &thd->mysys_var->stack_ends_here,
-                      (void*) &tinfo, my_thread_stack_size);
   thd->real_id= tinfo->self;
   thd->os_thread_id= tinfo->thread_id;
+  thd->thread_stack= tinfo->thread_stack_start;
+  thd->mysys_var->stack_ends_here= tinfo->thread_stack_end;
   PSI_CALL_set_thread(thd->get_psi());
 }
 
