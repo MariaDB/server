@@ -26486,7 +26486,7 @@ static int test_if_order_by_key(JOIN *join, ORDER *order, TABLE *table,
 
   if ((*order->item)->real_item()->type() != Item::FIELD_ITEM)
   {
-    if (order->next)
+    if (order->next || order->direction != ORDER::ORDER_ASC)
       DBUG_RETURN(0);
 
     DBUG_RETURN((*order->item)->part_of_sortkey().is_set(idx));
