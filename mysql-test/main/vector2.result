@@ -356,3 +356,16 @@ a	vec_totext(v)
 8	[33]
 9	[33]
 drop table t1;
+#
+# MDEV-35296 DESC does not work in ORDER BY with vector key
+#
+create table t (v vector(1) not null, vector(v));
+insert into t select vec_fromtext(concat('[',seq,']')) FROM seq_1_to_10;
+select vec_totext(v) from t order by vec_distance_euclidean(v,vec_fromtext('[0]')) desc limit 5;
+vec_totext(v)
+[10]
+[9]
+[8]
+[7]
+[6]
+drop table t;
