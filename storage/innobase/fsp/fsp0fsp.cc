@@ -6050,23 +6050,44 @@ func_exit:
   ToDo: Move this somewhere reasonable, its own file(s) etc.
 */
 
+enum fsp_binlog_chunk_types {
+  /* Zero means no data, effectively EOF. */
+  FSP_BINLOG_TYPE_EMPTY= 0,
+  /* A binlogged committed event group. */
+  FSP_BINLOG_TYPE_COMMIT= 1,
+  /* A binlog GTID state record. */
+  FSP_BINLOG_TYPE_GTID_STATE= 2,
+
+  /* Padding data at end of page. */
+  FSP_BINLOG_TYPE_FILLER= 0xff
+};
+
 /*
-  How often (in terms of bytes written) to dump a (differential) binlog state
-  at the start of the page, to speed up finding the initial GTID position for
-  a connecting slave.
-
-  Must be a power-of-two multiple of the page size.
-
-  ToDo: An InnoDB setting for this - which needs to be persisted in the
-  tablespace header or maybe initial full binlog state record.
-  ToDo: Default should be like 1M or so, this 64k is for testing.
+  Bit set on the chunk type for a continuation chunk, when data needs to be
+  split across pages.
 */
-#define INNODB_BINLOG_STATE_INTERVAL (64*1024)
+static constexpr uint32_t FSP_BINLOG_FLAG_BIT_CONT= 7;
+static constexpr uint32_t FSP_BINLOG_FLAG_CONT= (1 << FSP_BINLOG_FLAG_BIT_CONT);
+static constexpr uint32_t FSP_BINLOG_TYPE_MASK= ~(FSP_BINLOG_FLAG_CONT);
+
 
 static uint32_t binlog_size_in_pages;
 buf_block_t *binlog_cur_block;
 uint32_t binlog_cur_page_no;
 uint32_t binlog_cur_page_offset;
+/*
+  How often (in terms of bytes written) to dump a (differential) binlog state
+  at the start of the page, to speed up finding the initial GTID position for
+  a connecting slave.
+
+  This value must be used over the setting innodb_binlog_state_interval,
+  because after a restart the latest binlog file will be using the value of the
+  setting prior to the restart; the new value of the setting (if different)
+  will be used for newly created binlog files.
+*/
+uint64_t current_binlog_state_interval;
+/* The corresponding server setting, read-only. */
+ulonglong innodb_binlog_state_interval;
 /*
   Mutex protecting active_binlog_file_no and active_binlog_space.
 */
@@ -6116,9 +6137,39 @@ std::atomic<uint64_t> binlog_cur_written_offset[2];
 */
 std::atomic<uint64_t> binlog_cur_end_offset[2];
 
+
+class ha_innodb_binlog_reader : public handler_binlog_reader {
+  /* Buffer to hold a page read directly from the binlog file. */
+  uchar *page_buf;
+  /* Length of the currently open file (if cur_file != -1). */
+  uint64_t cur_file_length;
+  /* Used to keep track of partial chunk returned to reader. */
+  uint32_t chunk_pos;
+  uint32_t chunk_remain;
+  /*
+    Flag used to skip the rest of any partial chunk we might be starting in
+    the middle of.
+  */
+  bool skipping_partial;
+private:
+  bool ensure_file_open();
+  void next_file();
+  int read_from_buffer_pool_page(buf_block_t *block, uint64_t end_offset,
+                                 uchar *buf, uint32_t len);
+  int read_from_file(uint64_t end_offset, uchar *buf, uint32_t len);
+  int read_from_page(uchar *page_ptr, uint64_t end_offset,
+                     uchar *buf, uint32_t len);
+
+public:
+  ha_innodb_binlog_reader(uint64_t file_no= 0, uint64_t offset= 0);
+  ~ha_innodb_binlog_reader();
+  virtual int read_binlog_data(uchar *buf, uint32_t len) final;
+};
+
+
 static void fsp_binlog_prealloc_thread();
 static int fsp_binlog_discover();
-
+static bool binlog_state_recover();
 
 #define BINLOG_NAME_BASE "binlog-"
 #define BINLOG_NAME_EXT ".ibb"
@@ -6189,7 +6240,8 @@ fsp_binlog_tablespace_close(uint64_t file_no)
     active? This will need fixing, no busy-wait should be done here.
   */
   while (buf_flush_list_space(space))
-    ;
+    ;  // ToDo: Think here about waiting until I have released all exclusive latches to pages in the tablespace
+  // ToDo: Also, buf_flush_list_space() seems to use io_capacity, but that's not appropriate here perhaps
   os_aio_wait_until_no_pending_writes(false);
   space->flush<false>();
   fil_space_free(space_id, false);
@@ -6243,8 +6295,20 @@ innodb_binlog_init(size_t binlog_size)
   active_binlog_space= nullptr;
   binlog_cur_page_no= 0;
   binlog_cur_page_offset= FIL_PAGE_DATA;
+  current_binlog_state_interval= innodb_binlog_state_interval;
   /* Find any existing binlog files and continue writing in them. */
-  fsp_binlog_discover();
+  int res= fsp_binlog_discover();
+  if (res < 0)
+  {
+    /* Need to think more on the error handling if the binlog cannot be opened. We may need to abort starting the server, at least for some errors? And/or in some cases maybe force ignore any existing unusable files and continue with a new binlog (but then maybe fsp_binlog_discover() should return 0 and print warnings in the error log?). */
+    return true;
+  }
+  if (res > 0)
+  {
+    /* We are continuing from existing binlogs. Recover the binlog state. */
+    if (binlog_state_recover())
+      return true;
+  }
 
   /* Start pre-allocating new binlog files. */
   binlog_prealloc_thr_obj= std::thread{fsp_binlog_prealloc_thread};
@@ -6392,6 +6456,7 @@ fsp_binlog_open(const char *file_name, pfs_os_file_t fh,
 static bool
 binlog_page_empty(const byte *page)
 {
+  /* ToDo: Here we also need to see if there is a full state record at the start of the file. If not, we have to delete the file and ignore it, it is an incomplete file. Or can we rely on the innodb crash recovery to make file creation atomic and we will never see a partially pre-allocated file? Also if the gtid state is larger than mtr max size (if there is such max?), or if we crash in the middle of pre-allocation? */
   return page[FIL_PAGE_DATA] == 0;
 }
 
@@ -6488,7 +6553,7 @@ find_pos_in_binlog(uint64_t file_no, size_t file_size, byte *page_buf,
   p= &page_buf[FIL_PAGE_DATA];
   page_end= &page_buf[page_size - FIL_PAGE_DATA_END];
   while (*p && p < page_end) {
-    if (*p == 0xff) {
+    if (*p == FSP_BINLOG_TYPE_FILLER) {
       p= page_end;
       break;
     }
@@ -6796,15 +6861,22 @@ serialize_gtid_state(rpl_binlog_state_base *state, byte *buf, size_t buf_size,
                      bool is_first_page)
 {
   unsigned char *p= (unsigned char *)buf;
-  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 2*COMPR_INT_MAX64);
+  /*
+    1 uint64_t for the innodb_binlog_state_interval.
+    1 uint64_t for the number of entries in the state stored.
+    2 uint32_t + 1 uint64_t for at least one GTID.
+  */
+  ut_ad(buf_size >= 2*COMPR_INT_MAX32 + 3*COMPR_INT_MAX64);
   if (is_first_page) {
     /*
       In the first page where we put the full state, include the value of the
       setting for the interval at which differential states are binlogged, so
       we know how to search them independent of how the setting changes.
     */
-    p= compr_int_write(p, INNODB_BINLOG_STATE_INTERVAL);
+    /* ToDo: Check that this current_binlog_state_interval is the correct value! */
+    p= compr_int_write(p, current_binlog_state_interval);
   }
+  p= compr_int_write(p, state->count_nolock());
   unsigned char * const pmax=
     p + (buf_size - (2*COMPR_INT_MAX32 + COMPR_INT_MAX64));
 
@@ -6874,6 +6946,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   */
   if (page_no + needed_pages < space->size)
   {
+    byte cont_flag= 0;
     while (used_bytes > 0)
     {
       ut_ad(page_no < space->size);
@@ -6886,7 +6959,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
         chunk= page_room - 3;
         ++page_no;
       }
-      ptr[0]= 0x02 /* ToDo: FSP_BINLOG_TYPE_GTID_STATE */ | ((chunk < used_bytes) << 7);
+      ptr[0]= FSP_BINLOG_TYPE_GTID_STATE | cont_flag;
       ptr[1] = (byte)chunk & 0xff;
       ptr[2] = (byte)(chunk >> 8);
       ut_ad(chunk <= 0xffff);
@@ -6895,6 +6968,7 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       page_offset+= (uint32_t)(chunk+3);
       buf+= chunk;
       used_bytes-= chunk;
+      cont_flag= FSP_BINLOG_FLAG_CONT;
     }
 
     if (page_offset == FIL_PAGE_DATA_END) {
@@ -6912,6 +6986,159 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
   }
 
   return false;  // No error
+}
+
+
+/*
+  Read a binlog state record from a specific page in a file. The passed in
+  STATE object is updated with the state read.
+
+  Returns:
+    1  State record found
+    0  No state record found
+    -1 Error
+*/
+static int
+read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
+                uint64_t *out_diff_state_interval)
+{
+  std::unique_ptr<byte [], void (*)(void *)> page_buf
+    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(MY_WME)),
+     &my_free);
+  if (UNIV_UNLIKELY(!page_buf))
+    return -1;
+
+  /* ToDo: Verify checksum, and handle encryption. */
+  size_t res= my_pread(file, page_buf.get(), srv_page_size,
+                       (uint64_t)page_no << srv_page_size_shift, MYF(MY_WME));
+  if (UNIV_UNLIKELY(res == (size_t)-1))
+    return -1;
+
+  const byte *p= page_buf.get() + FIL_PAGE_DATA;
+  byte t= *p;
+  if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
+    return 0;
+  /* ToDo: Handle reading a state that spans multiple pages. For now, we assume the state fits in a single page. */
+  ut_a(!(t & FSP_BINLOG_FLAG_CONT));
+
+  uint32_t len= ((uint32_t)p[2] << 8) | p[1];
+  const byte *p_end= p + 3 + len;
+  if (UNIV_UNLIKELY(p + 3 >= p_end))
+    return -1;
+  std::pair<uint64_t, const unsigned char *> v_and_p= compr_int_read(p + 3);
+  p= v_and_p.second;
+  if (page_no == 0)
+  {
+    /*
+      The state in the first page has an extra word, the offset between
+      differential binlog states logged regularly in the binlog tablespace.
+    */
+    *out_diff_state_interval= v_and_p.first;
+    if (UNIV_UNLIKELY(p >= p_end))
+      return -1;
+    v_and_p= compr_int_read(p);
+    p= v_and_p.second;
+  }
+  else
+    *out_diff_state_interval= 0;
+
+  if (UNIV_UNLIKELY(p > p_end))
+    return -1;
+
+  for (uint64_t count= v_and_p.first; count > 0; --count)
+  {
+    rpl_gtid gtid;
+    if (UNIV_UNLIKELY(p >= p_end))
+      return -1;
+    v_and_p= compr_int_read(p);
+    if (UNIV_UNLIKELY(v_and_p.first > UINT32_MAX))
+      return -1;
+    gtid.domain_id= (uint32_t)v_and_p.first;
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p >= p_end))
+      return -1;
+    v_and_p= compr_int_read(p);
+    if (UNIV_UNLIKELY(v_and_p.first > UINT32_MAX))
+      return -1;
+    gtid.server_id= (uint32_t)v_and_p.first;
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p >= p_end))
+      return -1;
+    v_and_p= compr_int_read(p);
+    gtid.seq_no= v_and_p.first;
+    p= v_and_p.second;
+    if (UNIV_UNLIKELY(p > p_end))
+      return -1;
+    if (state->update_nolock(&gtid))
+      return -1;
+  }
+
+  /*
+    For now, we expect no more data.
+    Later it could be extended, as we store (and read) the count of GTIDs.
+  */
+  ut_ad(p == p_end);
+
+  return 1;
+}
+
+
+/*
+  Recover the GTID binlog state at startup.
+  Read the full binlog state at the start of the current binlog file, as well
+  as the last differential binlog state on top, if any. Then scan from there to
+  the end to obtain the exact current GTID binlog state.
+
+  Return false if ok, true if error.
+*/
+static bool
+binlog_state_recover()
+{
+  rpl_binlog_state_base state;
+  state.init();
+  uint64_t diff_state_interval= 0;
+  uint32_t page_no= 0;
+  char filename[BINLOG_NAME_LEN];
+
+  binlog_name_make(filename,
+                   active_binlog_file_no.load(std::memory_order_relaxed));
+  File file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
+  if (UNIV_UNLIKELY(file < (File)0))
+    return true;
+
+  int res= read_gtid_state(&state, file, page_no, &diff_state_interval);
+  if (res < 0)
+  {
+    my_close(file, MYF(0));
+    return true;
+  }
+  if (diff_state_interval == 0 || diff_state_interval % srv_page_size != 0)
+  {
+    ib::warn() << "Invalid differential binlog state interval " <<
+      diff_state_interval << " found in binlog file, ignoring";
+    current_binlog_state_interval= 0;  /* Disable in this binlog file */
+  }
+  else
+  {
+    current_binlog_state_interval= diff_state_interval;
+    diff_state_interval>>= srv_page_size_shift;
+    page_no= (uint32_t)(binlog_cur_page_no -
+                        (binlog_cur_page_no % diff_state_interval));
+    while (page_no > 0)
+    {
+      uint64_t dummy_interval;
+      res= read_gtid_state(&state, file, page_no, &dummy_interval);
+      if (res > 0)
+        break;
+      page_no-= (uint32_t)diff_state_interval;
+    }
+  }
+  my_close(file, MYF(0));
+
+  ha_innodb_binlog_reader reader(active_binlog_file_no.load
+                                   (std::memory_order_relaxed),
+                                 page_no << srv_page_size_shift);
+  return binlog_recover_gtid_state(&state, &reader);
 }
 
 
@@ -6954,6 +7181,7 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
   my_bool res= reinit_io_cache(cache, READ_CACHE, main_size, 0, 0);
   ut_a(!res /* ToDo: Error handling. */);
   size_t gtid_remain= remain - main_size;
+  byte cont_flag= 0;
   while (remain > 0) {
     if (page_offset == FIL_PAGE_DATA) {
       if (UNIV_UNLIKELY(page_no >= space->size)) {
@@ -6993,15 +7221,19 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
         pthread_cond_signal(&active_binlog_cond);
         mysql_mutex_unlock(&active_binlog_mutex);
         binlog_cur_page_no= page_no= 0;
+        /* ToDo: Here we must use the value from the file, if this file was pre-allocated before a server restart where the value of innodb_binlog_state_interval changed. Maybe just make innodb_binlog_state_interval dynamic and make the prealloc thread (and discover code at startup) supply the correct value to use for each file. */
+        current_binlog_state_interval= innodb_binlog_state_interval;
       }
 
       /* Must be a power of two and larger than page size. */
-      ut_ad(INNODB_BINLOG_STATE_INTERVAL > page_size);
-      ut_ad(INNODB_BINLOG_STATE_INTERVAL ==
-            (uint64_t)1 << (63 - nlz((uint64_t)INNODB_BINLOG_STATE_INTERVAL)));
+      ut_ad(current_binlog_state_interval == 0 ||
+            current_binlog_state_interval > page_size);
+      ut_ad(current_binlog_state_interval == 0 ||
+            current_binlog_state_interval ==
+            (uint64_t)1 << (63 - nlz(current_binlog_state_interval)));
 
       if (0 == (page_no &
-                ((INNODB_BINLOG_STATE_INTERVAL >> page_size_shift) - 1))) {
+                ((current_binlog_state_interval >> page_size_shift) - 1))) {
         if (page_no == 0) {
           rpl_binlog_state_base full_state;
           full_state.init();
@@ -7035,7 +7267,7 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
     /* ToDo: Do this check at the end instead, to save one buf_page_get_gen()? */
     if (page_remain < 4) {
       /* Pad the remaining few bytes, and move to next page. */
-      mtr->memset(block, page_offset, page_remain, 0xff);
+      mtr->memset(block, page_offset, page_remain, FSP_BINLOG_TYPE_FILLER);
       block= nullptr;
       ++page_no;
       page_offset= FIL_PAGE_DATA;
@@ -7064,13 +7296,14 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
       size+= size2;
       page_remain-= size2;
     }
-    ptr[0]= 0x01 /* ToDo: FSP_BINLOG_TYPE_COMMIT */ | ((size < remain) << 7);
+    ptr[0]= FSP_BINLOG_TYPE_COMMIT | cont_flag;
     ptr[1]= size & 0xff;
     ptr[2]= (byte)(size >> 8);
     ut_ad(size <= 0xffff);
 
     mtr->memcpy(*block, page_offset, size+3);
     remain-= size;
+    cont_flag= FSP_BINLOG_FLAG_CONT;
     if (page_remain == 0) {
       block= nullptr;
       page_offset= FIL_PAGE_DATA;
@@ -7110,36 +7343,14 @@ fsp_binlog_trx(trx_t *trx, mtr_t *mtr)
 }
 
 
-class ha_innodb_binlog_reader : public handler_binlog_reader {
-  /* Buffer to hold a page read directly from the binlog file. */
-  uchar *page_buf;
-  /* Length of the currently open file (if cur_file != -1). */
-  uint64_t cur_file_length;
-  /* Used to keep track of partial chunk returned to reader. */
-  uint32_t chunk_pos;
-  uint32_t chunk_remain;
-private:
-  bool ensure_file_open();
-  void next_file();
-  int read_from_buffer_pool_page(buf_block_t *block, uint64_t end_offset,
-                                 uchar *buf, uint32_t len);
-  int read_from_file(uint64_t end_offset, uchar *buf, uint32_t len);
-  int read_from_page(uchar *page_ptr, uint64_t end_offset,
-                     uchar *buf, uint32_t len);
-
-public:
-  ha_innodb_binlog_reader();
-  ~ha_innodb_binlog_reader();
-  virtual int read_binlog_data(uchar *buf, uint32_t len) final;
-};
-
-
-ha_innodb_binlog_reader::ha_innodb_binlog_reader()
-  : chunk_pos(0), chunk_remain(0)
+ha_innodb_binlog_reader::ha_innodb_binlog_reader(uint64_t file_no,
+                                                 uint64_t offset)
+  : chunk_pos(0), chunk_remain(0), skipping_partial(true)
 {
   page_buf= (uchar *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(0)); /* ToDo: InnoDB alloc function? */
   // ToDo: Need some mechanism to find where to start reading. This is just "start from 0" for early testing.
-  cur_file_no= 0;
+  cur_file_no= file_no;
+  cur_file_offset= offset;
 }
 
 
@@ -7412,17 +7623,20 @@ ha_innodb_binlog_reader::read_from_page(uchar *page_ptr, uint64_t end_offset,
     uchar type= page_ptr[in_page_offset];
     if (type == 0x00)
       break;  /* No more data on the page yet */
-    if (type == 0xff /* ToDo FSP_BINLOG_TYPE_FILLER */) {
+    if (type == FSP_BINLOG_TYPE_FILLER) {
       in_page_offset= page_size;  /* Point to start of next page */
       break;  /* No more data on page */
     }
-    uint32_t size=
-      page_ptr[in_page_offset + 1] + (uint32_t)(page_ptr[in_page_offset + 2] << 8);
-    if ((type & 0x7f) != 1 /* ToDo FSP_BINLOG_TYPE_COMMIT */) {
-      /* Skip non-binlog-event record. */
+    uint32_t size= page_ptr[in_page_offset + 1] +
+      (uint32_t)(page_ptr[in_page_offset + 2] << 8);
+    if ((type & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_COMMIT ||
+        (UNIV_UNLIKELY(skipping_partial) && (type & FSP_BINLOG_FLAG_CONT)))
+    {
+      /* Skip non-binlog-event record, or initial partial record. */
       in_page_offset += 3 + size;
       continue;
     }
+    skipping_partial= false;
 
     /* Now grab the data in the chunk, or however much the caller requested. */
     uint32_t rest = len - sofar;

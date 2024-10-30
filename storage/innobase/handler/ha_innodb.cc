@@ -3697,6 +3697,16 @@ static int innodb_init_params()
     DBUG_RETURN(HA_ERR_INITIALIZATION);
   }
 
+	if (innodb_binlog_state_interval == 0 ||
+	    innodb_binlog_state_interval !=
+		(ulonglong)1 << (63 - nlz(innodb_binlog_state_interval)) ||
+	    innodb_binlog_state_interval % (ulonglong)srv_page_size) {
+		ib::error() << "innodb_binlog_state_interval must be a "
+			"power-of-two multiple of the innodb_page_size="
+			<< srv_page_size;
+		DBUG_RETURN(HA_ERR_INITIALIZATION);
+	}
+
 #ifdef _WIN32
   if (!is_filename_allowed(srv_buf_dump_filename,
                            strlen(srv_buf_dump_filename), false))
@@ -19757,6 +19767,14 @@ static MYSQL_SYSVAR_BOOL(truncate_temporary_tablespace_now,
   "Shrink the temporary tablespace",
   NULL, innodb_trunc_temp_space_update, false);
 
+static MYSQL_SYSVAR_ULONGLONG(binlog_state_interval,
+  innodb_binlog_state_interval,
+  PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
+  "Interval (in bytes) at which to write the GTID binlog state to binlog "
+  "files to speed up GTID lookups. Must be a multiple of innodb_page_size",
+  NULL, NULL, 2*1024*1024,
+  UNIV_PAGE_SIZE_MAX, ULONGLONG_MAX, 0);
+
 static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(autoextend_increment),
   MYSQL_SYSVAR(buffer_pool_size),
@@ -19932,6 +19950,7 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(background_thread),
   MYSQL_SYSVAR(encrypt_temporary_tables),
   MYSQL_SYSVAR(truncate_temporary_tablespace_now),
+  MYSQL_SYSVAR(binlog_state_interval),
 
   NULL
 };
