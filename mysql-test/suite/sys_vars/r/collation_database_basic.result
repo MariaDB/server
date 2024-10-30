@@ -17,18 +17,18 @@ SELECT @session_start_value;
 latin1_swedish_ci
 '#--------------------FN_DYNVARS_016_01------------------#'
 SELECT collation_database;
-ERROR 42S22: Unknown column 'collation_database' in 'field list'
+ERROR 42S22: Unknown column 'collation_database' in 'SELECT'
 SET collation_database=utf8_unicode_ci;
 SELECT @@session.collation_database;
 @@session.collation_database
 utf8mb3_unicode_ci
 SET session collation_database=utf8_unicode_ci;
 SELECT session collation_database;
-ERROR 42S22: Unknown column 'session' in 'field list'
+ERROR 42S22: Unknown column 'session' in 'SELECT'
 SET global collation_database=utf8_unicode_ci;
 set global collation_database=@@collation_server;
 SELECT global collation_database;
-ERROR 42S22: Unknown column 'global' in 'field list'
+ERROR 42S22: Unknown column 'global' in 'SELECT'
 '#--------------------FN_DYNVARS_016_02-------------------------#'
 SET @@collation_database = latin1_bin;
 SET @@collation_database = DEFAULT;
@@ -74,7 +74,7 @@ res
 1
 '#--------------------FN_DYNVARS_016_05-------------------------#'
 SET @@collation_database = latin7_general_ci + latin7_general_cs;
-ERROR 42S22: Unknown column 'latin7_general_ci' in 'field list'
+ERROR 42S22: Unknown column 'latin7_general_ci' in 'SET'
 '#--------------------FN_DYNVARS_016_06-------------------------#'
 SET @@session.collation_database = big5_chinese_ci;
 SELECT @@session.collation_database;

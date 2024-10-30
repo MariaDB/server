@@ -213,3 +213,14 @@ b`;
 SET timestamp=1234567890;
 select count(*) from mysql.global_priv where length(priv)>2
 # End of 10.5 tests
+#
+# MDEV-34251 Conditional jump or move depends on uninitialised value in
+# ha_handler_stats::has_stats
+#
+set @@global.log_slow_verbosity="";
+connect  con1,localhost,root,,;
+connection con1;
+set long_query_time=0.0, log_slow_verbosity='engine';
+connection default;
+disconnect con1;
+# End of 10.6 tests

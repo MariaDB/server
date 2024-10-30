@@ -1978,6 +1978,34 @@ explain select count(*) from t1, t2 as seq where a=11 and b=seq.seq;
 drop table t1,t2;
 
 --echo #
+--echo # MDEV-35180: ref_to_range rewrite causes poor query plan
+--echo #
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+
+create table t2 (
+  kp1 int,
+  kp2 int,
+  filler char(100),
+  key(kp1, kp2)
+);
+insert into t2
+select
+  seq, seq,
+  'filler-data'
+from seq_1_to_10000;
+
+analyze table t1,t2;
+
+--echo # For t2, this must use type=ref, key_len=5 (not type=range, key_len=10)
+explain
+select *
+from t1, t2
+where
+  t2.kp1=t1.a and t2.kp1<=100 and t2.kp2<=20;
+
+drop table t1,t2;
+--echo #
 --echo # MDEV-30256 Wrong result (missing rows) upon join with empty table
 --echo #
 

@@ -482,6 +482,7 @@ loop:
     free_segment:
       ut_ad(rseg.curr_size >= seg_size);
       rseg.curr_size-= seg_size;
+      DBUG_EXECUTE_IF("undo_segment_leak", goto skip_purge_free;);
       trx_purge_free_segment(rseg_hdr, b, mtr);
       break;
     case TRX_UNDO_CACHED:
@@ -509,7 +510,9 @@ loop:
       goto free_segment;
     }
   }
-
+#ifndef DBUG_OFF
+skip_purge_free:
+#endif /* !DBUG_OFF */
   hdr_addr= prev_hdr_addr;
 
   mtr.commit();

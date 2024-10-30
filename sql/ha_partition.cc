@@ -4833,35 +4833,15 @@ int ha_partition::delete_row(const uchar *buf)
   DBUG_ASSERT(bitmap_is_subset(&m_part_info->full_part_field_set,
                                table->read_set));
 #ifndef DBUG_OFF
-  THD* thd = ha_thd();
   /*
     The protocol for deleting a row is:
     1) position the handler (cursor) on the row to be deleted,
        either through the last read row (rnd or index) or by rnd_pos.
     2) call delete_row with the full record as argument.
 
-    This means that m_last_part should already be set to actual partition
-    where the row was read from. And if that is not the same as the
-    calculated part_id we found a misplaced row, we return an error to
-    notify the user that something is broken in the row distribution
-    between partitions! Since we don't check all rows on read, we return an
-    error instead of forwarding the delete to the correct (m_last_part)
-    partition!
-
     Notice that HA_READ_BEFORE_WRITE_REMOVAL does not require this protocol,
     so this is not supported for this engine.
-
-    For partitions by system_time, get_part_for_buf() is always either current
-    or last historical partition, but DELETE HISTORY can delete from any
-    historical partition. So, skip the check in this case.
   */
-  if (!thd->lex->vers_conditions.delete_history)
-  {
-    uint32 part_id;
-    error= get_part_for_buf(buf, m_rec0, m_part_info, &part_id);
-    DBUG_ASSERT(!error);
-    DBUG_ASSERT(part_id == m_last_part);
-  }
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->read_partitions), m_last_part));
   DBUG_ASSERT(bitmap_is_set(&(m_part_info->lock_partitions), m_last_part));
 #endif

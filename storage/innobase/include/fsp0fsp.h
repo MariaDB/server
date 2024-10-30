@@ -555,8 +555,9 @@ inline void fsp_init_file_page(
 	mtr->init(block);
 }
 
-/** Truncate the system tablespace */
-void fsp_system_tablespace_truncate();
+/** Truncate the system tablespace
+@param shutdown Called during shutdown */
+void fsp_system_tablespace_truncate(bool shutdown);
 
 /** Truncate the temporary tablespace */
 void fsp_shrink_temp_space();

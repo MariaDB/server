@@ -821,7 +821,6 @@ err:
       unireg_abort(1);
     }
 
-    thd->thread_stack= (char*) &thd;
     thd->security_ctx->skip_grants();
     thd->system_thread= SYSTEM_THREAD_GENERIC;
     thd->real_id= pthread_self();

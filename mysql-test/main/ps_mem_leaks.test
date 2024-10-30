@@ -323,6 +323,23 @@ EXECUTE stmt USING 1;
 # CLeanup
 DROP TABLE t;
 
+--echo #
+--echo # MDEV-35249: Assertion `(mem_root->flags & 4) == 0' failed in convert_subq_to_jtbm
+--echo #
+
+CREATE TABLE t (a INT, b INT, c INT);
+INSERT INTO t VALUES (1,2,3),(4,5,6);
+CREATE ALGORITHM=TEMPTABLE VIEW v1 AS SELECT * FROM t;
+CREATE VIEW v2 AS SELECT * FROM v1;
+PREPARE stmt FROM 'UPDATE t SET a = 0 WHERE b IN (SELECT c FROM v2)';
+EXECUTE stmt;
+EXECUTE stmt;
+
+# Cleanup
+DROP VIEW v2;
+DROP VIEW v1;
+DROP TABLE t;
+
 --echo # End of 10.5 tests
 
 --echo #
