@@ -7181,6 +7181,50 @@ load_global_binlog_state(rpl_binlog_state_base *state)
 }
 
 
+/*
+  Used to initialize the binlog GTID state after restart when using
+  --binlog-storage-engine. The engine passes in the GTID binlog state it has
+  restored, and optionally passes a binlog reader. The intention is that the
+  engine can restore a state corresponding to a slightly earlier point in the
+  binlog file, and then we will use the reader to read any extra GTID events
+  and compute the final restored binlog GTID state from that.
+*/
+bool
+binlog_recover_gtid_state(rpl_binlog_state_base *state,
+                          handler_binlog_reader *reader)
+{
+  String packet;
+  Format_description_log_event fd_event(4);
+
+  if (reader)
+  {
+    for (;;)
+    {
+      packet.length(0);
+      int err= reader->read_log_event(&packet, 0, MAX_MAX_ALLOWED_PACKET);
+      if (err == LOG_READ_EOF)
+        break;
+      if (err)
+        return true;
+      Log_event_type event_type=
+          (Log_event_type)((uchar)packet[LOG_EVENT_OFFSET]);
+      if (event_type != GTID_EVENT)
+        continue;
+      rpl_gtid gtid;
+      uchar flags2;
+      if (Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
+                               BINLOG_CHECKSUM_ALG_OFF, &gtid.domain_id,
+                               &gtid.server_id, &gtid.seq_no, &flags2,
+                               &fd_event))
+        return true;
+      state->update_nolock(&gtid);
+    }
+  }
+  rpl_global_gtid_binlog_state.load_nolock(state);
+  return false;
+}
+
+
 bool
 MYSQL_BIN_LOG::append_state_pos(String *str)
 {

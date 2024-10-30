@@ -9212,6 +9212,7 @@ int handler_binlog_reader::read_log_event(String *packet, uint32_t ev_offset,
       res= read_binlog_data(buf, BUF_SIZE);
       if (res <= 0)
       {
+        /* ToDo: Here, if we get EOF in the middle of trying to read an event, we should probably return LOG_READ_IO or some other error, not LOG_READ_EOF? */
         res= (res < 0 ? LOG_READ_IO : LOG_READ_EOF);
         goto err;
       }
