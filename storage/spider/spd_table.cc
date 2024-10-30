@@ -859,8 +859,17 @@ int spider_free_share_alloc(
     }
     spider_free(spider_current_trx, share->tgt_drivers, MYF(0));
   }
-  if (share->tgt_odbc_conn_str)
-    spider_free(spider_current_trx, share->tgt_odbc_conn_str, MYF(0));
+  if (share->tgt_odbc_conn_strs)
+  {
+    for (roop_count = 0; roop_count < (int) share->tgt_odbc_conn_strs_length;
+      roop_count++)
+    {
+      if (share->tgt_odbc_conn_strs[roop_count])
+        spider_free(spider_current_trx, share->tgt_odbc_conn_strs[roop_count],
+          MYF(0));
+    }
+    spider_free(spider_current_trx, share->tgt_odbc_conn_strs, MYF(0));
+  }
   if (share->tgt_pk_names)
   {
     for (roop_count = 0; roop_count < (int) share->tgt_pk_names_length;
@@ -1038,6 +1047,11 @@ void spider_free_tmp_share_alloc(
   {
     spider_free(spider_current_trx, share->tgt_drivers[0], MYF(0));
     share->tgt_drivers[0] = NULL;
+  }
+  if (share->tgt_odbc_conn_strs && share->tgt_odbc_conn_strs[0])
+  {
+    spider_free(spider_current_trx, share->tgt_odbc_conn_strs[0], MYF(0));
+    share->tgt_odbc_conn_strs[0] = NULL;
   }
   if (share->tgt_pk_names && share->tgt_pk_names[0])
   {
@@ -3321,6 +3335,14 @@ int spider_parse_connect_info(
     &share->tgt_drivers_charlen,
     share->all_link_count)))
     goto error;
+  uint unused_charlen;
+  if ((error_num = spider_increase_string_list(
+    &share->tgt_odbc_conn_strs,
+    &share->tgt_odbc_conn_strs_lengths,
+    &share->tgt_odbc_conn_strs_length,
+    &unused_charlen,
+    share->all_link_count)))
+    goto error;
   if ((error_num = spider_increase_string_list(
     &share->tgt_pk_names,
     &share->tgt_pk_names_lengths,
@@ -4616,7 +4638,8 @@ int spider_create_conn_keys(
       + (share->tgt_default_groups[all_link_idx] ? share->tgt_default_groups_lengths[all_link_idx] + 2 : 0)
       + (share->tgt_dsns[all_link_idx] ? share->tgt_dsns_lengths[all_link_idx] + 2 : 0)
       + (share->tgt_filedsns[all_link_idx] ? share->tgt_filedsns_lengths[all_link_idx] + 2 : 0)
-      + (share->tgt_drivers[all_link_idx] ? share->tgt_drivers_lengths[all_link_idx] + 2 : 0);
+      + (share->tgt_drivers[all_link_idx] ? share->tgt_drivers_lengths[all_link_idx] + 2 : 0)
+      + (share->tgt_odbc_conn_strs[all_link_idx] ? share->tgt_odbc_conn_strs_lengths[all_link_idx] + 2 : 0);
     share->conn_keys_charlen += conn_keys_lengths[all_link_idx] + 1;
   }
   if (!(share->conn_keys = (char **)
@@ -4685,6 +4708,7 @@ int spider_create_conn_keys(
     spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_dsns[roop_count]);
     spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_filedsns[roop_count]);
     spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_drivers[roop_count]);
+    spider_create_conn_key_add_one(&counter, &tmp_name, share->tgt_odbc_conn_strs[roop_count]);
     tmp_name++;
     tmp_name++;
     share->conn_keys_hash_value[roop_count] = my_calc_hash(
@@ -7421,6 +7445,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->tgt_pk_names = &tmp_connect_info[18];
   tmp_share->tgt_sequence_names = &tmp_connect_info[19];
   tmp_share->static_link_ids = &tmp_connect_info[20];
+  tmp_share->tgt_odbc_conn_strs = &tmp_connect_info[23];
   tmp_share->tgt_ports = &tmp_long[0];
   tmp_share->tgt_ssl_vscs = &tmp_long[1];
   tmp_share->link_statuses = &tmp_long[2];
@@ -7461,6 +7486,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->tgt_pk_names_lengths = &tmp_connect_info_length[18];
   tmp_share->tgt_sequence_names_lengths = &tmp_connect_info_length[19];
   tmp_share->static_link_ids_lengths = &tmp_connect_info_length[20];
+  tmp_share->tgt_odbc_conn_strs_lengths = &tmp_connect_info_length[23];
   tmp_share->server_names_length = 1;
   tmp_share->tgt_table_names_length = 1;
   tmp_share->tgt_dbs_length = 1;
@@ -7479,6 +7505,7 @@ void spider_set_tmp_share_pointer(
   tmp_share->tgt_dsns_length = 1;
   tmp_share->tgt_filedsns_length = 1;
   tmp_share->tgt_drivers_length = 1;
+  tmp_share->tgt_odbc_conn_strs_length = 1;
   tmp_share->tgt_pk_names_length = 1;
   tmp_share->tgt_sequence_names_length = 1;
   tmp_share->static_link_ids_length = 1;

@@ -453,7 +453,7 @@ SPIDER_CONN *spider_create_conn(
         &tmp_driver,
           (uint) (share->tgt_drivers_lengths[link_idx] + 1),
         &tmp_odbc_conn_str,
-          (uint) (share->tgt_odbc_conn_str_length + 1),
+          (uint) (share->tgt_odbc_conn_strs_lengths[link_idx] + 1),
         &need_mon, (uint) (sizeof(int)),
         NullS))
     ) {
@@ -530,9 +530,9 @@ SPIDER_CONN *spider_create_conn(
                           &conn->tgt_driver_length,
                           share->tgt_drivers_lengths[link_idx]);
     spider_memcpy_or_null(&conn->tgt_odbc_conn_str, tmp_odbc_conn_str,
-                          share->tgt_odbc_conn_str,
+                          share->tgt_odbc_conn_strs[link_idx],
                           &conn->tgt_odbc_conn_str_length,
-                          share->tgt_odbc_conn_str_length);
+                          share->tgt_odbc_conn_strs_lengths[link_idx]);
     conn->tgt_port = share->tgt_ports[link_idx];
     conn->tgt_ssl_vsc = share->tgt_ssl_vscs[link_idx];
     conn->dbton_id = share->sql_dbton_ids[link_idx];
