@@ -61,6 +61,8 @@ connection slave;
 # the informational message is displayed
 connection slave;
 include/stop_slave.inc
+connection master;
+include/kill_binlog_dump_threads.inc
 connection server_1;
 start transaction;
 insert into t values (0);
