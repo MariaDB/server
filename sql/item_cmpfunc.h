@@ -248,6 +248,16 @@ public:
     return val_bool();
   }
   bool val_bool() override= 0;
+  String *val_str(String *str) override final
+  {
+    DBUG_ASSERT(fixed());
+    bool res= val_bool();
+    if (null_value)
+      return 0;
+
+    str->set_int(res, false, collation.collation);
+    return str;
+  }
   bool fix_length_and_dec() override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
