@@ -196,3 +196,17 @@ insert into t values (0x31313131),(0x32323232);
 drop table t;
 set unique_checks=default, foreign_key_checks=default;
 set session transaction isolation level repeatable read;
+#
+# MDEV-35214 Server crashes in FVectorNode::gref_len with insufficient mhnsw_max_cache_size
+#
+set global mhnsw_max_cache_size= 1024*1024*2;
+create table t (v vector(1) not null, vector(v)) engine=innodb;
+start transaction;
+insert into t select 0x30303030 from seq_1_to_200;
+select v from t order by vec_distance_euclidean(v, 0x31313131) limit 2;
+v
+0000
+0000
+commit;
+drop table t;
+set global mhnsw_max_cache_size= default;
