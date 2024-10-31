@@ -6209,6 +6209,7 @@ is_binlog_name(const char *name, uint64_t *out_idx)
 static dberr_t
 fsp_binlog_tablespace_close(uint64_t file_no)
 {
+  mtr_t mtr;
   dberr_t res;
 
   uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
@@ -6229,8 +6230,20 @@ fsp_binlog_tablespace_close(uint64_t file_no)
     written full, the mtr that's ending in the next tablespace may still be
     active? This will need fixing, no busy-wait should be done here.
   */
+
+  /*
+    Take and release an exclusive latch on the last page in the tablespace to
+    be closed. We might be signalled that the tablespace is done while the mtr
+    completing the tablespace write is still active; the exclusive latch will
+    ensure we wait for any last mtr to commit before we close the tablespace.
+  */
+  mtr.start();
+  buf_page_get_gen(page_id_t{space_id, space->size - 1}, 0, RW_X_LATCH, nullptr,
+                   BUF_GET, &mtr, &res);
+  mtr.commit();
+
   while (buf_flush_list_space(space))
-    ;  // ToDo: Think here about waiting until I have released all exclusive latches to pages in the tablespace
+    ;
   // ToDo: Also, buf_flush_list_space() seems to use io_capacity, but that's not appropriate here perhaps
   os_aio_wait_until_no_pending_writes(false);
   space->flush<false>();
@@ -6980,8 +6993,8 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
 
 
 /*
-  Read a binlog state record from a specific page in a file. The passed in
-  STATE object is updated with the state read.
+  Read a binlog state record from a page in a buffer. The passed in STATE
+  object is updated with the state read.
 
   Returns:
     1  State record found
@@ -6989,22 +7002,10 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
     -1 Error
 */
 static int
-read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
-                uint64_t *out_diff_state_interval)
+read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
+                          uint32_t page_no, uint64_t *out_diff_state_interval)
 {
-  std::unique_ptr<byte [], void (*)(void *)> page_buf
-    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(MY_WME)),
-     &my_free);
-  if (UNIV_UNLIKELY(!page_buf))
-    return -1;
-
-  /* ToDo: Verify checksum, and handle encryption. */
-  size_t res= my_pread(file, page_buf.get(), srv_page_size,
-                       (uint64_t)page_no << srv_page_size_shift, MYF(MY_WME));
-  if (UNIV_UNLIKELY(res == (size_t)-1))
-    return -1;
-
-  const byte *p= page_buf.get() + FIL_PAGE_DATA;
+  const byte *p= page + FIL_PAGE_DATA;
   byte t= *p;
   if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
     return 0;
@@ -7070,6 +7071,36 @@ read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
   ut_ad(p == p_end);
 
   return 1;
+}
+
+
+/*
+  Read a binlog state record from a specific page in a file. The passed in
+  STATE object is updated with the state read.
+
+  Returns:
+    1  State record found
+    0  No state record found
+    -1 Error
+*/
+static int
+read_gtid_state(rpl_binlog_state_base *state, File file, uint32_t page_no,
+                uint64_t *out_diff_state_interval)
+{
+  std::unique_ptr<byte [], void (*)(void *)> page_buf
+    ((byte *)my_malloc(PSI_NOT_INSTRUMENTED, srv_page_size, MYF(MY_WME)),
+     &my_free);
+  if (UNIV_UNLIKELY(!page_buf))
+    return -1;
+
+  /* ToDo: Verify checksum, and handle encryption. */
+  size_t res= my_pread(file, page_buf.get(), srv_page_size,
+                       (uint64_t)page_no << srv_page_size_shift, MYF(MY_WME));
+  if (UNIV_UNLIKELY(res == (size_t)-1))
+    return -1;
+
+  return read_gtid_state_from_page(state, page_buf.get(), page_no,
+                                   out_diff_state_interval);
 }
 
 
