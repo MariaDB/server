@@ -314,7 +314,6 @@ public:
 */
 class MHNSW_Share : public Sql_alloc
 {
-  std::atomic<uint> refcnt{0};
   mysql_mutex_t cache_lock;
   mysql_mutex_t node_lock[8];
 
@@ -330,6 +329,7 @@ class MHNSW_Share : public Sql_alloc
   }
 
 protected:
+  std::atomic<uint> refcnt{0};
   MEM_ROOT root;
   Hash_set<FVectorNode> node_cache{PSI_INSTRUMENT_MEM, FVectorNode::get_key};
 
@@ -506,11 +506,15 @@ public:
   }
   void release(bool, TABLE_SHARE *) override
   {
-    if (root_size(&root) > mhnsw_max_cache_size)
+    if (--refcnt == 0 && root_size(&root) > mhnsw_max_cache_size)
       reset(nullptr);
   }
 
-  virtual MHNSW_Share *dup(bool) override { return this; }
+  virtual MHNSW_Share *dup(bool) override
+  {
+    refcnt++;
+    return this;
+  }
 
   static MHNSW_Trx *get_from_thd(TABLE *table, bool for_update);
 
@@ -637,6 +641,7 @@ MHNSW_Trx *MHNSW_Trx::get_from_thd(TABLE *table, bool for_update)
       trans_register_ha(thd, all, &tp, 0);
     }
   }
+  trx->refcnt++;
   return trx;
 }
 
