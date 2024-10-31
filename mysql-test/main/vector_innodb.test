@@ -182,3 +182,14 @@ drop table t;
 --echo #
 CREATE TABLE t (pk INT PRIMARY KEY, v VECTOR(5) NOT NULL, VECTOR(v)) ENGINE=InnoDB SELECT 1 AS pk, x'f09baa3ea172763f123def3e0c7fe53e288bf33e' AS v;
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-35287 ER_KEY_NOT_FOUND upon INSERT into InnoDB table with vector key under READ COMMITTED
+--echo #
+set unique_checks=0, foreign_key_checks=0;
+set session transaction isolation level read committed;
+create table t (v vector(1) not null, vector (v)) engine=innodb;
+insert into t values (0x31313131),(0x32323232);
+drop table t;
+set unique_checks=default, foreign_key_checks=default;
+set session transaction isolation level repeatable read;

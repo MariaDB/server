@@ -15948,6 +15948,9 @@ ha_innobase::external_lock(
 	trx_t* trx = m_prebuilt->trx;
 	ut_ad(m_prebuilt->table);
 
+	if (table->s->tmp_table == INTERNAL_TMP_TABLE)
+		trx->check_unique_secondary = true;
+
 	/* Statement based binlogging does not work in isolation level
 	READ UNCOMMITTED and READ COMMITTED since the necessary
 	locks cannot be taken. In this case, we print an
