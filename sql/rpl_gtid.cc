@@ -1,5 +1,5 @@
 /* Copyright (c) 2013, Kristian Nielsen and MariaDB Services Ab.
-   Copyright (c) 2020, 2022, MariaDB Corporation.
+   Copyright (c) 2020, 2024, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3312,9 +3312,11 @@ struct gtid_report_ctx
 {
   FILE *out_file;
   my_bool is_strict_mode;
+  my_bool report_out_of_order;
   my_bool contains_err;
 };
 
+/** Iteration block for Binlog_gtid_state_validator::report */
 static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
 {
   struct Binlog_gtid_state_validator::audit_elem *audit_el=
@@ -3343,6 +3345,7 @@ static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
     }
 
     /* Report any out of order GTIDs */
+    if (report_ctx->report_out_of_order)
     for(i= 0; i < audit_el->late_gtids_real.elements; i++)
     {
       rpl_gtid *real_gtid=
@@ -3361,13 +3364,28 @@ static my_bool report_audit_findings(void *entry, void *report_ctx_arg)
   return FALSE;
 }
 
-my_bool Binlog_gtid_state_validator::report(FILE *out, my_bool is_strict_mode)
+my_bool Binlog_gtid_state_validator::report(FILE *out, my_bool is_strict_mode,
+                                            my_bool report_out_of_order,
+                                            rpl_gtid *stop_gtids, size_t n_stop_gtids)
 {
-  struct gtid_report_ctx report_ctx;
-  report_ctx.out_file= out;
-  report_ctx.is_strict_mode= is_strict_mode;
-  report_ctx.contains_err= FALSE;
+  struct gtid_report_ctx report_ctx= {out, is_strict_mode, report_out_of_order, FALSE};
   my_hash_iterate(&m_audit_elem_domain_lookup, report_audit_findings, &report_ctx);
+  // Because we don't want to add a new struct gtid_report_ctx member just to index the stop GTIDs,
+  // we can't check them in the report_audit_findings iteration and have to look them up one by one.
+  for (size_t i= 0; i < n_stop_gtids; ++i)
+  {
+    rpl_gtid *stop_gtid= &stop_gtids[i];
+    struct audit_elem *audit_elem= (struct audit_elem *)my_hash_search(
+      &m_audit_elem_domain_lookup,
+      reinterpret_cast<const uchar *>(&(stop_gtid->domain_id)), 0
+    );
+    if (!audit_elem || audit_elem->last_gtid.seq_no < stop_gtid->seq_no)
+      Binlog_gtid_state_validator::warn( // For compatibility, don't error
+        out,
+        "Did not reach stop position %u-%u-%llu before end of input",
+        PARAM_GTID((*stop_gtid))
+      );
+  }
   fflush(out);
   return is_strict_mode ? report_ctx.contains_err : FALSE;
 }

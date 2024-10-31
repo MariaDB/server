@@ -1132,14 +1132,15 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       Where we always ensure the initial binlog state is valid, we only
       continually monitor the GTID stream for validity if we are in GTID
       strict mode (for errors) or if three levels of verbosity is provided
-      (for warnings).
+      (for warnings), or need the final states to verify stop position GTIDs.
 
       If we don't care about ensuring GTID validity, just delete the auditor
       object to disable it for future checks.
     */
     if (gtid_state_validator && print_event_info->is_event_group_active())
     {
-      if (!(opt_gtid_strict_mode || verbose >= 3))
+      if (!(opt_gtid_strict_mode || verbose >= 3 ||
+            (position_gtid_filter && position_gtid_filter->get_num_stop_gtids())))
       {
         delete gtid_state_validator;
 
@@ -3490,6 +3491,8 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       /*
         Emit a warning in the event that we finished processing input
         before reaching the boundary indicated by --stop-position.
+        Due to design limitations, Binlog_gtid_state_validator::report
+        separately checks and warns unreached stop GTIDs.
       */
       if (((longlong)stop_position != stop_position_default) &&
           stop_position > my_b_tell(file))
@@ -3760,13 +3763,25 @@ int main(int argc, char** argv)
   /*
     Ensure the GTID state is correct. If not, end in error.
 
+    We currently were only reporting out-of-order GTIDs if we
+    are in gtid strict mode or are at three levels of verbosity.
     Note that in gtid strict mode, we will not report here if any invalid GTIDs
     are processed because it immediately errors (i.e. retval will be
     ERROR_STOP)
   */
-  if (retval != ERROR_STOP && gtid_state_validator &&
-      gtid_state_validator->report(stderr, opt_gtid_strict_mode))
-    retval= ERROR_STOP;
+  if (retval != ERROR_STOP && gtid_state_validator)
+  {
+    rpl_gtid *stop_gtids= NULL;
+    size_t n_stop_gtids= 0;
+    if (position_gtid_filter)
+    {
+      stop_gtids= position_gtid_filter->get_stop_gtids();
+      n_stop_gtids= position_gtid_filter->get_num_stop_gtids();
+    }
+    if (gtid_state_validator->report(stderr, opt_gtid_strict_mode, verbose >= 3, stop_gtids, n_stop_gtids))
+      retval= ERROR_STOP;
+    my_free(stop_gtids);
+  }
 
   cleanup();
   /* We cannot free DBUG, it is used in global destructors after exit(). */

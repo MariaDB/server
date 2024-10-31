@@ -1,0 +1,32 @@
+
+# MDEV-34614 mysqlbinlog warn on EOF before GTID in --stop-position
+
+SET @@session.gtid_domain_id= 0;
+SET @@session.server_id= 1;
+SET @@session.gtid_seq_no= 1;
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES (1), (2);
+SET @@session.gtid_domain_id= 1;
+CREATE TABLE t2(a int);
+INSERT INTO t2 VALUES (3);
+FLUSH LOGS;
+Case: Default, must not see warning.
+# MYSQL_BINLOG --short-form MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop GTID at EOF, must not see warning.
+# MYSQL_BINLOG --short-form --skip-gtid-strict-mode --stop-position=0-1-2 MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+Case: Stop GTID after EOF, must see warning.
+# MYSQL_BINLOG --short-form --skip-gtid-strict-mode --stop-position=1-1-9 MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+WARNING: Did not reach stop position 1-1-9 before end of input
+Case: Stop GTID nonexistent, must see warning.
+# MYSQL_BINLOG --short-form --skip-gtid-strict-mode --stop-position=9-1-1 MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+WARNING: Did not reach stop position 9-1-1 before end of input
+Case: Stop GTID at EOF + after EOF, must see only one warning.
+# MYSQL_BINLOG --short-form --skip-gtid-strict-mode --stop-position=0-1-2,1-1-9 MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+WARNING: Did not reach stop position 1-1-9 before end of input
+Case: Stop GTID after EOF + nonexistent, must see two warnings.
+# MYSQL_BINLOG --short-form --skip-gtid-strict-mode --stop-position=1-1-9,9-1-1 MYSQLD_DATADIR/master-bin.000001 --result-file=ignored_output_file
+WARNING: Did not reach stop position 1-1-9 before end of input
+WARNING: Did not reach stop position 9-1-1 before end of input
+DROP TABLE t1;
+DROP TABLE t2;
+# End of binlog_mysqlbinlog_warn_stop_gtid.test

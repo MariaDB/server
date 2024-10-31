@@ -488,7 +488,9 @@ public:
 
     Returns TRUE if any findings were reported, FALSE otherwise
   */
-  my_bool report(FILE *out, my_bool is_strict_mode);
+  my_bool report(FILE *out, my_bool is_strict_mode,
+                 my_bool report_out_of_order= TRUE,
+                 rpl_gtid *stop_gtids= NULL, size_t n_stop_gtids= 0);
 
   static void report_details(FILE *out, const char *format, va_list args)
   {
