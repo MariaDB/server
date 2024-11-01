@@ -4340,3 +4340,16 @@ DROP TABLE t0;
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+#     MDEV-20944 Wrong result of LEAST() and ASAN heap-use-after-free in my_strnncollsp_simple / Item::temporal_precision on TIME()
+#
+SET NAMES latin1;
+SELECT LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) );
+LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) )
+0
+#
+# End of 10.6 tests
+#
