@@ -152,8 +152,6 @@ static const LEX_CSTRING ha_choice_values[]=
   { STRING_WITH_LEN("1") }
 };
 
-static void store_key_options(THD *, String *, TABLE_SHARE *, KEY *);
-
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
                                 String *packet);
@@ -2186,9 +2184,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     0       OK
  */
 
-int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
-                         const char *force_db, const char *force_name,
-                         String *packet,
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
+                         const char *force_name, String *packet,
                          Table_specification_st *create_info_arg,
                          enum_with_db_name with_db_name)
 {
@@ -2348,10 +2345,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
-      if (field->invisible == INVISIBLE_USER)
-      {
-        packet->append(STRING_WITH_LEN(" INVISIBLE"));
-      }
     }
     else
     {
@@ -2374,10 +2367,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
-      if (field->invisible == INVISIBLE_USER)
-      {
-        packet->append(STRING_WITH_LEN(" INVISIBLE"));
-      }
       def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
@@ -2396,10 +2385,19 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" "));
         packet->append(def_value);
       }
+    }
 
-      if (field->unireg_check == Field::NEXT_NUMBER &&
-          !(sql_mode & MODE_NO_FIELD_OPTIONS))
+    if (!(sql_mode & MODE_NO_FIELD_OPTIONS) && !foreign_db_mode)
+    {
+      if (field->unireg_check == Field::NEXT_NUMBER)
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
+      if (!limited_mysql_mode)
+      {
+        if (field->invisible == INVISIBLE_USER)
+          packet->append(STRING_WITH_LEN(" INVISIBLE"));
+        append_create_options(thd, packet, field->option_list, check_options,
+                              hton->field_options);
+      }
     }
 
     if (field->comment.length)
@@ -2408,9 +2406,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
 
-    append_create_options(thd, packet, field->option_list, check_options,
-                          hton->field_options);
-    
     if (field->check_constraint)
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
@@ -2419,7 +2414,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
-
   }
 
   if (period.name)
@@ -2503,17 +2497,45 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
 
     packet->append(')');
-    store_key_options(thd, packet, share, &share->key_info[i]);
-    if (key_info->parser)
+
+    if (!(sql_mode & (MODE_NO_KEY_OPTIONS | MODE_MYSQL323 | MODE_MYSQL40)) &&
+        !foreign_db_mode)
     {
-      LEX_CSTRING *parser_name= plugin_name(key_info->parser);
-      packet->append(STRING_WITH_LEN(" /*!50100 WITH PARSER "));
-      append_identifier(thd, packet, parser_name);
-      packet->append(STRING_WITH_LEN(" */ "));
+      if (key_info->algorithm == HA_KEY_ALG_BTREE)
+        packet->append(STRING_WITH_LEN(" USING BTREE"));
+
+      if (key_info->algorithm == HA_KEY_ALG_HASH ||
+          key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+        packet->append(STRING_WITH_LEN(" USING HASH"));
+
+      if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
+          share->key_block_size != key_info->block_size)
+      {
+        packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
+        packet->append_ulonglong(key_info->block_size);
+      }
+      DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
+                 (key_info->comment.length > 0));
+      if (key_info->flags & HA_USES_COMMENT)
+      {
+        packet->append(STRING_WITH_LEN(" COMMENT "));
+        append_unescaped(packet, key_info->comment.str,
+                         key_info->comment.length);
+      }
+
+      if (key_info->is_ignored)
+        packet->append(STRING_WITH_LEN(" IGNORED"));
+
+      if (key_info->parser)
+      {
+        LEX_CSTRING *parser_name= plugin_name(key_info->parser);
+        packet->append(STRING_WITH_LEN(" WITH PARSER "));
+        append_identifier(thd, packet, parser_name);
+      }
+      append_create_options(thd, packet, key_info->option_list, check_options,
+                            (key_info->algorithm == HA_KEY_ALG_VECTOR
+                             ? mhnsw_index_options : hton->index_options));
     }
-    append_create_options(thd, packet, key_info->option_list, check_options,
-                          (key_info->algorithm == HA_KEY_ALG_VECTOR
-                           ? mhnsw_index_options : hton->index_options));
   }
 
   if (table->versioned())
@@ -2608,51 +2630,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
 #endif
   tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
-}
-
-
-static void store_key_options(THD *thd, String *packet, TABLE_SHARE *share,
-                              KEY *key_info)
-{
-  bool limited_mysql_mode= (thd->variables.sql_mode &
-                            (MODE_NO_FIELD_OPTIONS | MODE_MYSQL323 |
-                             MODE_MYSQL40)) != 0;
-  bool foreign_db_mode=  (thd->variables.sql_mode & (MODE_POSTGRESQL |
-                                                     MODE_ORACLE |
-                                                     MODE_MSSQL |
-                                                     MODE_DB2 |
-                                                     MODE_MAXDB |
-                                                     MODE_ANSI)) != 0;
-
-  if (!(thd->variables.sql_mode & MODE_NO_KEY_OPTIONS) &&
-      !limited_mysql_mode && !foreign_db_mode)
-  {
-
-    if (key_info->algorithm == HA_KEY_ALG_BTREE)
-      packet->append(STRING_WITH_LEN(" USING BTREE"));
-
-    if (key_info->algorithm == HA_KEY_ALG_HASH ||
-        key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-      packet->append(STRING_WITH_LEN(" USING HASH"));
-
-    if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
-        share->key_block_size != key_info->block_size)
-    {
-      packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
-      packet->append_ulonglong(key_info->block_size);
-    }
-    DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
-               (key_info->comment.length > 0));
-    if (key_info->flags & HA_USES_COMMENT)
-    {
-      packet->append(STRING_WITH_LEN(" COMMENT "));
-      append_unescaped(packet, key_info->comment.str, 
-                       key_info->comment.length);
-    }
-
-    if (key_info->is_ignored)
-      packet->append(STRING_WITH_LEN(" IGNORED"));
-  }
 }
 
 
