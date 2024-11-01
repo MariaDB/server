@@ -245,6 +245,7 @@ where
   pk in (1,2,3,4,5) and
   key1 <= 4;
 
+--disable_view_protocol
 --echo # 11.0+ will not attempt to use selectivity(key1): 
 select 
   json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
@@ -256,6 +257,7 @@ select
   json_detailed(json_extract(trace,'$**.best_access_path')) as JS
 from 
   information_schema.optimizer_trace;
+--enable_view_protocol
 
 drop table t1;
 --echo #
