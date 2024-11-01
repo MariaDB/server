@@ -61,6 +61,7 @@ create table t1 (a int);
 
 --connection server_2
 --echo # Verifying server_2 did not send ACK
+set debug_sync= "now wait_for io_thd_at_slave_reply";
 --let $slave1_sent_ack= query_get_value(SHOW STATUS LIKE 'rpl_semi_sync_slave_send_ack', Value, 1)
 if (`SELECT $slave1_sent_ack`)
 {
@@ -98,6 +99,9 @@ if (`SELECT $cur_master_yes_tx != ($init_master_yes_tx + 1)`)
   --echo # Current yes_tx: $cur_master_yes_tx
   --die rpl_semi_sync_master_yes_tx should have been incremented by primary
 }
+
+--connection server_2
+set debug_sync= "now signal io_thd_do_reply";
 
 
 --echo #

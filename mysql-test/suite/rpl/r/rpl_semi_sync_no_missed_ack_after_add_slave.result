@@ -22,11 +22,14 @@ connection server_1;
 create table t1 (a int);
 connection server_2;
 # Verifying server_2 did not send ACK
+set debug_sync= "now wait_for io_thd_at_slave_reply";
 connection server_3;
 # Verifying server_3 did send ACK
 connection server_1;
 # Verifying master's semi-sync status is still ON (This failed pre-MDEV-32960 fixes)
 # Verifying rpl_semi_sync_master_yes_tx incremented
+connection server_2;
+set debug_sync= "now signal io_thd_do_reply";
 #
 # Cleanup
 connection server_2;
