@@ -6676,6 +6676,8 @@ Compare_keys compare_keys_but_name(const KEY *table_key, const KEY *new_key,
     return Compare_keys::NotEqual;
 
   if (engine_options_differ(table_key->option_struct, new_key->option_struct,
+                            table_key->algorithm == HA_KEY_ALG_VECTOR ?
+                            mhnsw_index_options :
                             table->file->ht->index_options))
     return Compare_keys::NotEqual;
 
