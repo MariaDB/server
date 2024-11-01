@@ -7,6 +7,7 @@
 # ==== Usage ====
 #
 # [--let $timeout= NUMBER in seconds]
+# [--let $wait_for_pattern_count= Optional NUMBER of occurences to wait for]
 # For other parameters, check search_pattern_in_file.inc
 
 --let $wait_save_keep_include_silent=$keep_include_silent
@@ -24,8 +25,23 @@ if (!$_timeout)
   }
 }
 
+if (!$wait_for_pattern_count)
+{
+  # If we don't care about the number of occurrences of a pattern, use
+  # NOT FOUND as the abort case
+  let SEARCH_ABORT=NOT FOUND;
+  let SEARCH_ABORT_IS_SUCCESS= 0;
+}
+if ($wait_for_pattern_count)
+{
+  # If we care about waiting for an exact number of occurrences, use that
+  let SEARCH_ABORT=FOUND $wait_for_pattern_count;
+  let SEARCH_ABORT_IS_SUCCESS= 1;
+}
+
+--echo # wait SA $SEARCH_ABORT SAIS $SEARCH_ABORT_IS_SUCCESS
+
 let $_timeout_counter=`SELECT $_timeout * 10`;
-let SEARCH_ABORT=NOT FOUND;
 let $_continue= 1;
 disable_abort_on_error;
 while ($_continue)

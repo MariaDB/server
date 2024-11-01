@@ -12,10 +12,20 @@
 #                                   replica after the shutdown
 #   server_3_expect_row_count (int) The number of rows expected on the second
 #                                   replica after the shutdown
+#   server_2_sync_slave_reply (bool) True if server_2_dbug is configured to use
+#                                    debug_sync to synchronize the slave reply
+#                                    (i.e. to pause before the reply)
+#   server_3_sync_slave_reply (bool) True if server_3_dbug is configured to use
+#                                    debug_sync to synchronize the slave reply
+#                                    (i.e. to pause before the reply)
 #
 
 --connection server_1
 let $log_error_file= `SELECT @@GLOBAL.log_error`;
+if (!$n_logged_delayed_shutdown_notes)
+{
+  let $n_logged_delayed_shutdown_notes= 0;
+}
 
 --echo #--
 --echo #-- Semi-sync Setup
@@ -78,25 +88,81 @@ let $status_var= Rpl_semi_sync_master_wait_sessions;
 let $status_var_value= 1;
 source include/wait_for_status_var.inc;
 
+if ($server_2_sync_slave_reply)
+{
+  --connection server_2
+  set debug_sync= "now wait_for io_thd_at_slave_reply";
+}
+if ($server_3_sync_slave_reply)
+{
+  --connection server_3
+  set debug_sync= "now wait_for io_thd_at_slave_reply";
+}
+
+# We are using wait_for_pattern_in_file to detect the shutdown is being
+# delayed, but to not re-detect a pattern, we note the size of the error log
+# before the shutdown and use it as the SEARCH_RANGE parameter to start the
+# search at.
+#--let $err_log_size_before_shutdown= `SELECT LENGTH(LOAD_FILE('$log_error_file'))`
+
+--connection server_1_con2
 --echo #-- Begin master shutdown
 SHUTDOWN WAIT FOR ALL SLAVES;
---source include/wait_until_disconnected.inc
 
+
+# Use server_2 to search error log because 1 is down
+--connection server_2
+
+--echo # Waitng for shutdown to be delayed..
+# Increment the number of notes to find each test case to ensure the pattern is
+# ours
+--inc $n_logged_delayed_shutdown_notes
+let SEARCH_FILE= $log_error_file;
+let SEARCH_PATTERN=Delaying shutdown to await semi-sync ACK;
+--let $wait_for_pattern_count= $n_logged_delayed_shutdown_notes
+source include/wait_for_pattern_in_file.inc;
+
+if (`SELECT $server_2_sync_slave_reply AND $server_2_expect_row_count`)
+{
+  --connection server_2
+  set debug_sync= "now signal io_thd_do_reply";
+}
+if (`SELECT $server_3_sync_slave_reply AND $server_3_expect_row_count`)
+{
+  --connection server_3
+  set debug_sync= "now signal io_thd_do_reply";
+}
+
+--echo # Reaping transaction..
 --connection server_1
 --error 2013
 --reap
 --source include/wait_until_disconnected.inc
 
---echo # Check logs to ensure shutdown was delayed
---let SEARCH_FILE=$log_error_file
---let SEARCH_PATTERN=Delaying shutdown to await semi-sync ACK
---source include/search_pattern_in_file.inc
+# Timeout should be hit from prior reap
+--connection server_2
+if (`SELECT $server_2_sync_slave_reply AND NOT $server_2_expect_row_count`)
+{
+  --connection server_2
+  set debug_sync= "now signal io_thd_do_reply";
+}
+if (`SELECT $server_3_sync_slave_reply AND NOT $server_3_expect_row_count`)
+{
+  --connection server_3
+  set debug_sync= "now signal io_thd_do_reply";
+}
+
+--echo # Reaping shutdown..
+--connection server_1_con2
+--source include/wait_until_disconnected.inc
+
 
 --echo # Validate slave data is in correct state
 --connection server_2
 --eval select count(*)=$server_2_expect_row_count from t1
 --connection server_3
 --eval select count(*)=$server_3_expect_row_count from t1
+
 
 --echo #
 --echo #-- Re-synchronize slaves with master and disable semi-sync
