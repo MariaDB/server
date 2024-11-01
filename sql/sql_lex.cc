@@ -1272,6 +1272,7 @@ void LEX::start(THD *thd_arg)
   derived_tables= 0;
   with_cte_resolution= false;
   only_cte_resolution= false;
+  min_nest_level_with_outer_ref= INT_MAX;
   safe_to_cache_query= 1;
   parsing_options.reset();
   empty_field_list_on_rset= 0;
@@ -3064,6 +3065,7 @@ void st_select_lex::init_query()
   versioned_tables= 0;
   pushdown_select= 0;
   orig_names_of_item_list_elems= 0;
+  resolved_here= 0;
 }
 
 void st_select_lex::init_select()
@@ -3112,6 +3114,7 @@ void st_select_lex::init_select()
   is_tvc_wrapper= false;
   nest_flags= 0;
   orig_names_of_item_list_elems= 0;
+  resolved_here= 0;
 }
 
 /*

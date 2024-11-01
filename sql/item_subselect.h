@@ -210,14 +210,19 @@ public:
   void make_const()
   { 
     used_tables_cache= 0;
+    new_used_tables_cache= 0;
     const_item_cache= 0;
     forced_const= TRUE; 
   }
+  void set_used_tables(table_map newmap) { new_used_tables_cache|= newmap; }
+  void clear_used_tables(table_map newmap) { new_used_tables_cache&= ~newmap; }
+  void update_resolved_items_used_tables( List<Item_field> *refs );
   virtual bool fix_length_and_dec();
   table_map used_tables() const override;
   table_map not_null_tables() const override { return 0; }
   bool const_item() const override;
   inline table_map get_used_tables_cache() { return used_tables_cache; }
+  inline table_map new_get_used_tables_cache() { return new_used_tables_cache; }
   Item *get_tmp_table_item(THD *thd) override;
   void update_used_tables() override;
   void print(String *str, enum_query_type query_type) override;
@@ -252,6 +257,8 @@ public:
   {
     return mark_unsupported_function("select ...", arg, VCOL_IMPOSSIBLE);
   }
+  bool update_resolved_here_processor(void *arg) override;
+  bool clear_used_tables_bit_processor(void *arg) override;
   /**
     Callback to test if an IN predicate is expensive.
 
@@ -285,6 +292,8 @@ public:
   Item *do_get_copy(THD *thd) const override { return 0; }
 
   st_select_lex *wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl);
+
+  bool update_resolved_items_used_tables();
 
   friend class select_result_interceptor;
   friend class Item_in_optimizer;

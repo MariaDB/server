@@ -1267,6 +1267,12 @@ public:
   bool having_fix_field_for_pushed_cond;
   /* List of references to fields referenced from inner selects */
   List<Item_outer_ref> inner_refs_list;
+
+  /* List of Items that are in inner selects but resolved here */
+  List<Item_field> *resolved_here;
+  void update_resolved_items_used_tables();
+  void lower_outer_height();
+
   /* Number of Item_sum-derived objects in this SELECT */
   uint n_sum_items;
   /* Number of Item_sum-derived objects in children and descendant SELECTs */
@@ -3434,6 +3440,7 @@ public:
   bool check_exists;
   bool autocommit;
   bool verbose, no_write_to_binlog;
+  int min_nest_level_with_outer_ref;
 
   enum enum_yes_no_unknown tx_chain, tx_release;
   bool safe_to_cache_query;

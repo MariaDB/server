@@ -1,0 +1,1952 @@
+#
+# MDEV-32294 2nd execution problem with inconsistent outer context paths
+#
+SELECT * FROM (
+WITH RECURSIVE x ( a ) AS ( SELECT 1 UNION SELECT a FROM x )
+SELECT * FROM x
+WHERE a IN (
+SELECT a FROM x WHERE ( SELECT 1 GROUP BY a HAVING ( a ) )
+)
+) as dt ;
+a
+1
+create table t1 (t1a int, t1b int, t1c int) engine=myisam;
+insert into t1 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t2 (t2a int, t2b int, t2c int) engine=myisam;
+insert into t2 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t3 (t3a int, t3b int, t3c int) engine=myisam;
+insert into t3 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t4 (t4a int, t4b int, t4c int) engine=myisam;
+insert into t4 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t5 (t5a int, t5b int, t5c int) engine=myisam;
+insert into t5 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t6 (t6a int, t6b int, t6c int) engine=myisam;
+insert into t6 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+create table t7 (t7a int, t7b int, t7c int) engine=myisam;
+insert into t7 values (1, 1, 1), (2, 2, 2), (3, 3, 3);
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+)
+);
+t1a
+1
+2
+3
+prepare s from 'select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+)
+)';
+execute s;
+t1a
+1
+2
+3
+execute s;
+t1a
+1
+2
+3
+rewrite query
+select t1a from t1
+where t1a in
+(
+select t2c from t2
+where (select t3a from t3 where t1b=t3b and t2a>t3a) <> 0
+);
+t1a
+prepare s from 'select t1a from t1
+where t1a in
+(
+select t2c from t2
+where (select t3a from t3 where t1b=t3b and t2a>t3a) <> 0
+)';
+execute s;
+t1a
+execute s;
+t1a
+The root of the problem, outer reference but no merge yet
+select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3a from t3 where t1b=t3b and t2a>t3a) <> 0
+);
+t1a	t1b	t1c
+prepare s from 'select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3a from t3 where t1b=t3b and t2a>t3a) <> 0
+)';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+reference to top select, it isn't merged into anything
+select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t1a limit 1) <> 0
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t1a limit 1) <> 0
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+basic tower
+select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3)
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3)
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5)
+)
+)
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5)
+)
+)
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tower, no wrapper + reference to first level select
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t1a)
+)
+)
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t1a)
+)
+)
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a < any(select t5c from t5 where t2a > 0)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a < any(select t5c from t5 where t2a > 0)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a < any(select t5c from t5 where t2a > 0)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a < any(select t5c from t5 where t2a > 0)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a < any(select t5c from t5 where t2a > 0)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+select * from
+(
+select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+tallest tower
+select * from
+(
+select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5 where t2a > 0)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5
+where (select min(t2a+t6a) from t6) > 0)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5
+where (select min(t2a+t6a) from t6) > 0)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5
+where (select min(t2a+t6a) from t6) > 0)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5
+where (select min(t2a+t6a) from t6) > 0)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1c in
+(
+select t4a from t4
+left join t2 on t2a = t4a
+join t3 on t3b > 0 and t3a = (select min(t5c) from t5
+where (select min(t2a+t6a) from t6) > 0)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+left join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+left join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+left join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+left join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1c in
+(
+select t4a from t4
+join t2 on t2a = t4a
+left join t3 on t3a = (select min(t5c) from t5 where t2a > 0)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+select * from t1
+where t1c in
+(
+select t2a from 
+( select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+) dt2
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select t2a from 
+( select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+) dt2
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tallest tower, internal wrapper + reference to first internal select
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from (select * from t2) table2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from (select * from t2) table2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+with having
+select * from (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t1a having t1a > 0 )
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t1a having t1a > 0 )
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t1a having t1a > 0 )
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t1a having t1a > 0 )
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t1a having t1a > 0 )
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+tower, internal wrapper 1
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select * from
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t3a having t3a > 0)
+)
+) dt
+)
+);
+t1a	t1b	t1c
+prepare s from 'select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select * from
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t3a having t3a > 0)
+)
+) dt
+)
+)';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+tower, internal wrapper 2
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t3a having t3a > 0)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t3a having t3a > 0)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+crashes on first execution having -> where, refix -> boom
+select * from (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t2a having t2a > 0 )
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t2a having t2a > 0 )
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+with dt as (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t2a having t2a > 0 )
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t2a having t2a > 0 )
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+create view v1 as select * from t1
+where t1a in
+(
+select t2a from t2
+where ( select t3b from t3 where t3b < 3 group by t2a having t2a > 0 )
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+tower, internal wrapper 
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t5a
+having t5a > t3a)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 group by t5a
+having t5a > t3a)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tower, internal wrapper + reference to wrapped second internal select
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from (select * from t3) table3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > table3.t3a)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from (select * from t3) table3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > table3.t3a)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tower, internal wrapper + reference to wrapped second internal select
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from (select * from t3) table3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from (select * from t3) table3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tallest tower, internal wrapper + reference to second internal select
+select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+) dt
+);
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from t1
+where t1c in
+(
+select * from
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+) dt
+)';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tallest tower + reference to third level select
+select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+)
+) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from
+(
+select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t3a)
+)
+)
+)
+) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+tower + reference to second level select
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t2a)
+)
+)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+drop view v1;
+tallest tower + reference to upper select
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t4a)
+)
+)
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t4a)
+)
+)
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t4a)
+)
+)
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t4a)
+)
+)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a in
+(
+select t3a from t3
+where t3a in
+(
+select t4a from t4
+where t4a < any(select t5c from t5 where t5a > t4a)
+)
+)
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+drop view v1;
+basic tower + reference to top select
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t1a > 2)
+)) dt;
+t1a	t1b	t1c
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t1a > 2)
+)) dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t1a > 2)
+)) select * from dt;
+t1a	t1b	t1c
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t1a > 2)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t1a > 2)
+);
+select * from v1;
+t1a	t1b	t1c
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+drop view v1;
+reference to middle select
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t2a > 2)
+)) dt;
+t1a	t1b	t1c
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t2a > 2)
+)) dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t2a > 2)
+)) select * from dt;
+t1a	t1b	t1c
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t2a > 2)
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where t2a < any(select t3b from t3 where t2a > 2)
+);
+select * from v1;
+t1a	t1b	t1c
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t2a limit 1) <> 0
+)) dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t2a limit 1) <> 0
+)) dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t2a limit 1) <> 0
+)) select * from dt;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t2a limit 1) <> 0
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where (select t3b from t3 where t3a > t2a limit 1) <> 0
+);
+select * from v1;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+execute s;
+t1a	t1b	t1c
+1	1	1
+2	2	2
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) dt;
+t1a	t1b	t1c
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) select * from dt;
+t1a	t1b	t1c
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+);
+select * from v1;
+t1a	t1b	t1c
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select t3b from t3 where t1a > 2 and t3b < 2 ) <> 0
+)) dt;
+t1a	t1b	t1c
+3	3	3
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select t3b from t3 where t1a > 2 and t3b < 2 ) <> 0
+)) dt';
+execute s;
+t1a	t1b	t1c
+3	3	3
+execute s;
+t1a	t1b	t1c
+3	3	3
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select t3b from t3 where t1a > 2 and t3b < 2 ) <> 0
+)) select * from dt;
+t1a	t1b	t1c
+3	3	3
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select t3b from t3 where t1a > 2 and t3b < 2 ) <> 0
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+3	3	3
+execute s;
+t1a	t1b	t1c
+3	3	3
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select t3b from t3 where t1a > 2 and t3b < 2 ) <> 0
+);
+select * from v1;
+t1a	t1b	t1c
+3	3	3
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+3	3	3
+execute s;
+t1a	t1b	t1c
+3	3	3
+drop view v1;
+select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) dt;
+t1a	t1b	t1c
+prepare s from 'select * from (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) select * from dt;
+t1a	t1b	t1c
+prepare s from 'with dt as (select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+)) select * from dt';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+create view v1 as select * from t1
+where t1c in
+(
+select t2a from t2
+where ( select min(t3b) from t3 where t1a > 2 and t2b < 2 ) <> 0
+);
+select * from v1;
+t1a	t1b	t1c
+prepare s from 'select * from v1';
+execute s;
+t1a	t1b	t1c
+execute s;
+t1a	t1b	t1c
+drop view v1;
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+)
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+union
+select t4a from t4 where t1a=t4b
+)
+union
+select t4c from t4 where t4a >= some
+(
+select t5a from t5 where t1c=t5b
+)
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+union
+select t4a from t4 where t1a=t4b
+)
+union
+select (select t5a from t5 where t1c=t5b) from t4
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t1b=t3b
+union
+select t4a from t4 where t1a=t4b
+)
+union
+select (select t5a from t5 where t1c=t5b and t4c) from t4
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select (select t5a from t5 where t1c=t5b and t4c) from t4 group by t1a
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select (select t5a from t5 where t1c=t5b and t4c) from t4 group by t1b
+);
+t1a
+1
+2
+3
+select t1a, t1b from (select t1a, t1b from t1) dt1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where dt1.t1b=t3b
+)
+);
+t1a	t1b
+1	1
+2	2
+3	3
+create view v1 as select t1a, t1b from (select t1a, t1b from t1) dt1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where dt1.t1b=t3b
+)
+);
+create table ambiguous like t1;
+insert into ambiguous values (1, 1, 1);
+select t1a from t1
+where t1a in
+(
+select t1a from ambiguous where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a
+1
+select t1a from t1
+where t1a in
+(
+select (select t1a from ambiguous) from t2 where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a
+1
+select t1a from t1
+where (select t1a from ambiguous) in
+(
+select (select t1a from ambiguous) from t2 where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a
+1
+2
+3
+select t1a from t1
+where (select t2a from t2 where t2a > any (select t3a from t3 where t1a=t3b) order by t1a limit 1 ) in
+(
+select (select t1a from ambiguous) from t2 where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a
+select t1a from t1
+where (select t2a from t2 where t2a > any (select t3a from t3 where t1a=t3b) order by t1a limit 1 ) > any
+(
+select (select t1a from ambiguous) from t2 where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a
+1
+2
+select * from
+(
+select t1a from t1
+where (select t2a from t2 where t2a > any (select t3a from t3 where t1a=t3b) order by t1a limit 1 ) > any
+(
+select (select t1a from ambiguous) from (select t1a from t1) dt where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+)
+) dt;
+t1a
+1
+2
+select t1a, t1b from ( select * from t1 ) dt
+where (select t2a from t2 where t2a > any (select t3a from t3 where t1a=t3b) order by t1a limit 1 ) > any
+(
+select (select t1a from ambiguous) from (select t1a from t1) dt where t1a >= some
+(
+select t3a from t3 where t1a=t3b
+)
+);
+t1a	t1b
+1	1
+2	2
+select t1a, t1b from ( select * from t1 ) dt
+where (select t2a from t2 where t2a > any (select t3a from t3 where t1a=t3b) order by t1a limit 1 ) > any
+(
+select (select t1a from ambiguous) from (select t1a from t1) dt where t1a >= some
+(
+select (select t3a from t3 where t1a=t3b) from t4 where t1a >= t4a
+)
+);
+t1a	t1b
+1	1
+2	2
+select t1a from t1
+where t1a in
+(
+select t2c from t2 where t2a >= some
+(
+select t3a from t3 where t3b in
+(
+select t4a from t4 order by t4b
+)
+union
+select t5a from t5 where t5b in
+(
+select t6a from t6 where t6b in
+(
+select t7a from t7 where t7b >= t1c and t7c >= t2c
+)
+)
+)
+);
+t1a
+1
+2
+3
+select t1a from t1
+where t1a in
+(
+select t2a from t2 where t2b >= some
+(
+select t3a from t3 where t3b in
+(
+select t4a from t4 where t4b >= t1a and t4c in
+(
+select t6a from t6  where t6b >= t2b
+)
+union
+select t4a from t4 where t4a > t1a
+)
+)
+);
+t1a
+1
+2
+3
+drop view v1;
+drop table t1,t2,t3,t4,t5,t6,t7,ambiguous;
+# end of 10.5 tests

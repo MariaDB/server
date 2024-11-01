@@ -5383,8 +5383,8 @@ void mark_select_range_as_dependent(THD *thd, SELECT_LEX *last_select,
     resolving)
   */
   SELECT_LEX *previous_select= current_sel;
-  for (; previous_select->context.outer_select() != last_select;
-       previous_select= previous_select->context.outer_select())
+  for (; previous_select->outer_select() != last_select;
+       previous_select= previous_select->outer_select())
   {
     Item_subselect *prev_subselect_item=
       previous_select->master_unit()->item;
@@ -5757,6 +5757,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   SELECT_LEX *current_sel= thd->lex->current_select;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
+
   /* Currently derived tables cannot be correlated */
   if ((current_sel->master_unit()->first_select()->get_linkage() !=
        DERIVED_TABLE_TYPE) &&
@@ -5834,7 +5835,30 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         }
         if (*from_field != view_ref_found)
         {
+          /*
+            Populate the resolved_here list in statement memory
+          */
+          if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
+                  thd->stmt_arena->is_conventional())
+          {
+            // TODO does this *really* need to be in statement memory?
+            Query_arena *arena, backup;
+            arena= thd->activate_stmt_arena_if_needed(&backup);
+
+            if (!select->resolved_here)
+            {
+              if (!(select->resolved_here= new (thd->mem_root)List<Item_field>))
+                return -1;
+            }
+            select->resolved_here->push_back( this, thd->mem_root);
+            if (arena)
+              thd->restore_active_arena(arena, &backup);
+            if (select->nest_level < thd->lex->min_nest_level_with_outer_ref)
+              thd->lex->min_nest_level_with_outer_ref= select->nest_level;
+          }
+
           prev_subselect_item->used_tables_cache|= (*from_field)->table->map;
+          prev_subselect_item->new_used_tables_cache|= (*from_field)->table->map;
           prev_subselect_item->const_item_cache= 0;
           set_field(*from_field);
           if (!last_checked_context->select_lex->having_fix_field &&
@@ -5929,6 +5953,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
       case it does not matter which used tables bits we set)
     */
     prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+    prev_subselect_item->new_used_tables_cache|= OUTER_REF_TABLE_BIT;
     prev_subselect_item->const_item_cache= 0;
   }
 
@@ -8235,6 +8260,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
           if (from_field != not_found_field)
           {
             if (cached_table && cached_table->select_lex &&
+                outer_context && outer_context->outer_context &&
                 outer_context->select_lex &&
                 cached_table->select_lex != outer_context->select_lex)
             {
@@ -8251,9 +8277,11 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
                   last_checked_context->select_lex->master_unit()->item;
                 last_checked_context= outer_context;
               } while (outer_context && outer_context->select_lex &&
+                       outer_context->outer_context &&
                        cached_table->select_lex != outer_context->select_lex);
             }
             prev_subselect_item->used_tables_cache|= from_field->table->map;
+            prev_subselect_item->new_used_tables_cache|= from_field->table->map;
             prev_subselect_item->const_item_cache= 0;
             break;
           }
@@ -8262,6 +8290,7 @@ bool Item_ref::fix_fields(THD *thd, Item **reference)
 
         /* Reference is not found => depend on outer (or just error). */
         prev_subselect_item->used_tables_cache|= OUTER_REF_TABLE_BIT;
+        prev_subselect_item->new_used_tables_cache|= OUTER_REF_TABLE_BIT;
         prev_subselect_item->const_item_cache= 0;
 
         outer_context= outer_context->outer_context;

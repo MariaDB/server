@@ -1596,6 +1596,7 @@ static void reset_equality_number_for_subq_conds(Item * cond)
   return;
 }
 
+
 /*
   Convert a subquery predicate into a TABLE_LIST semi-join nest
 
@@ -1639,6 +1640,9 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
   uint ncols;
   DBUG_ENTER("convert_subq_to_sj");
 
+  DBUG_PRINT("info", ("parent_lex select #%d, subq_pred select #%d",
+          parent_lex->select_number,
+          subq_pred->unit->first_select()->select_number) );
   /*
     1. Find out where to put the predicate into.
      Note: for "t1 LEFT JOIN t2" this will be t2, a leaf.
@@ -1970,6 +1974,32 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
 
   /* Unlink the child select_lex so it doesn't show up in EXPLAIN: */
   subq_lex->master_unit()->exclude_level();
+  subq_lex->merged_into= parent_lex;
+  /* TODO, when do we reset this?  The tables are renumbered after all
+   * it isn't here.
+  sj_nest->sj_on_expr->walk(&Item::clear_used_tables_bit_processor, 0, 
+                              (void *)0b111111); */
+  if (parent_lex->nest_level == thd->lex->min_nest_level_with_outer_ref)
+    sj_nest->sj_on_expr->walk(&Item::clear_used_tables_bit_processor, 0, 
+                              (void *)OUTER_REF_TABLE_BIT);
+
+  if (subq_lex->resolved_here)
+  {
+    DBUG_PRINT("info", ("shifting resolved_here from select #%d to #%d",
+          subq_lex->select_number,
+          parent_lex->select_number) );
+    if (!parent_lex->resolved_here)
+      parent_lex->resolved_here= subq_lex->resolved_here;
+    else
+    {
+      parent_lex->resolved_here->append(subq_lex->resolved_here);
+      subq_lex->resolved_here= nullptr;
+    }
+
+    // update used_tables_cache for items resolved in this parent SELECT_LEX
+    sj_nest->sj_on_expr->walk(&Item::update_resolved_here_processor,
+                              0, parent_lex->resolved_here);
+  }
 
   DBUG_EXECUTE("where",
                print_where(sj_nest->sj_on_expr,"SJ-EXPR", QT_ORDINARY););

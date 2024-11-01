@@ -2644,12 +2644,14 @@ public:
     if (!args[0]->maybe_null && !arg_is_datetime_notnull_field())
     {
       used_tables_cache= 0;			/* is always false */
+      new_used_tables_cache= 0;			/* is always false */
       const_item_cache= 1;
     }
     else
     {
       args[0]->update_used_tables();
       used_tables_cache= args[0]->used_tables();
+      new_used_tables_cache= args[0]->used_tables();
       const_item_cache= args[0]->const_item();
     }
   }

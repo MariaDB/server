@@ -344,7 +344,10 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
   {
     const_item_cache= 0;
     if (uncacheable & UNCACHEABLE_RAND)
+    {
       used_tables_cache|= RAND_TABLE_BIT;
+      new_used_tables_cache|= RAND_TABLE_BIT;
+    }
   }
   fixed= 1;
 
@@ -497,6 +500,9 @@ void Item_subselect::recalc_used_tables(st_select_lex *new_parent,
   DBUG_ENTER("recalc_used_tables");
   
   used_tables_cache= 0;
+
+  // NOT rebuilt below, but in Item_subselect::update_resolved_here_processor
+  new_used_tables_cache= 0;
   while ((upper= it++))
   {
     bool found= FALSE;
@@ -1059,6 +1065,54 @@ void Item_subselect::print(String *str, enum_query_type query_type)
     str->append("(...)");
 }
 
+
+/*
+  Update Item_subselect::used_tables_cache attached to this SELECT_LEX (if any)
+
+  SYNOPSIS
+    update_resolved_items_used_tables()
+
+  DESCRIPTION
+*/
+
+bool Item_subselect::update_resolved_here_processor( void *arg )
+{
+  List<Item_field> *refs = (List<Item_field> *)arg;
+  DBUG_ENTER("Item_subselect::update_resolved_items_used_tables");
+  if (!refs ||
+      !refs->elements)
+    DBUG_RETURN(FALSE);
+
+  List_iterator_fast<Item_field>  it( *refs );
+  Item_field *item;
+
+  // for each item resolved in this SELECT_LEX
+  while ((item= it++))
+    set_used_tables( item->field->table->map );
+  DBUG_PRINT("info", ("%s", dbug_print_item(this)));
+
+  DBUG_PRINT("info", ("new used_tables_cache: %llx",
+        new_get_used_tables_cache()));
+
+  DBUG_PRINT("info", ("old used_tables_cache: %llx",
+        get_used_tables_cache()));
+
+  DBUG_RETURN(FALSE);
+}
+
+bool Item_subselect::clear_used_tables_bit_processor( void *arg )
+{
+  table_map bits_to_clear= (table_map)arg;
+  clear_used_tables(bits_to_clear);
+  DBUG_PRINT("info", ("%s", dbug_print_item(this)));
+
+  DBUG_PRINT("info", ("new used_tables_cache: %llx",
+        new_get_used_tables_cache()));
+
+  DBUG_PRINT("info", ("old used_tables_cache: %llx",
+        get_used_tables_cache()));
+  return FALSE;
+}
 
 Item_singlerow_subselect::Item_singlerow_subselect(THD *thd, st_select_lex *select_lex):
   Item_subselect(thd), value(0)
@@ -3539,6 +3593,7 @@ void Item_in_subselect::fix_after_pullout(st_select_lex *new_parent,
   left_expr->fix_after_pullout(new_parent, &left_expr, merge);
   Item_subselect::fix_after_pullout(new_parent, ref, merge);
   used_tables_cache |= left_expr->used_tables();
+  new_used_tables_cache |= left_expr->used_tables();
 }
 
 void Item_in_subselect::update_used_tables()
@@ -3547,6 +3602,7 @@ void Item_in_subselect::update_used_tables()
   left_expr->update_used_tables();
   //used_tables_cache |= left_expr->used_tables();
   used_tables_cache= Item_subselect::used_tables() | left_expr->used_tables();
+  new_used_tables_cache= Item_subselect::used_tables() | left_expr->used_tables();
 }
 
 
