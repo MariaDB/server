@@ -2084,13 +2084,14 @@ DELIMITER ;$$
 # erroneously prints a warning:
 #   This function 'nocopy' has the same name as a native function
 # Though it's not really a function, it's just a keyword.
-# This warning is not printed with ps protocol. Let's disable ps protocol.
 
---disable_ps_protocol
+--enable_prepare_warnings
 CREATE FUNCTION nocopy (nocopy INT) RETURNS INT RETURN nocopy;
+--disable_view_protocol
 SELECT nocopy(1);
+--enable_view_protocol
 DROP FUNCTION nocopy;
---enable_ps_protocol
+--disable_prepare_warnings
 
 CREATE PROCEDURE nocopy (nocopy INT) SELECT nocopy;
 CALL nocopy(1);
