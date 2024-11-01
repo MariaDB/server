@@ -5040,8 +5040,16 @@ Stopping slave I/O thread due to out-of-memory error from master");
           mi->semi_sync_reply_enabled &&
           (mi->semi_ack & SEMI_SYNC_NEED_ACK))
       {
-        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply",
-                        my_sleep(800000););
+#ifdef ENABLED_DEBUG_SYNC
+        DBUG_EXECUTE_IF("simulate_delay_semisync_slave_reply", {
+          const char act[]= "now "
+                            "signal io_thd_at_slave_reply "
+                            "wait_for io_thd_do_reply";
+          DBUG_ASSERT(debug_sync_service);
+          DBUG_ASSERT(
+              !debug_sync_set_action(current_thd, STRING_WITH_LEN(act)));
+        };);
+#endif
         if (repl_semisync_slave.slave_reply(mi))
         {
           /*

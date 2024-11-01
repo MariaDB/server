@@ -18,6 +18,23 @@
 #    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
 #    will abort if the search result doesn't match the requested one.
 #
+#    Optionally, SEARCH_ABORT_IS_SUCCESS can be set to inverse the error logic
+#    when the SEARCH_ABORT condition is met. The specific cases and behaviors
+#    become:
+#
+#      1) In the normal case (SEARCH_ABORT_IS_SUCCESS is NOT set), when the
+#         matching result (FOUND N or NOT FOUND) matches SEARCH_ABORT, exit in
+#         error (via die); otherwise, we assume success and print the matching
+#         result. This is used in the normal search_pattern_in_file.inc case,
+#         as well as wait_for_pattern_in_file.inc when searching that some
+#         pattern exists at all (i.e. a result of NOT FOUND will trigger die,
+#         so the script can continue waiting until the result is found, and
+#         finally print the result).
+#
+#      2) If SEARCH_ABORT_IS_SUCCESS is set, then we want to inverse the logic
+#         from case (1). That is, if the match result is SEARCH_ABORT, this
+#         is the success case, and we die for all other matching results.
+#
 #    Optionally, SEARCH_OUTPUT can be set to control the format of output.
 #    Supported formats:
 #     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."
@@ -82,14 +99,26 @@ perl;
 
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
 
+    my $print_func= sub { print($_[0]); };
+    my $die_func= sub { die($_[0]); };
+    my $abort_func;
+    my $match_func;
+    if ($ENV{SEARCH_ABORT} and $ENV{SEARCH_ABORT_IS_SUCCESS}) {
+      $abort_func= \&$print_func;
+      $match_func= \&$die_func;
+    } else {
+      $abort_func= \&$die_func;
+      $match_func= \&$print_func;
+    }
+
     if ($ENV{SEARCH_OUTPUT} eq "matches") {
         foreach (@matches) {
             print $_ . "\n";
         }
     }
     elsif ($ENV{SEARCH_ABORT} and $res =~ /^$ENV{SEARCH_ABORT}/) {
-        die "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        &$abort_func("$res /$search_pattern/ in $ENV{SEARCH_FILE}\n");
     } else {
-        print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        &$match_func("$res /$search_pattern/ in $ENV{SEARCH_FILE}\n");
     }
 EOF
