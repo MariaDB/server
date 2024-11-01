@@ -430,3 +430,13 @@ drop table t1;
 create table t1(v vector(5) not null, vector index(v));
 alter table t1 add column a int;
 drop table t1;
+
+--echo #
+--echo # MDEV-35292 - ALTER TABLE re-creating vector key is no-op with
+--echo #              non-copying alter algorithms (default)
+--echo #
+create table t (v vector(1) not null, vector(v) distance=euclidean);
+insert into t values (0x31313131); # Optional, fails either way
+alter table t drop index v, add vector(v) distance=cosine;
+show create table t;
+drop table t;
