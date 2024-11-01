@@ -572,22 +572,10 @@
  drop table t1;
  create table t1(v vector(5) not null, vector index(v));
  alter table t1 add column a int;
-@@ -904,7 +894,7 @@ CREATE TABLE `t1` (
-   `v` vector(5) NOT NULL,
-   PRIMARY KEY (`id`),
-   VECTOR KEY `v` (`v`)
--) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
-+) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1;
- /*!40101 SET character_set_client = @saved_cs_client */;
- INSERT INTO `t1` VALUES
- (1,0x1904D63EA01A4F3F21B0523F8716193F022B073D),
-@@ -924,7 +914,7 @@ t1	CREATE TABLE `t1` (
-   `v` vector(5) NOT NULL,
-   PRIMARY KEY (`id`),
-   VECTOR KEY `v` (`v`)
--) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
-+) ENGINE=Aria AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
- select id, Vec_ToText(v) from t1;
- id	Vec_ToText(v)
- 1	[0.418,0.809,0.823,0.598,0.033]
-
+@@ -879,5 +879,5 @@
+ t	CREATE TABLE `t` (
+   `v` vector(1) NOT NULL,
+   VECTOR KEY `v` (`v`) `distance`=cosine
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
++) ENGINE=Aria DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci PAGE_CHECKSUM=1
+ drop table t;

@@ -143,7 +143,7 @@ Table	Create Table
 t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL,
   `v` vector(10) NOT NULL,
-  VECTOR KEY `v` (`v`) `m`=10 `distance`='cosine'
+  VECTOR KEY `v` (`v`) `distance`='cosine'
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
 drop table t;
 set mhnsw_default_distance= default;
