@@ -1120,7 +1120,6 @@ public:
   Item_func_interval(THD *thd, Item_row *a):
     Item_long_func(thd, a), row(a), intervals(0)
   { }
-  bool fix_fields(THD *, Item **) override;
   longlong val_int() override;
   bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
