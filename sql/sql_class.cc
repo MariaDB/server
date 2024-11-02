@@ -8632,6 +8632,32 @@ error:
 
 }
 
+
+/*
+  Push post-execution warnings, which may be some kinds of aggregate messages
+  like number of times max_sort_length was reached during sorting/grouping
+*/
+void THD::push_final_warnings()
+{
+  if (num_of_strings_sorted_on_truncated_length)
+  {
+    /*
+      WARN_SORTING_ON_TRUNCATED_LENGTH is not considered important enough to be
+      elevated to the ERROR level, so reset abort_on_warning flag before pushing
+    */
+    bool saved_abort_on_warning= abort_on_warning;
+    abort_on_warning= false;
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_SORTING_ON_TRUNCATED_LENGTH,
+                        ER_THD(this, WARN_SORTING_ON_TRUNCATED_LENGTH),
+                        num_of_strings_sorted_on_truncated_length,
+                        variables.max_sort_length);
+    num_of_strings_sorted_on_truncated_length= 0;
+    abort_on_warning= saved_abort_on_warning;
+  }
+}
+
+
 void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
                                       const LEX_CSTRING *host_name)
 {
