@@ -21282,6 +21282,7 @@ buf_pool_size_align(
 
 bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after) 
 {
+  //ut_ad(is_delete == (node->is_delete == PLAIN_DELETE));
   btr_pcur_t	*pcur = node->pcur;
   char db_buf[NAME_LEN + 1];
   char tbl_buf[NAME_LEN + 1];
@@ -21308,9 +21309,16 @@ bool innodb_execute_triggers(upd_node_t *node, bool is_delete, bool after)
   
   ha_innobase *handler = (ha_innobase*)maria_table->file;
   row_prebuilt_t *prebuilt = handler->get_prebuilt(table);
-  prebuilt->upd_node= node;
-  //ut_ad(is_delete);
-  //ut_ad(after);
+
+  prebuilt->upd_node = node;
+  prebuilt->upd_graph = static_cast<que_fork_t*>(
+      que_node_get_parent(
+        pars_complete_graph_for_exec(
+        prebuilt->upd_node,
+        prebuilt->trx, prebuilt->heap,
+        prebuilt)));
+  prebuilt->upd_graph->state = QUE_FORK_ACTIVE; // ?
+
 
   const rec_t* rec = btr_pcur_get_rec(pcur); 
   const rec_offs*	offsets = rec_get_offsets(
