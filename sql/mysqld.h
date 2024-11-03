@@ -559,6 +559,7 @@ extern PSI_stage_info stage_master_has_sent_all_binlog_to_slave;
 extern PSI_stage_info stage_opening_tables;
 extern PSI_stage_info stage_optimizing;
 extern PSI_stage_info stage_preparing;
+extern PSI_stage_info stage_prepare_for_executing;
 extern PSI_stage_info stage_purging_old_relay_logs;
 extern PSI_stage_info stage_query_end;
 extern PSI_stage_info stage_starting_cleanup;
