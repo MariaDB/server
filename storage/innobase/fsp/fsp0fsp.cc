@@ -6164,6 +6164,8 @@ public:
   ha_innodb_binlog_reader(uint64_t file_no= 0, uint64_t offset= 0);
   ~ha_innodb_binlog_reader();
   virtual int read_binlog_data(uchar *buf, uint32_t len) final;
+  virtual int init_gtid_pos(slave_connection_state *pos,
+                            rpl_binlog_state_base *state) final;
 };
 
 
@@ -7267,9 +7269,46 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
                 ((current_binlog_state_interval >> page_size_shift) - 1))) {
         if (page_no == 0) {
           rpl_binlog_state_base full_state;
+          bool err;
           full_state.init();
-          bool err= load_global_binlog_state(&full_state);
+          err= load_global_binlog_state(&full_state);
           ut_a(!err /* ToDo error handling */);
+          if (UNIV_UNLIKELY(file_no == 0 && page_no == 0) &&
+              (full_state.count_nolock() == 1))
+          {
+            /*
+              The gtid state written here includes the GTID for the event group
+              currently being written. This is precise when the event group
+              data begins before this point. If the event group happens to
+              start exactly on a binlog file boundary, it just means we will
+              have to read slightly more binlog data to find the starting point
+              of that GTID.
+
+              But there is an annoying case if this is the very first binlog
+              file created (no migration from legacy binlog). If we start the
+              binlog with some GTID 0-1-1 and write the state "0-1-1" at the
+              start of the first file, then we will be unable to start
+              replicating from the GTID position "0-1-1", corresponding to the
+              *second* event group in the binlog. Because there will be no
+              slightly earlier point to start reading from!
+
+              So we put a slightly awkward special case here to handle that: If
+              at the start of the first file we have a singleton gtid state
+              with seq_no=1, D-S-1, then it must be the very first GTID in the
+              entire binlog, so we write an *empty* gtid state that will always
+              allow to start replicating from the very start of the binlog.
+
+              (If the user would explicitly set the seq_no of the very first
+              GTID in the binlog greater than 1, then starting from that GTID
+              position will still not be possible).
+            */
+            rpl_gtid singleton_gtid;
+            full_state.get_gtid_list_nolock(&singleton_gtid, 1);
+            if (singleton_gtid.seq_no == 1)
+            {
+              full_state.reset_nolock();
+            }
+          }
           err= binlog_gtid_state(&full_state, mtr, block, page_no,
                                  page_offset, space);
           ut_a(!err /* ToDo error handling */);
@@ -7701,6 +7740,270 @@ handler_binlog_reader *
 innodb_get_binlog_reader()
 {
   return new ha_innodb_binlog_reader();
+}
+
+
+class gtid_search {
+public:
+  gtid_search();
+  ~gtid_search();
+  int read_gtid_state_file_no(rpl_binlog_state_base *state, uint64_t file_no,
+                              uint32_t page_no, uint64_t *out_file_end,
+                              uint64_t *out_diff_state_interval);
+  int find_gtid_pos(slave_connection_state *pos,
+                    rpl_binlog_state_base *out_state, uint64_t *out_file_no,
+                    uint64_t *out_offset);
+private:
+  uint64_t cur_open_file_no;
+  uint64_t cur_open_file_length;
+  File cur_open_file;
+};
+
+
+gtid_search::gtid_search()
+  : cur_open_file_no(~(uint64_t)0), cur_open_file_length(0),
+    cur_open_file((File)-1)
+{
+  /* Nothing else. */
+}
+
+
+gtid_search::~gtid_search()
+{
+  if (cur_open_file >= (File)0)
+    my_close(cur_open_file, MYF(0));
+}
+
+
+/*
+  Read a GTID state record from file_no and page_no.
+
+  Returns:
+    1  State record found
+    0  No state record found
+    -1 Error
+*/
+int
+gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
+                                     uint64_t file_no, uint32_t page_no,
+                                     uint64_t *out_file_end,
+                                     uint64_t *out_diff_state_interval)
+{
+  buf_block_t *block;
+
+  *out_file_end= 0;
+  uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
+  if (file_no > active2)
+    return 0;
+
+  for (;;)
+  {
+    mtr_t mtr;
+    bool mtr_started= false;
+    uint64_t active= active2;
+    uint64_t end_offset=
+      binlog_cur_end_offset[file_no&1].load(std::memory_order_acquire);
+    if (file_no + 1 >= active &&
+        page_no <= (end_offset >> srv_page_size_shift))
+    {
+      mtr.start();
+      mtr_started= true;
+      uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
+      dberr_t err= DB_SUCCESS;
+      block= buf_page_get_gen(page_id_t{space_id, page_no}, 0, RW_S_LATCH,
+                              nullptr, BUF_GET_IF_IN_POOL, &mtr, &err);
+      if (err != DB_SUCCESS) {
+        mtr.commit();
+        return -1;
+      }
+    }
+    else
+      block= nullptr;
+    active2= active_binlog_file_no.load(std::memory_order_acquire);
+    if (UNIV_UNLIKELY(active2 != active))
+    {
+      /* Active moved ahead while we were reading, try again. */
+      if (mtr_started)
+        mtr.commit();
+      continue;
+    }
+    if (file_no + 1 >= active)
+    {
+      *out_file_end= end_offset;
+      if (page_no > (end_offset >> srv_page_size_shift))
+      {
+        ut_ad(!mtr_started);
+        return 0;
+      }
+    }
+
+    if (block)
+    {
+      int res= read_gtid_state_from_page(state, block->page.frame, page_no,
+                                         out_diff_state_interval);
+      ut_ad(mtr_started);
+      if (mtr_started)
+        mtr.commit();
+      return res;
+    }
+    else
+    {
+      if (mtr_started)
+        mtr.commit();
+      if (cur_open_file_no != file_no)
+      {
+        if (cur_open_file >= (File)0)
+        {
+          my_close(cur_open_file, MYF(0));
+          cur_open_file= (File)-1;
+          cur_open_file_length= 0;
+        }
+      }
+      if (cur_open_file < (File)0)
+      {
+        char filename[BINLOG_NAME_LEN];
+        binlog_name_make(filename, file_no);
+        // ToDo: Here, if the file does not exist, it is not an error (no MY_WME), but it could mean we need to return "gtid pos too old". Or at least that we can go no further back and have to return the oldest state we found for the upper layer to deal with in terms of error etc.
+        cur_open_file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
+        if (cur_open_file < (File)0)
+          return -1;
+        MY_STAT stat_buf;
+        if (my_fstat(cur_open_file, &stat_buf, MYF(0))) {
+          my_error(ER_CANT_GET_STAT, MYF(0), filename, errno);
+          my_close(cur_open_file, MYF(0));
+          cur_open_file= (File)-1;
+          return -1;
+        }
+        cur_open_file_length= stat_buf.st_size;
+        cur_open_file_no= file_no;
+      }
+      if (!*out_file_end)
+        *out_file_end= cur_open_file_length;
+      return read_gtid_state(state, cur_open_file, page_no,
+                             out_diff_state_interval);
+    }
+  }
+}
+
+
+/*
+  Search for a GTID position in the binlog.
+  Find a binlog file_no and an offset into the file that is guaranteed to
+  be before the target position. It can be a bit earlier, that only means a
+  bit more of the binlog needs to be scanned to find the real position.
+
+  Returns:
+    -1 error
+     0 Position not found (has been purged)
+     1 Position found
+*/
+
+int
+gtid_search::find_gtid_pos(slave_connection_state *pos,
+                           rpl_binlog_state_base *out_state,
+                           uint64_t *out_file_no, uint64_t *out_offset)
+{
+  /*
+    Dirty read, but getting a slightly stale value is no problem, we will just
+    be starting to scan the binlog file at a slightly earlier position than
+    necessary.
+  */
+  uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
+
+  /* First search backwards for the right file to start from. */
+  uint64_t file_end= 0;
+  uint64_t diff_state_interval= 0;
+  rpl_binlog_state_base base_state, diff_state;
+  base_state.init();
+  for (;;)
+  {
+    int res= read_gtid_state_file_no(&base_state, file_no, 0, &file_end,
+                                     &diff_state_interval);
+    // ToDo: catch the error "file does not exist" specifically and return "position not found" in this case.
+    if (res < 0)
+      return -1;
+    if (res == 0)
+    {
+      ut_ad(0 /* Not expected to find no state, should always be written. */);
+      return -1;
+    }
+    if (base_state.is_before_pos(pos))
+      break;
+    base_state.reset_nolock();
+    if (file_no == 0)
+      return 0;
+    --file_no;
+  }
+
+  /*
+    Then binary search for the last differential state record that is still
+    before the searched position.
+
+    The invariant is that page2 is known to be after the target page, and page0
+    is known to be a valid position to start (but possibly earlier than needed).
+  */
+  uint32_t diff_state_page_interval=
+    (uint32_t)(diff_state_interval >> srv_page_size_shift);
+  ut_ad(diff_state_interval % srv_page_size == 0);
+  if (diff_state_interval % srv_page_size != 0)
+    return -1;  // Corrupt tablespace
+  uint32_t page0= 0;
+  uint32_t page2= (uint32_t)
+    ((file_end + diff_state_interval - 1) >> srv_page_size_shift);
+  /* Round to the next diff_state_interval after file_end. */
+  page2-= page2 % diff_state_page_interval;
+  uint32_t page1= (page0 + page2) / 2;
+  diff_state.init();
+  diff_state.load_nolock(&base_state);
+  while (page1 >= page0 + diff_state_interval)
+  {
+    ut_ad((page1 - page0) % diff_state_interval == 0);
+    diff_state.reset_nolock();
+    diff_state.load_nolock(&base_state);
+    int res= read_gtid_state_file_no(&diff_state, file_no, 0, &file_end,
+                                     &diff_state_interval);
+    if (res < 0)
+      return -1;
+    if (res == 0)
+    {
+      /*
+        If the diff state record was not written here for some reason, just
+        try the one just before. It will be safe, even if not always optimal,
+        and this is an abnormal situation anyway.
+      */
+      page1= page1 - diff_state_page_interval;
+      continue;
+    }
+    if (diff_state.is_before_pos(pos))
+      page0= page1;
+    else
+      page2= page1;
+    page1= (page0 + page2) / 2;
+  }
+  ut_ad(page1 >= page0);
+  out_state->load_nolock(&diff_state);
+  *out_file_no= file_no;
+  *out_offset= (uint64_t)page0 << srv_page_size_shift;
+  return 1;
+}
+
+
+int
+ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
+                                       rpl_binlog_state_base *state)
+{
+  gtid_search search_obj;
+  uint64_t file_no;
+  uint64_t offset;
+  int res= search_obj.find_gtid_pos(pos, state, &file_no, &offset);
+  if (res < 0)
+    return -1;
+  if (res > 0)
+  {
+    cur_file_no= file_no;
+    cur_file_offset= offset;
+  }
+  return res;
 }
 
 
