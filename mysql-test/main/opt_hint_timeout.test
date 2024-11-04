@@ -1,6 +1,8 @@
+--source include/have_sequence.inc
 --echo #
 --echo # MAX_EXECUTION_TIME hint testing
 --echo #
+--enable_prepare_warnings
 
 CREATE TABLE t1 (a INT, b VARCHAR(300));
 INSERT INTO t1 VALUES (1, 'string');
@@ -33,7 +35,15 @@ SELECT  /*+ MAX_EXECUTION_TIME(20) */ *, SLEEP(1) FROM t1 UNION SELECT 1, 2, 3;
 --error ER_STATEMENT_TIMEOUT
 ((SELECT  /*+ MAX_EXECUTION_TIME(50) */ *, SLEEP(1) FROM t1));
 
+--echo # Check that prepared statements process the hint correctly
+PREPARE s FROM 'SELECT  /*+ MAX_EXECUTION_TIME(20) */ seq, SLEEP(1) FROM seq_1_to_10';
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+--error ER_STATEMENT_TIMEOUT
+EXECUTE s;
+
 --echo # Hint duplication
+
 SELECT /*+ MAX_EXECUTION_TIME(10) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
 
 --echo # Wrong values
@@ -65,6 +75,21 @@ DROP PROCEDURE p1;
 
 --echo # Hint in a subquery is not allowed (warning):
 SELECT 1 FROM (SELECT /*+ MAX_EXECUTION_TIME(10) */ 1) a;
+
+--echo # Hint is allowed only for the first select of UNION (warning):
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+
+SELECT count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+
+--echo # Check that hint actually works:
+--error ER_STATEMENT_TIMEOUT
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*), SLEEP(1) FROM t1
+UNION
+SELECT count(*), SLEEP(1) FROM t1;
 
 DROP TABLE t1, t2;
 
