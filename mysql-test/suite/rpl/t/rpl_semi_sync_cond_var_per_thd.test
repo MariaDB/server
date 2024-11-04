@@ -135,6 +135,10 @@ create table t (a int) engine=innodb;
 --echo # the informational message is displayed
 --connection slave
 --source include/stop_slave.inc
+# Also kill the master-side dump thread so it doesn't try and send an event
+# over a dead connection (potentially resulting in an error in the log)
+--connection master
+--source include/kill_binlog_dump_threads.inc
 
 --connection server_1
 start transaction;

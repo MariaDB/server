@@ -172,7 +172,7 @@ int hash_password(const char *password, size_t password_length,
                   char *hash, size_t *hash_length)
 {
   auto stored= (Passwd_as_stored*)hash;
-  assert(*hash_length < sizeof(*stored) + 2); // it should fit the buffer
+  assert(*hash_length >= sizeof(*stored) + 2); // it should fit the buffer
 
   Passwd_in_memory memory;
   memory.algorithm= 'P';
