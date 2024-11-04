@@ -801,7 +801,7 @@ static bool init_items_for_help_command(THD *thd,
 
   if (setup_tables(thd, &first_select_lex->context,
                    &first_select_lex->top_join_list,
-                   &tables[0], leaves, false, false))
+                   &tables[0], leaves, false, false, true))
     return true;
 
   memcpy((char*) used_fields, (char*) init_used_fields,

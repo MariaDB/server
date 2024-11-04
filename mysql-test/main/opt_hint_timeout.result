@@ -26,6 +26,12 @@ ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 ((SELECT  /*+ MAX_EXECUTION_TIME(50) */ *, SLEEP(1) FROM t1));
 ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+# Check that prepared statements process the hint correctly
+PREPARE s FROM 'SELECT  /*+ MAX_EXECUTION_TIME(20) */ seq, SLEEP(1) FROM seq_1_to_10';
+EXECUTE s;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
+EXECUTE s;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 # Hint duplication
 SELECT /*+ MAX_EXECUTION_TIME(10) MAX_EXECUTION_TIME(100) */ count(*) FROM t1;
 count(*)
@@ -84,4 +90,24 @@ SELECT 1 FROM (SELECT /*+ MAX_EXECUTION_TIME(10) */ 1) a;
 1
 Warnings:
 Warning	4172	'MAX_EXECUTION_TIME(10)' is not allowed in this context
+# Hint is allowed only for the first select of UNION (warning):
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+count(*)
+512
+Warnings:
+Warning	4202	Hint MAX_EXECUTION_TIME(30) is ignored as conflicting/duplicated
+SELECT count(*) FROM t1
+UNION
+SELECT /*+ MAX_EXECUTION_TIME(30) */ count(*) FROM t1;
+count(*)
+512
+Warnings:
+Warning	4172	'MAX_EXECUTION_TIME(30)' is not allowed in this context
+# Check that hint actually works:
+SELECT /*+ MAX_EXECUTION_TIME(20) */ count(*), SLEEP(1) FROM t1
+UNION
+SELECT count(*), SLEEP(1) FROM t1;
+ERROR 70100: Query execution was interrupted (max_statement_time exceeded)
 DROP TABLE t1, t2;
