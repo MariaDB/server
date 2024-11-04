@@ -75,9 +75,7 @@ X
       "r_total_time_ms": "REPLACED",
       "r_engine_stats": {
         "pages_accessed": "REPLACED",
-        "pages_updated": "REPLACED",
-        "pages_read_count": 1,
-        "pages_read_time_ms": 0.019322431
+        "pages_updated": "REPLACED"
       },
       "attached_condition": "t1.pk < 120000",
       "r_filtered": 100
