@@ -2070,3 +2070,15 @@ SHOW CREATE DATABASE `#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭�
 ERROR 42000: Incorrect database name '#testone#￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭￭...'
 SET NAMES DEFAULT;
 # End of 10.5 Test
+#
+# MDEV-35318 Assertion `tl->jtbm_subselect' failed in JOIN::calc_allowed_top_level_tables on 2nd execution of PS
+#
+CREATE TABLE t (a INT);
+INSERT INTO t VALUES (1),(2);
+PREPARE stmt FROM 'CREATE TABLE tmp AS SELECT * FROM (select t1.* from t t1 join t t2 on(t1.a = t2.a)) sq WHERE "x"=0';
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+EXECUTE stmt;
+ERROR 22007: Truncated incorrect DECIMAL value: 'x'
+DROP TABLE t;
+# End of 11.7 Test
