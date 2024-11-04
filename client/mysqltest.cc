@@ -1508,7 +1508,10 @@ void free_used_memory()
   DBUG_ENTER("free_used_memory");
 
   if (connections)
+  {
     close_connections();
+    cur_con= NULL;
+  }
   close_files();
   my_hash_free(&var_hash);
 
