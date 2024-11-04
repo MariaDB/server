@@ -95,32 +95,28 @@ struct recv_dblwr_t
 
   /** Validate the page.
   @param page_id  page identifier
-  @param page     page contents
+  @param max_lsn  the maximum allowed LSN
   @param space    the tablespace of the page (not available for page 0)
+  @param page     page contents
   @param tmp_buf  2*srv_page_size for decrypting and decompressing any
   page_compressed or encrypted pages
   @return whether the page is valid */
-  bool validate_page(const page_id_t page_id, const byte *page,
-                     const fil_space_t *space, byte *tmp_buf);
+  bool validate_page(const page_id_t page_id, lsn_t max_lsn,
+                     const fil_space_t *space,
+                     const byte *page, byte *tmp_buf) const noexcept;
 
-  /** Find a doublewrite copy of a page.
+  /** Find a doublewrite copy of a page with the smallest FIL_PAGE_LSN
+  that is large enough for recovery.
   @param page_id  page identifier
-  @param space    tablespace (not available for page_id.page_no()==0)
+  @param max_lsn  the maximum allowed LSN
+  @param space    tablespace (nullptr for page_id.page_no()==0)
   @param tmp_buf  2*srv_page_size for decrypting and decompressing any
   page_compressed or encrypted pages
   @return page frame
-  @retval NULL if no valid page for page_id was found */
-  byte* find_page(const page_id_t page_id, const fil_space_t *space= NULL,
-                  byte *tmp_buf= NULL);
-
-  /** Restore the first page of the given tablespace from
-  doublewrite buffer.
-  @param space_id  tablespace identifier
-  @param name      tablespace filepath
-  @param file      tablespace file handle
-  @return whether the operation failed */
-  bool restore_first_page(uint32_t space_id, const char *name,
-                          pfs_os_file_t file);
+  @retval nullptr if no valid page for page_id was found */
+  const byte *find_page(const page_id_t page_id, lsn_t max_lsn,
+                        const fil_space_t *space= nullptr,
+                        byte *tmp_buf= nullptr) const noexcept;
 
   /** Restore the first page of the given tablespace from
   doublewrite buffer.
@@ -131,7 +127,8 @@ struct recv_dblwr_t
   @param name tablespace filepath
   @param file tablespace file handle
   @return space_id or 0 in case of error */
-  uint32_t find_first_page(const char *name, pfs_os_file_t file);
+  inline uint32_t find_first_page(const char *name, pfs_os_file_t file)
+    const noexcept;
 
   typedef std::deque<byte*, ut_allocator<byte*> > list;
 
@@ -380,12 +377,15 @@ public:
     GOT_OOM
   };
 
+  /** Whether to store parsed log records */
+  enum store{NO,BACKUP,YES};
+
 private:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction.
-  @tparam store     whether to store the records
+  @tparam storing   whether to store the records
   @param  l         log data source
   @param  if_exists if store: whether to check if the tablespace exists */
-  template<typename source,bool store>
+  template<typename source,store storing>
   inline parse_mtr_result parse(source &l, bool if_exists) noexcept;
 
   /** Rewind a mini-transaction when parse() runs out of memory.
@@ -399,20 +399,20 @@ private:
 public:
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   without handling any log_sys.is_mmap() buffer wrap-around.
-  @tparam store     whether to store the records
-  @param  if_exists if store: whether to check if the tablespace exists */
-  template<bool store>
+  @tparam storing   whether to store the records
+  @param  if_exists storing=YES: whether to check if the tablespace exists */
+  template<store storing>
   static parse_mtr_result parse_mtr(bool if_exists) noexcept;
   /** Parse and register one log_t::FORMAT_10_8 mini-transaction,
   handling log_sys.is_mmap() buffer wrap-around.
-  @tparam store     whether to store the records
-  @param  if_exists if store: whether to check if the tablespace exists */
-  template<bool store>
+  @tparam storing   whether to store the records
+  @param  if_exists storing=YES: whether to check if the tablespace exists */
+  template<store storing>
   static parse_mtr_result parse_mmap(bool if_exists) noexcept
 #ifdef HAVE_INNODB_MMAP
     ;
 #else
-  { return parse_mtr<store>(if_exists); }
+  { return parse_mtr<storing>(if_exists); }
 #endif
 
   /** Erase log records for a page. */
@@ -435,19 +435,25 @@ public:
   inline void free(const void *data);
 
   /** Remove records for a corrupted page.
-  This function should only be called when innodb_force_recovery is set.
-  @param page_id  corrupted page identifier */
-  ATTRIBUTE_COLD void free_corrupted_page(page_id_t page_id);
+  @param page_id  corrupted page identifier
+  @param node     file for which an error is to be reported
+  @return whether an error message was reported */
+  ATTRIBUTE_COLD bool free_corrupted_page(page_id_t page_id,
+                                          const fil_node_t &node) noexcept;
 
   /** Flag data file corruption during recovery. */
-  ATTRIBUTE_COLD void set_corrupt_fs();
+  ATTRIBUTE_COLD void set_corrupt_fs() noexcept;
   /** Flag log file corruption during recovery. */
-  ATTRIBUTE_COLD void set_corrupt_log();
+  ATTRIBUTE_COLD void set_corrupt_log() noexcept;
 
   /** @return whether data file corruption was found */
   bool is_corrupt_fs() const { return UNIV_UNLIKELY(found_corrupt_fs); }
   /** @return whether log file corruption was found */
   bool is_corrupt_log() const { return UNIV_UNLIKELY(found_corrupt_log); }
+
+  /** Check if recovery reached a consistent log sequence number.
+  @return whether the recovery failed to process enough log */
+  inline bool validate_checkpoint() const noexcept;
 
   /** Read a page or recover it based on redo log records.
   @param page_id  page identifier
@@ -479,8 +485,3 @@ extern bool		recv_needed_recovery;
 protected by exclusive log_sys.latch. */
 extern bool recv_no_log_write;
 #endif /* UNIV_DEBUG */
-
-/** TRUE if buf_page_is_corrupted() should check if the log sequence
-number (FIL_PAGE_LSN) is in the future.  Initially FALSE, and set by
-recv_recovery_from_checkpoint_start(). */
-extern bool		recv_lsn_checks_on;

@@ -11,6 +11,7 @@ a	b
 1	1
 2	2
 connect con_weird,localhost,root;
+SET innodb_snapshot_isolation=OFF;
 BEGIN;
 SELECT * FROM t;
 a	b
@@ -134,8 +135,10 @@ BEGIN;
 INSERT INTO t SET a=2;
 connection consistent;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT sp1;
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 ERROR HY000: Record has changed since last read in table 't'
+SAVEPOINT sp1;
 connection con_weird;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
@@ -155,3 +158,4 @@ a	b
 disconnect consistent;
 connection default;
 DROP TABLE t;
+# End of 10.6 tests

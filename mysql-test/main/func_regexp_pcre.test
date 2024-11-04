@@ -420,10 +420,16 @@ SET @regCheck= '\\xE0\\x01';
 SELECT 0xE001 REGEXP @regCheck COLLATE latin1_bin;
 SELECT 0xE001 REGEXP CAST(@regCheck AS CHAR);
 
---echo # Since 11.4 user variables have DERIVATION_COERCIBLE
---echo # so a user variable and a literal in the pattern give equal results
+--echo # Since 11.5 (MDEV-25829) user variables have DERIVATION_COERCIBLE
+--echo # so a user variable and a literal in the pattern gave equal results
+--echo # But since 11.6 (MDEV-35041) user variables have DERIVATION_USERVAR
+--echo # so the query with a literal is performece as binary:
+SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1;
+
+--echo # while the query with a user variable is performed as string
+--echo # with a warning, like in 11.4
 SET @regCheck= '\\xE0\\x01';
-SELECT 0xE001 REGEXP '\\xE0\\x01' AS c1, 0xE001 REGEXP @regCheck AS c2;
+SELECT 0xE001 REGEXP @regCheck AS c2;
 
 --echo # Testing workaround N1: This makes the pattern to be a binary string:
 SET NAMES latin1;

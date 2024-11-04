@@ -304,14 +304,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto }
 
@@ -324,14 +324,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
 
@@ -344,14 +344,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -384,14 +384,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk }
 
@@ -404,14 +404,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
 
@@ -424,14 +424,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -464,14 +464,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 }
 
@@ -484,14 +484,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
 
@@ -504,14 +504,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=auto CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -1264,14 +1264,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto }
 
@@ -1284,14 +1284,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
 
@@ -1304,14 +1304,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -1344,14 +1344,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk }
 
@@ -1364,14 +1364,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
 
@@ -1384,14 +1384,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -1424,14 +1424,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 }
 
@@ -1444,14 +1444,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
 
@@ -1464,14 +1464,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -1984,8 +1984,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2004,8 +2004,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2024,14 +2024,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=auto CHARACTER SET utf8}
 
@@ -2064,8 +2064,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2084,8 +2084,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2104,14 +2104,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -2144,8 +2144,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2164,8 +2164,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2184,14 +2184,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 }{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -2224,14 +2224,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto }
 
@@ -2244,14 +2244,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET gbk}
 
@@ -2264,14 +2264,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -2304,14 +2304,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk }
 
@@ -2324,14 +2324,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET gbk}
 
@@ -2344,14 +2344,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -2384,14 +2384,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 }
 
@@ -2404,14 +2404,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET gbk}
 
@@ -2424,14 +2424,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET gbk}{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -2704,8 +2704,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2724,8 +2724,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2744,14 +2744,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -2784,8 +2784,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2804,8 +2804,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2824,14 +2824,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -2864,8 +2864,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2884,8 +2884,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2904,14 +2904,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=utf8 CHARACTER SET binary}{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -2947,8 +2947,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2967,8 +2967,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -2987,14 +2987,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -3027,8 +3027,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3047,8 +3047,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3067,14 +3067,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=binary CHARACTER SET utf8}
 
@@ -3107,8 +3107,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3127,8 +3127,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3147,14 +3147,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -3187,8 +3187,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3207,8 +3207,8 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9978B3F                                          BAD-TEXT-UTF8
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	EE5C5C                                            
@@ -3227,14 +3227,14 @@ file	31-EE5C-E9A0AB-EE5C5C-24|32-EE5C5C5C-E9A0AB5C5C-EE5C5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	E9A0AB                                            
-b1	EE5C0924                                          BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C                                              
+eol	24                                                
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	E9A0AB5C                                          
-b1	EE5C5C0924                                        BAD-BLOB
-eol	                                                  BAD-EOL
+b1	EE5C5C                                            
+eol	24                                                
 ---	---
 End of {zh_CN.gbk}{--default-character-set=binary}{--default-character-set=utf8 CHARACTER SET utf8}
 
@@ -3267,14 +3267,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto }
 
@@ -3287,14 +3287,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET gbk}
 
@@ -3307,14 +3307,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=auto CHARACTER SET utf8}
 
@@ -3347,14 +3347,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary }
 
@@ -3367,14 +3367,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET gbk}
 
@@ -3387,14 +3387,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=binary CHARACTER SET utf8}
 
@@ -3427,14 +3427,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk }
 
@@ -3447,14 +3447,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET gbk}
 
@@ -3467,14 +3467,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=gbk CHARACTER SET utf8}
 
@@ -3507,14 +3507,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 }
 
@@ -3527,14 +3527,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	EE5C                                              
 a2	E9A0AB                                            
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	EE5C5C                                            
 a2	E9A0AB5C                                          
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET gbk}
 
@@ -3547,14 +3547,14 @@ file	31-EE5C-EE5C-EE5C-24|32-EE5C5C5C-EE5C5C5C-EE5C5C5C-24|
 id	1
 a1	3F5C                                              BAD-TEXT-GBK
 a2	3F5C                                              BAD-TEXT-UTF8
-b1	EE5C                                              
-eol	24                                                
+b1	EE0924                                            BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 id	2
 a1	3F5C5C                                            BAD-TEXT-GBK
 a2	3F5C5C                                            BAD-TEXT-UTF8
-b1	EE5C5C                                            
-eol	24                                                
+b1	EE5C0924                                          BAD-BLOB
+eol	                                                  BAD-EOL
 ---	---
 End of {zh_CN.gbk}{--default-character-set=gbk}{--default-character-set=utf8 CHARACTER SET utf8}
 

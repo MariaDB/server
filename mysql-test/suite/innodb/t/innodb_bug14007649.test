@@ -15,6 +15,7 @@ connect (a,localhost,root,,);
 connect (b,localhost,root,,);
 
 connection a;
+set innodb_snapshot_isolation=OFF;
 start transaction with consistent snapshot;
 
 connection b;

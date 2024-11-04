@@ -88,7 +88,7 @@ sub flush_out {
 }
 
 use if $^O eq "MSWin32", "threads::shared";
-my $flush_lock :shared;
+our $flush_lock :shared;
 
 # Print to stdout
 sub print_out {

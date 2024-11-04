@@ -464,6 +464,22 @@ first argument\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mariadb-import: parallel option
+.\" paralle option: mariadb-import
+\fB\-\-parallel=\fR\fB\fIN\fR\fR,
+\fB\-j \fR\fB\fIN\fR\fR\fR
+.sp
+Number of LOAD DATA jobs executed in parallel. \-\-use-threads is a synonym\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mariadb-import: password option
 .\" password option: mariadb-import
 \fB\-\-password[=\fR\fB\fIpassword\fR\fR\fB]\fR,
@@ -792,7 +808,7 @@ The MariaDB user name to use when connecting to the server\&.
 .sp
 Load files in parallel using
 \fIN\fR
-threads\&.
+threads\&. Synonym for \-j, \-\-parallel=num
 .RE
 .sp
 .RS 4

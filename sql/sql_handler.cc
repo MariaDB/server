@@ -638,6 +638,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
                "WHERE", "HANDLER");
       return 1;                                 // ROWNUM() used
     }
+    thd->where= THD_WHERE::WHERE_CLAUSE;
     if (cond->fix_fields_if_needed_for_bool(thd, &cond))
       return 1;
   }
@@ -658,28 +659,26 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
       }
     }
 
+    const KEY *c_key= table->s->key_info + handler->keyno;
+    if (c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+        (ha_rkey_mode != HA_READ_KEY_EXACT &&
+         (table->key_info[handler->keyno].index_flags &
+          (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
+    {
+      my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
+               table->file->index_type(handler->keyno), c_key->name.str);
+      return 1;
+    }
+
     /* Check key parts */
     if (mode == RKEY)
     {
-      TABLE *table= handler->table;
       KEY *keyinfo= table->key_info + handler->keyno;
       KEY_PART_INFO *key_part= keyinfo->key_part;
       List_iterator<Item> it_ke(*key_expr);
       Item *item;
       key_part_map keypart_map;
       uint key_len;
-      const KEY *c_key= table->s->key_info + handler->keyno;
-
-      if ((c_key->flags & HA_SPATIAL) ||
-           c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
-          (ha_rkey_mode != HA_READ_KEY_EXACT &&
-           (table->key_info[handler->keyno].index_flags &
-            (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
-      {
-        my_error(ER_KEY_DOESNT_SUPPORT, MYF(0),
-                 table->file->index_type(handler->keyno), keyinfo->name.str);
-        return 1;
-      }
 
       if (key_expr->elements > keyinfo->user_defined_key_parts)
       {
@@ -696,6 +695,7 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         return 1;
       }
 
+      thd->where= THD_WHERE::HANDLER_STATEMENT;
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
 	/* note that 'item' can be changed by fix_fields() call */
@@ -988,7 +988,7 @@ retry:
       goto ok;
     }
     thd->inc_examined_row_count();
-    if (cond && !cond->val_int())
+    if (cond && !cond->val_bool())
     {
       if (thd->is_error())
         goto err;

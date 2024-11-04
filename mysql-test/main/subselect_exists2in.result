@@ -5,7 +5,7 @@ set optimizer_switch='exists_to_in=on';
 #
 CREATE TABLE t1 (f1 integer);
 SELECT * FROM t1 WHERE EXISTS (SELECT NO_SUCH_TABLE.NO_SUCH_FIELD FROM t1);
-ERROR 42S22: Unknown column 'NO_SUCH_TABLE.NO_SUCH_FIELD' in 'field list'
+ERROR 42S22: Unknown column 'NO_SUCH_TABLE.NO_SUCH_FIELD' in 'SELECT'
 drop table t1;
 #
 # LP BUG#884657 Wrong result with exists2in , correlated subquery

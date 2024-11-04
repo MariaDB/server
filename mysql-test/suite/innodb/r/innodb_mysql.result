@@ -2556,7 +2556,7 @@ INSERT INTO t1 VALUES (1),(2),(3),(4);
 INSERT INTO t3 SELECT * FROM t1;
 ** An error in a trigger causes rollback of the statement.
 DELETE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
-ERROR 42S22: Unknown column 'error_happens_here' in 'field list'
+ERROR 42S22: Unknown column 'error_happens_here' in 'SET'
 SELECT @a,@b;
 @a	@b
 	EXECUTED TRIGGER
@@ -2570,7 +2570,7 @@ i	i
 4	4
 ** Same happens with the IGNORE option
 DELETE IGNORE t1 FROM t3 LEFT JOIN t1 ON t1.i=t3.i;
-ERROR 42S22: Unknown column 'error_happens_here' in 'field list'
+ERROR 42S22: Unknown column 'error_happens_here' in 'SET'
 SELECT * FROM t2;
 a
 SELECT * FROM t1 LEFT JOIN t3 ON t1.i=t3.i;

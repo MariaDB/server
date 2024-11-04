@@ -1627,7 +1627,7 @@ public:
 
     Then, ORDER/GROUP BY and Window Function code add columns that need to
     be saved to be available in the post-group-by context. These extra columns
-    are added to the front, because this->all_fields points to the suffix of
+    are added to the front, because this->fields_list points to the suffix of
     this list.
   */
   List<Item> all_fields;
@@ -2718,5 +2718,16 @@ void propagate_new_equalities(THD *thd, Item *cond,
                               COND_EQUAL *inherited,
                               bool *is_simplifiable_cond);
 
+template<typename T> T prev_bits(T n_bits)
+{
+  if (!n_bits)
+    return 0;
+  T tmp= ((T)1 << (n_bits - 1));
+  return (tmp - 1) | tmp;
+}
+// A wrapper for the above function:
+#define PREV_BITS(type, A) prev_bits<type>(A)
+
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
+
 #endif /* SQL_SELECT_INCLUDED */

@@ -160,6 +160,7 @@ double Item_str_func::val_real()
 
 longlong Item_str_func::val_int()
 {
+  DBUG_ASSERT(!is_cond());
   DBUG_ASSERT(fixed());
   StringBuffer<22> tmp;
   String *res= val_str(&tmp);

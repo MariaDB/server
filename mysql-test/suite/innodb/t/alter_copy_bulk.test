@@ -68,4 +68,19 @@ ALTER TABLE t1 ALGORITHM=COPY, FORCE;
 ALTER TABLE t2 ALGORITHM=COPY, FORCE;
 --disable_info
 DROP TABLE t2, t1;
+
+--echo #
+--echo #  MDEV-35237 Bulk insert fails to apply buffered
+--echo #              operation during copy alter
+--echo #
+CREATE TABLE t1 (f1 int NOT NULL, f2 tinyint(1) NOT NULL,
+                 f3 varchar(80) NOT NULL, PRIMARY KEY(f1),
+                 KEY(f2), KEY(f3))ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1,1,''),(2,0,''), (4,1,'e');
+CREATE TABLE t2 (f1 int NOT NULL, f2 int NOT NULL,KEY(f1))ENGINE=InnoDB;
+INSERT INTO t2 VALUES (1,0),(1,0);
+CREATE TABLE t engine=innodb
+SELECT t2.f2 FROM t2 JOIN t1 ON t1.f1 = t2.f1 AND t1.f3 = '' AND t1.f2=1 ;
+SELECT COUNT(*) FROM t;
+DROP TABLE t1, t2, t;
 SET GLOBAL innodb_stats_persistent=@default_stats_persistent;

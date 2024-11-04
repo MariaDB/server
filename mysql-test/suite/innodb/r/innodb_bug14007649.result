@@ -17,6 +17,7 @@ insert into `t1` (rowid, f1, f2) values (1, 1, 10), (2, 1, NULL);
 connect  a,localhost,root,,;
 connect  b,localhost,root,,;
 connection a;
+set innodb_snapshot_isolation=OFF;
 start transaction with consistent snapshot;
 connection b;
 start transaction;

@@ -20,6 +20,7 @@ commit;
 connection a;
 commit;
 connection b;
+set innodb_snapshot_isolation=off;
 set session transaction isolation level read committed;
 update t1 set a=10 where a=5;
 connection a;

@@ -790,7 +790,7 @@ SELECT n+1 AS n FROM t1 GROUP BY n;
 n
 2
 Warnings:
-Warning	1052	Column 'n' in group statement is ambiguous
+Warning	1052	Column 'n' in GROUP BY is ambiguous
 DROP TABLE t1;
 create table t1(f1 varchar(5) key);
 insert into t1 values (1),(2);
@@ -877,10 +877,10 @@ c2
 aaa
 aaa
 Warnings:
-Warning	1052	Column 'c2' in group statement is ambiguous
+Warning	1052	Column 'c2' in GROUP BY is ambiguous
 show warnings;
 Level	Code	Message
-Warning	1052	Column 'c2' in group statement is ambiguous
+Warning	1052	Column 'c2' in GROUP BY is ambiguous
 select t1.c1 as c2 from t1, t2 where t1.c2 = t2.c4
 group by t1.c1;
 c2
@@ -1029,7 +1029,7 @@ FROM t1 AS t1_outer GROUP BY t1_outer.b;
 ERROR 42000: 'test.t1_outer.a' isn't in GROUP BY
 SELECT 1 FROM t1 as t1_outer GROUP BY a 
 HAVING (SELECT t1_outer.b FROM t1 AS t1_inner LIMIT 1);
-ERROR 42S22: Unknown column 'test.t1_outer.b' in 'field list'
+ERROR 42S22: Unknown column 'test.t1_outer.b' in 'SELECT'
 SELECT (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner LIMIT 1) 
 FROM t1 AS t1_outer GROUP BY t1_outer.b;
 (SELECT SUM(t1_inner.a) FROM t1 AS t1_inner LIMIT 1)
@@ -1071,7 +1071,7 @@ SELECT 1 FROM t1 GROUP BY b HAVING ROW (b,b) = ROW (1,1);
 1
 1
 SELECT 1 FROM t1 GROUP BY b HAVING a = 2;
-ERROR 42S22: Unknown column 'a' in 'having clause'
+ERROR 42S22: Unknown column 'a' in 'HAVING'
 SELECT 1 FROM t1 GROUP BY SUM(b);
 ERROR HY000: Invalid use of group function
 SELECT b FROM t1 AS t1_outer GROUP BY a HAVING t1_outer.a IN 
@@ -2576,7 +2576,7 @@ DROP TABLE t1,t2;
 # MDEV-5104 crash in Item_field::used_tables with broken order by
 #
 (select 1 order by x(y)) order by 1;
-ERROR 42S22: Unknown column 'y' in 'order clause'
+ERROR 42S22: Unknown column 'y' in 'ORDER BY'
 # End of 5.3 tests
 #
 # Bug#49771: Incorrect MIN (date) when minimum value is 0000-00-00
@@ -3005,6 +3005,18 @@ a	SUBQ
 drop table t20, t21, t22;
 #
 # End of 10.3 tests
+#
+#
+# MDEV-29351 SIGSEGV when doing forward reference of item in select list
+#
+CREATE TABLE t1 (a INT);
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Unknown column 'c' in 'SET'
+UPDATE t1 SET c=1 ORDER BY (SELECT c);
+ERROR 42S22: Unknown column 'c' in 'SET'
+DROP TABLE t1;
+#
+# End of 10.5 tests
 #
 #
 # Test new group_min_max optimization

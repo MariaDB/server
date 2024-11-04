@@ -3779,6 +3779,28 @@ int handler::ha_rnd_pos(uchar *buf, uchar *pos)
   DBUG_RETURN(result);
 }
 
+
+int handler::ha_index_init(uint idx, bool sorted)
+{
+  DBUG_EXECUTE_IF("ha_index_init_fail", return HA_ERR_TABLE_DEF_CHANGED;);
+  int result;
+  DBUG_ENTER("ha_index_init");
+  DBUG_ASSERT(inited==NONE);
+  if (!(result= index_init(idx, sorted)))
+  {
+    inited=       INDEX;
+    active_index= idx;
+    end_range= NULL;
+    /*
+      Do not allow reads from UNIQUE HASH indexes.
+    */
+    DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
+  }
+
+  DBUG_RETURN(result);
+}
+
+
 int handler::ha_index_read_map(uchar *buf, const uchar *key,
                                       key_part_map keypart_map,
                                       enum ha_rkey_function find_flag)
@@ -6126,8 +6148,11 @@ void handler::update_global_table_stats()
   table_stats->rows_stats.deleted+=       rows_stats.deleted;
   table_stats->rows_stats.key_read_hit+=  rows_stats.key_read_hit;
   table_stats->rows_stats.key_read_miss+= rows_stats.key_read_miss;
-  table_stats->rows_stats.pages_accessed+= handler_stats->pages_accessed;
-  table_stats->rows_stats.pages_read_count+= handler_stats->pages_read_count;
+  if (handler_stats)
+  {
+    table_stats->rows_stats.pages_accessed+=   handler_stats->pages_accessed;
+    table_stats->rows_stats.pages_read_count+= handler_stats->pages_read_count;
+  }
   changed= rows_stats.updated + rows_stats.inserted + rows_stats.deleted;
   table_stats->rows_changed_x_indexes+= (changed *
                                          (table->s->keys ? table->s->keys :
@@ -7196,7 +7221,7 @@ extern "C" check_result_t handler_index_cond_check(void* h_arg)
   if (unlikely(h->handler_stats))
     h->handler_stats->icp_attempts++;
   res= CHECK_NEG;
-  if  (h->pushed_idx_cond->val_int())
+  if  (h->pushed_idx_cond->val_bool())
   {
     res= CHECK_POS;
     h->fast_increment_statistics(&SSV::ha_icp_match);
@@ -8704,6 +8729,21 @@ bool Table_scope_and_contents_source_st::vers_fix_system_fields(
 }
 
 
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned)
+{
+  int select_field_pos= alter_info->create_list.elements - select_field_count;
+  if (select_field_count && versioned &&
+      /*
+        ALTER_PARSER_ADD_COLUMN indicates system fields was created implicitly,
+        select_field_count guarantees it's not ALTER TABLE
+      */
+      alter_info->flags & ALTER_PARSER_ADD_COLUMN)
+    select_field_pos-= 2;
+  return select_field_pos;
+}
+
+
 bool Table_scope_and_contents_source_st::vers_check_system_fields(
         THD *thd, Alter_info *alter_info, const Lex_ident_table &table_name,
         const Lex_ident_db &db, int select_count)
@@ -8717,6 +8757,8 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
   {
     uint fieldnr= 0;
     List_iterator<Create_field> field_it(alter_info->create_list);
+    uint select_field_pos= (uint) get_select_field_pos(alter_info, select_count,
+                                                       true);
     while (Create_field *f= field_it++)
     {
       /*
@@ -8727,7 +8769,7 @@ bool Table_scope_and_contents_source_st::vers_check_system_fields(
          SELECT go last there.
        */
       bool is_dup= false;
-      if (fieldnr >= alter_info->create_list.elements - select_count)
+      if (fieldnr >= select_field_pos && f->invisible < INVISIBLE_SYSTEM)
       {
         List_iterator<Create_field> dup_it(alter_info->create_list);
         for (Create_field *dup= dup_it++; !is_dup && dup != f; dup= dup_it++)

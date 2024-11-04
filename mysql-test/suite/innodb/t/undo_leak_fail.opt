@@ -1,0 +1,3 @@
+--innodb_data_file_path=ibdata1:10M:autoextend:autoshrink
+--innodb_undo_tablespaces=0
+--innodb_sys_tablespaces

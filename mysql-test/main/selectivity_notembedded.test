@@ -233,31 +233,35 @@ create table t1 (
 );
 
 insert into t1
-select 
+select
   seq, FLOOR(seq/100), 'filler'
-from 
+from
   seq_1_to_1000;
 analyze table t1;
 
 set optimizer_trace=1;
-explain select * from t1 
+explain select * from t1
 where
   pk in (1,2,3,4,5) and
   key1 <= 4;
 
 --disable_view_protocol
+create temporary table opt_trace as
+select * from information_schema.optimizer_trace;
+
 --echo # 11.0+ will not attempt to use selectivity(key1): 
-select 
+select
   json_detailed(json_extract(trace,'$**.selectivity_for_indexes')) as JS
-from 
-  information_schema.optimizer_trace;
+from
+  opt_trace;
 
 --echo # Must not include 1.79...e308 as cost:
-select 
+select
   json_detailed(json_extract(trace,'$**.best_access_path')) as JS
-from 
-  information_schema.optimizer_trace;
+from
+  opt_trace;
 --enable_view_protocol
+drop table opt_trace;
 
 drop table t1;
 --echo #
