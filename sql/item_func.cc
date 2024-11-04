@@ -2987,13 +2987,15 @@ String *Item_func_min_max::val_str_native(String *str)
       res=args[i]->val_str(str);
     else
     {
-      String *res2;
-      res2= args[i]->val_str(res == str ? &tmp_value : str);
+      String *res2= args[i]->val_str(&tmp_value);
       if (res2)
       {
         int cmp= sortcmp(res,res2,collation.collation);
         if ((cmp_sign < 0 ? cmp : -cmp) < 0)
-          res=res2;
+        {
+          str->copy(*res2);
+          res= str;
+        }
       }
     }
     if ((null_value= args[i]->null_value))

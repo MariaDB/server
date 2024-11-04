@@ -1141,3 +1141,18 @@ DROP TABLE t0;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo #     MDEV-20944 Wrong result of LEAST() and ASAN heap-use-after-free in my_strnncollsp_simple / Item::temporal_precision on TIME()
+--echo #
+
+SET NAMES latin1;
+SELECT LEAST( CAST( 0 AS CHAR ), OLD_PASSWORD( 1 ) );
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
