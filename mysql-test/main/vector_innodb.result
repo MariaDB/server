@@ -210,3 +210,20 @@ v
 commit;
 drop table t;
 set global mhnsw_max_cache_size= default;
+#
+# MDEV-35319 ER_LOCK_DEADLOCK not detected upon DML on table with vector key, server crashes
+#
+create table t (pk int, b vector(1) not null, vector(b), primary key (pk)) engine=innodb;
+insert into t values (1,0x31313131),(2,0x32323232);
+start transaction;
+insert into t values (3,0x33333333);
+connect con1,localhost,root;
+DELETE from t;
+connection default;
+set innodb_lock_wait_timeout= 1;
+delete from t;
+rollback;
+connection con1;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
+drop table t;
+disconnect con1;

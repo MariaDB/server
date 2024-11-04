@@ -1386,8 +1386,11 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   TABLE *graph= table->hlindex;
   handler *h= table->file;
   MHNSW_Share *ctx;
-  bool use_ctx= !MHNSW_Share::acquire(&ctx, table, true);
+
+  int err= MHNSW_Share::acquire(&ctx, table, true);
   SCOPE_EXIT([ctx, table](){ ctx->release(table); });
+  if (err)
+    return err;
 
   /* metadata are checked on open */
   DBUG_ASSERT(graph);
@@ -1413,12 +1416,9 @@ int mhnsw_invalidate(TABLE *table, const uchar *rec, KEY *keyinfo)
   if (int err= graph->file->ha_update_row(graph->record[1], graph->record[0]))
     return err;
 
-  if (use_ctx)
-  {
-    graph->file->position(graph->record[0]);
-    FVectorNode *node= ctx->get_node(graph->file->ref);
-    node->deleted= true;
-  }
+  graph->file->position(graph->record[0]);
+  FVectorNode *node= ctx->get_node(graph->file->ref);
+  node->deleted= true;
 
   return 0;
 }
