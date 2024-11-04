@@ -8877,9 +8877,9 @@ bool LEX::check_expr_allows_fields_or_error(THD *thd, const char *name) const
 
 Item *LEX::create_item_ident_placeholder(THD *thd,
                                          Name_resolution_context *ctx,
-                                         const LEX_CSTRING *db,
-                                         const LEX_CSTRING *table,
-                                         const LEX_CSTRING *field)
+                                         const Lex_ident_db *db,
+                                         const Lex_ident_table *table,
+                                         const Lex_ident_column *field)
 {
   DBUG_ENTER("LEX::create_item_ident_placeholder");
   DBUG_PRINT("enter", ("New name to resolve %s.%s.%s",

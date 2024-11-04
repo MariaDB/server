@@ -661,12 +661,13 @@ Item* Item::set_expr_cache(THD *thd)
 Item_ident_placeholder::Item_ident_placeholder(THD *thd,
                                                Name_resolution_context
                                                  *context_arg,
-                                               const LEX_CSTRING
-                                                 &db_name_arg,
-                                               const LEX_CSTRING
-                                                 &table_name_arg,
-                                               const LEX_CSTRING
-                                                 &field_name_arg)
+
+                                               const Lex_ident_db
+                                                 db_name_arg,
+                                               const Lex_ident_table
+                                                 table_name_arg,
+                                               const Lex_ident_column
+                                                 field_name_arg)
   :Item(thd),
    context(context_arg),
    db_name(db_name_arg), table_name(table_name_arg),

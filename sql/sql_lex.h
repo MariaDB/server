@@ -4197,9 +4197,9 @@ public:
 
   Item *create_item_ident_placeholder(THD *thd,
                                       Name_resolution_context *ctx,
-                                      const LEX_CSTRING *db,
-                                      const LEX_CSTRING *table,
-                                      const LEX_CSTRING *field);
+                                      const Lex_ident_db *db,
+                                      const Lex_ident_table *table,
+                                      const Lex_ident_column *field);
   /*
     Create an Item corresponding to a qualified name: a.b
     when the parser is out of an SP context.

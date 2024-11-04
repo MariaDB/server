@@ -16334,7 +16334,7 @@ simple_ident_nospvar:
           {
             if (unlikely(!($$= Lex->create_item_ident_placeholder(thd,
                                       Lex->context_stack.head(),
-                                      &null_clex_str, &null_clex_str,
+                                      NULL, NULL,
                                       &$1))))
               MYSQL_YYABORT;
           }
