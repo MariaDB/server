@@ -294,3 +294,50 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.11 tests
+--echo #
+
+--echo #
+--echo # MDEV-28767 Collation "binary" is not accepted for databases, tables, columns
+--echo #
+
+# Column level
+
+CREATE TABLE t1 (a CHAR(1) COLLATE binary);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a enum('a') CHARACTER SET binary COLLATE binary DEFAULT NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+CREATE TABLE t1 (a enum('a') COLLATE binary DEFAULT NULL);
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE TABLE t1 (a CHAR(1) CHARACTER SET latin1 COLLATE binary);
+
+
+# Table level
+CREATE TABLE t1 (a CHAR(10)) COLLATE binary;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE TABLE t1 (a CHAR(10)) CHARACTER SET latin1 COLLATE binary;
+
+
+# Database level
+CREATE DATABASE db1 COLLATE binary;
+SHOW CREATE DATABASE db1;
+DROP DATABASE db1;
+
+--error ER_COLLATION_CHARSET_MISMATCH
+CREATE DATABASE db1 CHARACTER SET latin1 COLLATE binary;
+
+--echo #
+--echo # End of 10.11 tests
+--echo #

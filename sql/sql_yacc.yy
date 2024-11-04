@@ -6613,6 +6613,11 @@ collation_name:
 collation_name_or_default:
           collation_name { $$=$1; }
         | DEFAULT        { $$.set_collate_default(); }
+        | BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            $$= Lex_extended_collation(bin);
+          }
         ;
 
 opt_default:
@@ -6672,6 +6677,20 @@ binary:
         | COLLATE_SYM DEFAULT
           {
             $$.set_collate_default();
+          }
+        | charset_or_alias COLLATE_SYM BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            Lex_extended_collation tmp(bin);
+            if (tmp.merge_exact_charset(Lex_exact_charset($1)))
+              MYSQL_YYABORT;
+            $$= Lex_exact_charset_extended_collation_attrs(tmp);
+          }
+        | COLLATE_SYM BINARY // MySQL compatibility
+          {
+            const Lex_exact_collation bin(&my_charset_bin);
+            const Lex_extended_collation tmp(bin);
+            $$= Lex_exact_charset_extended_collation_attrs(tmp);
           }
         ;
 
