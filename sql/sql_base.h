@@ -228,7 +228,7 @@ Item ** find_item_in_list(Item *item, List<Item> &items, uint *counter,
 bool setup_tables(THD *thd, Name_resolution_context *context,
                   List<TABLE_LIST> *from_clause, TABLE_LIST *tables,
                   List<TABLE_LIST> &leaves, bool select_insert,
-                  bool full_table_list);
+                  bool full_table_list, bool resolve_opt_hints);
 bool setup_tables_and_check_access(THD *thd,
                                    Name_resolution_context *context,
                                    List<TABLE_LIST> *from_clause,
@@ -237,7 +237,8 @@ bool setup_tables_and_check_access(THD *thd,
                                    bool select_insert,
                                    privilege_t want_access_first,
                                    privilege_t want_access,
-                                   bool full_table_list);
+                                   bool full_table_list,
+                                   bool resolve_opt_hints);
 bool wait_while_table_is_used(THD *thd, TABLE *table,
                               enum ha_extra_function function);
 

@@ -557,8 +557,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
     {
       // e.g. BKA(@qb1)
       if (qb->set_switch(hint_state, hint_type, false))
+      {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                    &qb_name_sys, NULL, NULL, (Parser::Hint*) NULL);
+      }
       return false;
     }
     else
@@ -572,8 +574,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
         if (!tab)
           return true;
         if (tab->set_switch(hint_state, hint_type, true))
+        {
           print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                      &qb_name_sys, &table_name_sys, NULL, (Parser::Hint*) NULL);
+        }
       }
     }
   }
@@ -589,8 +593,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
     {
       // e.g. BKA()
       if (qb->set_switch(hint_state, hint_type, false))
+      {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                    &null_ident_sys, NULL, NULL, (Parser::Hint*) NULL);
+      }
       return false;
     }
     for (const Table_name &table : table_name_list)
@@ -601,9 +607,11 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       if (!tab)
         return true;
       if (tab->set_switch(hint_state, hint_type, true))
+      {
         print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                    &null_ident_sys, &table_name_sys,
                    NULL, (Parser::Hint*) NULL);
+      }
     }
   
     for (const Hint_param_table &table : opt_hint_param_table_list)
@@ -620,8 +628,10 @@ bool Optimizer_hint_parser::Table_level_hint::resolve(Parse_context *pc) const
       if (!tab)
         return true;
       if (tab->set_switch(hint_state, hint_type, true))
+      {
          print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                     &qb_name_sys, &table_name_sys, NULL, (Parser::Hint*) NULL);
+      }
     }
   }
   return false;
@@ -673,8 +683,10 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
   if (is_empty())  // Table level hint
   {
     if (tab->set_switch(hint_state, hint_type, false))
+    {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                  &qb_name_sys, &table_name_sys, NULL, (Parser::Hint*) NULL);
+    }
     return false;
   }
 
@@ -690,9 +702,11 @@ bool Parser::Index_level_hint::resolve(Parse_context *pc) const
     }
 
     if (idx->set_switch(hint_state, hint_type, true))
+    {
       print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, hint_type, hint_state,
                  &qb_name_sys, &table_name_sys, &index_name_sys,
                  (Parser::Hint*) NULL);
+    }
   }
 
   return false;
@@ -735,6 +749,7 @@ bool Parser::Max_execution_time_hint::resolve(Parse_context *pc) const
 {
   const Unsigned_Number& hint_arg= *this;
   const ULonglong_null time_ms= hint_arg.get_ulonglong();
+
   if (time_ms.is_null() || time_ms.value() == 0 || time_ms.value() > INT_MAX32)
   {
     print_warn(pc->thd, ER_BAD_OPTION_VALUE, MAX_EXEC_TIME_HINT_ENUM,
@@ -746,8 +761,6 @@ bool Parser::Max_execution_time_hint::resolve(Parse_context *pc) const
   if (global_hint->is_specified(MAX_EXEC_TIME_HINT_ENUM))
   {
     // Hint duplication: /*+ MAX_EXECUTION_TIME ... MAX_EXECUTION_TIME */
-
-    // Create a NULL-terminated hint argument string
     print_warn(pc->thd, ER_WARN_CONFLICTING_HINT, MAX_EXEC_TIME_HINT_ENUM, true,
                NULL, NULL, NULL, this);
     return false;
@@ -777,18 +790,19 @@ ulong Parser::Max_execution_time_hint::get_milliseconds() const
 
 bool Opt_hints_global::resolve(THD *thd)
 {
-  if (!max_exec_time_hint || is_resolved())
+  if (!max_exec_time_hint || thd->lex->is_ps_or_view_context_analysis())
     return false;
 
   /*
     2nd step of MAX_EXECUTION_TIME() hint validation. Some checks were already
     performed during the parsing stage (Max_execution_time_hint::resolve()),
-    but these checks can only be performed during the JOIN preparation because
-    thd->lex variables are not available during parsing
+    but the following checks can only be performed during the JOIN preparation
+    because thd->lex variables are not available during parsing
   */
   if (thd->lex->sql_command != SQLCOM_SELECT || // not a SELECT statement
       thd->lex->sphead || thd->in_sub_stmt != 0 || // or a SP/trigger/event
-      max_exec_time_select_lex->master_unit() != &thd->lex->unit) // or a subquery
+      max_exec_time_select_lex->master_unit() != &thd->lex->unit || // or a subquery
+      max_exec_time_select_lex->select_number != 1) // not a top-level select
   {
     print_warn(thd, ER_NOT_ALLOWED_IN_THIS_CONTEXT, MAX_EXEC_TIME_HINT_ENUM,
                true, NULL, NULL, NULL, max_exec_time_hint);

@@ -1880,11 +1880,11 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
   if (setup_tables_and_check_access(thd, &select_lex->context,
                                     &select_lex->top_join_list,
                                     table_list, select_lex->leaf_tables,
-                                    false, DELETE_ACL, SELECT_ACL, true))
+                                    false, DELETE_ACL, SELECT_ACL, true, false))
     DBUG_RETURN(TRUE);
 
   if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
-                   table_list, select_lex->leaf_tables, false, false))
+                   table_list, select_lex->leaf_tables, false, false, true))
     DBUG_RETURN(TRUE);
 
   if (!multitable)
