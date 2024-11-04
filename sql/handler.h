@@ -61,6 +61,8 @@ class Column_definition;
 class select_result;
 class handler_binlog_reader;
 struct rpl_gtid;
+struct slave_connection_state;
+struct rpl_binlog_state_base;
 
 // the following is for checking tables
 
@@ -5840,6 +5842,8 @@ public:
   { }
   virtual ~handler_binlog_reader() { };
   virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+  virtual int init_gtid_pos(slave_connection_state *pos,
+                            rpl_binlog_state_base *state) = 0;
 
   int read_log_event(String *packet, uint32_t ev_offset, size_t max_allowed);
 
