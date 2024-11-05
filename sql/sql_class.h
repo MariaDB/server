@@ -231,6 +231,9 @@ extern "C" int thd_current_status(MYSQL_THD thd);
 extern "C" enum enum_server_command thd_current_command(MYSQL_THD thd);
 extern "C" int thd_double_innodb_cardinality(MYSQL_THD thd);
 
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+                          const char *table, size_t table_len);
+
 /**
   @class CSET_STRING
   @brief Character set armed LEX_STRING

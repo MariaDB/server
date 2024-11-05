@@ -32,6 +32,7 @@
 #include "sql_admin.h"
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
+#include "key.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
 #endif
@@ -1717,3 +1718,232 @@ wsrep_error_label:
 error:
   DBUG_RETURN(res);
 }
+
+
+static
+int check_key_referential_integrity(const TABLE *table, const TABLE *ref_table,
+                                    const KEY *this_key, const KEY *ref_key,
+                                    size_t fk_parts, uchar *key_buf,
+                                    const Lex_ident_column &fk_name)
+{
+  int error= table->file->ha_rnd_init(true);
+  if (error)
+    return error;
+
+  ptrdiff_t keynr= ref_key - ref_table->key_info;
+  DBUG_ASSERT(keynr >= 0 && keynr < ref_table->s->keys);
+
+  error= ref_table->file->ha_index_init((uint)keynr, false);
+  if (error)
+    return error;
+
+  uint prefix_length= key_get_prefix_store_length(ref_key, fk_parts);
+
+  bool is_ok= true;
+  while ((error= table->file->ha_rnd_next(table->record[0])) == 0)
+  {
+    if (int res= ref_table->file->check_record_reference(this_key, ref_key,
+                                        fk_parts, key_buf, prefix_length,
+                                        table->record[0],
+                                        ref_table->record[0]))
+    {
+      if (res == HA_ERR_KEY_NOT_FOUND)
+      {
+        char rec_buf[MAX_KEY_LENGTH];
+        String rec(rec_buf, sizeof(rec_buf), system_charset_info);
+        key_unpack(&rec, table, this_key, fk_parts);
+        char errmsg[MYSQL_ERRMSG_SIZE];
+        my_snprintf(errmsg, sizeof errmsg, "Key: %s, record: '%s'",
+                    fk_name.str, rec.c_ptr_safe());
+        my_error(ER_NO_REFERENCED_ROW_2, ME_WARNING, errmsg);
+      }
+      is_ok= false;
+    }
+  }
+
+  table->file->ha_rnd_end();
+  ref_table->file->ha_index_end();
+
+  return is_ok ? 0 : HA_ADMIN_CORRUPT;
+}
+
+static
+void report_check_table_not_found(THD *thd, const FOREIGN_KEY_INFO &fk,
+                                  const Lex_ident_db &db,
+                                  const Lex_ident_table &table)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      HA_ERR_INDEX_CORRUPT,
+                      "Table %s.%s is not found. Needed for a foreign key %s",
+                      db.str, table.str, fk.foreign_id.str);
+}
+
+static
+void report_check_key_not_found(THD *thd, const Lex_ident_column &key,
+                                const TABLE *table,
+                                const FOREIGN_KEY_INFO &fk)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      HA_ERR_INDEX_CORRUPT,
+                      "No suitable key found for foreign key %s"
+                      " in table %s.%s",
+                      fk.foreign_id.str,
+                      table->s->db.str, table->s->table_name.str);
+}
+
+static
+void report_check_key_wrong_description(THD *thd, const KEY *key,
+                                        const TABLE *table,
+                                        const FOREIGN_KEY_INFO &fk)
+{
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      HA_ERR_INDEX_CORRUPT,
+                      "Key %s in table %s.%s doesn't match foreign key %s.",
+                      key->name.str, table->s->db.str, table->s->table_name.str,
+                      fk.foreign_id.str);
+}
+
+using st_::span;
+
+static bool check_key_description(THD *thd, const KEY *key,
+                                  const TABLE *table,
+                                  const span<Lex_ident_column> &cols)
+{
+  if (key->user_defined_key_parts < cols.size())
+    return false;
+
+  for (uint kp = 0; kp < cols.size(); kp++)
+  {
+    if (!cols[kp].streq(key->key_part[kp].field->field_name))
+      return false;
+  }
+  return true;
+}
+
+static
+int check_foreign_key_relation(THD *thd, const TABLE *this_table,
+                               const TABLE *ref_table,
+                               const FOREIGN_KEY_INFO &fk, uchar *key_buf)
+
+{
+  const KEY *this_key= this_table->find_key_by_name(fk.foreign_key_name),
+          *ref_key= ref_table->find_key_by_name(fk.referenced_key_name);
+
+  if (!this_key)
+    report_check_key_not_found(thd, fk.foreign_key_name, this_table, fk);
+  if (!ref_key)
+    report_check_key_not_found(thd, fk.referenced_key_name, ref_table, fk);
+
+  if (!this_key || !ref_key)
+    return HA_ADMIN_CORRUPT;
+
+  if (!check_key_description(thd, this_key, this_table, fk.foreign_fields))
+  {
+    report_check_key_wrong_description(thd, this_key, this_table, fk);
+    return HA_ADMIN_CORRUPT;
+  }
+  if (!check_key_description(thd, ref_key, ref_table, fk.referenced_fields))
+  {
+    report_check_key_wrong_description(thd, ref_key, ref_table, fk);
+    return HA_ADMIN_CORRUPT;
+  }
+
+  size_t kp_num= fk.foreign_fields.size();
+  return check_key_referential_integrity(this_table, ref_table, this_key,
+                                         ref_key, kp_num, key_buf,
+                                         fk.foreign_id);
+}
+
+
+int check_foreign_key_relations(THD *thd, TABLE *table)
+{
+  List<FOREIGN_KEY_INFO> fk_list, parent_fk_list;
+  if (int err= table->file->get_parent_foreign_key_list(thd, &parent_fk_list))
+    return err;
+  if (int err= table->file->get_foreign_key_list(thd, &fk_list))
+    return err;
+
+  using std::max;
+  uint max_key_len= 0;
+
+  for (const FOREIGN_KEY_INFO &fk: fk_list)
+  {
+    const KEY *key= table->find_key_by_name(fk.foreign_key_name);
+    if (!key)
+      continue;
+    max_key_len= max(max_key_len,
+                     key_get_prefix_store_length(key, fk.referenced_fields.size()));
+  }
+
+  for (const FOREIGN_KEY_INFO &fk: parent_fk_list)
+  {
+    const KEY *key= table->find_key_by_name(fk.referenced_key_name);
+    if (!key)
+      continue;
+    max_key_len= max(max_key_len,
+                     key_get_prefix_store_length(key,
+                                             fk.foreign_fields.size()));
+  }
+
+  uchar *key_buf= new(thd) uchar[max_key_len];
+  if (!key_buf)
+    return HA_ERR_OUT_OF_MEM;
+
+  table->use_all_columns();
+
+  int ret_error= 0;
+
+  for (const FOREIGN_KEY_INFO &fk: fk_list)
+  {
+    TABLE *ref_table= find_fk_open_table(thd, fk.referenced_db.str,
+                                         fk.referenced_db.length,
+                                         fk.referenced_table.str,
+                                         fk.referenced_table.length);
+
+    if (ref_table == NULL)
+    {
+      report_check_table_not_found(thd, fk, fk.referenced_db,
+                                   fk.referenced_table);
+      ret_error= HA_ADMIN_CORRUPT;
+      continue;
+    }
+    ref_table->use_all_columns();
+
+    int err= check_foreign_key_relation(thd, table, ref_table, fk, key_buf);
+
+    if (unlikely(err))
+    {
+      if (unlikely(err != HA_ADMIN_CORRUPT))
+        return err;
+      ret_error= err;
+    }
+  }
+
+  for (const FOREIGN_KEY_INFO &fk: parent_fk_list)
+  {
+    TABLE *parent_table= find_fk_open_table(thd, fk.foreign_db.str,
+                                            fk.foreign_db.length,
+                                            fk.foreign_table.str,
+                                            fk.foreign_table.length);
+    if (parent_table == NULL)
+    {
+      report_check_table_not_found(thd, fk, fk.foreign_db, fk.foreign_table);
+      ret_error= HA_ADMIN_CORRUPT;
+      continue;
+    }
+    parent_table->use_all_columns();
+
+    int err= check_foreign_key_relation(thd, parent_table, table, fk, key_buf);
+
+    if (unlikely(err))
+    {
+      if (unlikely(err != HA_ADMIN_CORRUPT))
+        return err;
+      ret_error= err;
+    }
+  }
+
+  return ret_error;
+}
+
+
