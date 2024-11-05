@@ -827,9 +827,8 @@ void wsrep_init_globals()
   else
   {
     if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
-    {
-      WSREP_WARN("Ignoring server id for non bootstrap node.");
-    }
+      WSREP_INFO("Ignoring server id %ld for non bootstrap node, using %ld.",
+                 global_system_variables.server_id, wsrep_gtid_server.server_id);
   }
   wsrep_init_schema();
   if (WSREP_ON)
