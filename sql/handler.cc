@@ -3761,8 +3761,11 @@ int handler::ha_index_init(uint idx, bool sorted)
     end_range= NULL;
     /*
       Do not allow reads from UNIQUE HASH indexes.
+      (1) MyRocks sometimes uses hidden indexes that SQL layer isn't aware of,
+          skip the check for such cases
     */
-    DBUG_ASSERT(!(table->key_info[active_index].flags & HA_UNIQUE_HASH));
+    DBUG_ASSERT(active_index >= table->s->keys ||  // (1)
+                !(table->key_info[active_index].flags & HA_UNIQUE_HASH));
   }
 
   DBUG_RETURN(result);
