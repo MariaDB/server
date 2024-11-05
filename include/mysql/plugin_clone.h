@@ -29,11 +29,12 @@ API for clone plugin
 #ifndef MYSQL_PLUGIN_CLONE_INCLUDED
 #define MYSQL_PLUGIN_CLONE_INCLUDED
 
-#include "plugin.h"
+#include "my_global.h"
 #include "violite.h"
+#include "plugin.h"
 
 /** Clone plugin interface version */
-#define MYSQL_CLONE_INTERFACE_VERSION 0x0100
+#define MariaDB_CLONE_INTERFACE_VERSION 0x0100
 
 /**
   The descriptor structure for the plugin, that is referred from

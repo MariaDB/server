@@ -27,7 +27,7 @@ Clone Plugin: OS specific routines for IO and network
 
 */
 
-#include "plugin/clone/include/clone_os.h"
+#include "clone_os.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

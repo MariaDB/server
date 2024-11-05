@@ -30,9 +30,9 @@ Clone Plugin: Server interface
 #ifndef CLONE_SERVER_H
 #define CLONE_SERVER_H
 
-#include "plugin/clone/include/clone.h"
-#include "plugin/clone/include/clone_hton.h"
-#include "plugin/clone/include/clone_os.h"
+#include "clone.h"
+#include "clone_hton.h"
+#include "clone_os.h"
 
 /* Namespace for all clone data types */
 namespace myclone {
@@ -143,18 +143,15 @@ class Server {
   @return true if network error */
   static bool is_network_error(int err) {
     if (err == ER_NET_ERROR_ON_WRITE || err == ER_NET_READ_ERROR ||
-        err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED ||
-        err == ER_NET_WAIT_ERROR) {
-      return (true);
-    }
+        err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED)
+      return true;
 
     /* Check for protocol error */
     if (err == ER_NET_PACKETS_OUT_OF_ORDER || err == ER_NET_UNCOMPRESS_ERROR ||
-        err == ER_NET_PACKET_TOO_LARGE || err == ER_CLONE_PROTOCOL) {
-      return (true);
-    }
+        err == ER_NET_PACKET_TOO_LARGE || err == ER_CLONE_PROTOCOL)
+      return true;
 
-    return (false);
+    return false;
   }
 
   /** Send status back to client

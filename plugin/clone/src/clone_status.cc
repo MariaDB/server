@@ -27,13 +27,13 @@ Clone Plugin: Clone status as performance schema plugin table
 
 */
 
-#include "plugin/clone/include/clone_status.h"
+#include "clone_status.h"
 #include <fstream>
 #include <sstream>
 #include <string>
 #include "my_io.h"
-#include "plugin/clone/include/clone.h"
-#include "plugin/clone/include/clone_client.h"
+#include "clone.h"
+#include "clone_client.h"
 
 SERVICE_TYPE_NO_CONST(pfs_plugin_table_v1) *mysql_pfs_table = nullptr;
 SERVICE_TYPE_NO_CONST(pfs_plugin_column_integer_v1) *mysql_pfscol_int = nullptr;

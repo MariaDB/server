@@ -32,10 +32,10 @@ Clone Plugin: Interface with SE handlerton
 
 #include <vector>
 
-#include "my_byteorder.h"
+#include "my_global.h"
 #include "mysql/plugin.h"
-#include "sql/handler.h"
-#include "sql/sql_plugin.h"
+#include "handler.h"
+#include "sql_plugin.h"
 
 /* Namespace for all clone data types */
 namespace myclone {

@@ -27,8 +27,8 @@ Clone Plugin: Server implementation
 
 */
 
-#include "plugin/clone/include/clone_server.h"
-#include "plugin/clone/include/clone_status.h"
+#include "clone_server.h"
+#include "clone_status.h"
 
 #include "my_byteorder.h"
 

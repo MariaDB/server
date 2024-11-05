@@ -30,11 +30,9 @@ Clone Plugin: Client Interface
 #ifndef CLONE_CLIENT_H
 #define CLONE_CLIENT_H
 
-#include "plugin/clone/include/clone.h"
-#include "plugin/clone/include/clone_hton.h"
-#include "plugin/clone/include/clone_status.h"
-
-#include "mysql/psi/mysql_thread.h"
+#include "clone.h"
+#include "clone_hton.h"
+#include "clone_status.h"
 
 #include <array>
 #include <atomic>

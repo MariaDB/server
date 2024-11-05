@@ -30,10 +30,10 @@ Clone Plugin: Local clone interface
 #ifndef CLONE_LOCAL_H
 #define CLONE_LOCAL_H
 
-#include "plugin/clone/include/clone.h"
-#include "plugin/clone/include/clone_client.h"
-#include "plugin/clone/include/clone_hton.h"
-#include "plugin/clone/include/clone_server.h"
+#include "clone.h"
+#include "clone_client.h"
+#include "clone_hton.h"
+#include "clone_server.h"
 
 /* Namespace for all clone data types */
 namespace myclone {

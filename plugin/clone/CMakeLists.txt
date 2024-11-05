@@ -21,21 +21,22 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
-DISABLE_MISSING_PROFILE_WARNING()
-MSVC_CPPCHECK_DISABLE()
-
 ADD_DEFINITIONS(-DMYSQL_SERVER)
-ADD_DEFINITIONS(-DLOG_SUBSYSTEM_TAG="Clone")
-ADD_DEFINITIONS(-DLOG_COMPONENT_TAG="Clone")
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+# IF(WIN32)
+#   SET(MAYBE_STATIC_ONLY STATIC_ONLY)
+# ENDIF(WIN32)
 
 MYSQL_ADD_PLUGIN(clone
   src/clone_plugin.cc
-  src/clone_client.cc
-  src/clone_server.cc
-  src/clone_status.cc
-  src/clone_local.cc
+  # src/clone_client.cc
+  # src/clone_server.cc
+  # src/clone_status.cc
+  # src/clone_local.cc
   src/clone_os.cc
   src/clone_hton.cc
-  MODULE_ONLY
-  MODULE_OUTPUT_NAME "mysql_clone"
+  # MODULE_ONLY
+  ${MAYBE_STATIC_ONLY} RECOMPILE_FOR_EMBEDDED DEFAULT
+  MODULE_OUTPUT_NAME "mariadb_clone"
   )
