@@ -1116,6 +1116,7 @@ REPLACE INTO collections (id) VALUES (NULL);
 connection default;
 REPLACE INTO binaries (id) VALUES (NULL);
 SET GLOBAL innodb_max_purge_lag_wait=0;
+set statement foreign_key_checks = 0 for
 CHECK TABLE binaries, collections EXTENDED;
 Table	Op	Msg_type	Msg_text
 test.binaries	check	status	OK

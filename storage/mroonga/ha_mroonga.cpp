@@ -16710,6 +16710,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
     f_key_info.referenced_key_name = "PRIMARY"_Lex_ident_column;
+    f_key_info.foreign_key_name = "PRIMARY"_Lex_ident_column;
 
     f_key_info.foreign_fields.alloc(thd, 1);
     f_key_info.referenced_fields.alloc(thd, 1);
