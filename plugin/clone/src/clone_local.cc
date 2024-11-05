@@ -29,8 +29,10 @@ Clone Plugin: Local clone implementation
 
 #include "clone_local.h"
 #include "clone_os.h"
+#include <functional>
+#include <sstream>
 
-#include "sql/sql_thd_internal_api.h"
+// #include "sql/sql_thd_internal_api.h"
 
 /* Namespace for all clone data types */
 namespace myclone {
@@ -43,8 +45,8 @@ static void clone_local(Client_Share *share, Server *server, uint32_t index) {
   THD *thd = nullptr;
 
   /* Create a session statement and set PFS keys */
-  mysql_service_clone_protocol->mysql_clone_start_statement(
-      thd, clone_local_thd_key, PSI_NOT_INSTRUMENTED);
+  // mysql_service_clone_protocol->mysql_clone_start_statement(
+  //     thd, clone_local_thd_key, PSI_NOT_INSTRUMENTED);
 
   Local clone_inst(thd, server, share, index, false);
 
@@ -53,7 +55,7 @@ static void clone_local(Client_Share *share, Server *server, uint32_t index) {
   static_cast<void>(clone_inst.clone_exec());
 
   /* Drop the statement and session */
-  mysql_service_clone_protocol->mysql_clone_finish_statement(thd);
+  // mysql_service_clone_protocol->mysql_clone_finish_statement(thd);
 }
 
 Local::Local(THD *thd, Server *server, Client_Share *share, uint32_t index,
@@ -76,10 +78,10 @@ int Local::clone() {
   /* End PFS table state. */
   const char *err_mesg = nullptr;
   uint32_t err_number = 0;
-  auto thd = m_clone_client.get_thd();
+  // auto thd = m_clone_client.get_thd();
 
-  mysql_service_clone_protocol->mysql_clone_get_error(thd, &err_number,
-                                                      &err_mesg);
+  // mysql_service_clone_protocol->mysql_clone_get_error(thd, &err_number,
+  //                                                     &err_mesg);
   m_clone_client.pfs_end_state(err_number, err_mesg);
   return (err);
 }
@@ -100,8 +102,8 @@ int Local::clone_exec() {
 
   /* Acquire DDL lock. Wait for 5 minutes by default. */
   if (acquire_backup_lock) {
-    auto failed = mysql_service_mysql_backup_lock->acquire(
-        thd, BACKUP_LOCK_SERVICE_DEFAULT, clone_ddl_timeout);
+    bool failed = false; // mysql_service_mysql_backup_lock->acquire(
+        // thd, BACKUP_LOCK_SERVICE_DEFAULT, clone_ddl_timeout);
 
     if (failed) {
       return (ER_LOCK_WAIT_TIMEOUT);
@@ -117,7 +119,7 @@ int Local::clone_exec() {
   if (error != 0) {
     /* Release DDL lock */
     if (acquire_backup_lock) {
-      mysql_service_mysql_backup_lock->release(thd);
+      // mysql_service_mysql_backup_lock->release(thd);
     }
     return (error);
   }
@@ -136,7 +138,7 @@ int Local::clone_exec() {
 
       /* Release DDL lock */
       if (acquire_backup_lock) {
-        mysql_service_mysql_backup_lock->release(thd);
+        // mysql_service_mysql_backup_lock->release(thd);
       }
       return (error);
     }
@@ -185,7 +187,7 @@ int Local::clone_exec() {
 
   /* Release DDL lock */
   if (acquire_backup_lock) {
-    mysql_service_mysql_backup_lock->release(thd);
+    // mysql_service_mysql_backup_lock->release(thd);
   }
   return (error);
 }
