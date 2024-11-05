@@ -107,27 +107,32 @@ int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
 
   @param to_key      buffer that will be used as a key
   @param from_record full record to be copied from
-  @param key_info    descriptor of the index
+  @param from_key_info  a descriptor of the index that corresponds a data to be
+                        copied from the record
+  @param to_key_info    a descriptor of the index that describes a key structre
+                        to copy to. It may differ in case of foreign key
+                        lookups: basically the key part structures may be
+                        different in whether it store the null part or not.
   @param key_length  specifies length of all keyparts that will be copied
   @param with_zerofill  skipped bytes in the key buffer to be filled with 0
 */
 
-void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
-              uint key_length, bool with_zerofill)
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
+              const KEY *to_key_info, uint key_length, bool with_zerofill)
 {
   uint length;
-  KEY_PART_INFO *key_part;
+  KEY_PART_INFO *key_part, *to_key_part;
 
   if (key_length == 0)
-    key_length= key_info->key_length;
-  for (key_part= key_info->key_part;
+    key_length= to_key_info->key_length;
+  for (key_part= from_key_info->key_part, to_key_part= to_key_info->key_part;
        (int) key_length > 0;
-       key_part++, to_key+= length, key_length-= length)
+       key_part++, to_key_part++, to_key+= length, key_length-= length)
   {
-    if (key_part->null_bit)
+    if (to_key_part->null_bit)
     {
       *to_key++= MY_TEST(from_record[key_part->null_offset] &
-                         key_part->null_bit);
+                         to_key_part->null_bit);
       key_length--;
       if (to_key[-1])
       {
@@ -148,7 +153,7 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
       key_length-= HA_KEY_BLOB_LENGTH;
       length= MY_MIN(key_length, key_part->length);
       uint bytes= key_part->field->get_key_image(to_key, length, from_ptr,
-                                        Field::image_type(key_info->algorithm));
+                                   Field::image_type(from_key_info->algorithm));
       if (with_zerofill && bytes < length)
         bzero((char*) to_key + bytes, length - bytes);
       to_key+= HA_KEY_BLOB_LENGTH;
@@ -165,6 +170,11 @@ void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
   }
 }
 
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
+              uint key_length, bool with_zerofill)
+{
+  key_copy(to_key, from_record, key_info, key_info, key_length, with_zerofill);
+}
 
 /**
   Restore a key from some buffer to record.
@@ -415,13 +425,13 @@ void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
      key	Key
 */
 
-void key_unpack(String *to, TABLE *table, KEY *key)
+void key_unpack(String *to, const TABLE *table, const KEY *key,
+                uint prefix_size)
 {
-  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("key_unpack");
 
   to->length(0);
-  KEY_PART_INFO *key_part_end= key->key_part + key->user_defined_key_parts;
+  KEY_PART_INFO *key_part_end= key->key_part + prefix_size;
   for (KEY_PART_INFO *key_part= key->key_part;
        key_part < key_part_end;
        key_part++)
@@ -441,9 +451,16 @@ void key_unpack(String *to, TABLE *table, KEY *key)
     field_unpack(to, key_part->field, table->record[0], key_part->length,
                  MY_TEST(key_part->key_part_flag & HA_PART_KEY_SEG));
  }
-  dbug_tmp_restore_column_map(&table->read_set, old_map);
   DBUG_VOID_RETURN;
 }
+
+void key_unpack(String *to, TABLE *table, KEY *key)
+{
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
+  key_unpack(to, table, key, key->user_defined_key_parts);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
+}
+
 
 
 /*
@@ -887,4 +904,17 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     }
   }
   return FALSE;
+}
+
+/**
+  Get total length of a buffer that is needed to store a key prefix.
+  @param key designated key
+  @param parts size of a key prefix (in key parts)
+*/
+uint key_get_prefix_store_length(const KEY *key, size_t parts)
+{
+  uint key_len= 0;
+  for (size_t kp= 0; kp < parts; kp++)
+    key_len+= key->key_part[kp].store_length;
+  return key_len;
 }
