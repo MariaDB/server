@@ -129,7 +129,7 @@ enum worker_wake_reason
 
 
 /* A per-worker  thread structure.*/
-struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
+struct worker_data
 {
   /** Condition variable to wakeup this worker.*/
   std::condition_variable m_cv;
@@ -156,6 +156,8 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
   };
 
   int m_state;
+  /* Padding to avoid false sharing */
+  char m_pad[CPU_LEVEL1_DCACHE_LINESIZE];
 
   bool is_executing_task()
   {
@@ -179,16 +181,6 @@ struct alignas(CPU_LEVEL1_DCACHE_LINESIZE)  worker_data
     m_state(NONE),
     m_task_start_time()
   {}
-
-  /*Define custom new/delete because of overaligned structure. */
-  static void *operator new(size_t size)
-  {
-    return aligned_malloc(size, CPU_LEVEL1_DCACHE_LINESIZE);
-  }
-  static void operator delete(void* p)
-  {
-    aligned_free(p);
-  }
 };
 
 

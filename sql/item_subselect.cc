@@ -5014,12 +5014,18 @@ subselect_hash_sj_engine::get_strategy_using_data()
 
 void
 subselect_hash_sj_engine::choose_partial_match_strategy(
-  bool has_non_null_key, bool has_covering_null_row,
+  uint field_count, bool has_non_null_key, bool has_covering_null_row,
   MY_BITMAP *partial_match_key_parts_arg)
 {
   ulonglong pm_buff_size;
 
   DBUG_ASSERT(strategy == PARTIAL_MATCH);
+  if (field_count == 1)
+  {
+    strategy= SINGLE_COLUMN_MATCH;
+    return;
+  }
+
   /*
     Choose according to global optimizer switch. If only one of the switches is
     'ON', then the remaining strategy is the only possible one. The only cases
@@ -5453,7 +5459,8 @@ void subselect_hash_sj_engine::cleanup()
     related engines are created and chosen for each execution.
   */
   item->get_IN_subquery()->engine= materialize_engine;
-  if (lookup_engine_type == TABLE_SCAN_ENGINE ||
+  if (lookup_engine_type == SINGLE_COLUMN_ENGINE ||
+      lookup_engine_type == TABLE_SCAN_ENGINE ||
       lookup_engine_type == ROWID_MERGE_ENGINE)
   {
     subselect_engine *inner_lookup_engine;
@@ -5778,8 +5785,9 @@ int subselect_hash_sj_engine::exec()
       item_in->null_value= 1;
       item_in->make_const();
       item_in->set_first_execution();
-      thd->lex->current_select= save_select;
-      DBUG_RETURN(FALSE);
+      res= 0;
+      strategy= CONST_RETURN_NULL;
+      goto err;
     }
 
     if (has_covering_null_row)
@@ -5793,11 +5801,26 @@ int subselect_hash_sj_engine::exec()
       count_pm_keys= count_partial_match_columns - count_null_only_columns +
                      (nn_key_parts ? 1 : 0);
 
-    choose_partial_match_strategy(MY_TEST(nn_key_parts),
+    choose_partial_match_strategy(field_count, MY_TEST(nn_key_parts),
                                   has_covering_null_row,
                                   &partial_match_key_parts);
-    DBUG_ASSERT(strategy == PARTIAL_MATCH_MERGE ||
+    DBUG_ASSERT(strategy == SINGLE_COLUMN_MATCH ||
+                strategy == PARTIAL_MATCH_MERGE ||
                 strategy == PARTIAL_MATCH_SCAN);
+    if (strategy == SINGLE_COLUMN_MATCH)
+    {
+      if (!(pm_engine= new subselect_single_column_match_engine(thd,
+              (subselect_uniquesubquery_engine*) lookup_engine, tmp_table,
+              item, result, semi_join_conds->argument_list(),
+              has_covering_null_row, has_covering_null_columns,
+              count_columns_with_nulls)) ||
+          pm_engine->prepare(thd))
+      {
+        /* This is an irrecoverable error. */
+        res= 1;
+        goto err;
+      }
+    }
     if (strategy == PARTIAL_MATCH_MERGE)
     {
       pm_engine=
@@ -5827,7 +5850,6 @@ int subselect_hash_sj_engine::exec()
         strategy= PARTIAL_MATCH_SCAN;
       }
     }
-
     if (strategy == PARTIAL_MATCH_SCAN)
     {
       if (!(pm_engine=
@@ -5849,12 +5871,12 @@ int subselect_hash_sj_engine::exec()
     }
   }
 
-  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   if (pm_engine)
     lookup_engine= pm_engine;
   item_in->change_engine(lookup_engine);
 
 err:
+  item_in->get_materialization_tracker()->report_exec_strategy(strategy);
   thd->lex->current_select= save_select;
   DBUG_RETURN(res);
 }
@@ -7033,6 +7055,45 @@ end:
 
 void subselect_table_scan_engine::cleanup()
 {
+}
+
+
+subselect_single_column_match_engine::subselect_single_column_match_engine(
+  THD *thd,
+  subselect_uniquesubquery_engine *engine_arg,
+  TABLE *tmp_table_arg,
+  Item_subselect *item_arg,
+  select_result_interceptor *result_arg,
+  List<Item> *equi_join_conds_arg,
+  bool has_covering_null_row_arg,
+  bool has_covering_null_columns_arg,
+  uint count_columns_with_nulls_arg)
+  :subselect_partial_match_engine(thd, engine_arg, tmp_table_arg, item_arg,
+                                  result_arg, equi_join_conds_arg,
+                                  has_covering_null_row_arg,
+                                  has_covering_null_columns_arg,
+                                  count_columns_with_nulls_arg)
+{}
+
+
+bool subselect_single_column_match_engine::partial_match()
+{
+  /*
+    We get here if:
+    - there is only one column in the materialized table;
+    - its current value of left_expr is NULL (otherwise we would have hit
+         the earlier "index lookup" branch at subselect_partial_match::exec());
+    - the materialized table does not have NULL values (for a similar reason);
+    - the materialized table is not empty.
+    The case when materialization produced no rows (empty table) is handled at
+    subselect_hash_sj_engine::exec(), the result of IN predicate is always
+    FALSE in that case.
+    After all those preconditions met, the result of the partial match is TRUE.
+  */
+  DBUG_ASSERT(item->get_IN_subquery()->left_expr_has_null() &&
+              !has_covering_null_row &&
+              tmp_table->file->stats.records > 0);
+  return true;
 }
 
 
