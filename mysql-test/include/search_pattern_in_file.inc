@@ -18,27 +18,15 @@
 #    Optionally, SEARCH_ABORT can be set to "FOUND" or "NOT FOUND" and this
 #    will abort if the search result doesn't match the requested one.
 #
-#    Optionally, SEARCH_ABORT_IS_SUCCESS can be set to inverse the error logic
-#    when the SEARCH_ABORT condition is met. The specific cases and behaviors
-#    become:
-#
-#      1) In the normal case (SEARCH_ABORT_IS_SUCCESS is NOT set), when the
-#         matching result (FOUND N or NOT FOUND) matches SEARCH_ABORT, exit in
-#         error (via die); otherwise, we assume success and print the matching
-#         result. This is used in the normal search_pattern_in_file.inc case,
-#         as well as wait_for_pattern_in_file.inc when searching that some
-#         pattern exists at all (i.e. a result of NOT FOUND will trigger die,
-#         so the script can continue waiting until the result is found, and
-#         finally print the result).
-#
-#      2) If SEARCH_ABORT_IS_SUCCESS is set, then we want to inverse the logic
-#         from case (1). That is, if the match result is SEARCH_ABORT, this
-#         is the success case, and we die for all other matching results.
+#    Optionally, SEARCH_WAIT can be set to "FOUND" or "NOT FOUND", and this
+#    will wait for the condition to occur. The timeout can be set in
+#    SEARCH_TIMEOUT, default is 60 seconds.
 #
 #    Optionally, SEARCH_OUTPUT can be set to control the format of output.
 #    Supported formats:
 #     - (default)  : "FOUND n /pattern/ in FILE " or "NOT FOUND ..."
 #     - "matches"  : Each match is printed, on a separate line
+#     - "count"    : "FOUND n matches in FILE" or "NOT FOUND ..." (omit pattern)
 #
 #    In case of
 #    - SEARCH_FILE and/or SEARCH_PATTERN is not set
@@ -71,54 +59,65 @@ perl;
     my @search_files= glob($ENV{SEARCH_FILE});
     my $search_pattern= $ENV{SEARCH_PATTERN} or die "SEARCH_PATTERN not set";
     my $search_range=   $ENV{SEARCH_RANGE};
-    my $content;
-    foreach my $search_file (@search_files) {
-        open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
-        my $file_content;
-        if ($search_range > 0) {
-           read(FILE, $file_content, $search_range, 0);
-        } elsif ($search_range < 0) {
-           my $size= -s $search_file;
-           $search_range = -$size if $size > -$search_range;
-           seek(FILE, $search_range, 2);
-           read(FILE, $file_content, -$search_range, 0);
-        } else {
-          while(<FILE>) { # error log
-            if (/^CURRENT_TEST:/) {
-              $content='';
+    my $timeout=        $ENV{SEARCH_TIMEOUT} || 60;
+    my @matches;
+    my $res;
+
+    my $start_time= time();
+    for (;;) {
+        my $content;
+        foreach my $search_file (@search_files) {
+            open(FILE, '<', $search_file) || die("Can't open file $search_file: $!");
+            my $file_content;
+            if ($search_range > 0) {
+               read(FILE, $file_content, $search_range, 0);
+            } elsif ($search_range < 0) {
+               my $size= -s $search_file;
+               $search_range = -$size if $size > -$search_range;
+               seek(FILE, $search_range, 2);
+               read(FILE, $file_content, -$search_range, 0);
             } else {
-              $content.=$_;
+              while(<FILE>) { # error log
+                if (/^CURRENT_TEST:/) {
+                  $content='';
+                } else {
+                  $content.=$_;
+                }
+              }
             }
-          }
+            close(FILE);
+            $content.= $file_content;
         }
-        close(FILE);
-        $content.= $file_content;
+        @matches= ($content =~ /$search_pattern/gs);
+        $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
+
+        if (($ENV{SEARCH_WAIT} eq 'FOUND' && $res eq 'NOT FOUND') ||
+            ($ENV{SEARCH_WAIT} eq 'NOT FOUND' && $res =~ m{^FOUND })) {
+            if (time() - $start_time < $timeout) {
+                # Millisceond sleep emulated with select
+                select(undef, undef, undef, 0.1);
+                next;
+            }
+            die "Timeout waiting for $ENV{SEARCH_WAIT} ".
+                "for /$search_pattern/ in $ENV{SEARCH_FILE}\n";
+        }
+        last;
     }
-    my @matches= ($content =~ /$search_pattern/gs);
-    my $res=@matches ? "FOUND " . scalar(@matches) : "NOT FOUND";
 
     $ENV{SEARCH_FILE} =~ s{^.*?([^/\\]+)$}{$1};
-
-    my $print_func= sub { print($_[0]); };
-    my $die_func= sub { die($_[0]); };
-    my $abort_func;
-    my $match_func;
-    if ($ENV{SEARCH_ABORT} and $ENV{SEARCH_ABORT_IS_SUCCESS}) {
-      $abort_func= \&$print_func;
-      $match_func= \&$die_func;
-    } else {
-      $abort_func= \&$die_func;
-      $match_func= \&$print_func;
-    }
 
     if ($ENV{SEARCH_OUTPUT} eq "matches") {
         foreach (@matches) {
             print $_ . "\n";
         }
     }
+    elsif ($ENV{SEARCH_OUTPUT} eq "count")
+    {
+        print "$res matches in $ENV{SEARCH_FILE}\n";
+    }
     elsif ($ENV{SEARCH_ABORT} and $res =~ /^$ENV{SEARCH_ABORT}/) {
-        &$abort_func("$res /$search_pattern/ in $ENV{SEARCH_FILE}\n");
+        die "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
     } else {
-        &$match_func("$res /$search_pattern/ in $ENV{SEARCH_FILE}\n");
+        print "$res /$search_pattern/ in $ENV{SEARCH_FILE}\n";
     }
 EOF
