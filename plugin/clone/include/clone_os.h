@@ -30,10 +30,11 @@ Clone Plugin: OS specific routines for IO and network
 #ifndef CLONE_OS_H
 #define CLONE_OS_H
 
+#include <my_global.h>
 #include "my_sys.h"
 #include "mysqld_error.h"
 #include "mysys_err.h"
-#include "sql/handler.h"
+#include "handler.h"
 
 /** Alignment required for direct IO  */
 const int CLONE_OS_ALIGN = 4 * 1024;

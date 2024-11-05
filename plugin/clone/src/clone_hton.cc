@@ -27,7 +27,7 @@ Clone Plugin: Interface with SE handlerton
 
 */
 
-#include "plugin/clone/include/clone_hton.h"
+#include "clone_hton.h"
 
 /* Namespace for all clone data types */
 namespace myclone {
@@ -62,10 +62,10 @@ struct Hton {
 @param[in]	plugin	storage plugin
 @param[in]	arg	clone parameters
 @return true if failure */
-static bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
+static my_bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
   auto clone_arg = static_cast<myclone::Hton *>(arg);
 
-  auto hton = plugin_data<handlerton *>(plugin);
+  auto hton = plugin_data(plugin, handlerton*);
 
   if (hton->clone_interface.clone_begin != nullptr) {
     myclone::Locator loc = {hton, nullptr, 0};
@@ -81,11 +81,11 @@ static bool run_hton_clone_begin(THD *thd, plugin_ref plugin, void *arg) {
     clone_arg->m_task_vec->push_back(task_id);
 
     if (clone_arg->m_err != 0) {
-      return (true);
+      return TRUE;
     }
   }
 
-  return (false);
+  return FALSE;
 }
 
 int hton_clone_begin(THD *thd, Storage_Vector &clone_loc_vec,
@@ -187,10 +187,10 @@ int hton_clone_end(THD *thd, Storage_Vector &clone_loc_vec,
 @param[in]	plugin	storage plugin
 @param[in]	arg	clone parameters
 @return true if failure */
-static bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg) {
+static my_bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg) {
   auto clone_arg = static_cast<myclone::Hton *>(arg);
 
-  auto hton = plugin_data<handlerton *>(plugin);
+  auto hton = plugin_data(plugin, handlerton*);
 
   if (hton->clone_interface.clone_apply_begin != nullptr) {
     myclone::Locator loc = {hton, nullptr, 0};
@@ -205,11 +205,11 @@ static bool run_hton_clone_apply_begin(THD *thd, plugin_ref plugin, void *arg) {
     clone_arg->m_loc_vec->push_back(loc);
 
     if (clone_arg->m_err != 0) {
-      return (true);
+      return TRUE;
     }
   }
 
-  return (false);
+  return FALSE;
 }
 
 int hton_clone_apply_begin(THD *thd, const char *clone_data_dir,

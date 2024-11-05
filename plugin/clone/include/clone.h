@@ -31,22 +31,15 @@ Clone Plugin: Common objects and interfaces
 #define CLONE_H
 
 #include "mysqld_error.h"
-#include "plugin/clone/include/clone_hton.h"
+#include "clone_hton.h"
 
 #include "mysql/psi/mysql_memory.h"
+#include <mysql/psi/mysql_stage.h>
 #include "mysql/psi/mysql_statement.h"
+#include <my_pthread.h>
 #include "mysql/psi/mysql_thread.h"
-
-#include "mysql/components/services/backup_lock_service.h"
-#include "mysql/components/services/clone_protocol_service.h"
-#include "mysql/components/services/log_builtins.h"
 #include "violite.h"
-
-extern SERVICE_TYPE(registry) * mysql_service_registry;
-extern SERVICE_TYPE(mysql_backup_lock) * mysql_service_mysql_backup_lock;
-extern SERVICE_TYPE(clone_protocol) * mysql_service_clone_protocol;
-extern SERVICE_TYPE(log_builtins) * log_bi;
-extern SERVICE_TYPE(log_builtins_string) * log_bs;
+#include "mysql_com_server.h"
 
 /** Clone memory key for performance schema */
 extern PSI_memory_key clone_mem_key;
@@ -71,13 +64,13 @@ file to network or destination file. */
 extern uint clone_buffer_size;
 
 /** Clone system variable: If clone should block concurrent DDL */
-extern bool clone_block_ddl;
+extern my_bool clone_block_ddl;
 
 /** Clone system variable: timeout for DDL lock */
 extern uint clone_ddl_timeout;
 
 /** Clone system variable: If concurrency is automatically tuned */
-extern bool clone_autotune_concurrency;
+extern my_bool clone_autotune_concurrency;
 
 /** Clone system variable: Maximum concurrent threads */
 extern uint clone_max_concurrency;
@@ -89,7 +82,7 @@ extern uint clone_max_network_bandwidth;
 extern uint clone_max_io_bandwidth;
 
 /** Clone system variable: If network compression is enabled */
-extern bool clone_enable_compression;
+extern my_bool clone_enable_compression;
 
 /** Clone system variable: SSL private key */
 extern char *clone_client_ssl_private_key;
@@ -338,6 +331,8 @@ struct Data_Link {
 @param[in]	thd	current session THD
 @return error code */
 int validate_local_params(THD *thd);
+
+void LogPluginErr(enum loglevel level, int error, const char* string);
 }  // namespace myclone
 
 #endif /* CLONE_H */

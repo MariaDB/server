@@ -27,8 +27,8 @@ Clone Plugin: Local clone implementation
 
 */
 
-#include "plugin/clone/include/clone_local.h"
-#include "plugin/clone/include/clone_os.h"
+#include "clone_local.h"
+#include "clone_os.h"
 
 #include "sql/sql_thd_internal_api.h"
 

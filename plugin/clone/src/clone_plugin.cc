@@ -27,16 +27,15 @@ Clone Plugin: Plugin interface
 
 */
 
-#include <mysql/plugin.h>
 #include <mysql/plugin_clone.h>
 
-#include "plugin/clone/include/clone_client.h"
-#include "plugin/clone/include/clone_local.h"
-#include "plugin/clone/include/clone_server.h"
-#include "plugin/clone/include/clone_status.h"
+#include "clone_client.h"
+#include "clone_local.h"
+#include "clone_server.h"
 
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <string>
 
 #define CLONE_PLUGIN_VERSION 0x0100
@@ -48,13 +47,13 @@ const char *clone_plugin_name = "clone";
 uint clone_buffer_size;
 
 /** Clone system variable: If clone should block concurrent DDL */
-bool clone_block_ddl;
+my_bool clone_block_ddl;
 
 /** Clone system variable: timeout for DDL lock */
 uint clone_ddl_timeout;
 
 /** Clone system variable: If concurrency is automatically tuned */
-bool clone_autotune_concurrency;
+my_bool clone_autotune_concurrency;
 
 /** Clone system variable: Maximum concurrent threads */
 uint clone_max_concurrency;
@@ -66,7 +65,7 @@ uint clone_max_network_bandwidth;
 uint clone_max_io_bandwidth;
 
 /** Clone system variable: If network compression is enabled */
-bool clone_enable_compression;
+my_bool clone_enable_compression;
 
 /** Clone system variable: valid list of donor addresses. */
 static char *clone_valid_donor_list;
@@ -108,38 +107,45 @@ PSI_statement_key clone_stmt_server_key;
 /** Clone memory key for performance schema */
 static PSI_memory_info clone_memory[] = {
 
-    {&clone_mem_key, "data", 0, 0, PSI_DOCUMENT_ME}};
+    {&clone_mem_key, "data", 0}};
 
 /** Clone thread key for performance schema */
 static PSI_thread_info clone_threads[] = {
-    {&clone_local_thd_key, "local-task", "clone_local", 0, 0, PSI_DOCUMENT_ME},
-    {&clone_client_thd_key, "client-task", "clone_client", 0, 0,
-     PSI_DOCUMENT_ME}};
+    {&clone_local_thd_key, "clone_local", 0},
+    {&clone_client_thd_key, "clone_client", 0}};
 
-static PSI_statement_info clone_stmts[] = {{0, "local", 0, PSI_DOCUMENT_ME},
-                                           {0, "client", 0, PSI_DOCUMENT_ME},
-                                           {0, "server", 0, PSI_DOCUMENT_ME}};
+static PSI_statement_info clone_stmts[] = {{0, "local", 0},
+                                           {0, "client", 0},
+                                           {0, "server", 0}};
 #endif /* HAVE_PSI_INTERFACE */
-
-/* Use backup lock service from mysql server */
-SERVICE_TYPE(registry) * mysql_service_registry;
-SERVICE_TYPE(mysql_backup_lock) * mysql_service_mysql_backup_lock;
-SERVICE_TYPE(clone_protocol) * mysql_service_clone_protocol;
-
-/* Use mysql logging service */
-SERVICE_TYPE(registry) * reg_srv;
-SERVICE_TYPE(log_builtins) *log_bi = nullptr;
-SERVICE_TYPE(log_builtins_string) *log_bs = nullptr;
 
 /* Namespace for all clone data types */
 namespace myclone {
+
+void LogPluginErr(enum loglevel level, int error, const char* string)
+{
+  myf flags = ME_ERROR_LOG_ONLY;
+  switch (level)
+  {
+    case ERROR_LEVEL:
+      my_printf_error(error, string, flags);
+      break;
+    case WARNING_LEVEL:
+      my_printf_error(error, string, flags|ME_WARNING);
+      break;
+    case INFORMATION_LEVEL:
+      my_printf_error(error, string, flags|ME_NOTE);
+      break;
+  }
+  return;
+}
 
 int validate_local_params(THD *thd) {
   /* Check if network packet size is enough. */
   Key_Values local_configs = {{"max_allowed_packet", ""}};
 
-  int err =
-      mysql_service_clone_protocol->mysql_clone_get_configs(thd, local_configs);
+  int err = 0;
+  //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, local_configs);
 
   if (err != 0) {
     return (err);
@@ -248,8 +254,8 @@ static int match_valid_donor_address(MYSQL_THD thd, const char *host,
   myclone::Key_Values configs = {{"clone_valid_donor_list", ""}};
 
   /* Get Clone configuration parameter value safely. */
-  auto err =
-      mysql_service_clone_protocol->mysql_clone_get_configs(thd, configs);
+  auto err = 0;
+  //    mysql_service_clone_protocol->mysql_clone_get_configs(thd, configs);
   if (err != 0) {
     return (err);
   }
@@ -289,6 +295,8 @@ static int match_valid_donor_address(MYSQL_THD thd, const char *host,
 
   return (ER_CLONE_SYS_CONFIG);
 }
+
+using SYS_VAR = struct st_mysql_sys_var;
 
 /** Check valid_donor_list format "<HOST1>:<PORT1>,<HOST2:PORT2,..."
 @param[in]	thd	user session THD
@@ -332,52 +340,23 @@ static int check_donor_addr_format(MYSQL_THD thd, SYS_VAR *var [[maybe_unused]],
   return (0);
 }
 
-/** Check if it is safe to uninstall plugin.
-@param[in]	plugin_info	server plugin handle
-@return error code */
-static int plugin_clone_check(MYSQL_PLUGIN plugin_info) {
-  return clone_handle_check_drop(plugin_info);
-}
-
 /** Initialize clone plugin
 @param[in]	plugin_info	server plugin handle
 @return error code */
 static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
-  /* Acquire registry and log service handles. */
-  if (init_logging_service_for_plugin(&mysql_service_registry, &log_bi,
-                                      &log_bs)) {
-    return (-1);
-  }
-
-  my_h_service service;
-
-  /* Acquire backup lock service handle. */
-  if (mysql_service_registry->acquire("mysql_backup_lock", &service)) {
-    return (-1);
-  }
-  mysql_service_mysql_backup_lock =
-      reinterpret_cast<SERVICE_TYPE(mysql_backup_lock) *>(service);
-
-  /* Acquire clone protocol service handle. */
-  if (mysql_service_registry->acquire("clone_protocol", &service)) {
-    return (-1);
-  }
-  mysql_service_clone_protocol =
-      reinterpret_cast<SERVICE_TYPE(clone_protocol) *>(service);
-
   auto error = clone_handle_create(clone_plugin_name);
 
   /* During DB creation skip PFS dynamic tables. PFS is not fully initialized
   at this point. */
   bool skip_pfs_tables = false;
-  if (error == ER_INIT_BOOTSTRAP_COMPLETE) {
+  if (error == ER_SERVER_SHUTDOWN) {
     skip_pfs_tables = true;
   } else if (error != 0) {
     return (error);
   }
 
   if (!skip_pfs_tables && myclone::Table_pfs::acquire_services()) {
-    LogPluginErr(ERROR_LEVEL, ER_CLONE_CLIENT_TRACE,
+    myclone::LogPluginErr(ERROR_LEVEL, ER_CLONE_CLIENT_TRACE,
                  "PFS table creation failed");
     return (-1);
   }
@@ -412,30 +391,12 @@ static int plugin_clone_init(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
 @param[in]	plugin_info	server plugin handle
 @return error code */
 static int plugin_clone_deinit(MYSQL_PLUGIN plugin_info [[maybe_unused]]) {
-  /* If service registry is uninitialized, return. */
-  if (mysql_service_registry == nullptr) {
-    return (0);
-  }
-
   auto error = clone_handle_drop();
 
-  if (error != ER_INIT_BOOTSTRAP_COMPLETE) {
+  if (error != ER_SERVER_SHUTDOWN) {
     myclone::Table_pfs::release_services();
   }
-
-  using backup_lock_t = SERVICE_TYPE_NO_CONST(mysql_backup_lock);
-  mysql_service_registry->release(reinterpret_cast<my_h_service>(
-      const_cast<backup_lock_t *>(mysql_service_mysql_backup_lock)));
-  mysql_service_mysql_backup_lock = nullptr;
-
-  using clone_protocol_t = SERVICE_TYPE_NO_CONST(clone_protocol);
-  mysql_service_registry->release(reinterpret_cast<my_h_service>(
-      const_cast<clone_protocol_t *>(mysql_service_clone_protocol)));
-  mysql_service_clone_protocol = nullptr;
-
-  deinit_logging_service_for_plugin(&mysql_service_registry, &log_bi, &log_bs);
-
-  return (0);
+  return 0;
 }
 
 /** Clone database from local server.
@@ -449,8 +410,8 @@ static int plugin_clone_local(THD *thd, const char *data_dir) {
 
   /* Update session and statement PFS keys */
   assert(thd != nullptr);
-  mysql_service_clone_protocol->mysql_clone_start_statement(
-      thd, PSI_NOT_INSTRUMENTED, clone_stmt_local_key);
+  // mysql_service_clone_protocol->mysql_clone_start_statement(
+  //    thd, PSI_NOT_INSTRUMENTED, clone_stmt_local_key);
 
   myclone::Local clone_inst(thd, &server, &client_share, 0, true);
 
@@ -484,8 +445,8 @@ static int plugin_clone_remote_client(THD *thd, const char *remote_host,
   /* Update session and statement PFS keys */
   assert(thd != nullptr);
 
-  mysql_service_clone_protocol->mysql_clone_start_statement(
-      thd, PSI_NOT_INSTRUMENTED, clone_stmt_client_key);
+  // mysql_service_clone_protocol->mysql_clone_start_statement(
+  //     thd, PSI_NOT_INSTRUMENTED, clone_stmt_client_key);
 
   myclone::Client clone_inst(thd, &client_share, 0, true);
 
@@ -508,7 +469,7 @@ static int plugin_clone_remote_server(THD *thd, MYSQL_SOCKET socket) {
 
 /** clone plugin interfaces */
 struct Mysql_clone clone_descriptor = {
-    MYSQL_CLONE_INTERFACE_VERSION, plugin_clone_local,
+    MariaDB_CLONE_INTERFACE_VERSION, plugin_clone_local,
     plugin_clone_remote_client, plugin_clone_remote_server};
 
 /** Size of intermediate buffer for transferring data from source
@@ -525,7 +486,7 @@ static MYSQL_SYSVAR_UINT(buffer_size, clone_buffer_size, PLUGIN_VAR_RQCMDARG,
 /** If clone should block concurrent DDL */
 static MYSQL_SYSVAR_BOOL(block_ddl, clone_block_ddl, PLUGIN_VAR_NOCMDARG,
                          "If clone should block concurrent DDL", nullptr,
-                         nullptr, false); /* Allow concurrent ddl by default */
+                         nullptr, FALSE); /* Allow concurrent ddl by default */
 
 /** Time in seconds to wait for DDL lock. Relevant for donor only when
 clone_block_ddl is set to true. */
@@ -540,7 +501,7 @@ static MYSQL_SYSVAR_UINT(ddl_timeout, clone_ddl_timeout, PLUGIN_VAR_RQCMDARG,
 static MYSQL_SYSVAR_BOOL(autotune_concurrency, clone_autotune_concurrency,
                          PLUGIN_VAR_NOCMDARG,
                          "If concurrency is automatically tuned", nullptr,
-                         nullptr, true); /* Enable auto tuning by default */
+                         nullptr, TRUE); /* Enable auto tuning by default */
 
 /** Maximum number of concurrent threads for clone */
 static MYSQL_SYSVAR_UINT(max_concurrency, clone_max_concurrency,
@@ -574,7 +535,7 @@ static MYSQL_SYSVAR_UINT(max_data_bandwidth, clone_max_io_bandwidth,
 static MYSQL_SYSVAR_BOOL(enable_compression, clone_enable_compression,
                          PLUGIN_VAR_NOCMDARG,
                          "If compression is done at network", nullptr, nullptr,
-                         false); /* Disable compression by default */
+                         FALSE); /* Disable compression by default */
 
 /** List of valid donor addresses allowed to clone from. */
 static MYSQL_SYSVAR_STR(valid_donor_list, clone_valid_donor_list,
@@ -648,18 +609,17 @@ static SYS_VAR *clone_system_variables[] = {
     nullptr};
 
 /** Declare clone plugin */
-mysql_declare_plugin(clone_plugin){
-    MYSQL_CLONE_PLUGIN,
+maria_declare_plugin(clone_plugin){
+    MARIADB_CLONE_PLUGIN,
 
     &clone_descriptor,
     clone_plugin_name, /* Plugin name */
 
-    PLUGIN_AUTHOR_ORACLE,
+    "Debarun Banerjee",
     "CLONE PLUGIN", /* Plugin descriptive text */
     PLUGIN_LICENSE_GPL,
 
     plugin_clone_init,   /* Plugin Init */
-    plugin_clone_check,  /* Plugin check uninstall */
     plugin_clone_deinit, /* Plugin Deinit */
 
     CLONE_PLUGIN_VERSION,   /* Plugin Version */

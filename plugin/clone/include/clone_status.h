@@ -30,10 +30,10 @@ Clone Plugin: Client Status Interface
 #ifndef CLONE_STATUS_H
 #define CLONE_STATUS_H
 
-#include <mysql/components/services/pfs_plugin_table_service.h>
 #include <array>
-#include "my_systime.h"
-#include "plugin/clone/include/clone.h"
+#include "clone.h"
+
+#define PFS_HA_ERR_END_OF_FILE HA_ERR_END_OF_FILE
 
 THD *thd_get_current_thd();
 
@@ -63,7 +63,7 @@ class Table_pfs {
    @param[out]	field	column value
    @param[in]	index	column position within row
    @return error code. */
-  virtual int read_column_value(PSI_field *field, uint32_t index) = 0;
+  // virtual int read_column_value(PSI_field *field, uint32_t index) = 0;
 
   /** Initialize the table.
   @return plugin table error code. */
@@ -153,7 +153,7 @@ class Table_pfs {
   uint32_t get_position() const { return (m_position); }
 
   /** @return Proxy table share reference. */
-  PFS_engine_table_share_proxy *get_proxy_share() { return (&m_pfs_table); }
+  // PFS_engine_table_share_proxy *get_proxy_share() { return (&m_pfs_table); }
 
   /** @return true, if no data in table. */
   bool is_empty() const { return (m_empty); }
@@ -177,7 +177,7 @@ class Table_pfs {
   bool m_empty;
 
   /** Proxy table defined in plugin to register callbacks with PFS. */
-  PFS_engine_table_share_proxy m_pfs_table;
+  // PFS_engine_table_share_proxy m_pfs_table;
 };
 
 const char g_local_string[] = "LOCAL INSTANCE";
@@ -191,7 +191,7 @@ class Status_pfs : public Table_pfs {
    @param[out]	field	column value
    @param[in]	index	column position within row
    @return error code. */
-  int read_column_value(PSI_field *field, uint32_t index) override;
+  // int read_column_value(PSI_field *field, uint32_t index) override;
 
   /** Initialize the table.
   @return plugin table error code. */
@@ -244,7 +244,7 @@ class Status_pfs : public Table_pfs {
       m_binlog_pos = 0;
       memset(m_binlog_file, 0, sizeof(m_binlog_file));
       m_gtid_string.clear();
-      m_start_time = my_micro_time();
+      m_start_time = microsecond_interval_timer();
       m_end_time = 0;
       m_state = STATE_STARTED;
       write(false);
@@ -255,7 +255,7 @@ class Status_pfs : public Table_pfs {
     @param[in]	err_mesg	error message
     @param[in]	provisioning	if we are provisioning current directory. */
     void end(uint32_t err_num, const char *err_mesg, bool provisioning) {
-      m_end_time = my_micro_time();
+      m_end_time = microsecond_interval_timer();
       if (err_num == 0) {
         /* For provisioning, recovery stage is left. */
         if (!provisioning) {
@@ -332,7 +332,7 @@ class Progress_pfs : public Table_pfs {
    @param[out]	field	column value
    @param[in]	index	column position within row
    @return error code. */
-  int read_column_value(PSI_field *field, uint32_t index) override;
+  // int read_column_value(PSI_field *field, uint32_t index) override;
 
   /** Initialize the table.
   @return plugin table error code. */
@@ -408,7 +408,7 @@ class Progress_pfs : public Table_pfs {
       m_threads[m_current_stage] = threads;
 
       /* Set time at beginning. */
-      m_start_time[m_current_stage] = my_micro_time();
+      m_start_time[m_current_stage] = microsecond_interval_timer();
       m_end_time[m_current_stage] = 0;
 
       /* Reset progress data at the beginning of stage. */
@@ -423,7 +423,7 @@ class Progress_pfs : public Table_pfs {
     /** Set PFS table data while ending a Clone stage.
     @@param[in]	data_dir	data directory for write. */
     void end_stage(bool failed, const char *data_dir) {
-      m_end_time[m_current_stage] = my_micro_time();
+      m_end_time[m_current_stage] = microsecond_interval_timer();
       m_states[m_current_stage] = failed ? STATE_FAILED : STATE_SUCCESS;
       write(data_dir);
     }
