@@ -112,8 +112,8 @@ SHUTDOWN WAIT FOR ALL SLAVES;
 --inc $n_logged_delayed_shutdown_notes
 let SEARCH_FILE= $log_error_file;
 let SEARCH_PATTERN=Delaying shutdown to await semi-sync ACK;
---let $wait_for_pattern_count= $n_logged_delayed_shutdown_notes
-source include/wait_for_pattern_in_file.inc;
+let SEARCH_WAIT=FOUND $n_logged_delayed_shutdown_notes;
+source include/search_pattern_in_file.inc;
 
 if (`SELECT $server_2_sync_slave_reply AND $server_2_expect_row_count`)
 {
