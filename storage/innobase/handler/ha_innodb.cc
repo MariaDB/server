@@ -15529,6 +15529,11 @@ get_foreign_key_info(
 		f_key_info.referenced_key_name.set_dup(thd,
 					       foreign->referenced_index->name);
 
+	if (foreign->foreign_index && foreign->foreign_index->name)
+		f_key_info.foreign_key_name.set_dup(thd,
+					    foreign->foreign_index->name);
+
+
 	pf_key_info = (FOREIGN_KEY_INFO*) thd_memdup(thd, &f_key_info,
 						      sizeof(FOREIGN_KEY_INFO));
 

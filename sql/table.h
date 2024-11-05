@@ -1780,6 +1780,8 @@ public:
   void remember_blob_values(String *blob_storage);
   void restore_blob_values(String *blob_storage);
 
+  const KEY *find_key_by_name(const Lex_ident_column &name) const;
+
   uint actual_n_key_parts(KEY *keyinfo);
   ulong actual_key_flags(KEY *keyinfo);
   int update_virtual_field(Field *vf, bool ignore_warnings);
@@ -2043,6 +2045,7 @@ typedef struct st_foreign_key_info
   Lex_ident_table referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
+  Lex_ident_column foreign_key_name;
   Lex_ident_column referenced_key_name;
   st_::span<Lex_ident_column> foreign_fields;
   st_::span<Lex_ident_column> referenced_fields;

@@ -1177,7 +1177,9 @@ INSERT INTO binaries (id,collections_id) VALUES (NULL,1);
 REPLACE INTO binaries (id) VALUES (NULL);
 
 SET GLOBAL innodb_max_purge_lag_wait=0;
-CHECK TABLE binaries, collections EXTENDED;
+
+set statement foreign_key_checks = 0 for
+    CHECK TABLE binaries, collections EXTENDED;
 
 --disconnect con1
 

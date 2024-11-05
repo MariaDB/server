@@ -1,0 +1,169 @@
+create table t1 (x int primary key) engine=innodb;
+create table t2 (x int, y int,
+foreign key (x) references t1(x)) engine=innodb;
+set statement foreign_key_checks = 0 for
+drop table t1;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Error	Table 'test.t1' doesn't exist
+test.t1	check	status	Operation failed
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	Table test.t1 is not found. Needed for a foreign key t2_ibfk_1
+test.t2	check	error	Corrupt
+set statement foreign_key_checks = 0 for
+create table t1 (x int) engine=innodb;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t2	check	error	Corrupt
+set statement foreign_key_checks = 0 for
+drop index x on t2;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t2	check	error	Corrupt
+set statement foreign_key_checks = 0 for
+create unique index p on t1(x);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t2	check	error	Corrupt
+set statement foreign_key_checks = 0 for
+create index x on t2(x);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t1	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t2
+test.t2	check	Warning	No suitable key found for foreign key t2_ibfk_1 in table test.t1
+test.t2	check	error	Corrupt
+set statement foreign_key_checks = 0 for
+drop table t2;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Error	Table 'test.t2' doesn't exist
+test.t2	check	status	Operation failed
+# ======================================================================
+set statement foreign_key_checks = 0 for
+create table t2 (x int, y int, key(x),
+foreign key (x) references t1(x)) engine=innodb;
+insert into t1 (x) values (1);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+insert into t2 (x, y) values (1, 10);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+set statement foreign_key_checks = 0 for
+insert into t2 (x, y) values (2, 20), (2, 20), (3, 30);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3')
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3')
+test.t2	check	error	Corrupt
+insert into t1 (x) values (2);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3')
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3')
+test.t2	check	error	Corrupt
+insert into t1 (x) values (3);
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	status	OK
+drop table t2, t1;
+create table t1 (x int primary key, y int, z int,
+key(x, z), unique(y)) engine=innodb;
+insert into t1 (x, y, z) values (1, 10, 100);
+create table t2 (x int, t text, y int, z int,
+foreign key (x, y) references t1(x, z),
+foreign key(z) references t1(y)) engine=innodb;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `x` int(11) DEFAULT NULL,
+  `t` text DEFAULT NULL,
+  `y` int(11) DEFAULT NULL,
+  `z` int(11) DEFAULT NULL,
+  KEY `x` (`x`,`y`),
+  KEY `z` (`z`),
+  CONSTRAINT `t2_ibfk_1` FOREIGN KEY (`x`, `y`) REFERENCES `t1` (`x`, `z`),
+  CONSTRAINT `t2_ibfk_2` FOREIGN KEY (`z`) REFERENCES `t1` (`y`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+set statement foreign_key_checks = 0 for
+insert into t2 (x, y, z, t) values (2, 2, 200, "two, two, 200"),
+(2, 22, 202, "two, twenty two, 202"),
+(3, 30, 300, "three, thirty, 300"),
+(0, 0, 10, NULL);
+create table t3 (x int, t text, y int, z int
+#, foreign key (x) references t2(x)
+) engine=innodb;
+check table t1 extended;
+Table	Op	Msg_type	Msg_text
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2-2')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2-22')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3-30')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '0-0')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '200')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '202')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '300')
+test.t1	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '10')
+test.t1	check	error	Corrupt
+check table t2 extended;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2-2')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '2-22')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '3-30')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_1, record: '0-0')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '200')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '202')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '300')
+test.t2	check	Warning	Cannot add or update a child row: a foreign key constraint fails (Key: t2_ibfk_2, record: '10')
+test.t2	check	error	Corrupt
+check table t3 extended;
+Table	Op	Msg_type	Msg_text
+test.t3	check	status	OK
+drop table t3, t2, t1;

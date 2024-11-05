@@ -5185,7 +5185,12 @@ private:
   int check_duplicate_long_entry_key(const uchar *new_rec, uint key_no);
   /** PRIMARY KEY/UNIQUE WITHOUT OVERLAPS check */
   int ha_check_overlaps(const uchar *old_data, const uchar* new_data);
-
+public:
+  int check_record_reference(const KEY *this_key, const KEY *ref_key,
+                             size_t fk_parts, uchar *key_buf,
+                             uint prefix_length,
+                             const uchar *this_record,
+                             uchar *ref_record);
 protected:
   /*
     These are intended to be used only by handler::ha_xxxx() functions

@@ -5351,6 +5351,7 @@ bool non_existing_table_error(int error)
           error == ER_WRONG_OBJECT);
 }
 
+int check_foreign_key_relations(THD *thd, TABLE *table);
 
 /**
   Performs checks upon the table.
@@ -5392,6 +5393,9 @@ int handler::ha_check(THD *thd, HA_CHECK_OPT *check_opt)
       return 0;
   }
   if (unlikely((error= check(thd, check_opt))))
+    return error;
+  if (check_table_referential_checks_needed(thd) &&
+      unlikely(error = check_foreign_key_relations(thd, table)))
     return error;
   for (uint i= table->s->keys; i < table->s->total_keys; i++)
   {
@@ -7945,6 +7949,31 @@ int handler::check_duplicate_long_entries_update(const uchar *new_rec)
 }
 
 
+int handler::check_record_reference(const KEY *this_key, const KEY *ref_key,
+                                    size_t fk_parts, uchar *key_buf,
+                                    uint prefix_length,
+                                    const uchar *this_record,
+                                    uchar *ref_record)
+{
+  for (size_t kp= 0; kp < fk_parts; kp++)
+    if (this_key->key_part[kp].field->is_real_null())
+      return 0;
+
+  key_copy(key_buf, this_record, this_key, ref_key, prefix_length, false);
+
+  int error= ha_index_read_map(ref_record, key_buf, make_keypart_map(fk_parts),
+                               HA_READ_KEY_EXACT);
+
+  if (unlikely(error))
+  {
+    if (error == HA_ERR_KEY_NOT_FOUND || error == HA_ERR_END_OF_FILE)
+      return HA_ERR_KEY_NOT_FOUND;
+    print_error(error, MYF(0));
+  }
+  return error;
+}
+
+
 int handler::ha_check_overlaps(const uchar *old_data, const uchar* new_data)
 {
   DBUG_ASSERT(new_data);
@@ -9361,3 +9390,10 @@ void handler::set_optimizer_costs(THD *thd)
   optimizer_where_cost=      thd->variables.optimizer_where_cost;
   optimizer_scan_setup_cost= thd->variables.optimizer_scan_setup_cost;
 }
+
+
+
+
+TABLE *find_fk_open_table(THD *thd, const char *db, size_t db_len,
+                          const char *table, size_t table_len);
+

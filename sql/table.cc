@@ -8777,6 +8777,15 @@ bool TABLE::is_filled_at_execution()
 }
 
 
+const KEY *TABLE::find_key_by_name(const Lex_ident_column &name) const
+{
+  for (uint k = 0; k < s->keys; k++)
+    if (key_info[k].name.streq(name))
+      return &key_info[k];
+  return NULL;
+}
+
+
 /**
   @brief
   Get actual number of key components
@@ -10974,3 +10983,4 @@ void TABLE::mark_table_for_reopen()
   DBUG_ASSERT(thd);
   thd->locked_tables_list.mark_table_for_reopen(this);
 }
+

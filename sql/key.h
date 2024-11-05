@@ -25,12 +25,17 @@ typedef struct st_key_part_info KEY_PART_INFO;
 
 int find_ref_key(KEY *key, uint key_count, uchar *record, Field *field,
                  uint *key_length, uint *keypart);
+void key_copy(uchar *to_key, const uchar *from_record, const KEY *from_key_info,
+              const KEY *to_key_info, uint key_length,
+              bool with_zerofill= FALSE);
 void key_copy(uchar *to_key, const uchar *from_record, const KEY *key_info,
               uint key_length, bool with_zerofill= FALSE);
 void key_restore(uchar *to_record, const uchar *from_key, KEY *key_info,
                  uint key_length);
 bool key_cmp_if_same(TABLE *form,const uchar *key,uint index,uint key_length);
 void key_unpack(String *to, TABLE *table, KEY *key);
+void key_unpack(String *to, const TABLE *table, const KEY *key,
+                uint prefix_size);
 void field_unpack(String *to, Field *field, const uchar *rec, uint max_length,
                   bool prefix_key);
 bool is_key_used(TABLE *table, uint idx, const MY_BITMAP *fields);
@@ -42,5 +47,6 @@ extern "C" int key_rec_cmp(const KEY *const *key_info, const uchar *a,
                            const uchar *b);
 int key_tuple_cmp(KEY_PART_INFO *part, const uchar *key1, const uchar *key2,
                   uint tuple_length);
+uint key_get_prefix_store_length(const KEY *key, size_t parts);
 
 #endif /* KEY_INCLUDED */
