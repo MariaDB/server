@@ -339,7 +339,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   if (field_data_type_info_image.append(create_fields))
   {
     my_printf_error(ER_CANT_CREATE_TABLE,
-                    "Cannot create table %`s: "
+                    "Cannot create table %sQ: "
                     "Building the field data type info image failed.",
                     MYF(0), table.str);
     DBUG_RETURN(frm);
@@ -486,7 +486,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
     if (field_data_type_info_image.length() > 0xFFFF)
     {
       my_printf_error(ER_CANT_CREATE_TABLE,
-                      "Cannot create table %`s: "
+                      "Cannot create table %sQ: "
                       "field data type info image is too large. "
                       "Decrease the number of columns with "
                       "extended data types.",
@@ -553,7 +553,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
   if (key_info_length > UINT_MAX16)
   {
     my_printf_error(ER_CANT_CREATE_TABLE,
-                    "Cannot create table %`s: index information is too long. "
+                    "Cannot create table %sQ: index information is too long. "
                     "Decrease number of indexes or use shorter index names or shorter comments.",
                     MYF(0), table.str);
     goto err;

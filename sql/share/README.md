@@ -18,9 +18,9 @@ You will notice as part of your translation work, you will have to add your lang
     sw "isamchk"
     sw "LA"
     sw "NDIYO"
-    sw "Haiwezi kuunda faili '% -.200s' (kosa: %M)"
-    sw "Haiwezi kuunda jedwali %`s.%`s (kosa: %M)"
-    sw "Haiwezi kuunda hifadhidata '% -.192s' (kosa: %M)"
+    sw "Haiwezi kuunda faili '% -.200s' (kosa: %iE)"
+    sw "Haiwezi kuunda jedwali %`s.%`s (kosa: %iE)"
+    sw "Haiwezi kuunda hifadhidata '% -.192s' (kosa: %iE)"
     sw "Haiwezi kuunda hifadhidata '% -.192s'; hifadhidata ipo"
 
 Note that Google translate removes the leading whitespace in the translation file it generates. DO NOT add that leading whitespace back!

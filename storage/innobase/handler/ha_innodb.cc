@@ -1968,7 +1968,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
     const trx_id_t trx_id= table->def_trx_id;
     DBUG_ASSERT(trx_id <= create_id);
     dict_table_close(table);
-    DBUG_PRINT("info", ("create_id: %llu  trx_id: %llu", create_id, trx_id));
+    DBUG_PRINT("info", ("create_id: %llu  trx_id: %" PRIu64, create_id, trx_id));
     DBUG_RETURN(create_id != trx_id);
   }
   else
@@ -3738,7 +3738,7 @@ compression_algorithm_is_not_loaded(ulong compression_algorithm, myf flags)
   if (is_loaded[compression_algorithm])
     return 0;
 
-  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%u)"
+  my_printf_error(HA_ERR_UNSUPPORTED, "InnoDB: compression algorithm %s (%lu)"
     " is not available. Please, load the corresponding provider plugin.", flags,
     page_compression_algorithms[compression_algorithm], compression_algorithm);
   return 1;
@@ -3981,7 +3981,7 @@ static int innodb_init_params()
 			"InnoDB: innodb_open_files=%lu is not greater "
 			"than the number of system tablespace files, "
 			"temporary tablespace files, "
-			"innodb_undo_tablespaces=%lu; adjusting "
+			"innodb_undo_tablespaces=%u; adjusting "
 			"to innodb_open_files=%zu",
 			innobase_open_files, srv_undo_tablespaces,
 			min_open_files_limit);
@@ -11381,7 +11381,7 @@ create_table_info_t::check_table_options()
 			push_warning_printf(
 				m_thd, Sql_condition::WARN_LEVEL_WARN,
 				HA_WRONG_CREATE_OPTION,
-				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %lu."
+				"InnoDB: invalid PAGE_COMPRESSION_LEVEL = %llu."
 				" Valid values are [1, 2, 3, 4, 5, 6, 7, 8, 9]",
 				options->page_compression_level);
 			return "PAGE_COMPRESSION_LEVEL";
@@ -18569,7 +18569,7 @@ static void innodb_log_file_size_update(THD *thd, st_mysql_sys_var*,
            *static_cast<const ulonglong*>(save) < log_sys.buf_size)
     my_printf_error(ER_WRONG_ARGUMENTS,
                     "innodb_log_file_size must be at least"
-                    " innodb_log_buffer_size=%zu", MYF(0), log_sys.buf_size);
+                    " innodb_log_buffer_size=%u", MYF(0), log_sys.buf_size);
   else
   {
     switch (log_sys.resize_start(*static_cast<const ulonglong*>(save))) {
@@ -21136,7 +21136,7 @@ dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table)
   const int dblen= int(table->name.dblen());
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                       HA_ERR_DECRYPTION_FAILED,
-                      "Table %`.*s.%`s in tablespace " UINT32PF
+                      "Table %.*sQ.%sQ in tablespace " UINT32PF
                       " (file %s) cannot be decrypted.",
                       dblen, table->name.m_name,
                       table->name.m_name + dblen + 1,
@@ -21158,7 +21158,7 @@ void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
     (trx, &foreign, false);
   push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_WARN,
                       convert_error_code_to_mysql(err, 0, nullptr),
-                      "CREATE or ALTER TABLE %`.*s.%`s failed%s%.*s",
+                      "CREATE or ALTER TABLE %.*sQ.%sQ failed%s%.*s",
                       dblen, name, name + dblen + 1,
                       err == DB_DUPLICATE_KEY
                       ? ": duplicate name" : "",
@@ -21202,7 +21202,7 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 	if (trx && trx->mysql_thd) {
 		THD* thd = (THD*)trx->mysql_thd;
 
-		push_warning_printf(
+		push_warning(
 			thd, Sql_condition::WARN_LEVEL_WARN,
 			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
 	}

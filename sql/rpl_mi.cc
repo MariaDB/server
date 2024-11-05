@@ -1515,13 +1515,12 @@ bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files
                       my_seek(index_file_nr,0L,MY_SEEK_END,MYF(0)),
                       0, MYF(MY_WME | MY_WAIT_IF_FULL)))
     {
-      int error= my_errno;
       if (index_file_nr >= 0)
         my_close(index_file_nr,MYF(0));
 
       sql_print_error("Create of Master Info Index file '%s' failed with "
-                      "error: %M",
-                      index_file_name, error);
+                      "error: %iE",
+                      index_file_name, my_errno);
       DBUG_RETURN(TRUE);
     }
 
