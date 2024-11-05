@@ -32,9 +32,10 @@ Clone Plugin: Client implementation
 #include "clone_os.h"
 
 #include "my_byteorder.h"
-#include "my_systime.h"  // my_sleep()
-#include "sql/sql_thd_internal_api.h"
+// #include "sql/sql_thd_internal_api.h"
 #include "sql_string.h"
+#include <functional>
+#include <sstream>
 
 /* Namespace for all clone data types */
 namespace myclone {
@@ -53,15 +54,15 @@ static void clone_client(Client_Share *share, uint32_t index) {
   THD *thd = nullptr;
 
   /* Create a session statement and set PFS keys */
-  mysql_service_clone_protocol->mysql_clone_start_statement(
-      thd, clone_client_thd_key, PSI_NOT_INSTRUMENTED);
+  // mysql_service_clone_protocol->mysql_clone_start_statement(
+  //     thd, clone_client_thd_key, PSI_NOT_INSTRUMENTED);
 
   Client clone_inst(thd, share, index, false);
 
   clone_inst.clone();
 
   /* Drop the statement and session */
-  mysql_service_clone_protocol->mysql_clone_finish_statement(thd);
+  // mysql_service_clone_protocol->mysql_clone_finish_statement(thd);
 }
 
 uint64_t Thread_Info::get_target_time(uint64_t current, uint64_t prev,
@@ -435,6 +436,12 @@ uint32_t Client_Stat::get_tuned_thread_number(uint32_t num_threads,
   return (m_tune.m_cur_number);
 }
 
+inline void net_server_ext_init(NET_SERVER *ns) {
+  ns->m_user_data = nullptr;
+  ns->m_before_header = nullptr;
+  ns->m_after_header = nullptr;
+}
+
 Client::Client(THD *thd, Client_Share *share, uint32_t index, bool is_master)
     : m_server_thd(thd),
       m_conn(),
@@ -478,19 +485,17 @@ Client::~Client() {
 bool Client::is_network_error(int err, bool protocol_error) {
   /* Check for read/write error */
   if (err == ER_NET_ERROR_ON_WRITE || err == ER_NET_READ_ERROR ||
-      err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED ||
-      err == ER_NET_WAIT_ERROR) {
-    return (true);
-  }
+      err == ER_NET_WRITE_INTERRUPTED || err == ER_NET_READ_INTERRUPTED)
+      // err == ER_NET_WAIT_ERROR) {
+    return true;
 
   /* Check for protocol/shutdown error */
   if (err == ER_NET_PACKETS_OUT_OF_ORDER || err == ER_NET_UNCOMPRESS_ERROR ||
       err == ER_NET_PACKET_TOO_LARGE || err == ER_QUERY_INTERRUPTED ||
-      err == ER_CLONE_PROTOCOL) {
-    return (protocol_error);
-  }
+      err == ER_CLONE_PROTOCOL)
+    return protocol_error;
 
-  return (false);
+  return false;
 }
 
 uint32_t Client::update_stat(bool is_reset) {
@@ -796,16 +801,16 @@ int Client::clone() {
 
       /* If clone is interrupted, ask the remote to exit. */
       if (err2 == 0 && err == ER_QUERY_INTERRUPTED) {
-        err2 = mysql_service_clone_protocol->mysql_clone_kill(m_conn_aux.m_conn,
-                                                              m_conn);
+        // err2 = mysql_service_clone_protocol->mysql_clone_kill(m_conn_aux.m_conn,
+        //                                                       m_conn);
         log_error(get_thd(), true, err2, "Source Interrupt");
       }
 
       /* if COM_EXIT is unsuccessful, abort the connection */
       auto abort_net_aux = (err2 != 0);
 
-      mysql_service_clone_protocol->mysql_clone_disconnect(
-          nullptr, m_conn_aux.m_conn, abort_net_aux, false);
+      // mysql_service_clone_protocol->mysql_clone_disconnect(
+      //     nullptr, m_conn_aux.m_conn, abort_net_aux, false);
       m_conn_aux.m_conn = nullptr;
 
       snprintf(info_mesg, 128, "Source ACK Disconnect : abort: %s",
@@ -829,9 +834,9 @@ int Client::clone() {
     }
 
     /* If clone is successful, clear any error happened during exit. */
-    const bool clear_err = (err == 0);
-    mysql_service_clone_protocol->mysql_clone_disconnect(get_thd(), m_conn,
-                                                         abort_net, clear_err);
+    // const bool clear_err = (err == 0);
+    // mysql_service_clone_protocol->mysql_clone_disconnect(get_thd(), m_conn,
+    //                                                      abort_net, clear_err);
 
     snprintf(info_mesg, 128, "Task Disconnect : abort: %s",
              abort_net ? "true" : "false");
@@ -871,7 +876,7 @@ int Client::clone() {
     /* Don't release the backup lock for success case. Server would be
     restarted once the call returns. */
     if (err != 0) {
-      mysql_service_mysql_backup_lock->release(get_thd());
+      // mysql_service_mysql_backup_lock->release(get_thd());
       m_acquired_backup_lock = false;
     }
   }
@@ -879,8 +884,8 @@ int Client::clone() {
   /* End PFS table state. */
   const char *err_mesg = nullptr;
   uint32_t err_number = 0;
-  mysql_service_clone_protocol->mysql_clone_get_error(get_thd(), &err_number,
-                                                      &err_mesg);
+  // mysql_service_clone_protocol->mysql_clone_get_error(get_thd(), &err_number,
+  //                                                     &err_mesg);
   pfs_end_state(err_number, err_mesg);
 
   return (err);
@@ -888,36 +893,36 @@ int Client::clone() {
 
 int Client::connect_remote(bool is_restart, bool use_aux) {
   MYSQL_SOCKET conn_socket;
-  mysql_clone_ssl_context ssl_context;
+  // mysql_clone_ssl_context ssl_context;
 
-  ssl_context.m_enable_compression = clone_enable_compression;
-  ssl_context.m_server_extn =
-      ssl_context.m_enable_compression ? &m_conn_server_extn : nullptr;
-  ssl_context.m_ssl_mode = m_share->m_ssl_mode;
+  // ssl_context.m_enable_compression = clone_enable_compression;
+  // ssl_context.m_server_extn =
+      // ssl_context.m_enable_compression ? &m_conn_server_extn : nullptr;
+  // ssl_context.m_ssl_mode = m_share->m_ssl_mode;
 
   /* Get Clone SSL configuration parameter value safely. */
   Key_Values ssl_configs = {
       {"clone_ssl_key", ""}, {"clone_ssl_cert", ""}, {"clone_ssl_ca", ""}};
-  auto err = mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(),
-                                                                   ssl_configs);
+  auto err = 0; // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(),
+                //                                                       ssl_configs);
 
   if (err != 0) {
     return err;
   }
-  ssl_context.m_ssl_key = nullptr;
-  ssl_context.m_ssl_cert = nullptr;
-  ssl_context.m_ssl_ca = nullptr;
+  // ssl_context.m_ssl_key = nullptr;
+  // ssl_context.m_ssl_cert = nullptr;
+  // ssl_context.m_ssl_ca = nullptr;
 
   if (ssl_configs[0].second.length() > 0) {
-    ssl_context.m_ssl_key = ssl_configs[0].second.c_str();
+    // ssl_context.m_ssl_key = ssl_configs[0].second.c_str();
   }
 
   if (ssl_configs[1].second.length() > 0) {
-    ssl_context.m_ssl_cert = ssl_configs[1].second.c_str();
+    // ssl_context.m_ssl_cert = ssl_configs[1].second.c_str();
   }
 
   if (ssl_configs[2].second.length() > 0) {
-    ssl_context.m_ssl_ca = ssl_configs[2].second.c_str();
+    // ssl_context.m_ssl_ca = ssl_configs[2].second.c_str();
   }
 
   char info_mesg[128];
@@ -929,9 +934,9 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
     }
 
     /* Connect to remote server and load clone protocol. */
-    m_conn_aux.m_conn = mysql_service_clone_protocol->mysql_clone_connect(
-        nullptr, m_share->m_host, m_share->m_port, m_share->m_user,
-        m_share->m_passwd, &ssl_context, &conn_socket);
+    m_conn_aux.m_conn = 0; // mysql_service_clone_protocol->mysql_clone_connect(
+        // nullptr, m_share->m_host, m_share->m_port, m_share->m_user,
+        // m_share->m_passwd, &ssl_context, &conn_socket);
 
     if (m_conn_aux.m_conn == nullptr) {
       /* Disconnect from remote and return */
@@ -939,8 +944,8 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
       log_error(get_thd(), true, err, "Source Task COM_EXIT");
 
       bool abort_net = (err != 0);
-      mysql_service_clone_protocol->mysql_clone_disconnect(get_thd(), m_conn,
-                                                           abort_net, false);
+      // mysql_service_clone_protocol->mysql_clone_disconnect(get_thd(), m_conn,
+      //                                                      abort_net, false);
       snprintf(info_mesg, 128, "Source Task Disconnect: abort: %s",
                abort_net ? "true" : "false");
       LogPluginErr(INFORMATION_LEVEL, ER_CLONE_CLIENT_TRACE, info_mesg);
@@ -959,9 +964,9 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
     auto connect_time = Clock::now();
 
     /* Connect to remote server and load clone protocol. */
-    m_conn = mysql_service_clone_protocol->mysql_clone_connect(
-        m_server_thd, m_share->m_host, m_share->m_port, m_share->m_user,
-        m_share->m_passwd, &ssl_context, &conn_socket);
+    m_conn = 0; // mysql_service_clone_protocol->mysql_clone_connect(
+        // m_server_thd, m_share->m_host, m_share->m_port, m_share->m_user,
+        // m_share->m_passwd, &ssl_context, &conn_socket);
 
     if (m_conn != nullptr) {
       break;
@@ -1003,8 +1008,8 @@ int Client::connect_remote(bool is_restart, bool use_aux) {
 
 bool Client::plugin_is_loadable(std::string &so_name) {
   Key_Values configs = {{"plugin_dir", ""}};
-  auto err =
-      mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
+  auto err = 0;
+      // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
 
   if (err != 0) {
     return false;
@@ -1017,10 +1022,16 @@ bool Client::plugin_is_loadable(std::string &so_name) {
   return clone_os_test_load(path);
 }
 
+inline LEX_CSTRING to_lex_cstring(const char *s) {
+  LEX_CSTRING cstr = {s, s != nullptr ? strlen(s) : 0};
+  return cstr;
+}
+
 bool Client::plugin_is_installed(std::string &plugin_name) {
   /* Attempt to lock plugin by name. */
+  auto plugin_name_str = to_lex_cstring(plugin_name.c_str());
   auto plugin = my_plugin_lock_by_name(
-      get_thd(), to_lex_cstring(plugin_name.c_str()), MYSQL_ANY_PLUGIN);
+      get_thd(), &plugin_name_str, MYSQL_ANY_PLUGIN);
 
   if (plugin) {
     plugin_unlock(get_thd(), plugin);
@@ -1068,15 +1079,15 @@ int Client::validate_remote_params() {
   }
 
   /* Validate character sets */
-  auto err = mysql_service_clone_protocol->mysql_clone_validate_charsets(
-      get_thd(), m_parameters.m_charsets);
+  auto err = 0; // mysql_service_clone_protocol->mysql_clone_validate_charsets(
+      // get_thd(), m_parameters.m_charsets);
   if (err != 0) {
     last_error = err;
   }
 
   /* Validate configurations */
-  err = mysql_service_clone_protocol->mysql_clone_validate_configs(
-      get_thd(), m_parameters.m_configs);
+  // err = mysql_service_clone_protocol->mysql_clone_validate_configs(
+  //     get_thd(), m_parameters.m_configs);
   if (err != 0) {
     last_error = err;
   }
@@ -1216,10 +1227,10 @@ int Client::remote_command(Command_RPC com, bool use_aux) {
 
   assert(conn != nullptr);
 
-  auto command = static_cast<uchar>(com);
+  // auto command = static_cast<uchar>(com);
   /* Send remote command */
-  err = mysql_service_clone_protocol->mysql_clone_send_command(
-      get_thd(), conn, !use_aux, command, m_cmd_buff.m_buffer, cmd_buff_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_command(
+  //     get_thd(), conn, !use_aux, command, m_cmd_buff.m_buffer, cmd_buff_len);
   if (err != 0) {
     return (err);
   }
@@ -1389,26 +1400,26 @@ int Client::receive_response(Command_RPC com, bool use_aux) {
   /* For graceful exit we wait for remote to send
   the end of command message */
   ulonglong err_start_time = 0;
-  uint32_t timeout_sec = 0;
+  // uint32_t timeout_sec = 0;
 
   /* Need to wait a little more than DDL lock timeout during INIT
   to avoid network timeout. Other than DDL lock, we currently would
   need to load the tablespaces [clone_init_tablespaces] and check
   through all tables for compression in donor[clone_init_compression]. */
   if (com == COM_INIT) {
-    timeout_sec = clone_ddl_timeout + 300;
+    // timeout_sec = clone_ddl_timeout + 300;
   }
 
   while (!last_packet) {
-    uchar *packet;
-    size_t length, network_length;
+    uchar *packet= nullptr;
+    size_t length= 0, network_length= 0;
 
-    auto conn = use_aux ? m_conn_aux.m_conn : m_conn;
+    // auto conn = use_aux ? m_conn_aux.m_conn : m_conn;
 
     /* Set current socket as active for clone data connection. */
-    err = mysql_service_clone_protocol->mysql_clone_get_response(
-        get_thd(), conn, !use_aux, timeout_sec, &packet, &length,
-        &network_length);
+    // err = mysql_service_clone_protocol->mysql_clone_get_response(
+    //     get_thd(), conn, !use_aux, timeout_sec, &packet, &length,
+    //     &network_length);
 
     if (err != 0) {
       saved_err = err;
@@ -1441,7 +1452,7 @@ bool Client::handle_error(int current_err, int &first_err,
   if (current_err != 0) {
     assert(first_err == 0);
     first_err = current_err;
-    first_err_time = my_micro_time() / 1000;
+    first_err_time = microsecond_interval_timer() / 1000;
 
     /* Set any error to storage to inform other tasks */
     if (m_storage_active) {
@@ -1460,7 +1471,7 @@ bool Client::handle_error(int current_err, int &first_err,
 
   assert(first_err != 0);
 
-  auto cur_time = my_micro_time() / 1000;
+  auto cur_time = microsecond_interval_timer() / 1000;
 
   assert(cur_time >= first_err_time);
   assert(current_err == 0);
@@ -1626,8 +1637,8 @@ int Client::set_locators(const uchar *buffer, size_t length) {
 
     /* If cloning to current data directory, prevent any DDL. */
     if (get_data_dir() == nullptr) {
-      auto failed = mysql_service_mysql_backup_lock->acquire(
-          get_thd(), BACKUP_LOCK_SERVICE_DEFAULT, clone_ddl_timeout);
+      bool failed = false; // mysql_service_mysql_backup_lock->acquire(
+          // get_thd(), BACKUP_LOCK_SERVICE_DEFAULT, clone_ddl_timeout);
 
       if (failed) {
         return (ER_LOCK_WAIT_TIMEOUT);
@@ -1881,12 +1892,12 @@ int Client_Cbk::apply_cbk(Ha_clone_file to_file, bool apply_file,
   auto func = std::bind(clone_client, _1, _2);
   client->spawn_workers(num_workers, func);
 
-  uchar *packet;
-  size_t length, network_length;
+  uchar *packet = nullptr;
+  size_t length = 0, network_length = 0;
 
   /* Get clone data response command */
-  auto err = mysql_service_clone_protocol->mysql_clone_get_response(
-      client->get_thd(), conn, true, 0, &packet, &length, &network_length);
+  auto err = 0; // mysql_service_clone_protocol->mysql_clone_get_response(
+  //     client->get_thd(), conn, true, 0, &packet, &length, &network_length);
 
   if (err != 0) {
     return (err);

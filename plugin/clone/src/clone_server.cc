@@ -63,12 +63,12 @@ int Server::clone() {
   int err = 0;
 
   while (true) {
-    uchar command;
-    uchar *com_buf;
-    size_t com_len;
+    uchar command= static_cast<uchar>(COM_RES_ERROR);
+    uchar *com_buf= nullptr;
+    size_t com_len= 0;
 
-    err = mysql_service_clone_protocol->mysql_clone_get_command(
-        get_thd(), &command, &com_buf, &com_len);
+    // err = mysql_service_clone_protocol->mysql_clone_get_command(
+    //     get_thd(), &command, &com_buf, &com_len);
 
     bool done = true;
 
@@ -96,7 +96,7 @@ int Server::clone() {
       /* Release if we have acquired backup lock */
       if (m_acquired_backup_lock) {
         assert(m_is_master);
-        mysql_service_mysql_backup_lock->release(get_thd());
+        // mysql_service_mysql_backup_lock->release(get_thd());
       }
       break;
     }
@@ -107,27 +107,27 @@ int Server::clone() {
 }
 
 int Server::send_status(int err) {
-  uchar res_cmd;
+  // uchar res_cmd;
   char info_mesg[128];
 
   if (err == 0) {
     /* Send complete response */
-    res_cmd = static_cast<uchar>(COM_RES_COMPLETE);
+    // res_cmd = static_cast<uchar>(COM_RES_COMPLETE);
 
-    err = mysql_service_clone_protocol->mysql_clone_send_response(
-        get_thd(), false, &res_cmd, sizeof(res_cmd));
+    // err = mysql_service_clone_protocol->mysql_clone_send_response(
+    //     get_thd(), false, &res_cmd, sizeof(res_cmd));
     log_error(get_thd(), false, err, "COM_RES_COMPLETE");
 
   } else {
     /* Send Error Response */
-    res_cmd = static_cast<uchar>(COM_RES_ERROR);
+    // res_cmd = static_cast<uchar>(COM_RES_ERROR);
 
     snprintf(info_mesg, 128, "Before sending COM_RES_ERROR: %s",
              is_network_error(err) ? "network " : " ");
     log_error(get_thd(), false, err, &info_mesg[0]);
 
-    err = mysql_service_clone_protocol->mysql_clone_send_error(
-        get_thd(), res_cmd, is_network_error(err));
+    // err = mysql_service_clone_protocol->mysql_clone_send_error(
+    //     get_thd(), res_cmd, is_network_error(err));
     log_error(get_thd(), false, err, "After sending COM_RES_ERROR");
   }
 
@@ -148,13 +148,13 @@ int Server::init_storage(Ha_clone_mode mode, uchar *com_buf, size_t com_len) {
 
   if (m_is_master) {
     /* Set statement type for master thread */
-    mysql_service_clone_protocol->mysql_clone_start_statement(
-        thd, PSI_NOT_INSTRUMENTED, clone_stmt_server_key);
+    // mysql_service_clone_protocol->mysql_clone_start_statement(
+    //     thd, PSI_NOT_INSTRUMENTED, clone_stmt_server_key);
 
     /* Acquire backup lock */
     if (block_ddl()) {
-      auto failed = mysql_service_mysql_backup_lock->acquire(
-          thd, BACKUP_LOCK_SERVICE_DEFAULT, m_client_ddl_timeout);
+      bool failed = false; // mysql_service_mysql_backup_lock->acquire(
+          // thd, BACKUP_LOCK_SERVICE_DEFAULT, m_client_ddl_timeout);
 
       if (failed) {
         return (ER_LOCK_WAIT_TIMEOUT);
@@ -437,8 +437,8 @@ int Server::send_key_value(Command_Response rcmd, String_Key &key_str,
     buf_ptr += 4;
     memcpy(buf_ptr, val_str.c_str(), val_str.length());
   }
-  err = mysql_service_clone_protocol->mysql_clone_send_response(
-      get_thd(), false, m_res_buff.m_buffer, buf_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_response(
+  //     get_thd(), false, m_res_buff.m_buffer, buf_len);
 
   return (err);
 }
@@ -447,11 +447,11 @@ int Server::send_params() {
   int err = 0;
 
   /* Send plugins */
-  auto plugin_cbk = [](THD *, plugin_ref plugin, void *ctx) {
+  auto plugin_cbk = [](THD *, plugin_ref plugin, void *ctx)->my_bool {
     auto server = static_cast<Server *>(ctx);
 
     if (plugin == nullptr) {
-      return false;
+      return FALSE;
     }
     /* Send plugin name string */
     String_Key pstring(plugin_name(plugin)->str, plugin_name(plugin)->length);
@@ -470,7 +470,7 @@ int Server::send_params() {
     }
 
     auto err = server->send_key_value(COM_RES_PLUGIN_V2, pstring, dstring);
-    return (err != 0);
+    return err != 0 ? TRUE : FALSE;
   };
 
   /* Check only for plugins in active state - PLUGIN_IS_READY. We already have
@@ -488,8 +488,8 @@ int Server::send_params() {
   /* Send character sets and collations */
   String_Keys char_sets;
 
-  err = mysql_service_clone_protocol->mysql_clone_get_charsets(get_thd(),
-                                                               char_sets);
+  // err = mysql_service_clone_protocol->mysql_clone_get_charsets(get_thd(),
+  //                                                              char_sets);
   if (err != 0) {
     return err;
   }
@@ -530,8 +530,8 @@ int Server::send_configs(Command_Response rcmd) {
 
   auto &configs = (rcmd == COM_RES_CONFIG_V3) ? other_configs : all_configs;
 
-  auto err =
-      mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
+  int err = 0;
+      // mysql_service_clone_protocol->mysql_clone_get_configs(get_thd(), configs);
 
   if (err != 0) {
     return err;
@@ -579,8 +579,8 @@ int Server::send_locators() {
     buf_ptr += loc.serialize(buf_ptr);
   }
 
-  err = mysql_service_clone_protocol->mysql_clone_send_response(
-      get_thd(), false, m_res_buff.m_buffer, buf_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_response(
+  //     get_thd(), false, m_res_buff.m_buffer, buf_len);
 
   return (err);
 }
@@ -623,8 +623,8 @@ int Server::send_descriptor(handlerton *hton, bool secure, uint loc_index,
   /* Store Descriptor */
   memcpy(buf_ptr, desc_buf, desc_len);
 
-  err = mysql_service_clone_protocol->mysql_clone_send_response(
-      get_thd(), secure, m_res_buff.m_buffer, buf_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_response(
+  //     get_thd(), secure, m_res_buff.m_buffer, buf_len);
 
   return (err);
 }
@@ -680,8 +680,8 @@ int Server_Cbk::file_cbk(Ha_clone_file from_file, uint len) {
   }
 
   /* Step 2: Send Data */
-  err = mysql_service_clone_protocol->mysql_clone_send_response(
-      server->get_thd(), false, buf_ptr, buf_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_response(
+  //     server->get_thd(), false, buf_ptr, buf_len);
 
   return (err);
 }
@@ -718,8 +718,8 @@ int Server_Cbk::buffer_cbk(uchar *from_buffer, uint buf_len) {
   *buf_ptr = static_cast<uchar>(COM_RES_DATA);
   memcpy(buf_ptr + 1, from_buffer, static_cast<size_t>(buf_len));
 
-  err = mysql_service_clone_protocol->mysql_clone_send_response(
-      server->get_thd(), false, buf_ptr, total_len);
+  // err = mysql_service_clone_protocol->mysql_clone_send_response(
+  //     server->get_thd(), false, buf_ptr, total_len);
 
   return (err);
 }

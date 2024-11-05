@@ -24,19 +24,18 @@
 ADD_DEFINITIONS(-DMYSQL_SERVER)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-# IF(WIN32)
-#   SET(MAYBE_STATIC_ONLY STATIC_ONLY)
-# ENDIF(WIN32)
+IF(WIN32)
+  SET(MAYBE_STATIC_ONLY STATIC_ONLY)
+ENDIF(WIN32)
 
 MYSQL_ADD_PLUGIN(clone
   src/clone_plugin.cc
-  # src/clone_client.cc
-  # src/clone_server.cc
+  src/clone_client.cc
+  src/clone_server.cc
   # src/clone_status.cc
-  # src/clone_local.cc
+  src/clone_local.cc
   src/clone_os.cc
   src/clone_hton.cc
-  # MODULE_ONLY
   ${MAYBE_STATIC_ONLY} RECOMPILE_FOR_EMBEDDED DEFAULT
   MODULE_OUTPUT_NAME "mariadb_clone"
   )
