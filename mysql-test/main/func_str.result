@@ -5332,3 +5332,17 @@ DO OCT(-9223372036854775808);
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-29552 LEFT and RIGHT with big value for parameter 'len' >0 return empty value in view
+#
+create view v1 as select left('hello', 4294967295);
+select * from v1;
+left('hello', 4294967295)
+hello
+drop view v1;
+#
+# End of 10.6 tests
+#

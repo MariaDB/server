@@ -64,11 +64,14 @@ size_t username_char_length= USERNAME_CHAR_LENGTH;
 static uint32 max_length_for_string(Item *item)
 {
   ulonglong length= item->val_int();
-  /* Note that if value is NULL, val_int() returned 0 */
+  if (item->null_value)
+    return 0;
+  if (length > (ulonglong) LONGLONG_MAX && !item->unsigned_flag)
+    return 0; // Negative
   if (length > (ulonglong) INT_MAX32)
   {
     /* Limit string length to maxium string length in MariaDB (2G) */
-    length= item->unsigned_flag ? (ulonglong) INT_MAX32 : 0;
+    length= (ulonglong) INT_MAX32;
   }
   return (uint32) length;
 }

@@ -2380,3 +2380,19 @@ DO OCT(-9223372036854775808);
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-29552 LEFT and RIGHT with big value for parameter 'len' >0 return empty value in view
+--echo #
+
+create view v1 as select left('hello', 4294967295);
+select * from v1;
+drop view v1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
