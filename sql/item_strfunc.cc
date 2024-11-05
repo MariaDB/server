@@ -1562,8 +1562,12 @@ bool Item_func_insert::fix_length_and_dec()
   // Handle character set for args[0] and args[3].
   if (agg_arg_charsets_for_string_result(collation, args, 2, 3))
     return TRUE;
-  char_length= ((ulonglong) args[0]->max_char_length() +
-                (ulonglong) args[3]->max_char_length());
+  if (collation.collation == &my_charset_bin)
+    char_length= (ulonglong) args[0]->max_length +
+                 (ulonglong) args[3]->max_length;
+  else
+    char_length= ((ulonglong) args[0]->max_char_length() +
+                  (ulonglong) args[3]->max_char_length());
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }

@@ -2394,5 +2394,15 @@ select * from v1;
 drop view v1;
 
 --echo #
+--echo # MDEV-33942 View cuts off the end of string with the utf8 character set in INSERT function
+--echo #
+
+SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+CREATE VIEW v1 AS SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT * FROM v1;
+DROP VIEW v1;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

@@ -5344,5 +5344,16 @@ left('hello', 4294967295)
 hello
 drop view v1;
 #
+# MDEV-33942 View cuts off the end of string with the utf8 character set in INSERT function
+#
+SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+CREATE VIEW v1 AS SELECT HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20));
+SELECT * FROM v1;
+HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
+D120D18E
+DROP VIEW v1;
+#
 # End of 10.6 tests
 #
