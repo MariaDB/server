@@ -61,13 +61,17 @@ size_t username_char_length= USERNAME_CHAR_LENGTH;
   Calculate max length of string from length argument to LEFT and RIGHT
 */
 
-static uint32 max_length_for_string(Item *item)
+static uint32 max_length_for_string(Item *item, bool *neg)
 {
+  *neg= false;
   ulonglong length= item->val_int();
   if (item->null_value)
     return 0;
   if (length > (ulonglong) LONGLONG_MAX && !item->unsigned_flag)
+  {
+    *neg= true;
     return 0; // Negative
+  }
   if (length > (ulonglong) INT_MAX32)
   {
     /* Limit string length to maxium string length in MariaDB (2G) */
@@ -1664,7 +1668,8 @@ void Item_str_func::left_right_max_length()
   uint32 char_length= args[0]->max_char_length();
   if (args[1]->can_eval_in_optimize())
   {
-    uint32 length= max_length_for_string(args[1]);
+    bool neg;
+    uint32 length= max_length_for_string(args[1], &neg);
     set_if_smaller(char_length, length);
   }
   fix_char_length(char_length);
@@ -3078,7 +3083,8 @@ bool Item_func_repeat::fix_length_and_dec()
   DBUG_ASSERT(collation.collation != NULL);
   if (args[1]->can_eval_in_optimize())
   {
-    uint32 length= max_length_for_string(args[1]);
+    bool neg;
+    uint32 length= max_length_for_string(args[1], &neg);
     ulonglong char_length= (ulonglong) args[0]->max_char_length() * length;
     fix_char_length_ulonglong(char_length);
     return false;
@@ -3152,7 +3158,8 @@ bool Item_func_space::fix_length_and_dec()
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->can_eval_in_optimize())
   {
-    fix_char_length_ulonglong(max_length_for_string(args[0]));
+    bool neg;
+    fix_char_length_ulonglong(max_length_for_string(args[0], &neg));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3278,7 +3285,10 @@ bool Item_func_pad::fix_length_and_dec()
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
   if (args[1]->can_eval_in_optimize())
   {
-    fix_char_length_ulonglong(max_length_for_string(args[1]));
+    bool neg;
+    fix_char_length_ulonglong(max_length_for_string(args[1], &neg));
+    if (neg)
+      set_maybe_null();
     return false;
   }
   max_length= MAX_BLOB_WIDTH;

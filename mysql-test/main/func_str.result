@@ -5355,5 +5355,27 @@ HEX(INSERT(_utf8 0xD18FD18E, 2, 1, 0x20))
 D120D18E
 DROP VIEW v1;
 #
+# MDEV-28686 Assertion `0' in Type_handler_string_result::make_sort_key or unexpected result
+#
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT e, GROUP_CONCAT(s) FROM t GROUP BY CONVERT((LPAD(e, -1) AND e) USING utf8);
+e	GROUP_CONCAT(s)
+1970-01-02	1970-01-01,1980-01-01
+DROP TABLE t;
+CREATE TABLE t (s DATE, e DATE, PERIOD FOR p(s,e));
+INSERT INTO t (s,e) VALUES ('1970-01-01','1970-01-02'),('1980-01-01','1980-01-02');
+SET sql_mode='';
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+SET sql_mode=STRICT_TRANS_TABLES;
+SELECT DISTINCT CONVERT((LPAD(e, -1) AND e) USING utf8) FROM t;
+CONVERT((LPAD(e, -1) AND e) USING utf8)
+NULL
+DROP TABLE t;
+SET sql_mode=DEFAULT;
+#
 # End of 10.6 tests
 #
