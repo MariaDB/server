@@ -3112,6 +3112,17 @@ private:
 };
 
 
+/*
+  The size of the string containing serialized Xid representation
+  is computed as a sum of
+  eight as the number of formatting symbols (X'',X'',)
+  plus 2 x XIDDATASIZE (2 due to hex format),
+  plus space for decimal digits of XID::formatID,
+  plus one for 0x0.
+*/
+static const uint ser_buf_size=
+  8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
+
 /**
   @class XA_prepare_log_event
 
@@ -3177,21 +3188,10 @@ inline char *serialize_xid(char *buf, long fmt, long gln, long bln,
     c+= 2;
   }
   c[0]= '\'';
-  sprintf(c+1, ",%lu", fmt);
+  snprintf(c + 1, ser_buf_size - 1, ",%lu", fmt);
 
  return buf;
 }
-
-/*
-  The size of the string containing serialized Xid representation
-  is computed as a sum of
-  eight as the number of formatting symbols (X'',X'',)
-  plus 2 x XIDDATASIZE (2 due to hex format),
-  plus space for decimal digits of XID::formatID,
-  plus one for 0x0.
-*/
-static const uint ser_buf_size=
-  8 + 2 * MYSQL_XIDDATASIZE + 4 * sizeof(long) + 1;
 
 struct event_mysql_xid_t :  MYSQL_XID
 {
@@ -3261,7 +3261,7 @@ private:
   int do_commit() override;
   const char* get_query() override
   {
-    sprintf(query,
+    snprintf(query, sizeof(query),
             (one_phase ? "XA COMMIT %s ONE PHASE" : "XA PREPARE %s"),
             m_xid.serialize());
     return query;

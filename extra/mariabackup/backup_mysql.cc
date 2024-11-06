@@ -147,8 +147,14 @@ xb_mysql_connect()
 	MYSQL *connection = mysql_init(NULL);
 	char mysql_port_str[std::numeric_limits<int>::digits10 + 3];
 	const char *user= opt_user ? opt_user : get_os_user();
-
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 	sprintf(mysql_port_str, "%d", opt_port);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 	if (connection == NULL) {
 		msg("Failed to init MySQL struct: %s.",

@@ -237,8 +237,15 @@ int spider_release_ping_table_mon_list(
   DBUG_PRINT("info", ("spider conv_name=%s", conv_name));
   DBUG_PRINT("info", ("spider conv_name_length=%u", conv_name_length));
   DBUG_PRINT("info", ("spider link_idx=%d", link_idx));
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
     link_idx));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   char *buf = (char *) my_alloca(conv_name_length + link_idx_str_length + 1);
   if (!buf)
   {
@@ -1187,8 +1194,15 @@ long long spider_ping_table_body(
     }
   } else {
     link_idx = (int) (args->args[1] ? *((longlong *) args->args[1]) : 0);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
     link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
       link_idx));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   }
   flags = (int) (args->args[2] ? *((longlong *) args->args[2]) : 0);
   limit = args->args[3] ? *((longlong *) args->args[3]) : 0;
@@ -1646,8 +1660,15 @@ int spider_ping_table_mon_from_table(
       share->static_link_ids_lengths[link_idx] + 1);
     link_idx_str_length = share->static_link_ids_lengths[link_idx];
   } else {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
     link_idx_str_length = my_sprintf(link_idx_str, (link_idx_str, "%010d",
       link_idx));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   }
   char *buf = (char *) my_alloca(conv_name_length + link_idx_str_length + 1);
   if (!buf)

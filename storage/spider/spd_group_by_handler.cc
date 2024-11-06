@@ -835,8 +835,16 @@ static SPIDER_TABLE_HOLDER *spider_add_table_holder(
   DBUG_ENTER("spider_fields::add_table");
   DBUG_PRINT("info",("spider idx_for_direct_join=%u",
     spider_arg->idx_for_direct_join));
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   length = my_sprintf(tmp_buf, (tmp_buf, "t%u",
     spider_arg->idx_for_direct_join));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
   str = &spider_arg->result_list.tmp_sqls[0];
   str->length(0);
   if (str->reserve(length + SPIDER_SQL_DOT_LEN))

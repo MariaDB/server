@@ -122,7 +122,14 @@ void my_make_scrambled_password_323(char *to, const char *password,
 {
   ulong hash_res[2];
   hash_password(hash_res, password, (uint) pass_len);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   sprintf(to, "%08lx%08lx", hash_res[0], hash_res[1]);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 }
 
 
@@ -270,7 +277,14 @@ void get_salt_from_password_323(ulong *res, const char *password)
 
 void make_password_from_salt_323(char *to, const ulong *salt)
 {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   sprintf(to,"%08lx%08lx", salt[0], salt[1]);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 }
 
 

@@ -32,9 +32,10 @@ int
 fts_write_object_id(
 /*================*/
 	ib_id_t		id,		/* in: a table/index id */
-	char*		str)		/* in: buffer to write the id to */
+	char*		str,	/* in: buffer to write the id to */
+	size_t		len)	/* in: buffer length */
 {
-	return(sprintf(str, "%016llx", (ulonglong) id));
+	return(snprintf(str, len, "%016llx", (ulonglong) id));
 }
 
 /******************************************************************//**

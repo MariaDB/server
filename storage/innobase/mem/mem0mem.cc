@@ -124,7 +124,14 @@ mem_heap_printf_low(
 
 				val = va_arg(ap, unsigned long);
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 				plen = size_t(sprintf(tmp, "%lu", val));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 				len += plen;
 
 				if (buf) {

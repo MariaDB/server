@@ -1135,8 +1135,15 @@ void spider_db_append_xid_str(
   uint format_id_length;
   DBUG_ENTER("spider_db_append_xid_str");
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   format_id_length =
     my_sprintf(format_id, (format_id, "%lu", xid->formatID));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   spider_db_append_hex_string(tmp_str, (uchar *) xid->data, xid->gtrid_length);
 /*
   tmp_str->q_append(SPIDER_SQL_VALUE_QUOTE_STR, SPIDER_SQL_VALUE_QUOTE_LEN);
@@ -1424,7 +1431,14 @@ int spider_db_append_key_columns(
     start_key_part_map >>= 1,
     key_count++
   ) {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
     key_name_length = my_sprintf(tmp_buf, (tmp_buf, "c%u", key_count));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     if (str->reserve(key_name_length + SPIDER_SQL_COMMA_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
     str->q_append(tmp_buf, key_name_length);
@@ -9683,8 +9697,15 @@ int spider_db_udf_ping_table_append_mon_next(
   where_clause_str.init_calc_mem(SPD_MID_DB_UDF_PING_TABLE_APPEND_MON_NEXT_2);
   child_table_name_str.length(child_table_name_length);
   where_clause_str.length(where_clause_length);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   limit_str_length = my_sprintf(limit_str, (limit_str, "%lld", limit));
   sid_str_length = my_sprintf(sid_str, (sid_str, "%lld", first_sid));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   if (str->reserve(
     SPIDER_SQL_SELECT_LEN +
     SPIDER_SQL_PING_TABLE_LEN +
@@ -9781,7 +9802,14 @@ int spider_db_udf_ping_table_append_select(
       str->append_escape_string(where_str->ptr(), where_str->length());
     }
   } else {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
     limit_str_length = my_sprintf(limit_str, (limit_str, "%lld", limit));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     if (str->reserve(
       (use_where ? (where_str->length() * 2) : 0) +
       SPIDER_SQL_LIMIT_LEN + limit_str_length
@@ -10364,10 +10392,17 @@ int spider_db_open_handler(
   if (!spider->handler_opened(link_idx, conn->conn_kind))
     *handler_id_ptr = conn->opened_handlers;
   if (!spider->handler_opened(link_idx, conn->conn_kind))
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
     my_sprintf(spider->m_handler_cid[link_idx],
                (spider->m_handler_cid[link_idx],
                 SPIDER_SQL_HANDLER_CID_FORMAT,
                 *handler_id_ptr));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
   if ((error_num = dbton_hdl->append_open_handler_part(
          SPIDER_SQL_TYPE_HANDLER, *handler_id_ptr, conn, link_idx)))

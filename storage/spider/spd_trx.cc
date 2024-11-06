@@ -1652,6 +1652,10 @@ int spider_internal_start_trx(
     ) {
       trx->trx_xa = TRUE;
       trx->xid.formatID = 1;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       if (spider_param_internal_xa_id_type(thd) == 0)
       {
         trx->xid.gtrid_length
@@ -1667,6 +1671,9 @@ int spider_internal_start_trx(
         = my_sprintf(trx->xid.data + trx->xid.gtrid_length,
         (trx->xid.data + trx->xid.gtrid_length, "%lx",
         thd->variables.server_id));
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
 #ifdef SPIDER_XID_STATE_HAS_in_thd
       trx->internal_xid_state.in_thd = 1;

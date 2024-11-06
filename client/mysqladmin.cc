@@ -670,7 +670,14 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       if (maybe_disable_binlog(mysql))
         return -1;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       sprintf(buff,"create database `%.*s`",FN_REFLEN,argv[1]);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
       if (mysql_query(mysql,buff))
       {
 	my_printf_error(0,"CREATE DATABASE failed; error: '%-.200s'",
@@ -711,7 +718,14 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 
       if (opt_shutdown_wait_for_slaves)
       {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
         sprintf(buff, "SHUTDOWN WAIT FOR ALL SLAVES");
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
         if (mysql_query(mysql, buff))
         {
           my_printf_error(0, "%s failed; error: '%-.200s'",
@@ -1198,7 +1212,14 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       }
       else
 	crypted_pw[0]=0;			/* No password */
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       sprintf(buff,"set password='%s',sql_log_off=0",crypted_pw);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
       if (mysql_query(mysql,"set sql_log_off=1"))
       {
@@ -1449,7 +1470,14 @@ static int drop_db(MYSQL *mysql, const char *db)
       return -1;
     }
   }
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   sprintf(name_buff,"drop database `%.*s`",FN_REFLEN,db);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
   if (mysql_query(mysql,name_buff))
   {
     my_printf_error(0, "DROP DATABASE %s failed;\nerror: '%s'", error_flags,

@@ -304,7 +304,14 @@ class Load_log_processor
       /* If we have to try more than 1000 times, something is seriously wrong */
       for (uint version= 0; version<1000; version++)
       {
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 	sprintf(file_name_end,"-%x",version);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 	if ((res= my_create(filename,0,
 			    O_CREAT|O_EXCL|O_BINARY|O_WRONLY,MYF(0)))!=-1)
 	  return res;
@@ -564,7 +571,14 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   ptr= fname + target_dir_name_len;
   memcpy(ptr,bname,blen);
   ptr+= blen;
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   ptr+= sprintf(ptr, "-%x", file_id);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
   if ((file= create_unique_file(fname,ptr)) < 0)
   {

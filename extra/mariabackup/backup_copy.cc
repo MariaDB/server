@@ -1950,7 +1950,14 @@ copy_back()
 
 	for (uint i = 1; i <= TRX_SYS_MAX_UNDO_SPACES; i++) {
 		char filename[20];
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
 		sprintf(filename, "undo%03u", i);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 		if (!file_exists(filename)) {
 			break;
 		}

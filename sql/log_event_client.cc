@@ -634,7 +634,14 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
       float fl;
       float4get(fl, ptr);
       char tmp[320];
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       sprintf(tmp, "%-20g", (double) fl);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
       my_b_printf(file, "%s", tmp); /* my_snprintf doesn't support %-20g */
       return 4;
     }
@@ -648,7 +655,14 @@ log_event_print_value(IO_CACHE *file, PRINT_EVENT_INFO *print_event_info,
 
       float8get(dbl, ptr);
       char tmp[320];
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       sprintf(tmp, "%-.20g", dbl); /* strmake doesn't support %-20g */
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
       my_b_printf(file, tmp, "%s");
       return 8;
     }
@@ -2440,7 +2454,15 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       double real_val;
       char real_buf[FMT_G_BUFSIZE(14)];
       float8get(real_val, val);
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
       sprintf(real_buf, "%.14g", real_val);
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
+
       if (my_b_printf(&cache, ":=%s%s\n", real_buf,
                       print_event_info->delimiter))
         goto err;
@@ -2860,6 +2882,10 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     goto err;
   }
 
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
   if (!do_wrap)
   {
     if (my_b_read(cache, (uchar*) to->str,
@@ -2914,6 +2940,9 @@ bool copy_cache_to_string_wrapped(IO_CACHE *cache,
     to->length += (size_t)cache->end_of_file;
       to->length += sprintf(str , fmt_delim, delimiter);
   }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
   reinit_io_cache(cache, WRITE_CACHE, 0, FALSE, TRUE);
 

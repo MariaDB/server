@@ -100,9 +100,10 @@ const char *gcalc_ev_name(int ev)
 }
 
 
-static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postfix)
+static int gcalc_pi_str(char *str, size_t len,
+                        const Gcalc_heap::Info *pi, const char *postfix)
 {
-  return sprintf(str, "%s %d %d | %s %d %d%s",
+  return snprintf(str, len, "%s %d %d | %s %d %d%s",
                      GCALC_SIGN(pi->node.shape.ix[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.ix[0]),pi->node.shape.ix[1],
                      GCALC_SIGN(pi->node.shape.iy[0]) ? "-":"", FIRST_DIGIT(pi->node.shape.iy[0]),pi->node.shape.iy[1],
                      postfix);
@@ -112,29 +113,26 @@ static int gcalc_pi_str(char *str, const Gcalc_heap::Info *pi, const char *postf
 
 static void GCALC_DBUG_PRINT_PI(const Gcalc_heap::Info *pi)
 {
+#ifdef DBUG_TRACE
   char buf[128];
-  int n_buf;
   if (pi->type == Gcalc_heap::nt_intersection)
   {
-#ifdef DBUG_TRACE
     const Gcalc_scan_iterator::intersection_info *ic= i_data(pi);
 
     GCALC_DBUG_PRINT(("intersection point %d %d",
                       ic->edge_a->thread, ic->edge_b->thread));
-#endif
     return;
   }
   if (pi->type == Gcalc_heap::nt_eq_node)
   {
-#ifdef DBUG_TRACE
     const Gcalc_scan_iterator::point *e= eq_sp(pi);
     GCALC_DBUG_PRINT(("eq point %d", e->thread));
-#endif
+
     return;
   }
-  n_buf= gcalc_pi_str(buf, pi, "");
-  buf[n_buf]= 0;
+  (void)gcalc_pi_str(buf, sizeof(buf), pi, "");
   GCALC_DBUG_PRINT(("%s", buf));
+#endif
 }
 
 
@@ -148,14 +146,31 @@ static void GCALC_DBUG_PRINT_SLICE(const char *header,
   for (; slice; slice= slice->get_next())
   {
     size_t lnbuf= nbuf;
-    lnbuf+= sprintf(buf + lnbuf, "%d\t", slice->thread);
-    lnbuf+= sprintf(buf + lnbuf, "%s\t", gcalc_ev_name(slice->event));
+    size_t ret;
 
-    lnbuf+= gcalc_pi_str(buf + lnbuf, slice->pi, "\t");
+    ret= snprintf(buf + lnbuf, sizeof(buf) - lnbuf,
+                  "%d\t%s\t", slice->thread, gcalc_ev_name(slice->event));
+    if (ret >= sizeof(buf) - lnbuf)
+      // Buffer overflow condition taken place
+      break;
+    lnbuf+= ret;
+
+    ret= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf, slice->pi, "\t");
+    if (ret >= sizeof(buf) - lnbuf)
+      // Buffer overflow condition taken place
+      break;
+    lnbuf+= ret;
+
     if (slice->is_bottom())
-      lnbuf+= sprintf(buf+lnbuf, "bt\t");
+      ret= snprintf(buf + lnbuf, sizeof(buf) - lnbuf, "bt\t");
     else
-      lnbuf+= gcalc_pi_str(buf+lnbuf, slice->next_pi, "\t");
+      ret= gcalc_pi_str(buf + lnbuf, sizeof(buf) - lnbuf,
+                        slice->next_pi, "\t");
+    if (ret >= sizeof(buf) - lnbuf)
+      // Buffer overflow condition taken place
+      break;
+
+    lnbuf+= ret;
     buf[lnbuf]= 0;
     GCALC_DBUG_PRINT(("%s", buf));
   }
