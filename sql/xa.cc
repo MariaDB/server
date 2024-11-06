@@ -163,7 +163,14 @@ static bool xid_cache_inited;
 
 enum xa_states XID_STATE::get_state_code() const
 {
-  return xid_cache_element ? xid_cache_element->xa_state : XA_NO_STATE;
+  if (xid_cache_element)
+    return xid_cache_element->xa_state;
+
+  if (!current_thd ||
+      !current_thd->transaction->is_in_prepared_state())
+    return XA_NO_STATE;
+
+  return XA_PREPARED;
 }
 
 
@@ -250,6 +257,15 @@ void xid_cache_free()
     lf_hash_destroy(&xid_cache);
     xid_cache_inited= false;
   }
+}
+
+
+static bool xid_cache_has_element(THD *thd, XID *xid)
+{
+  XID_cache_element *element=
+    (XID_cache_element*) lf_hash_search(&xid_cache, thd->xid_hash_pins,
+                                        xid->key(), xid->key_length());
+  return element != nullptr;
 }
 
 
@@ -600,7 +616,8 @@ bool trans_xa_commit(THD *thd)
 {
   bool res= true;
   XID_STATE &xid_state= thd->transaction->xid_state;
-
+  thd->transaction->exit_prepared_state();
+      
   DBUG_ENTER("trans_xa_commit");
 
   if (!xid_state.is_explicit_XA() ||
@@ -800,6 +817,7 @@ bool trans_xa_commit(THD *thd)
 bool trans_xa_rollback(THD *thd)
 {
   XID_STATE &xid_state= thd->transaction->xid_state;
+  thd->transaction->exit_prepared_state();
 
   DBUG_ENTER("trans_xa_rollback");
 
@@ -1152,6 +1170,13 @@ bool mysql_xa_recover(THD *thd)
   DBUG_RETURN(0);
 }
 
+void *fetch_cached_xa_trans(THD *thd)
+{
+  if (!thd->transaction->is_in_prepared_state())
+    return nullptr;
+  bool exists = xid_cache_has_element(thd, &thd->transaction->prepared_xid);
+  return exists ? &thd->transaction->prepared_xid : nullptr;
+}
 
 /**
   This is a specific to (pseudo-) slave applier collection of standard cleanup
@@ -1176,6 +1201,7 @@ static bool slave_applier_reset_xa_trans(THD *thd)
     thd->transaction->xid_state.set_error(ER_XA_RBROLLBACK);
   }
   thd->transaction->xid_state.xid_cache_element->acquired_to_recovered();
+  thd->transaction->enter_prepared_state();
   thd->transaction->xid_state.xid_cache_element= 0;
 
   for (Ha_trx_info *ha_info= thd->transaction->all.ha_list, *ha_info_next;
@@ -1197,4 +1223,20 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi); // TODO/Fixme: commit?
   thd->m_transaction_psi= NULL;
   return thd->is_error();
+}
+
+void THD::st_transactions::enter_prepared_state()
+{
+  XID *cached_xid = &xid_state.xid_cache_element->xid;
+  prepared_xid.set(cached_xid);
+}
+
+void THD::st_transactions::exit_prepared_state()
+{
+  prepared_xid.null();
+}
+
+bool THD::st_transactions::is_in_prepared_state() const
+{
+  return !prepared_xid.is_null();
 }

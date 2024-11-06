@@ -54,6 +54,7 @@ bool trans_xa_commit(THD *thd);
 bool trans_xa_rollback(THD *thd);
 bool trans_xa_detach(THD *thd);
 bool mysql_xa_recover(THD *thd);
+void *fetch_cached_xa_trans(THD *thd);
 
 void xa_recover_get_fields(THD *thd, List<Item> *field_list,
                            my_hash_walk_action *action);

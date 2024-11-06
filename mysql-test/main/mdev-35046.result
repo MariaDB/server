@@ -1,0 +1,13 @@
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+OPTIMIZE TABLE t1t;
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA COMMIT 'a';
+DROP TABLE t1, t2;
