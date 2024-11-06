@@ -456,6 +456,12 @@ void thd_storage_lock_wait(THD *thd, long long value)
   thd->utime_after_lock+= value;
 }
 
+extern "C"
+void *thd_pseudo_slave_and_get_prepared_xid(THD *thd)
+{
+  return fetch_cached_xa_trans(thd);
+}
+
 /**
   Provide a handler data getter to simplify coding
 */

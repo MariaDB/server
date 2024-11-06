@@ -900,7 +900,7 @@ typedef ulonglong my_xid; // this line is the same as in log_event.h
   @see MYSQL_XID in mysql/plugin.h
 */
 struct xid_t {
-  long formatID;
+  long formatID{-1};
   long gtrid_length;
   long bqual_length;
   char data[XIDDATASIZE];  // not \0-terminated !

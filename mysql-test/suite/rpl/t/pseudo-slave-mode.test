@@ -1,0 +1,52 @@
+#
+# MDEV-35046 SIGSEGV in list_delete in optimized builds when using pseudo_slave_mode
+#
+--source include/have_innodb.inc
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+--error ER_XAER_RMFAIL
+OPTIMIZE TABLE t1t;
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+
+#
+# MDEV-37771 pseudo_slave_mode=1 must not let pseudo_thread_id = 0 assignment
+#
+SET pseudo_slave_mode=1;
+CREATE TABLE t1 (c INT) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT) ENGINE=MEMORY;
+XA START 'a';
+INSERT INTO t1 VALUES (0);
+SET @@session.pseudo_thread_id=0;
+CREATE TEMPORARY TABLE t1t (c INT) ENGINE=InnoDB;
+INSERT INTO t1t VALUES (0);
+XA END 'a';
+XA PREPARE 'a';
+--error ER_XAER_RMFAIL
+OPTIMIZE TABLE t1t;
+XA ROLLBACK 'a';
+DROP TABLE t1, t2;
+
+#
+# MDEV-30941 ASAN: heap-use-after-free in std::__atomic_base ...
+#
+CREATE TABLE t (c INT) ENGINE=InnoDB;
+XA BEGIN 'x';
+INSERT INTO t VALUES (0);
+CREATE TEMPORARY TABLE IF NOT EXISTS t (c INT) ENGINE=InnoDB;
+INSERT INTO t VALUES (0);
+SET SESSION pseudo_slave_mode=TRUE;
+XA END 'x';
+XA PREPARE 'x';
+--error ER_XAER_RMFAIL
+ALTER TABLE t ENGINE=InnoDB;
+XA ROLLBACK 'x';
+DROP TABLE t;
+DROP TABLE t;

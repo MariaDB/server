@@ -13562,6 +13562,15 @@ static bool delete_table_check_foreigns(const dict_table_t &table,
   return false;
 }
 
+static trx_t *get_parent_trx(THD *thd)
+{
+  XID *xa_xid = (XID*)thd_pseudo_slave_and_get_prepared_xid(thd);
+  trx_t *parent_trx = xa_xid ? trx_get_trx_by_xid(xa_xid) : nullptr;
+  if (!parent_trx)
+    parent_trx = check_trx_exists(thd);
+  return parent_trx;
+}
+
 /** DROP TABLE (possibly as part of DROP DATABASE, CREATE/ALTER TABLE)
 @param name   table name
 @return error number */
@@ -13577,7 +13586,7 @@ int ha_innobase::delete_table(const char *name)
                   test_normalize_table_name_low(););
 
   const enum_sql_command sqlcom= enum_sql_command(thd_sql_command(thd));
-  trx_t *parent_trx= check_trx_exists(thd);
+  trx_t *parent_trx = get_parent_trx(thd);
   dict_table_t *table;
 
   {

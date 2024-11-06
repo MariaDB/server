@@ -8,10 +8,6 @@ INSERT INTO t1t VALUES (0);
 XA END 'a';
 XA PREPARE 'a';
 OPTIMIZE TABLE t1t;
-Table	Op	Msg_type	Msg_text
-test.t1t	optimize	Error	Table 'test.t1t' doesn't exist
-test.t1t	optimize	status	Operation failed
-LOCK TABLE t2 READ;
-XA COMMIT 'a';
-# restart
+ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  PREPARED state
+XA ROLLBACK 'a';
 DROP TABLE t1, t2;

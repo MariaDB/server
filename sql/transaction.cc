@@ -83,7 +83,16 @@ static bool trans_check(THD *thd)
     my_error(ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  if (likely(!thd->transaction->xid_state.is_explicit_XA()))
+
+  if (thd->transaction->is_in_prepared_state() &&
+      thd->variables.pseudo_slave_mode &&
+      (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
+       thd->lex->sql_command == SQLCOM_OPTIMIZE)) {
+      thd->transaction->xid_state.er_xaer_rmfail();
+      DBUG_RETURN(TRUE);
+  }
+
+  if (!thd->transaction->xid_state.is_explicit_XA())
     DBUG_RETURN(FALSE);
 
   thd->transaction->xid_state.er_xaer_rmfail();

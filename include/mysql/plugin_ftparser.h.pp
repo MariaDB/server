@@ -624,6 +624,7 @@ void thd_get_xid(const THD* thd, MYSQL_XID *xid);
 void mysql_query_cache_invalidate4(THD* thd,
                                    const char *key, unsigned int key_length,
                                    int using_trx);
+void *thd_pseudo_slave_and_get_prepared_xid(THD* thd);
 void *thd_get_ha_data(const THD* thd, const struct handlerton *hton);
 void thd_set_ha_data(THD* thd, const struct handlerton *hton,
                      const void *ha_data);
