@@ -663,7 +663,7 @@ String *Item_func_concat_operator_oracle::val_str(String *str)
     goto null;
 
   if (res != str)
-    str->copy(res->ptr(), res->length(), res->charset());
+    str->copy_or_move(res->ptr(), res->length(), res->charset());
 
   for (i++ ; i < arg_count ; i++)
   {
