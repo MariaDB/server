@@ -49,6 +49,8 @@
 #               wait_point=AFTER_SYNC
 #
 
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
 --source include/have_innodb.inc
 # Test is format independent
 --source include/have_binlog_format_row.inc
