@@ -17,3 +17,18 @@ start transaction;
 rollback;
 select count(*) from t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-35354 InnoDB: Failing assertion: node->pcur->rel_pos == BTR_PCUR_ON upon LOAD DATA REPLACE with unique blob
+--echo #
+create table t1 (id int primary key, a varchar(1024), b int, unique(a,id,b)) engine=innodb;
+show create table t1;
+--write_file $MYSQL_TMP_DIR/load.data
+1;;10
+2;;10
+1;;20
+EOF
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+--eval load data local infile '$MYSQL_TMP_DIR/load.data' replace into table t1 fields terminated by ';'
+drop table t1;
+--remove_file $MYSQL_TMP_DIR/load.data
