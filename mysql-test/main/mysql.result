@@ -678,3 +678,13 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1;
 # End of 10.5 tests
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-34090 Client allows to set character set to utf32 and crashes on the next command
+#
+# Success
+#
+# End of 10.6 tests
+#
