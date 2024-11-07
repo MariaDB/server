@@ -11,3 +11,11 @@ X
 3
 ERROR 1300 (HY000): Invalid utf8 character string: 'test\xF0\x9F\x98\x81 '
 ERROR 1300 (HY000): Invalid binary character string: 'test\xF0\x9F\x98\x81 '
+# Start of 10.5 tests
+#
+# MDEV-34090 Client allows to set character set to utf32 and crashes on the next command
+#
+SELECT "Success" AS c1;
+c1
+Success
+# End of 10.5 tests
