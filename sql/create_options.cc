@@ -224,78 +224,6 @@ static const size_t ha_option_type_sizeof[]=
   @retval FALSE OK
 */
 
-bool extend_option_list(THD* thd, handlerton *hton, bool create,
-                        engine_option_value **option_list,
-                        ha_create_table_option *rules)
-{
-  DBUG_ENTER("extend_option_list");
-  MEM_ROOT *root= thd->mem_root;
-  bool extended= false;
-
-  for (ha_create_table_option *opt= rules; rules && opt->name; opt++)
-  {
-    if (opt->var)
-    {
-      engine_option_value *found= NULL, *last;
-      for (engine_option_value *val= *option_list; val; val= val->next)
-      {
-        last= val;
-        if (!system_charset_info->strnncoll(opt->name, opt->name_length,
-                                            val->name.str, val->name.length))
-          found= val; // find the last matching
-      }
-      if (found ? !found->value.str : create)
-      {
-        /* add the current value of the corresponding sysvar to the list */
-        sys_var *sysvar= find_hton_sysvar(hton, opt->var);
-        DBUG_ASSERT(sysvar);
-
-        if (!sysvar->session_is_default(thd))
-        {
-          StringBuffer<256> sbuf(system_charset_info);
-          String *str= sysvar->val_str(&sbuf, thd, OPT_SESSION, &null_clex_str);
-          DBUG_ASSERT(str);
-
-          LEX_CSTRING name= { opt->name, opt->name_length };
-          LEX_CSTRING value= safe_lexcstrdup_root(root, str->to_lex_cstring());
-          if (found)
-            found->value= value;
-          else
-          {
-            if (!extended)
-            {
-              if (*option_list)
-                thd->register_item_tree_change((Item**)&(last->next));
-              extended= true;
-            }
-            engine_option_value *val=
-               new (root) engine_option_value(engine_option_value::Name(name),
-                                              engine_option_value::Value(value),
-                                              opt->type != HA_OPTION_TYPE_ULL);
-            if (val == NULL)
-              DBUG_RETURN(TRUE);
-            val->link(option_list, &last);
-          }
-        }
-      }
-    }
-  }
-  DBUG_RETURN(FALSE);
-}
-
-
-/**
-  Appends values of sysvar-based options if needed
-
-  @param thd              thread handler
-  @param option_list      list of options given by user
-  @param rules            list of option description by engine
-  @param root             MEM_ROOT where allocate memory
-
-  @retval TRUE  Error
-  @retval FALSE OK
-*/
-
 bool extend_option_list(THD* thd, st_plugin_int *plugin, bool create,
                        engine_option_value **option_list,
                        ha_create_table_option *rules)
@@ -411,7 +339,6 @@ bool parse_option_list(THD* thd, void *option_struct_arg,
       seen=true;
       break;
     }
-    engine_option_value::Value null_val;
     if (!seen || (opt->var && !last->value.str))
       set_one_value(opt, thd, &default_value, *option_struct,
                     suppress_warning, root);
