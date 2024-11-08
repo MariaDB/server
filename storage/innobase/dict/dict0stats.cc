@@ -423,6 +423,8 @@ dict_stats_table_clone_create(
 	UT_LIST_INIT(t->freed_indexes, &dict_index_t::indexes);
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	t->stats_error_printed = table->stats_error_printed;
+
 	for (index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -479,6 +481,7 @@ dict_stats_table_clone_create(
 
 		idx->stat_defrag_n_page_split = 0;
 		idx->stat_defrag_n_pages_freed = 0;
+		idx->stats_error_printed = index->stats_error_printed;
 	}
 
 	ut_d(t->magic_n = DICT_TABLE_MAGIC_N);
