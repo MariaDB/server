@@ -2,6 +2,9 @@ create table t1(a blob unique) engine= InnoDB;
 insert into t1 values('RUC');
 insert into t1 values ('RUC');
 ERROR 23000: Duplicate entry 'RUC' for key 'a'
+show keys from t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	a	1	a	A	1	NULL	NULL	YES	HASH			NO
 drop table t1;
 create table t1 (a blob unique , c int unique) engine=innodb;
 show create table t1;

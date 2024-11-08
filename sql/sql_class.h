@@ -462,8 +462,8 @@ private:
 
 class Key :public Sql_alloc, public DDL_options {
 public:
-  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, FOREIGN_KEY,
-                 IGNORE_KEY};
+  enum Keytype { PRIMARY, UNIQUE, MULTIPLE, FULLTEXT, SPATIAL, VECTOR,
+                 FOREIGN_KEY, IGNORE_KEY};
   enum Keytype type;
   KEY_CREATE_INFO key_create_info;
   List<Key_part_spec> columns;
@@ -1278,13 +1278,19 @@ public:
   inline bool is_conventional() const
   { return state == STMT_CONVENTIONAL_EXECUTION; }
 
-  inline void* alloc(size_t size) const { return alloc_root(mem_root,size); }
-  inline void* calloc(size_t size) const
+  template <typename T=char>
+  inline T* alloc(size_t size) const
   {
-    void *ptr;
-    if (likely((ptr=alloc_root(mem_root,size))))
-      bzero(ptr, size);
-    return ptr;
+    return (T*)alloc_root(mem_root, sizeof(T)*size);
+  }
+
+  template <typename T=char>
+  inline T* calloc(size_t size) const
+  {
+    void* ptr= alloc_root(mem_root, sizeof(T)*size);
+    if (ptr)
+      bzero(ptr, sizeof(T)*size);
+    return (T*)ptr;
   }
   inline char *strdup(const char *str) const
   { return strdup_root(mem_root,str); }
@@ -1292,7 +1298,7 @@ public:
   { return strmake_root(mem_root,str,size); }
   inline LEX_CSTRING strcat(const LEX_CSTRING &a, const LEX_CSTRING &b) const
   {
-    char *buf= (char*)alloc(a.length + b.length + 1);
+    char *buf= alloc(a.length + b.length + 1);
     if (unlikely(!buf))
       return null_clex_str;
     memcpy(buf, a.str, a.length);
@@ -1328,6 +1334,13 @@ public:
   LEX_CSTRING strmake_lex_cstring(const LEX_CSTRING &from) const
   {
     return strmake_lex_cstring(from.str, from.length);
+  }
+  LEX_CUSTRING strmake_lex_custring(const LEX_CUSTRING &from) const
+  {
+    const void *tmp= memdup(from.str, from.length);
+    if (!tmp)
+      return {0,0};
+    return {(const uchar*)tmp, from.length};
   }
   LEX_CSTRING strmake_lex_cstring_trim_whitespace(const LEX_CSTRING &from,
                                                   CHARSET_INFO *cs)
@@ -1391,7 +1404,7 @@ public:
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length) const
   {
-    if (likely((dst->str= (char*) alloc(length))))
+    if (likely((dst->str= alloc(length))))
       return false;
     dst->length= 0;  // Safety
     return true;     // EOM
@@ -1404,7 +1417,7 @@ public:
     const char *tmp= src->str;
     const char *tmpend= src->str + src->length;
     char *to;
-    if (!(dst->str= to= (char *) alloc(src->length + 1)))
+    if (!(dst->str= to= alloc(src->length + 1)))
     {
       dst->length= 0; // Safety
       return true;
@@ -3012,9 +3025,7 @@ public:
   */
   struct st_mysql_stmt *current_stmt;
 #endif
-#ifdef HAVE_QUERY_CACHE
   Query_cache_tls query_cache_tls;
-#endif
   NET	  net;				// client connection descriptor
   /** Aditional network instrumentation for the server only. */
   NET_SERVER m_net_server_extension;
@@ -6101,23 +6112,7 @@ public:
   bool need_report_unit_results();
   bool report_collected_unit_results();
   bool init_collecting_unit_results();
-
-  /*
-    Push post-execution warnings, which may be some kinds of aggregate messages
-    like number of times max_sort_length was reached during sorting/grouping
-  */
-  void push_final_warnings()
-  {
-    if (num_of_strings_sorted_on_truncated_length)
-    {
-      push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
-                          WARN_SORTING_ON_TRUNCATED_LENGTH,
-                          ER_THD(this, WARN_SORTING_ON_TRUNCATED_LENGTH),
-                          num_of_strings_sorted_on_truncated_length,
-                          variables.max_sort_length);
-      num_of_strings_sorted_on_truncated_length= 0;
-    }
-  }
+  void push_final_warnings();
 };
 
 

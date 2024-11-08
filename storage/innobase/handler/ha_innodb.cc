@@ -281,6 +281,22 @@ is_partition(
 
 
 
+/** Checks whether the file name belongs to a to the hlindex
+@param[in]	file_name	file name
+@return pointer to the end of the table name part of the file name, or NULL */
+static
+char*
+is_hlindex(
+/*=========*/
+	char*		file_name)
+{
+	/* We look for pattern #i# to see if the table is hlindex
+	MariaDB table. */
+	return strstr(file_name, "#i#");
+}
+
+
+
 /** Return the InnoDB ROW_FORMAT enum value
 @param[in]	row_format	row_format from "innodb_default_row_format"
 @return InnoDB ROW_FORMAT value from rec_format_t enum. */
@@ -316,12 +332,8 @@ static const char* innodb_stats_method_names[] = {
 
 /** Used to define an enumerate type of the system variable innodb_stats_method.
 This is the same as "myisam_stats_method_typelib" */
-static TYPELIB innodb_stats_method_typelib = {
-	array_elements(innodb_stats_method_names) - 1,
-	"innodb_stats_method_typelib",
-	innodb_stats_method_names,
-	NULL
-};
+static TYPELIB innodb_stats_method_typelib =
+			CREATE_TYPELIB_FOR(innodb_stats_method_names);
 
 /** Possible values of the parameter innodb_checksum_algorithm */
 const char* innodb_checksum_algorithm_names[] = {
@@ -334,12 +346,8 @@ const char* innodb_checksum_algorithm_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_checksum_algorithm. */
-TYPELIB innodb_checksum_algorithm_typelib = {
-	array_elements(innodb_checksum_algorithm_names) - 1,
-	"innodb_checksum_algorithm_typelib",
-	innodb_checksum_algorithm_names,
-	NULL
-};
+TYPELIB innodb_checksum_algorithm_typelib =
+			CREATE_TYPELIB_FOR(innodb_checksum_algorithm_names);
 
 /** Possible values for system variable "innodb_default_row_format". */
 static const char* innodb_default_row_format_names[] = {
@@ -351,12 +359,8 @@ static const char* innodb_default_row_format_names[] = {
 
 /** Used to define an enumerate type of the system variable
 innodb_default_row_format. */
-static TYPELIB innodb_default_row_format_typelib = {
-	array_elements(innodb_default_row_format_names) - 1,
-	"innodb_default_row_format_typelib",
-	innodb_default_row_format_names,
-	NULL
-};
+static TYPELIB innodb_default_row_format_typelib =
+			CREATE_TYPELIB_FOR(innodb_default_row_format_names);
 
 /** Names of allowed values of innodb_flush_method */
 static const char* innodb_flush_method_names[] = {
@@ -377,12 +381,8 @@ static const char* innodb_flush_method_names[] = {
 static constexpr ulong innodb_flush_method_default = IF_WIN(6,4);
 
 /** Enumeration of innodb_flush_method */
-TYPELIB innodb_flush_method_typelib = {
-	array_elements(innodb_flush_method_names) - 1,
-	"innodb_flush_method_typelib",
-	innodb_flush_method_names,
-	NULL
-};
+TYPELIB innodb_flush_method_typelib =
+			CREATE_TYPELIB_FOR(innodb_flush_method_names);
 
 /** Deprecated parameter */
 static ulong innodb_flush_method;
@@ -392,12 +392,8 @@ static const char *innodb_doublewrite_names[]=
   {"OFF", "ON", "fast", nullptr};
 
 /** Enumeration of innodb_doublewrite */
-TYPELIB innodb_doublewrite_typelib= {
-  array_elements(innodb_doublewrite_names) - 1,
-  "innodb_doublewrite_typelib",
-  innodb_doublewrite_names,
-  nullptr
-};
+TYPELIB innodb_doublewrite_typelib=
+			CREATE_TYPELIB_FOR(innodb_doublewrite_names);
 
 /** Names of allowed values of innodb_deadlock_report */
 static const char *innodb_deadlock_report_names[]= {
@@ -412,12 +408,8 @@ static_assert(Deadlock::REPORT_BASIC == 1, "compatibility");
 static_assert(Deadlock::REPORT_FULL == 2, "compatibility");
 
 /** Enumeration of innodb_deadlock_report */
-static TYPELIB innodb_deadlock_report_typelib = {
-	array_elements(innodb_deadlock_report_names) - 1,
-	"innodb_deadlock_report_typelib",
-	innodb_deadlock_report_names,
-	NULL
-};
+static TYPELIB innodb_deadlock_report_typelib =
+			CREATE_TYPELIB_FOR(innodb_deadlock_report_names);
 
 /** Allowed values of innodb_instant_alter_column_allowed */
 const char* innodb_instant_alter_column_allowed_names[] = {
@@ -428,12 +420,8 @@ const char* innodb_instant_alter_column_allowed_names[] = {
 };
 
 /** Enumeration of innodb_instant_alter_column_allowed */
-static TYPELIB innodb_instant_alter_column_allowed_typelib = {
-	array_elements(innodb_instant_alter_column_allowed_names) - 1,
-	"innodb_instant_alter_column_allowed_typelib",
-	innodb_instant_alter_column_allowed_names,
-	NULL
-};
+static TYPELIB innodb_instant_alter_column_allowed_typelib =
+		CREATE_TYPELIB_FOR(innodb_instant_alter_column_allowed_names);
 
 /** Retrieve the FTS Relevance Ranking result for doc with doc_id
 of m_prebuilt->fts_doc_id
@@ -1096,14 +1084,13 @@ static
 int
 innobase_close_connection(
 /*======================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd);		/*!< in: MySQL thread handle for
 					which to close the connection */
 
 /** Cancel any pending lock request associated with the current THD.
 @sa THD::awake() @sa ha_kill_query() */
 static void innobase_kill_query(handlerton*, THD* thd, enum thd_kill_levels);
-static void innobase_commit_ordered(handlerton *hton, THD* thd, bool all);
+static void innobase_commit_ordered(THD* thd, bool all);
 
 /*****************************************************************//**
 Commits a transaction in an InnoDB database or marks an SQL statement
@@ -1113,7 +1100,6 @@ static
 int
 innobase_commit(
 /*============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -1129,7 +1115,6 @@ static
 int
 innobase_rollback(
 /*==============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back */
@@ -1145,7 +1130,6 @@ static
 int
 innobase_rollback_to_savepoint(
 /*===========================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be rolled back to savepoint */
@@ -1159,7 +1143,6 @@ static
 bool
 innobase_rollback_to_savepoint_can_release_mdl(
 /*===========================================*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd);		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be rolled back to savepoint */
@@ -1171,7 +1154,6 @@ static
 int
 innobase_savepoint(
 /*===============*/
-	handlerton*	hton,		/*!< in/out: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user's XA transaction for which
 					we need to take a savepoint */
@@ -1185,7 +1167,6 @@ static
 int
 innobase_release_savepoint(
 /*=======================*/
-	handlerton*	hton,		/*!< in/out: handlerton for InnoDB */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction's
 					savepoint should be released */
@@ -1228,7 +1209,6 @@ static
 int
 innobase_xa_prepare(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be prepared */
@@ -1242,7 +1222,6 @@ static
 int
 innobase_xa_recover(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid_list,	/*!< in/out: prepared transactions */
 	uint		len);		/*!< in: number of slots in xid_list */
 /*******************************************************************//**
@@ -1253,9 +1232,46 @@ static
 int
 innobase_commit_by_xid(
 /*===================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
+/*******************************************************************//**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state
+@return 0 or error number */
+static
+int
+innobase_rollback_by_xid(
+/*===================*/
+	XID*		xid);		/*!< in: X/Open XA transaction
+					identification */
+#ifndef EMBEDDED_LIBRARY
+/*******************************************************************//**
+This function is used to rollback one X/Open XA distributed transaction
+which is in the prepared state asynchronously.
+
+It only set the transaction's status to ACTIVE and persist the status.
+The transaction will be rolled back by background rollback thread.
+
+@return 0 or error number
+*/
+static
+int
+innobase_recover_rollback_by_xid(
+/*===================*/
+	const XID*	xid);		/*!< in: X/Open XA transaction
+					identification */
+/*******************************************************************//**
+  This function is called after tc log is opened(typically binlog recovery)
+  has done. It starts rollback thread to rollback the transactions
+  have been changed from PREPARED to ACTIVE.
+
+  @return 0 or error number
+*/
+static
+void
+innobase_tc_log_recovery_done();
+#endif
+
 
 /** Ignore FOREIGN KEY constraints that would be violated by DROP DATABASE */
 static ibool innodb_drop_database_ignore_fk(void*,void*) { return false; }
@@ -1606,7 +1622,6 @@ static
 int
 innobase_start_trx_and_assign_read_view(
 /*====================================*/
-	handlerton*	hton,		/* in: InnoDB handlerton */
 	THD*		thd);		/* in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -3307,7 +3322,6 @@ innobase_invalidate_query_cache(
 	/* Note that the query cache mutex is just above the trx_sys.mutex.
 	The caller of this function must not have latches of a lower rank. */
 
-#ifdef HAVE_QUERY_CACHE
         char    qcache_key_name[2 * (NAME_LEN + 1)];
         char db_name[NAME_CHAR_LEN * MY_CS_MBMAXLEN + 1];
         const char *key_ptr;
@@ -3335,7 +3349,6 @@ innobase_invalidate_query_cache(
                                       qcache_key_name,
                                       uint(dbname_len + tabname_len + 2),
                                       TRUE);
-#endif
 }
 
 /** Quote a standard SQL identifier like index or column name.
@@ -4342,12 +4355,10 @@ static
 int
 innobase_start_trx_and_assign_read_view(
 /*====================================*/
-	handlerton*	hton,	/*!< in: InnoDB handlerton */
 	THD*		thd)	/*!< in: MySQL thread handle of the user for
 				whom the transaction should be committed */
 {
 	DBUG_ENTER("innobase_start_trx_and_assign_read_view");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	/* Create a new trx struct for thd, if it does not yet have one */
 
@@ -4378,7 +4389,7 @@ innobase_start_trx_and_assign_read_view(
 
 	/* Set the MySQL flag to mark that there is an active transaction */
 
-	innobase_register_trx(hton, current_thd, trx);
+	innobase_register_trx(innodb_hton_ptr, current_thd, trx);
 
 	DBUG_RETURN(0);
 }
@@ -4444,7 +4455,6 @@ static
 void
 innobase_commit_ordered(
 /*====================*/
-	handlerton *hton, /*!< in: Innodb handlerton */
 	THD*	thd,	/*!< in: MySQL thread handle of the user for whom
 			the transaction should be committed */
 	bool	all)	/*!< in:	TRUE - commit transaction
@@ -4452,7 +4462,6 @@ innobase_commit_ordered(
 {
 	trx_t*		trx;
 	DBUG_ENTER("innobase_commit_ordered");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
 
@@ -4501,7 +4510,6 @@ static
 int
 innobase_commit(
 /*============*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: MySQL thread handle of the
 					user for whom the transaction should
 					be committed */
@@ -4511,7 +4519,6 @@ innobase_commit(
 {
 	DBUG_ENTER("innobase_commit");
 	DBUG_PRINT("enter", ("commit_trx: %d", commit_trx));
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("ending transaction"));
 
 	trx_t*	trx = check_trx_exists(thd);
@@ -4589,7 +4596,6 @@ static
 int
 innobase_rollback(
 /*==============*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back */
@@ -4598,7 +4604,6 @@ innobase_rollback(
 					statement only */
 {
 	DBUG_ENTER("innobase_rollback");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 	DBUG_PRINT("trans", ("aborting transaction"));
 
 	trx_t*	trx = check_trx_exists(thd);
@@ -4801,7 +4806,6 @@ static
 int
 innobase_rollback_to_savepoint(
 /*===========================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back to savepoint */
@@ -4809,7 +4813,6 @@ innobase_rollback_to_savepoint(
 {
 
 	DBUG_ENTER("innobase_rollback_to_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -4841,13 +4844,11 @@ static
 bool
 innobase_rollback_to_savepoint_can_release_mdl(
 /*===========================================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd)		/*!< in: handle to the MySQL thread
 					of the user whose transaction should
 					be rolled back to savepoint */
 {
 	DBUG_ENTER("innobase_rollback_to_savepoint_can_release_mdl");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx_t*	trx = check_trx_exists(thd);
 
@@ -4869,7 +4870,6 @@ static
 int
 innobase_release_savepoint(
 /*=======================*/
-	handlerton*	hton,		/*!< in: handlerton for InnoDB */
 	THD*		thd,		/*!< in: handle to the MySQL thread
 					of the user whose transaction's
 					savepoint should be released */
@@ -4880,7 +4880,6 @@ innobase_release_savepoint(
 	char		name[64];
 
 	DBUG_ENTER("innobase_release_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	trx = check_trx_exists(thd);
 
@@ -4904,12 +4903,10 @@ static
 int
 innobase_savepoint(
 /*===============*/
-	handlerton*	hton,	/*!< in: handle to the InnoDB handlerton */
 	THD*		thd,	/*!< in: handle to the MySQL thread */
 	void*		savepoint)/*!< in: savepoint data */
 {
 	DBUG_ENTER("innobase_savepoint");
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	/* In the autocommit mode there is no sense to set a savepoint
 	(unless we are in sub-statement), so SQL layer ensures that
@@ -4943,9 +4940,8 @@ innobase_savepoint(
 
   @return 0 always
 */
-static int innobase_close_connection(handlerton *hton, THD *thd)
+static int innobase_close_connection(THD *thd)
 {
-  DBUG_ASSERT(hton == innodb_hton_ptr);
   if (auto trx= thd_to_trx(thd))
   {
     thd_set_ha_data(thd, innodb_hton_ptr, NULL);
@@ -5062,32 +5058,6 @@ ha_innobase::table_type() const
 }
 
 /****************************************************************//**
-Returns the index type.
-@return index type */
-
-const char*
-ha_innobase::index_type(
-/*====================*/
-	uint	keynr)		/*!< : index number */
-{
-	dict_index_t*	index = innobase_get_index(keynr);
-
-	if (!index) {
-		return "Corrupted";
-	}
-
-	if (index->type & DICT_FTS) {
-		return("FULLTEXT");
-	}
-
-	if (dict_index_is_spatial(index)) {
-		return("SPATIAL");
-	}
-
-	return("BTREE");
-}
-
-/****************************************************************//**
 Returns the operations supported for indexes.
 @return flags of supported operations */
 
@@ -5104,7 +5074,7 @@ ha_innobase::index_flags(
 
 	/* For spatial index, we don't support descending scan
 	and ICP so far. */
-	if (table_share->key_info[key].flags & HA_SPATIAL) {
+	if (table_share->key_info[key].algorithm == HA_KEY_ALG_RTREE) {
 		return HA_READ_NEXT | HA_READ_ORDER| HA_READ_RANGE
 			| HA_KEYREAD_ONLY | HA_KEY_SCAN_NOT_ROR;
 	}
@@ -8353,13 +8323,15 @@ calc_row_difference(
 
 	ut_a(buf <= (byte*) original_upd_buff + buff_len);
 
-	const TABLE_LIST *tl= table->pos_in_table_list;
-	const uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
-	/* Used to avoid reading history in FK check on DELETE (see MDEV-16210). */
-	prebuilt->upd_node->is_delete =
-		(op_map & trg2bit(TRG_EVENT_DELETE)
-		 && table->versioned(VERS_TIMESTAMP))
-		? VERSIONED_DELETE : NO_DELETE;
+	if (const TABLE_LIST *tl= table->pos_in_table_list)
+	{
+		const uint8 op_map= tl->trg_event_map | tl->slave_fk_event_map;
+		/* Used to avoid reading history in FK check on DELETE (see MDEV-16210). */
+		prebuilt->upd_node->is_delete =
+			(op_map & trg2bit(TRG_EVENT_DELETE)
+			&& table->versioned(VERS_TIMESTAMP))
+			? VERSIONED_DELETE : NO_DELETE;
+	}
 
 	if (prebuilt->versioned_write) {
 		/* Guaranteed by CREATE TABLE, but anyway we make sure we
@@ -10889,12 +10861,12 @@ create_index(
 	ut_a(!key->name.streq(GEN_CLUST_INDEX));
 	const ha_table_option_struct& o = *form->s->option_struct;
 
-	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
+	if (key->algorithm == HA_KEY_ALG_FULLTEXT ||
+	    key->algorithm == HA_KEY_ALG_RTREE) {
 		/* Only one of these can be specified at a time. */
-		ut_ad(~key->flags & (HA_SPATIAL | HA_FULLTEXT));
 		ut_ad(!(key->flags & HA_NOSAME));
 		index = dict_mem_index_create(table, key->name.str,
-					      (key->flags & HA_SPATIAL)
+					      key->algorithm == HA_KEY_ALG_RTREE
 					      ? DICT_SPATIAL : DICT_FTS,
 					      key->user_defined_key_parts);
 
@@ -11010,7 +10982,7 @@ create_index(
 					 & HA_REVERSE_SORT);
 	}
 
-	ut_ad(key->flags & HA_FULLTEXT || !(index->type & DICT_FTS));
+	ut_ad(key->algorithm == HA_KEY_ALG_FULLTEXT || !(index->type & DICT_FTS));
 
 	/* Even though we've defined max_supported_key_part_length, we
 	still do our own checking using field_lengths to be absolutely
@@ -11302,7 +11274,7 @@ create_table_info_t::check_table_options()
 			break;
 		}
 		for (ulint i = 0; i < m_form->s->keys; i++) {
-			if (m_form->key_info[i].flags & HA_SPATIAL) {
+			if (m_form->key_info[i].algorithm == HA_KEY_ALG_RTREE) {
 				push_warning(m_thd,
 					     Sql_condition::WARN_LEVEL_WARN,
 					     HA_ERR_UNSUPPORTED,
@@ -11555,13 +11527,14 @@ bool create_table_info_t::innobase_table_flags()
 	for (uint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = &m_form->key_info[i];
 
-		if (key->flags & HA_FULLTEXT) {
+		if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
 			m_flags2 |= DICT_TF2_FTS;
 
 			/* We don't support FTS indexes in temporary
 			tables. */
 			if (is_temp) {
-				my_error(ER_INNODB_NO_FT_TEMP_TABLE, MYF(0));
+				my_error(ER_NO_INDEX_ON_TEMPORARY, MYF(0),
+					 "FULLTEXT",  "InnoDB");
 				DBUG_RETURN(false);
 			}
 
@@ -12004,7 +11977,8 @@ create_table_info_t::gcols_in_fulltext_or_spatial()
 {
 	for (ulint i = 0; i < m_form->s->keys; i++) {
 		const KEY*	key = m_form->key_info + i;
-		if (!(key->flags & (HA_SPATIAL | HA_FULLTEXT))) {
+		if (key->algorithm != HA_KEY_ALG_RTREE &&
+		    key->algorithm != HA_KEY_ALG_FULLTEXT) {
 			continue;
 		}
 		for (ulint j = 0; j < key->user_defined_key_parts; j++) {
@@ -13235,6 +13209,11 @@ ha_innobase::create(const char *name, TABLE *form, HA_CREATE_INFO *create_info,
   }
   else if (!error && m_prebuilt)
     m_prebuilt->table= info.table();
+
+  if (form->s->primary_key >= MAX_KEY)
+    ref_length = DATA_ROW_ID_LEN;
+  else
+    ref_length = form->key_info[form->s->primary_key].key_length;
 
   DBUG_RETURN(error);
 }
@@ -14938,8 +14917,8 @@ ha_innobase::info_low(
 
 			for (j = 0; j < key->ext_key_parts; j++) {
 
-				if ((key->flags & HA_FULLTEXT)
-				    || (key->flags & HA_SPATIAL)) {
+				if ((key->algorithm == HA_KEY_ALG_FULLTEXT)
+				    || (key->algorithm == HA_KEY_ALG_RTREE)) {
 
 					/* The record per key does not apply to
 					FTS or Spatial indexes. */
@@ -15978,6 +15957,9 @@ ha_innobase::external_lock(
 	trx_t* trx = m_prebuilt->trx;
 	ut_ad(m_prebuilt->table);
 
+	if (table->s->tmp_table == INTERNAL_TMP_TABLE)
+		trx->check_unique_secondary = true;
+
 	/* Statement based binlogging does not work in isolation level
 	READ UNCOMMITTED and READ COMMITTED since the necessary
 	locks cannot be taken. In this case, we print an
@@ -16197,7 +16179,7 @@ ha_innobase::external_lock(
 
 			if (trx_is_started(trx)) {
 
-				innobase_commit(ht, thd, TRUE);
+				innobase_commit(thd, TRUE);
 			}
 
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
@@ -17028,7 +17010,6 @@ static
 int
 innobase_xa_prepare(
 /*================*/
-	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	THD*		thd,		/*!< in: handle to the MySQL thread of
 					the user whose XA transaction should
 					be prepared */
@@ -17037,8 +17018,6 @@ innobase_xa_prepare(
 					ended */
 {
 	trx_t*		trx = check_trx_exists(thd);
-
-	DBUG_ASSERT(hton == innodb_hton_ptr);
 
 	thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 
@@ -17102,12 +17081,9 @@ static
 int
 innobase_xa_recover(
 /*================*/
-	handlerton*	hton,	/*!< in: InnoDB handlerton */
 	XID*		xid_list,/*!< in/out: prepared transactions */
 	uint		len)	/*!< in: number of slots in xid_list */
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	if (len == 0 || xid_list == NULL) {
 
 		return(0);
@@ -17124,11 +17100,8 @@ static
 int
 innobase_commit_by_xid(
 /*===================*/
-	handlerton*	hton,
 	XID*		xid)	/*!< in: X/Open XA transaction identification */
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
@@ -17157,10 +17130,8 @@ which is in the prepared state
 @param[in] xid X/Open XA transaction identification
 
 @return 0 or error number */
-int innobase_rollback_by_xid(handlerton* hton, XID* xid)
+static int innobase_rollback_by_xid(XID* xid)
 {
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
 	DBUG_EXECUTE_IF("innobase_xa_fail",
 			return XAER_RMFAIL;);
 
@@ -17199,7 +17170,7 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 
   @return 0 or error number
 */
-int innobase_recover_rollback_by_xid(const XID *xid)
+static int innobase_recover_rollback_by_xid(const XID *xid)
 {
   DBUG_EXECUTE_IF("innobase_xa_fail", return XAER_RMFAIL;);
 
@@ -17245,7 +17216,7 @@ int innobase_recover_rollback_by_xid(const XID *xid)
   return 0;
 }
 
-void innobase_tc_log_recovery_done()
+static void innobase_tc_log_recovery_done()
 {
   if (high_level_read_only)
     return;
@@ -19804,10 +19775,7 @@ static MYSQL_SYSVAR_BOOL(alter_copy_bulk, innodb_alter_copy_bulk,
 
 const char *page_compression_algorithms[]= { "none", "zlib", "lz4", "lzo", "lzma", "bzip2", "snappy", 0 };
 static TYPELIB page_compression_algorithms_typelib=
-{
-  array_elements(page_compression_algorithms) - 1, 0,
-  page_compression_algorithms, 0
-};
+		CREATE_TYPELIB_FOR(page_compression_algorithms);
 static MYSQL_SYSVAR_ENUM(compression_algorithm, innodb_compression_algorithm,
   PLUGIN_VAR_OPCMDARG,
   "Compression algorithm used on page compression. One of: none, zlib, lz4, lzo, lzma, bzip2, or snappy",
@@ -19828,10 +19796,8 @@ static MYSQL_SYSVAR_ULONG(fatal_semaphore_wait_threshold, srv_fatal_semaphore_wa
   0);
 
 static const char* srv_encrypt_tables_names[] = { "OFF", "ON", "FORCE", 0 };
-static TYPELIB srv_encrypt_tables_typelib = {
-	array_elements(srv_encrypt_tables_names)-1, 0, srv_encrypt_tables_names,
-	NULL
-};
+static TYPELIB srv_encrypt_tables_typelib =
+		CREATE_TYPELIB_FOR(srv_encrypt_tables_names);
 static MYSQL_SYSVAR_ENUM(encrypt_tables, srv_encrypt_tables,
 			 PLUGIN_VAR_OPCMDARG,
 			 "Enable encryption for tables. "
@@ -20277,11 +20243,14 @@ innobase_rename_vc_templ(
 
 	/* For partition table, remove the partition name and use the
 	"main" table name to build the template */
-	char*	is_part = is_partition(tbname);
 
-	if (is_part != NULL) {
+	if (char *is_part = is_partition(tbname)) {
 		*is_part = '\0';
 		tbnamelen = ulint(is_part - tbname);
+	}
+	else if (char *is_hli = is_hlindex(tbname)) {
+		*is_hli = '\0';
+		tbnamelen = ulint(is_hli - tbname);
 	}
 
 	dbnamelen = filename_to_tablename(dbname, t_dbname,

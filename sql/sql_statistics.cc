@@ -1987,8 +1987,7 @@ public:
       return;
     }
         
-    if ((calc_state=
-         (Prefix_calc_state *) thd->alloc(sizeof(Prefix_calc_state)*key_parts)))
+    if ((calc_state= thd->alloc<Prefix_calc_state>(key_parts)))
     {
       uint keyno= (uint)(key_info-table->key_info);
       for (i= 0, state= calc_state; i < key_parts; i++, state++)
@@ -2657,7 +2656,7 @@ int collect_statistics_for_index(THD *thd, TABLE *table, uint index)
   DBUG_ENTER("collect_statistics_for_index");
 
   /* No statistics for FULLTEXT indexes. */
-  if (key_info->flags & (HA_FULLTEXT|HA_SPATIAL))
+  if (key_info->algorithm > HA_KEY_ALG_BTREE)
     DBUG_RETURN(rc);
 
   Index_prefix_calc index_prefix_calc(thd, table, key_info);
@@ -2966,12 +2965,12 @@ int update_statistics_for_table(THD *thd, TABLE *table)
 
   /* Update the statistical table index_stats */
   stat_table= tables[INDEX_STAT].table;
-  uint key;
-  key_map::Iterator it(table->keys_in_use_for_query);
   Index_stat index_stat(stat_table, table);
 
-  while ((key= it++) != key_map::Iterator::BITMAP_END)
+  for (uint key= 0; key < table->s->keys; key++)
   {
+    if (!table->keys_in_use_for_query.is_set(key))
+      continue;
     KEY *key_info= table->key_info+key;
     uint key_parts= table->actual_n_key_parts(key_info);
     for (i= 0; i < key_parts; i++)

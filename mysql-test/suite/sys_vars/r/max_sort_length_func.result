@@ -513,6 +513,16 @@ select a from t1;
 a
 3
 drop table t1;
+#
+# MDEV-35307 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+#            failure in diagnostics area #2
+#
+create table t1 (a varchar(1024)) engine=innodb;
+insert into t1 values (repeat('a',1000)),(repeat('b',1000));
+insert into t1 (a) select a from t1 order by a;
+Warnings:
+Warning	4202	2 values were longer than max_sort_length. Sorting used only the first 70 bytes
+drop table t1;
 connection default;
 disconnect test_con1;
 disconnect test_con2;

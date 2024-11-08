@@ -712,6 +712,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd> VARIANCE_SYM
 %token  <kwd> VAR_SAMP_SYM
 %token  <kwd> VARYING                       /* SQL-2003-R */
+%token  <kwd> VECTOR_SYM
 %token  <kwd> WHEN_SYM                      /* SQL-2003-R */
 %token  <kwd> WHERE                         /* SQL-2003-R */
 %token  <kwd> WHILE_SYM
@@ -729,7 +730,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  ELSIF_MARIADB_SYM             // PLSQL-R
 %token  <kwd>  EXCEPTION_ORACLE_SYM          // SQL-2003-N, PLSQL-R
 %token  <kwd>  GOTO_MARIADB_SYM              // Oracle-R
-%token  <kwd>  NOCOPY_SYM
+%token  <kwd>  NOCOPY_SYM                    // PLSQL-N
 %token  <kwd>  OTHERS_MARIADB_SYM            // SQL-2011-N, PLSQL-R
 %token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
@@ -1664,7 +1665,7 @@ rule:
         option_type opt_var_type opt_var_ident_type
 
 %type <key_type>
-        constraint_key_type fulltext spatial
+        constraint_key_type fulltext spatial_or_vector
 
 %type <key_alg>
         btree_or_rtree opt_key_algorithm_clause opt_USING_key_algorithm
@@ -1673,7 +1674,7 @@ rule:
         using_list opt_use_partition use_partition
 
 %type <key_part>
-        key_part
+        key_part key_part_simple
 
 %type <table_list>
         join_table_list  join_table
@@ -2649,7 +2650,7 @@ create:
           {
             Lex->pop_select(); //main select
           }
-        | create_or_replace spatial INDEX_SYM
+        | create_or_replace spatial_or_vector INDEX_SYM
           {
             if (Lex->main_select_push())
               MYSQL_YYABORT;
@@ -2662,9 +2663,10 @@ create:
             if (Lex->add_create_index($2, &$6, HA_KEY_ALG_UNDEF, $1 | $5))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' opt_lock_wait_timeout spatial_key_options
+          '(' key_part_simple ')' opt_lock_wait_timeout spatial_key_options
           opt_index_lock_algorithm
           {
+            Lex->last_key->columns.push_back($11, thd->mem_root);
             Lex->pop_select(); //main select
           }
         | create_or_replace DATABASE opt_if_not_exists ident
@@ -6028,13 +6030,16 @@ key_def:
               MYSQL_YYABORT;
           }
           '(' key_list ')' fulltext_key_options { }
-        | spatial opt_key_or_index opt_if_not_exists opt_ident
+        | spatial_or_vector opt_key_or_index opt_if_not_exists opt_ident
           {
             Lex->option_list= NULL;
             if (unlikely(Lex->add_key($1, &$4, HA_KEY_ALG_UNDEF, $3)))
               MYSQL_YYABORT;
           }
-          '(' key_list ')' spatial_key_options { }
+          '(' key_part_simple ')' spatial_key_options
+          {
+            Lex->last_key->columns.push_back($7, thd->mem_root);
+          }
         | opt_constraint constraint_key_type
           opt_if_not_exists opt_ident
           opt_USING_key_algorithm
@@ -7108,16 +7113,12 @@ fulltext:
           FULLTEXT_SYM { $$= Key::FULLTEXT;}
         ;
 
-spatial:
+spatial_or_vector:
           SPATIAL_SYM
           {
-#ifdef HAVE_SPATIAL
             $$= Key::SPATIAL;
-#else
-            my_yyabort_error((ER_FEATURE_DISABLED, MYF(0), sym_group_geom.name,
-                              sym_group_geom.needed_define));
-#endif
           }
+        | VECTOR_SYM { $$= Key::VECTOR;}
         ;
 
 normal_key_options:
@@ -7245,12 +7246,7 @@ opt_without_overlaps:
          ;
 
 key_part:
-          ident
-          {
-            $$= new (thd->mem_root) Key_part_spec(&$1, 0);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
+          key_part_simple
         | ident '(' NUM ')'
           {
             int key_part_len= atoi($3.str);
@@ -7261,6 +7257,15 @@ key_part:
               MYSQL_YYABORT;
           }
         ;
+
+key_part_simple:
+          ident
+          {
+            $$= new (thd->mem_root) Key_part_spec(&$1, 0);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+          ;
 
 opt_ident:
           /* empty */ { $$= null_clex_str; }
@@ -14293,8 +14298,7 @@ show_param:
         | GRANTS
           {
             Lex->sql_command= SQLCOM_SHOW_GRANTS;
-            if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(Lex->grant_user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user_and_current_role;
           }
@@ -14414,8 +14418,7 @@ show_param:
         | CREATE USER_SYM
           {
             Lex->sql_command= SQLCOM_SHOW_CREATE_USER;
-            if (unlikely(!(Lex->grant_user=
-                          (LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(Lex->grant_user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             Lex->grant_user->user= current_user;
           }
@@ -15915,7 +15918,7 @@ ident_or_text:
 user_maybe_role:
           ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user = $1;
 
@@ -15926,7 +15929,7 @@ user_maybe_role:
           }
         | ident_or_text '@' ident_or_text
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user = $1; $$->host=$3;
 
@@ -15950,7 +15953,7 @@ user_maybe_role:
           }
         | CURRENT_USER optional_braces
           {
-            if (unlikely(!($$=(LEX_USER*)thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user= current_user;
             $$->auth= new (thd->mem_root) USER_AUTH();
@@ -16814,6 +16817,7 @@ reserved_keyword_udt_not_param_type:
         | VARIANCE_SYM
         | VARYING
         | VAR_SAMP_SYM
+        | VECTOR_SYM
         | WHEN_SYM
         | WHERE
         | WHILE_SYM
@@ -17180,7 +17184,7 @@ option_value_no_option_type:
               MYSQL_YYABORT;
             LEX *lex = Lex;
             LEX_USER *user;
-            if (unlikely(!(user=(LEX_USER *) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!(user= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             user->user= current_user;
             set_var_default_role *var= (new (thd->mem_root)
@@ -17671,7 +17675,7 @@ role_list:
 current_role:
           CURRENT_ROLE optional_braces
           {
-            if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+            if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
               MYSQL_YYABORT;
             $$->user= current_role;
           }
@@ -17686,7 +17690,7 @@ role_name: ident_or_text
              ((char*) $1.str)[$1.length] = '\0';
              if (unlikely($1.length == 0))
                my_yyabort_error((ER_INVALID_ROLE, MYF(0), ""));
-             if (unlikely(!($$=(LEX_USER*) thd->calloc(sizeof(LEX_USER)))))
+             if (unlikely(!($$= thd->calloc<LEX_USER>(1))))
                MYSQL_YYABORT;
              if (lex_string_eq(&$1, &none))
                $$->user= none;
@@ -17959,18 +17963,18 @@ auth_token:
 opt_auth_str:
         /* empty */
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
         }
       | using_or_as TEXT_STRING_sys
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
           $$->auth_str= $2;
         }
       | using_or_as PASSWORD_SYM '(' TEXT_STRING ')'
         {
-          if (!($$=(USER_AUTH*) thd->calloc(sizeof(USER_AUTH))))
+          if (!($$=thd->calloc<USER_AUTH>(1)))
             MYSQL_YYABORT;
           $$->pwtext= $4;
         }
@@ -18463,14 +18467,14 @@ xid:
           text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE);
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), 0, 0);
           }
           | text_string ',' text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE && $3->length() <= MAXBQUALSIZE);
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }
@@ -18480,7 +18484,7 @@ xid:
                                  $3->length() <= MAXBQUALSIZE &&
                                  $5 <= static_cast<ulong>(
                                          std::numeric_limits<int32_t>::max()));
-            if (unlikely(!(Lex->xid=(XID *)thd->alloc(sizeof(XID)))))
+            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
               MYSQL_YYABORT;
             Lex->xid->set($5, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }

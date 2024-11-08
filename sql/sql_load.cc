@@ -692,7 +692,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       if ((error= table_list->table->file->ha_rnd_init_with_error(0)))
         goto err;
     }
-    table->file->prepare_for_insert(create_lookup_handler);
+    table->file->prepare_for_modify(true, create_lookup_handler);
     thd_progress_init(thd, 2);
     fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
@@ -1449,7 +1449,7 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
   uint length= MY_MAX(charset()->mbmaxlen, MY_MAX(m_field_term.length(),
                                                   m_line_term.length())) + 1;
   set_if_bigger(length,line_start.length());
-  stack= stack_pos= (int*) thd->alloc(sizeof(int) * length);
+  stack= stack_pos= thd->alloc<int>(length);
 
   DBUG_ASSERT(m_fixed_length < UINT_MAX32);
   if (data.reserve((size_t) m_fixed_length))

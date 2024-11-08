@@ -55,6 +55,7 @@
 #include "opt_trace_context.h"
 #include "log_event.h"
 #include "optimizer_defaults.h"
+#include "vector_mhnsw.h"
 
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 #include "../storage/perfschema/pfs_server.h"
@@ -1336,9 +1337,7 @@ static bool check_ftb_syntax(sys_var *self, THD *thd, set_var *var)
 }
 static bool query_cache_flush(sys_var *self, THD *thd, enum_var_type type)
 {
-#ifdef HAVE_QUERY_CACHE
   query_cache.flush();
-#endif /* HAVE_QUERY_CACHE */
   return false;
 }
 /// @todo make SESSION_VAR (usability enhancement and a fix for a race condition)
@@ -2521,12 +2520,8 @@ Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
 static const char *slave_parallel_mode_names[] = {
   "none", "minimal", "conservative", "optimistic", "aggressive", NULL
 };
-export TYPELIB slave_parallel_mode_typelib = {
-  array_elements(slave_parallel_mode_names)-1,
-  "",
-  slave_parallel_mode_names,
-  NULL
-};
+export TYPELIB slave_parallel_mode_typelib =
+  CREATE_TYPELIB_FOR(slave_parallel_mode_names);
 
 static Sys_var_on_access_global<Sys_var_slave_parallel_mode,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_PARALLEL_MODE>
@@ -3356,7 +3351,6 @@ static Sys_var_enum Sys_thread_handling(
        DEFAULT(DEFAULT_THREAD_HANDLING)
  );
 
-#ifdef HAVE_QUERY_CACHE
 static bool fix_query_cache_size(sys_var *self, THD *thd, enum_var_type type)
 {
   size_t new_cache_size= query_cache.resize((size_t)query_cache_size);
@@ -3466,7 +3460,6 @@ static Sys_var_mybool Sys_query_cache_wlock_invalidate(
        "Invalidate queries in query cache on LOCK for write",
        SESSION_VAR(query_cache_wlock_invalidate), CMD_LINE(OPT_ARG),
        DEFAULT(FALSE));
-#endif /* HAVE_QUERY_CACHE */
 
 static Sys_var_on_access_global<Sys_var_mybool,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_SECURE_AUTH>
@@ -7452,12 +7445,6 @@ static Sys_var_ulonglong Sys_binlog_large_commit_threshold(
   "binlogging",
   GLOBAL_VAR(opt_binlog_commit_by_rotate_threshold),
   CMD_LINE(REQUIRED_ARG),
-
-#ifndef DBUG_OFF
   // Allow a smaller minimum value for debug builds to help with testing
-  VALID_RANGE(100 * 1024, ULLONG_MAX),
-#else
-  VALID_RANGE(10 * 1024 * 1024, ULLONG_MAX),
-#endif
-
+  VALID_RANGE(IF_DBUG(100, 10240) * 1024, ULLONG_MAX),
   DEFAULT(128 * 1024 * 1024), BLOCK_SIZE(1));

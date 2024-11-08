@@ -1,0 +1,3 @@
+# RocksDB doesn't support VECTOR yet
+create table t1(v vector(1) not null, vector index(v)) engine=rocksdb;
+ERROR HY000: Table storage engine 'RocksDB' does not support the create option 'VECTOR'

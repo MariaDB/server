@@ -70,6 +70,7 @@
 #include "opt_trace.h"
 #include "my_cpu.h"
 #include "key.h"
+#include "vector_mhnsw.h"
 
 #include "lex_symbol.h"
 #define KEYWORD_SIZE 64
@@ -140,10 +141,7 @@ LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
   "process","file","grant","references","index","alter"};
-
-static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
-                               "grant_types",
-                               grant_names, NULL};
+static TYPELIB grant_types = CREATE_TYPELIB_FOR(grant_names);
 #endif
 
 /* Match the values of enum ha_choice */
@@ -153,8 +151,6 @@ static const LEX_CSTRING ha_choice_values[]=
   { STRING_WITH_LEN("0") },
   { STRING_WITH_LEN("1") }
 };
-
-static void store_key_options(THD *, String *, TABLE *, KEY *);
 
 static int show_create_view(THD *thd, TABLE_LIST *table, String *buff);
 static int show_create_sequence(THD *thd, TABLE_LIST *table_list,
@@ -1865,28 +1861,38 @@ static bool get_field_default_value(THD *thd, Field *field, String *def_value,
         str.qs_append('\'');
         str.qs_append(field->val_int(), 2);
         str.qs_append('\'');
-        quoted= 0;
+        def_value->append(str);
       }
       else
       {
         field->val_str(&str);
         if (!field->str_needs_quotes())
           quoted= 0;
+        if (str.length())
+        {
+          if (str.charset() == &my_charset_bin)
+          {
+            def_value->append('x');
+            def_value->append('\'');
+            def_value->append_hex(str.ptr(), str.length());
+            def_value->append('\'');
+          }
+          else
+          {
+            StringBuffer<MAX_FIELD_WIDTH> def_val;
+            uint dummy_errors;
+            /* convert to system_charset_info == utf8 */
+            def_val.copy(str.ptr(), str.length(), field->charset(),
+                         system_charset_info, &dummy_errors);
+            if (quoted)
+              append_unescaped(def_value, def_val.ptr(), def_val.length());
+            else
+              def_value->append(def_val);
+          }
+        }
+        else if (quoted)
+          def_value->set(STRING_WITH_LEN("''"), system_charset_info);
       }
-      if (str.length())
-      {
-        StringBuffer<MAX_FIELD_WIDTH> def_val;
-        uint dummy_errors;
-        /* convert to system_charset_info == utf8 */
-        def_val.copy(str.ptr(), str.length(), field->charset(),
-                     system_charset_info, &dummy_errors);
-        if (quoted)
-          append_unescaped(def_value, def_val.ptr(), def_val.length());
-        else
-          def_value->append(def_val);
-      }
-      else if (quoted)
-        def_value->set(STRING_WITH_LEN("''"), system_charset_info);
     }
     else if (field->maybe_null() && quoted)
       def_value->set(STRING_WITH_LEN("NULL"), system_charset_info);    // Null as default
@@ -2153,7 +2159,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   Build a CREATE TABLE statement for a table.
 
   SYNOPSIS
-    show_create_table()
+    show_create_table_ex()
     thd               The thread
     table_list        A list containing one table to write statement
                       for.
@@ -2178,9 +2184,8 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     0       OK
  */
 
-int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
-                         const char *force_db, const char *force_name,
-                         String *packet,
+int show_create_table_ex(THD *thd, TABLE_LIST *table_list, const char *force_db,
+                         const char *force_name, String *packet,
                          Table_specification_st *create_info_arg,
                          enum_with_db_name with_db_name)
 {
@@ -2208,7 +2213,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
                       !create_info_arg;
   handlerton *hton;
   int error= 0;
-  DBUG_ENTER("show_create_table");
+  DBUG_ENTER("show_create_table_ex");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -2340,10 +2345,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" STORED"));
       else
         packet->append(STRING_WITH_LEN(" VIRTUAL"));
-      if (field->invisible == INVISIBLE_USER)
-      {
-        packet->append(STRING_WITH_LEN(" INVISIBLE"));
-      }
     }
     else
     {
@@ -2366,10 +2367,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" NULL"));
       }
 
-      if (field->invisible == INVISIBLE_USER)
-      {
-        packet->append(STRING_WITH_LEN(" INVISIBLE"));
-      }
       def_value.set(def_value_buf, sizeof(def_value_buf), system_charset_info);
       if (get_field_default_value(thd, field, &def_value, 1))
       {
@@ -2388,10 +2385,19 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
         packet->append(STRING_WITH_LEN(" "));
         packet->append(def_value);
       }
+    }
 
-      if (field->unireg_check == Field::NEXT_NUMBER &&
-          !(sql_mode & MODE_NO_FIELD_OPTIONS))
+    if (!(sql_mode & MODE_NO_FIELD_OPTIONS) && !foreign_db_mode)
+    {
+      if (field->unireg_check == Field::NEXT_NUMBER)
         packet->append(STRING_WITH_LEN(" AUTO_INCREMENT"));
+      if (!limited_mysql_mode)
+      {
+        if (field->invisible == INVISIBLE_USER)
+          packet->append(STRING_WITH_LEN(" INVISIBLE"));
+        append_create_options(thd, packet, field->option_list, check_options,
+                              hton->field_options);
+      }
     }
 
     if (field->comment.length)
@@ -2400,9 +2406,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       append_unescaped(packet, field->comment.str, field->comment.length);
     }
 
-    append_create_options(thd, packet, field->option_list, check_options,
-                          hton->field_options);
-    
     if (field->check_constraint)
     {
       StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
@@ -2411,7 +2414,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       packet->append(str);
       packet->append(STRING_WITH_LEN(")"));
     }
-
   }
 
   if (period.name)
@@ -2425,7 +2427,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
   key_info= table->s->key_info;
   primary_key= share->primary_key;
 
-  for (uint i=0 ; i < share->keys ; i++,key_info++)
+  for (uint i=0 ; i < share->total_keys ; i++,key_info++)
   {
     if (key_info->flags & HA_INVISIBLE_KEY)
       continue;
@@ -2444,10 +2446,12 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
     else if (key_info->flags & HA_NOSAME)
       packet->append(STRING_WITH_LEN("UNIQUE KEY "));
-    else if (key_info->flags & HA_FULLTEXT)
+    else if (key_info->algorithm == HA_KEY_ALG_FULLTEXT)
       packet->append(STRING_WITH_LEN("FULLTEXT KEY "));
-    else if (key_info->flags & HA_SPATIAL)
+    else if (key_info->algorithm == HA_KEY_ALG_RTREE)
       packet->append(STRING_WITH_LEN("SPATIAL KEY "));
+    else if (key_info->algorithm == HA_KEY_ALG_VECTOR)
+      packet->append(STRING_WITH_LEN("VECTOR KEY "));
     else
       packet->append(STRING_WITH_LEN("KEY "));
 
@@ -2472,9 +2476,10 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (key_part->field)
         append_identifier(thd, packet, &key_part->field->field_name);
       if (key_part->field &&
-          (key_part->length !=
-           table->field[key_part->fieldnr-1]->key_length() &&
-           !(key_info->flags & (HA_FULLTEXT | HA_SPATIAL))))
+          key_part->length != table->field[key_part->fieldnr-1]->key_length() &&
+          key_info->algorithm != HA_KEY_ALG_VECTOR &&
+          key_info->algorithm != HA_KEY_ALG_RTREE &&
+          key_info->algorithm != HA_KEY_ALG_FULLTEXT)
       {
         packet->append_parenthesized((long) key_part->length /
                                       key_part->field->charset()->mbmaxlen);
@@ -2492,16 +2497,45 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     }
 
     packet->append(')');
-    store_key_options(thd, packet, table, &table->key_info[i]);
-    if (key_info->parser)
+
+    if (!(sql_mode & (MODE_NO_KEY_OPTIONS | MODE_MYSQL323 | MODE_MYSQL40)) &&
+        !foreign_db_mode)
     {
-      LEX_CSTRING *parser_name= plugin_name(key_info->parser);
-      packet->append(STRING_WITH_LEN(" /*!50100 WITH PARSER "));
-      append_identifier(thd, packet, parser_name);
-      packet->append(STRING_WITH_LEN(" */ "));
+      if (key_info->algorithm == HA_KEY_ALG_BTREE)
+        packet->append(STRING_WITH_LEN(" USING BTREE"));
+
+      if (key_info->algorithm == HA_KEY_ALG_HASH ||
+          key_info->algorithm == HA_KEY_ALG_LONG_HASH)
+        packet->append(STRING_WITH_LEN(" USING HASH"));
+
+      if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
+          share->key_block_size != key_info->block_size)
+      {
+        packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
+        packet->append_ulonglong(key_info->block_size);
+      }
+      DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
+                 (key_info->comment.length > 0));
+      if (key_info->flags & HA_USES_COMMENT)
+      {
+        packet->append(STRING_WITH_LEN(" COMMENT "));
+        append_unescaped(packet, key_info->comment.str,
+                         key_info->comment.length);
+      }
+
+      if (key_info->is_ignored)
+        packet->append(STRING_WITH_LEN(" IGNORED"));
+
+      if (key_info->parser)
+      {
+        LEX_CSTRING *parser_name= plugin_name(key_info->parser);
+        packet->append(STRING_WITH_LEN(" WITH PARSER "));
+        append_identifier(thd, packet, parser_name);
+      }
+      append_create_options(thd, packet, key_info->option_list, check_options,
+                            (key_info->algorithm == HA_KEY_ALG_VECTOR
+                             ? mhnsw_index_options : hton->index_options));
     }
-    append_create_options(thd, packet, key_info->option_list, check_options,
-                          hton->index_options);
   }
 
   if (table->versioned())
@@ -2596,58 +2630,6 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
 #endif
   tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
-}
-
-
-static void store_key_options(THD *thd, String *packet, TABLE *table,
-                              KEY *key_info)
-{
-  bool limited_mysql_mode= (thd->variables.sql_mode &
-                            (MODE_NO_FIELD_OPTIONS | MODE_MYSQL323 |
-                             MODE_MYSQL40)) != 0;
-  bool foreign_db_mode=  (thd->variables.sql_mode & (MODE_POSTGRESQL |
-                                                     MODE_ORACLE |
-                                                     MODE_MSSQL |
-                                                     MODE_DB2 |
-                                                     MODE_MAXDB |
-                                                     MODE_ANSI)) != 0;
-  char *end, buff[32];
-
-  if (!(thd->variables.sql_mode & MODE_NO_KEY_OPTIONS) &&
-      !limited_mysql_mode && !foreign_db_mode)
-  {
-
-    if (key_info->algorithm == HA_KEY_ALG_BTREE)
-      packet->append(STRING_WITH_LEN(" USING BTREE"));
-
-    if (key_info->algorithm == HA_KEY_ALG_HASH ||
-        key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-      packet->append(STRING_WITH_LEN(" USING HASH"));
-
-    /* send USING only in non-default case: non-spatial rtree */
-    if ((key_info->algorithm == HA_KEY_ALG_RTREE) &&
-        !(key_info->flags & HA_SPATIAL))
-      packet->append(STRING_WITH_LEN(" USING RTREE"));
-
-    if ((key_info->flags & HA_USES_BLOCK_SIZE) &&
-        table->s->key_block_size != key_info->block_size)
-    {
-      packet->append(STRING_WITH_LEN(" KEY_BLOCK_SIZE="));
-      end= longlong10_to_str(key_info->block_size, buff, 10);
-      packet->append(buff, (uint) (end - buff));
-    }
-    DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
-               (key_info->comment.length > 0));
-    if (key_info->flags & HA_USES_COMMENT)
-    {
-      packet->append(STRING_WITH_LEN(" COMMENT "));
-      append_unescaped(packet, key_info->comment.str, 
-                       key_info->comment.length);
-    }
-
-    if (key_info->is_ignored)
-      packet->append(STRING_WITH_LEN(" IGNORED"));
-  }
 }
 
 
@@ -2947,7 +2929,7 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
-      if ((thd_info->host= (char*) arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
+      if ((thd_info->host= arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
         my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
                     "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
     }
@@ -3191,7 +3173,7 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
   char **row;
   int column= 0;
 
-  if (!(row= (char**) thd->alloc(sizeof(char*) * n_columns)) ||
+  if (!(row= thd->alloc<char*>(n_columns)) ||
       rows.push_back(row, thd->mem_root))
     return true;
 
@@ -3364,7 +3346,7 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
                               fromcs->mbminlen;
         uint dummy_errors;
         char *to, *p;
-        if (!(to= (char*)thd->alloc(conv_length + 1)))
+        if (!(to= thd->alloc(conv_length + 1)))
           DBUG_RETURN(1);
         p= to;
         p+= copy_and_convert(to, conv_length, tocs,
@@ -4745,7 +4727,7 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
     char path[FN_REFLEN];
     build_table_filename(path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
-    if (dd_frm_type(thd, path, &engine_name, NULL, NULL) == TABLE_TYPE_NORMAL)
+    if (dd_frm_type(thd, path, &engine_name, NULL) == TABLE_TYPE_NORMAL)
       tl->option= engine_name.str;
   }
 }
@@ -4984,8 +4966,7 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     handlerton *hton;
     bool is_sequence;
 
-    if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
-                        &hton, &is_sequence))
+    if (ha_table_exists(thd, db_name, table_name, NULL, &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -6957,7 +6938,7 @@ int store_schema_params(THD *thd, TABLE *table, TABLE *proc_table,
 
   bzero((char*) &tbl, sizeof(TABLE));
   (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-  init_tmp_table_share(thd, &share, "", 0, "", path);
+  init_tmp_table_share(thd, &share, "", 0, "", path, true);
 
   proc_table->field[MYSQL_PROC_FIELD_DB]->val_str_nopad(thd->mem_root, &db);
   proc_table->field[MYSQL_PROC_FIELD_NAME]->val_str_nopad(thd->mem_root, &name);
@@ -7142,7 +7123,7 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 
           bzero((char*) &tbl, sizeof(TABLE));
           (void) build_table_filename(path, sizeof(path), "", "", "", 0);
-          init_tmp_table_share(thd, &share, "", 0, "", path);
+          init_tmp_table_share(thd, &share, "", 0, "", path ,true);
           store_variable_type(thd, sp->m_return_field_def,
                               ""_Lex_ident_column, &tbl, &share, cs, table, 5);
           free_table_share(&share);
@@ -7299,9 +7280,8 @@ err:
 }
 
 
-static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
-				  TABLE *table, bool res,
-				  const LEX_CSTRING *db_name,
+static int get_schema_stat_record(THD *thd, TABLE_LIST *tables, TABLE *table,
+                                  bool res, const LEX_CSTRING *db_name,
 				  const LEX_CSTRING *table_name)
 {
   CHARSET_INFO *cs= system_charset_info;
@@ -7309,7 +7289,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
   if (!tables->view)
   {
     TABLE *show_table= tables->table;
-    KEY *key_info=show_table->s->key_info;
+    KEY *key_info= show_table->s->key_info;
     if (show_table->file)
     {
       (void) read_statistics_for_tables(thd, tables, false);
@@ -7321,7 +7301,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     bool need_column_checks= !get_schema_privileges_for_show(thd, tables,
                                                              TABLE_ACLS, false);
 
-    for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
+    for (uint i=0 ; i < show_table->s->total_keys ; i++,key_info++)
     {
       if ((key_info->flags & HA_INVISIBLE_KEY) &&
           !DBUG_IF("test_invisible_index"))
@@ -7363,45 +7343,46 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
         table->field[2]->store(table_name->str, table_name->length, cs);
-        table->field[3]->store((longlong) ((key_info->flags &
-                                            HA_NOSAME) ? 0 : 1), TRUE);
+        table->field[3]->store(key_info->flags & HA_NOSAME ? 0 : 1, TRUE);
         table->field[4]->store(db_name->str, db_name->length, cs);
         table->field[5]->store(key_info->name.str, key_info->name.length, cs);
         table->field[6]->store((longlong) (j+1), TRUE);
-        str= (key_part->field ? &key_part->field->field_name :
-              &unknown);
+        str= key_part->field ? &key_part->field->field_name : &unknown;
         table->field[7]->store(str->str, str->length, cs);
         if (show_table->file)
         {
           if (show_table->file->index_flags(i, j, 0) & HA_READ_ORDER)
           {
-            table->field[8]->store(((key_part->key_part_flag &
-                                     HA_REVERSE_SORT) ?
-                                    "D" : "A"), 1, cs);
+            table->field[8]->store(key_part->key_part_flag & HA_REVERSE_SORT
+                                   ? "D" : "A", 1, cs);
             table->field[8]->set_notnull();
           }
-          if (key_info->algorithm == HA_KEY_ALG_LONG_HASH)
-            table->field[13]->store(STRING_WITH_LEN("HASH"), cs);
-          else
+          if (i < show_table->s->keys)
           {
             /*
               We have to use table key information to get the key statistics
               from table as key_info points to TABLE_SHARE which has no
               statistics.
             */
-            KEY *key_info= show_table->key_info + i;
-            if (key_info->rec_per_key[j])
+            KEY *keyinfo= show_table->key_info + i;
+            if (keyinfo->rec_per_key[j])
             {
               ha_rows records= (ha_rows) ((double) show_table->stat_records() /
-                                          key_info->actual_rec_per_key(j));
+                                          keyinfo->actual_rec_per_key(j));
               table->field[9]->store((longlong) records, TRUE);
               table->field[9]->set_notnull();
             }
             const char *tmp= show_table->file->index_type(i);
             table->field[13]->store(tmp, strlen(tmp), cs);
           }
+          else
+          {
+            /* there are no others at the moment */
+            DBUG_ASSERT(key_info->algorithm == HA_KEY_ALG_VECTOR);
+            table->field[13]->store(STRING_WITH_LEN("VECTOR"), cs);
+          }
         }
-        if (!(key_info->flags & HA_FULLTEXT) &&
+        if (key_info->algorithm != HA_KEY_ALG_FULLTEXT &&
             (key_part->field &&
              key_part->length !=
              show_table->s->field[key_part->fieldnr-1]->key_length()))
@@ -7411,13 +7392,10 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
           table->field[10]->set_notnull();
         }
         uint flags= key_part->field ? key_part->field->flags : 0;
-        const char *pos=(char*) ((flags & NOT_NULL_FLAG) ? "" : "YES");
+        const char *pos= flags & NOT_NULL_FLAG ? "" : "YES";
         table->field[12]->store(pos, strlen(pos), cs);
-        if (!show_table->s->keys_in_use.is_set(i))
+        if (i < show_table->s->keys && !show_table->s->keys_in_use.is_set(i))
           table->field[14]->store(STRING_WITH_LEN("disabled"), cs);
-        else
-          table->field[14]->store("", 0, cs);
-        table->field[14]->set_notnull();
         DBUG_ASSERT(MY_TEST(key_info->flags & HA_USES_COMMENT) ==
                    (key_info->comment.length > 0));
         if (key_info->flags & HA_USES_COMMENT)
@@ -8924,7 +8902,7 @@ int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
     Sort lines to get them into a predicted order
     (needed for test cases and to not confuse users)
   */
-  if (!(tmp= (Master_info**) thd->alloc(sizeof(Master_info*) * elements)))
+  if (!(tmp= thd->alloc<Master_info*>(elements)))
     goto error;
 
   if (single_slave)
@@ -9268,10 +9246,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
       DBUG_RETURN(0);
     }
     List_iterator_fast<Item> it(sel->item_list);
-    if (!(transl=
-          (Field_translator*)(thd->active_stmt_arena_to_use()->
-                              alloc(sel->item_list.elements *
-                                    sizeof(Field_translator))))) // ???
+    if (!(transl= thd->active_stmt_arena_to_use()->
+          alloc<Field_translator>(sel->item_list.elements))) // ???
     {
       DBUG_RETURN(1);
     }
@@ -9693,35 +9669,14 @@ bool get_schema_tables_result(JOIN *join,
   DBUG_RETURN(result);
 }
 
-struct run_hton_fill_schema_table_args
-{
-  TABLE_LIST *tables;
-  COND *cond;
-};
-
-static my_bool run_hton_fill_schema_table(THD *thd, plugin_ref plugin,
-                                          void *arg)
-{
-  struct run_hton_fill_schema_table_args *args=
-    (run_hton_fill_schema_table_args *) arg;
-  handlerton *hton= plugin_hton(plugin);
-  if (hton->fill_is_table)
-      hton->fill_is_table(hton, thd, args->tables, args->cond,
-            get_schema_table_idx(args->tables->schema_table));
-  return false;
-}
-
 int hton_fill_schema_table(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("hton_fill_schema_table");
-
-  struct run_hton_fill_schema_table_args args;
-  args.tables= tables;
-  args.cond= cond;
-
-  plugin_foreach(thd, run_hton_fill_schema_table,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, &args);
-
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> str(system_charset_info);
+  str.append(INFORMATION_SCHEMA_NAME);
+  str.append('.');
+  str.append(tables->schema_table->table_name);
+  warn_deprecated<1107>(thd, str.c_ptr());
   DBUG_RETURN(0);
 }
 
@@ -10120,7 +10075,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("PACKED",        Varchar(10), NULLABLE, "Packed",      OPEN_FRM_ONLY),
   Column("NULLABLE",      Varchar(3),  NOT_NULL, "Null",        OPEN_FRM_ONLY),
   Column("INDEX_TYPE",    Varchar(16), NOT_NULL, "Index_type",  OPEN_FULL_TABLE),
-  Column("COMMENT",       Varchar(16), NULLABLE, "Comment",     OPEN_FULL_TABLE),
+  Column("COMMENT",       Varchar(16), NOT_NULL, "Comment",     OPEN_FULL_TABLE),
   Column("INDEX_COMMENT", Varchar(INDEX_COMMENT_MAXLEN),
                                        NOT_NULL, "Index_comment",OPEN_FRM_ONLY),
   Column("IGNORED",      Varchar(3),  NOT_NULL, "Ignored",        OPEN_FRM_ONLY),
@@ -11092,7 +11047,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
     return NULL;
 
   /* We need to reset statement table list to be PS/SP friendly. */
-  if (!(table= (TABLE_LIST*) thd->alloc(sizeof(TABLE_LIST))))
+  if (!(table= thd->alloc<TABLE_LIST>(1)))
     return NULL;
 
   db= thd->make_ident_opt_casedn(trg_name->m_db, lower_case_table_names);

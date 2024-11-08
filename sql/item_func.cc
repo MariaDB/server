@@ -21,10 +21,6 @@
   This file defines all numerical functions
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "sql_plugin.h"
 #include "sql_priv.h"
 /*
@@ -97,7 +93,7 @@ bool Item_args::alloc_arguments(THD *thd, uint count)
     args= tmp_arg;
     return false;
   }
-  if ((args= (Item**) thd->alloc(sizeof(Item*) * count)) == NULL)
+  if ((args= thd->alloc<Item*>(count)) == NULL)
   {
     arg_count= 0;
     return true;
@@ -124,7 +120,7 @@ Item_args::Item_args(THD *thd, const Item_args *other)
   {
     args= tmp_arg;
   }
-  else if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count)))
+  else if (!(args= thd->alloc<Item*>(arg_count)))
   {
     arg_count= 0;
     return;
@@ -2835,8 +2831,8 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
                     Query_arena::STMT_SP_QUERY_ARGUMENTS
                  )
                 ) || rand);
-    if (!rand && !(rand= (struct my_rnd_struct*)
-                   thd->active_stmt_arena_to_use()->alloc(sizeof(*rand))))
+    if (!rand &&
+        !(rand= thd->active_stmt_arena_to_use()->alloc<my_rnd_struct>(1)))
       return TRUE;
   }
   else
@@ -3525,8 +3521,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   if ((f_args.arg_count=arg_count))
   {
-    if (!(f_args.arg_type= (Item_result*)
-	  thd->alloc(f_args.arg_count*sizeof(Item_result))))
+    if (!(f_args.arg_type= thd->alloc<Item_result>(f_args.arg_count)))
 
     {
     err_exit:
@@ -6343,7 +6338,7 @@ bool Item_func_match::fix_index()
 
   for (keynr=0 ; keynr < table->s->keys ; keynr++)
   {
-    if ((table->key_info[keynr].flags & HA_FULLTEXT) &&
+    if (table->key_info[keynr].algorithm == HA_KEY_ALG_FULLTEXT &&
         (match_flags & FT_BOOL ?
          table->keys_in_use_for_query.is_set(keynr) :
          table->s->usable_indexes(table->in_use).is_set(keynr)))

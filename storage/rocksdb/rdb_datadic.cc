@@ -15,10 +15,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 /* For use of 'PRIu64': */
 #define __STDC_FORMAT_MACROS
 
@@ -3805,7 +3801,7 @@ bool Rdb_validate_tbls::check_frm_file(const std::string &fullpath,
   char eng_type_buf[NAME_CHAR_LEN+1];
   LEX_CSTRING eng_type_str = {eng_type_buf, 0}; 
   enum Table_type type = dd_frm_type(nullptr, fullfilename.c_ptr(),
-                                     &eng_type_str, nullptr, nullptr);
+                                     &eng_type_str, nullptr);
   if (type == TABLE_TYPE_UNKNOWN) {
     // NO_LINT_DEBUG
     sql_print_warning("RocksDB: Failed to open/read .from file: %s",

@@ -917,7 +917,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= (char *)thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));
@@ -1735,8 +1735,8 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
         For suid views prepare a security context for checking underlying
         objects of the view.
       */
-      if (!(table->view_sctx= (Security_context *)
-            thd->active_stmt_arena_to_use()->calloc(sizeof(Security_context))))
+      if (!(table->view_sctx=
+            thd->active_stmt_arena_to_use()->calloc<Security_context>(1)))
         goto err;
       security_ctx= table->view_sctx;
     }
@@ -1945,12 +1945,10 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
 
   for (view= views; view; view= view->next_local)
   {
-    LEX_CSTRING cpath;
     bool not_exist;
-    size_t length;
-    length= build_table_filename(path, sizeof(path) - 1,
-                                 view->db.str, view->table_name.str, reg_ext, 0);
-    lex_string_set3(&cpath, path, length);
+    size_t length= build_table_filename(path, sizeof(path) - 1, view->db.str,
+                                        view->table_name.str, reg_ext, 0);
+    LEX_CSTRING cpath= { path, length };
 
     if ((not_exist= my_access(path, F_OK)) || !dd_frm_is_view(thd, path))
     {

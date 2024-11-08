@@ -27,10 +27,6 @@
     (This shouldn't be needed)
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"                          // HAVE_*
 
 #include "sql_priv.h"
@@ -327,7 +323,8 @@ const char *block_encryption_mode_values[]= {
   "aes-128-cbc", "aes-192-cbc", "aes-256-cbc",
   "aes-128-ctr", "aes-192-ctr", "aes-256-ctr",
   NullS };
-TYPELIB block_encryption_mode_typelib= {9, 0, block_encryption_mode_values, 0};
+TYPELIB block_encryption_mode_typelib=
+        CREATE_TYPELIB_FOR(block_encryption_mode_values);
 static inline uint block_encryption_mode_to_key_length(ulong bem)
 { return (bem % 3 + 2) * 64; }
 static inline my_aes_mode block_encryption_mode_to_aes_mode(ulong bem)
@@ -672,10 +669,7 @@ err:
 
 const char *histogram_types[] =
     {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", "JSON_HB", 0};
-static TYPELIB histogram_types_typelib=
-  { array_elements(histogram_types),
-    "histogram_types",
-    histogram_types, NULL};
+static TYPELIB histogram_types_typelib= CREATE_TYPELIB_FOR(histogram_types);
 const char *representation_by_type[]= {"%.3f", "%.5f"};
 
 String *Item_func_decode_histogram::val_str(String *str)
@@ -2660,9 +2654,8 @@ String *Item_func_password::val_str_ascii(String *str)
 char *Item_func_password::alloc(THD *thd, const char *password,
                                 size_t pass_len, enum PW_Alg al)
 {
-  char *buff= (char *) thd->alloc((al==NEW)?
-                                  SCRAMBLED_PASSWORD_CHAR_LENGTH + 1:
-                                  SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1);
+  char *buff= thd->alloc(al==NEW ? SCRAMBLED_PASSWORD_CHAR_LENGTH + 1
+                                 : SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1);
   if (!buff)
     return NULL;
 
@@ -4975,7 +4968,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
         {
           uint strlen= res->length() * DYNCOL_UTF->mbmaxlen + 1;
           uint dummy_errors;
-          if (char *str= (char *) thd->alloc(strlen))
+          if (char *str= thd->alloc(strlen))
           {
             keys_str[i].length=
               copy_and_convert(str, strlen, DYNCOL_UTF,
@@ -5315,7 +5308,7 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
     {
       uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= (char *) thd->alloc(strlen);
+      buf.str= thd->alloc(strlen);
       if (buf.str)
       {
         buf.length=

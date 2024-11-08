@@ -23,8 +23,6 @@
 #include "lex_symbol.h"
 
 SYM_GROUP sym_group_common= {"", ""};
-SYM_GROUP sym_group_geom= {"Spatial extensions", "HAVE_SPATIAL"};
-SYM_GROUP sym_group_rtree= {"RTree keys", "HAVE_RTREE_KEYS"};
 
 /* We don't want to include sql_yacc.h into gen_lex_hash */
 #ifdef NO_YACC_SYMBOLS
@@ -727,6 +725,7 @@ SYMBOL symbols[] = {
   { "VIEW",		SYM(VIEW_SYM)},
   { "VIRTUAL",          SYM(VIRTUAL_SYM)},
   { "VISIBLE",          SYM(VISIBLE_SYM)},
+  { "VECTOR",           SYM(VECTOR_SYM)},
   { "VERSIONING",       SYM(VERSIONING_SYM)},
   { "WAIT",		SYM(WAIT_SYM)},
   { "WARNINGS",		SYM(WARNINGS)},

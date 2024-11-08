@@ -50,6 +50,7 @@
 #include "sql_delete.h"          // class Sql_cmd_delete
 #include "rpl_rli.h"             // class rpl_group_info
 #include "rpl_mi.h"              // class Master_info
+#include "vector_mhnsw.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_schema.h"
@@ -445,19 +446,15 @@ TABLE_SHARE *alloc_table_share(const char *db, const char *table_name,
 
 void init_tmp_table_share(THD *thd, TABLE_SHARE *share, const char *key,
                           uint key_length, const char *table_name,
-                          const char *path)
+                          const char *path, bool thread_specific)
 {
   DBUG_ENTER("init_tmp_table_share");
   DBUG_PRINT("enter", ("table: '%s'.'%s'", key, table_name));
 
   bzero((char*) share, sizeof(*share));
-  /*
-    This can't be MY_THREAD_SPECIFIC for slaves as they are freed
-    during cleanup() from Relay_log_info::close_temporary_tables()
-  */
   init_sql_alloc(key_memory_table_share, &share->mem_root,
                  TABLE_ALLOC_BLOCK_SIZE, 0,
-                 MYF(thd->slave_thread ? 0 : MY_THREAD_SPECIFIC));
+                 thread_specific ? MY_THREAD_SPECIFIC : 0);
   share->table_category=         TABLE_CATEGORY_TEMPORARY;
   share->tmp_table=              INTERNAL_TMP_TABLE;
   share->db.str=                 (char*) key;
@@ -508,6 +505,12 @@ void TABLE_SHARE::destroy()
   }
   delete sequence;
 
+  if (hlindex)
+  {
+    mhnsw_free(this);
+    hlindex->destroy();
+  }
+
   /* The mutexes are initialized only for shares that are part of the TDC */
   if (tmp_table == NO_TMP_TABLE)
   {
@@ -522,7 +525,7 @@ void TABLE_SHARE::destroy()
 
   /* Release fulltext parsers */
   info_it= key_info;
-  for (idx= keys; idx; idx--, info_it++)
+  for (idx= total_keys; idx; idx--, info_it++)
   {
     if (info_it->flags & HA_USES_PARSER)
     {
@@ -663,7 +666,7 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
   File file;
   uchar *buf;
   uchar head[FRM_HEADER_SIZE];
-  char	path[FN_REFLEN];
+  char	path[FN_REFLEN + 1];
   size_t frmlen, read_length;
   uint length;
   DBUG_ENTER("open_table_def");
@@ -672,8 +675,8 @@ enum open_frm_error open_table_def(THD *thd, TABLE_SHARE *share, uint flags)
 
   share->error= OPEN_FRM_OPEN_ERROR;
 
-  length=(uint) (strxmov(path, share->normalized_path.str, reg_ext, NullS) -
-                 path);
+  length=(uint) (strxnmov(path, sizeof(path) - 1,
+                          share->normalized_path.str, reg_ext, NullS) - path);
   if (flags & GTS_FORCE_DISCOVERY)
   {
     const char *path2= share->normalized_path.str;
@@ -789,17 +792,16 @@ err_not_open:
 }
 
 static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
-                             uint keys, KEY *keyinfo,
-                             uint new_frm_ver, uint *ext_key_parts,
-                             TABLE_SHARE *share, uint len,
-                             KEY *first_keyinfo,
-                             LEX_STRING *keynames)
+                             uint keys, KEY *keyinfo, uint new_frm_ver,
+                             uint *ext_key_parts, TABLE_SHARE *share, uint len,
+                             KEY *first_keyinfo, LEX_STRING *keynames)
 {
   uint i, j, n_length;
   uint primary_key_parts= 0;
   KEY_PART_INFO *key_part= NULL;
   ulong *rec_per_key= NULL;
   DBUG_ASSERT(keyinfo == first_keyinfo);
+  DBUG_ASSERT(share->keys == 0);
 
   if (!keys)
   {  
@@ -882,26 +884,26 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
     {
       if (strpos + (new_frm_ver >= 1 ? 9 : 7) >= frm_image_end)
         return 1;
-      if (!(keyinfo->algorithm == HA_KEY_ALG_LONG_HASH))
+      if (keyinfo->algorithm != HA_KEY_ALG_LONG_HASH &&
+          keyinfo->algorithm != HA_KEY_ALG_VECTOR)
         rec_per_key++;
-      key_part->fieldnr=	(uint16) (uint2korr(strpos) & FIELD_NR_MASK);
-      key_part->offset= (uint) uint2korr(strpos+2)-1;
-      key_part->key_type=	(uint) uint2korr(strpos+5);
-      // key_part->field=	(Field*) 0;	// Will be fixed later
+      key_part->fieldnr=  (uint16) (uint2korr(strpos) & FIELD_NR_MASK);
+      key_part->offset=   (uint) uint2korr(strpos+2)-1;
+      key_part->key_type= (uint) uint2korr(strpos+5);
       if (new_frm_ver >= 1)
       {
 	key_part->key_part_flag= *(strpos+4);
-	key_part->length=	(uint) uint2korr(strpos+7);
+	key_part->length= (uint) uint2korr(strpos+7);
 	strpos+=9;
       }
       else
       {
-	key_part->length=	*(strpos+4);
+	key_part->length= *(strpos+4);
 	key_part->key_part_flag=0;
 	if (key_part->length > 128)
 	{
-	  key_part->length&=127;		/* purecov: inspected */
-	  key_part->key_part_flag=HA_REVERSE_SORT; /* purecov: inspected */
+	  key_part->length&= 127;
+	  key_part->key_part_flag=HA_REVERSE_SORT;
 	}
 	strpos+=7;
       }
@@ -924,6 +926,9 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
       rec_per_key++;   // Only one rec_per_key needed for the hash
       share->ext_key_parts++;
     }
+
+    if (keyinfo->algorithm != HA_KEY_ALG_VECTOR)
+      share->keys++;
 
     if (i && share->use_ext_keys && !((keyinfo->flags & HA_NOSAME)))
     {
@@ -963,7 +968,7 @@ static bool create_key_infos(const uchar *strpos, const uchar *frm_image_end,
                 (keyinfo->comment.length > 0));
   }
 
-  share->keys= keys; // do it *after* all key_info's are initialized
+  share->total_keys= keys;   // do it *after* all key_info's are initialized
 
   return 0;
 }
@@ -1495,6 +1500,11 @@ key_map TABLE_SHARE::usable_indexes(THD *thd)
 {
   key_map usable_indexes(keys_in_use);
   usable_indexes.subtract(ignored_indexes);
+
+  /* take into account keys that the engine knows nothing about */
+  for (uint i= keys; i < total_keys; i++)
+    usable_indexes.set_bit(i);
+
   return usable_indexes;
 }
 
@@ -1841,6 +1851,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   bool *interval_unescaped= NULL;
   extra2_fields extra2;
   bool extra_index_flags_present= FALSE;
+  key_map sort_keys_in_use(0);
   DBUG_ENTER("TABLE_SHARE::init_from_binary_frm_image");
 
   keyinfo= &first_keyinfo;
@@ -3127,15 +3138,18 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         }
       }
  
-      /* Fix fulltext keys for old .frm files */
-      if (share->key_info[key].flags & HA_FULLTEXT)
-	share->key_info[key].algorithm= HA_KEY_ALG_FULLTEXT;
-
       key_part= keyinfo->key_part;
-      uint key_parts= share->use_ext_keys ? keyinfo->ext_key_parts :
-	                                    keyinfo->user_defined_key_parts;
+      uint key_parts= share->use_ext_keys && key < share->keys
+                  ? keyinfo->ext_key_parts : keyinfo->user_defined_key_parts;
       if (keyinfo->algorithm == HA_KEY_ALG_LONG_HASH)
         key_parts++;
+      if (keyinfo->algorithm == HA_KEY_ALG_UNDEF) // old .frm
+      {
+        if (keyinfo->flags & HA_FULLTEXT_legacy)
+          keyinfo->algorithm= HA_KEY_ALG_FULLTEXT;
+        else if (keyinfo->flags & HA_SPATIAL_legacy)
+          keyinfo->algorithm= HA_KEY_ALG_RTREE;
+      }
       for (i=0; i < key_parts; key_part++, i++)
       {
         Field *field;
@@ -3180,7 +3194,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
         if (i == 0)
           field->key_start.set_bit(key);
         if (field->key_length() == key_part->length &&
-            !(field->flags & BLOB_FLAG) &&
+            !(field->flags & BLOB_FLAG) && key < share->keys &&
             keyinfo->algorithm != HA_KEY_ALG_LONG_HASH)
         {
           if (handler_file->index_flags(key, i, 0) & HA_KEYREAD_ONLY)
@@ -3193,7 +3207,10 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             field->part_of_key.set_bit(key);
           }
           if (handler_file->index_flags(key, i, 1) & HA_READ_ORDER)
+          {
             field->part_of_sortkey.set_bit(key);
+            sort_keys_in_use.set_bit(key);
+          }
 
           if (i < keyinfo->user_defined_key_parts)
             field->part_of_key_not_clustered.set_bit(key);
@@ -3202,22 +3219,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
             usable_parts == i)
           usable_parts++;			// For FILESORT
         field->flags|= PART_KEY_FLAG;
-        if (key == primary_key)
-        {
-          field->flags|= PRI_KEY_FLAG;
-          /*
-            If this field is part of the primary key and all keys contains
-            the primary key, then we can use any key to find this column
-          */
-          if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
-          {
-            if (field->key_length() == key_part->length &&
-                !(field->flags & BLOB_FLAG))
-              field->part_of_key= share->keys_in_use;
-            if (field->part_of_sortkey.is_set(key))
-              field->part_of_sortkey= share->keys_in_use;
-          }
-        }
         if (field->key_length() != key_part->length)
         {
 #ifndef TO_BE_DELETED_ON_PRODUCTION
@@ -3280,21 +3281,39 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (primary_key < MAX_KEY &&
 	(share->keys_in_use.is_set(primary_key)))
     {
-      DBUG_ASSERT(share->primary_key == primary_key);
+      keyinfo= share->key_info + primary_key;
       /*
 	If we are using an integer as the primary key then allow the user to
 	refer to it as '_rowid'
       */
-      if (share->key_info[primary_key].user_defined_key_parts == 1)
+      if (keyinfo->user_defined_key_parts == 1)
       {
-	Field *field= share->key_info[primary_key].key_part[0].field;
+	Field *field= keyinfo->key_part[0].field;
 	if (field && field->result_type() == INT_RESULT)
         {
           /* note that fieldnr here (and rowid_field_offset) starts from 1 */
-	  share->rowid_field_offset= (share->key_info[primary_key].key_part[0].
-                                      fieldnr);
+	  share->rowid_field_offset= keyinfo->key_part[0].fieldnr;
         }
       }
+      for (i=0; i < keyinfo->user_defined_key_parts; key_part++, i++)
+      {
+	Field *field= keyinfo->key_part[i].field;
+        field->flags|= PRI_KEY_FLAG;
+        /*
+          If this field is part of the primary key and all keys contains
+          the primary key, then we can use any key to find this column
+        */
+        if (ha_option & HA_PRIMARY_KEY_IN_READ_INDEX)
+        {
+          if (field->key_length() == keyinfo->key_part[i].length &&
+              !(field->flags & BLOB_FLAG))
+          {
+            field->part_of_key= share->keys_in_use;
+            field->part_of_sortkey= sort_keys_in_use;
+          }
+        }
+      }
+      DBUG_ASSERT(share->primary_key == primary_key);
     }
     else
     {
@@ -3411,6 +3430,15 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   if (parse_engine_table_options(thd, handler_file->partition_ht(), share))
     goto err;
+
+  if (share->hlindexes())
+  {
+    DBUG_ASSERT(share->hlindexes() == 1);
+    keyinfo= share->key_info + share->keys;
+    if (parse_option_list(thd, &keyinfo->option_struct, &keyinfo->option_list,
+                          mhnsw_index_options, TRUE, thd->mem_root))
+      goto err;
+  }
 
   if (share->found_next_number_field)
   {
@@ -4162,20 +4190,19 @@ bool copy_keys_from_share(TABLE *outparam, MEM_ROOT *root)
     KEY	*key_info, *key_info_end;
     KEY_PART_INFO *key_part;
 
-    if (!multi_alloc_root(root, &key_info, share->keys*sizeof(KEY),
-                          &key_part,
-                          share->ext_key_parts*sizeof(KEY_PART_INFO),
+    if (!multi_alloc_root(root, &key_info, share->total_keys*sizeof(KEY),
+                          &key_part, share->ext_key_parts*sizeof(KEY_PART_INFO),
                           NullS))
       return 1;
 
     outparam->key_info= key_info;
 
-    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
+    memcpy(key_info, share->key_info, sizeof(*key_info)*share->total_keys);
     memcpy(key_part, key_info->key_part,
            sizeof(*key_part)*share->ext_key_parts);
 
     my_ptrdiff_t adjust_ptrs= PTR_BYTE_DIFF(key_part, key_info->key_part);
-    for (key_info_end= key_info + share->keys ;
+    for (key_info_end= key_info + share->total_keys ;
          key_info < key_info_end ;
          key_info++)
     {
@@ -4373,7 +4400,7 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
                         &outparam->opt_range,
                         share->keys * sizeof(TABLE::OPT_RANGE),
                         &outparam->const_key_parts,
-                        share->keys * sizeof(key_part_map),
+                        share->total_keys * sizeof(key_part_map),
                         NullS))
     goto err;
 
@@ -4783,6 +4810,9 @@ int closefrm(TABLE *table)
   int error=0;
   DBUG_ENTER("closefrm");
   DBUG_PRINT("enter", ("table: %p", table));
+
+  if (table->hlindex)
+    closefrm(table->hlindex);
 
   if (table->db_stat)
     error=table->file->ha_close();
@@ -6122,10 +6152,7 @@ allocate:
 
   /* Create view fields translation table */
 
-  if (!(transl=
-        (Field_translator*)(thd->
-                            alloc(select->item_list.elements *
-                                  sizeof(Field_translator)))))
+  if (!(transl= thd->alloc<Field_translator>(select->item_list.elements)))
   {
     res= TRUE;
     goto exit;
@@ -8264,8 +8291,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
   if (s->check_set_initialized)
     return;
 
-  if (s->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_lock(&s->LOCK_share);
+  s->lock_share();
   if (s->check_set)
   {
     /* Mark fields used by check constraint */
@@ -8305,8 +8331,7 @@ void TABLE::mark_columns_used_by_virtual_fields(void)
     bitmap_clear_all(&tmp_set);
   }
   s->check_set_initialized= v_keys;
-  if (s->tmp_table == NO_TMP_TABLE)
-    mysql_mutex_unlock(&s->LOCK_share);
+  s->unlock_share();
 }
 
 /* Add fields used by CHECK CONSTRAINT to read map */
@@ -8421,22 +8446,22 @@ bool TABLE::alloc_keys(uint key_count)
   DBUG_ASSERT(s->tmp_table == INTERNAL_TMP_TABLE);
 
   if (!multi_alloc_root(&mem_root,
-                        &new_key_info, sizeof(*key_info)*(s->keys+key_count),
+                        &new_key_info, sizeof(*key_info)*(s->total_keys+key_count),
                         &new_const_key_parts,
-                        sizeof(*new_const_key_parts)*(s->keys+key_count),
+                        sizeof(*new_const_key_parts)*(s->total_keys+key_count),
                         NullS))
     return TRUE;
-  if (s->keys)
+  if (s->total_keys)
   {
-    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->keys);
+    memmove(new_key_info, s->key_info, sizeof(*key_info) * s->total_keys);
     memmove(new_const_key_parts, const_key_parts,
-            s->keys * sizeof(const_key_parts));
+            s->total_keys * sizeof(const_key_parts));
   }
   s->key_info= key_info= new_key_info;
   const_key_parts= new_const_key_parts;
-  bzero((char*) (const_key_parts + s->keys),
+  bzero((char*) (const_key_parts + s->total_keys),
         sizeof(*const_key_parts) * key_count);
-  max_keys= s->keys+key_count;
+  max_keys= s->total_keys+key_count;
   return FALSE;
 }
 
@@ -8664,6 +8689,7 @@ bool TABLE::add_tmp_key(uint key, uint key_parts,
 
   set_if_bigger(s->max_key_length, keyinfo->key_length);
   s->keys++;
+  s->total_keys++;
   s->ext_key_parts+= keyinfo->ext_key_parts;
   s->key_parts+= keyinfo->user_defined_key_parts;
   return FALSE;
@@ -8722,7 +8748,7 @@ void TABLE::use_index(int key_to_save, key_map *map_to_update)
     }
   }
   *map_to_update= new_bitmap;
-  s->keys= saved_keys;
+  s->total_keys= s->keys= saved_keys;
   s->key_parts= s->ext_key_parts= key_parts;
 }
 
@@ -9080,7 +9106,7 @@ void init_mdl_requests(TABLE_LIST *table_list)
 
 bool TABLE::update_const_key_parts(COND *conds)
 {
-  bzero((char*) const_key_parts, sizeof(key_part_map) * s->keys);
+  bzero((char*) const_key_parts, sizeof(key_part_map) * s->total_keys);
 
   if (conds == NULL)
     return FALSE;
@@ -10188,7 +10214,7 @@ bool TABLE_LIST::change_refs_to_fields()
   if (!used_items.elements)
     return FALSE;
 
-  materialized_items= (Item **)thd->calloc(sizeof(void *) * table->s->fields);
+  materialized_items= thd->calloc<Item*>(table->s->fields);
   ctx= new (thd->mem_root) Name_resolution_context(this);
   if (!materialized_items || !ctx)
     return TRUE;
@@ -10907,7 +10933,7 @@ inline void TABLE::initialize_opt_range_structures()
 {
   TRASH_ALLOC((void*)&opt_range_keys, sizeof(opt_range_keys));
   TRASH_ALLOC((void*)opt_range, s->keys * sizeof(*opt_range));
-  TRASH_ALLOC(const_key_parts, s->keys * sizeof(*const_key_parts));
+  TRASH_ALLOC(const_key_parts, s->total_keys * sizeof(*const_key_parts));
 }
 
 

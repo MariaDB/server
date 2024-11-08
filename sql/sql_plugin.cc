@@ -62,8 +62,7 @@ extern struct st_maria_plugin *mysql_mandatory_plugins[];
 const char *global_plugin_typelib_names[]=
   { "OFF", "ON", "FORCE", "FORCE_PLUS_PERMANENT", NULL };
 static TYPELIB global_plugin_typelib=
-  { array_elements(global_plugin_typelib_names)-1,
-    "", global_plugin_typelib_names, NULL };
+  CREATE_TYPELIB_FOR(global_plugin_typelib_names);
 
 static I_List<i_string> opt_plugin_load_list;
 I_List<i_string> *opt_plugin_load_list_ptr= &opt_plugin_load_list;
@@ -1716,8 +1715,7 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     char path[FN_REFLEN + 1];
     build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name,
-                                  NULL, NULL);
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name, NULL);
     if (ttype != TABLE_TYPE_NORMAL)
       plugin_table_engine_name=empty_clex_str;
   }

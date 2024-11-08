@@ -141,13 +141,12 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
   {
     LEX_CSTRING table_name;
     const char *table_name_ptr;
-    if (create_partition_name(from_buff, sizeof(from_buff),
-                              from_path, name_buffer_ptr,
-                              NORMAL_PART_NAME, FALSE))
+    if (create_partition_name(from_buff, sizeof(from_buff), from_path,
+                              name_buffer_ptr, NORMAL_PART_NAME, FALSE))
       res=1;
-    table_name_ptr= from_buff + dirname_length(from_buff);
 
-    lex_string_set3(&table_name, table_name_ptr, strlen(table_name_ptr));
+    table_name_ptr= from_buff + dirname_length(from_buff);
+    lex_string_set(&table_name, table_name_ptr);
 
     if (((*file)->ht)->notify_tabledef_changed((*file)->ht, db, &table_name,
                                                frm, version, *file))
@@ -159,12 +158,9 @@ int ha_partition::notify_tabledef_changed(LEX_CSTRING *db,
 
 
 static int
-partition_notify_tabledef_changed(handlerton *,
-                                  LEX_CSTRING *db,
-                                  LEX_CSTRING *table,
-                                  LEX_CUSTRING *frm,
-                                  LEX_CUSTRING *version,
-                                  handler *file)
+partition_notify_tabledef_changed(handlerton *, LEX_CSTRING *db,
+                                  LEX_CSTRING *table, LEX_CUSTRING *frm,
+                                  LEX_CUSTRING *version, handler *file)
 {
   DBUG_ENTER("partition_notify_tabledef_changed");
   DBUG_RETURN(static_cast<ha_partition*>
@@ -1910,8 +1906,7 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
     } while (++i < num_parts);
   }
   if (m_reorged_parts &&
-      !(m_reorged_file= (handler**) thd->calloc(sizeof(handler*)*
-                                                (m_reorged_parts + 1))))
+      !(m_reorged_file= thd->calloc<handler*>(m_reorged_parts + 1)))
   {
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
   }
@@ -1941,12 +1936,8 @@ int ha_partition::change_partitions(HA_CREATE_INFO *create_info,
       }
     } while (++i < num_parts);
   }
-  if (!(new_file_array= ((handler**)
-                         thd->calloc(sizeof(handler*)*
-                                     (2*(num_remain_partitions + 1))))))
-  {
+  if (!(new_file_array= thd->calloc<handler*>(2*(num_remain_partitions + 1))))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-  }
   m_added_file= &new_file_array[num_remain_partitions + 1];
 
   /*
@@ -10619,8 +10610,8 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
   if (!part_inplace_ctx)
     DBUG_RETURN(HA_ALTER_ERROR);
 
-  part_inplace_ctx->handler_ctx_array= (inplace_alter_handler_ctx **)
-    thd->alloc(sizeof(inplace_alter_handler_ctx *) * (m_tot_parts + 1));
+  part_inplace_ctx->handler_ctx_array=
+    thd->alloc<inplace_alter_handler_ctx *>(m_tot_parts + 1);
   if (!part_inplace_ctx->handler_ctx_array)
     DBUG_RETURN(HA_ALTER_ERROR);
 

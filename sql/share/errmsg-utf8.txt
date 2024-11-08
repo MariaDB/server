@@ -5642,17 +5642,16 @@ ER_NOT_SUPPORTED_AUTH_MODE 08004
         spa "El cliente no soporta protocolo de autenticación requerido por el servidor; considere mejorar el cliente MariaDB"
         sw "Mteja haungi mkono itifaki ya uthibitishaji iliyoombwa na seva; fikiria kuboresha mteja wa MariaDB"
         swe "Klienten stöder inte autentiseringsprotokollet som begärts av servern; överväg uppgradering av klientprogrammet"
-ER_SPATIAL_CANT_HAVE_NULL 42000 
-        chi "SPATIAL索引的所有部分必须不为null"
-        eng "All parts of a SPATIAL index must be NOT NULL"
-        ger "Alle Teile eines SPATIAL-Index müssen als NOT NULL deklariert sein"
-        geo "SPATIAL ინდექსის ყველა ნაწილი NOT NULL უნდა იყოს"
-        jpn "空間索引のキー列は NOT NULL でなければいけません。"
-        nla "Alle delete van een  SPATIAL index dienen als NOT NULL gedeclareerd te worden"
-        por "Todas as partes de uma SPATIAL index devem ser NOT NULL"
-        spa "Todas las partes de un índice SPATIAL deben de ser NOT NULL"
-        sw "Sehemu zote za faharisi ya SPATIAL lazima ziwe NOT NULL"
-        swe "Alla delar av en SPATIAL index måste vara NOT NULL"
+ER_INDEX_CANNOT_HAVE_NULL 42000
+        chi "%s索引的所有部分必须不为null"
+        eng "All parts of a %s index must be NOT NULL"
+        ger "Alle Teile eines %s-Index müssen als NOT NULL deklariert sein"
+        geo "%s ინდექსის ყველა ნაწილი NOT NULL უნდა იყოს"
+        nla "Alle delete van een  %s index dienen als NOT NULL gedeclareerd te worden"
+        por "Todas as partes de uma %s index devem ser NOT NULL"
+        spa "Todas las partes de un índice %s deben de ser NOT NULL"
+        sw "Sehemu zote za faharisi ya %s lazima ziwe NOT NULL"
+        swe "Alla delar av en %s index måste vara NOT NULL"
 ER_COLLATION_CHARSET_MISMATCH 42000 
         chi "COLLATION'%s'无效地用于字符集'%s'"
         eng "COLLATION '%s' is not valid for CHARACTER SET '%s'"
@@ -9600,11 +9599,11 @@ ER_INNODB_FT_LIMIT
         spa "Actualmente InnoDB soporta la creación de un índice FULLTEXT a la vez"
         sw "InnoDB kwa sasa inaruhusu uundaji wa faharasa moja ya FULLTEXT kwa wakati mmoja"
 
-ER_INNODB_NO_FT_TEMP_TABLE
-        chi "无法在临时InnoDB表上创建FullText索引"
-        eng "Cannot create FULLTEXT index on temporary InnoDB table"
-        spa "No puedo crear índice FULLTEXT en tabla temporaria InnoDB"
-        sw "Haiwezi kuunda faharisi ya FULLTEXT kwenye jedwali la muda la InnoDB"
+ER_NO_INDEX_ON_TEMPORARY
+        chi "无法在临时%2$s表上创建%1$s索引"
+        eng "Cannot create %s index on temporary %s table"
+        spa "No puedo crear índice %s en tabla temporaria %s"
+        sw "Haiwezi kuunda faharisi ya %s kwenye jedwali la muda la %s"
 
 ER_INNODB_FT_WRONG_DOCID_COLUMN
         chi "列'%-.192s'是innodb fulltext索引的错误类型"
@@ -12286,3 +12285,7 @@ WARN_SORTING_ON_TRUNCATED_LENGTH
         ger "%llu Werte waren länger als max_sort_length. Sie wurden anhand der ersten %lu Bytes verglichen"
         rus "%llu значений были длиннее, чем max_sort_length. Их сортировка проведена по первым %lu байтам"
         swe "%llu värden var längre än max_sort_length=%lu"
+ER_VECTOR_BINARY_FORMAT_INVALID
+        eng "Invalid binary vector format. Must use IEEE standard float representation in little-endian format. Use VEC_FromText() to generate it."
+ER_VECTOR_FORMAT_INVALID
+        eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."

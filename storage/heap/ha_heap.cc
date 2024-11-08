@@ -15,10 +15,6 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include "heapdef.h"
 #include "sql_priv.h"
@@ -654,6 +650,12 @@ static int heap_prepare_hp_create_info(TABLE *table_arg, bool internal_table,
   bool found_real_auto_increment= 0;
 
   bzero(hp_create_info, sizeof(*hp_create_info));
+
+  if (share->total_keys > keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "MEMORY", "VECTOR");
+    return HA_ERR_UNSUPPORTED;
+  }
 
   for (key= parts= 0; key < keys; key++)
     parts+= table_arg->key_info[key].user_defined_key_parts;

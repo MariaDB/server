@@ -77,7 +77,7 @@ extern const char *UNUSED_HELP;
 #define session_var(THD, TYPE) (*(TYPE*)session_var_ptr(THD))
 #define global_var(TYPE) (*(TYPE*)global_var_ptr())
 
-#if SIZEOF_OFF_T > 4 && defined(BIG_TABLES)
+#if SIZEOF_OFF_T > 4
 #define GET_HA_ROWS GET_ULL
 #else
 #define GET_HA_ROWS GET_ULONG
@@ -105,7 +105,7 @@ extern const char *UNUSED_HELP;
 
 
 static const char *bool_values[3]= {"OFF", "ON", 0};
-TYPELIB bool_typelib={ array_elements(bool_values)-1, "", bool_values, 0 };
+TYPELIB bool_typelib= CREATE_TYPELIB_FOR(bool_values);
 
 
 template<class BASE, privilege_t GLOBAL_PRIV, privilege_t SESSION_PRIV>
@@ -2932,7 +2932,7 @@ private:
       break;
     case SYSTEM_TIME_AS_OF:
     {
-      char *buf= (char*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
+      char *buf= thd->alloc(MAX_DATE_STRING_REP_LENGTH);
       MYSQL_TIME ltime;
 
       thd->variables.time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
@@ -2993,7 +2993,7 @@ private:
                                      const Charset_collation_map_st &map)
   {
     size_t nbytes= map.text_format_nbytes_needed();
-    char *buf= (char *) thd->alloc(nbytes + 1);
+    char *buf= thd->alloc(nbytes + 1);
     size_t length= map.print(buf, nbytes);
     buf[length]= '\0';
     return (uchar *) buf;
@@ -3003,8 +3003,7 @@ private:
 
   bool do_check(THD *thd, set_var *var) override
   {
-    Charset_collation_map_st *map= (Charset_collation_map_st*)
-                                   thd->alloc(sizeof(Charset_collation_map_st));
+    Charset_collation_map_st *map= thd->alloc<Charset_collation_map_st>(1);
     if (!map || charset_collation_map_from_item(map, var->value,
                                                 thd->get_utf8_flag()))
       return true;

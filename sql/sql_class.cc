@@ -24,10 +24,6 @@
 **
 *****************************************************************************/
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "sql_priv.h"
 #include "sql_class.h"
@@ -445,7 +441,7 @@ void thd_storage_lock_wait(THD *thd, long long value)
   Provide a handler data getter to simplify coding
 */
 extern "C"
-void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
+void *thd_get_ha_data(const THD *thd, const struct transaction_participant *hton)
 {
   DBUG_ASSERT(thd == current_thd ||  mysql_mutex_is_owner(&thd->LOCK_thd_data));
   return thd->ha_data[hton->slot].ha_ptr;
@@ -457,7 +453,7 @@ void *thd_get_ha_data(const THD *thd, const struct handlerton *hton)
   @see thd_set_ha_data() definition in plugin.h
 */
 extern "C"
-void thd_set_ha_data(THD *thd, const struct handlerton *hton,
+void thd_set_ha_data(THD *thd, const struct transaction_participant *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
@@ -2546,7 +2542,7 @@ bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
   {
     size_t zeros= cs->mbminlen - incomplete;
     size_t aligned_length= zeros + length;
-    char *dst= (char*) alloc(aligned_length + 1);
+    char *dst= alloc(aligned_length + 1);
     if (!dst)
     {
       to->str= NULL; // Safety
@@ -4520,8 +4516,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                                  !create_table, keep_row_order)))
     return TRUE;
 
-  col_stat= (Column_statistics*) table->in_use->alloc(table->s->fields *
-                                                      sizeof(Column_statistics));
+  col_stat= table->in_use->alloc<Column_statistics>(table->s->fields);
   if (!col_stat)
     return TRUE;
 
@@ -5139,7 +5134,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   /* Purge already hold the MDL for the table */
   Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
-  TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
+  TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
 
@@ -8634,6 +8629,32 @@ error:
   return FALSE;
 
 }
+
+
+/*
+  Push post-execution warnings, which may be some kinds of aggregate messages
+  like number of times max_sort_length was reached during sorting/grouping
+*/
+void THD::push_final_warnings()
+{
+  if (num_of_strings_sorted_on_truncated_length)
+  {
+    /*
+      WARN_SORTING_ON_TRUNCATED_LENGTH is not considered important enough to be
+      elevated to the ERROR level, so reset abort_on_warning flag before pushing
+    */
+    bool saved_abort_on_warning= abort_on_warning;
+    abort_on_warning= false;
+    push_warning_printf(this, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_SORTING_ON_TRUNCATED_LENGTH,
+                        ER_THD(this, WARN_SORTING_ON_TRUNCATED_LENGTH),
+                        num_of_strings_sorted_on_truncated_length,
+                        variables.max_sort_length);
+    num_of_strings_sorted_on_truncated_length= 0;
+    abort_on_warning= saved_abort_on_warning;
+  }
+}
+
 
 void AUTHID::copy(MEM_ROOT *mem_root, const LEX_CSTRING *user_name,
                                       const LEX_CSTRING *host_name)

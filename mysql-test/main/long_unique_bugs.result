@@ -175,7 +175,7 @@ Cardinality	0
 Sub_part	NULL
 Packed	NULL
 Null	
-Index_type	BTREE
+Index_type	HASH
 Comment	
 Index_comment	
 Ignored	NO

@@ -35,10 +35,6 @@
 
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include <my_global.h>
 #define MYSQL_SERVER 1                          // to have THD
 
@@ -159,7 +155,7 @@ int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
     share->init_from_sql_statement_string(thd, true, sql.ptr(), sql.length());
 }
 
-int oqgraph_close_connection(handlerton *hton, THD *thd);
+int oqgraph_close_connection(THD *thd);
 
 static int oqgraph_init(void *p)
 {
@@ -384,7 +380,7 @@ int ha_oqgraph::oqgraph_check_table_structure (TABLE *table_arg)
 ** OQGRAPH tables
 *****************************************************************************/
 
-int oqgraph_close_connection(handlerton *hton, THD *thd)
+int oqgraph_close_connection(THD *thd)
 {
   DBUG_PRINT( "oq-debug", ("thd: 0x%lx; oqgraph_close_connection.", (long) thd));
   // close_thread_tables(thd); // maybe this?
@@ -534,12 +530,8 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   error_message.length(0);
   origid= destid= weight= 0;
 
-  // Here we're abusing init_tmp_table_share() which is normally only works for thread-local shares.
   THD* thd = current_thd;
-  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "");
-  // because of that, we need to reinitialize the memroot (to reset MY_THREAD_SPECIFIC flag)
-  DBUG_ASSERT(share->mem_root.used == NULL); // it's still empty
-  init_sql_alloc(PSI_INSTRUMENT_ME, &share->mem_root, TABLE_ALLOC_BLOCK_SIZE, 0, MYF(0));
+  init_tmp_table_share( thd, share, table->s->db.str, table->s->db.length, options->table_name, "", false);
 
   // What I think this code is doing:
   // * Our OQGRAPH table is `database_blah/name`

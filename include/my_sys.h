@@ -923,8 +923,8 @@ extern void move_root(MEM_ROOT *to, MEM_ROOT *from);
 extern void set_prealloc_root(MEM_ROOT *root, char *ptr);
 extern void reset_root_defaults(MEM_ROOT *mem_root, size_t block_size,
                                 size_t prealloc_size);
-extern USED_MEM *get_last_memroot_block(MEM_ROOT* root);
-extern void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block);
+extern void root_make_savepoint(MEM_ROOT *root, MEM_ROOT_SAVEPOINT *sv);
+extern void root_free_to_savepoint(const MEM_ROOT_SAVEPOINT *sv);
 extern void protect_root(MEM_ROOT *root, int prot);
 extern char *strdup_root(MEM_ROOT *root,const char *str);
 static inline char *safe_strdup_root(MEM_ROOT *root, const char *str)
@@ -948,6 +948,12 @@ static inline LEX_STRING lex_string_strmake_root(MEM_ROOT *mem_root,
 extern LEX_STRING lex_string_casedn_root(MEM_ROOT *root,
                                         CHARSET_INFO *cs,
                                         const char *str, size_t length);
+
+static inline size_t root_size(MEM_ROOT *root)
+{
+  size_t k = root->block_num >> 2;
+  return k * (k + 1) * 2 * root->block_size;
+}
 
 extern my_bool my_compress(uchar *, size_t *, size_t *);
 extern my_bool my_uncompress(uchar *, size_t , size_t *);

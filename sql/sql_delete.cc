@@ -296,15 +296,22 @@ int TABLE::delete_row()
 
   store_record(this, record[1]);
   vers_update_end();
-  int err= file->ha_update_row(record[1], record[0]);
-  /*
-     MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got history
-     row with same trx_id which is the result of foreign key action, so we
-     don't need one more history row.
-  */
-  if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
-    return file->ha_delete_row(record[0]);
-  return err;
+  int err;
+  if ((err= file->extra(HA_EXTRA_REMEMBER_POS)))
+    return err;
+  if ((err= file->ha_update_row(record[1], record[0])))
+  {
+    /*
+      MDEV-23644: we get HA_ERR_FOREIGN_DUPLICATE_KEY iff we already got
+      history row with same trx_id which is the result of foreign key action,
+      so we don't need one more history row.
+    */
+    if (err == HA_ERR_FOREIGN_DUPLICATE_KEY)
+      file->ha_delete_row(record[0]);
+    else
+      return err;
+  }
+  return file->extra(HA_EXTRA_RESTORE_POS);
 }
 
 
@@ -460,6 +467,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     if (thd->lex->describe)
       goto produce_explain_and_leave;
 
+    table->file->prepare_for_modify(false, false);
     if (likely(!(error=table->file->ha_delete_all_rows())))
     {
       /*
@@ -844,8 +852,8 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
           && !table->versioned()
           && table->file->has_transactions();
 
-  if (table->versioned(VERS_TIMESTAMP) || (table_list->has_period()))
-    table->file->prepare_for_insert(1);
+  table->file->prepare_for_modify(table->versioned(VERS_TIMESTAMP) ||
+                                  table_list->has_period(), true);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
@@ -1090,7 +1098,7 @@ multi_delete::multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables_arg)
     num_of_tables(num_of_tables_arg), error(0),
     do_delete(0), transactional_tables(0), normal_tables(0), error_handled(0)
 {
-  tempfiles= (Unique **) thd_arg->calloc(sizeof(Unique *) * num_of_tables);
+  tempfiles= thd_arg->calloc<Unique*>(num_of_tables);
 }
 
 
@@ -1173,9 +1181,7 @@ multi_delete::initialize_tables(JOIN *join)
 	normal_tables= 1;
       tbl->prepare_triggers_for_delete_stmt_or_event();
       tbl->prepare_for_position();
-
-      if (tbl->versioned(VERS_TIMESTAMP))
-        tbl->file->prepare_for_insert(1);
+      tbl->file->prepare_for_modify(tbl->versioned(VERS_TIMESTAMP), true);
     }
     else if ((tab->type != JT_SYSTEM && tab->type != JT_CONST) &&
              walk == delete_tables)

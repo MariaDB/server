@@ -811,8 +811,7 @@ static char *opt_strdup(const char *from, myf my_flags)
   return my_strdup(key_memory_mysql_options, from, my_flags);
 }
 
-static TYPELIB option_types={array_elements(default_options)-1,
-			     "options",default_options, NULL};
+static TYPELIB option_types=CREATE_TYPELIB_FOR(default_options);
 
 static int add_init_command(struct st_mysql_options *options, const char *cmd)
 {

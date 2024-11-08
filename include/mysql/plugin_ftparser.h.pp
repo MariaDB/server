@@ -595,7 +595,7 @@ struct st_mysql_storage_engine
 {
   int interface_version;
 };
-struct handlerton;
+struct transaction_participant;
  struct Mysql_replication {
    int interface_version;
  };
@@ -623,8 +623,8 @@ void thd_get_xid(const THD* thd, MYSQL_XID *xid);
 void mysql_query_cache_invalidate4(THD* thd,
                                    const char *key, unsigned int key_length,
                                    int using_trx);
-void *thd_get_ha_data(const THD* thd, const struct handlerton *hton);
-void thd_set_ha_data(THD* thd, const struct handlerton *hton,
+void *thd_get_ha_data(const THD* thd, const struct transaction_participant *hton);
+void thd_set_ha_data(THD* thd, const struct transaction_participant *hton,
                      const void *ha_data);
 void thd_wakeup_subsequent_commits(THD* thd, int wakeup_error);
 }

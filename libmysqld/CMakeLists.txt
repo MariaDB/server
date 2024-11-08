@@ -101,7 +101,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
            ../sql/sql_table.cc ../sql/sql_test.cc
-           ../sql/ddl_log.cc
+           ../sql/ddl_log.cc ../sql/item_vectorfunc.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
            ../sql/gcalc_tools.cc ../sql/gcalc_slicescan.cc
@@ -112,7 +112,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_alter.cc ../sql/sql_partition_admin.cc
            ../sql/event_parse_data.cc
            ../sql/sql_signal.cc
-           ../sql/sys_vars.cc
+           ../sql/sys_vars.cc ../sql/vector_mhnsw.cc
            ${CMAKE_BINARY_DIR}/sql/sql_builtin.cc
            ../sql/mdl.cc ../sql/transaction.cc
            ../sql/sql_join_cache.cc
@@ -136,7 +136,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_mode.cc
            ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
-           ../sql/sql_type_geom.cc
+           ../sql/sql_type_geom.cc ../sql/sql_type_vector.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc

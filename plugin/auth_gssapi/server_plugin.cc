@@ -109,12 +109,7 @@ static const char* mech_names[] = {
   "",
   NULL
 };
-static TYPELIB mech_name_typelib = {
-  3,
-  "mech_name_typelib",
-  mech_names,
-  NULL
-};
+static TYPELIB mech_name_typelib = CREATE_TYPELIB_FOR(mech_names);
 static MYSQL_SYSVAR_ENUM(mech_name, srv_mech,
                         PLUGIN_VAR_RQCMDARG|PLUGIN_VAR_READONLY,
                         "GSSAPI mechanism",

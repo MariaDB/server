@@ -60,7 +60,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	binary(1)	YES		NULL	
 c1	binary(1)	YES		NULL	
-c2	binary(1)	YES		0	
+c2	binary(1)	YES		x'30'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES (0,0,0);
@@ -183,7 +183,7 @@ SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 c	varbinary(64)	YES		NULL	
 c1	varbinary(64)	YES		NULL	
-c2	varbinary(64)	YES		test	
+c2	varbinary(64)	YES		x'74657374'	
 pk	int(11)	NO	PRI	NULL	auto_increment
 INSERT INTO t1 (c,c1,c2) VALUES (NULL,NULL,NULL);
 INSERT INTO t1 (c,c1,c2) VALUES ('test','test','test');

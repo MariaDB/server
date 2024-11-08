@@ -457,9 +457,8 @@ static void usage(void)
 
 const char *myisam_stats_method_names[] = {"nulls_unequal", "nulls_equal",
                                            "nulls_ignored", NullS};
-TYPELIB myisam_stats_method_typelib= {
-  array_elements(myisam_stats_method_names) - 1, "",
-  myisam_stats_method_names, NULL};
+TYPELIB myisam_stats_method_typelib=
+                        CREATE_TYPELIB_FOR(myisam_stats_method_names);
 
 	 /* Read options */
 
@@ -1051,7 +1050,8 @@ static int myisamchk(HA_CHECK *param, char * filename)
 	  */
 	  my_bool update_index=1;
 	  for (key=0 ; key < share->base.keys; key++)
-	    if (share->keyinfo[key].flag & (HA_BINARY_PACK_KEY|HA_FULLTEXT))
+	    if (share->keyinfo[key].flag & HA_BINARY_PACK_KEY ||
+                share->keyinfo[key].key_alg == HA_KEY_ALG_FULLTEXT)
 	      update_index=0;
 
 	  error=mi_sort_records(param,info,filename,param->opt_sort_key,
@@ -1324,7 +1324,7 @@ static void descript(HA_CHECK *param, register MI_INFO *info, char * name)
   {
     keyseg=keyinfo->seg;
     if (keyinfo->flag & HA_NOSAME) text="unique ";
-    else if (keyinfo->flag & HA_FULLTEXT) text="fulltext ";
+    else if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT) text="fulltext ";
     else text="multip.";
 
     pos=buff;
@@ -1501,7 +1501,7 @@ static int mi_sort_records(HA_CHECK *param,
     param->error_printed=0;
     DBUG_RETURN(0);				/* Nothing to do */
   }
-  if (keyinfo->flag & HA_FULLTEXT)
+  if (keyinfo->key_alg == HA_KEY_ALG_FULLTEXT)
   {
     mi_check_print_warning(param,"Can't sort table '%s' on FULLTEXT key %d",
 			   name,sort_key+1);

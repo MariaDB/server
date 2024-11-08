@@ -56,6 +56,7 @@
 #include "sql_table.h"                          // build_table_filename
 #include "datadict.h"   // dd_frm_is_view()
 #include "rpl_rli.h"   // rpl_group_info
+#include "vector_mhnsw.h"
 #ifdef  _WIN32
 #include <io.h>
 #endif
@@ -1458,7 +1459,7 @@ void drop_open_table(THD *thd, TABLE *table, const LEX_CSTRING *db_name,
     table->s->tdc->flush(thd, true);
     close_thread_table(thd, &thd->open_tables);
     /* Remove the table from the storage engine and rm the .frm. */
-    quick_rm_table(thd, table_type, db_name, table_name, 0);
+    quick_rm_table(thd, table_type, db_name, table_name, QRMT_DEFAULT);
  }
   DBUG_VOID_RETURN;
 }
@@ -2398,6 +2399,10 @@ retry_share:
     my_error(ER_NOT_SEQUENCE, MYF(0), table_list->db.str, table_list->alias.str);
     DBUG_RETURN(true);
   }
+  /* hlindexes don't support concurrent insert */
+  if (table->s->hlindexes() &&
+      table_list->lock_type == TL_WRITE_CONCURRENT_INSERT)
+    table_list->lock_type= TL_WRITE_DEFAULT;
 
   DBUG_ASSERT(thd->locked_tables_mode || table->file->row_logging == 0);
   DBUG_RETURN(false);
@@ -3389,7 +3394,7 @@ request_backoff_action(enum_open_table_action action_arg,
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
                 action_arg == OT_ADD_HISTORY_PARTITION);
-    m_failed_table= (TABLE_LIST*) m_thd->alloc(sizeof(TABLE_LIST));
+    m_failed_table= m_thd->alloc<TABLE_LIST>(1);
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
@@ -4290,7 +4295,7 @@ static bool upgrade_lock_if_not_exists(THD *thd,
     DEBUG_SYNC(thd,"create_table_before_check_if_exists");
     if (!create_info.or_replace() &&
         ha_table_exists(thd, &create_table->db, &create_table->table_name,
-                        NULL, NULL, &create_table->db_type))
+                        NULL, &create_table->db_type))
     {
       if (create_info.if_not_exists())
       {
@@ -4995,7 +5000,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
@@ -5067,18 +5072,13 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       lock_type= TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table,
-          lock_type))
+          fk->foreign_db, fk->foreign_table, lock_type))
       continue;
 
-    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-    tl->init_one_table_for_prelocking(fk->foreign_db,
-        fk->foreign_table,
-        NULL, lock_type,
-        TABLE_LIST::PRELOCK_FK,
-        table_list->belong_to_view, op,
-        &prelocking_ctx->query_tables_last,
-        table_list->for_insert_data);
+    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
+        NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
+        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
   }
   if (arena)
     thd->restore_active_arena(arena, &backup);
@@ -5879,7 +5879,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr=start=(TABLE**) thd->alloc(sizeof(TABLE*)*count)))
+    if (!(ptr= start= thd->alloc<TABLE*>(count)))
       DBUG_RETURN(TRUE);
 
     /*
@@ -9494,7 +9494,7 @@ my_bool mysql_rm_tmp_tables(void)
           /* We should cut file extention before deleting of table */
           memcpy(path_copy, path, path_len - ext_len);
           path_copy[path_len - ext_len]= 0;
-          init_tmp_table_share(thd, &share, "", 0, "", path_copy);
+          init_tmp_table_share(thd, &share, "", 0, "", path_copy, true);
           if (!open_table_def(thd, &share))
             share.db_type()->drop_table(share.db_type(), path_copy);
           free_table_share(&share);
@@ -9836,3 +9836,174 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
 /**
   @} (end of group Data_Dictionary)
 */
+
+int TABLE::hlindex_open(uint nr)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+  if (!hlindex)
+  {
+    s->lock_share();
+    if (!s->hlindex)
+    {
+      s->unlock_share();
+      TABLE_SHARE *share;
+      char *path= NULL;
+      size_t path_len= s->normalized_path.length + HLINDEX_BUF_LEN;
+
+      share= (TABLE_SHARE*)alloc_root(&s->mem_root, sizeof(*share));
+      path= (char*)alloc_root(&s->mem_root, path_len);
+      if (!share || !path)
+        return 1;
+
+      my_snprintf(path, path_len, "%s" HLINDEX_TEMPLATE,
+                  s->normalized_path.str, nr);
+      init_tmp_table_share(in_use, share, s->db.str, 0, s->table_name.str,
+                           path, false);
+      share->db_plugin= s->db_plugin;
+
+      LEX_CSTRING sql= mhnsw_hlindex_table_def(in_use, file->ref_length);
+      if (share->init_from_sql_statement_string(in_use, false,
+                        sql.str, sql.length))
+      {
+        free_table_share(share);
+        return 1;
+      }
+
+      s->lock_share();
+      if (!s->hlindex)
+      {
+        s->hlindex= share;
+        s->unlock_share();
+      }
+      else
+      {
+        s->unlock_share();
+        free_table_share(share);
+      }
+    }
+    else
+      s->unlock_share();
+    TABLE *table= (TABLE*)alloc_root(&mem_root, sizeof(*table));
+    if (!table || open_table_from_share(in_use, s->hlindex, &empty_clex_str,
+                    db_stat, EXTRA_RECORD, in_use->open_options, table, 0))
+      return 1;
+    hlindex= table;
+    hlindex->in_use= NULL;
+  }
+  return 0;
+}
+
+int TABLE::hlindex_lock(uint nr)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+  DBUG_ASSERT(hlindex);
+  if (hlindex->in_use == in_use)
+    return 0;
+  hlindex->in_use= in_use;      // mark in use for this query
+  hlindex->use_all_columns();
+
+  THR_LOCK_DATA *lock_data;
+  DBUG_ASSERT(hlindex->file->lock_count() <= 1);
+  hlindex->file->store_lock(in_use, &lock_data, reginfo.lock_type);
+
+  int res= hlindex->file->ha_external_lock(in_use,
+             reginfo.lock_type < TL_FIRST_WRITE ? F_RDLCK : F_WRLCK);
+  if (hlindex->file->lock_count() > 0)
+  {
+    /*
+      This code is here mostly for Aria. It requires start_trans() call
+      to handle transaction logging.
+    */
+    if (res == 0 && !s->tmp_table && lock_data->lock->start_trans)
+      lock_data->lock->start_trans(lock_data->status_param);
+    lock_data->type= TL_UNLOCK;
+  }
+  return res;
+}
+
+int TABLE::open_hlindexes_for_write()
+{
+  DBUG_ASSERT(s->hlindexes() <= 1);
+  for (uint i= s->keys; i < s->total_keys; i++)
+    if (hlindex_open(i) || hlindex_lock(i))
+      return 1;
+  return 0;
+}
+
+int TABLE::reset_hlindexes()
+{
+  if (hlindex && hlindex->in_use)
+  {
+    hlindex->file->ha_external_unlock(in_use);
+    hlindex->in_use= 0;
+  }
+  return 0;
+}
+
+int TABLE::hlindexes_on_insert()
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_insert(this, key_info + s->keys))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindexes_on_update()
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+  {
+    int err;
+    // mark deleted node invalid and insert node for new row
+    if ((err= mhnsw_invalidate(this, record[1], key_info + s->keys)) ||
+        (err= mhnsw_insert(this, key_info + s->keys)))
+      return err;
+  }
+
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete(const uchar *buf)
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  DBUG_ASSERT(buf == record[0] || buf == record[1]); // note: REPLACE
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_invalidate(this, buf, key_info + s->keys))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindexes_on_delete_all(bool truncate)
+{
+  DBUG_ASSERT(s->hlindexes() == (hlindex != NULL));
+  if (hlindex && hlindex->in_use)
+    if (int err= mhnsw_delete_all(this, key_info + s->keys, truncate))
+      return err;
+  return 0;
+}
+
+int TABLE::hlindex_read_first(uint nr, Item *item, ulonglong limit)
+{
+  DBUG_ASSERT(s->hlindexes() == 1);
+  DBUG_ASSERT(nr == s->keys);
+
+  if (hlindex_open(nr) || hlindex_lock(nr))
+    return HA_ERR_CRASHED;
+
+  DBUG_ASSERT(hlindex->in_use == in_use);
+
+  return mhnsw_read_first(this, key_info + s->keys, item, limit);
+}
+
+int TABLE::hlindex_read_next()
+{
+  return mhnsw_read_next(this);
+}
+
+int TABLE::hlindex_read_end()
+{
+  return mhnsw_read_end(this);
+}

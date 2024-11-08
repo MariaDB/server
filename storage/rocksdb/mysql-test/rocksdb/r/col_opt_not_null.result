@@ -75,7 +75,7 @@ c BINARY NOT NULL DEFAULT 0
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	binary(1)	NO		0	
+c	binary(1)	NO		x'30'	
 ALTER TABLE t1 ADD COLUMN err BINARY NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);
@@ -209,7 +209,7 @@ c VARBINARY(64) NOT NULL DEFAULT 'test'
 SHOW COLUMNS IN t1;
 Field	Type	Null	Key	Default	Extra
 pk	int(11)	NO	PRI	NULL	auto_increment
-c	varbinary(64)	NO		test	
+c	varbinary(64)	NO		x'74657374'	
 ALTER TABLE t1 ADD COLUMN err VARBINARY(64) NOT NULL DEFAULT NULL;
 ERROR 42000: Invalid default value for 'err'
 INSERT INTO t1 (c) VALUES (NULL);

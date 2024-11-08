@@ -266,8 +266,8 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
 {
   size_t get_size, block_size;
   uchar* point;
-  reg1 USED_MEM *next= 0;
-  reg2 USED_MEM **prev;
+  USED_MEM *next= 0;
+  USED_MEM **prev;
   size_t original_length __attribute__((unused)) = length;
   DBUG_ENTER("alloc_root");
   DBUG_PRINT("enter",("root: %p", mem_root));
@@ -324,6 +324,7 @@ void *alloc_root(MEM_ROOT *mem_root, size_t length)
     size_t alloced_length;
 
     /* Increase block size over time if there is a lot of mallocs */
+    /* when changing this logic, update root_size() to match      */
     block_size= (MY_ALIGN(mem_root->block_size, ROOT_MIN_BLOCK_SIZE) *
                  (mem_root->block_num >> 2)- MALLOC_OVERHEAD);
     get_size= length + ALIGN_SIZE(sizeof(USED_MEM));
@@ -425,10 +426,10 @@ void *multi_alloc_root(MEM_ROOT *root, ...)
 #if !(defined(HAVE_valgrind) && defined(EXTRA_DEBUG))
 /** Mark all data in blocks free for reusage */
 
-static inline void mark_blocks_free(MEM_ROOT* root)
+static void mark_blocks_free(MEM_ROOT* root)
 {
-  reg1 USED_MEM *next;
-  reg2 USED_MEM **last;
+  USED_MEM *next;
+  USED_MEM **last;
 
   /* iterate through (partially) free blocks, mark them free */
   last= &root->free;
@@ -451,7 +452,6 @@ static inline void mark_blocks_free(MEM_ROOT* root)
   /* Now everything is set; Indicate that nothing is used anymore */
   root->used= 0;
   root->first_block_usage= 0;
-  root->block_num= 4;
 }
 #endif
 
@@ -477,7 +477,7 @@ static inline void mark_blocks_free(MEM_ROOT* root)
 
 void free_root(MEM_ROOT *root, myf MyFlags)
 {
-  reg1 USED_MEM *next,*old;
+  USED_MEM *next,*old;
   DBUG_ENTER("free_root");
   DBUG_PRINT("enter",("root: %p  flags: %lu", root, MyFlags));
 
@@ -567,45 +567,61 @@ void move_root(MEM_ROOT *to, MEM_ROOT *from)
   from->used= 0;
 }
 
-
-
 /*
-  Remember last MEM_ROOT block.
+  Prepare MEM_ROOT to a later truncation. Everything allocated after
+  that point can be freed while keeping earlier allocations intact.
 
-  This allows one to free all new allocated blocks.
+  For this to work we cannot allow new allocations in partially filled blocks,
+  so remove all non-empty blocks from the memroot. For simplicity, let's
+  also remove all used blocks.
 */
-
-USED_MEM *get_last_memroot_block(MEM_ROOT* root)
+void root_make_savepoint(MEM_ROOT *root, MEM_ROOT_SAVEPOINT *sv)
 {
-  return root->used ? root->used : root->pre_alloc;
+  USED_MEM **prev= &root->free, *block= *prev;
+  for ( ; block; prev= &block->next, block= *prev)
+    if (block->left < block->size - ALIGN_SIZE(sizeof(USED_MEM)))
+      break;
+  sv->root= root;
+  sv->free= block;
+  sv->used= root->used;
+  sv->first_block_usage= root->first_block_usage;
+  *prev= 0;
+  root->used= 0;
 }
 
 /*
-  Free all newly allocated blocks
+  Restore MEM_ROOT to the state before the savepoint was made.
+
+  Restore old free and used lists.
+  Mark all new (after savepoint) used and partially used blocks free
+  and put them into the free list.
 */
-
-void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block)
+void root_free_to_savepoint(const MEM_ROOT_SAVEPOINT *sv)
 {
-  USED_MEM *old, *next;
-  if (!root->used)
-    return;                                     /* Nothing allocated */
-  return;
-  /*
-    Free everying allocated up to, but not including, last_block.
-    However do not go past pre_alloc as we do not want to free
-    that one. This should not be a problem as in almost all normal
-    usage pre_alloc is last in the list.
-  */
+  MEM_ROOT *root= sv->root;
+  USED_MEM **prev= &root->free, *block= *prev;
 
-  for (next= root->used ;
-       next && next != last_block && next != root->pre_alloc ; )
+  /* iterate through (partially) free blocks, mark them free */
+  for ( ; block; prev= &block->next, block= *prev)
   {
-    old= next; next= next->next;
-    root_free(root, old, old->size);
+    block->left= block->size - ALIGN_SIZE(sizeof(USED_MEM));
+    TRASH_MEM(block);
   }
-  root->used= next;
-  root->block_num= 4;
-  root->first_block_usage= 0;
+
+  /* Combine the free and the used list */
+  *prev= block=root->used;
+
+  /* now go through the used blocks and mark them free */
+  for ( ; block; prev= &block->next, block= *prev)
+  {
+    block->left= block->size - ALIGN_SIZE(sizeof(USED_MEM));
+    TRASH_MEM(block);
+  }
+
+  /* restore free and used lists from savepoint */
+  *prev= sv->free;
+  root->used= sv->used;
+  root->first_block_usage= prev == &root->free ? sv->first_block_usage : 0;
 }
 
 /**
@@ -615,7 +631,7 @@ void free_all_new_blocks(MEM_ROOT *root, USED_MEM *last_block)
 #if defined(HAVE_MMAP) && defined(HAVE_MPROTECT) && defined(MAP_ANONYMOUS)
 void protect_root(MEM_ROOT *root, int prot)
 {
-  reg1 USED_MEM *next,*old;
+  USED_MEM *next,*old;
   DBUG_ENTER("protect_root");
   DBUG_PRINT("enter",("root: %p  prot: %d", root, prot));
 

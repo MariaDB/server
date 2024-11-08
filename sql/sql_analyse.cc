@@ -23,10 +23,6 @@
 **	 - type set is out of optimization yet
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_LEX 1
 
 #include "mariadb.h"
@@ -130,8 +126,7 @@ proc_analyse_init(THD *thd, ORDER *param, select_result *result,
     pc->max_treemem = MAX_TREEMEM;
   }
 
-  if (!(pc->f_info=
-        (field_info**) thd->alloc(sizeof(field_info*) * field_list.elements)))
+  if (!(pc->f_info= thd->alloc<field_info*>(field_list.elements)))
     goto err;
   pc->f_end = pc->f_info + field_list.elements;
   pc->fields = field_list;

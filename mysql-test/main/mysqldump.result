@@ -6299,7 +6299,7 @@ insert into t4 values(1);
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) INVISIBLE DEFAULT NULL
+  `b` int(11) DEFAULT NULL INVISIBLE
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),
@@ -6318,8 +6318,8 @@ INSERT INTO `t2` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t3` (
   `invisible` int(11) DEFAULT NULL,
-  `a  b c & $!@#$%^&*( )` int(11) INVISIBLE DEFAULT 4,
-  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
+  `a  b c & $!@#$%^&*( )` int(11) DEFAULT 4 INVISIBLE,
+  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) DEFAULT 5 INVISIBLE
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),
@@ -6340,7 +6340,7 @@ INSERT INTO `t4` VALUES
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
-  `b` int(11) INVISIBLE DEFAULT NULL
+  `b` int(11) DEFAULT NULL INVISIBLE
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t1` (`a`, `b`) VALUES (1,NULL),
@@ -6358,8 +6358,8 @@ INSERT INTO `t2` (`a`, `b`) VALUES (1,2),
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t3` (
   `invisible` int(11) DEFAULT NULL,
-  `a  b c & $!@#$%^&*( )` int(11) INVISIBLE DEFAULT 4,
-  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) INVISIBLE DEFAULT 5
+  `a  b c & $!@#$%^&*( )` int(11) DEFAULT 4 INVISIBLE,
+  `ds=~!@ \# $% ^ & * ( ) _ - = +` int(11) DEFAULT 5 INVISIBLE
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `t3` (`invisible`, `a  b c & $!@#$%^&*( )`, `ds=~!@ \# $% ^ & * ( ) _ - = +`) VALUES (1,4,5),

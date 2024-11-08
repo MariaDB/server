@@ -1,0 +1,78 @@
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v)) engine=innodb;
+insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
+(Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
+(Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
+(Vec_Fromtext('[0.822,0.185,0.683,0.211,0.554]')),
+(Vec_Fromtext('[0.437,0.167,0.077,0.428,0.241]')),
+(Vec_Fromtext('[0.769,0.926,0.803,0.015,0.589]')),
+(Vec_Fromtext('[0.493,0.641,0.761,0.942,0.425]')),
+(Vec_Fromtext('[0.924,0.275,0.054,0.073,0.136]')),
+(Vec_Fromtext('[0.186,0.696,0.035,0.668,0.847]')),
+(Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+id
+8
+5
+4
+drop table t1;
+db.opt
+t1#i#01.ibd
+t1.frm
+t1.ibd
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select id, Vec_ToText(v) from t1;
+id	Vec_ToText(v)
+1	[0.418,0.809,0.823,0.598,0.033]
+2	[0.687,0.789,0.496,0.574,0.917]
+3	[0.333,0.962,0.467,0.448,0.475]
+4	[0.822,0.185,0.683,0.211,0.554]
+5	[0.437,0.167,0.077,0.428,0.241]
+6	[0.769,0.926,0.803,0.015,0.589]
+7	[0.493,0.641,0.761,0.942,0.425]
+8	[0.924,0.275,0.054,0.073,0.136]
+9	[0.186,0.696,0.035,0.668,0.847]
+10	[0.415,0.609,0.426,0.988,0.475]
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+id
+8
+5
+4
+drop table t1;
+#
+# MDEV-35258 Mariabackup does not work with MyISAM tables with vector keys
+#
+create table t1 (a int, v vector(1) not null, vector(v)) engine=MyISAM;
+insert into t1 values (1,0x31313131),(2,0x32323232);
+drop table t1;
+db.opt
+t1#i#00.MYD
+t1#i#00.MYI
+t1.MYD
+t1.MYI
+t1.frm
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `v` vector(1) NOT NULL,
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select * from t1 order by vec_distance_euclidean(v, 0x30303030) limit 1;
+a	v
+1	1111
+drop table t1;

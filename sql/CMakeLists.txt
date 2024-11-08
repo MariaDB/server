@@ -103,7 +103,7 @@ SET (SQL_SOURCE
                filesort_utils.cc
                filesort.cc gstream.cc
                signal_handler.cc
-               handler.cc
+               handler.cc item_vectorfunc.cc
                hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
                item_create.cc item_func.cc item_geofunc.cc item_row.cc
                item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
@@ -113,7 +113,7 @@ SET (SQL_SOURCE
                mf_iocache.cc my_decimal.cc
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
-               opt_range.cc
+               opt_range.cc vector_mhnsw.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
                opt_sum.cc
@@ -173,7 +173,7 @@ SET (SQL_SOURCE
                lex_charset.cc charset_collations.cc
                sql_type.cc sql_mode.cc sql_type_json.cc
                sql_type_string.cc
-               sql_type_geom.cc
+               sql_type_geom.cc sql_type_vector.cc
                item_windowfunc.cc sql_window.cc
 	       sql_cte.cc
                item_vers.cc

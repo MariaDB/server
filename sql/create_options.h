@@ -46,6 +46,18 @@ public:
    {
      return my_charset_utf8mb3_general1400_as_ci.streq(*this, rhs);
    }
+   uint find_in_list(const char *str) const
+   {
+      const char *end= str;
+      for (int num= 0; *end; num++)
+      {
+        for (end=str; *end && *end != ','; end++) /* no-op */;
+        if (streq(Lex_cstring(str, end)))
+          return num;
+        str= end + 1;
+      }
+      return UINT_MAX;
+   }
  };
  public:
   Name name;
@@ -93,8 +105,8 @@ public:
 typedef struct st_key KEY;
 class Create_field;
 
-bool resolve_sysvar_table_options(handlerton *hton);
-void free_sysvar_table_options(handlerton *hton);
+bool resolve_sysvar_table_options(ha_create_table_option *rules);
+void free_sysvar_table_options(ha_create_table_option *rules);
 bool parse_engine_table_options(THD *thd, handlerton *ht, TABLE_SHARE *share);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 bool parse_engine_part_options(THD *thd, TABLE *table);
@@ -106,7 +118,15 @@ bool parse_option_list(THD* thd, void *option_struct,
 bool extend_option_list(THD* thd, handlerton *hton, bool create,
                         engine_option_value **option_list,
                         ha_create_table_option *rules);
-
+/*
+static inline bool extend_option_list(THD* thd, handlerton *hton, bool create,
+                                      engine_option_value **option_list,
+                       ha_create_table_option *rules)
+{
+  return extend_option_list(thd, hton2plugin[hton->slot], create, option_list,
+                            rules);
+}
+*/
 bool engine_table_options_frm_read(const uchar *buff, size_t length,
                                    TABLE_SHARE *share);
 bool merge_engine_options(engine_option_value *source,

@@ -595,7 +595,7 @@ struct st_maria_plugin
   API for Storage Engine plugin. (MYSQL_DAEMON_PLUGIN)
 */
 
-/* handlertons of different MySQL releases are incompatible */
+/* daemon plugins of different MySQL releases are incompatible */
 #define MYSQL_DAEMON_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
 /*
@@ -613,7 +613,7 @@ struct st_mysql_daemon
   API for I_S plugin. (MYSQL_INFORMATION_SCHEMA_PLUGIN)
 */
 
-/* handlertons of different MySQL releases are incompatible */
+/* information schema plugins different MySQL releases are incompatible */
 #define MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
 /*
@@ -631,7 +631,7 @@ struct st_mysql_information_schema
   API for Storage Engine plugin. (MYSQL_STORAGE_ENGINE_PLUGIN)
 */
 
-/* handlertons of different MySQL releases are incompatible */
+/* storage engines of different MySQL releases are incompatible */
 #define MYSQL_HANDLERTON_INTERFACE_VERSION (MYSQL_VERSION_ID << 8)
 
 /*
@@ -645,7 +645,7 @@ struct st_mysql_storage_engine
   int interface_version;
 };
 
-struct handlerton;
+struct transaction_participant;
 
 
 /*
@@ -748,7 +748,7 @@ void mysql_query_cache_invalidate4(MYSQL_THD thd,
 /**
   Provide a handler data getter to simplify coding
 */
-void *thd_get_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
+void *thd_get_ha_data(const MYSQL_THD thd, const struct transaction_participant *hton);
 
 
 /**
@@ -769,10 +769,10 @@ void *thd_get_ha_data(const MYSQL_THD thd, const struct handlerton *hton);
   thd_set_ha_data() in this connection before, storage engine
   plugin lock gets released.
 
-  If handlerton::close_connection() didn't reset ha_data, server does
-  it immediately after calling handlerton::close_connection().
+  If transaction_participant::close_connection() didn't reset ha_data, server
+  does it immediately after calling transaction_participant::close_connection()
 */
-void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
+void thd_set_ha_data(MYSQL_THD thd, const struct transaction_participant *hton,
                      const void *ha_data);
 
 

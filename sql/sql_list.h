@@ -16,10 +16,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "sql_alloc.h"
 #include <iterator>
 
@@ -212,9 +208,9 @@ public:
     }
     return 1;
   }
-  inline bool push_front(void *info)
+  inline bool push_front(const void *info)
   { return push_front_impl(new list_node(info, first)); }
-  inline bool push_front(void *info, MEM_ROOT *mem_root)
+  inline bool push_front(const void *info, MEM_ROOT *mem_root)
   { return push_front_impl(new (mem_root) list_node(info,first)); }
   void remove(list_node **prev)
   {
@@ -500,11 +496,11 @@ public:
   inline List() :base_list() {}
   inline List(const List<T> &tmp, MEM_ROOT *mem_root) :
     base_list(tmp, mem_root) {}
-  inline bool push_back(T *a) { return base_list::push_back(a); }
-  inline bool push_back(T *a, MEM_ROOT *mem_root)
+  inline bool push_back(const T *a) { return base_list::push_back((void *)a); }
+  inline bool push_back(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_back((void*) a, mem_root); }
-  inline bool push_front(T *a) { return base_list::push_front(a); }
-  inline bool push_front(T *a, MEM_ROOT *mem_root)
+  inline bool push_front(const T *a) { return base_list::push_front(a); }
+  inline bool push_front(const T *a, MEM_ROOT *mem_root)
   { return base_list::push_front((void*) a, mem_root); }
   inline T* head() {return (T*) base_list::head(); }
   inline T** head_ref() {return (T**) base_list::head_ref(); }

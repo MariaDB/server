@@ -17,6 +17,7 @@
 #include "mariadb.h"
 #include "sql_type.h"
 #include "sql_type_geom.h"
+#include "sql_type_vector.h"
 #include "sql_const.h"
 #include "sql_class.h"
 #include "sql_time.h"
@@ -260,10 +261,7 @@ const Type_collection *Type_handler_row::type_collection() const
 
 bool Type_handler_data::init()
 {
-#ifdef HAVE_SPATIAL
   return type_collection_geometry.init(this);
-#endif
-  return false;
 }
 
 
@@ -291,12 +289,10 @@ Type_handler::handler_by_name(THD *thd, const LEX_CSTRING &name)
     return ph;
   }
 
-#ifdef HAVE_SPATIAL
   const Type_handler *ha= Type_collection_geometry_handler_by_name(name);
-  if (ha)
-    return ha;
-#endif
-  return NULL;
+  if (!ha && type_handler_vector.name().eq(name))
+    return &type_handler_vector;
+  return ha;
 }
 
 
@@ -335,27 +331,7 @@ Type_handler_data *type_handler_data= NULL;
 
 bool Float::to_string(String *val_buffer, uint dec) const
 {
-  uint to_length= 70;
-  if (val_buffer->alloc(to_length))
-    return true;
-
-  char *to=(char*) val_buffer->ptr();
-  size_t len;
-
-  if (dec >= FLOATING_POINT_DECIMALS)
-    len= my_gcvt(m_value, MY_GCVT_ARG_FLOAT, to_length - 1, to, NULL);
-  else
-  {
-    /*
-      We are safe here because the buffer length is 70, and
-      fabs(float) < 10^39, dec < FLOATING_POINT_DECIMALS. So the resulting string
-      will be not longer than 69 chars + terminating '\0'.
-    */
-    len= my_fcvt(m_value, (int) dec, to, NULL);
-  }
-  val_buffer->length((uint) len);
-  val_buffer->set_charset(&my_charset_numeric);
-  return false;
+  return val_buffer->set_real(m_value, dec, &my_charset_numeric);
 }
 
 
@@ -2257,12 +2233,7 @@ Type_handler::get_handler_by_field_type(enum_field_types type)
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_varchar; // Map to VARCHAR
   case MYSQL_TYPE_SET:         return &type_handler_varchar; // Map to VARCHAR
-  case MYSQL_TYPE_GEOMETRY:
-#ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
-#else
-    return NULL;
-#endif
+  case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
   case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp2;// Map to timestamp2
   case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
   case MYSQL_TYPE_DATE:        return &type_handler_newdate;   // Map to newdate
@@ -2314,12 +2285,7 @@ Type_handler::get_handler_by_real_type(enum_field_types type)
   case MYSQL_TYPE_STRING:      return &type_handler_string;
   case MYSQL_TYPE_ENUM:        return &type_handler_enum;
   case MYSQL_TYPE_SET:         return &type_handler_set;
-  case MYSQL_TYPE_GEOMETRY:
-#ifdef HAVE_SPATIAL
-    return &type_handler_geometry;
-#else
-    return NULL;
-#endif
+  case MYSQL_TYPE_GEOMETRY:    return &type_handler_geometry;
   case MYSQL_TYPE_TIMESTAMP:   return &type_handler_timestamp;
   case MYSQL_TYPE_TIMESTAMP2:  return &type_handler_timestamp2;
   case MYSQL_TYPE_DATE:        return &type_handler_date;

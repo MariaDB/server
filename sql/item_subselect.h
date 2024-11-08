@@ -19,11 +19,7 @@
 /* subselect Item */
 
 #include "item.h"
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
-#include <queues.h>
+#include "sql_queue.h"
 
 class st_select_lex;
 class st_select_lex_unit;
@@ -1372,7 +1368,7 @@ public:
     return FALSE;
   };
   /* Return the current index element. */
-  rownum_t current()
+  rownum_t current() const
   {
     DBUG_ASSERT(key_buff_elements && cur_key_idx < key_buff_elements);
     return key_buff[cur_key_idx];
@@ -1511,7 +1507,7 @@ protected:
     Priority queue of Ordered_key indexes, one per NULLable column.
     This queue is used by the partial match algorithm in method exec().
   */
-  QUEUE pq;
+  Queue<Ordered_key> pq;
 protected:
   /*
     Comparison function to compare keys in order of decreasing bitmap
@@ -1522,7 +1518,9 @@ protected:
     Comparison function used by the priority queue pq, the 'smaller' key
     is the one with the smaller current row number.
   */
-  static int cmp_keys_by_cur_rownum(void *arg, uchar *k1, uchar *k2);
+  static int cmp_keys_by_cur_rownum(void *arg,
+                                    const Ordered_key *k1,
+                                    const Ordered_key *k2);
 
   bool test_null_row(rownum_t row_num);
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);

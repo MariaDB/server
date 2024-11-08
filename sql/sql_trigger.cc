@@ -574,7 +574,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   DBUG_ASSERT(tables->next_global == 0);
 
   build_table_filename(path, sizeof(path) - 1, tables->db.str, tables->alias.str, ".frm", 0);
-  tables->required_type= dd_frm_type(NULL, path, NULL, NULL, NULL);
+  tables->required_type= dd_frm_type(NULL, path, NULL, NULL);
 
   /* We do not allow creation of triggers on temporary tables or sequence. */
   if (tables->required_type == TABLE_TYPE_SEQUENCE ||
@@ -1383,10 +1383,9 @@ bool Table_triggers_list::drop_trigger(THD *thd, TABLE_LIST *tables,
     if (stmt_query)
     {
       /* This code is executed in case of DROP TRIGGER */
-      lex_string_set3(&query, thd->query(), thd->query_length());
+      query = { thd->query(), thd->query_length() };
     }
-    if (ddl_log_drop_trigger(ddl_log_state,
-                             &tables->db, &tables->table_name,
+    if (ddl_log_drop_trigger(ddl_log_state, &tables->db, &tables->table_name,
                              sp_name, &query))
       goto err;
   }

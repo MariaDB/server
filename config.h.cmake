@@ -43,6 +43,7 @@
 #cmakedefine HAVE_IA64INTRIN_H 1
 #cmakedefine HAVE_IEEEFP_H 1
 #cmakedefine HAVE_INTTYPES_H 1
+#cmakedefine HAVE_IMMINTRIN_H 1
 #cmakedefine HAVE_KQUEUE 1
 #cmakedefine HAVE_LIMITS_H 1
 #cmakedefine HAVE_LINK_H 1
@@ -500,14 +501,6 @@
 #cmakedefine HAVE_EncryptAes128Gcm 1
 #cmakedefine HAVE_des 1
 #cmakedefine HAVE_hkdf 1
-
-/*
-  Stuff that always need to be defined (compile breaks without it)
-*/
-#define HAVE_SPATIAL 1
-#define HAVE_RTREE_KEYS 1
-#define HAVE_QUERY_CACHE 1
-#define BIG_TABLES 1
 
 /*
   Important storage engines (those that really need define 

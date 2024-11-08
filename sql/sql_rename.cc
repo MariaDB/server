@@ -283,8 +283,7 @@ check_rename(THD *thd, rename_param *param,
   DBUG_ASSERT(param->new_alias.str);
 
   if (!ha_table_exists(thd, &ren_table->db, &param->old_alias,
-                       &param->old_version, NULL,
-                       &param->from_table_hton) ||
+                       &param->old_version, &param->from_table_hton) ||
       !param->from_table_hton)
   {
     my_error(ER_NO_SUCH_TABLE, MYF(if_exists ? ME_NOTE : 0),
@@ -300,11 +299,11 @@ check_rename(THD *thd, rename_param *param,
       Discovery will find the old table when it's accessed
      */
     tdc_remove_table(thd, ren_table->db.str, ren_table->table_name.str);
-    quick_rm_table(thd, 0, &ren_table->db, &param->old_alias, FRM_ONLY, 0);
+    quick_rm_table(thd, 0, &ren_table->db, &param->old_alias, QRMT_FRM);
     DBUG_RETURN(-1);
   }
 
-  if (ha_table_exists(thd, &new_db, &param->new_alias, NULL, NULL, 0))
+  if (ha_table_exists(thd, &new_db, &param->new_alias))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -381,7 +380,8 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
     debug_crash_here("ddl_log_rename_before_rename_table");
     if (!(rc= mysql_rename_table(hton, &ren_table->db, old_alias,
-                                 new_db, new_alias, &param->old_version, 0)))
+                                 new_db, new_alias, &param->old_version,
+                                 QRMT_DEFAULT)))
     {
       /* Table rename succeded.
          It's safe to start recovery at rename trigger phase
@@ -416,7 +416,7 @@ do_rename(THD *thd, const rename_param *param, DDL_LOG_STATE *ddl_log_state,
         debug_crash_here("ddl_log_rename_after_failed_rename_trigger");
         (void) mysql_rename_table(hton, new_db, new_alias,
                                   &ren_table->db, old_alias, &param->old_version,
-                                  NO_FK_CHECKS);
+                                  QRMT_DEFAULT | NO_FK_CHECKS);
         debug_crash_here("ddl_log_rename_after_revert_rename_table");
         ddl_log_disable_entry(ddl_log_state);
         debug_crash_here("ddl_log_rename_after_disable_entry");
@@ -509,7 +509,7 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
         when only using temporary tables.  We don't need the log as
         all temporary tables will disappear anyway in a crash.
       */
-      TABLE_PAIR *pair= (TABLE_PAIR*) thd->alloc(sizeof(*pair));
+      TABLE_PAIR *pair= thd->alloc<TABLE_PAIR>(1);
       if (! pair || tmp_tables.push_front(pair, thd->mem_root))
         goto revert_rename;
       pair->from= ren_table;

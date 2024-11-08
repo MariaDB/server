@@ -303,6 +303,19 @@ select a from t1;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-35307 Unexpected WARN_SORTING_ON_TRUNCATED_LENGTH or assertion
+--echo #            failure in diagnostics area #2
+--echo #
+
+--source include/have_innodb.inc
+
+create table t1 (a varchar(1024)) engine=innodb;
+insert into t1 values (repeat('a',1000)),(repeat('b',1000));
+insert into t1 (a) select a from t1 order by a;
+
+drop table t1;
+
 #
 # Cleanup
 #

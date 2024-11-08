@@ -23,10 +23,6 @@
   @{
 */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #include "mariadb.h"
 #include "key.h"
 #include "sql_base.h"
@@ -2839,7 +2835,7 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
   if (for_explain)
     DBUG_RETURN(0);
 
-  if (!(key_buff= (uchar*) join->thd->alloc(key_length)))
+  if (!(key_buff= join->thd->alloc<uchar>(key_length)))
     DBUG_RETURN(1);
 
   /* Take into account a reference to the next record in the key chain */

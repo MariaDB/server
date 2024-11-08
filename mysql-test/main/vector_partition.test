@@ -1,0 +1,25 @@
+--source include/have_partition.inc
+
+--echo # Vector indexes do not support partitioned tables
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create table t1 (id int auto_increment primary key,
+  v vector(5) not null, vector index (v))
+  partition by key(id) partitions 2;
+
+create table t1 (id int auto_increment primary key,
+  v vector(5) not null)
+  partition by key(id) partitions 2;
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t1 add vector index(v);
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create vector index i on t1(v);
+drop table t1;
+
+create table t1 (id int auto_increment primary key,
+  v vector(5) not null, vector index(v));
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+alter table t1 partition by key(id) partitions 2;
+drop table t1;
+
+let $datadir=`select @@datadir`;
+list_files $datadir/test;

@@ -21,10 +21,6 @@
   variables must declare the size_of() member function.
 */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "mysqld.h"                             /* system_charset_info */
 #include "table.h"                              /* TABLE */
 #include "sql_string.h"                         /* String */
@@ -847,6 +843,8 @@ public:
     TMYSQL_COMPRESSED= 24,      // Compatibility with TMySQL
     };
   enum imagetype { itRAW, itMBR};
+  static enum imagetype image_type(enum ha_key_alg alg)
+  { return alg == HA_KEY_ALG_RTREE ? itMBR : itRAW; }
 
   utype	unireg_check;
   field_visibility_t invisible;
@@ -966,6 +964,10 @@ public:
   virtual int  store_binary(const char *to, size_t length)
   {
     return store(to, length, &my_charset_bin);
+  }
+  int store_binary(const uchar *to, size_t length)
+  {
+    return store_binary((const char*)(to), length);
   }
   virtual int  store_hex_hybrid(const char *str, size_t length);
   virtual int  store(double nr)=0;

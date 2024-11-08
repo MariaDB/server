@@ -13,10 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 #include "thr_lock.h"                           /* THR_LOCK */
 #include "handler.h"                            /* handler */
 #include "table.h"                              /* TABLE_SHARE */
@@ -49,7 +45,6 @@ public:
     The name of the index type that will be used for display
     don't implement this method unless you really have indexes
   */
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override
   {
     return(HA_NULL_IN_KEY | HA_CAN_FULLTEXT | HA_CAN_SQL_HANDLER |

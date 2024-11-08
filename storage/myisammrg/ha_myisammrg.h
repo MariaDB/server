@@ -14,11 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_INTERFACE
-#pragma interface			/* gcc class implementation */
-#endif
-
 /* class for the the myisam merge handler */
 
 #include <myisammrg.h>
@@ -82,7 +77,6 @@ public:
 
   ha_myisammrg(handlerton *hton, TABLE_SHARE *table_arg);
   ~ha_myisammrg();
-  const char *index_type(uint key_number) override;
   ulonglong table_flags() const override
   {
     return (HA_REC_NOT_IN_SEQ | HA_AUTO_PART_KEY | HA_NO_TRANSACTIONS |

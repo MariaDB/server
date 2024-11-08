@@ -708,6 +708,19 @@ The following specify which files/extra groups are read (specified before remain
  Unused. Deprecated, will be removed in a future release.
  --metadata-locks-hash-instances=# 
  Unused. Deprecated, will be removed in a future release.
+ --mhnsw-default-distance=name 
+ Distance function to build the vector index for. One of: 
+ euclidean, cosine
+ --mhnsw-default-m=# Larger values mean slower SELECTs and INSERTs, larger
+ index size and higher memory consumption but more
+ accurate results
+ --mhnsw-ef-search=# Larger values mean slower SELECTs but more accurate
+ results. Defines the minimal number of result candidates
+ to look for in the vector index for ORDER BY ... LIMIT N
+ queries. The search will never search for less rows than
+ that, even if LIMIT is smaller
+ --mhnsw-max-cache-size=# 
+ Upper limit for one MHNSW vector index cache
  --min-examined-row-limit=# 
  Alias for log_slow_min_examined_row_limit. Don't write
  queries to slow log that examine fewer rows than that
@@ -1821,6 +1834,10 @@ max-write-lock-count 18446744073709551615
 memlock FALSE
 metadata-locks-cache-size 1024
 metadata-locks-hash-instances 8
+mhnsw-default-distance euclidean
+mhnsw-default-m 6
+mhnsw-ef-search 20
+mhnsw-max-cache-size 16777216
 min-examined-row-limit 0
 mrr-buffer-size 262144
 myisam-block-size 1024

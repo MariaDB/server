@@ -13,11 +13,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "sql_priv.h"
@@ -106,17 +101,6 @@ int ha_blackhole::truncate()
   DBUG_RETURN(0);
 }
 
-const char *ha_blackhole::index_type(uint key_number)
-{
-  DBUG_ENTER("ha_blackhole::index_type");
-  DBUG_RETURN((table_share->key_info[key_number].flags & HA_FULLTEXT) ? 
-              "FULLTEXT" :
-              (table_share->key_info[key_number].flags & HA_SPATIAL) ?
-              "SPATIAL" :
-              (table_share->key_info[key_number].algorithm ==
-               HA_KEY_ALG_RTREE) ? "RTREE" : "BTREE");
-}
-
 int ha_blackhole::write_row(const uchar * buf)
 {
   DBUG_ENTER("ha_blackhole::write_row");
@@ -164,15 +148,14 @@ int ha_blackhole::rnd_next(uchar *buf)
 int ha_blackhole::rnd_pos(uchar * buf, uchar *pos)
 {
   DBUG_ENTER("ha_blackhole::rnd_pos");
-  DBUG_ASSERT(0);
-  DBUG_RETURN(0);
+  DBUG_RETURN(HA_ERR_END_OF_FILE);
 }
 
 
 void ha_blackhole::position(const uchar *record)
 {
   DBUG_ENTER("ha_blackhole::position");
-  DBUG_ASSERT(0);
+  bzero(ref, ref_length);
   DBUG_VOID_RETURN;
 }
 

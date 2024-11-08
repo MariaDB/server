@@ -58,19 +58,15 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
   uchar *pos;
   uchar *start;
   reg1 HA_KEYSEG *keyseg;
-  my_bool is_ft= info->s->keyinfo[keynr].flag & HA_FULLTEXT;
+  my_bool is_ft= info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_FULLTEXT;
   DBUG_ENTER("_mi_make_key");
 
-  if (info->s->keyinfo[keynr].flag & HA_SPATIAL)
+  if (info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_RTREE)
   {
     /*
       TODO: nulls processing
     */
-#ifdef HAVE_SPATIAL
     DBUG_RETURN(sp_make_key(info,keynr,key,record,filepos));
-#else
-    DBUG_ASSERT(0); /* mi_open should check that this never happens*/
-#endif
   }
 
   start=key;
@@ -158,9 +154,7 @@ uint _mi_make_key(register MI_INFO *info, uint keynr, uchar *key,
     {						/* Numerical column */
       if (type == HA_KEYTYPE_FLOAT)
       {
-	float nr;
-	float4get(nr,pos);
-	if (isnan(nr))
+	if (isnan(get_float(pos)))
 	{
 	  /* Replace NAN with zero */
 	  bzero(key,length);
@@ -225,7 +219,7 @@ uint _mi_pack_key(register MI_INFO *info, uint keynr, uchar *key, uchar *old,
 {
   uchar *start_key=key;
   HA_KEYSEG *keyseg;
-  my_bool is_ft= info->s->keyinfo[keynr].flag & HA_FULLTEXT;
+  my_bool is_ft= info->s->keyinfo[keynr].key_alg == HA_KEY_ALG_FULLTEXT;
   DBUG_ENTER("_mi_pack_key");
 
   /* "one part" rtree key is 2*SPDIMS part key in MyISAM */

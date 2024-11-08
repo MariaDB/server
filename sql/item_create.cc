@@ -36,6 +36,7 @@
 #include "sp.h"
 #include "sql_time.h"
 #include "sql_type_geom.h"
+#include "item_vectorfunc.h"
 #include <mysql/plugin_function.h>
 
 
@@ -49,9 +50,7 @@ get_native_fct_hash_key(const uchar *buff, size_t *length,
 }
 
 
-#ifdef HAVE_SPATIAL
 extern Native_func_registry_array native_func_registry_array_geom;
-#endif
 
 
 /*
@@ -6235,6 +6234,71 @@ Create_func_year_week::create_native(THD *thd, const LEX_CSTRING *name,
   return func;
 }
 
+
+class Create_func_vec_distance_euclidean: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root) Item_func_vec_distance_euclidean(thd, arg1, arg2); }
+
+  static Create_func_vec_distance_euclidean s_singleton;
+
+protected:
+  Create_func_vec_distance_euclidean() = default;
+  virtual ~Create_func_vec_distance_euclidean() = default;
+};
+
+Create_func_vec_distance_euclidean Create_func_vec_distance_euclidean::s_singleton;
+
+
+class Create_func_vec_distance_cosine: public Create_func_arg2
+{
+public:
+  Item *create_2_arg(THD *thd, Item *arg1, Item *arg2) override
+  { return new (thd->mem_root) Item_func_vec_distance_cosine(thd, arg1, arg2); }
+
+  static Create_func_vec_distance_cosine s_singleton;
+
+protected:
+  Create_func_vec_distance_cosine() = default;
+  virtual ~Create_func_vec_distance_cosine() = default;
+};
+
+Create_func_vec_distance_cosine Create_func_vec_distance_cosine::s_singleton;
+
+class Create_func_vec_totext: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_totext(thd, arg1); }
+
+  static Create_func_vec_totext s_singleton;
+
+protected:
+  Create_func_vec_totext() = default;
+  virtual ~Create_func_vec_totext() = default;
+};
+
+
+Create_func_vec_totext Create_func_vec_totext::s_singleton;
+
+
+class Create_func_vec_fromtext: public Create_func_arg1
+{
+public:
+  Item *create_1_arg(THD *thd, Item *arg1) override
+  { return new (thd->mem_root) Item_func_vec_fromtext(thd, arg1); }
+
+  static Create_func_vec_fromtext s_singleton;
+
+protected:
+  Create_func_vec_fromtext() = default;
+  virtual ~Create_func_vec_fromtext() = default;
+};
+
+Create_func_vec_fromtext Create_func_vec_fromtext::s_singleton;
+
+
 #define BUILDER(F) & F::s_singleton
 
 /*
@@ -6461,6 +6525,10 @@ const Native_func_registry func_array[] =
   { { STRING_WITH_LEN("UPDATEXML") }, BUILDER(Create_func_xml_update)},
   { { STRING_WITH_LEN("UPPER") }, BUILDER(Create_func_ucase)},
   { { STRING_WITH_LEN("UUID_SHORT") }, BUILDER(Create_func_uuid_short)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_EUCLIDEAN") }, BUILDER(Create_func_vec_distance_euclidean)},
+  { { STRING_WITH_LEN("VEC_DISTANCE_COSINE") }, BUILDER(Create_func_vec_distance_cosine)},
+  { { STRING_WITH_LEN("VEC_FROMTEXT") }, BUILDER(Create_func_vec_fromtext)},
+  { { STRING_WITH_LEN("VEC_TOTEXT") }, BUILDER(Create_func_vec_totext)},
   { { STRING_WITH_LEN("VERSION") }, BUILDER(Create_func_version)},
   { { STRING_WITH_LEN("WEEK") }, BUILDER(Create_func_week)},
   { { STRING_WITH_LEN("WEEKDAY") }, BUILDER(Create_func_weekday)},
@@ -6611,20 +6679,16 @@ Native_functions_hash::find(THD *thd, const LEX_CSTRING &name) const
 int item_create_init()
 {
   size_t count= native_func_registry_array.count();
-#ifdef HAVE_SPATIAL
   count+= native_func_registry_array_geom.count();
-#endif
 
   if (native_functions_hash.init(count) ||
       native_functions_hash.append(native_func_registry_array.elements(),
                                    native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash.append(native_func_registry_array_geom.elements(),
                                    native_func_registry_array_geom.count()))
     return true;
-#endif
 
   count+= oracle_func_registry_array.count();
 
@@ -6633,11 +6697,9 @@ int item_create_init()
                                           native_func_registry_array.count()))
     return true;
 
-#ifdef HAVE_SPATIAL
   if (native_functions_hash_oracle.append(native_func_registry_array_geom.elements(),
                                           native_func_registry_array_geom.count()))
     return true;
-#endif
 
   return 
     native_functions_hash_oracle.replace(oracle_func_registry_array.elements(),

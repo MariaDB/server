@@ -21,6 +21,7 @@ call mtr.add_suppression("InnoDB: Tablespace .* was not found at.*bug16735660");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted*");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 call mtr.add_suppression("Table .*bug16720368.* is corrupted");
 -- enable_query_log
 

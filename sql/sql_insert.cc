@@ -935,6 +935,13 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (duplic == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
+
+  thd->abort_on_warning= !ignore && thd->is_strict_mode();
+
+  table->reset_default_fields();
+  table->prepare_triggers_for_insert_stmt_or_event();
+  table->mark_columns_needed_for_insert();
+
   /*
     let's *try* to start bulk inserts. It won't necessary
     start them as values_list.elements should be greater than
@@ -951,7 +958,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   if (lock_type != TL_WRITE_DELAYED)
 #endif /* EMBEDDED_LIBRARY */
   {
-    bool create_lookup_handler= duplic != DUP_ERROR;
+    bool create_lookup_handler= false;
     if (duplic != DUP_ERROR || ignore)
     {
       create_lookup_handler= true;
@@ -962,7 +969,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
           goto abort;
       }
     }
-    table->file->prepare_for_insert(create_lookup_handler);
+    if (table->file->prepare_for_modify(true, create_lookup_handler))
+      goto abort;
     /**
       This is a simple check for the case when the table has a trigger
       that reads from it, or when the statement invokes a stored function
@@ -979,12 +987,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     else
       table->file->ha_reset_copy_info();
   }
-
-  thd->abort_on_warning= !ignore && thd->is_strict_mode();
-
-  table->reset_default_fields();
-  table->prepare_triggers_for_insert_stmt_or_event();
-  table->mark_columns_needed_for_insert();
 
   if (fields.elements || !value_count || table_list->view != 0)
   {
@@ -3681,7 +3683,7 @@ bool Delayed_insert::handle_inserts(void)
     handler_writes() will not have called decide_logging_format.
   */
   table->file->prepare_for_row_logging();
-  table->file->prepare_for_insert(1);
+  table->file->prepare_for_modify(true, true);
   using_bin_log= table->file->row_logging;
 
   /*
@@ -4191,7 +4193,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
 #endif
 
   thd->cuted_fields=0;
-  bool create_lookup_handler= info.handle_duplicates != DUP_ERROR;
+  bool create_lookup_handler= false;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     create_lookup_handler= true;
@@ -4202,7 +4204,7 @@ select_insert::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
         DBUG_RETURN(1);
     }
   }
-  table->file->prepare_for_insert(create_lookup_handler);
+  table->file->prepare_for_modify(true, create_lookup_handler);
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
@@ -4371,12 +4373,8 @@ bool select_insert::prepare_eof()
   DBUG_PRINT("enter", ("trans_table: %d, table_type: '%s'",
                        trans_table, table->file->table_type()));
 
-#ifdef WITH_WSREP
-  error= (thd->wsrep_cs().current_error()) ? -1 :
+  error= IF_WSREP(thd->wsrep_cs().current_error(), 0) ? -1 :
     (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
-#else
-    error= (thd->locked_tables_mode <= LTM_LOCK_TABLES) ?
-#endif /* WITH_WSREP */
     table->file->ha_end_bulk_insert() : 0;
 
   if (likely(!error) && unlikely(thd->is_error()))
@@ -4643,7 +4641,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
 
   tmp_table.reset();
   tmp_table.s= &share;
-  init_tmp_table_share(thd, &share, "", 0, "", "");
+  init_tmp_table_share(thd, &share, "", 0, "", "", true);
   tmp_table.in_use= thd;
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
@@ -4762,7 +4760,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       {
         quick_rm_table(thd, create_info->db_type, &table_list->db,
                        table_case_name(create_info, &table_list->table_name),
-                       0);
+                       QRMT_DEFAULT);
       }
       /* Restore */
       table_list->open_strategy= save_open_strategy;
@@ -4977,7 +4975,7 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
 
   restore_record(table,s->default_values);      // Get empty record
   thd->cuted_fields=0;
-  bool create_lookup_handler= info.handle_duplicates != DUP_ERROR;
+  bool create_lookup_handler= false;
   if (info.ignore || info.handle_duplicates != DUP_ERROR)
   {
     create_lookup_handler= true;
@@ -4988,14 +4986,14 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
         DBUG_RETURN(1);
     }
   }
-  table->file->prepare_for_insert(create_lookup_handler);
+  table->file->prepare_for_modify(true, create_lookup_handler);
   if (info.handle_duplicates == DUP_REPLACE &&
       (!table->triggers || !table->triggers->has_delete_triggers()))
     table->file->extra(HA_EXTRA_WRITE_CAN_REPLACE);
   if (info.handle_duplicates == DUP_UPDATE)
     table->file->extra(HA_EXTRA_INSERT_WITH_UPDATE);
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
-      !table->s->long_unique_table)
+      !table->s->long_unique_table && !table->s->hlindexes())
   {
     table->file->ha_start_bulk_insert((ha_rows) 0);
     if (thd->lex->duplicates == DUP_ERROR && !thd->lex->ignore)

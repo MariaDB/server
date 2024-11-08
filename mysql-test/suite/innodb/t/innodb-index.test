@@ -1235,6 +1235,7 @@ call mtr.add_suppression("InnoDB: Tablespace .* was not found at .*t[12].ibd.");
 call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
+call mtr.add_suppression("Fewer engines are enabled now than were before the crash");
 
 --enable_query_log
 --source include/test_db_charset_restore.inc

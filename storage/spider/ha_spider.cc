@@ -14,10 +14,6 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation
-#endif
-
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
@@ -5819,8 +5815,8 @@ const char *ha_spider::index_type(
   DBUG_PRINT("info",("spider flags=%ld", key_info->flags));
   DBUG_PRINT("info",("spider algorithm=%d", key_info->algorithm));
   DBUG_RETURN(
-    (key_info->flags & HA_FULLTEXT) ? "FULLTEXT" :
-    (key_info->flags & HA_SPATIAL) ? "SPATIAL" :
+    (key_info->algorithm == HA_KEY_ALG_FULLTEXT) ? "FULLTEXT" :
+    (key_info->algorithm == HA_KEY_ALG_RTREE) ? "SPATIAL" :
     (key_info->algorithm == HA_KEY_ALG_HASH) ? "HASH" :
     (key_info->algorithm == HA_KEY_ALG_RTREE) ? "RTREE" :
     "BTREE"

@@ -14,10 +14,6 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation  // gcc: Class implementation
-#endif
-
 #define MYSQL_SERVER 1
 
 /* For use of 'PRIu64': */
@@ -768,17 +764,13 @@ static std::shared_ptr<rocksdb::RateLimiter> rocksdb_rate_limiter;
 static const char *write_policy_names[] = {"write_committed", "write_prepared",
                                            "write_unprepared", NullS};
 
-static TYPELIB write_policy_typelib = {array_elements(write_policy_names) - 1,
-                                       "write_policy_typelib",
-                                       write_policy_names, nullptr};
+static TYPELIB write_policy_typelib = CREATE_TYPELIB_FOR(write_policy_names);
 
 #if 0 // MARIAROCKS_NOT_YET : read-free replication is not supported
 /* This array needs to be kept up to date with myrocks::read_free_rpl_type */
 static const char *read_free_rpl_names[] = {"OFF", "PK_ONLY", "PK_SK", NullS};
 
-static TYPELIB read_free_rpl_typelib = {array_elements(read_free_rpl_names) - 1,
-                                        "read_free_rpl_typelib",
-                                        read_free_rpl_names, nullptr};
+static TYPELIB read_free_rpl_typelib = CREATE_TYPELIB_FOR(read_free_rpl_names);
 #endif
 
 /* This enum needs to be kept up to date with rocksdb::InfoLogLevel */
@@ -786,9 +778,7 @@ static const char *info_log_level_names[] = {"debug_level", "info_level",
                                              "warn_level",  "error_level",
                                              "fatal_level", NullS};
 
-static TYPELIB info_log_level_typelib = {
-    array_elements(info_log_level_names) - 1, "info_log_level_typelib",
-    info_log_level_names, nullptr};
+static TYPELIB info_log_level_typelib = CREATE_TYPELIB_FOR(info_log_level_names);
 
 static void rocksdb_set_rocksdb_info_log_level(
     THD *const thd, struct st_mysql_sys_var *const var, void *const var_ptr,
@@ -903,9 +893,7 @@ static int rocksdb_compact_column_family(THD *const thd,
 
 static const char *index_type_names[] = {"kBinarySearch", "kHashSearch", NullS};
 
-static TYPELIB index_type_typelib = {array_elements(index_type_names) - 1,
-                                     "index_type_typelib", index_type_names,
-                                     nullptr};
+static TYPELIB index_type_typelib = CREATE_TYPELIB_FOR(index_type_names);
 
 const ulong RDB_MAX_LOCK_WAIT_SECONDS = 1024 * 1024 * 1024;
 const ulong RDB_DEFAULT_MAX_ROW_LOCKS = 1024 * 1024;
@@ -3810,7 +3798,7 @@ static Rdb_transaction *get_or_create_tx(THD *const thd) {
   return tx;
 }
 
-static int rocksdb_close_connection(handlerton *const hton, THD *const thd) {
+static int rocksdb_close_connection(THD *const thd) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   if (tx != nullptr) {
     bool is_critical_error;
@@ -3888,7 +3876,7 @@ static bool rocksdb_flush_wal(handlerton* hton __attribute__((__unused__)))
   For a slave, prepare() updates the slave_gtid_info table which tracks the
   replication progress.
 */
-static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
+static int rocksdb_prepare(THD* thd, bool prepare_tx)
 {
   bool async=false; // This is "ASYNC_COMMIT" feature which is only present in webscalesql
 
@@ -3972,10 +3960,9 @@ static int rocksdb_prepare(handlerton* hton, THD* thd, bool prepare_tx)
  do nothing for prepare/commit by xid
  this is needed to avoid crashes in XA scenarios
 */
-static int rocksdb_commit_by_xid(handlerton *const hton, XID *const xid) {
+static int rocksdb_commit_by_xid(XID *const xid) {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
@@ -4005,11 +3992,9 @@ static int rocksdb_commit_by_xid(handlerton *const hton, XID *const xid) {
   DBUG_RETURN(HA_EXIT_SUCCESS);
 }
 
-static int rocksdb_rollback_by_xid(
-    handlerton *const hton MY_ATTRIBUTE((__unused__)), XID *const xid) {
+static int rocksdb_rollback_by_xid(XID *const xid) {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(xid != nullptr);
   DBUG_ASSERT(rdb != nullptr);
 
@@ -4061,7 +4046,7 @@ static void rdb_xid_from_string(const std::string &src, XID *const dst) {
   Reading last committed binary log info from RocksDB system row.
   The info is needed for crash safe slave/master to work.
 */
-static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
+static int rocksdb_recover(XID* xid_list, uint len)
 #ifdef MARIAROCKS_NOT_YET
                            char* const binlog_file,
                            my_off_t *const binlog_pos,
@@ -4140,7 +4125,7 @@ static void rocksdb_checkpoint_request(void *cookie)
   @param all:   TRUE - commit the transaction
                 FALSE - SQL statement ended
 */
-static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
+static void rocksdb_commit_ordered(THD* thd, bool all)
 {
   // Same assert as InnoDB has
   DBUG_ASSERT(all || (!thd_test_options(thd, OPTION_NOT_AUTOCOMMIT |
@@ -4166,11 +4151,10 @@ static void rocksdb_commit_ordered(handlerton *hton, THD* thd, bool all)
 }
 
 
-static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
+static int rocksdb_commit(THD* thd, bool commit_tx)
 {
   DBUG_ENTER_FUNC();
 
-  DBUG_ASSERT(hton != nullptr);
   DBUG_ASSERT(thd != nullptr);
   DBUG_ASSERT(commit_latency_stats != nullptr);
 
@@ -4248,8 +4232,7 @@ static int rocksdb_commit(handlerton* hton, THD* thd, bool commit_tx)
 }
 
 
-static int rocksdb_rollback(handlerton *const hton, THD *const thd,
-                            bool rollback_tx) {
+static int rocksdb_rollback(THD *const thd, bool rollback_tx) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   Rdb_perf_context_guard guard(tx, rocksdb_perf_context_level(thd));
 
@@ -4887,7 +4870,6 @@ static bool rocksdb_explicit_snapshot(
     InnoDB and RocksDB transactions.
 */
 static int rocksdb_start_tx_and_assign_read_view(
-    handlerton *const hton,    /*!< in: RocksDB handlerton */
     THD *const thd             /*!< in: MySQL thread handle of the
                                user for whom the transaction should
                                be committed */
@@ -4930,7 +4912,7 @@ static int rocksdb_start_tx_and_assign_read_view(
 
   DBUG_ASSERT(!tx->has_snapshot());
   tx->set_tx_read_only(true);
-  rocksdb_register_tx(hton, thd, tx);
+  rocksdb_register_tx(rocksdb_hton, thd, tx);
   tx->acquire_snapshot(true);
 
 #ifdef MARIADB_NOT_YET
@@ -5038,19 +5020,16 @@ static int rocksdb_start_tx_with_shared_read_view(
  * Current SAVEPOINT does not correctly handle ROLLBACK and does not return
  * errors. This needs to be addressed in future versions (Issue#96).
  */
-static int rocksdb_savepoint(handlerton *const hton, THD *const thd,
-                             void *const savepoint) {
+static int rocksdb_savepoint(THD *const thd, void *const savepoint) {
   return HA_EXIT_SUCCESS;
 }
 
-static int rocksdb_rollback_to_savepoint(handlerton *const hton, THD *const thd,
-                                         void *const savepoint) {
+static int rocksdb_rollback_to_savepoint(THD *const thd, void *const savepoint) {
   Rdb_transaction *tx = get_tx_from_thd(thd);
   return tx->rollback_to_savepoint(savepoint);
 }
 
-static bool rocksdb_rollback_to_savepoint_can_release_mdl(
-    handlerton *const /* hton */, THD *const /* thd */) {
+static bool rocksdb_rollback_to_savepoint_can_release_mdl(THD *const) {
   return true;
 }
 
@@ -7847,6 +7826,12 @@ int ha_rocksdb::create(const char *const name, TABLE *const table_arg,
 
   DBUG_ASSERT(table_arg != nullptr);
   DBUG_ASSERT(create_info != nullptr);
+
+  if (table_arg->s->total_keys > table_arg->s->keys)
+  {
+    my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), "RocksDB", "VECTOR");
+    DBUG_RETURN(HA_ERR_UNSUPPORTED);
+  }
 
   if (create_info->data_file_name) {
     // DATA DIRECTORY is used to create tables under a specific location

@@ -380,10 +380,6 @@
 #include "sql_analyse.h"         // append_escaped
 #include <mysql/plugin.h>
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation                          // gcc: Class implementation
-#endif
-
 #include "ha_federated.h"
 
 #include "m_string.h"
@@ -396,6 +392,8 @@
 #else
 #define MIN_PORT 0
 #endif
+
+static handlerton *federated_hton;
 
 /* Variables for federated share methods */
 static HASH federated_open_tables;              // To track open tables
@@ -415,8 +413,8 @@ static const uint sizeof_trailing_where= sizeof(" WHERE ") - 1;
 static handler *federated_create_handler(handlerton *hton,
                                          TABLE_SHARE *table,
                                          MEM_ROOT *mem_root);
-static int federated_commit(handlerton *hton, THD *thd, bool all);
-static int federated_rollback(handlerton *hton, THD *thd, bool all);
+static int federated_commit(THD *thd, bool all);
+static int federated_rollback(THD *thd, bool all);
 
 /* Federated storage engine handlerton */
 
@@ -493,7 +491,7 @@ int federated_db_init(void *p)
   init_federated_psi_keys();
 #endif /* HAVE_PSI_INTERFACE */
 
-  handlerton *federated_hton= (handlerton *)p;
+  federated_hton= (handlerton *)p;
   federated_hton->db_type= DB_TYPE_FEDERATED_DB;
   federated_hton->commit= federated_commit;
   federated_hton->rollback= federated_rollback;
@@ -3311,10 +3309,10 @@ int ha_federated::external_lock(THD *thd, int lock_type)
 }
 
 
-static int federated_commit(handlerton *hton, THD *thd, bool all)
+static int federated_commit(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *) thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_commit");
 
   if (all)
@@ -3329,7 +3327,7 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));
@@ -3337,10 +3335,10 @@ static int federated_commit(handlerton *hton, THD *thd, bool all)
 }
 
 
-static int federated_rollback(handlerton *hton, THD *thd, bool all)
+static int federated_rollback(THD *thd, bool all)
 {
   int return_val= 0;
-  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, hton);
+  ha_federated *trx= (ha_federated *)thd_get_ha_data(thd, federated_hton);
   DBUG_ENTER("federated_rollback");
 
   if (all)
@@ -3355,7 +3353,7 @@ static int federated_rollback(handlerton *hton, THD *thd, bool all)
       if (error && !return_val)
         return_val= error;
     }
-    thd_set_ha_data(thd, hton, NULL);
+    thd_set_ha_data(thd, federated_hton, NULL);
   }
 
   DBUG_PRINT("info", ("error val: %d", return_val));

@@ -80,13 +80,7 @@ unsigned int binlog_checksum_type_length[]= {
   0
 };
 
-TYPELIB binlog_checksum_typelib=
-{
-  array_elements(binlog_checksum_type_names) - 1, "",
-  binlog_checksum_type_names,
-  binlog_checksum_type_length
-};
-
+TYPELIB binlog_checksum_typelib= CREATE_TYPELIB_FOR(binlog_checksum_type_names);
 
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
@@ -1643,7 +1637,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     sql_parse.cc
     */
 
-#if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
+#if !defined(MYSQL_CLIENT)
   if (!(start= data_buf= (Log_event::Byte*) my_malloc(PSI_INSTRUMENT_ME,
                                                        catalog_len + 1
                                                     +  time_zone_len + 1
@@ -1738,7 +1732,7 @@ Query_log_event::Query_log_event(const uchar *buf, uint event_len,
     Append the db length at the end of the buffer. This will be used by
     Query_cache::send_result_to_client() in case the query cache is On.
    */
-#if !defined(MYSQL_CLIENT) && defined(HAVE_QUERY_CACHE)
+#if !defined(MYSQL_CLIENT)
   size_t db_length= (size_t)db_len;
   memcpy(start + data_len + 1, &db_length, sizeof(size_t));
 #endif
@@ -3524,8 +3518,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
 #ifdef MYSQL_SERVER
   if (!m_table)
     DBUG_VOID_RETURN;
-  binlog_type_info_array= (Binlog_type_info *)thd->alloc(m_table->s->fields *
-                                                         sizeof(Binlog_type_info));
+  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 #endif

@@ -62,10 +62,6 @@
 #include "sql_select.h"
 #include "transaction.h"
 
-#ifdef USE_PRAGMA_IMPLEMENTATION
-#pragma implementation				// gcc: Class implementation
-#endif
-
 #define HANDLER_TABLES_HASH_SIZE 120
 
 static enum enum_ha_read_modes rkey_to_rnext[]=
@@ -660,7 +656,10 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
     }
 
     const KEY *c_key= table->s->key_info + handler->keyno;
-    if (c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+
+    if (c_key->algorithm == HA_KEY_ALG_RTREE ||
+        c_key->algorithm == HA_KEY_ALG_FULLTEXT ||
+        c_key->algorithm == HA_KEY_ALG_VECTOR ||
         (ha_rkey_mode != HA_READ_KEY_EXACT &&
          (table->key_info[handler->keyno].index_flags &
           (HA_READ_NEXT | HA_READ_PREV | HA_READ_RANGE)) == 0))
@@ -953,7 +952,7 @@ retry:
     {
       DBUG_ASSERT(keyname != 0);
 
-      if (unlikely(!(key= (uchar*) thd->calloc(ALIGN_SIZE(handler->key_len)))))
+      if (unlikely(!(key= thd->calloc<uchar>(ALIGN_SIZE(handler->key_len)))))
 	goto err;
       if (unlikely((error= table->file->ha_index_or_rnd_end())))
         break;

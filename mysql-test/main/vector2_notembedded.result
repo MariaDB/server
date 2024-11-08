@@ -1,0 +1,115 @@
+#
+# mysqldump
+#
+create table t1 (id int auto_increment primary key, v vector(5) not null, vector index (v));
+insert t1 (v) values (Vec_Fromtext('[0.418,0.809,0.823,0.598,0.033]')),
+(Vec_Fromtext('[0.687,0.789,0.496,0.574,0.917]')),
+(Vec_Fromtext('[0.333,0.962,0.467,0.448,0.475]')),
+(Vec_Fromtext('[0.822,0.185,0.683,0.211,0.554]')),
+(Vec_Fromtext('[0.437,0.167,0.077,0.428,0.241]')),
+(Vec_Fromtext('[0.769,0.926,0.803,0.015,0.589]')),
+(Vec_Fromtext('[0.493,0.641,0.761,0.942,0.425]')),
+(Vec_Fromtext('[0.924,0.275,0.054,0.073,0.136]')),
+(Vec_Fromtext('[0.186,0.696,0.035,0.668,0.847]')),
+(Vec_Fromtext('[0.415,0.609,0.426,0.988,0.475]'));
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+id
+8
+5
+4
+/*M!999999\- enable the sandbox mode */ 
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+INSERT INTO `t1` VALUES
+(1,0x1904D63EA01A4F3F21B0523F8716193F022B073D),
+(2,0x3BDF2F3FE7FB493FB6F3FD3EAAF1123F83C06A3F),
+(3,0xFA7EAA3EA245763FA01AEF3E4260E53E3333F33E),
+(4,0x986E523FA4703D3E17D92E3F6210583EF2D20D3F),
+(5,0x77BEDF3E0C022B3E2DB29D3DD122DB3EB4C8763E),
+(6,0x2FDD443F560E6D3F68914D3F8FC2753CB4C8163F),
+(7,0x7F6AFC3E9318243FE5D0423FE926713F9A99D93E),
+(8,0x448B6C3FCDCC8C3E1B2F5D3D0681953D96430B3E),
+(9,0xC9763E3E0E2D323F295C0F3D0C022B3FFED4583F),
+(10,0xE17AD43E6DE71B3FAC1CDA3E91ED7C3F3333F33E);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `v` vector(5) NOT NULL,
+  PRIMARY KEY (`id`),
+  VECTOR KEY `v` (`v`)
+) ENGINE=MyISAM AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci
+select id, Vec_ToText(v) from t1;
+id	Vec_ToText(v)
+1	[0.418,0.809,0.823,0.598,0.033]
+2	[0.687,0.789,0.496,0.574,0.917]
+3	[0.333,0.962,0.467,0.448,0.475]
+4	[0.822,0.185,0.683,0.211,0.554]
+5	[0.437,0.167,0.077,0.428,0.241]
+6	[0.769,0.926,0.803,0.015,0.589]
+7	[0.493,0.641,0.761,0.942,0.425]
+8	[0.924,0.275,0.054,0.073,0.136]
+9	[0.186,0.696,0.035,0.668,0.847]
+10	[0.415,0.609,0.426,0.988,0.475]
+select id from t1 order by vec_distance_euclidean(v, Vec_FromText('[1,0,0,0,0]')) limit 3;
+id
+8
+5
+4
+drop table t1;
+#
+# MDEV-35044 ALTER on a table with vector index attempts to bypass unsupported locking limitation, server crashes in THD::free_tmp_table_share
+#
+create table t (a int primary key, v vector(10) not null, vector index(v));
+alter table t modify a int auto_increment, lock=none;
+ERROR 0A000: LOCK=NONE is not supported. Reason: CHANGE COLUMN ... AUTO_INCREMENT. Try LOCK=SHARED
+drop table t;
+#
+# MDEV-35061 XA PREPARE "not supported by the engine" from storage engine mhnsw, memory leak
+#
+create table t1 (v vector(1) not null, vector(v)) engine=innodb;
+insert into t1 select 0x00000000 as v from seq_1_to_1000;
+connect con1,localhost,root;
+alter table t1 add column x int, algorithm=copy;;
+connection default;
+xa start 'x';
+select * from non_existing_table;
+ERROR 42S02: Table 'test.non_existing_table' doesn't exist
+delete from t1;
+xa end 'x';
+xa prepare 'x';
+ERROR HY000: Got error 138 "Unsupported extension used for table" from storage engine mhnsw
+connection con1;
+disconnect con1;
+connection default;
+drop table t1;
+#
+# MDEV-35223 REPAIR does not fix MyISAM table with vector key after crash recovery
+#
+call mtr.add_suppression('t#i#00'' is marked as crashed and should be repaired');
+create table t (v vector(1) not null, vector(v)) engine=myisam;
+insert into t (v) values (0x30303030),(0x31313131);
+# restart
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	warning	1 client is using or hasn't closed the table properly
+test.t	check	Error	Table './test/t#i#00' is marked as crashed and should be repaired
+test.t	check	status	Operation failed
+repair table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	repair	note	Table does not support optimize, doing recreate + analyze instead
+test.t	repair	status	OK
+check table t extended;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+select v from t order by vec_distance_euclidean(0x323233232,v) limit 1;
+v
+0000
+drop table t;

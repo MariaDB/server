@@ -958,7 +958,7 @@ update_begin:
   can_compare_record= records_are_comparable(table);
   explain->tracker.on_scan_init();
 
-  table->file->prepare_for_insert(1);
+  table->file->prepare_for_modify(true, true);
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
@@ -1895,7 +1895,7 @@ int multi_update::prepare(List<Item> &not_used_values,
       table->read_set= &table->def_read_set;
       bitmap_union(table->read_set, &table->tmp_set);
       if (!(thd->lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE))
-        table->file->prepare_for_insert(1);
+        table->file->prepare_for_modify(true, true);
     }
   }
   if (unlikely(error))
@@ -1934,13 +1934,10 @@ int multi_update::prepare(List<Item> &not_used_values,
   table_count=  update.elements;
   update_tables= update.first;
 
-  tmp_tables = (TABLE**) thd->calloc(sizeof(TABLE *) * table_count);
-  tmp_table_param = (TMP_TABLE_PARAM*) thd->calloc(sizeof(TMP_TABLE_PARAM) *
-						   table_count);
-  fields_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
-					      table_count);
-  values_for_table= (List_item **) thd->alloc(sizeof(List_item *) *
-					      table_count);
+  tmp_tables = thd->calloc<TABLE*>(table_count);
+  tmp_table_param = thd->calloc<TMP_TABLE_PARAM>(table_count);
+  fields_for_table= thd->alloc<List_item*>(table_count);
+  values_for_table= thd->alloc<List_item*>(table_count);
   if (unlikely(thd->is_fatal_error))
     DBUG_RETURN(1);
   for (i=0 ; i < table_count ; i++)
