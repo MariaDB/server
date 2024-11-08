@@ -464,13 +464,13 @@ ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint '
 set @@sql_mode = @old_sql_mode;
 SET FOREIGN_KEY_CHECKS=0;
 alter table t2 DROP COLUMN b, ALGORITHM=COPY;
-ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
+ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'b'
 alter table t2 DROP COLUMN b;
-ERROR 42000: Incorrect foreign key definition for 'b': foreign field not found
+ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'b'
 alter table t1 DROP COLUMN b, ALGORITHM=COPY;
 ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'b' of table `test`.`t2`
 alter table t1 DROP COLUMN b;
-ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'test/b' of table `test`.`t2`
+ERROR HY000: Cannot drop column 'b': needed in a foreign key constraint 'b' of table `test`.`t2`
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
 create unique index dc on t2 (d,c);
 affected rows: 0
@@ -481,10 +481,10 @@ info: Records: 0  Duplicates: 0  Warnings: 0
 set @@sql_mode = 'STRICT_TRANS_TABLES';
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int not null, change c charlie int not null;
-ERROR HY000: Column 'b' cannot be NOT NULL: needed in a foreign key constraint 'b' SET NULL
+ERROR HY000: Column 'beta' cannot be NOT NULL: needed in a foreign key constraint 'b' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change c charlie int not null, change d delta int not null;
-ERROR HY000: Column 'd' cannot be NOT NULL: needed in a foreign key constraint 'd' SET NULL
+ERROR HY000: Column 'delta' cannot be NOT NULL: needed in a foreign key constraint 'd' SET NULL
 alter table t2 add primary key (alpha), change a alpha int,
 change b beta int, modify c int not null;
 affected rows: 0

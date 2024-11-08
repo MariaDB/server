@@ -19,6 +19,8 @@
 
 #include "sql_class.h"
 #include "table_cache.h"
+#include <utility>
+
 
 class Alter_drop;
 class Alter_column;
@@ -415,6 +417,7 @@ public:
     this->new_db= *db;
     this->tmp_name= *table_name;
     this->new_name= *table_name;
+    table= NULL;
   }
 
   /**
@@ -509,6 +512,7 @@ public:
   // TODO: remove key_info_buffer, key_count args from mysql_prepare_create_table(), etc
   KEY          *key_info;
   uint         keys;
+  TABLE        *table;
 
   /**
     Indicates that if a row is deleted during copying of data from old version
@@ -554,6 +558,19 @@ public:
     Table_name ref;
     const FK_info *fk;
   };
+  struct FK_null_changes
+  {
+    const FK_info *fk;
+    Table_name table;
+    typedef std::pair<Lex_ident_column *, Lex_ident_column *> column_pair_t;
+    /* Pair of columns: (col from this table, col from another table) */
+    typedef mbd::vector<column_pair_t> column_list;
+    column_list columns;
+  };
+  // NB: vector simplifies memory management, for the data sizes of ALTER TABLE input
+  // it is acceptable.
+  typedef mbd::vector<FK_null_changes> FK_nullchg_list;
+
   mbd::vector<FK_add_new> fk_added; /* can contain self-refs */
   /*
     These five contain only non-self-refs. They are used to update info in
@@ -565,6 +582,8 @@ public:
   mbd::vector<FK_drop_old> fk_dropped;
   mbd::vector<Table_name> fk_renamed_table;
   mbd::vector<Table_name> rk_renamed_table;
+  FK_nullchg_list fk_null_changes;
+  FK_nullchg_list rk_null_changes;
   /** FK list prepared by prepare_create_table() */
   FK_list            foreign_keys;
   /** RK list inherited from old table + self-refs from prepare_create_table() */
@@ -574,6 +593,7 @@ public:
 
   bool fk_prepare_rename(THD *thd, TABLE *table, Create_field *def,
                          mbd::set<FK_table_to_lock> &fk_tables_to_lock);
+  TABLE_SHARE *fk_get_share(const FK_null_changes &null_changes, bool &not_found);
   bool fk_handle_alter(THD *thd);
   void fk_release_locks(THD *thd);
 

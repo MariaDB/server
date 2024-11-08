@@ -1521,68 +1521,6 @@ struct dict_foreign_t
   static constexpr unsigned UPDATE_SET_NULL= 8U;
   static constexpr unsigned DELETE_NO_ACTION= 16U;
   static constexpr unsigned UPDATE_NO_ACTION= 32U;
-private:
-  /** Check whether the name exists in given column names
-  @retval offset or UINT_MAX if name not found */
-  unsigned col_exists(const char *name, const char **names) const noexcept
-  {
-    for (unsigned i= 0; i < n_fields; i++)
-    {
-      if (!strcmp(names[i], name))
-        return i;
-    }
-    return UINT_MAX;
-  }
-
-public:
-  /** Check whether the name exists in the foreign key column names
-  @retval offset in case of success
-  @retval UINT_MAX in case of failure */
-  unsigned col_fk_exists(const char *name) const noexcept
-  {
-    return col_exists(name, foreign_col_names);
-  }
-
-  /** Check whether the name exists in the referenced
-  key column names
-  @retval offset in case of success
-  @retval UINT_MAX in case of failure */
-  unsigned col_ref_exists(const char *name) const noexcept
-  {
-    return col_exists(name, referenced_col_names);
-  }
-
-  /** Check whether the foreign key constraint depends on
-  the nullability of the referenced column to be modified
-  @param name column to be modified
-  @return true in case of no conflict or false */
-  bool on_update_cascade_not_null(const char *name) const noexcept
-  {
-    if (!foreign_index || type != UPDATE_CASCADE)
-      return false;
-    unsigned offset= col_ref_exists(name);
-    if (offset == UINT_MAX)
-      return false;
-
-    ut_ad(offset < n_fields);
-    return foreign_index->fields[offset].col->prtype & DATA_NOT_NULL;
-  }
-
-  /** Check whether the foreign key constraint depends on
-  the nullability of the foreign column to be modified
-  @param name column to be modified
-  @return true in case of no conflict or false */
-  bool on_update_cascade_null(const char *name) const noexcept
-  {
-    if (!referenced_index || type != UPDATE_CASCADE)
-      return false;
-    unsigned offset= col_fk_exists(name);
-    if (offset == UINT_MAX)
-      return false;
-
-    ut_ad(offset < n_fields);
-    return !(referenced_index->fields[offset].col->prtype & DATA_NOT_NULL);
-  }
 
   /** This is called during CREATE TABLE statement
   to check the foreign key nullability constraint

@@ -518,9 +518,9 @@ drop table t2, t1;
 create or replace table t1 (id int primary key, a int);
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
 alter table t1 drop id;
-ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
+ERROR HY000: Cannot drop column 'id': needed in a foreign key constraint 'fk' of table `test`.`t2`
 alter table t2 drop id;
-ERROR HY000: Missing index for constraint 'fk' in the foreign table 't2'
+ERROR HY000: Cannot drop column 'id': needed in a foreign key constraint 'fk'
 alter table t2 drop foreign key fk, drop index fk;
 drop tables t1, t2;
 # Check drop index
@@ -622,7 +622,7 @@ alter table t1 modify id char(1);
 ERROR HY000: Missing index for constraint 't2.fk' in the referenced table 't1'
 alter table t1 add index (id);
 alter table t1 modify id char(1);
-ERROR HY000: Cannot change column 'id': used in a foreign key constraint 'fk' of table 'test.t2'
+ERROR HY000: Cannot change column 'id': used in a foreign key constraint 'fk' of table '`test`.`t2`'
 set foreign_key_checks= 0;
 alter table t1 drop index id;
 set foreign_key_checks= 1;

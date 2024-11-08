@@ -107,8 +107,8 @@ DROP TABLE t2, t1;
 # allow foreign key constraints when parent table created later
 SET FOREIGN_KEY_CHECKS=0;
 CREATE TABLE t2(f1 INT, FOREIGN KEY(f1) REFERENCES t1(f2) ON UPDATE CASCADE)ENGINE=InnoDB;
-SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE t2 MODIFY COLUMN f1 INT NOT NULL;
+SET FOREIGN_KEY_CHECKS=1;
 CREATE TABLE t1(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
 INSERT INTO t1 VALUES(1, 1);
 INSERT INTO t2 VALUES(1);
@@ -139,6 +139,7 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE `t#2` DROP INDEX f1;
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE `t#1` MODIFY COLUMN f2 INT;
+ERROR HY000: Cannot change column 'f2': used in a foreign key constraint 't#2_ibfk_1' of table 'test.t#2'
 DROP TABLE `t#2`, `t#1`;
 # Drop referenced index and modify column
 CREATE TABLE `t#1`(f1 INT, f2 INT, PRIMARY KEY(f1), KEY(f2))ENGINE=InnoDB;
@@ -147,6 +148,7 @@ SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE `t#1` DROP INDEX f2;
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE `t#2` MODIFY COLUMN f1 INT NOT NULL;
+Got one of the listed errors
 DROP TABLE `t#2`, `t#1`;
 # Self referential modifying column
 CREATE TABLE t1(f1 INT, f2 INT, index(f2), foreign key(f1) references t1(f2) ON UPDATE CASCADE)engine=innodb;

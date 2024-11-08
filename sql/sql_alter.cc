@@ -389,7 +389,8 @@ void Alter_info::apply_statistics_deletes_renames(THD *thd, TABLE *table)
 
 Alter_table_ctx::Alter_table_ctx()
   : db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
-    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str)
+    new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
+    table(NULL)
 {
 }
 
@@ -403,7 +404,8 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  const LEX_CSTRING *new_db_arg,
                                  const LEX_CSTRING *new_name_arg)
   : tables_opened(tables_opened_arg),
-    new_db(Lex_ident_db(*new_db_arg)), new_name(Lex_ident_table(*new_name_arg))
+    new_db(Lex_ident_db(*new_db_arg)), new_name(Lex_ident_table(*new_name_arg)),
+    table(table_list->table)
 {
   /*
     Assign members db, table_name, new_db and new_name

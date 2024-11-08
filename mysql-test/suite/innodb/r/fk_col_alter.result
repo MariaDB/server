@@ -53,20 +53,20 @@ ALTER TABLE t2 ADD CONSTRAINT FOREIGN KEY(msg_1) REFERENCES t1(msg),MODIFY COLUM
 ERROR HY000: Cannot change column 'msg_1': used in a foreign key constraint 'test/t2_ibfk_1'
 SET FOREIGN_KEY_CHECKS=1;
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=COPY;
-ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table '`test`.`t2`'
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=INPLACE;
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
-ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table '`test`.`t2`'
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=INPLACE;
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
 SET FOREIGN_KEY_CHECKS=0;
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb3, ALGORITHM=COPY;
-ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table '`test`.`t2`'
 ALTER TABLE t1 MODIFY msg VARCHAR(400) CHARSET utf8mb3, ALGORITHM=INPLACE;
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=COPY;
-ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table 'test.t2'
+ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'fk_t1' of table '`test`.`t2`'
 ALTER TABLE t1 MODIFY msg VARCHAR(200) CHARSET utf8mb4, ALGORITHM=INPLACE;
 ERROR HY000: Cannot change column 'msg': used in a foreign key constraint 'test/fk_t1' of table 'test/t2'
 SET FOREIGN_KEY_CHECKS=0;

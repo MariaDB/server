@@ -163,6 +163,7 @@ USE x;
 CREATE TABLE t (i INT, j INT, CONSTRAINT fk2 FOREIGN KEY(i) REFERENCES p (i)) ENGINE=InnoDB;
 DROP DATABASE x;
 USE test;
+
 --echo #
 --echo # MDEV-16417 Store Foreign Key metadata outside of InnoDB
 --echo #
@@ -372,9 +373,9 @@ drop table t2, t1;
 --echo # Check drop column, drop foreign key
 create or replace table t1 (id int primary key, a int);
 create or replace table t2 (id int, a int, foreign key fk (id) references t1 (id));
---error ER_FK_NO_INDEX_PARENT
+--error ER_FK_COLUMN_CANNOT_DROP_CHILD
 alter table t1 drop id;
---error ER_FK_NO_INDEX_CHILD
+--error ER_FK_COLUMN_CANNOT_DROP
 alter table t2 drop id;
 # TODO: generated index is not auto-dropped. Should we drop it automatically?
 alter table t2 drop foreign key fk, drop index fk;
