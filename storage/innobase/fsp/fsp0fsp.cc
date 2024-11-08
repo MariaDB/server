@@ -7744,12 +7744,23 @@ innodb_get_binlog_reader()
 
 
 class gtid_search {
+  /*
+    Note that this enum is set up to be compatible with int results -1/0/1 for
+    error/not found/fount from read_gtid_state_from_page().
+  */
+  enum Read_Result {
+    READ_ENOENT= -2,
+    READ_ERROR= -1,
+    READ_NOT_FOUND= 0,
+    READ_FOUND= 1
+  };
 public:
   gtid_search();
   ~gtid_search();
-  int read_gtid_state_file_no(rpl_binlog_state_base *state, uint64_t file_no,
-                              uint32_t page_no, uint64_t *out_file_end,
-                              uint64_t *out_diff_state_interval);
+  enum Read_Result read_gtid_state_file_no(rpl_binlog_state_base *state,
+                                           uint64_t file_no, uint32_t page_no,
+                                           uint64_t *out_file_end,
+                                           uint64_t *out_diff_state_interval);
   int find_gtid_pos(slave_connection_state *pos,
                     rpl_binlog_state_base *out_state, uint64_t *out_file_no,
                     uint64_t *out_offset);
@@ -7779,11 +7790,12 @@ gtid_search::~gtid_search()
   Read a GTID state record from file_no and page_no.
 
   Returns:
-    1  State record found
-    0  No state record found
-    -1 Error
+    READ_ERROR      Error reading the file or corrupt data
+    READ_ENOENT     File not found
+    READ_NOT_FOUND  No GTID state record found on the page
+    READ_FOUND      Record found
 */
-int
+enum gtid_search::Read_Result
 gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
                                      uint64_t file_no, uint32_t page_no,
                                      uint64_t *out_file_end,
@@ -7794,7 +7806,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
   *out_file_end= 0;
   uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
   if (file_no > active2)
-    return 0;
+    return READ_ENOENT;
 
   for (;;)
   {
@@ -7804,8 +7816,16 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     uint64_t end_offset=
       binlog_cur_end_offset[file_no&1].load(std::memory_order_acquire);
     if (file_no + 1 >= active &&
+        end_offset != ~(uint64_t)0 &&
         page_no <= (end_offset >> srv_page_size_shift))
     {
+      /*
+        See if the page is available in the buffer pool.
+        Since we only use the low bit of file_no to determine the tablespace
+        id, the buffer pool page will only be valid if the active file_no did
+        not change while getting the page (otherwise it might belong to a
+        later tablespace file).
+      */
       mtr.start();
       mtr_started= true;
       uint32_t space_id= SRV_SPACE_ID_BINLOG0 + (file_no & 1);
@@ -7814,7 +7834,7 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
                               nullptr, BUF_GET_IF_IN_POOL, &mtr, &err);
       if (err != DB_SUCCESS) {
         mtr.commit();
-        return -1;
+        return READ_ERROR;
       }
     }
     else
@@ -7830,21 +7850,28 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
     if (file_no + 1 >= active)
     {
       *out_file_end= end_offset;
+      /*
+        Note: if end_offset is ~0, it means that the tablespace has been closed
+        and needs to be read as a plain file. Then this condition will be false
+        and we fall through to the file-reading code below, no need for an
+        extra conditional jump here.
+      */
       if (page_no > (end_offset >> srv_page_size_shift))
       {
         ut_ad(!mtr_started);
-        return 0;
+        return READ_NOT_FOUND;
       }
     }
 
     if (block)
     {
+      ut_ad(end_offset != ~(uint64_t)0);
       int res= read_gtid_state_from_page(state, block->page.frame, page_no,
                                          out_diff_state_interval);
       ut_ad(mtr_started);
       if (mtr_started)
         mtr.commit();
-      return res;
+      return (Read_Result)res;
     }
     else
     {
@@ -7863,24 +7890,28 @@ gtid_search::read_gtid_state_file_no(rpl_binlog_state_base *state,
       {
         char filename[BINLOG_NAME_LEN];
         binlog_name_make(filename, file_no);
-        // ToDo: Here, if the file does not exist, it is not an error (no MY_WME), but it could mean we need to return "gtid pos too old". Or at least that we can go no further back and have to return the oldest state we found for the upper layer to deal with in terms of error etc.
-        cur_open_file= my_open(filename, O_RDONLY | O_BINARY, MYF(MY_WME));
+        cur_open_file= my_open(filename, O_RDONLY | O_BINARY, MYF(0));
         if (cur_open_file < (File)0)
-          return -1;
+        {
+          if (errno == ENOENT)
+            return READ_ENOENT;
+          my_error(ER_CANT_OPEN_FILE, MYF(0), filename, errno);
+          return READ_ERROR;
+        }
         MY_STAT stat_buf;
         if (my_fstat(cur_open_file, &stat_buf, MYF(0))) {
           my_error(ER_CANT_GET_STAT, MYF(0), filename, errno);
           my_close(cur_open_file, MYF(0));
           cur_open_file= (File)-1;
-          return -1;
+          return READ_ERROR;
         }
         cur_open_file_length= stat_buf.st_size;
         cur_open_file_no= file_no;
       }
       if (!*out_file_end)
         *out_file_end= cur_open_file_length;
-      return read_gtid_state(state, cur_open_file, page_no,
-                             out_diff_state_interval);
+      return (Read_Result)read_gtid_state(state, cur_open_file, page_no,
+                                          out_diff_state_interval);
     }
   }
 }
@@ -7917,13 +7948,23 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
   base_state.init();
   for (;;)
   {
-    int res= read_gtid_state_file_no(&base_state, file_no, 0, &file_end,
-                                     &diff_state_interval);
-    // ToDo: catch the error "file does not exist" specifically and return "position not found" in this case.
-    if (res < 0)
+    enum Read_Result res=
+      read_gtid_state_file_no(&base_state, file_no, 0, &file_end,
+                              &diff_state_interval);
+    if (res == READ_ENOENT)
+      return 0;
+    if (res == READ_ERROR)
       return -1;
-    if (res == 0)
+    if (res == READ_NOT_FOUND)
     {
+      if (file_no == 0)
+      {
+        /* Handle the special case of a completely empty binlog file. */
+        out_state->reset_nolock();
+        *out_file_no= file_no;
+        *out_offset= 0;
+        return 1;
+      }
       ut_ad(0 /* Not expected to find no state, should always be written. */);
       return -1;
     }
@@ -7960,11 +8001,14 @@ gtid_search::find_gtid_pos(slave_connection_state *pos,
     ut_ad((page1 - page0) % diff_state_interval == 0);
     diff_state.reset_nolock();
     diff_state.load_nolock(&base_state);
-    int res= read_gtid_state_file_no(&diff_state, file_no, 0, &file_end,
-                                     &diff_state_interval);
-    if (res < 0)
+    enum Read_Result res=
+      read_gtid_state_file_no(&diff_state, file_no, 0, &file_end,
+                              &diff_state_interval);
+    if (res == READ_ENOENT)
+      return 0;  /* File purged while we are reading from it? */
+    if (res == READ_ERROR)
       return -1;
-    if (res == 0)
+    if (res == READ_NOT_FOUND)
     {
       /*
         If the diff state record was not written here for some reason, just
