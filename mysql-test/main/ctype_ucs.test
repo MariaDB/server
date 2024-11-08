@@ -1260,3 +1260,19 @@ SET names latin1;
 --echo #
 --echo # End of 10.6 tests
 --echo #
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+--echo #
+
+select strcmp(_ucs2'' collate ucs2_general_nopad_ci, _ucs2 0x00000001000500000001) as c1;
+select strcmp(_ucs2'' collate ucs2_nopad_bin, _ucs2 0x00000001000500000001) as c1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

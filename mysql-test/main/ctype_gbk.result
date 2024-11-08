@@ -6605,3 +6605,18 @@ SET sql_mode=DEFAULT;
 #
 # End of 10.5 tests
 #
+#
+# Start of 10.6 tests
+#
+#
+# MDEV-30111 InnoDB: Failing assertion: update->n_fields == 0 in row_ins_sec_index_entry_by_modify
+#
+select strcmp(_gbk'' collate gbk_chinese_nopad_ci, _gbk 0x0001050001);
+strcmp(_gbk'' collate gbk_chinese_nopad_ci, _gbk 0x0001050001)
+-1
+select strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001);
+strcmp(_gbk'' collate gbk_nopad_bin, _gbk 0x0001050001)
+-1
+#
+# End of 10.6 tests
+#
