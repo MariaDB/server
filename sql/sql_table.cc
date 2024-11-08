@@ -12237,14 +12237,15 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
         protocol->store_null();
       else
       {
+        DEBUG_SYNC(thd, "mysql_checksum_table_before_calculate_checksum");
         int error= t->file->calculate_checksum();
+        DEBUG_SYNC(thd, "mysql_checksum_table_after_calculate_checksum");
         if (thd->killed)
         {
           /*
              we've been killed; let handler clean up, and remove the
              partial current row from the recordset (embedded lib)
           */
-          t->file->ha_rnd_end();
           thd->protocol->remove_last_row();
           goto err;
         }

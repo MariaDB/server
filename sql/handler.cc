@@ -5584,7 +5584,10 @@ int handler::calculate_checksum()
   for (;;)
   {
     if (thd->killed)
-      return HA_ERR_ABORTED_BY_USER;
+    {
+      error= HA_ERR_ABORTED_BY_USER;
+      break;
+    }
 
     ha_checksum row_crc= 0;
     error= ha_rnd_next(table->record[0]);
