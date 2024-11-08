@@ -8228,7 +8228,7 @@ end:
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
 {
-  enum Log_event_type ev_type;
+  enum Log_event_type ev_type= UNKNOWN_EVENT;
 
   mysql_mutex_lock(&rgi->rli->data_lock);
 
@@ -8239,6 +8239,11 @@ enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
   /* scan the log to read next event and we skip
      annotate events. */
   do {
+    /* We've reached the end of log, return the last found event, if any. */
+    if (future_pos >= rgi->rli->cur_log->end_of_file)
+    {
+      break;
+    }
     my_b_seek(rgi->rli->cur_log, future_pos);
     rgi->rli->event_relay_log_pos= future_pos;
     rgi->event_relay_log_pos= future_pos;

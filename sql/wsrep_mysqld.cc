@@ -830,9 +830,8 @@ void wsrep_init_globals()
   else
   {
     if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
-    {
-      WSREP_WARN("Ignoring server id for non bootstrap node.");
-    }
+      WSREP_INFO("Ignoring server id %ld for non bootstrap node, using %ld.",
+                 global_system_variables.server_id, wsrep_gtid_server.server_id);
   }
   wsrep_init_schema();
   if (WSREP_ON)
@@ -2483,7 +2482,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       If mariadb master has replicated a CTAS, we should not replicate the create table
       part separately as TOI, but to replicate both create table and following inserts
       as one write set.
-      Howver, if CTAS creates empty table, we should replicate the create table alone
+      However, if CTAS creates empty table, we should replicate the create table alone
       as TOI. We have to do relay log event lookup to see if row events follow the
       create table event.
     */
@@ -2496,6 +2495,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       switch (ev_type)
       {
       case QUERY_EVENT:
+      case XID_EVENT:
         /* CTAS with empty table, we replicate create table as TOI */
         break;
 

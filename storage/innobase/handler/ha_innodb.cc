@@ -5727,15 +5727,15 @@ innobase_build_v_templ(
 }
 
 /** Check consistency between .frm indexes and InnoDB indexes.
-@param[in]	table	table object formed from .frm
 @param[in]	ib_table	InnoDB table definition
 @retval	true if not errors were found */
-static bool
-check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
+bool
+ha_innobase::check_index_consistency(const dict_table_t* ib_table) noexcept
 {
 	ulint mysql_num_index = table->s->keys;
 	ulint ib_num_index = UT_LIST_GET_LEN(ib_table->indexes);
 	bool ret = true;
+	ulint last_unique = 0;
 
 	/* If there exists inconsistency between MySQL and InnoDB dictionary
 	(metadata) information, the number of index defined in MySQL
@@ -5770,8 +5770,21 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			ret = false;
 			goto func_exit;
 		}
-	}
 
+		if (index->is_unique()) {
+			ulint i = 0;
+			while ((index = UT_LIST_GET_PREV(indexes, index))) i++;
+			/* Check if any unique index in InnoDB
+			dictionary are re-ordered compared to
+			the index in .frm */
+			if (last_unique > i) {
+				m_int_table_flags
+					|= HA_DUPLICATE_KEY_NOT_IN_ORDER;
+			}
+
+			last_unique = i;
+		}
+	}
 func_exit:
 	return ret;
 }
@@ -6011,7 +6024,7 @@ ha_innobase::open(const char* name, int, uint)
 		ib_table->lock_mutex_unlock();
 	}
 
-	if (!check_index_consistency(table, ib_table)) {
+	if (!check_index_consistency(ib_table)) {
 		sql_print_error("InnoDB indexes are inconsistent with what "
 				"defined in .frm for table %s",
 				name);
