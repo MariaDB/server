@@ -2047,8 +2047,10 @@ err_exit:
 
 static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
                                      rec_offs *offsets, mem_heap_t *heap,
-                                     rec_t **old_vers, mem_heap_t *v_heap,
-                                     dtuple_t **vrow, ulint v_status,
+                                     rec_t **old_vers,
+                                     const purge_sys_t::view_guard &check,
+                                     ulint v_status,
+                                     mem_heap_t *v_heap, dtuple_t **vrow,
                                      const trx_undo_rec_t *undo_rec);
 
 inline const buf_block_t *
@@ -2149,7 +2151,8 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
       if (UNIV_UNLIKELY(end > offset &&
                         end < srv_page_size - FIL_PAGE_DATA_END))
         err= trx_undo_prev_version(rec, index, offsets, heap,
-                                   old_vers, v_heap, vrow, v_status, undo_rec);
+                                   old_vers, check, v_status, v_heap, vrow,
+                                   undo_rec);
     }
   }
 
@@ -2159,8 +2162,10 @@ dberr_t trx_undo_prev_version_build(const rec_t *rec, dict_index_t *index,
 
 static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
                                      rec_offs *offsets, mem_heap_t *heap,
-                                     rec_t **old_vers, mem_heap_t *v_heap,
-                                     dtuple_t **vrow, ulint v_status,
+                                     rec_t **old_vers,
+                                     const purge_sys_t::view_guard &check,
+                                     ulint v_status,
+                                     mem_heap_t *v_heap, dtuple_t **vrow,
                                      const trx_undo_rec_t *undo_rec)
 {
 	byte type, cmpl_info;
@@ -2230,7 +2235,7 @@ static dberr_t trx_undo_prev_version(const rec_t *rec, dict_index_t *index,
 		the BLOB. */
 
 		if (update->info_bits & REC_INFO_DELETED_FLAG
-		    && purge_sys.is_purgeable(trx_id)) {
+		    && check.view().changes_visible(trx_id)) {
 			return DB_SUCCESS;
 		}
 

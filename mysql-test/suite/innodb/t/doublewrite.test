@@ -18,6 +18,9 @@ call mtr.add_suppression("InnoDB: Checksum mismatch in datafile: ");
 call mtr.add_suppression("InnoDB: Inconsistent tablespace ID in .*t1\\.ibd");
 call mtr.add_suppression("\\[Warning\\] Found 1 prepared XA transactions");
 call mtr.add_suppression("InnoDB: Header page consists of zero bytes in datafile:");
+call mtr.add_suppression("InnoDB: Page \\[page id: space=[1-9][0-9]*, page number=3\\] log sequence number 18446744073709551615 is in the future!");
+call mtr.add_suppression("InnoDB: Your database may be corrupt or you may have copied the InnoDB tablespace but not the ib_logfile0");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted");
 --enable_query_log
 
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
@@ -71,7 +74,26 @@ syswrite(FILE, chr(0) x ($page_size/2));
 sysseek(FILE, 3*$page_size, 0);
 sysread(FILE, $page, $page_size)==$page_size||die "Unable to read $name\n";
 sysseek(FILE, 3*$page_size, 0)||die "Unable to seek $fname\n";
-syswrite(FILE, chr(0) x ($page_size/2));
+my $corrupted = $page;
+# Set FIL_PAGE_LSN to the maximum
+substr($corrupted, 16, 8) = chr(255) x 8;
+substr($corrupted, $page_size - 8, 8) = chr(255) x 8;
+if ($algo =~ /full_crc32/)
+{
+    my $ck = mycrc32(substr($corrupted, 0, $page_size - 4), 0, $polynomial);
+    substr($corrupted, $page_size - 4, 4) = pack("N", $ck);
+}
+else
+{
+    # Replace the innodb_checksum_algorithm=crc32 checksum
+    my $ck= pack("N",
+                 mycrc32(substr($corrupted, 4, 22), 0, $polynomial) ^
+                 mycrc32(substr($corrupted_, 38, $page_size - 38 - 8), 0,
+                         $polynomial));
+    substr ($corrupted, 0, 4) = $ck;
+    substr ($corrupted, $page_size - 8, 4) = $ck;
+}
+syswrite(FILE, $corrupted);
 close FILE;
 
 # Change the flag offset of page 0 in doublewrite buffer
@@ -113,10 +135,28 @@ die "Did not find the page in the doublewrite buffer ($d1,$d2)\n";
 EOF
 
 --source include/start_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=0\\];
 --source include/search_pattern_in_file.inc
-let SEARCH_PATTERN=InnoDB: Recovered page \[page id: space=[1-9][0-9]*, page number=3\];
+let SEARCH_PATTERN=InnoDB: The log was only scanned up to \\d+, while the current LSN at the time of the latest checkpoint \\d+ was 0 and the maximum LSN on a data page was 18446744073709551615!
 --source include/search_pattern_in_file.inc
+--error ER_XAER_NOTA
+XA ROLLBACK 'x';
+let $shutdown_timeout=0;
+--source include/shutdown_mysqld.inc
+let $shutdown_timeout=;
+# Corrupt the file in a better way.
+perl;
+use IO::Handle;
+my $fname= "$ENV{'MYSQLD_DATADIR'}test/t1.ibd";
+my $page_size = $ENV{INNODB_PAGE_SIZE};
+open(FILE, "+<", $fname) or die;
+sysseek(FILE, ($page_size/2), 0);
+syswrite(FILE, chr(0) x ($page_size/2));
+sysseek(FILE, 3*$page_size, 0);
+syswrite(FILE, chr(0) x ($page_size/2));
+close FILE;
+EOF
+--source include/start_mysqld.inc
 XA ROLLBACK 'x';
 check table t1;
 select f1, f2 from t1;
@@ -144,7 +184,7 @@ close FILE;
 EOF
 
 --source include/start_mysqld.inc
-let SEARCH_PATTERN=InnoDB: Restoring page \[page id: space=[1-9][0-9]*, page number=0\] of datafile;
+let SEARCH_PATTERN=InnoDB: Recovered page \\[page id: space=[1-9][0-9]*, page number=[03]\\];
 --source include/search_pattern_in_file.inc
 XA ROLLBACK 'x';
 check table t1;

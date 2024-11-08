@@ -1,5 +1,5 @@
 create user test1@'%' identified via parsec using 'pwd';
-ERROR HY000: Operation CREATE USER failed for 'test1'@'%'
+ERROR HY000: Wrong ext-salt format
 create user test1@'%' identified via parsec using PASSWORD('pwd');
 show grants for test1@'%';
 Grants for test1@%

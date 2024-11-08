@@ -1228,7 +1228,6 @@ handle_rpl_parallel_thread(void *arg)
   my_thread_init();
   my_thread_set_name("rpl_parallel");
   thd = new THD(next_thread_id());
-  thd->thread_stack = (char*)&thd;
   server_threads.insert(thd);
   set_current_thd(thd);
   pthread_detach_this_thread();

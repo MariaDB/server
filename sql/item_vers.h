@@ -34,7 +34,6 @@ public:
   }
 
   bool val_bool() override;
-  longlong val_int() override { return val_bool(); }
   bool fix_length_and_dec(THD *thd) override
   {
     set_maybe_null();
@@ -126,7 +125,7 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("trt_trx_sees") };
     return name;
   }
-  longlong val_int() override;
+  bool val_bool() override;
   Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_func_trt_trx_sees>(thd, this); }
 };

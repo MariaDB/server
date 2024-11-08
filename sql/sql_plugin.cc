@@ -1880,7 +1880,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (global_system_variables.log_warnings >= 9)
     sql_print_information("Initializing installed plugins");
 
-  new_thd->thread_stack= (char*) &tables;
+  new_thd->thread_stack= (void*) &tables;       // Big stack
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:plugin_load"),
                            default_charset_info);

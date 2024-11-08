@@ -153,10 +153,12 @@ BEGIN; INSERT INTO t SET a=2;
 
 --connection consistent
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
+SAVEPOINT sp1;
 --disable_ps2_protocol
 --error ER_CHECKREAD
 SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 --enable_ps2_protocol
+SAVEPOINT sp1;
 
 --connection con_weird
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -182,3 +184,5 @@ SELECT * FROM t FORCE INDEX (b) FOR UPDATE;
 
 --connection default
 DROP TABLE t;
+
+--echo # End of 10.6 tests

@@ -1917,13 +1917,13 @@ class SQL_SELECT :public Sql_alloc {
 
   /* 
     RETURN
-      0   if record must be skipped <-> (cond && cond->val_int() == 0)
+      0   if record must be skipped <-> (cond && cond->val_bool() == false)
      -1   if error
       1   otherwise
   */   
   inline int skip_record(THD *thd)
   {
-    int rc= MY_TEST(!cond || cond->val_int());
+    int rc= MY_TEST(!cond || cond->val_bool());
     if (thd->is_error())
       rc= -1;
     return rc;

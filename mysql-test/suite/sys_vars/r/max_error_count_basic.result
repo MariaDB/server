@@ -164,11 +164,11 @@ SELECT @@max_error_count;
 @@max_error_count
 1024
 SELECT local.max_error_count;
-ERROR 42S02: Unknown table 'local' in field list
+ERROR 42S02: Unknown table 'local' in SELECT
 SELECT session.max_error_count;
-ERROR 42S02: Unknown table 'session' in field list
+ERROR 42S02: Unknown table 'session' in SELECT
 SELECT max_error_count = @@session.max_error_count;
-ERROR 42S22: Unknown column 'max_error_count' in 'field list'
+ERROR 42S22: Unknown column 'max_error_count' in 'SELECT'
 SET @@global.max_error_count = @start_global_value;
 SELECT @@global.max_error_count;
 @@global.max_error_count

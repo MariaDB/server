@@ -504,7 +504,6 @@ thd::thd (my_bool ini, bool system_thread)
 {
   if (ptr)
   {
-    ptr->thread_stack= (char*)&ptr;
     ptr->real_id= pthread_self();
     wsrep_assign_from_threadvars(ptr);
     wsrep_store_threadvars(ptr);

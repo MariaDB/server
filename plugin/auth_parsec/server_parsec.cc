@@ -24,6 +24,7 @@
 
 #include <mysql/plugin_auth.h>
 #include <mysql/plugin.h>
+#include <mysqld_error.h>
 #include "scope.h"
 
 #include <cstring>
@@ -171,8 +172,7 @@ int hash_password(const char *password, size_t password_length,
                   char *hash, size_t *hash_length)
 {
   auto stored= (Passwd_as_stored*)hash;
-  if (*hash_length < sizeof(*stored) + 2)
-    return 1;
+  assert(*hash_length >= sizeof(*stored) + 2); // it should fit the buffer
 
   Passwd_in_memory memory;
   memory.algorithm= 'P';
@@ -209,7 +209,10 @@ int digest_to_binary(const char *hash, size_t hash_length,
       stored->algorithm != 'P' ||
       stored->iterations < '0' || stored->iterations > '3' ||
       stored->colon != ':' || stored->colon2 != ':')
+  {
+    my_printf_error(ER_PASSWD_LENGTH, "Wrong ext-salt format", 0);
     return 1;
+  }
 
   *out_length = sizeof(*memory);
   memory->algorithm= stored->algorithm;
@@ -219,7 +222,11 @@ int digest_to_binary(const char *hash, size_t hash_length,
                 "Salt is base64-aligned");
   if (my_base64_decode(stored->salt, base64_length(CHALLENGE_SALT_LENGTH),
                        memory->salt, NULL, 0) < 0)
+  {
+    my_printf_error(ER_PASSWD_LENGTH,
+                    "Password salt should be base64 encoded", 0);
     return 1;
+  }
 
   char buf[base64_length(ED25519_KEY_LENGTH)+1];
   constexpr int pad= (int)base64_length(ED25519_KEY_LENGTH)
@@ -229,7 +236,11 @@ int digest_to_binary(const char *hash, size_t hash_length,
   memset(buf + base64_length_raw(ED25519_KEY_LENGTH), '=', pad);
   if (my_base64_decode(buf, base64_length(ED25519_KEY_LENGTH),
                        memory->pub_key, NULL, 0) < 0)
+  {
+    my_printf_error(ER_PASSWD_LENGTH,
+                    "Password-derived key should be base64 encoded", 0);
     return 1;
+  }
 
   return 0;
 }

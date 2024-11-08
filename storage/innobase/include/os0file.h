@@ -144,9 +144,6 @@ static const ulint OS_FILE_READ_WRITE = 444;
 /** Used by MySQLBackup */
 static const ulint OS_FILE_READ_ALLOW_DELETE = 555;
 
-/* Options for file_create */
-static const ulint OS_FILE_AIO = 61;
-static const ulint OS_FILE_NORMAL = 62;
 /* @} */
 
 /** Types for file create @{ */
@@ -404,12 +401,6 @@ Opens an existing file or creates a new.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	type		OS_DATA_FILE or OS_LOG_FILE
 @param[in]	read_only	if true read only mode checks are enforced
 @param[in]	success		true if succeeded
@@ -419,7 +410,6 @@ pfs_os_file_t
 os_file_create_func(
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success)
@@ -558,9 +548,9 @@ os_file_write
 
 The wrapper functions have the prefix of "innodb_". */
 
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	pfs_os_file_create_func(key, name, create, purpose,	type,	\
+	pfs_os_file_create_func(key, name, create,	type,	\
 		read_only, success, __FILE__, __LINE__)
 
 # define os_file_create_simple(key, name, create, access,		\
@@ -663,12 +653,6 @@ Add instrumentation to monitor file creation/open.
 @param[in]	name		name of the file or path as a null-terminated
 				string
 @param[in]	create_mode	create mode
-@param[in]	purpose		OS_FILE_AIO, if asynchronous, non-buffered I/O
-				is desired, OS_FILE_NORMAL, if any normal file;
-				NOTE that it also depends on type, os_aio_..
-				and srv_.. variables whether we really use
-				async I/O or unbuffered I/O: look in the
-				function source code for the exact rules
 @param[in]	read_only	if true read only mode checks are enforced
 @param[out]	success		true if succeeded
 @param[in]	src_file	file name where func invoked
@@ -681,7 +665,6 @@ pfs_os_file_create_func(
 	mysql_pfs_key_t key,
 	const char*	name,
 	os_file_create_t create_mode,
-	ulint		purpose,
 	ulint		type,
 	bool		read_only,
 	bool*		success,
@@ -831,9 +814,9 @@ pfs_os_file_delete_if_exists_func(
 
 /* If UNIV_PFS_IO is not defined, these I/O APIs point
 to original un-instrumented file I/O APIs */
-# define os_file_create(key, name, create, purpose, type, read_only,	\
+# define os_file_create(key, name, create, type, read_only,	\
 			success)					\
-	os_file_create_func(name, create, purpose, type, read_only,	\
+	os_file_create_func(name, create, type, read_only,	\
 			success)
 
 # define os_file_create_simple(key, name, create_mode, access,		\
@@ -875,35 +858,13 @@ os_file_get_size(
 	const char*	filename)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Gets a file size.
-@param[in]	file		handle to a file
-@return file size, or (os_offset_t) -1 on failure */
-os_offset_t
-os_file_get_size(
-	os_file_t	file)
-	MY_ATTRIBUTE((warn_unused_result));
-
-/** Extend a file.
-
-On Windows, extending a file allocates blocks for the file,
-unless the file is sparse.
-
-On Unix, we will extend the file with ftruncate(), if
-file needs to be sparse. Otherwise posix_fallocate() is used
-when available, and if not, binary zeroes are added to the end
-of file.
-
-@param[in]	name	file name
-@param[in]	file	file handle
-@param[in]	size	desired file size
-@param[in]	sparse	whether to create a sparse file (no preallocating)
-@return	whether the operation succeeded */
-bool
-os_file_set_size(
-	const char*	name,
-	os_file_t	file,
-	os_offset_t	size,
-	bool		is_sparse = false)
+/** Determine the logical size of a file.
+This may change the current write position of the file to the end of the file.
+(Not currently a problem; InnoDB typically uses positioned I/O.)
+@param file  handle to an open file
+@return file size, in octets
+@retval -1 on failure */
+os_offset_t os_file_get_size(os_file_t file) noexcept
 	MY_ATTRIBUTE((warn_unused_result));
 
 /** Truncates a file at its current position.
@@ -1135,11 +1096,25 @@ If file is normal, file system allocates storage.
 @param[in]	size		size to preserve in bytes
 @return true if success */
 bool
-os_file_change_size_win32(
+os_file_set_size(
 	const char*	pathname,
 	os_file_t	file,
 	os_offset_t	size);
 
+inline bool
+os_file_set_size(const char* name, os_file_t file, os_offset_t size, bool)
+{
+  return os_file_set_size(name, file, size);
+}
+#else
+/** Extend a file by appending NUL.
+@param[in]	name	file name
+@param[in]	file	file handle
+@param[in]	size	desired file size
+@param[in]	sparse	whether to create a sparse file with ftruncate()
+@return	whether the operation succeeded */
+bool os_file_set_size(const char *name, os_file_t file, os_offset_t size,
+                      bool is_sparse= false) noexcept;
 #endif /*_WIN32 */
 
 /** Free storage space associated with a section of the file.

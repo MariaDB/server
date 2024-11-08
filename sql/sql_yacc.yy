@@ -1524,6 +1524,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %type <item>
         literal insert_ident order_ident temporal_literal
         simple_ident expr sum_expr in_sum_expr
+        search_condition
         variable variable_aux
         boolean_test
         predicate bit_expr parenthesized_expr
@@ -2139,7 +2140,11 @@ deallocate_or_drop:
 
 prepare:
           PREPARE_SYM ident FROM
-          { Lex->clause_that_disallows_subselect= "PREPARE..FROM"; }
+          {
+            thd->where= THD_WHERE::USE_WHERE_STRING;
+            thd->where_str=
+            Lex->clause_that_disallows_subselect= "PREPARE..FROM";
+          }
           expr
           {
             Lex->clause_that_disallows_subselect= NULL;
@@ -2155,7 +2160,11 @@ execute:
               MYSQL_YYABORT;
           }
         | EXECUTE_SYM IMMEDIATE_SYM
-          { Lex->clause_that_disallows_subselect= "EXECUTE IMMEDIATE"; }
+          {
+            thd->where= THD_WHERE::USE_WHERE_STRING;
+            thd->where_str=
+            Lex->clause_that_disallows_subselect= "EXECUTE IMMEDIATE";
+          }
           expr
           { Lex->clause_that_disallows_subselect= NULL; }
           execute_using
@@ -3221,7 +3230,11 @@ call:
 /* CALL parameters */
 opt_sp_cparam_list:
           /* Empty */
-        | '(' opt_sp_cparams ')'
+        | '('
+        {
+          thd->where= THD_WHERE::USE_WHERE_STRING;
+          thd->where_str= "CALL";
+        } opt_sp_cparams ')'
         ;
 
 opt_sp_cparams:
@@ -3696,9 +3709,14 @@ resignal_stmt:
         ;
 
 get_diagnostics:
-          GET_SYM which_area DIAGNOSTICS_SYM diagnostics_information
+          GET_SYM which_area DIAGNOSTICS_SYM
           {
-            Diagnostics_information *info= $4;
+            thd->where= THD_WHERE::USE_WHERE_STRING;
+            thd->where_str= "GET DIAGNOSTICS";
+          }
+          diagnostics_information
+          {
+            Diagnostics_information *info= $5;
 
             info->set_which_da($2);
 
@@ -4373,6 +4391,7 @@ simple_when_clause:
 searched_when_clause:
           WHEN_SYM expr_lex
           {
+            $2->get_item()->base_flags|= item_base_t::IS_COND;
             if (unlikely($2->case_stmt_action_when(false)))
               MYSQL_YYABORT;
           }
@@ -9329,6 +9348,10 @@ optional_braces:
         | '(' ')' {}
         ;
 
+search_condition:
+          expr { ($$= $1)->base_flags|= item_base_t::IS_COND ; }
+        ;
+
 /* all possible expressions */
 expr:
           expr or expr %prec OR_SYM
@@ -11815,7 +11838,7 @@ join_table:
               MYSQL_YYABORT;
             Select->parsing_place= IN_ON;
           }
-          expr
+          search_condition
           {
             add_join_on(thd, $5, $8);
             $5->on_context= Lex->pop_context();
@@ -12173,7 +12196,7 @@ opt_where_clause:
           {
             Select->parsing_place= IN_WHERE;
           }
-          expr
+          search_condition
           {
             SELECT_LEX *select= Select;
             select->where= normalize_cond(thd, $3);
@@ -12189,7 +12212,7 @@ opt_having_clause:
           {
             Select->parsing_place= IN_HAVING;
           }
-          expr
+          search_condition
           {
             SELECT_LEX *sel= Select;
             sel->having= normalize_cond(thd, $3);
@@ -14440,7 +14463,7 @@ wild_and_where:
               MYSQL_YYABORT;
             $$= $2;
           }
-        | WHERE remember_tok_start expr
+        | WHERE remember_tok_start search_condition
           {
             Select->where= normalize_cond(thd, $3);
             if ($3)
@@ -14846,6 +14869,8 @@ kill:
             lex->users_list.empty();
             lex->sql_command= SQLCOM_KILL;
             lex->kill_type= KILL_TYPE_ID;
+            thd->where= THD_WHERE::USE_WHERE_STRING;
+            thd->where_str= "KILL";
           }
           kill_type kill_option
           {
