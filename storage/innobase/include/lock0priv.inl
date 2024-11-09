@@ -98,6 +98,7 @@ lock_rec_set_nth_bit(
 	      || (xtest() && !lock->trx->mutex_is_locked()));
 #endif
 	lock->trx->lock.n_rec_locks++;
+	lock->trx->lock.set_nth_bit_calls++;
 }
 
 /*********************************************************************//**

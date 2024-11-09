@@ -6,9 +6,9 @@ select * from (select 2 from DUAL) b;
 2
 2
 SELECT 1 as a FROM (SELECT 1 UNION SELECT a) b;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT 1 as a FROM (SELECT a UNION SELECT 1) b;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 CREATE TABLE t1 (a int not null, b char (10) not null);
 insert into t1 values(1,'a'),(2,'b'),(3,'c'),(3,'c');
 CREATE TABLE t2 (a int not null, b char (10) not null);
@@ -28,18 +28,18 @@ a	y
 3	3
 3	3
 SELECT a FROM (SELECT 1 FROM (SELECT 1) a HAVING a=1) b;
-ERROR 42S22: Unknown column 'a' in 'having clause'
+ERROR 42S22: Unknown column 'a' in 'HAVING'
 SELECT a,b as a FROM (SELECT '1' as a,'2' as b) b  HAVING a=1;
-ERROR 23000: Column 'a' in having clause is ambiguous
+ERROR 23000: Column 'a' in HAVING is ambiguous
 SELECT a,2 as a FROM (SELECT '1' as a) b HAVING a=2;
 a	a
 1	2
 SELECT a,2 as a FROM (SELECT '1' as a) b HAVING a=1;
 a	a
 SELECT 1 FROM (SELECT 1) a WHERE a=2;
-ERROR 42S22: Unknown column 'a' in 'where clause'
+ERROR 42S22: Unknown column 'a' in 'WHERE'
 SELECT (SELECT 1) as a FROM (SELECT 1 FROM t1  HAVING a=1) as a;
-ERROR 42S22: Unknown column 'a' in 'having clause'
+ERROR 42S22: Unknown column 'a' in 'HAVING'
 select * from t1 as x1, (select * from t1) as x2;
 a	b	a	b
 1	a	1	a
@@ -155,13 +155,13 @@ select * from (select 1 as a) b  left join (select 2 as a) c using(a);
 a
 1
 SELECT * FROM (SELECT 1 UNION SELECT a) b;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT 1 as a FROM (SELECT a UNION SELECT 1) b;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 SELECT 1 as a FROM (SELECT 1 UNION SELECT a) b;
-ERROR 42S22: Unknown column 'a' in 'field list'
+ERROR 42S22: Unknown column 'a' in 'SELECT'
 select 1 from  (select 2) a order by 0;
-ERROR 42S22: Unknown column '0' in 'order clause'
+ERROR 42S22: Unknown column '0' in 'ORDER BY'
 create table t1 (id int);
 insert into t1 values (1),(2),(3);
 describe select * from (select * from t1 group by id) bar;
@@ -278,7 +278,7 @@ N	M
 UPDATE `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N SET P1.M = 2, P2.N = 2;
 ERROR HY000: The target table P2 of the UPDATE is not updatable
 UPDATE `t1` AS P1 INNER JOIN (SELECT aaaa FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N SET P1.M = 2;
-ERROR 42S22: Unknown column 'aaaa' in 'field list'
+ERROR 42S22: Unknown column 'aaaa' in 'SELECT'
 delete P1.* from `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N;
 select * from t1;
 N	M
@@ -286,7 +286,7 @@ N	M
 delete P1.*,p2.* from `t1` AS P1 INNER JOIN (SELECT N FROM `t1` GROUP BY N HAVING Count(M) > 1) AS p2 ON P1.N = p2.N;
 ERROR HY000: The target table p2 of the DELETE is not updatable
 delete P1.* from `t1` AS P1 INNER JOIN (SELECT aaa FROM `t1` GROUP BY N HAVING Count(M) > 1) AS P2 ON P1.N = P2.N;
-ERROR 42S22: Unknown column 'aaa' in 'field list'
+ERROR 42S22: Unknown column 'aaa' in 'SELECT'
 drop table t1;
 CREATE TABLE t1 (
 OBJECTID int(11) NOT NULL default '0',
@@ -478,7 +478,7 @@ t1.id=t3.val
 set 
 t1.val=t3.val
 ;
-ERROR 42S22: Unknown column 'v.val' in 'field list'
+ERROR 42S22: Unknown column 'v.val' in 'SELECT'
 drop table t1, t2;
 #
 # MDEV-5353: server crash on subselect if WHERE applied to some
@@ -1364,7 +1364,7 @@ DROP TABLE t1;
 SELECT 1 FROM (
 SELECT 1 UNION SELECT 2 ORDER BY  (SELECT 1 FROM DUAL WHERE xxx = 0)
 ) dt;
-ERROR 42S22: Unknown column 'xxx' in 'where clause'
+ERROR 42S22: Unknown column 'xxx' in 'WHERE'
 create table t1 (a int, b int);
 insert into t1 values (3,8), (7,2), (1,4), (5,9);
 create table t2 (a int, b int);
@@ -1378,7 +1378,7 @@ union
 select a,b from t2 where t2.b < 6
 order by (a - b / (select a + max(c) from t3  where d = x))
 ) dt;
-ERROR 42S22: Unknown column 'x' in 'where clause'
+ERROR 42S22: Unknown column 'x' in 'WHERE'
 drop table t1,t2,t3;
 #
 # End of 10.3 tests
@@ -1863,6 +1863,22 @@ pk	a
 deallocate prepare stmt;
 drop table t1,t2,t3;
 # End of MariaDB 11.1 tests
+#
+# MDEV-34880: Incorrect result for query with derived table having TEXT field
+#
+CREATE TABLE t1 (id int NOT NULL  PRIMARY KEY, notes TEXT NOT NULL);
+INSERT INTO t1 VALUES (1, 'test1'), (2, 'test2');
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1;
+id	notes
+1	test1
+SELECT dt.* FROM (SELECT * FROM t1 UNION SELECT * FROM t1) dt WHERE id = 1 AND
+notes = 'test1';
+id	notes
+1	test1
+DROP TABLE t1;
+#
+# End of 11.2 tests
+#
 #
 # MDEV-31466 Add optional correlation column list for derived tables
 #
@@ -3312,7 +3328,7 @@ on a1=b1
 select * from (values (3,4),(5,6)) as foo(Col1, Col1);
 ERROR 42S21: Duplicate column name 'Col1'
 select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3) where c1 = 1;
-ERROR 42S22: Unknown column 'c1' in 'where clause'
+ERROR 42S22: Unknown column 'c1' in 'WHERE'
 select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2) where c1 = 1;
 ERROR HY000: Incorrect column name count for derived table
 select * from ( select c1, c2 from t1 union select c1, c2 from t1) as d1 (a1);
@@ -3324,7 +3340,7 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 select * from ( select c1, c2, c3 from t1 ) as d1 (a1, a2, a3)
 join ( select c1, c2, c3 from t1 ) as d2 (a1, a2, a3)
 where d1.a1=a1;
-ERROR 23000: Column 'a1' in where clause is ambiguous
+ERROR 23000: Column 'a1' in WHERE is ambiguous
 # We expect to see the results of the 1st select in the union as names
 # check wildcard expansion and name resolution in the outer select list
 select *, a1 from

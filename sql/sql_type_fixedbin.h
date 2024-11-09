@@ -179,6 +179,10 @@ public:
                                              FbtImpl::max_char_length()+1));
       return false;
     }
+    bool to_bool() const
+    {
+      return !this->only_zero_bytes(m_buffer, FbtImpl::binary_length());
+    }
     int cmp(const Binary_string &other) const
     {
       return FbtImpl::cmp(FbtImpl::to_lex_cstring(), other.to_lex_cstring());
@@ -252,6 +256,10 @@ public:
     const Type_handler *type_handler() const override
     {
       return singleton();
+    }
+    bool val_bool() override
+    {
+      return m_value.to_bool();
     }
     longlong val_int() override
     {

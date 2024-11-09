@@ -289,12 +289,19 @@ static inline void safe_strcpy(char *dst, size_t dst_size, const char *src)
 static inline int safe_strcpy_truncated(char *dst, size_t dst_size,
                                         const char *src)
 {
-  DBUG_ASSERT(dst_size > 0);
 
-  strncpy(dst, src, dst_size);
-  if (dst[dst_size - 1])
+  DBUG_ASSERT(dst_size > 0);
+  if (dst_size == 0)
+    return 1;
+  /*
+    We do not want to use strncpy() as we do not want to rely on
+    strncpy() filling the unused dst with 0.
+    We cannot use strmake() here as it in debug mode fills the buffers
+    with 'Z'.
+  */
+  if (strnmov(dst, src, dst_size) == dst+dst_size)
   {
-    dst[dst_size - 1]= 0;
+    dst[dst_size-1]= 0;
     return 1;
   }
   return 0;
@@ -310,7 +317,7 @@ static inline int safe_strcpy_truncated(char *dst, size_t dst_size,
 static inline int safe_strcat(char *dst, size_t dst_size, const char *src)
 {
   size_t init_len= strlen(dst);
-  if (init_len > dst_size)
+  if (init_len >= dst_size)
     return 1;
   return safe_strcpy_truncated(dst + init_len, dst_size - init_len, src);
 }

@@ -176,7 +176,7 @@ void udf_init()
     DBUG_VOID_RETURN;
   }
   initialized = 1;
-  new_thd->thread_stack= (char*) &new_thd;
+  new_thd->thread_stack= (void*) &new_thd;      // Big stack
   new_thd->store_globals();
   new_thd->set_query_inner((char*) STRING_WITH_LEN("intern:udf_init"),
                            default_charset_info);

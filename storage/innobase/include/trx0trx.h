@@ -400,6 +400,9 @@ struct trx_lock_t
 
   /** number of record locks; protected by lock_sys.assert_locked(page_id) */
   ulint n_rec_locks;
+  /** number of lock_rec_set_nth_bit() calls since the start of transaction;
+  protected by lock_sys.is_writer() or trx->mutex_is_owner(). */
+  ulint set_nth_bit_calls;
 };
 
 /** Logical first modification time of a table in a transaction */
@@ -1173,10 +1176,6 @@ public:
     return UNIV_UNLIKELY(bulk_insert) ? bulk_insert_apply_low(): DB_SUCCESS;
   }
 
-  /** Do the bulk insert for the buffered insert operation of a table.
-  @param table bulk insert operation
-  @return DB_SUCCESS or error code. */
-  dberr_t bulk_insert_apply_for_table(dict_table_t *table);
 private:
   /** Apply the buffered bulk inserts. */
   dberr_t bulk_insert_apply_low();

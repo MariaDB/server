@@ -513,7 +513,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
     {
       ht= part_elem->engine_type;
       if (parse_option_list(thd, &part_elem->option_struct,
-                      &tmp_option_list, ht->table_options, TRUE, root))
+                            &tmp_option_list, ht->table_options, TRUE, root))
         DBUG_RETURN(TRUE);
     }
     else
@@ -523,7 +523,7 @@ bool parse_engine_part_options(THD *thd, TABLE *table)
       {
         ht= sub_part_elem->engine_type;
         if (parse_option_list(thd, &sub_part_elem->option_struct,
-                      &tmp_option_list, ht->table_options, TRUE, root))
+                              &tmp_option_list, ht->table_options, TRUE, root))
           DBUG_RETURN(TRUE);
       }
     }

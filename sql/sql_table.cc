@@ -2907,7 +2907,8 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
+  select_field_pos= get_select_field_pos(alter_info, select_field_count,
+                                         create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
@@ -2946,7 +2947,16 @@ mysql_prepare_create_table_finalize(THD *thd, HA_CREATE_INFO *create_info,
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
 	  redefinition if we are changing a field in the SELECT part
+
+          The cases are:
+
+          field_no < select_field_pos: both field and dup are table fields;
+          dup_no >= select_field_pos: both field and dup are select fields or
+            field is implicit systrem field and dup is select field.
+
+          We are not allowed to put row_start/row_end into SELECT expression.
 	*/
+        DBUG_ASSERT(dup_no < field_no);
 	if (field_no < select_field_pos || dup_no >= select_field_pos ||
             dup_field->invisible >= INVISIBLE_SYSTEM)
 	{
@@ -12334,6 +12344,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   }
 
   backup_set_alter_copy_lock(thd, from);
+  DEBUG_SYNC(thd, "copy_data_between_tables_after_set_backup_lock");
 
   alter_table_manage_keys(to, from->file->indexes_are_disabled(),
                           alter_info->keys_onoff);
@@ -13055,8 +13066,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;

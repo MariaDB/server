@@ -34,6 +34,7 @@ SELECT * FROM t WHERE a = 20 FOR UPDATE;
 
 --connect(con_2,localhost,root,,)
 # RC is necessary to do semi-consistent read
+SET innodb_snapshot_isolation=OFF;
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN; # trx 2
 # The first time it will be hit on trying to lock (20,20), the second hit

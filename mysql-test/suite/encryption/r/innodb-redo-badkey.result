@@ -23,6 +23,7 @@ insert into t2 select * from t1;
 insert into t3 select * from t1;
 insert into t4 select * from t1;
 commit;
+set global innodb_log_checkpoint_now=on;
 SET GLOBAL innodb_flush_log_at_trx_commit=1;
 begin;
 update t1 set c = repeat('secret3', 20);

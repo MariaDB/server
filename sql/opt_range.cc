@@ -8813,7 +8813,7 @@ SEL_TREE *Item::get_mm_tree_for_const(RANGE_OPT_PARAM *param)
   param->thd->mem_root= param->old_root;
   SEL_TREE *tree;
 
-  const SEL_TREE::Type type= val_int()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
+  const SEL_TREE::Type type= val_bool()? SEL_TREE::ALWAYS: SEL_TREE::IMPOSSIBLE;
   param->thd->mem_root= tmp_root;
 
   tree= new (tmp_root) SEL_TREE(type, tmp_root, param->keys);

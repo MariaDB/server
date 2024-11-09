@@ -27,6 +27,7 @@ SELECT * FROM t WHERE a = 20 FOR UPDATE;
 #             trx 1
 
 --connect(con_2,localhost,root,,)
+SET innodb_snapshot_isolation=OFF;
 # RC is neccessary to do semi-consistent read
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 BEGIN; # trx 2

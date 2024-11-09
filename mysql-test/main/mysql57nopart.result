@@ -1,0 +1,11 @@
+#
+# MDEV-35079 Migrate MySQL5.7 to MariaDB 10.4, then to MariaDB 10.11 Failed
+#
+select table_name, concat('<',table_comment,'>') from information_schema.tables
+where table_schema='test';
+table_name	concat('<',table_comment,'>')
+mysql57part	<The MariaDB server is running with the --skip-partition option so it cannot execute this statement>
+Warnings:
+Warning	1290	The MariaDB server is running with the --skip-partition option so it cannot execute this statement
+drop table mysql57part;
+# End of 10.11 tests

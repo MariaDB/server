@@ -1572,7 +1572,6 @@ public:
     Used only in the MODE_NO_AUTO_VALUE_ON_ZERO mode.
   */
   bool auto_increment_field_not_null;
-  bool insert_or_update;             /* Can be used by the handler */
   /*
      NOTE: alias_name_used is only a hint! It works only in need_correct_ident()
      condition. On other cases it is FALSE even if table_name is alias.
@@ -1593,12 +1592,11 @@ public:
 
   REGINFO reginfo;			/* field connections */
   MEM_ROOT mem_root;
-  /**
-     Initialized in Item_func_group_concat::setup for appropriate
-     temporary table if GROUP_CONCAT is used with ORDER BY | DISTINCT
-     and BLOB field count > 0.
-   */
-  Blob_mem_storage *blob_storage;
+  /* this is for temporary tables created inside Item_func_group_concat */
+  union {
+    bool group_concat;                  /* used during create_tmp_table() */
+    Blob_mem_storage *blob_storage;     /* used after create_tmp_table()  */
+  };
   GRANT_INFO grant;
   /*
     The arena which the items for expressions from the table definition
@@ -2091,7 +2089,14 @@ public:
     DBUG_ASSERT(fields_nullable);
     DBUG_ASSERT(field < n_fields);
     size_t bit= size_t{field} + referenced * n_fields;
-    fields_nullable[bit / 8]|= (unsigned char)(1 << (bit % 8));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
+    fields_nullable[bit / 8]|= static_cast<unsigned char>(1 << (bit % 8));
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
   }
 
   /**
@@ -2108,7 +2113,7 @@ public:
     unsigned n_field= get_n_fields();
     DBUG_ASSERT(field < n_field);
     size_t bit= size_t{field} + referenced * n_field;
-    return fields_nullable[bit / 8] & (1 << (bit % 8));
+    return fields_nullable[bit / 8] & (1U << (bit % 8));
   }
 
 } FOREIGN_KEY_INFO;

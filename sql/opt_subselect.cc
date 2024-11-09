@@ -2856,7 +2856,8 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
+        if (bound_parts == PREV_BITS(key_part_map,
+                                     keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -6166,7 +6167,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     List_iterator_fast<Item_equal> ei(*cond_equalities);
     while ((mult_eq= ei++))
     {
-      if (mult_eq->const_item() && !mult_eq->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_bool())
         is_simplified_cond= true;
       else
       {
@@ -6256,7 +6257,7 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
     List_iterator_fast<Item_equal> ei(new_cond_equal.current_level);
     while ((mult_eq=ei++))
     {
-      if (mult_eq->const_item() && !mult_eq->val_int())
+      if (mult_eq->const_item() && !mult_eq->val_bool())
         is_simplified_cond= true;
       else
       {

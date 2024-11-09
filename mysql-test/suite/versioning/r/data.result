@@ -98,10 +98,10 @@ CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t1` (`x`, row_start, row_end) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
 (2,'2010-10-10 10:10:10.101010','MAX_TIME');
-/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `t2` (
@@ -111,10 +111,10 @@ CREATE TABLE `t2` (
   PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci WITH SYSTEM VERSIONING;
 /*!40101 SET character_set_client = @saved_cs_client */;
-/*!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
+/*M!101100 SET @old_system_versioning_insert_history=@@session.system_versioning_insert_history, @@session.system_versioning_insert_history=1 */;
 INSERT INTO `t2` (`x`, `row_start`, `row_end`) VALUES (1,'2010-10-10 10:10:10.101010','2011-11-11 11:11:11.111111'),
 (2,'2010-10-10 10:10:10.101010','MAX_TIME');
-/*!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
+/*M!101100 SET system_versioning_insert_history=@old_system_versioning_insert_history */;
 mariadb-dump: --dump-history can't be used with --as-of.
 mariadb-dump: --dump-history can't be used with --replace.
 mariadb-dump: --xml can't be used with --dump-history.

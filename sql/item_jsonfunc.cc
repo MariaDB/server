@@ -22,7 +22,7 @@
 #include "json_schema_helper.h"
 
 static bool get_current_value(json_engine_t *, const uchar *&, size_t &);
-static int check_overlaps(json_engine_t *, json_engine_t *, bool);
+static bool check_overlaps(json_engine_t *, json_engine_t *, bool);
 static int json_find_overlap_with_object(json_engine_t *, json_engine_t *, bool);
 
 #ifndef DBUG_OFF
@@ -573,7 +573,7 @@ static int path_setup_nwc(json_path_t *p, CHARSET_INFO *i_cs,
 }
 
 
-longlong Item_func_json_valid::val_int()
+bool Item_func_json_valid::val_bool()
 {
   String *js= args[0]->val_json(&tmp_value);
 
@@ -593,7 +593,7 @@ bool Item_func_json_equals::fix_length_and_dec(THD *thd)
 }
 
 
-longlong Item_func_json_equals::val_int()
+bool Item_func_json_equals::val_bool()
 {
   longlong result= 0;
 
@@ -654,7 +654,7 @@ bool Item_func_json_exists::fix_length_and_dec(THD *thd)
 }
 
 
-longlong Item_func_json_exists::val_int()
+bool Item_func_json_exists::val_bool()
 {
   json_engine_t je;
   int array_counters[JSON_DEPTH_LIMIT];
@@ -1473,7 +1473,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
 }
 
 
-longlong Item_func_json_contains::val_int()
+bool Item_func_json_contains::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
@@ -1691,7 +1691,7 @@ return_null:
 }
 #endif /*DUMMY*/
 
-longlong Item_func_json_contains_path::val_int()
+bool Item_func_json_contains_path::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je;
@@ -4776,7 +4776,7 @@ static int json_find_overlap_with_object(json_engine_t *js, json_engine_t *value
     FALSE - If two json documents do not overlap
     TRUE  - if two json documents overlap
 */
-static int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
+static bool check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_whole)
 {
   DBUG_EXECUTE_IF("json_check_min_stack_requirement",
                   return dbug_json_check_min_stack_requirement(););
@@ -4794,7 +4794,7 @@ static int check_overlaps(json_engine_t *js, json_engine_t *value, bool compare_
   }
 }
 
-longlong Item_func_json_overlaps::val_int()
+bool Item_func_json_overlaps::val_bool()
 {
   String *js= args[0]->val_json(&tmp_js);
   json_engine_t je, ve;
@@ -4847,7 +4847,7 @@ bool Item_func_json_overlaps::fix_length_and_dec(THD *thd)
   return Item_bool_func::fix_length_and_dec(thd);
 }
 
-longlong Item_func_json_schema_valid::val_int()
+bool Item_func_json_schema_valid::val_bool()
 {
   json_engine_t ve;
   int is_valid= 1;

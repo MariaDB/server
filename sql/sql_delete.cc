@@ -428,10 +428,10 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     DBUG_RETURN(TRUE);
   }
 
-  const_cond_result= const_cond && (!conds || conds->val_int());
+  const_cond_result= const_cond && (!conds || conds->val_bool());
   if (unlikely(thd->is_error()))
   {
-    /* Error evaluating val_int(). */
+    /* Error evaluating val_bool(). */
     DBUG_RETURN(TRUE);
   }
 
@@ -534,6 +534,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);
@@ -579,6 +580,7 @@ bool Sql_cmd_delete::delete_from_single_table(THD *thd)
     {
       thd->lex->current_select->save_leaf_tables(thd);
       thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
     }
 
     my_ok(thd, 0);

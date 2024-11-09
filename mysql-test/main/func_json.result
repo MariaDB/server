@@ -424,7 +424,7 @@ coercibility(json_unquote(json_object('bar', c))) as coer_json_unquote,
 coercibility('bar') as coer_literal
 from t1 limit 1;
 coll_json_unquote	coer_json_unquote	coer_literal
-utf8mb3_general_ci	4	5
+utf8mb3_general_ci	4	6
 create table t2 as select json_object('foo', json_unquote(json_object('bar', c)),'qux', c) as fld from t1 limit 0;
 show create table t2;
 Table	Create Table

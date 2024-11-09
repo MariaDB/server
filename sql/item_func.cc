@@ -5689,7 +5689,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
         set_handler(&type_handler_slonglong);
       break;
     case STRING_RESULT:
-      collation.set(m_var_entry->charset(), DERIVATION_COERCIBLE);
+      collation.set(m_var_entry->charset(), DERIVATION_USERVAR);
       max_length= MAX_BLOB_WIDTH - 1;
       set_handler(&type_handler_long_blob);
       if (m_var_entry->type_handler()->field_type() == MYSQL_TYPE_GEOMETRY)
@@ -5709,7 +5709,7 @@ bool Item_func_get_user_var::fix_length_and_dec(THD *thd)
   }
   else
   {
-    collation.set(&my_charset_bin, DERIVATION_COERCIBLE);
+    collation.set(&my_charset_bin, DERIVATION_USERVAR);
     null_value= 1;
     set_handler(&type_handler_long_blob);
     max_length= MAX_BLOB_WIDTH;
@@ -7005,7 +7005,7 @@ sp_cursor *Cursor_ref::get_open_cursor_or_error()
 }
 
 
-longlong Item_func_cursor_isopen::val_int()
+bool Item_func_cursor_isopen::val_bool()
 {
   sp_cursor *c= current_thd->spcont->get_cursor(m_cursor_offset);
   DBUG_ASSERT(c != NULL);
@@ -7013,14 +7013,14 @@ longlong Item_func_cursor_isopen::val_int()
 }
 
 
-longlong Item_func_cursor_found::val_int()
+bool Item_func_cursor_found::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && c->found();
 }
 
 
-longlong Item_func_cursor_notfound::val_int()
+bool Item_func_cursor_notfound::val_bool()
 {
   sp_cursor *c= get_open_cursor_or_error();
   return !(null_value= (!c || c->fetch_count() == 0)) && !c->found();

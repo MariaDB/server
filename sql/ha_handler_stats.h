@@ -54,6 +54,12 @@ public:
   */
   ulonglong icp_match;
   uint      active;                      /* <> 0 if status has to be updated */
+
+  ha_handler_stats()
+  {
+    active= 0;
+  }
+
 #define first_stat pages_accessed
 #define last_stat  icp_match
   inline void reset()
@@ -71,6 +77,8 @@ public:
   }
   inline bool has_stats()
   {
+    if (!active)
+      return 0;
     ulonglong *to= &first_stat;
     do
     {

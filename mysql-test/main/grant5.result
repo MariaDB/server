@@ -38,6 +38,7 @@ connection default;
 disconnect u1;
 drop user u1@localhost;
 drop database mysqltest1;
+use test;
 #
 # MDEV-22313: Neither SHOW CREATE USER nor SHOW GRANTS prints a user's default role
 #
@@ -173,7 +174,7 @@ drop user 'O\'Brien'@'localhost';
 #
 CREATE USER 'test-user';
 CREATE ROLE `r``o'l"e`;
-select user from mysql.user where is_role='Y';
+select user as User from mysql.user where is_role='Y';
 User
 r`o'l"e
 GRANT `r``o'l"e` TO 'test-user';
@@ -348,7 +349,7 @@ ERROR HY000: Password hash should be a 41-digit hexadecimal number
 set password for u7@h = old_password('pwd');
 create user u8@h identified with 'mysql_old_password';
 set password for u8@h = '78a302dd267f6044';
-select user,host,plugin,authentication_string from mysql.user where host='h';
+select user as User,host as Host,plugin,authentication_string from mysql.user where host='h';
 User	Host	plugin	authentication_string
 u1	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
 u2	h	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
@@ -394,7 +395,7 @@ grant select on *.* to u5@h;
 grant select on *.* to u6@h;
 grant select on *.* to u7@h;
 grant select on *.* to u8@h;
-select user,select_priv,plugin,authentication_string from mysql.user where user like 'u_';
+select user as User,select_priv as Select_priv,plugin,authentication_string from mysql.user where user like 'u_';
 User	Select_priv	plugin	authentication_string
 u1	Y	mysql_native_password	bad
 u2	Y	mysql_native_password	*975B2CD4FF9AE554FE8AD33168FBFC326D2021DD
@@ -463,6 +464,14 @@ create table mysql.host (host char(60) binary default '' not null, db char(64) b
 insert mysql.host values('10.5.0.0/255.255.0.0','','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','Y','N');
 flush privileges;
 drop table mysql.host;
-#
 # End of 10.4 tests
 #
+# MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+#
+CREATE USER foo@localhost;
+GRANT FILE ON *.* TO foo@localhost IDENTIFIED VIA not_installed_plugin;
+ERROR HY000: Plugin 'not_installed_plugin' is not loaded
+DROP USER foo@localhost;
+CREATE USER foo@localhost IDENTIFIED VIA not_installed_plugin;
+ERROR HY000: Plugin 'not_installed_plugin' is not loaded
+# End of 10.5 tests

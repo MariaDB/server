@@ -33,6 +33,7 @@ UPDATE t2 SET a = a + 100;
 SELECT * FROM t WHERE a = 20 FOR UPDATE;
 
 --connect(con_2,localhost,root,,)
+SET innodb_snapshot_isolation=OFF;
 # RC is necessary to do semi-consistent read
 SET TRANSACTION ISOLATION LEVEL READ COMMITTED;
 # It will be hit on trying to lock (20,20).
