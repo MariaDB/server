@@ -8,6 +8,4 @@ mysql57part	<The MariaDB server is running with the --skip-partition option so i
 Warnings:
 Warning	1290	The MariaDB server is running with the --skip-partition option so it cannot execute this statement
 drop table mysql57part;
-Warnings:
-Warning	1932	Table 'test.mysql57part' doesn't exist in engine
 # End of 10.11 tests

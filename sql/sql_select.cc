@@ -7254,11 +7254,7 @@ static bool add_key_part(DYNAMIC_ARRAY *keyuse_array, KEY_FIELD *key_field)
       if (form->key_info[key].algorithm == HA_KEY_ALG_FULLTEXT ||
           form->key_info[key].algorithm == HA_KEY_ALG_RTREE ||
           form->key_info[key].algorithm == HA_KEY_ALG_VECTOR ||
-          form->key_info[key].algorithm == HA_KEY_ALG_UNIQUE_HASH)
-        /*
-         HA_UNIQUE_HASH indexes are excluded since they cannot be used
-         for lookups. See Create_tmp_field::finalize() for details
-        */
+          form->key_info[key].flags & HA_UNIQUE_HASH)
 	continue;
 
       KEY *keyinfo= form->key_info+key;
