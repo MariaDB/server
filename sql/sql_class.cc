@@ -5238,10 +5238,9 @@ extern "C" MYSQL_THD thd_increment_pending_ops(MYSQL_THD thd)
 
   @param thd THD
 */
-extern "C" void thd_decrement_pending_ops(void *thd_)
+extern "C" void thd_decrement_pending_ops(MYSQL_THD thd)
 {
-  DBUG_ASSERT(thd_);
-  MYSQL_THD thd= static_cast<MYSQL_THD>(thd_);
+  DBUG_ASSERT(thd);
   DBUG_ASSERT(thd->system_thread == NON_SYSTEM_THREAD);
 
   thd_async_state::enum_async_state state;
