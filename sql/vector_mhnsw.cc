@@ -908,7 +908,7 @@ static int select_neighbors(MHNSW_Share *ctx, TABLE *graph, size_t layer,
   {
     Visited *vec= pq.pop();
     FVectorNode * const node= vec->node;
-    const float target_dista= vec->distance_to_target / alpha;
+    const float target_dista= std::max(32*FLT_EPSILON, vec->distance_to_target / alpha);
     bool discard= false;
     for (size_t i=0; i < neighbors.num; i++)
       if ((discard= node->distance_to(neighbors.links[i]->vec) <= target_dista))
@@ -1348,7 +1348,7 @@ int mhnsw_read_next(TABLE *table)
     }
     ctx->release(false, table->s);      // release shared ctx
     result->ctx= trx;                   // replace it with trx
-    result->ctx_version= trx->version; 
+    result->ctx_version= trx->version;
     std::swap(trx, ctx);        // free shared ctx in this scope, keep trx
   }
 
@@ -1358,7 +1358,7 @@ int mhnsw_read_next(TABLE *table)
                    static_cast<uint>(result->pos), 0, &result->found, false))
     return err;
   result->pos= 0;
-  result->threshold= new_threshold;
+  result->threshold= new_threshold + FLT_EPSILON;
   return mhnsw_read_next(table);
 }
 
