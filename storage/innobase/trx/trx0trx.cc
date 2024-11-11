@@ -1269,7 +1269,9 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
 
     if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
     {
-      cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
+      cb.m_callback= [](void *p) -> void {
+        thd_decrement_pending_ops((MYSQL_THD) p);
+      };
       log_write_up_to(lsn, flush, &cb);
       return;
     }
