@@ -3051,6 +3051,27 @@ longlong Item_func_min_max::val_int_native()
 }
 
 
+longlong Item_func_min_max::val_uint_native()
+{
+  DBUG_ASSERT(fixed);
+  ulonglong value= 0;
+  for (uint i=0; i < arg_count ; i++)
+  {
+    if (i == 0)
+      value= (ulonglong) args[i]->val_int();
+    else
+    {
+      ulonglong tmp= (ulonglong) args[i]->val_int();
+      if (!args[i]->null_value && (tmp < value ? cmp_sign : -cmp_sign) > 0)
+	value= tmp;
+    }
+    if ((null_value= args[i]->null_value))
+      return 0;
+  }
+  return (longlong) value;
+}
+
+
 my_decimal *Item_func_min_max::val_decimal_native(my_decimal *dec)
 {
   DBUG_ASSERT(fixed == 1);

@@ -6152,7 +6152,7 @@ longlong Type_handler_timestamp_common::
 longlong Type_handler_numeric::
          Item_func_min_max_val_int(Item_func_min_max *func) const
 {
-  return func->val_int_native();
+  return is_unsigned() ? func->val_uint_native() : func->val_int_native();
 }
 
 
