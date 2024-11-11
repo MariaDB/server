@@ -41,6 +41,8 @@ typedef struct logger_handle_st {
   char path[FN_REFLEN];
   unsigned long long size_limit;
   unsigned int rotations;
+  unsigned long long buffer_size;
+  unsigned long long buffer_time;
   size_t path_len;
   mysql_mutex_t lock;
 } LSFS;
@@ -68,6 +70,8 @@ LOGGER_HANDLE *logger_open(const char *path,
 
   new_log.rotations= rotations;
   new_log.size_limit= size_limit;
+  new_log.buffer_time= 1000;
+  new_log.buffer_size= 0;
   new_log.path_len= strlen(fn_format(new_log.path, path,
         mysql_data_home, "", MY_UNPACK_FILENAME));
 
@@ -163,6 +167,20 @@ my_bool logger_time_to_rotate(LOGGER_HANDLE *log)
       ((ulonglong) filesize >= log->size_limit))
     return 1;
   return 0;
+}
+
+
+/*
+   Returns the remaining space available in the file for logging, measured in bytes.
+*/
+
+my_off_t logger_space_left(LOGGER_HANDLE *log) {
+    my_off_t filesize;
+    if (log->rotations > 0 &&
+        (filesize= my_tell(log->file, MYF(0))) != (my_off_t) -1) {
+        return log->size_limit - filesize;
+    }
+    return (my_off_t) -1;
 }
 
 

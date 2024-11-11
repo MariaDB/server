@@ -1,3 +1,5 @@
+# This test case can take up do 64 seconds to execute
+
 --source include/have_plugin_auth.inc
 --source include/not_embedded.inc
 
@@ -9,7 +11,6 @@ if (!$SERVER_AUDIT_SO) {
 # An unfortunate wait for check-testcase.test to complete disconnect.
 let count_sessions= 1;
 source include/wait_until_count_sessions.inc;
-
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 let SEARCH_FILE= $MYSQLD_DATADIR/server_audit.log;
 
@@ -20,6 +21,9 @@ set global server_audit_file_path=null;
 set global server_audit_incl_users=null;
 set global server_audit_file_path='server_audit.log';
 set global server_audit_output_type=file;
+# Setting the buffer size to 100 would result in a timeout if buffer time was not working
+set global server_audit_log_buffer_size=100;
+set global server_audit_log_buffer_time=10000; 
 set global server_audit_logging=on;
 
 --error ER_WRONG_VALUE_FOR_VAR
@@ -165,6 +169,8 @@ drop function fn1;
 
 set global server_audit_events='table';
 set global server_audit_incl_users='user1';
+set global server_audit_log_buffer_size=5;
+set global server_audit_log_buffer_time=11000; 
 
 create user user1@localhost;
 grant all on sa_db.* to user1@localhost;
