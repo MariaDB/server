@@ -81,12 +81,14 @@ SET server_id= @orig_server_id;
 
 SELECT COUNT(*) FROM gtid_data;
 
-# Test that BINLOG_GTID_POS returns correct positions for every GTID position.
---echo *** The result should be empty, otherwise some result is wrong:
-SELECT idx, gtid_pos, BINLOG_GTID_POS(file, pos)
-  FROM gtid_data
- WHERE NOT gtid_eq(CONVERT(gtid_pos USING utf8),BINLOG_GTID_POS(file, pos)) 
- ORDER BY idx;
+if ($binlog_in_engine_test != '1') {
+   # Test that BINLOG_GTID_POS returns correct positions for every GTID position.
+   --echo *** The result should be empty, otherwise some result is wrong:
+   SELECT idx, gtid_pos, BINLOG_GTID_POS(file, pos)
+     FROM gtid_data
+    WHERE NOT gtid_eq(CONVERT(gtid_pos USING utf8),BINLOG_GTID_POS(file, pos)) 
+    ORDER BY idx;
+}
 
 # Prepare to rewind the slave to this point to test again on same binlog.
 --connection slave
