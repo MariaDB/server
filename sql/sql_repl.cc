@@ -2327,7 +2327,10 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
 
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 
-  pos= my_b_tell(log);
+  if (opt_binlog_engine_hton)
+    pos= 4;  // ToDo: Support for semi-sync in binlog-in-engine
+  else
+    pos= my_b_tell(log);
   if (repl_semisync_master.update_sync_header(info->thd,
                                               (uchar*) packet->c_ptr_safe(),
                                               info->log_file_name + info->dirlen,
@@ -3012,6 +3015,47 @@ static my_off_t get_binlog_end_pos(binlog_send_info *info,
   return 0;
 }
 
+
+/*
+  Helper function for send_events() and send_engine_events().
+  After an event has been sent to the client, it handles sending a fake
+  GTID_LIST event if needed; and it handles checking the GTID until stop
+  condition, if any.
+*/
+static bool
+send_event_gtid_list_and_until(binlog_send_info *info, ulong *ev_offset,
+                               Log_event_type event_type, my_off_t log_pos)
+{
+  if (unlikely(info->send_fake_gtid_list) &&
+      info->gtid_skip_group == GTID_SKIP_NOT)
+  {
+    Gtid_list_log_event glev(&info->until_binlog_state, 0);
+
+    if (reset_transmit_packet(info, info->flags, ev_offset, &info->errmsg) ||
+        fake_gtid_list_event(info, &glev, &info->errmsg, (uint32)log_pos))
+    {
+      info->error= ER_UNKNOWN_ERROR;
+      return true;
+    }
+    info->send_fake_gtid_list= false;
+  }
+
+  if (info->until_gtid_state &&
+      is_until_reached(info, ev_offset, event_type, &info->errmsg,
+                       (uint32)log_pos))
+  {
+    if (info->errmsg)
+    {
+      info->error= ER_UNKNOWN_ERROR;
+      return true;
+    }
+    info->should_stop= true;
+  }
+
+  return false;
+}
+
+
 /**
  * This function sends events from one binlog file
  * but only up until end_pos
@@ -3026,13 +3070,13 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
   ulong ev_offset;
 
   String *packet= info->packet;
-  if (!opt_binlog_engine_hton) {
+  DBUG_ASSERT(!info->engine_binlog_reader);
   linfo->pos= my_b_tell(log);
   info->last_pos= my_b_tell(log);
 
   log->end_of_file= end_pos;
-  }
-  while (opt_binlog_engine_hton || linfo->pos < end_pos)
+
+  while (linfo->pos < end_pos)
   {
     if (should_stop(info))
       return 0;
@@ -3042,18 +3086,11 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
     if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
       return 1;
 
-    handler_binlog_reader *reader= info->engine_binlog_reader;
-    if (!reader)
-    {
-      info->last_pos= linfo->pos;
-      error= Log_event::read_log_event(log, packet, info->fdev,
-                                       opt_master_verify_checksum ? info->current_checksum_alg
-                                       : BINLOG_CHECKSUM_ALG_OFF);
-      linfo->pos= my_b_tell(log);
-    }
-    else
-      error= reader->read_log_event(packet, packet->length(),
-                                    info->thd->variables.max_allowed_packet);
+    info->last_pos= linfo->pos;
+    error= Log_event::read_log_event(log, packet, info->fdev,
+                                     opt_master_verify_checksum ? info->current_checksum_alg
+                                     : BINLOG_CHECKSUM_ALG_OFF);
+    linfo->pos= my_b_tell(log);
 
     if (unlikely(error))
     {
@@ -3106,32 +3143,9 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
                                            ev_offset, &info->error_gtid))))
       return 1;
 
-    if (unlikely(info->send_fake_gtid_list) &&
-        info->gtid_skip_group == GTID_SKIP_NOT)
-    {
-      Gtid_list_log_event glev(&info->until_binlog_state, 0);
-
-      if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg) ||
-          fake_gtid_list_event(info, &glev, &info->errmsg, (uint32)my_b_tell(log)))
-      {
-        info->error= ER_UNKNOWN_ERROR;
-        return 1;
-      }
-      info->send_fake_gtid_list= false;
-    }
-
-    if (info->until_gtid_state &&
-        is_until_reached(info, &ev_offset, event_type, &info->errmsg,
-                         (uint32)my_b_tell(log)))
-    {
-      if (info->errmsg)
-      {
-        info->error= ER_UNKNOWN_ERROR;
-        return 1;
-      }
-      info->should_stop= true;
-      return 0;
-    }
+    if (send_event_gtid_list_and_until(info, &ev_offset, event_type,
+                                       my_b_tell(log)))
+      return 1;
 
     /* Abort server before it sends the XID_EVENT */
     DBUG_EXECUTE_IF("crash_before_send_xid",
@@ -3146,6 +3160,96 @@ static int send_events(binlog_send_info *info, IO_CACHE* log, LOG_INFO* linfo,
 
   return 0;
 }
+
+
+/**
+ * Send events from binlog implemented in storage engine. Will wait for more
+ * data to become available as needed.
+ *
+ * return 0 - OK
+ *        else NOK
+ */
+static int send_engine_events(binlog_send_info *info)
+{
+  int error;
+  ulong ev_offset;
+
+  String *packet= info->packet;
+  handler_binlog_reader *reader= info->engine_binlog_reader;
+  DBUG_ASSERT(reader);
+  while (!should_stop(info))
+  {
+    /* reset the transmit packet for the event read from binary log
+       file */
+    if (reset_transmit_packet(info, info->flags, &ev_offset, &info->errmsg))
+      return 1;
+
+    error= reader->read_log_event(packet, packet->length(),
+                                  info->thd->variables.max_allowed_packet);
+    if (unlikely(error) && error != LOG_READ_EOF)
+    {
+      set_read_error(info, error);
+      return 1;
+    }
+    if (error == LOG_READ_EOF)
+    {
+      PSI_stage_info old_stage;
+
+      /**
+       * check if we should wait for more data
+       */
+      if ((info->flags & BINLOG_DUMP_NON_BLOCK) ||
+          (info->thd->variables.server_id == 0))
+      {
+        info->should_stop= true;
+        return 0;
+      }
+
+      /**
+       * flush data before waiting
+       */
+      if (net_flush(info->net))
+      {
+        info->errmsg= "failed on net_flush()";
+        info->error= ER_UNKNOWN_ERROR;
+        return 1;
+      }
+
+      mysql_bin_log.lock_binlog_end_pos();
+      info->thd->ENTER_COND(mysql_bin_log.get_bin_log_cond(),
+                            mysql_bin_log.get_binlog_end_pos_lock(),
+                            &stage_master_has_sent_all_binlog_to_slave,
+                            &old_stage);
+      while (!should_stop(info, true) &&
+             !reader->data_available())
+      {
+        //DBUG_ASSERT(!info->heartbeat_period /* ToDo: Implement support for heartbeat events while waiting for more data. */);
+        int ret= mysql_bin_log.wait_for_update_binlog_end_pos(info->thd, NULL);
+        if (ret != 0 && ret != ETIMEDOUT && ret != ETIME)
+        {
+          ret= 1; // error
+          break;
+        }
+      }
+      info->thd->EXIT_COND(&old_stage);
+      continue;
+    }
+
+    Log_event_type event_type=
+        (Log_event_type)((uchar)(*packet)[LOG_EVENT_OFFSET+ev_offset]);
+
+    DBUG_ASSERT(event_type != START_ENCRYPTION_EVENT);
+    if (((info->errmsg= send_event_to_slave(info, event_type, nullptr,
+                                            ev_offset, &info->error_gtid))))
+      return 1;
+
+    if (send_event_gtid_list_and_until(info, &ev_offset, event_type, 0))
+      return 1;
+  }
+
+  return 0;
+}
+
 
 /**
  * This function sends one binlog file to slave
@@ -3173,12 +3277,18 @@ static int send_one_binlog_file(binlog_send_info *info,
   sending_new_binlog_file++;
   while (!should_stop(info))
   {
+    if (opt_binlog_engine_hton)
+    {
+      if (send_engine_events(info))
+        return 1;
+    }
+    else
+    {
     /**
      * get end pos of current log file, this function
      * will wait if there is nothing available
      */
-    my_off_t end_pos= opt_binlog_engine_hton ?
-      UINT32_MAX : get_binlog_end_pos(info, log, linfo);
+    my_off_t end_pos= get_binlog_end_pos(info, log, linfo);
     if (end_pos <= 1)
     {
       /** end of file or error */
@@ -3190,6 +3300,7 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
+    }
   }
 
   return 1;
