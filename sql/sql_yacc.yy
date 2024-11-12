@@ -9012,8 +9012,7 @@ query_expression_body_ext_parens:
 query_expression_body:
           query_simple
           {
-            Lex->push_select($1);
-            if (!($$= Lex->create_unit($1)))
+	    if (Lex->query_expression_body_query_simple($$, $1))
               MYSQL_YYABORT;
           }
         | query_expression_body

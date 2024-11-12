@@ -4072,7 +4072,7 @@ void Query_tables_list::destroy_query_tables_list()
 */
 
 LEX::LEX()
-  : explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
+  : unit(nullptr), explain(NULL), result(0), part_info(NULL), arena_for_set_stmt(0),
     mem_root_for_set_stmt(0), json_table(NULL), analyze_stmt(0),
     default_used(0),
     with_rownum(0), is_lex_started(0), without_validation(0), option_type(OPT_DEFAULT),
@@ -6018,6 +6018,16 @@ int LEX::single_multi_table_alias_ref_list(THD *thd)
 }
 
 
+int LEX::query_expression_body_query_simple(st_select_lex_unit *&unit,
+                                            SELECT_LEX *select_lex)
+{
+   push_select(select_lex);
+   if (!(unit= create_unit(select_lex)))
+     return 1;
+   return 0;
+}
+
+
 /**
   Allocates and set arena for SET STATEMENT old values.
 
@@ -6265,20 +6275,12 @@ SELECT_LEX *LEX::exclude_not_first_select(SELECT_LEX *exclude)
 }
 
 
-SELECT_LEX_UNIT *LEX::alloc_unit()
+SELECT_LEX_UNIT *LEX::alloc_unit() const  // why is this here and not a static factory method on SELECT_LEX_UNIT ?
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::alloc_unit");
-  if (!(unit= new (thd->mem_root) SELECT_LEX_UNIT()))
+  if (!(unit= new (thd->mem_root) SELECT_LEX_UNIT(thd)))
     DBUG_RETURN(NULL);
-
-  unit->init_query();
-  /* TODO: reentrant problem */
-  unit->thd= thd;
-  unit->link_next= 0;
-  unit->link_prev= 0;
-  /* TODO: remove return_to */
-  unit->return_to= NULL;
   DBUG_RETURN(unit);
 }
 
@@ -6308,7 +6310,7 @@ SELECT_LEX *LEX::alloc_select(bool select)
 }
 
 SELECT_LEX_UNIT *
-LEX::create_unit(SELECT_LEX *first_sel)
+LEX::create_unit(SELECT_LEX *first_sel) const
 {
   SELECT_LEX_UNIT *unit;
   DBUG_ENTER("LEX::create_unit");

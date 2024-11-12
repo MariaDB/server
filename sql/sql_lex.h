@@ -724,11 +724,17 @@ protected:
 public:
   bool join_union_item_types(THD *thd, List<Item> &types, uint count);
   // Ensures that at least all members used during cleanup() are initialized.
-  st_select_lex_unit()
+  st_select_lex_unit(THD *thd)
     : union_result(NULL), table(NULL),  result(NULL), fake_select_lex(NULL),
       last_procedure(NULL),cleaned(false), bag_set_op_optimized(false),
       have_except_all_or_intersect_all(false), pushdown_unit(NULL)
   {
+    st_select_lex_unit *unit = this;
+    unit->init_query();
+    unit->thd= thd;
+    unit->link_next= 0;
+    unit->link_prev= 0;
+    unit->return_to= NULL;
   }
 
   void set_query_result(select_result *res) { result= res; }
@@ -3230,6 +3236,7 @@ public:
   void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   int single_multi_table_alias_ref_list(THD *thd);
+  int query_expression_body_query_simple(st_select_lex_unit *&unit, SELECT_LEX *select_lex);
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();
@@ -4670,9 +4677,9 @@ public:
     return false;
   }
 
-  SELECT_LEX_UNIT *alloc_unit();
+  SELECT_LEX_UNIT *alloc_unit() const;
   SELECT_LEX *alloc_select(bool is_select);
-  SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
+  SELECT_LEX_UNIT *create_unit(SELECT_LEX*) const;
   SELECT_LEX *wrap_unit_into_derived(SELECT_LEX_UNIT *unit);
   SELECT_LEX *wrap_select_chain_into_derived(SELECT_LEX *sel);
   void init_select()
