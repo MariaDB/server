@@ -1102,6 +1102,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  SQL_THREAD
 %token  <kwd>  STAGE_SYM
 %token  <kwd>  STARTS_SYM
+%token  <kwd>  STARTUP_SYM
 %token  <kwd>  START_SYM                     /* SQL-2003-R */
 %token  <kwd>  STATEMENT_SYM
 %token  <kwd>  STATUS_SYM
@@ -1464,6 +1465,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         opt_if_exists_table_element opt_if_not_exists_table_element
         opt_recursive opt_format_xid opt_for_portion_of_time_clause
         ignorability
+        database_ev
 
 %type <object_ddl_options>
         create_or_replace
@@ -2940,8 +2942,39 @@ server_option:
           }
         ;
 
-event_tail:
-          remember_name opt_if_not_exists sp_name
+generalized_ev_tail:
+          remember_name
+          opt_if_not_exists
+          sp_name
+          database_ev
+          {
+            LEX *lex=Lex;
+
+            lex->stmt_definition_begin= $1;
+            if (unlikely(lex->add_create_options_with_check($2)))
+              MYSQL_YYABORT;
+            if (unlikely(!(lex->event_parse_data=
+                           Event_parse_data::new_instance(thd))))
+              MYSQL_YYABORT;
+            lex->event_parse_data->identifier= $3;
+            lex->event_parse_data->on_completion=
+                                  Event_parse_data::ON_COMPLETION_PRESERVE;
+            lex->event_parse_data->event_kind=
+                                   (Event_parse_data::enum_event_kind) $4;
+
+            lex->sql_command= SQLCOM_CREATE_EVENT;
+            /* We need that for disallowing subqueries */
+          }
+          opt_ev_status
+          opt_ev_comment
+          DO_SYM ev_sql_stmt 
+        ;
+
+ev_scheduler_tail:
+          remember_name
+          opt_if_not_exists
+          sp_name
+          ON SCHEDULE_SYM 
           {
             LEX *lex=Lex;
 
@@ -2954,21 +2987,43 @@ event_tail:
             lex->event_parse_data->identifier= $3;
             lex->event_parse_data->on_completion=
                                   Event_parse_data::ON_COMPLETION_DROP;
+            Lex->event_parse_data->event_kind= Event_parse_data::SCHEDULE;
 
             lex->sql_command= SQLCOM_CREATE_EVENT;
             /* We need that for disallowing subqueries */
           }
-          ON SCHEDULE_SYM ev_schedule_time
+          ev_schedule_time
           opt_ev_on_completion
           opt_ev_status
           opt_ev_comment
           DO_SYM ev_sql_stmt
+        ;
+
+ev_scheduler_or_generalized_ev:
+          ev_scheduler_tail 
+        |
+          generalized_ev_tail
+        ;
+
+event_tail:
+          ev_scheduler_or_generalized_ev 
           {
             /*
               sql_command is set here because some rules in ev_sql_stmt
               can overwrite it
             */
             Lex->sql_command= SQLCOM_CREATE_EVENT;
+          }
+        ;
+
+database_ev:
+          AFTER_SYM STARTUP_SYM
+          {
+            $$= Event_parse_data::STARTUP;
+          }
+        | BEFORE_SYM SHUTDOWN
+          {
+            $$= Event_parse_data::SHUTDOWN;
           }
         ;
 
@@ -18194,12 +18249,12 @@ trigger_follows_precedes_clause:
 trigger_tail:
           remember_name
           opt_if_not_exists
+          sp_name
+          trg_action_time
           {
             if (unlikely(Lex->add_create_options_with_check($2)))
               MYSQL_YYABORT;
           }
-          sp_name
-          trg_action_time
           trg_event
           ON
           remember_name /* $8 */
@@ -18228,11 +18283,11 @@ trigger_tail:
             lex->stmt_definition_begin= $1;
             lex->ident.str= $8;
             lex->ident.length= $12 - $8;
-            lex->spname= $4;
+            lex->spname= $3;
             (*static_cast<st_trg_execution_order*>(&lex->trg_chistics))= ($17);
             lex->trg_chistics.ordering_clause_end= lip->get_cpp_ptr();
 
-            if (unlikely(!lex->make_sp_head(thd, $4, &sp_handler_trigger,
+            if (unlikely(!lex->make_sp_head(thd, $3, &sp_handler_trigger,
                                             DEFAULT_AGGREGATE)))
               MYSQL_YYABORT;
 
@@ -18256,6 +18311,11 @@ trigger_tail:
                                    TL_OPTION_UPDATING, TL_READ_NO_INSERT,
                                    MDL_SHARED_NO_WRITE))
               MYSQL_YYABORT;
+          }
+        |
+          event_tail
+          {
+            Lex->event_parse_data->is_trg_cmd= TRUE;
           }
         ;
 

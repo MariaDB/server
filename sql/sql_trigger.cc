@@ -40,6 +40,7 @@
 #include "wsrep_mysqld.h"
 #include <my_time.h>
 #include <mysql_time.h>
+#include "events.h"                      // drop_event
 
 /*************************************************************************/
 
@@ -48,6 +49,8 @@ static bool add_table_for_trigger_internal(THD *thd,
                                            bool if_exists,
                                            TABLE_LIST **table,
                                            char *trn_path_buff);
+
+static bool should_execute_drop_event(THD *thd);
 
 /*
   Functions for TRIGGER_RENAME_PARAM
@@ -443,6 +446,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
   char trn_path_buff[FN_REFLEN];
   char path[FN_REFLEN + 1];
+  bool execute_drop_event= false;
 
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
@@ -505,6 +509,23 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 
   if (!create)
   {
+    /*
+       Check if dml trigger exists, if it doesn't
+       try to drop an event (generalized trigger).
+    */
+    LEX *lex= thd->lex;
+    LEX_CSTRING trn_path= { trn_path_buff, 0 };
+    build_trn_path(thd, lex->spname, (LEX_STRING*) &trn_path);
+
+    bool trn_not_exists= check_trn_exists(&trn_path);
+
+    /* Trigger does not exist, check if we can use drop event. */
+    if (trn_not_exists && should_execute_drop_event(thd))
+    {
+      result= execute_drop_event= true;
+      goto end;
+    }
+
     bool if_exists= thd->lex->if_exists();
 
     /*
@@ -750,6 +771,14 @@ end:
                   thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
+
+#ifdef HAVE_EVENT_SCHEDULER
+  if(execute_drop_event &&
+     !(result= Events::drop_event(thd, &thd->lex->spname->m_db,
+                                  &thd->lex->spname->m_name,
+                                  thd->lex->if_exists())))
+    my_ok(thd);
+#endif
 
   DBUG_RETURN(result);
 
@@ -2854,4 +2883,16 @@ bool load_table_name_for_trigger(THD *thd,
   /* That's all. */
 
   DBUG_RETURN(FALSE);
+}
+
+static bool should_execute_drop_event(THD *thd)
+{
+#ifdef HAVE_EVENT_SCHEDULER
+  Lex_cstring *dbname= &thd->lex->spname->m_db;
+  if (!opt_bootstrap && !thd->locked_tables_mode &&
+      !check_access(thd, EVENT_ACL, dbname->str, NULL, NULL, 0, 1))
+    return true;
+#endif
+
+  return false;
 }

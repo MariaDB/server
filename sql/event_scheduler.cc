@@ -547,7 +547,10 @@ Event_scheduler::execute_top(Event_queue_element_for_exec *event_name)
     goto error;
 
   pre_init_event_thread(new_thd);
-  new_thd->system_thread= SYSTEM_THREAD_EVENT_WORKER;
+  if(event_name->event_kind == Event_parse_data::SHUTDOWN)
+    new_thd->system_thread= SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER;
+  else
+    new_thd->system_thread= SYSTEM_THREAD_EVENT_WORKER;
   event_name->thd= new_thd;
   DBUG_PRINT("info", ("Event %s@%s ready for start",
              event_name->dbname.str, event_name->name.str));
@@ -696,7 +699,8 @@ end:
 
 static my_bool workers_count_callback(THD *thd, uint32_t *count)
 {
-  if (thd->system_thread == SYSTEM_THREAD_EVENT_WORKER)
+  if (thd->system_thread &
+      (SYSTEM_THREAD_EVENT_WORKER + SYSTEM_THREAD_SHUTDOWN_EVENT_WORKER))
     ++*count;
   return 0;
 }
