@@ -2797,6 +2797,15 @@ avoid_bulk:
 					*entry, *index, trx);
 			goto err_exit;
 		}
+	} else if (trx->mysql_thd
+		   && page_is_empty(block->page.frame)
+		   && block->page.id().page_no() == index->page
+                   && thd_sql_command(trx->mysql_thd) == SQLCOM_LOAD) {
+			trx_start_if_not_started(trx, true);
+			trx->bulk_insert = true;
+			auto m = trx->mod_tables.emplace(index->table, 0);
+			m.first->second.start_bulk_insert(
+					index->table, true);
 	}
 
 row_level_insert:

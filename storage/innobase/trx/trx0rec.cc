@@ -1859,6 +1859,11 @@ trx_undo_report_row_operation(
 		ut_ad(thr->run_node);
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
 		ut_ad(trx->bulk_insert);
+
+		if (m.first->second.has_written_empty_undo()) {
+			m.first->second.write_undo_empty();
+			goto skip_bulk;
+		}
 		return DB_SUCCESS;
 	} else if (!m.second || !trx->bulk_insert) {
 		bulk = false;
@@ -1871,10 +1876,12 @@ trx_undo_report_row_operation(
 			    *clust_entry, *index, trx)) {
 			return err;
 		}
+		m.first->second.write_undo_empty();
 	} else {
 		bulk = false;
 	}
 
+skip_bulk:
 	mtr_t		mtr;
 	dberr_t		err;
 	mtr.start();

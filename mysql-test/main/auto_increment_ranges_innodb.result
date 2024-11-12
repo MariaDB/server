@@ -273,7 +273,6 @@ with system versioning partition by system_time interval 2 day
 load data infile 'load.data' ignore into table t1;
 Warnings:
 Warning	1062	Duplicate entry '1' for key 'x'
-Warning	1062	Duplicate entry '1' for key 'x'
 drop table t1;
 create table t1 (pk int auto_increment primary key, f varchar(20));
 insert t1 (f) values ('a'), ('b'), ('c'), ('d');

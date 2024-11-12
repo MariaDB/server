@@ -420,6 +420,10 @@ class trx_mod_table_time_t
   insert into an empty table) */
   static constexpr undo_no_t BULK= 1ULL << 63;
 
+  /** Flag in 'first' to indicate that TRX_UNDO_EMPTY record
+  for the empty table has written */
+  static constexpr undo_no_t UNDO_EMPTY= 1ULL << 62;
+
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
   /** First modification of a system versioned column
@@ -468,13 +472,21 @@ public:
   }
 
   /** Notify the start of a bulk insert operation
-  @param table table to do bulk operation */
-  void start_bulk_insert(dict_table_t *table)
+  @param table table to do bulk operation
+  @param avoid_buffer ignore the bulk buffer creation */
+  void start_bulk_insert(dict_table_t *table,
+                         bool avoid_buffer=false)
   {
     first|= BULK;
-    if (!table->is_temporary())
+    if (!avoid_buffer && !table->is_temporary())
       bulk_store= new row_merge_bulk_t(table);
   }
+
+  /** Set the UNDO_EMPTY flag in bulk insert operation */
+  void write_undo_empty() { first |= UNDO_EMPTY; }
+
+  /** @return whether UNDO_EMTPY undo log was written */
+  bool has_written_empty_undo() { return !(first & UNDO_EMPTY); }
 
   /** Notify the end of a bulk insert operation */
   void end_bulk_insert() { first&= ~BULK; }
@@ -1160,8 +1172,6 @@ public:
   {
     if (UNIV_LIKELY(!bulk_insert))
       return nullptr;
-    ut_ad(table->skip_alter_undo || !check_unique_secondary);
-    ut_ad(table->skip_alter_undo || !check_foreigns);
     auto it= mod_tables.find(table);
     if (it == mod_tables.end() || !it->second.bulk_buffer_exist())
       return nullptr;
