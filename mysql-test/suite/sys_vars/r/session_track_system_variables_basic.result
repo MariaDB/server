@@ -154,17 +154,15 @@ SET @@global.session_track_system_variables = @global_saved_tmp;
 #
 # MDEV-31609 Send initial values of system variables in first OK packet
 #
-set @old_session_track_system_variables=@@global.session_track_system_variables;
-set global session_track_system_variables="autocommit,character_set_client,character_set_connection,redirect_url,time_zone";
 connect foo,localhost,root;
 -- Tracker : SESSION_TRACK_SYSTEM_VARIABLES
 -- autocommit: ON
 -- character_set_client: latin1
 -- character_set_connection: latin1
+-- character_set_results: latin1
 -- redirect_url: 
 -- time_zone: SYSTEM
 
 connection default;
 disconnect foo;
-set global session_track_system_variables=@old_session_track_system_variables;
 # End of tests 11.5
