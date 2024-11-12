@@ -17533,7 +17533,7 @@ handler_tail:
               MYSQL_YYABORT;
             select->limit_params.select_limit= one;
             select->limit_params.offset_limit= 0;
-            lex->limit_rows_examined= 0;
+            lex->limit_rows_examined= nullptr;
             if (!lex->current_select->add_table_to_list(thd, $1, 0, 0))
               MYSQL_YYABORT;
           }
@@ -17549,7 +17549,7 @@ handler_tail:
                 MYSQL_YYABORT;
               select->limit_params.select_limit= one;
               select->limit_params.offset_limit= 0;
-              lex->limit_rows_examined= 0;
+              lex->limit_rows_examined= nullptr;
             }
             /* Stored functions are not supported for HANDLER READ. */
             if (lex->uses_stored_routines())

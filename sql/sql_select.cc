@@ -4817,7 +4817,7 @@ int JOIN::exec()
                         dbug_serve_apcs(thd, 1);
                  );
   ANALYZE_START_TRACKING(thd, &explain->time_tracker);
-  res= exec_inner();
+  res= exec_impl();
   ANALYZE_STOP_TRACKING(thd, &explain->time_tracker);
 
   DBUG_EXECUTE_IF("show_explain_probe_join_exec_end", 
@@ -4830,13 +4830,18 @@ int JOIN::exec()
 }
 
 
-int JOIN::exec_inner()
+int JOIN::exec_impl()
 {
   List<Item> *columns_list= &fields_list;
   DBUG_ENTER("JOIN::exec_inner");
   DBUG_ASSERT(optimization_state == JOIN::OPTIMIZATION_DONE);
 
   THD_STAGE_INFO(thd, stage_executing);
+
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_exec(thd, "join_execution");
+  trace_exec.add_select_number(select_lex->select_number);
+  Json_writer_array trace_steps(thd, "steps");
 
   /*
     Enable LIMIT ROWS EXAMINED during query execution if:
@@ -4847,13 +4852,10 @@ int JOIN::exec_inner()
     (2) This JOIN is not the result of a UNION. In this case do not apply the
         limit in order to produce the partial query result stored in the
         UNION temp table.
+    NOTE: LIMIT ROWS EXAMINED is not the same as a LIMIT clause on a query
+          and LEX::limit_rows_examined will be nullptr when LIMIT ROWS EXAMINED
+          does not apply and there is a LIMIT clause.
   */
-
-  Json_writer_object trace_wrapper(thd);
-  Json_writer_object trace_exec(thd, "join_execution");
-  trace_exec.add_select_number(select_lex->select_number);
-  Json_writer_array trace_steps(thd, "steps");
-
   if (!select_lex->outer_select() &&                            // (1)
       select_lex != select_lex->master_unit()->fake_select_lex) // (2)
     thd->lex->set_limit_rows_examined();

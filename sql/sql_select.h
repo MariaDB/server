@@ -1776,7 +1776,9 @@ public:
   int reinit();
   int init_execution();
   int exec() __attribute__((warn_unused_result));
-  int exec_inner();
+private:  // TODO move this section
+  int exec_impl();
+public:
   bool prepare_result(List<Item> **columns_list);
   int destroy();
   void restore_tmp();
