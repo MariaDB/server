@@ -15,3 +15,16 @@ select * from t1;
 drop table t1;
 rename table mysql.table_stats_save to mysql.table_stats;
 flush tables;
+
+--echo #
+--echo # MDEV-32667 dict_stats_save_index_stat() reads uninitialized
+--echo #              index->stats_error_printed
+--echo #
+call mtr.add_suppression("InnoDB: Cannot save index statistics for table");
+CREATE TABLE t1(a INT) ENGINE=InnoDB STATS_PERSISTENT=1 STATS_AUTO_RECALC=1;
+BEGIN;
+SELECT COUNT(*)>=0 FROM mysql.innodb_index_stats LOCK IN SHARE MODE;
+INSERT INTO t1 VALUES(0),(0);
+SELECT sleep(1);
+COMMIT;
+DROP TABLE t1;
