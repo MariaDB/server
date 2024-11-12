@@ -1829,6 +1829,7 @@ end_with_cleanup:
     my_tz_free();
 end:
   delete thd;
+  set_current_thd(nullptr);
   if (org_thd)
     org_thd->store_globals();			/* purecov: inspected */
 

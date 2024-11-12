@@ -264,6 +264,7 @@ bool servers_init(bool dont_read_servers_table)
   */
   return_val= servers_reload(thd);
   delete thd;
+  set_current_thd(nullptr);
 
 end:
   DBUG_RETURN(return_val);

@@ -2581,6 +2581,7 @@ bool acl_init(bool dont_read_acl_tables)
   */
   return_val= acl_reload(thd);
   delete thd;
+  set_current_thd(nullptr);
   DBUG_RETURN(return_val);
 }
 
@@ -8151,6 +8152,7 @@ bool grant_init()
 
   return_val=  grant_reload(thd);
   delete thd;
+  set_current_thd(nullptr);
   DBUG_RETURN(return_val);
 }
 
