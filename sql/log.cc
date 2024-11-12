@@ -7562,6 +7562,7 @@ err:
         /* ToDo: Maybe binlog_write_direct() could return the coords. */
         mysql_mutex_unlock(&LOCK_commit_ordered);
 
+        update_binlog_end_pos();
         status_var_add(thd->status_var.binlog_bytes_written, binlog_total_bytes);
 
         goto engine_ok;
