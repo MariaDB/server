@@ -6164,6 +6164,7 @@ public:
   ha_innodb_binlog_reader(uint64_t file_no= 0, uint64_t offset= 0);
   ~ha_innodb_binlog_reader();
   virtual int read_binlog_data(uchar *buf, uint32_t len) final;
+  virtual bool data_available() final;
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) final;
 };
@@ -7610,6 +7611,26 @@ int ha_innodb_binlog_reader::read_binlog_data(uchar *buf, uint32_t len)
   }
 
   return res;
+}
+
+
+bool
+ha_innodb_binlog_reader::data_available()
+{
+  uint64_t active= active_binlog_file_no.load(std::memory_order_acquire);
+  if (active != cur_file_no)
+  {
+    ut_ad(active > cur_file_no);
+    return true;
+  }
+  uint64_t end_offset=
+    binlog_cur_end_offset[cur_file_no&1].load(std::memory_order_acquire);
+  uint64_t active2= active_binlog_file_no.load(std::memory_order_acquire);
+  if (active2 != active || end_offset > cur_file_offset)
+    return true;
+  ut_ad(cur_file_no == active2);
+  ut_ad(cur_file_offset == end_offset);
+  return false;
 }
 
 
