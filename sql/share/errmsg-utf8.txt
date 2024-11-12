@@ -12270,6 +12270,10 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_SEQUENCE_UNINITIALIZED
+        eng "Sequence is uninitialized"
+ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
+        eng "More than one row in the table"
 ER_SEQUENCE_TABLE_HAS_WRONG_NUMBER_OF_COLUMNS
         eng "Wrong number of columns"
 ER_SEQUENCE_TABLE_CANNOT_HAVE_ANY_KEYS
