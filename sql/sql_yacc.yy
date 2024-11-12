@@ -13928,13 +13928,8 @@ single_multi:
         | table_alias_ref_list
           {
             LEX *lex= Lex;
-            lex->sql_command= SQLCOM_DELETE_MULTI;
-            if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(true)))
+	    if (lex->single_multi_table_alias_ref_list(thd))
               MYSQL_YYABORT;
-            mysql_init_multi_delete(Lex);
-            YYPS->m_lock_type= TL_READ_DEFAULT;
-            YYPS->m_mdl_type= MDL_SHARED_READ;
           }
           FROM join_table_list opt_where_clause opt_order_or_limit
           {

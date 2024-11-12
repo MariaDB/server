@@ -6003,6 +6003,21 @@ int LEX::print_explain(select_result_sink *output, uint8 explain_flags,
 }
 
 
+int LEX::single_multi_table_alias_ref_list(THD *thd)
+{
+    LEX *lex= this;
+    lex->sql_command= SQLCOM_DELETE_MULTI;
+    if (!(lex->m_sql_cmd=
+          new (thd->mem_root) Sql_cmd_delete(true)))
+        return 1;
+    mysql_init_multi_delete(lex);
+    auto YYPS= &thd->m_parser_state->m_yacc;
+    YYPS->m_lock_type= TL_READ_DEFAULT;
+    YYPS->m_mdl_type= MDL_SHARED_READ;
+    return 0;
+}
+
+
 /**
   Allocates and set arena for SET STATEMENT old values.
 

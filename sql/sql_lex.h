@@ -3229,6 +3229,7 @@ protected:
 public:
   void parse_error(uint err_number= ER_SYNTAX_ERROR);
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
+  int single_multi_table_alias_ref_list(THD *thd);
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();
