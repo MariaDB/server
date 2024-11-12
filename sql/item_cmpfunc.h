@@ -782,6 +782,7 @@ public:
   enum Functype functype() const override { return EQUAL_FUNC; }
   enum Functype rev_functype() const override { return EQUAL_FUNC; }
   cond_result eq_cmp_result() const override { return COND_TRUE; }
+  bool is_null() override { return false; }
   const char *func_name() const override { return "<=>"; }
   Item *neg_transformer(THD *thd) override { return 0; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
