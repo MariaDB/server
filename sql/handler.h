@@ -5842,6 +5842,7 @@ public:
   { }
   virtual ~handler_binlog_reader() { };
   virtual int read_binlog_data(uchar *buf, uint32_t len) = 0;
+  virtual bool data_available()= 0;
   virtual int init_gtid_pos(slave_connection_state *pos,
                             rpl_binlog_state_base *state) = 0;
 
