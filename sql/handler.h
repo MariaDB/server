@@ -4078,7 +4078,7 @@ public:
   virtual int
   get_parent_foreign_key_list(THD *thd, List<FOREIGN_KEY_INFO> *f_key_list)
   { return 0; }
-  virtual uint referenced_by_foreign_key() { return 0;}
+  virtual bool referenced_by_foreign_key() const noexcept { return false;}
   virtual void init_table_handle_for_HANDLER()
   { return; }       /* prepare InnoDB for HANDLER */
   virtual void free_foreign_key_create_info(char* str) {}
@@ -4987,6 +4987,12 @@ public:
   /* XXX to be removed, see ha_partition::partition_ht() */
   virtual handlerton *partition_ht() const
   { return ht; }
+  /*
+    Used with 'wrapper' engines, like SEQUENCE, to access to the
+    underlaying engine used for storage.
+  */
+  virtual handlerton *storage_ht() const
+  { return ht; }
   inline int ha_write_tmp_row(uchar *buf);
   inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
@@ -5307,4 +5313,7 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
+
+int get_select_field_pos(Alter_info *alter_info, int select_field_count,
+                         bool versioned);
 #endif /* HANDLER_INCLUDED */

@@ -27,3 +27,17 @@ change_user $USER;
 replace mysql.global_priv select * from global_priv_backup;
 flush privileges;
 drop table global_priv_backup;
+
+
+--echo #
+--echo # MDEV-18151: Skipped error returning for GRANT/SET PASSWORD
+--echo #
+
+CREATE USER foo;
+--error ER_SET_PASSWORD_AUTH_PLUGIN
+GRANT EXECUTE ON * TO foo IDENTIFIED WITH unix_socket AS PASSWORD('bar');
+
+# Cleanup
+DROP USER foo;
+
+--echo # End of 10.5 tests

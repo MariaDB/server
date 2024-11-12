@@ -966,7 +966,9 @@ DROP USER evtest1@localhost;
 #    scheduler to detect that
 --echo Sleep 4 seconds
 sleep 4;
+--disable_cursor_protocol
 SELECT COUNT(*) INTO @row_cnt FROM events_test.event_log;
+--enable_cursor_protocol
 #    Give the event mechanism ~ 4 seconds to do something wrong
 #    (execute the event of the dropped user -> inser rows).
 --echo Sleep 4 seconds
@@ -1186,9 +1188,11 @@ drop procedure if exists p;
 set @old_mode= @@sql_mode;
 set @@sql_mode= cast(pow(2,32)-1 as unsigned integer);
 create event e1 on schedule every 1 day do select 1;
+--disable_cursor_protocol
 select @@sql_mode into @full_mode;
 set @@sql_mode= @old_mode;
 select replace(@full_mode, 'ALLOW_INVALID_DATES', 'INVALID_DATES') into @full_mode;
+--enable_cursor_protocol
 select name from mysql.event where name = 'e1' and sql_mode = @full_mode;
 drop event e1;
 

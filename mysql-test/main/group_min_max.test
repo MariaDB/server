@@ -1726,6 +1726,8 @@ explain select
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
 
+#Enable after fix MDEV-31552
+--disable_cursor_protocol
 select
  t1.PARENT_ID,
  min(CHILD_FIELD)
@@ -1733,6 +1735,7 @@ select
  where t1.PARENT_ID = 1
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
+--enable_cursor_protocol
 
 select
  1,
@@ -1764,6 +1767,8 @@ explain select
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
 
+#Enable after fix MDEV-31552
+--disable_cursor_protocol
 select
  t1.PARENT_ID,
  min(CHILD_FIELD)
@@ -1771,6 +1776,7 @@ select
  where t1.PARENT_ID = 1
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
+--enable_cursor_protocol
 
 drop table t1,t2;
 
@@ -1897,6 +1903,8 @@ explain select
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
 
+#Enable after fix MDEV-31552
+--disable_cursor_protocol
 select
  t1.PARENT_ID,
  min(CHILD_FIELD)
@@ -1904,6 +1912,7 @@ select
  where t1.PARENT_ID = 1
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
+--enable_cursor_protocol
 
 select
  1,
@@ -1935,6 +1944,8 @@ explain select
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
 
+#Enable after fix MDEV-31552
+--disable_cursor_protocol
 select
  t1.PARENT_ID,
  min(CHILD_FIELD)
@@ -1942,6 +1953,7 @@ select
  where t1.PARENT_ID = 1
  and t1.PARENT_ID = t2.PARENT_ID
  and t2.CHILD_FIELD = "ZZZZ";
+--enable_cursor_protocol
 
 drop table t1,t2;
 

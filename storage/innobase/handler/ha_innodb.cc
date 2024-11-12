@@ -2921,7 +2921,7 @@ innobase_invalidate_query_cache(
 void
 innobase_quote_identifier(
 	FILE*		file,
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id)
 {
 	const int	q = trx != NULL && trx->mysql_thd != NULL
@@ -2951,7 +2951,7 @@ innobase_quote_identifier(
 std::string
 innobase_quote_identifier(
 /*======================*/
-	trx_t*		trx,
+	const trx_t*	trx,
 	const char*	id)
 {
 	std::string quoted_identifier;
@@ -5590,15 +5590,15 @@ innobase_build_v_templ(
 }
 
 /** Check consistency between .frm indexes and InnoDB indexes.
-@param[in]	table	table object formed from .frm
 @param[in]	ib_table	InnoDB table definition
 @retval	true if not errors were found */
-static bool
-check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
+bool
+ha_innobase::check_index_consistency(const dict_table_t* ib_table) noexcept
 {
 	ulint mysql_num_index = table->s->keys;
 	ulint ib_num_index = UT_LIST_GET_LEN(ib_table->indexes);
 	bool ret = true;
+	ulint last_unique = 0;
 
 	/* If there exists inconsistency between MySQL and InnoDB dictionary
 	(metadata) information, the number of index defined in MySQL
@@ -5633,8 +5633,21 @@ check_index_consistency(const TABLE* table, const dict_table_t* ib_table)
 			ret = false;
 			goto func_exit;
 		}
-	}
 
+		if (index->is_unique()) {
+			ulint i = 0;
+			while ((index = UT_LIST_GET_PREV(indexes, index))) i++;
+			/* Check if any unique index in InnoDB
+			dictionary are re-ordered compared to
+			the index in .frm */
+			if (last_unique > i) {
+				m_int_table_flags
+					|= HA_DUPLICATE_KEY_NOT_IN_ORDER;
+			}
+
+			last_unique = i;
+		}
+	}
 func_exit:
 	return ret;
 }
@@ -5874,7 +5887,7 @@ ha_innobase::open(const char* name, int, uint)
 		mutex_exit(&dict_sys.mutex);
 	}
 
-	if (!check_index_consistency(table, ib_table)) {
+	if (!check_index_consistency(ib_table)) {
 		sql_print_error("InnoDB indexes are inconsistent with what "
 				"defined in .frm for table %s",
 				name);
@@ -8140,6 +8153,7 @@ calc_row_difference(
 			to block it. */
 			if (DATA_GEOMETRY_MTYPE(col_type)
 			    && o_len != 0 && n_len == 0) {
+				trx->error_info = clust_index;
 				return(DB_CANT_CREATE_GEOMETRY_OBJECT);
 			}
 
@@ -10052,8 +10066,8 @@ wsrep_append_key(
 static bool
 referenced_by_foreign_key2(
 /*=======================*/
-	dict_table_t* table,
-	dict_index_t* index)
+	const dict_table_t* table,
+	const dict_index_t* index) noexcept
 {
 	ut_ad(table != NULL);
 	ut_ad(index != NULL);
@@ -12518,19 +12532,22 @@ create_table_info_t::create_foreign_keys()
 				}
 			}
 		}
-
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wconversion"
+#endif
 		switch (fk->delete_opt) {
 		case FK_OPTION_UNDEF:
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_CASCADE;
+			foreign->type |= foreign->DELETE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_SET_NULL;
+			foreign->type |= foreign->DELETE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
-			foreign->type |= DICT_FOREIGN_ON_DELETE_NO_ACTION;
+			foreign->type |= foreign->DELETE_NO_ACTION;
 			break;
 		case FK_OPTION_SET_DEFAULT:
 			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
@@ -12545,13 +12562,13 @@ create_table_info_t::create_foreign_keys()
 		case FK_OPTION_RESTRICT:
 			break;
 		case FK_OPTION_CASCADE:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_CASCADE;
+			foreign->type |= foreign->UPDATE_CASCADE;
 			break;
 		case FK_OPTION_SET_NULL:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_SET_NULL;
+			foreign->type |= foreign->UPDATE_SET_NULL;
 			break;
 		case FK_OPTION_NO_ACTION:
-			foreign->type |= DICT_FOREIGN_ON_UPDATE_NO_ACTION;
+			foreign->type |= foreign->UPDATE_NO_ACTION;
 			break;
 		case FK_OPTION_SET_DEFAULT:
 			// TODO: MDEV-10393 Foreign keys SET DEFAULT action
@@ -12560,6 +12577,9 @@ create_table_info_t::create_foreign_keys()
 			ut_ad(0);
 			break;
 		}
+#if defined __GNUC__ && !defined __clang__ && __GNUC__ < 6
+# pragma GCC diagnostic pop
+#endif
 	}
 
 	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
@@ -15266,28 +15286,43 @@ get_foreign_key_info(
 		name = thd_make_lex_string(thd, name, ptr,
 					   strlen(ptr), 1);
 		f_key_info.foreign_fields.push_back(name);
+
+		if (dict_index_t* fidx = foreign->foreign_index) {
+			if (fidx->fields[i].col->is_nullable()) {
+				f_key_info.set_nullable(thd, false, i,
+							foreign->n_fields);
+			}
+		}
 		ptr = foreign->referenced_col_names[i];
 		name = thd_make_lex_string(thd, name, ptr,
 					   strlen(ptr), 1);
 		f_key_info.referenced_fields.push_back(name);
+
+		if (dict_index_t* ref_idx = foreign->referenced_index) {
+			if (ref_idx->fields[i].col->is_nullable()) {
+				f_key_info.set_nullable(thd, true, i,
+							foreign->n_fields);
+			}
+		}
+
 	} while (++i < foreign->n_fields);
 
-	if (foreign->type & DICT_FOREIGN_ON_DELETE_CASCADE) {
+	if (foreign->type & foreign->DELETE_CASCADE) {
 		f_key_info.delete_method = FK_OPTION_CASCADE;
-	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_SET_NULL) {
+	} else if (foreign->type & foreign->DELETE_SET_NULL) {
 		f_key_info.delete_method = FK_OPTION_SET_NULL;
-	} else if (foreign->type & DICT_FOREIGN_ON_DELETE_NO_ACTION) {
+	} else if (foreign->type & foreign->DELETE_NO_ACTION) {
 		f_key_info.delete_method = FK_OPTION_NO_ACTION;
 	} else {
 		f_key_info.delete_method = FK_OPTION_RESTRICT;
 	}
 
 
-	if (foreign->type & DICT_FOREIGN_ON_UPDATE_CASCADE) {
+	if (foreign->type & foreign->UPDATE_CASCADE) {
 		f_key_info.update_method = FK_OPTION_CASCADE;
-	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_SET_NULL) {
+	} else if (foreign->type & foreign->UPDATE_SET_NULL) {
 		f_key_info.update_method = FK_OPTION_SET_NULL;
-	} else if (foreign->type & DICT_FOREIGN_ON_UPDATE_NO_ACTION) {
+	} else if (foreign->type & foreign->UPDATE_NO_ACTION) {
 		f_key_info.update_method = FK_OPTION_NO_ACTION;
 	} else {
 		f_key_info.update_method = FK_OPTION_RESTRICT;
@@ -15451,16 +15486,12 @@ ha_innobase::can_switch_engines(void)
 	DBUG_RETURN(can_switch);
 }
 
-/*******************************************************************//**
-Checks if a table is referenced by a foreign key. The MySQL manual states that
-a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
+/** Checks if a table is referenced by a foreign key. The MySQL manual states
+that a REPLACE is either equivalent to an INSERT, or DELETE(s) + INSERT. Only a
 delete is then allowed internally to resolve a duplicate key conflict in
 REPLACE, not an update.
-@return > 0 if referenced by a FOREIGN KEY */
-
-uint
-ha_innobase::referenced_by_foreign_key(void)
-/*========================================*/
+@return whether the table is referenced by a FOREIGN KEY */
+bool ha_innobase::referenced_by_foreign_key() const noexcept
 {
 	if (dict_table_is_referenced_by_foreign_key(m_prebuilt->table)) {
 
@@ -15918,9 +15949,9 @@ ha_innobase::external_lock(
 		}
 
 		DBUG_RETURN(0);
-	} else {
-		DEBUG_SYNC_C("ha_innobase_end_statement");
 	}
+
+	DEBUG_SYNC_C("ha_innobase_end_statement");
 
 	/* MySQL is releasing a table lock */
 
@@ -15946,14 +15977,6 @@ ha_innobase::external_lock(
 		} else if (trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
 			trx->read_view.close();
 		}
-	}
-
-	if (!trx_is_started(trx)
-	    && lock_type != F_UNLCK
-	    && (m_prebuilt->select_lock_type != LOCK_NONE
-		|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
-
-		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(0);
@@ -21447,66 +21470,46 @@ static void innodb_remember_check_sysvar_funcs()
 	check_sysvar_int = MYSQL_SYSVAR_NAME(flush_log_at_timeout).check;
 }
 
-static const size_t MAX_BUF_SIZE = 4 * 1024;
-
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
-void
-ib_push_warning(
-	trx_t*		trx,	/*!< in: trx */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...)
+/** Report that a table cannot be decrypted.
+@param thd    connection context
+@param table  table that cannot be decrypted
+@retval DB_DECRYPTION_FAILED (always) */
+ATTRIBUTE_COLD
+dberr_t innodb_decryption_failed(THD *thd, dict_table_t *table)
 {
-	if (trx && trx->mysql_thd) {
-		THD *thd = (THD *)trx->mysql_thd;
-		va_list args;
-		char *buf;
-
-		va_start(args, format);
-		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
-		buf[MAX_BUF_SIZE - 1] = 0;
-		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
-
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
-		my_free(buf);
-		va_end(args);
-	}
+  table->file_unreadable= true;
+  if (!thd)
+    thd= current_thd;
+  const int dblen= int(table->name.dblen());
+  push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                      HA_ERR_DECRYPTION_FAILED,
+                      "Table %`.*s.%`s in tablespace " UINT32PF
+                      " (file %s) cannot be decrypted.",
+                      dblen, table->name.m_name,
+                      table->name.m_name + dblen + 1,
+                      uint32_t(table->space_id),
+                      UT_LIST_GET_FIRST(table->space->chain)->name);
+  return DB_DECRYPTION_FAILED;
 }
 
-/********************************************************************//**
-Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
-void
-ib_push_warning(
-	void*		ithd,	/*!< in: thd */
-	dberr_t		error,	/*!< in: error code to push as warning */
-	const char	*format,/*!< in: warning message */
-	...)
+/** Report a foreign key error.
+@param error    error to report
+@param name     table name
+@param foreign  constraint */
+ATTRIBUTE_COLD
+void innodb_fk_error(const trx_t *trx, dberr_t err, const char *name,
+                     const dict_foreign_t& foreign)
 {
-	va_list args;
-	THD *thd = (THD *)ithd;
-	char *buf;
-
-	if (ithd == NULL) {
-		thd = current_thd;
-	}
-
-	if (thd) {
-		va_start(args, format);
-		buf = (char *)my_malloc(PSI_INSTRUMENT_ME, MAX_BUF_SIZE, MYF(MY_WME));
-		buf[MAX_BUF_SIZE - 1] = 0;
-		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
-
-		push_warning_printf(
-			thd, Sql_condition::WARN_LEVEL_WARN,
-			uint(convert_error_code_to_mysql(error, 0, thd)), buf);
-		my_free(buf);
-		va_end(args);
-	}
+  const int dblen= int(table_name_t(const_cast<char*>(name)).dblen());
+  std::string fk= dict_print_info_on_foreign_key_in_create_format
+    (trx, &foreign, false);
+  push_warning_printf(trx->mysql_thd, Sql_condition::WARN_LEVEL_WARN,
+                      convert_error_code_to_mysql(err, 0, nullptr),
+                      "CREATE or ALTER TABLE %`.*s.%`s failed%s%.*s",
+                      dblen, name, name + dblen + 1,
+                      err == DB_DUPLICATE_KEY
+                      ? ": duplicate name" : "",
+                      int(fk.length()), fk.data());
 }
 
 /** Helper function to push warnings from InnoDB internals to SQL-layer.

@@ -686,3 +686,40 @@ SELECT * FROM t1;
 id
 1
 DROP TABLE t1;
+#
+# MDEV-34883: LOAD DATA INFILE with geometry data fails
+#
+CREATE OR REPLACE TABLE t1 (
+p point NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'));
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
+CREATE OR REPLACE TABLE t2 LIKE t1;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2;
+drop table t1, t2;
+CREATE OR REPLACE TABLE t1 (
+p point NOT NULL,
+chr char(20)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+INSERT INTO t1 VALUES (GeomFromText('POINT(37.646944 -75.761111)'),"їєі");
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' FROM t1;
+CREATE OR REPLACE TABLE t2 LIKE t1;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2 CHARACTER SET latin1;
+select ST_AsText(p), chr from t1;
+ST_AsText(p)	chr
+POINT(37.646944 -75.761111)	їєі
+# incorrect string (but correct geom)
+select ST_AsText(p), chr from t2;
+ST_AsText(p)	chr
+POINT(37.646944 -75.761111)	Ñ—Ñ”Ñ–
+delete from t2;
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/t1.tsv' INTO TABLE t2 CHARACTER SET utf8mb4;
+select ST_AsText(p), chr from t1;
+ST_AsText(p)	chr
+POINT(37.646944 -75.761111)	їєі
+# all is correct
+select ST_AsText(p), chr from t2;
+ST_AsText(p)	chr
+POINT(37.646944 -75.761111)	їєі
+drop table t1, t2;
+# End of 10.5 tests

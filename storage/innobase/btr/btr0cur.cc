@@ -1617,13 +1617,7 @@ retry_page_get:
 	if (err != DB_SUCCESS) {
 		ut_ad(block == NULL);
 		if (err == DB_DECRYPTION_FAILED) {
-			ib_push_warning((void *)NULL,
-				DB_DECRYPTION_FAILED,
-				"Table %s is encrypted but encryption service or"
-				" used key_id is not available. "
-				" Can't continue reading table.",
-				index->table->name.m_name);
-			index->table->file_unreadable = true;
+			innodb_decryption_failed(nullptr, index->table);
 		}
 
 		goto func_exit;
@@ -1729,13 +1723,8 @@ retry_page_get:
 
 			if (err != DB_SUCCESS) {
 				if (err == DB_DECRYPTION_FAILED) {
-					ib_push_warning((void *)NULL,
-						DB_DECRYPTION_FAILED,
-						"Table %s is encrypted but encryption service or"
-						" used key_id is not available. "
-						" Can't continue reading table.",
-						index->table->name.m_name);
-					index->table->file_unreadable = true;
+					innodb_decryption_failed(nullptr,
+								 index->table);
 				}
 
 				goto func_exit;
@@ -1759,13 +1748,8 @@ retry_page_get:
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
-				ib_push_warning((void *)NULL,
-					DB_DECRYPTION_FAILED,
-					"Table %s is encrypted but encryption service or"
-					" used key_id is not available. "
-					" Can't continue reading table.",
-					index->table->name.m_name);
-				index->table->file_unreadable = true;
+				innodb_decryption_failed(nullptr,
+							 index->table);
 			}
 
 			goto func_exit;
@@ -2634,13 +2618,8 @@ btr_cur_open_at_index_side_func(
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
-				ib_push_warning((void *)NULL,
-					DB_DECRYPTION_FAILED,
-					"Table %s is encrypted but encryption service or"
-					" used key_id is not available. "
-					" Can't continue reading table.",
-					index->table->name.m_name);
-				index->table->file_unreadable = true;
+				innodb_decryption_failed(nullptr,
+							 index->table);
 			}
 
 			goto exit_loop;
@@ -2976,13 +2955,8 @@ btr_cur_open_at_rnd_pos_func(
 
 		if (err != DB_SUCCESS) {
 			if (err == DB_DECRYPTION_FAILED) {
-				ib_push_warning((void *)NULL,
-					DB_DECRYPTION_FAILED,
-					"Table %s is encrypted but encryption service or"
-					" used key_id is not available. "
-					" Can't continue reading table.",
-					index->table->name.m_name);
-				index->table->file_unreadable = true;
+				innodb_decryption_failed(nullptr,
+							 index->table);
 			}
 
 			break;
@@ -6136,13 +6110,8 @@ btr_estimate_n_rows_in_range_on_level(
 
 		if (!block) {
 			if (err == DB_DECRYPTION_FAILED) {
-				ib_push_warning((void *)NULL,
-					DB_DECRYPTION_FAILED,
-					"Table %s is encrypted but encryption service or"
-					" used key_id is not available. "
-					" Can't continue reading table.",
-					index->table->name.m_name);
-				index->table->file_unreadable = true;
+				innodb_decryption_failed(nullptr,
+							 index->table);
 			}
 
 			mtr_commit(&mtr);

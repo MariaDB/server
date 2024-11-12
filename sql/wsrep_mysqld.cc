@@ -269,8 +269,8 @@ static char provider_vendor[256]= { 0, };
  * Wsrep status variables. LOCK_status must be locked When modifying
  * these variables,
  */
+std::atomic<bool> wsrep_ready(false);
 my_bool     wsrep_connected         = FALSE;
-my_bool     wsrep_ready             = FALSE;
 const char* wsrep_cluster_state_uuid= cluster_uuid_str;
 long long   wsrep_cluster_conf_id   = WSREP_SEQNO_UNDEFINED;
 const char* wsrep_cluster_status    = "Disconnected";
@@ -565,10 +565,7 @@ void wsrep_verify_SE_checkpoint(const wsrep_uuid_t& uuid,
  */
 my_bool wsrep_ready_get (void)
 {
-  if (mysql_mutex_lock (&LOCK_wsrep_ready)) abort();
-  my_bool ret= wsrep_ready;
-  mysql_mutex_unlock (&LOCK_wsrep_ready);
-  return ret;
+  return wsrep_ready;
 }
 
 int wsrep_show_ready(THD *thd, SHOW_VAR *var, void *buff,
@@ -830,9 +827,8 @@ void wsrep_init_globals()
   else
   {
     if (wsrep_gtid_mode && wsrep_gtid_server.server_id != global_system_variables.server_id)
-    {
-      WSREP_WARN("Ignoring server id for non bootstrap node.");
-    }
+      WSREP_INFO("Ignoring server id %ld for non bootstrap node, using %ld.",
+                 global_system_variables.server_id, wsrep_gtid_server.server_id);
   }
   wsrep_init_schema();
   if (WSREP_ON)
@@ -2112,7 +2108,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       If mariadb master has replicated a CTAS, we should not replicate the create table
       part separately as TOI, but to replicate both create table and following inserts
       as one write set.
-      Howver, if CTAS creates empty table, we should replicate the create table alone
+      However, if CTAS creates empty table, we should replicate the create table alone
       as TOI. We have to do relay log event lookup to see if row events follow the
       create table event.
     */
@@ -2125,6 +2121,7 @@ bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
       switch (ev_type)
       {
       case QUERY_EVENT:
+      case XID_EVENT:
         /* CTAS with empty table, we replicate create table as TOI */
         break;
 
@@ -2489,7 +2486,10 @@ static void wsrep_TOI_end(THD *thd) {
 
     if (thd->is_error() && !wsrep_must_ignore_error(thd))
     {
-      wsrep_store_error(thd, err);
+      /* use only error code, for the message can be inconsistent
+       * between the nodes due to differing lc_message settings
+       * in client session and server applier thread */
+      wsrep_store_error(thd, err, false);
     }
 
     int const ret= client_state.leave_toi_local(err);
@@ -2744,8 +2744,15 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
 
-    if (wsrep_thd_is_toi(granted_thd) ||
-        wsrep_thd_is_applying(granted_thd))
+    if (granted_thd->wsrep_aborter != 0)
+    {
+      DBUG_ASSERT(granted_thd->wsrep_aborter == request_thd->thread_id);
+      WSREP_DEBUG("BF thread waiting for a victim to release locks");
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
+    }
+    else if (wsrep_thd_is_toi(granted_thd) ||
+             wsrep_thd_is_applying(granted_thd))
     {
       if (wsrep_thd_is_aborting(granted_thd))
       {
@@ -2821,6 +2828,8 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
   {
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
   }
+
+  DEBUG_SYNC(request_thd, "after_wsrep_thd_abort");
 }
 
 /**/
@@ -3292,7 +3301,6 @@ void* start_wsrep_THD(void *arg)
                        (long long)thd->thread_id));
   /* now that we've called my_thread_init(), it is safe to call DBUG_* */
 
-  thd->thread_stack= (char*) &thd;
   wsrep_assign_from_threadvars(thd);
   wsrep_store_threadvars(thd);
 
@@ -3440,6 +3448,10 @@ bool wsrep_consistency_check(THD *thd)
 // Wait until wsrep has reached ready state
 void wsrep_wait_ready(THD *thd)
 {
+  // First check not locking the mutex.
+  if (wsrep_ready)
+    return;
+
   mysql_mutex_lock(&LOCK_wsrep_ready);
   while(!wsrep_ready)
   {

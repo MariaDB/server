@@ -14,7 +14,10 @@
   along with this program; if not, write to the Free Software
   Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
-#include "hs_compat.h"
+#define SPD_INIT_DYNAMIC_ARRAY2(A, B, C, D, E, F) \
+  my_init_dynamic_array2(PSI_INSTRUMENT_ME, A, B, C, D, E, F)
+#define SPD_INIT_ALLOC_ROOT(A, B, C, D) \
+  init_alloc_root(PSI_INSTRUMENT_ME, A, B, C, D)
 
 #define SPIDER_DBTON_SIZE 15
 
@@ -26,9 +29,6 @@
 #define SPIDER_DB_WRAPPER_MARIADB "mariadb"
 
 #define PLUGIN_VAR_CAN_MEMALLOC
-/*
-#define HASH_UPDATE_WITH_HASH_VALUE
-*/
 
 #define SPIDER_HAS_DISCOVER_TABLE_STRUCTURE
 #define SPIDER_HAS_APPEND_FOR_SINGLE_QUOTE
@@ -43,8 +43,6 @@
 
 #define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY
 #define SPIDER_ITEM_STRING_WITHOUT_SET_STR_WITH_COPY_AND_THDPTR
-
-#define SPIDER_HAS_GROUP_BY_HANDLER
 
 #define SPIDER_ORDER_HAS_ENUM_ORDER
 
@@ -128,8 +126,6 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_LIKE_LEN (sizeof(SPIDER_SQL_LIKE_STR) - 1)
 #define SPIDER_SQL_NOT_LIKE_STR "not like"
 #define SPIDER_SQL_NOT_LIKE_LEN (sizeof(SPIDER_SQL_NOT_LIKE_STR) - 1)
-#define SPIDER_SQL_AS_CHAR_STR " as char"
-#define SPIDER_SQL_AS_CHAR_LEN (sizeof(SPIDER_SQL_AS_CHAR_STR) - 1)
 #define SPIDER_SQL_CAST_STR "cast("
 #define SPIDER_SQL_CAST_LEN (sizeof(SPIDER_SQL_CAST_STR) - 1)
 #define SPIDER_SQL_AS_DATETIME_STR " as datetime"
@@ -765,7 +761,6 @@ public:
     bool use_fields,
     spider_fields *fields
   ) = 0;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   virtual int open_item_sum_func(
     Item_sum *item_sum,
     ha_spider *spider,
@@ -775,12 +770,10 @@ public:
     bool use_fields,
     spider_fields *fields
   ) = 0;
-#endif
   virtual int append_escaped_util(
     spider_string *to,
     String *from
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables(
     ha_spider *spider,
     spider_fields *fields,
@@ -794,7 +787,6 @@ public:
   virtual int append_having(
     spider_string *str
   ) = 0;
-#endif
   virtual bool tables_on_different_db_are_joinable();
   virtual bool socket_has_default_value();
   virtual bool database_has_default_value();
@@ -809,6 +801,7 @@ public:
   SPIDER_DB_ROW *next_pos;
   spider_db_row(uint in_dbton_id) : dbton_id(in_dbton_id), next_pos(NULL) {}
   virtual ~spider_db_row() = default;
+  /* Store the current field result to a given field */
   virtual int store_to_field(
     Field *field,
     CHARSET_INFO *access_charset
@@ -821,6 +814,7 @@ public:
     uint dbton_id
   ) = 0;
   virtual void first() = 0;
+  /* Move to the next field result. */
   virtual void next() = 0;
   virtual bool is_null() = 0;
   virtual int val_int() = 0;
@@ -859,7 +853,7 @@ public:
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
-  virtual SPIDER_DB_ROW *fetch_row() = 0;
+  virtual SPIDER_DB_ROW *fetch_row(MY_BITMAP *skips = NULL) = 0;
   virtual SPIDER_DB_ROW *fetch_row_from_result_buffer(
     spider_db_result_buffer *spider_res_buf
   ) = 0;
@@ -874,11 +868,9 @@ public:
     int mode,
     ha_rows &records
   ) = 0;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual int fetch_table_checksum(
     ha_spider *spider
   );
-#endif
   virtual int fetch_table_cardinality(
     int mode,
     TABLE *table,
@@ -1119,9 +1111,7 @@ public:
     spider_string *str
   ) = 0;
 #endif
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual bool checksum_support();
-#endif
 };
 
 class spider_db_handler
@@ -1188,7 +1178,6 @@ public:
   virtual int append_update_part() = 0;
   virtual int append_delete_part() = 0;
   virtual int append_update_set_part() = 0;
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   virtual int append_direct_update_set_part() = 0;
   virtual int append_dup_update_pushdown_part(
     const char *alias,
@@ -1199,7 +1188,6 @@ public:
     uint alias_length
   ) = 0;
   virtual int check_update_columns_part() = 0;
-#endif
   virtual int append_select_part(
     ulong sql_type
   ) = 0;
@@ -1281,26 +1269,22 @@ public:
     const char *alias,
     uint alias_length
   ) = 0;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   virtual int append_sum_select_part(
     ulong sql_type,
     const char *alias,
     uint alias_length
   ) = 0;
-#endif
   virtual void set_order_pos(
     ulong sql_type
   ) = 0;
   virtual void set_order_to_pos(
     ulong sql_type
   ) = 0;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   virtual int append_group_by_part(
     const char *alias,
     uint alias_length,
     ulong sql_type
   ) = 0;
-#endif
   virtual int append_key_order_for_merge_with_alias_part(
     const char *alias,
     uint alias_length,
@@ -1425,13 +1409,11 @@ public:
   virtual int reset_sql(
     ulong sql_type
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int set_sql_for_exec(
     ulong sql_type,
     int link_idx,
     SPIDER_LINK_IDX_CHAIN *link_idx_chain
   ) = 0;
-#endif
   virtual int set_sql_for_exec(
     ulong sql_type,
     int link_idx
@@ -1465,11 +1447,9 @@ public:
   virtual int show_records(
     int link_idx
   ) = 0;
-#ifdef HA_HAS_CHECKSUM_EXTENDED
   virtual int checksum_table(
     int link_idx
   );
-#endif
   virtual int show_last_insert_id(
     int link_idx,
     ulonglong &last_insert_id
@@ -1547,7 +1527,6 @@ public:
     int link_idx,
     ulong sql_type
   ) = 0;
-#ifdef SPIDER_HAS_GROUP_BY_HANDLER
   virtual int append_from_and_tables_part(
     spider_fields *fields,
     ulong sql_type
@@ -1572,7 +1551,8 @@ public:
     uint alias_length,
     bool use_fields,
     spider_fields *fields,
-    ulong sql_type
+    ulong sql_type,
+    int n_aux=0
   ) = 0;
   virtual int append_group_by_part(
     ORDER *order,
@@ -1590,8 +1570,6 @@ public:
     spider_fields *fields,
     ulong sql_type
   ) = 0;
-#endif
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
   virtual bool check_direct_update(
     st_select_lex *select_lex,
     longlong select_limit,
@@ -1602,7 +1580,6 @@ public:
     longlong select_limit,
     longlong offset_limit
   );
-#endif
 };
 
 class spider_db_copy_table
@@ -1727,9 +1704,7 @@ typedef struct st_spider_position
   uint                   pos_mode;
   bool                   use_position;
   bool                   mrr_with_cnt;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   bool                   direct_aggregate;
-#endif
   uint                   sql_kind;
   uchar                  *position_bitmap;
   st_spider_ft_info      *ft_first;
@@ -1787,8 +1762,6 @@ typedef struct st_spider_result_list
     SPIDER_RESULT         *current;
   KEY                     *key_info;
   int                     key_order;
-#ifdef HA_CAN_BULK_ACCESS
-#endif
   spider_string           *sqls;
   int                     ha_read_kind;
   bool                    have_sql_kind_backup;
@@ -1832,12 +1805,10 @@ typedef struct st_spider_result_list
   /* the limit_offeset, without where condition */
   bool                    direct_limit_offset;
   bool                    direct_distinct;
-#ifdef HANDLER_HAS_DIRECT_AGGREGATE
   bool                    direct_aggregate;
   bool                    snap_mrr_with_cnt;
   bool                    snap_direct_aggregate;
   SPIDER_DB_ROW           *snap_row;
-#endif
   bool                    in_cmp_ref;
   bool                    set_split_read;
   bool                    insert_dup_update_pushdown;
@@ -1870,4 +1841,10 @@ typedef struct st_spider_result_list
 #endif
     SPIDER_RESULT         *bgs_current;
   SPIDER_DB_ROW           *tmp_pos_row_first;
+  /*
+    A bitmap marking fields to skip when storing results fetched from
+    the data node to a SPIDER_DB_ROW
+  */
+  MY_BITMAP               *skips;
+  int                     n_aux;
 } SPIDER_RESULT_LIST;

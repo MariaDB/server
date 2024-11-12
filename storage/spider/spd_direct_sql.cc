@@ -17,7 +17,6 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
@@ -275,10 +274,8 @@ int spider_udf_direct_sql_create_conn_key(
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_default_group);
   spider_create_conn_key_add_one(&counter, &tmp_name, direct_sql->tgt_dsn);
   tmp_name++;
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   direct_sql->conn_key_hash_value = my_calc_hash(&spider_open_connections,
     (uchar*) direct_sql->conn_key, direct_sql->conn_key_length);
-#endif
   DBUG_RETURN(0);
 }
 
@@ -443,14 +440,9 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   pthread_mutex_unlock(&spider_conn_id_mutex);
 
   pthread_mutex_lock(&spider_ipport_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search_using_hash_value(
     &spider_ipport_conns, conn->conn_key_hash_value,
     (uchar*)conn->conn_key, conn->conn_key_length)))
-#else
-  if ((ip_port_conn = (SPIDER_IP_PORT_CONN*) my_hash_search(
-    &spider_ipport_conns, (uchar*)conn->conn_key, conn->conn_key_length)))
-#endif
   { /* exists, +1 */
     pthread_mutex_unlock(&spider_ipport_conn_mutex);
     pthread_mutex_lock(&ip_port_conn->mutex);
@@ -485,7 +477,6 @@ SPIDER_CONN *spider_udf_direct_sql_create_conn(
   DBUG_RETURN(conn);
 
 error:
-  DBUG_ASSERT(!conn->mta_conn_mutex_file_pos.file_name);
 error_too_many_ipport_count:
   spider_conn_done(conn);
 error_conn_init:
@@ -507,18 +498,11 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
   SPIDER_CONN *conn = NULL;
   DBUG_ENTER("spider_udf_direct_sql_get_conn");
 
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
   if (
       !(conn = (SPIDER_CONN*) my_hash_search_using_hash_value(
         &trx->trx_conn_hash, direct_sql->conn_key_hash_value,
         (uchar*) direct_sql->conn_key, direct_sql->conn_key_length))
   )
-#else
-  if (
-      !(conn = (SPIDER_CONN*) my_hash_search(&trx->trx_conn_hash,
-          (uchar*) direct_sql->conn_key, direct_sql->conn_key_length))
-  )
-#endif
   {
     if (
         (
@@ -527,14 +511,9 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
         )
     ) {
         pthread_mutex_lock(&spider_conn_mutex);
-#ifdef SPIDER_HAS_HASH_VALUE_TYPE
         if (!(conn = (SPIDER_CONN*) my_hash_search_using_hash_value(
           &spider_open_connections, direct_sql->conn_key_hash_value,
           (uchar*) direct_sql->conn_key, direct_sql->conn_key_length)))
-#else
-        if (!(conn = (SPIDER_CONN*) my_hash_search(&spider_open_connections,
-          (uchar*) direct_sql->conn_key, direct_sql->conn_key_length)))
-#endif
         {
           pthread_mutex_unlock(&spider_conn_mutex);
           DBUG_PRINT("info",("spider create new conn"));
@@ -542,12 +521,7 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
             error_num)))
             goto error;
         } else {
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-          my_hash_delete_with_hash_value(&spider_open_connections,
-            conn->conn_key_hash_value, (uchar*) conn);
-#else
           my_hash_delete(&spider_open_connections, (uchar*) conn);
-#endif
           pthread_mutex_unlock(&spider_conn_mutex);
           DBUG_PRINT("info",("spider get global conn"));
         }
@@ -561,12 +535,7 @@ SPIDER_CONN *spider_udf_direct_sql_get_conn(
     conn->priority = direct_sql->priority;
 
       uint old_elements = trx->trx_conn_hash.array.max_element;
-#ifdef HASH_UPDATE_WITH_HASH_VALUE
-      if (my_hash_insert_with_hash_value(&trx->trx_conn_hash,
-        direct_sql->conn_key_hash_value, (uchar*) conn))
-#else
       if (my_hash_insert(&trx->trx_conn_hash, (uchar*) conn))
-#endif
       {
         spider_free_conn(conn);
         *error_num = HA_ERR_OUT_OF_MEM;

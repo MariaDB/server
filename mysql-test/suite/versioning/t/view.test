@@ -5,10 +5,14 @@
 create or replace table t1 (x int) with system versioning;
 insert into t1 values (1);
 
+--disable_cursor_protocol
 select now(6) into @t1;
+--enable_cursor_protocol
 update t1 set x= 2;
 
+--disable_cursor_protocol
 select now(6) into @t2;
+--enable_cursor_protocol
 delete from t1;
 
 set @vt1= concat("create or replace view vt1 as select * from t1 for system_time as of timestamp '", @t1, "'");

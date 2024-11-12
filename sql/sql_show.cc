@@ -1838,7 +1838,7 @@ static void add_table_options(THD *thd, TABLE *table,
     hton= table->part_info->default_engine_type;
   else
 #endif
-    hton= table->file->ht;
+    hton= table->file->storage_ht();
 
   bzero((char*) &create_info, sizeof(create_info));
   /* Allow update_create_info to update row type, page checksums and options */
@@ -9392,7 +9392,7 @@ ST_FIELD_INFO stat_fields_info[]=
   Column("NON_UNIQUE",    SLonglong(1),NOT_NULL, "Non_unique",  OPEN_FRM_ONLY),
   Column("INDEX_SCHEMA",  Name(),      NOT_NULL,                OPEN_FRM_ONLY),
   Column("INDEX_NAME",    Name(),      NOT_NULL, "Key_name",    OPEN_FRM_ONLY),
-  Column("SEQ_IN_INDEX",  SLonglong(2),NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
+  Column("SEQ_IN_INDEX",  ULong(2),    NOT_NULL, "Seq_in_index",OPEN_FRM_ONLY),
   Column("COLUMN_NAME",   Name(),      NOT_NULL, "Column_name", OPEN_FRM_ONLY),
   Column("COLLATION",     Varchar(1),  NULLABLE, "Collation",   OPEN_FULL_TABLE),
   Column("CARDINALITY",   SLonglong(), NULLABLE, "Cardinality", OPEN_FULL_TABLE),

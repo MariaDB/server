@@ -208,7 +208,7 @@ typedef fp_except fp_except_t;
 
 inline void setup_fpu()
 {
-#if defined(__FreeBSD__) && defined(HAVE_IEEEFP_H) && !defined(HAVE_FEDISABLEEXCEPT)
+#if defined(__FreeBSD__) && defined(HAVE_IEEEFP_H) && !defined(HAVE_FEDISABLEEXCEPT) && defined(FP_X_INV)
   /* We can't handle floating point exceptions with threads, so disable
      this on freebsd
      Don't fall for overflow, underflow,divide-by-zero or loss of precision.
@@ -221,7 +221,7 @@ inline void setup_fpu()
   fpsetmask(~(FP_X_INV |             FP_X_OFL | FP_X_UFL | FP_X_DZ |
               FP_X_IMP));
 #endif /* FP_X_DNML */
-#endif /* __FreeBSD__ && HAVE_IEEEFP_H && !HAVE_FEDISABLEEXCEPT */
+#endif /* __FreeBSD__ && HAVE_IEEEFP_H && !HAVE_FEDISABLEEXCEPT && FP_X_INV */
 
 #ifdef HAVE_FEDISABLEEXCEPT
   fedisableexcept(FE_ALL_EXCEPT);
@@ -5344,6 +5344,26 @@ static void test_lc_time_sz()
 #endif//DBUG_OFF
 
 
+static void run_main_loop()
+{
+  select_thread=pthread_self();
+  mysql_mutex_lock(&LOCK_start_thread);
+  select_thread_in_use=1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+#ifdef _WIN32
+  handle_connections_win();
+#else
+  handle_connections_sockets();
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  select_thread_in_use=0;
+  mysql_cond_broadcast(&COND_start_thread);
+  mysql_mutex_unlock(&LOCK_start_thread);
+#endif /* _WIN32 */
+}
+
+
 #ifdef __WIN__
 int win_main(int argc, char **argv)
 #else
@@ -5540,9 +5560,6 @@ int mysqld_main(int argc, char **argv)
     SYSVAR_AUTOSIZE(my_thread_stack_size, new_thread_stack_size);
   }
 
-  select_thread=pthread_self();
-  select_thread_in_use=1;
-
 #ifdef HAVE_LIBWRAP
   libwrapName= my_progname+dirname_length(my_progname);
   openlog(libwrapName, LOG_PID, LOG_AUTH);
@@ -5596,7 +5613,6 @@ int mysqld_main(int argc, char **argv)
   // Recover and exit.
   if (wsrep_recovery)
   {
-    select_thread_in_use= 0;
     if (WSREP_ON)
       wsrep_recover();
     else
@@ -5671,7 +5687,6 @@ int mysqld_main(int argc, char **argv)
 
   if (opt_bootstrap)
   {
-    select_thread_in_use= 0;                    // Allow 'kill' to work
     int bootstrap_error= bootstrap(mysql_stdin);
     if (!abort_loop)
       unireg_abort(bootstrap_error);
@@ -5713,12 +5728,11 @@ int mysqld_main(int argc, char **argv)
                           mysqld_port, MYSQL_COMPILATION_COMMENT);
   else
   {
-    char real_server_version[2 * SERVER_VERSION_LENGTH + 10];
+    char real_server_version[2 * SERVER_VERSION_LENGTH + 10], *pos;
 
-    set_server_version(real_server_version, sizeof(real_server_version));
-    safe_strcat(real_server_version, sizeof(real_server_version), "' as '");
-    safe_strcat(real_server_version, sizeof(real_server_version),
-		server_version);
+    pos= set_server_version(real_server_version, sizeof(real_server_version)-1);
+    strxnmov(pos, sizeof(real_server_version) - 1 - (pos-real_server_version),
+             "' as '", server_version, NullS);
 
     sql_print_information(ER_DEFAULT(ER_STARTUP), my_progname,
                           real_server_version,
@@ -5751,16 +5765,7 @@ int mysqld_main(int argc, char **argv)
   /* Memory used when everything is setup */
   start_memory_used= global_status_var.global_memory_used;
 
-#ifdef _WIN32
-  handle_connections_win();
-#else
-  handle_connections_sockets();
-
-  mysql_mutex_lock(&LOCK_start_thread);
-  select_thread_in_use=0;
-  mysql_cond_broadcast(&COND_start_thread);
-  mysql_mutex_unlock(&LOCK_start_thread);
-#endif /* _WIN32 */
+  run_main_loop();
 
   /* Shutdown requested */
   char *user= shutdown_user.load(std::memory_order_relaxed);
@@ -6360,7 +6365,9 @@ void handle_connections_sockets()
                                     &length);
       if (mysql_socket_getfd(new_sock) != INVALID_SOCKET)
         handle_accepted_socket(new_sock, sock);
-      else if (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN)
+      else if (socket_errno == SOCKET_EAGAIN || socket_errno == SOCKET_EWOULDBLOCK)
+        break;
+      else if (socket_errno != SOCKET_EINTR)
       {
         /*
           accept(2) failed on the listening port.
@@ -7773,7 +7780,7 @@ static int mysql_init_variables(void)
   /* Things reset to zero */
   opt_skip_slave_start= opt_reckless_slave = 0;
   mysql_home[0]= pidfile_name[0]= log_error_file[0]= 0;
-#if defined(HAVE_REALPATH) && !defined(HAVE_valgrind) && !defined(HAVE_BROKEN_REALPATH)
+#if defined(HAVE_REALPATH) && !defined(HAVE_valgrind)
   /*  We can only test for sub paths if my_symlink.c is using realpath */
   mysys_test_invalid_symlink= path_starts_from_data_home_dir;
 #endif
@@ -7874,6 +7881,8 @@ static int mysql_init_variables(void)
   lc_messages= (char*) "en_US";
   lc_time_names_name= (char*) "en_US";
   
+  have_symlink= SHOW_OPTION_YES;
+
   /* Variables that depends on compile options */
 #ifndef DBUG_OFF
   default_dbug_option=IF_WIN("d:t:i:O,\\mariadbd.trace",
@@ -7896,11 +7905,6 @@ static int mysql_init_variables(void)
 #endif
 #else
   have_openssl= have_ssl= SHOW_OPTION_NO;
-#endif
-#ifdef HAVE_BROKEN_REALPATH
-  have_symlink=SHOW_OPTION_NO;
-#else
-  have_symlink=SHOW_OPTION_YES;
 #endif
 #ifdef HAVE_DLOPEN
   have_dlopen=SHOW_OPTION_YES;
@@ -8661,7 +8665,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
 
   global_system_variables.sql_mode=
     expand_sql_mode(global_system_variables.sql_mode);
-#if !defined(HAVE_REALPATH) || defined(HAVE_BROKEN_REALPATH)
+#if !defined(HAVE_REALPATH)
   my_use_symdir=0;
   my_disable_symlinks=1;
   have_symlink=SHOW_OPTION_NO;
@@ -8792,7 +8796,7 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
   (MYSQL_SERVER_SUFFIX is set by the compilation environment)
 */
 
-void set_server_version(char *buf, size_t size)
+char *set_server_version(char *buf, size_t size)
 {
   bool is_log= opt_log || global_system_variables.sql_log_slow || opt_bin_log;
   bool is_debug= IF_DBUG(!strstr(MYSQL_SERVER_SUFFIX_STR, "-debug"), 0);
@@ -8801,14 +8805,14 @@ void set_server_version(char *buf, size_t size)
     !strstr(MYSQL_SERVER_SUFFIX_STR, "-valgrind") ? "-valgrind" :
 #endif
     "";
-  strxnmov(buf, size - 1,
-           MYSQL_SERVER_VERSION,
-           MYSQL_SERVER_SUFFIX_STR,
-           IF_EMBEDDED("-embedded", ""),
-           is_valgrind,
-           is_debug ? "-debug" : "",
-           is_log ? "-log" : "",
-           NullS);
+  return strxnmov(buf, size - 1,
+                  MYSQL_SERVER_VERSION,
+                  MYSQL_SERVER_SUFFIX_STR,
+                  IF_EMBEDDED("-embedded", ""),
+                  is_valgrind,
+                  is_debug ? "-debug" : "",
+                  is_log ? "-log" : "",
+                  NullS);
 }
 
 

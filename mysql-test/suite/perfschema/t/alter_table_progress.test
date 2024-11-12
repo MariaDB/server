@@ -34,9 +34,11 @@ update performance_schema.threads
 truncate table performance_schema.events_statements_history_long;
 truncate table performance_schema.events_stages_history_long;
 
+--disable_cursor_protocol
 --disable_query_log
 eval select $con1_THREAD_ID into @con1_thread_id;
 --enable_query_log
+--enable_cursor_protocol
 
 --connection con1
 
@@ -52,8 +54,10 @@ SET DEBUG_SYNC='copy_data_between_tables_before SIGNAL found_row WAIT_FOR wait_r
 SET DEBUG_SYNC='now WAIT_FOR found_row';
 
 # Find the statement id of the ALTER TABLE
+--disable_cursor_protocol
 select event_id from performance_schema.events_statements_current
   where thread_id = @con1_thread_id into @con1_stmt_id;
+--enable_cursor_protocol
 
 # completed 0
 select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED

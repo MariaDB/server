@@ -25,6 +25,10 @@
 #include "my_stacktrace.h"
 #include <source_revision.h>
 
+#ifdef WITH_WSREP
+#include "wsrep_server_state.h"
+#endif /* WITH_WSREP */
+
 #ifdef __WIN__
 #include <crtdbg.h>
 #include <direct.h>
@@ -220,6 +224,10 @@ extern "C" sig_handler handle_fatal_signal(int sig)
                           "Hope that's ok; if not, decrease some variables in "
                           "the equation.\n\n");
   }
+
+#ifdef WITH_WSREP
+  Wsrep_server_state::handle_fatal_signal();
+#endif /* WITH_WSREP */
 
 #ifdef HAVE_STACKTRACE
   thd= current_thd;

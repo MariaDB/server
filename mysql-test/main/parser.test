@@ -896,6 +896,7 @@ SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
 
 --echo # "INTO" clause tests
 
+--disable_cursor_protocol
 SELECT 1 FROM t1 INTO @var17727401;
 SELECT 1 FROM DUAL INTO @var17727401;
 SELECT 1 INTO @var17727401;
@@ -940,6 +941,7 @@ SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
 
 --error ER_PARSE_ERROR
 SELECT 1 FROM t1 PROCEDURE ANALYSE() INTO @var17727401;
+--enable_cursor_protocol
 
 --echo # ORDER and LIMIT clause combinations
 

@@ -2918,9 +2918,7 @@ CREATE TABLE t1 (a VARCHAR(500) COMPRESSED CHARACTER SET utf8mb3) ENGINE=InnoDB;
 INSERT INTO t1 SET a=REPEAT('x',127);
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
-#
 # End of 10.4 tests
-#
 #
 # MDEV-19727 Add Type_handler::Key_part_spec_init_ft
 #
@@ -2929,5 +2927,20 @@ ERROR HY000: Compressed column 'a' can't be used in key specification
 CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
 ERROR HY000: Compressed column 'a' can't be used in key specification
 #
-# End of 10.5 tests
+# MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 #
+create table t1 (c text compressed);
+insert into t1 values ('foo'),(repeat('a',55000));
+select length(group_concat(c order by 1)) from t1;
+length(group_concat(c order by 1))
+55004
+create table t2 as select group_concat(c order by 1), concat(c), c from t1;
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `group_concat(c order by 1)` mediumtext DEFAULT NULL,
+  `concat(c)` text DEFAULT NULL,
+  `c` text /*M!100301 COMPRESSED*/ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+drop table t1, t2;
+# End of 10.5 tests

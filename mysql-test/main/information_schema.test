@@ -1811,14 +1811,18 @@ drop database mysqltest;
 --disable_result_log
 SELECT * FROM INFORMATION_SCHEMA.TABLES;
 --enable_result_log
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @val1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
   VARIABLE_NAME LIKE 'Opened_tables';
+--enable_cursor_protocol
 --disable_result_log
 SELECT ENGINE FROM INFORMATION_SCHEMA.TABLES;
 --enable_result_log
 --echo # The below SELECT query should give same output as above SELECT query.
+--disable_cursor_protocol
 SELECT VARIABLE_VALUE INTO @val2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE
   VARIABLE_NAME LIKE 'Opened_tables';
+--enable_cursor_protocol
 --echo # The below select should return '1'
 SELECT @val1 = @val2;
 

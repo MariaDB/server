@@ -452,10 +452,7 @@ INSERT INTO t1 SET a=REPEAT('x',127);
 ALTER TABLE t1 FORCE, ALGORITHM=COPY;
 DROP TABLE t1;
 
-
---echo #
 --echo # End of 10.4 tests
---echo #
 
 --echo #
 --echo # MDEV-19727 Add Type_handler::Key_part_spec_init_ft
@@ -474,5 +471,13 @@ CREATE TABLE t1 (a VARCHAR(1000) COMPRESSED, FULLTEXT INDEX(a));
 CREATE TABLE t1 (a TEXT COMPRESSED, FULLTEXT INDEX(a));
 
 --echo #
---echo # End of 10.5 tests
+--echo # MDEV-16699 heap-use-after-free in group_concat with compressed or GIS columns
 --echo #
+create table t1 (c text compressed);
+insert into t1 values ('foo'),(repeat('a',55000));
+select length(group_concat(c order by 1)) from t1;
+create table t2 as select group_concat(c order by 1), concat(c), c from t1;
+show create table t2;
+drop table t1, t2;
+
+--echo # End of 10.5 tests

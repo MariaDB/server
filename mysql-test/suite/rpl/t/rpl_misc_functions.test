@@ -26,9 +26,11 @@ insert into t1 values(3, 0, 0, 0, password('does_this_work?'));
 --disable_warnings
 insert into t1 values(4, connection_id(), rand()*1000, rand()*1000, password('does_this_still_work?'));
 --enable_warnings
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * into outfile 'rpl_misc_functions.outfile' from t1;
 --enable_ps2_protocol
+--enable_cursor_protocol
 let $MYSQLD_DATADIR= `select @@datadir`;
 sync_slave_with_master;
 create temporary table t2 like t1; 
@@ -92,9 +94,11 @@ INSERT INTO t1 (col_a) VALUES (test_replication_sf());
 --sync_slave_with_master
 
 # Dump table on slave
+--disable_cursor_protocol
 --disable_ps2_protocol
 select * from t1 into outfile "../../tmp/t1_slave.txt";
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 # Load data from slave into temp table on master
 connection master;
@@ -106,8 +110,10 @@ load data infile '../../tmp/t1_slave.txt' into table t1_slave;
 
 # Compare master and slave temp table, use subtraction
 # for floating point comparison of "double"
+--disable_cursor_protocol
 select count(*) into @aux from t1 join t1_slave using (id)
 where ABS(t1.col_a - t1_slave.col_a) < 0.0000001 ;
+--enable_cursor_protocol
 SELECT @aux;
 if (`SELECT @aux <> 12 OR @aux IS NULL`)
 {

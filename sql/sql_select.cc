@@ -2054,12 +2054,14 @@ JOIN::optimize_inner()
 
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
-    if (thd->is_error() || select_lex->save_leaf_tables(thd))
+    if (thd->is_error() ||
+        (!select_lex->leaf_tables_saved && select_lex->save_leaf_tables(thd)))
     {
       if (arena)
         thd->restore_active_arena(arena, &backup);
       DBUG_RETURN(1);
     }
+    select_lex->leaf_tables_saved= true;
     build_bitmap_for_nested_joins(join_list, 0);
 
     sel->prep_where= conds ? conds->copy_andor_structure(thd) : 0;
@@ -3398,7 +3400,9 @@ bool JOIN::make_aggr_tables_info()
         original DISTINCT. Thus, we set select_distinct || group_optimized_away
         to Query::distinct.
       */
-      Query query= {&all_fields, select_distinct || group_optimized_away,
+      Query query= {&all_fields,
+                    (int) all_fields.elements - (int) fields_list.elements,
+                    select_distinct || group_optimized_away,
                     tables_list, conds,
                     group_list, order ? order : group_list, having,
                     &select_lex->master_unit()->lim};
@@ -7548,6 +7552,30 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
 }
 
 
+#ifndef DBUG_OFF
+
+char dbug_join_prefix_buf[256];
+
+const char* dbug_print_join_prefix(const POSITION *join_positions,
+                                   uint idx,
+                                   JOIN_TAB *s)
+{
+  char *buf= dbug_join_prefix_buf;
+  String str(buf, sizeof(dbug_join_prefix_buf), &my_charset_bin);
+  str.length(0);
+  for (uint i=0; i!=idx; i++)
+  {
+    str.append(join_positions[i].table->table->alias);
+    str.append(',');
+  }
+  str.append(s->table->alias);
+  if (str.c_ptr_safe() == buf)
+   return buf;
+  else
+    return "Couldn't fit into buffer";
+}
+#endif
+
 /**
   Find the best access path for an extension of a partial execution
   plan and add this path to the plan.
@@ -7571,6 +7599,14 @@ double adjust_quick_cost(double quick_cost, ha_rows records)
   @param pos              OUT Table access plan
   @param loose_scan_pos   OUT Table plan that uses loosescan, or set cost to 
                               DBL_MAX if not possible.
+  @detail
+   Use this to print the current join prefix:
+
+      dbug_print_join_prefix(join_positions, idx, s)
+
+   Use this as breakpoint condition to stop at join prefix "t1,t2,t3":
+
+    $_streq(dbug_print_join_prefix(join_positions, idx, s), "t1,t2,t3")
 
   @return
     None
@@ -7761,7 +7797,7 @@ best_access_path(JOIN      *join,
         loose_scan_opt.check_ref_access_part1(s, key, start_key, found_part);
 
         /* Check if we found full key */
-        const key_part_map all_key_parts= PREV_BITS(uint, key_parts);
+        const key_part_map all_key_parts= PREV_BITS(key_part_map, key_parts);
         if (found_part == all_key_parts && !ref_or_null_part)
         {                                         /* use eq key */
           max_key_part= (uint) ~0;
@@ -7899,7 +7935,8 @@ best_access_path(JOIN      *join,
           */
           if ((found_part & 1) &&
               (!(table->file->index_flags(key, 0, 0) & HA_ONLY_WHOLE_INDEX) ||
-               found_part == PREV_BITS(uint,keyinfo->user_defined_key_parts)))
+               found_part == PREV_BITS(key_part_map,
+                                       keyinfo->user_defined_key_parts)))
           {
             max_key_part= max_part_bit(found_part);
             /*
@@ -13870,13 +13907,6 @@ void JOIN_TAB::cleanup()
     delete filesort->select;
   delete filesort;
   filesort= NULL;
-  /* Skip non-existing derived tables/views result tables */
-  if (table &&
-      (table->s->tmp_table != INTERNAL_TMP_TABLE || table->is_created()))
-  {
-    table->file->ha_end_keyread();
-    table->file->ha_index_or_rnd_end();
-  }
   if (table)
   {
     table->file->ha_end_keyread();
@@ -13885,8 +13915,7 @@ void JOIN_TAB::cleanup()
     else
       table->file->ha_index_or_rnd_end();
     preread_init_done= FALSE;
-    if (table->pos_in_table_list && 
-        table->pos_in_table_list->jtbm_subselect)
+    if (table->pos_in_table_list && table->pos_in_table_list->jtbm_subselect)
     {
       if (table->pos_in_table_list->jtbm_subselect->is_jtbm_const_tab)
       {
@@ -19003,6 +19032,7 @@ TABLE *Create_tmp_table::start(THD *thd,
   table->copy_blobs= 1;
   table->in_use= thd;
   table->no_rows_with_nulls= param->force_not_null_cols;
+  table->group_concat= param->group_concat;
   table->expr_arena= thd;
 
   table->s= share;
@@ -23607,7 +23637,7 @@ static int test_if_order_by_key(JOIN *join,
     if (have_pk_suffix &&
         reverse == 0 && // all were =const so far
         key_parts == table->key_info[idx].ext_key_parts && 
-        table->const_key_parts[pk] == PREV_BITS(uint, 
+        table->const_key_parts[pk] == PREV_BITS(key_part_map,
                                                 table->key_info[pk].
                                                 user_defined_key_parts))
     {
@@ -28753,6 +28783,16 @@ void st_select_lex::print_on_duplicate_key_clause(THD *thd, String *str,
   }
 }
 
+
+void st_select_lex::print_lock_type(String *str)
+{
+  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
+    str->append(" lock in share mode");
+  else if (lock_type == TL_WRITE)
+    str->append(" for update");
+}
+
+
 void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
 {
   DBUG_ASSERT(thd);
@@ -29025,10 +29065,9 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   print_limit(thd, str, query_type);
 
   // lock type
-  if (lock_type == TL_READ_WITH_SHARED_LOCKS)
-    str->append(" lock in share mode");
-  else if (lock_type == TL_WRITE)
-    str->append(" for update");
+  if (braces) /* no braces processed in
+                 SELECT_LEX_UNIT::print_lock_from_the_last_select */
+    print_lock_type(str);
 
   if ((sel_type == INSERT_CMD || sel_type == REPLACE_CMD) &&
       thd->lex->update_list.elements)

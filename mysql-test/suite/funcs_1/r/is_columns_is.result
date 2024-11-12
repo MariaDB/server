@@ -356,7 +356,7 @@ def	information_schema	STATISTICS	INDEX_TYPE	14	NULL	NO	varchar	16	48	NULL	NULL	
 def	information_schema	STATISTICS	NON_UNIQUE	4	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(1)			select		NEVER	NULL
 def	information_schema	STATISTICS	NULLABLE	13	NULL	NO	varchar	3	9	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(3)			select		NEVER	NULL
 def	information_schema	STATISTICS	PACKED	12	NULL	YES	varchar	10	30	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(10)			select		NEVER	NULL
-def	information_schema	STATISTICS	SEQ_IN_INDEX	7	NULL	NO	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(2)			select		NEVER	NULL
+def	information_schema	STATISTICS	SEQ_IN_INDEX	7	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(2) unsigned			select		NEVER	NULL
 def	information_schema	STATISTICS	SUB_PART	11	NULL	YES	bigint	NULL	NULL	19	0	NULL	NULL	NULL	bigint(3)			select		NEVER	NULL
 def	information_schema	STATISTICS	TABLE_CATALOG	1	NULL	NO	varchar	512	1536	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(512)			select		NEVER	NULL
 def	information_schema	STATISTICS	TABLE_NAME	3	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select		NEVER	NULL
@@ -898,7 +898,7 @@ NULL	information_schema	SPATIAL_REF_SYS	AUTH_SRID	int	NULL	NULL	NULL	NULL	int(5)
 NULL	information_schema	STATISTICS	NON_UNIQUE	bigint	NULL	NULL	NULL	NULL	bigint(1)
 3.0000	information_schema	STATISTICS	INDEX_SCHEMA	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	STATISTICS	INDEX_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
-NULL	information_schema	STATISTICS	SEQ_IN_INDEX	bigint	NULL	NULL	NULL	NULL	bigint(2)
+NULL	information_schema	STATISTICS	SEQ_IN_INDEX	int	NULL	NULL	NULL	NULL	int(2) unsigned
 3.0000	information_schema	STATISTICS	COLUMN_NAME	varchar	64	192	utf8	utf8_general_ci	varchar(64)
 3.0000	information_schema	STATISTICS	COLLATION	varchar	1	3	utf8	utf8_general_ci	varchar(1)
 NULL	information_schema	STATISTICS	CARDINALITY	bigint	NULL	NULL	NULL	NULL	bigint(21)

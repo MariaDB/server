@@ -222,7 +222,7 @@ public:
 
 	bool can_switch_engines() override;
 
-	uint referenced_by_foreign_key() override;
+	bool referenced_by_foreign_key() const noexcept override;
 
 	void free_foreign_key_create_info(char* str) override;
 
@@ -437,6 +437,12 @@ public:
 			  const KEY_PART_INFO& old_part,
 			  const KEY_PART_INFO& new_part) const override;
 
+	/** Check consistency between .frm indexes and InnoDB indexes
+	Set HA_DUPLICATE_KEY_NOT_IN_ORDER if multiple unique index
+	are not in the correct order.
+	@param ib_table InnoDB table definition
+	@retval true if not errors were found */
+	bool check_index_consistency(const dict_table_t* ib_table) noexcept;
 protected:
 	bool
 	can_convert_string(const Field_string* field,

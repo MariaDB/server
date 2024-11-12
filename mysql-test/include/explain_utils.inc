@@ -28,6 +28,7 @@
 --echo #
 --disable_ps2_protocol
 --disable_view_protocol
+--disable_cursor_protocol
 if ($select) {
 --disable_query_log
 --eval $select INTO OUTFILE '$MYSQLTEST_VARDIR/tmp/before_explain.txt'
@@ -160,5 +161,6 @@ SHOW STATUS WHERE (Variable_name LIKE 'Sort%' OR
 --enable_query_log
 
 --echo
+--enable_cursor_protocol
 --enable_view_protocol
 --enable_ps2_protocol

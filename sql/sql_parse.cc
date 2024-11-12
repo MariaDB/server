@@ -996,7 +996,6 @@ int bootstrap(MYSQL_FILE *file)
 #endif
 
   /* The following must be called before DBUG_ENTER */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->security_ctx->user= (char*) my_strdup(key_memory_MPVIO_EXT_auth_info,
@@ -4747,36 +4746,36 @@ mysql_execute_command(THD *thd)
 #ifdef WITH_WSREP
       if (wsrep && !first_table->view)
       {
-        bool is_innodb= first_table->table->file->partition_ht()->db_type == DB_TYPE_INNODB;
-
-        // For consistency check inserted table needs to be InnoDB
-        if (!is_innodb && thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+        const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
+        // For InnoDB we don't need to worry about anything here:
+        if (db_type != DB_TYPE_INNODB)
         {
-          push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                              HA_ERR_UNSUPPORTED,
-                              "Galera cluster does support consistency check only"
-                              " for InnoDB tables.");
-          thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
-        }
-
-	/* Only TOI allowed to !InnoDB tables */
-	if (!is_innodb && wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
-	{
-	  my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
-	  break;
-	}
-
-        // For !InnoDB we start TOI if it is not yet started and hope for the best
-        if (!is_innodb && !wsrep_toi)
-        {
-          const legacy_db_type db_type= first_table->table->file->partition_ht()->db_type;
-
-          /* Currently we support TOI for MyISAM only. */
-          if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
-            WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          // For consistency check inserted table needs to be InnoDB
+          if (thd->wsrep_consistency_check != NO_CONSISTENCY_CHECK)
+          {
+            push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                                HA_ERR_UNSUPPORTED,
+                                "Galera cluster does support consistency check only"
+                                " for InnoDB tables.");
+            thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
+          }
+          /* Only TOI allowed to !InnoDB tables */
+          if (wsrep_OSU_method_get(thd) != WSREP_OSU_TOI)
+          {
+            my_error(ER_NOT_SUPPORTED_YET, MYF(0), "RSU on this table engine");
+            break;
+          }
+          // For !InnoDB we start TOI if it is not yet started and hope for the best
+          if (!wsrep_toi)
+          {
+            /* Currently we support TOI for MyISAM only. */
+            if (db_type == DB_TYPE_MYISAM && wsrep_replicate_myisam)
+              WSREP_TO_ISOLATION_BEGIN(first_table->db.str, first_table->table_name.str, NULL);
+          }
         }
       }
 #endif /* WITH_WSREP */
+
       /*
         Only the INSERT table should be merged. Other will be handled by
         select.
@@ -7630,7 +7629,9 @@ check_stack_overrun(THD *thd, long margin, uchar *buf __attribute__((unused)))
 #ifndef __SANITIZE_ADDRESS__
   long stack_used;
   DBUG_ASSERT(thd == current_thd);
-  if ((stack_used= available_stack_size(thd->thread_stack, &stack_used)) >=
+  DBUG_ASSERT(thd->thread_stack);
+  if ((stack_used= available_stack_size(thd->thread_stack,
+                                        my_get_stack_pointer(&stack_used))) >=
       (long) (my_thread_stack_size - margin))
   {
     thd->is_fatal_error= 1;
@@ -9599,8 +9600,27 @@ static
 void sql_kill(THD *thd, my_thread_id id, killed_state state, killed_type type)
 {
 #ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+
   bool wsrep_high_priority= false;
-#endif
+#endif /* WITH_WSREP */
   uint error= kill_one_thread(thd, id, state, type
 #ifdef WITH_WSREP
                               , wsrep_high_priority
@@ -9632,6 +9652,26 @@ sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
+    {
+      WSREP_DEBUG("implicit commit before KILL");
+      /* Commit the normal transaction if one is active. */
+      bool commit_failed= trans_commit_implicit(thd);
+      /* Release metadata locks acquired in this transaction. */
+      thd->release_transactional_locks();
+      if (commit_failed || wsrep_after_statement(thd))
+      {
+        WSREP_DEBUG("implicit commit failed, MDL released: %lld",
+                    (longlong) thd->thread_id);
+        return;
+      }
+      thd->transaction->stmt.mark_trans_did_ddl();
+    }
+  }
+#endif /* WITH_WSREP */
   switch (error= kill_threads_for_user(thd, user, state, &rows))
   {
   case 0:

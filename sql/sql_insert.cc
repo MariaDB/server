@@ -1373,10 +1373,10 @@ values_loop_end:
       ::my_ok(thd, info.copied + info.deleted + updated, id, buff);
   }
   thd->abort_on_warning= 0;
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
-    thd->lex->current_select->first_cond_optimization= 0;
+    thd->lex->current_select->leaf_tables_saved= true;
   }
 
   my_free(readbuff);
@@ -1809,10 +1809,6 @@ int vers_insert_history_row(TABLE *table)
   Field *row_end= table->vers_end_field();
   if (row_start->cmp(row_start->ptr, row_end->ptr) >= 0)
     return 0;
-
-  if (table->vfield &&
-      table->update_virtual_fields(table->file, VCOL_UPDATE_FOR_READ))
-    return HA_ERR_GENERIC;
 
   return table->file->ha_write_row(table->record[0]);
 }
@@ -3223,7 +3219,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
   else
   {
     DBUG_ENTER("handle_delayed_insert");
-    thd->thread_stack= (char*) &thd;
     if (init_thr_lock())
     {
       thd->get_stmt_da()->set_error_status(ER_OUT_OF_RESOURCES);
@@ -3498,7 +3493,6 @@ pthread_handler_t handle_delayed_insert(void *arg)
     DBUG_LEAVE;
   }
   my_thread_end();
-  pthread_exit(0);
 
   return 0;
 }
@@ -4514,19 +4508,13 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   bool save_table_creation_was_logged;
   DBUG_ENTER("select_create::create_table_from_items");
 
+  tmp_table.reset();
   tmp_table.s= &share;
   init_tmp_table_share(thd, &share, "", 0, "", "");
-
-  tmp_table.s->db_create_options=0;
-  tmp_table.null_row= 0;
-  tmp_table.maybe_null= 0;
   tmp_table.in_use= thd;
 
   if (!(thd->variables.option_bits & OPTION_EXPLICIT_DEF_TIMESTAMP))
     promote_first_timestamp_column(&alter_info->create_list);
-
-  if (create_info->fix_create_fields(thd, alter_info, *create_table))
-    DBUG_RETURN(NULL);
 
   while ((item=it++))
   {
@@ -4564,6 +4552,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
+
+  if (create_info->fix_create_fields(thd, alter_info, *create_table))
+    DBUG_RETURN(NULL);
 
   /*
     Item*::type_handler() always returns pointers to

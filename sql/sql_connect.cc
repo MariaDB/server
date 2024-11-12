@@ -1362,7 +1362,7 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   THD *thd;
   if (!(thd= connect->create_thd(NULL)))
   {
-    connect->close_and_delete();
+    connect->close_and_delete(0);
     return;
   }
 
@@ -1387,16 +1387,6 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */
   thd->start_utime= thr_create_utime;
-
-  /*
-    handle_one_connection() is normally the only way a thread would
-    start and would always be on the very high end of the stack ,
-    therefore, the thread stack always starts at the address of the
-    first local variable of handle_one_connection, which is thd. We
-    need to know the start of the stack so that we could check for
-    stack overruns.
-  */
-  thd->thread_stack= (char*) &thd;
   setup_connection_thread_globals(thd);
 
   for (;;)
@@ -1437,7 +1427,7 @@ end_thread:
     if (!(connect->create_thd(thd)))
     {
       /* Out of resources. Free thread to get more resources */
-      connect->close_and_delete();
+      connect->close_and_delete(0);
       break;
     }
     delete connect;
@@ -1466,9 +1456,11 @@ end_thread:
   Close connection without error and delete the connect object
   This and close_with_error are only called if we didn't manage to
   create a new thd object.
+
+  Note: err can be 0 if unknown/not inportant
 */
 
-void CONNECT::close_and_delete()
+void CONNECT::close_and_delete(uint err)
 {
   DBUG_ENTER("close_and_delete");
 
@@ -1482,7 +1474,11 @@ void CONNECT::close_and_delete()
   vio_type= VIO_CLOSED;
 
   --*scheduler->connection_count;
-  statistic_increment(connection_errors_internal, &LOCK_status);
+
+  if (err == ER_CON_COUNT_ERROR)
+    statistic_increment(connection_errors_max_connection, &LOCK_status);
+  else
+    statistic_increment(connection_errors_internal, &LOCK_status);
   statistic_increment(aborted_connects,&LOCK_status);
 
   delete this;
@@ -1506,7 +1502,7 @@ void CONNECT::close_with_error(uint sql_errno,
     delete thd;
     set_current_thd(0);
   }
-  close_and_delete();
+  close_and_delete(close_error);
 }
 
 
