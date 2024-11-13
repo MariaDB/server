@@ -9894,7 +9894,7 @@ int TABLE::open_hlindexes_for_write()
   return 0;
 }
 
-int TABLE::reset_hlindexes()
+int TABLE::unlock_hlindexes()
 {
   if (hlindex && hlindex->in_use)
   {
