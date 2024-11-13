@@ -13859,30 +13859,8 @@ delete_part2:
 delete_single_table:
           FROM table_ident opt_table_alias_clause opt_key_definition opt_use_partition
           {
-            if (unlikely(!Select->
-                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type,
-                                           NULL,
-                                           0)))
-              MYSQL_YYABORT;
-            Select->table_list.save_and_clear(&Lex->auxiliary_table_list);
-            /* Save the number of auxiliary tables */
-            Lex->table_count_update= 1;
-
-            Lex->query_tables= 0;
-            Lex->query_tables_last= &Lex->query_tables;
-            if (unlikely(!Select->
-                         add_table_to_list(thd, $2, $3, TL_OPTION_UPDATING,
-                                           YYPS->m_lock_type,
-                                           YYPS->m_mdl_type,
-                                           Select->pop_index_hints(),
-                                           $5)))
-              MYSQL_YYABORT;
-            Lex->auxiliary_table_list.first->correspondent_table=
-              Lex->query_tables;
-            YYPS->m_lock_type= TL_READ_DEFAULT;
-            YYPS->m_mdl_type= MDL_SHARED_READ;
+             if (Lex->delete_single_table(thd, $2, $3, $5))
+               MYSQL_YYABORT;
           }
         ;
 

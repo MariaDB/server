@@ -3239,6 +3239,7 @@ public:
   int query_expression_body_query_simple(st_select_lex_unit *&unit, SELECT_LEX *select_lex);
   int delete_delete_sym(THD *thd);
   int delete_part2(THD *thd);
+  int delete_single_table(THD *thd, Table_ident *table, const LEX_CSTRING *alias, List<String> *partition_names);
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();

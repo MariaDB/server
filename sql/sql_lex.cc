@@ -6057,6 +6057,39 @@ int LEX::delete_part2(THD *thd)
 }
 
 
+int LEX::delete_single_table(THD *thd, Table_ident *table, const LEX_CSTRING *alias, List<String> *partition_names)
+{
+    auto Lex = this;
+    auto Select = Lex->current_select;
+    auto YYPS= &thd->m_parser_state->m_yacc;
+    if (unlikely(!Select->
+                 add_table_to_list(thd, table, alias, TL_OPTION_UPDATING,
+                                   YYPS->m_lock_type,
+                                   YYPS->m_mdl_type,
+                                   NULL,
+                                   nullptr)))
+        return 1;
+    Select->table_list.save_and_clear(&Lex->auxiliary_table_list);
+    /* Save the number of auxiliary tables */
+    Lex->table_count_update= 1;
+
+    Lex->query_tables= 0;
+    Lex->query_tables_last= &Lex->query_tables;
+    if (unlikely(!Select->
+                 add_table_to_list(thd, table, alias, TL_OPTION_UPDATING,
+                                   YYPS->m_lock_type,
+                                   YYPS->m_mdl_type,
+                                   Select->pop_index_hints(),
+                                   partition_names)))
+        return 1;
+    Lex->auxiliary_table_list.first->correspondent_table=
+        Lex->query_tables;
+    YYPS->m_lock_type= TL_READ_DEFAULT;
+    YYPS->m_mdl_type= MDL_SHARED_READ;
+    return 0;
+}
+
+
 /**
   Allocates and set arena for SET STATEMENT old values.
 
