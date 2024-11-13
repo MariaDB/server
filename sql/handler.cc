@@ -7639,6 +7639,9 @@ int handler::ha_external_lock(THD *thd, int lock_type)
     }
   }
 
+  if (lock_type == F_UNLCK)
+    (void) table->reset_hlindexes();
+
   /*
     We cache the table flags if the locking succeeded. Otherwise, we
     keep them as they were when they were fetched in ha_open().
@@ -7713,8 +7716,6 @@ int handler::ha_reset()
     delete lookup_handler;
     lookup_handler= this;
   }
-  if (table->reset_hlindexes())
-    return 1;
   DBUG_RETURN(reset());
 }
 
