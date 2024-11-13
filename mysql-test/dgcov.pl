@@ -112,8 +112,7 @@ sub print_gcov_for_diff {
     $acc.=sprintf '%9s:%5s:%s', '', $lnum, $' if /^ /;
     ++$printme, $acc.=sprintf '%9s:%5s:%s', gcov_prefix($fcov->{$lnum}), $lnum, $' if /^\+/;
     die "$_^^^ dying", unless /^[- +]/;
-    ++$lnum;
-    --$cnt;
+    ++$lnum, --$cnt unless /^-/;
   }
   print $acc if $printme;
   close PIPE or die "command '$cmd' failed: $!: $?";

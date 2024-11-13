@@ -199,10 +199,10 @@ public:
       m_current_search_depth(0),
       m_found_deadlock(FALSE)
   {}
-  virtual bool enter_node(MDL_context *node);
-  virtual void leave_node(MDL_context *node);
+  bool enter_node(MDL_context *node) override;
+  void leave_node(MDL_context *node) override;
 
-  virtual bool inspect_edge(MDL_context *dest);
+  bool inspect_edge(MDL_context *dest) override;
 
   MDL_context *get_victim() const { return m_victim; }
 private:
@@ -434,11 +434,11 @@ public:
   struct MDL_scoped_lock : public MDL_lock_strategy
   {
     MDL_scoped_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     { return (ticket->get_type() == MDL_SHARED); }
 
     /**
@@ -449,14 +449,14 @@ public:
       insert delayed. We need to kill such threads in order to get
       global shared lock. We do this my calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     { return ticket->get_type() == MDL_INTENTION_EXCLUSIVE; }
 
     /*
       In scoped locks, only IX lock request would starve because of X/S. But that
       is practically very rare case. So just return 0 from this function.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     { return 0; }
   private:
     static const bitmap_t m_granted_incompatible[MDL_TYPE_END];
@@ -471,11 +471,11 @@ public:
   struct MDL_object_lock : public MDL_lock_strategy
   {
     MDL_object_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) &
               (MDL_BIT(MDL_SHARED_NO_WRITE) |
@@ -491,7 +491,7 @@ public:
       lock or some other non-MDL resource we might need to wake it up
       by calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     { return ticket->get_type() < MDL_SHARED_UPGRADABLE; }
 
     /*
@@ -499,7 +499,7 @@ public:
       max_write_lock_count times in a row while other lock types are
       waiting.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     {
       return (MDL_BIT(MDL_SHARED_NO_WRITE) |
               MDL_BIT(MDL_SHARED_NO_READ_WRITE) |
@@ -515,11 +515,11 @@ public:
   struct MDL_backup_lock: public MDL_lock_strategy
   {
     MDL_backup_lock() = default;
-    virtual const bitmap_t *incompatible_granted_types_bitmap() const
+    const bitmap_t *incompatible_granted_types_bitmap() const override
     { return m_granted_incompatible; }
-    virtual const bitmap_t *incompatible_waiting_types_bitmap() const
+    const bitmap_t *incompatible_waiting_types_bitmap() const override
     { return m_waiting_incompatible; }
-    virtual bool needs_notification(const MDL_ticket *ticket) const
+    bool needs_notification(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) & MDL_BIT(MDL_BACKUP_FTWRL1));
     }
@@ -529,7 +529,7 @@ public:
        We need to kill such threads in order to get lock for FTWRL statements.
        We do this by calling code outside of MDL.
     */
-    virtual bool conflicting_locks(const MDL_ticket *ticket) const
+    bool conflicting_locks(const MDL_ticket *ticket) const override
     {
       return (MDL_BIT(ticket->get_type()) &
               (MDL_BIT(MDL_BACKUP_DML) |
@@ -541,7 +541,7 @@ public:
       BACKUP statements. This scenario is partically useless in real world,
       so we just return 0 here.
     */
-    virtual bitmap_t hog_lock_types_bitmap() const
+    bitmap_t hog_lock_types_bitmap() const override
     { return 0; }
   private:
     static const bitmap_t m_granted_incompatible[MDL_BACKUP_END];
@@ -673,8 +673,10 @@ public:
   { ((MDL_lock*)(arg + LF_HASH_OVERHEAD))->~MDL_lock(); }
 
   static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
-                                  MDL_lock *lock, MDL_key *key_arg)
+                                  void *_lock, const void *_key_arg)
   {
+    MDL_lock *lock= static_cast<MDL_lock *>(_lock);
+    const MDL_key *key_arg= static_cast<const MDL_key *>(_key_arg);
     DBUG_ASSERT(key_arg->mdl_namespace() != MDL_key::BACKUP);
     new (&lock->key) MDL_key(key_arg);
     if (key_arg->mdl_namespace() == MDL_key::SCHEMA)
@@ -760,8 +762,10 @@ struct mdl_iterate_arg
 };
 
 
-static my_bool mdl_iterate_lock(MDL_lock *lock, mdl_iterate_arg *arg)
+static my_bool mdl_iterate_lock(void *lk, void *a)
 {
+  MDL_lock *lock= static_cast<MDL_lock*>(lk);
+  mdl_iterate_arg *arg= static_cast<mdl_iterate_arg*>(a);
   /*
     We can skip check for m_strategy here, becase m_granted
     must be empty for such locks anyway.
@@ -784,14 +788,13 @@ int mdl_iterate(mdl_iterator_callback callback, void *arg)
 {
   DBUG_ENTER("mdl_iterate");
   mdl_iterate_arg argument= { callback, arg };
-  LF_PINS *pins= mdl_locks.get_pins();
   int res= 1;
 
-  if (pins)
+  if (LF_PINS *pins= mdl_locks.get_pins())
   {
     res= mdl_iterate_lock(mdl_locks.m_backup_lock, &argument) ||
-         lf_hash_iterate(&mdl_locks.m_locks, pins,
-                         (my_hash_walk_action) mdl_iterate_lock, &argument);
+         lf_hash_iterate(&mdl_locks.m_locks, pins, mdl_iterate_lock,
+                         &argument);
     lf_hash_put_pins(pins);
   }
   DBUG_RETURN(res);

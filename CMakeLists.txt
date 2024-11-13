@@ -31,22 +31,11 @@ ENDIF()
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-
-IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 NEW)
-ENDIF()
-IF(POLICY CMP0048)
-  CMAKE_POLICY(SET CMP0048 NEW)
-ENDIF()
-IF(POLICY CMP0054)
-  CMAKE_POLICY(SET CMP0054 NEW)
-ENDIF()
-IF(POLICY CMP0075)
-  CMAKE_POLICY(SET CMP0075 NEW)
-ENDIF()
-IF(POLICY CMP0069)
- CMAKE_POLICY(SET CMP0069 NEW)
-ENDIF()
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0074 CMP0075 CMP0069 CMP0135)
+  IF(POLICY ${p})
+    CMAKE_POLICY(SET ${p} NEW)
+  ENDIF()
+ENDFOREACH()
 
 PROJECT(MySQL)
 
@@ -198,7 +187,7 @@ ENDIF()
 OPTION (WITH_UNIT_TESTS "Compile MySQL with unit tests" ON)
 
 IF (WITHOUT_SERVER)
-  SET (SKIP_COMPONENTS "Server|IniFiles|SuportFiles|Readme")
+  SET (SKIP_COMPONENTS "Server|IniFiles|SupportFiles|Readme")
 ELSE()
   SET (SKIP_COMPONENTS "N-O-N-E")
 ENDIF()
@@ -209,9 +198,10 @@ OPTION(NOT_FOR_DISTRIBUTION "Allow linking with GPLv2-incompatible system librar
 #  Enable protection of statement's memory root after first SP/PS execution.
 #  Can be switched on only for debug build.
 #
-OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" OFF)
-IF (CMAKE_BUILD_TYPE MATCHES "Debug" AND WITH_PROTECT_STATEMENT_MEMROOT)
-  ADD_DEFINITIONS(-DPROTECT_STATEMENT_MEMROOT)
+OPTION(WITH_PROTECT_STATEMENT_MEMROOT "Enable protection of statement's memory root after first SP/PS execution. Turned into account only for debug build" ON)
+IF (WITH_PROTECT_STATEMENT_MEMROOT)
+  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DPROTECT_STATEMENT_MEMROOT")
 ENDIF()
 
 INCLUDE(check_compiler_flag)
@@ -254,6 +244,19 @@ ENDIF()
 OPTION(WITH_MSAN "Enable memory sanitizer" OFF)
 IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
+  IF(NOT (have_C__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE
+          AND have_CXX__fsanitize_memory__fsanitize_memory_track_origins__U_FORTIFY_SOURCE))
+    MESSAGE(FATAL_ERROR "Compiler doesn't support -fsanitize=memory flags")
+  ENDIF()
+  MY_CHECK_CXX_COMPILER_FLAG("-stdlib=libc++")
+  IF(NOT have_CXX__stdlib_libc__)
+    MESSAGE(FATAL_ERROR "C++ Compiler requires support for -stdlib=libc++")
+  ENDIF()
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  MY_CHECK_AND_SET_LINKER_FLAG("-fsanitize=memory" DEBUG RELWITHDEBINFO)
+  IF(NOT HAVE_LINK_FLAG__fsanitize_memory)
+    MESSAGE(FATAL_ERROR "Linker doesn't support -fsanitize=memory flags")
+  ENDIF()
 ENDIF()
 
 OPTION(WITH_GPROF "Enable profiling with gprof" OFF)
@@ -267,15 +270,13 @@ MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF AND NOT WITH_MSAN)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
   MY_CHECK_AND_SET_COMPILER_FLAG("-fstack-protector --param=ssp-buffer-size=4")
   MY_CHECK_AND_SET_COMPILER_FLAG("-D_FORTIFY_SOURCE=2" RELEASE RELWITHDEBINFO)
 ENDIF()
-
-INCLUDE(wsrep)
 
 OPTION(WITH_DBUG_TRACE "Enable DBUG_ENTER()/DBUG_RETURN()/DBUG_PRINT()" ON)
 IF(WITH_DBUG_TRACE)
@@ -287,7 +288,12 @@ ENDIF()
 # Always enable debug sync for debug builds.
 SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
- 
+
+IF(CMAKE_COMPILER_IS_GNUCC AND NOT CMAKE_CXX_COMPILER_VERSION VERSION_LESS "10")
+  # Enable extra checks when using a recent enough version of GNU libstdc++
+  SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_GLIBCXX_DEBUG -D_GLIBCXX_ASSERTIONS")
+ENDIF()
+
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
@@ -347,6 +353,8 @@ ELSEIF(TRASH_FREED_MEMORY MATCHES "AUTO" AND NOT WIN32 AND NOT WITH_VALGRIND AND
   SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DTRASH_FREED_MEMORY")
   SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DTRASH_FREED_MEMORY")
 ENDIF()
+
+INCLUDE(wsrep)
 
 # Set commonly used variables
 IF(WIN32)

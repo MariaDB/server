@@ -1,0 +1,11 @@
+# This test tests spider init with global no_zero_date sql mode
+set @old_sql_mode=@@global.sql_mode;
+set global sql_mode='traditional';
+install soname 'ha_spider';
+set global sql_mode=@old_sql_mode;
+
+--disable_query_log
+--disable_result_log
+--source ../../include/clean_up_spider.inc
+--enable_result_log
+--enable_query_log

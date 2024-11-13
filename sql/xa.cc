@@ -126,10 +126,11 @@ public:
     }
     return true;
   }
-  static void lf_hash_initializer(LF_HASH *hash __attribute__((unused)),
-                                  XID_cache_element *element,
-                                  XID_cache_insert_element *new_element)
+  static void lf_hash_initializer(LF_HASH *, void *el, const void *ie)
   {
+    XID_cache_element *element= static_cast<XID_cache_element*>(el);
+    XID_cache_insert_element *new_element=
+      static_cast<XID_cache_insert_element*>(const_cast<void*>(ie));
     DBUG_ASSERT(!element->is_set(ACQUIRED | RECOVERED));
     element->rm_error= 0;
     element->xa_state= new_element->xa_state;
@@ -146,11 +147,11 @@ public:
     DBUG_ASSERT(!reinterpret_cast<XID_cache_element*>(ptr + LF_HASH_OVERHEAD)
 		->is_set(ACQUIRED));
   }
-  static uchar *key(const XID_cache_element *element, size_t *length,
-                    my_bool not_used __attribute__((unused)))
+  static uchar *key(const unsigned char *el, size_t *length, my_bool)
   {
-    *length= element->xid.key_length();
-    return element->xid.key();
+    const XID &xid= reinterpret_cast<const XID_cache_element*>(el)->xid;
+    *length= xid.key_length();
+    return xid.key();
   }
 };
 
@@ -179,6 +180,13 @@ void XID_STATE::set_error(uint error)
     xid_cache_element->rm_error= error;
 }
 
+void XID_STATE::set_rollback_only()
+{
+  xid_cache_element->xa_state= XA_ROLLBACK_ONLY;
+  if (current_thd)
+    MYSQL_SET_TRANSACTION_XA_STATE(current_thd->m_transaction_psi,
+                                   XA_ROLLBACK_ONLY);
+}
 
 void XID_STATE::er_xaer_rmfail() const
 {
@@ -221,11 +229,10 @@ void xid_cache_init()
 {
   xid_cache_inited= true;
   lf_hash_init(&xid_cache, sizeof(XID_cache_element), LF_HASH_UNIQUE, 0, 0,
-               (my_hash_get_key) XID_cache_element::key, &my_charset_bin);
+               XID_cache_element::key, &my_charset_bin);
   xid_cache.alloc.constructor= XID_cache_element::lf_alloc_constructor;
   xid_cache.alloc.destructor= XID_cache_element::lf_alloc_destructor;
-  xid_cache.initializer=
-    (lf_hash_initializer) XID_cache_element::lf_hash_initializer;
+  xid_cache.initializer= XID_cache_element::lf_hash_initializer;
 }
 
 
@@ -331,9 +338,10 @@ struct xid_cache_iterate_arg
   void *argument;
 };
 
-static my_bool xid_cache_iterate_callback(XID_cache_element *element,
-                                          xid_cache_iterate_arg *arg)
+static my_bool xid_cache_iterate_callback(void *el, void *a)
 {
+  XID_cache_element *element= static_cast<XID_cache_element*>(el);
+  xid_cache_iterate_arg *arg= static_cast<xid_cache_iterate_arg*>(a);
   my_bool res= FALSE;
   if (element->lock())
   {
@@ -348,8 +356,7 @@ static int xid_cache_iterate(THD *thd, my_hash_walk_action action, void *arg)
   xid_cache_iterate_arg argument= { action, arg };
   return thd->fix_xid_hash_pins() ? -1 :
          lf_hash_iterate(&xid_cache, thd->xid_hash_pins,
-                         (my_hash_walk_action) xid_cache_iterate_callback,
-                         &argument);
+                         xid_cache_iterate_callback, &argument);
 }
 
 
@@ -547,8 +554,21 @@ bool trans_xa_prepare(THD *thd)
     }
     else
     {
-      thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
-      MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      if (thd->transaction->xid_state.xid_cache_element->xa_state !=
+          XA_ROLLBACK_ONLY)
+      {
+        thd->transaction->xid_state.xid_cache_element->xa_state= XA_PREPARED;
+        MYSQL_SET_TRANSACTION_XA_STATE(thd->m_transaction_psi, XA_PREPARED);
+      }
+      else
+      {
+        /*
+          In the non-err case, XA_ROLLBACK_ONLY should only be set by a slave
+          thread which prepared an empty transaction, to prevent binlogging a
+          standalone XA COMMIT.
+        */
+        DBUG_ASSERT(thd->rgi_slave && !(thd->transaction->all.ha_list));
+      }
       res= thd->variables.pseudo_slave_mode || thd->slave_thread ?
         slave_applier_reset_xa_trans(thd) : 0;
     }
@@ -1039,17 +1059,19 @@ static my_bool xa_recover_callback(XID_cache_element *xs, Protocol *protocol,
 }
 
 
-static my_bool xa_recover_callback_short(XID_cache_element *xs,
-                                         Protocol *protocol)
+static my_bool xa_recover_callback_short(void *x, void *p)
 {
+  XID_cache_element *xs= static_cast<XID_cache_element*>(x);
+  Protocol *protocol= static_cast<Protocol*>(p);
   return xa_recover_callback(xs, protocol, xs->xid.data,
       xs->xid.gtrid_length + xs->xid.bqual_length, &my_charset_bin);
 }
 
 
-static my_bool xa_recover_callback_verbose(XID_cache_element *xs,
-                                           Protocol *protocol)
+static my_bool xa_recover_callback_verbose(void *x, void *p)
 {
+  XID_cache_element *xs= static_cast<XID_cache_element*>(x);
+  Protocol *protocol= static_cast<Protocol*>(p);
   char buf[SQL_XIDSIZE];
   uint len= get_sql_xid(&xs->xid, buf);
   return xa_recover_callback(xs, protocol, buf, len,
@@ -1082,13 +1104,13 @@ bool mysql_xa_recover(THD *thd)
     {
       len= SQL_XIDSIZE;
       cs= &my_charset_utf8mb3_general_ci;
-      action= (my_hash_walk_action) xa_recover_callback_verbose;
+      action= xa_recover_callback_verbose;
     }
     else
     {
       len= XIDDATASIZE;
       cs= &my_charset_bin;
-      action= (my_hash_walk_action) xa_recover_callback_short;
+      action= xa_recover_callback_short;
     }
 
     field_list.push_back(new (mem_root)

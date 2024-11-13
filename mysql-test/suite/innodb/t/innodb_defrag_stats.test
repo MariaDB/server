@@ -35,7 +35,7 @@ SELECT @@GLOBAL.innodb_force_recovery<2 "have background defragmentation";
 # Wait for defrag_pool to be processed.
 
 let $wait_timeout=30;
-let $wait_condition = SELECT COUNT(*)>0 FROM mysql.innodb_index_stats;
+let $wait_condition = SELECT COUNT(*)>5 FROM mysql.innodb_index_stats;
 --source include/wait_condition.inc
 
 --sorted_result

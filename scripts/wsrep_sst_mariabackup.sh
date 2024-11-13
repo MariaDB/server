@@ -2,7 +2,7 @@
 
 set -ue
 
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
@@ -19,14 +19,28 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
+# This is a reference script for mariadb-backup-based state snapshot transfer.
+
 # Documentation:
 # https://mariadb.com/kb/en/mariabackup-overview/
 # Make sure to read that before proceeding!
 
-OS="$(uname)"
-
 . $(dirname "$0")/wsrep_sst_common
-wsrep_check_datadir
+
+BACKUP_BIN=$(commandex 'mariadb-backup')
+if [ -z "$BACKUP_BIN" ]; then
+    wsrep_log_error 'mariadb-backup binary not found in path'
+    exit 42
+fi
+
+BACKUP_PID=""
+
+INFO_FILE='xtrabackup_galera_info'
+DONOR_INFO_FILE='donor_galera_info'
+IST_FILE='xtrabackup_ist'
+
+MAGIC_FILE="$DATA/$INFO_FILE"
+DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 ealgo=""
 eformat=""
@@ -35,7 +49,6 @@ ekeyfile=""
 encrypt=0
 ssyslog=""
 ssystag=""
-BACKUP_PID=""
 tcert=""
 tcap=""
 tpem=""
@@ -64,10 +77,10 @@ tcmd=""
 payload=0
 pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p'"
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE"
-STATDIR=""
 uextra=0
 disver=""
 
+STATDIR=""
 tmpopts=""
 itmpdir=""
 xtmpdir=""
@@ -92,22 +105,6 @@ readonly TOTAL_TAG='total'
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
 sst_ver=1
-
-declare -a RC
-
-BACKUP_BIN=$(commandex 'mariadb-backup')
-if [ -z "$BACKUP_BIN" ]; then
-    wsrep_log_error 'mariadb-backup binary not found in path'
-    exit 42
-fi
-
-DATA="$WSREP_SST_OPT_DATA"
-
-INFO_FILE='xtrabackup_galera_info'
-DONOR_INFO_FILE='donor_galera_info'
-IST_FILE='xtrabackup_ist'
-MAGIC_FILE="$DATA/$INFO_FILE"
-DONOR_MAGIC_FILE="$DATA/$DONOR_INFO_FILE"
 
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
@@ -686,16 +683,16 @@ cleanup_at_exit()
     fi
 
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+        if [ -n "$BACKUP_PID" ]; then
+            if ps -p $BACKUP_PID >/dev/null 2>&1; then
+                wsrep_log_error \
+                    "mariadb-backup process is still running. Killing..."
+                cleanup_pid $CHECK_PID
+            fi
+        fi
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     else
-        if [ -n "$BACKUP_PID" ]; then
-            if check_pid "$BACKUP_PID" 1; then
-                wsrep_log_error \
-                    "mariadb-backup process is still running. Killing..."
-                cleanup_pid $CHECK_PID "$BACKUP_PID"
-            fi
-        fi
         [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE" || :
     fi
 
@@ -714,7 +711,7 @@ cleanup_at_exit()
     fi
 
     # Final cleanup
-    pgid=$(ps -o pgid= $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
+    local pgid=$(ps -o 'pgid=' $$ 2>/dev/null | grep -o -E '[0-9]+' || :)
 
     # This means no setsid done in mysqld.
     # We don't want to kill mysqld here otherwise.
@@ -728,7 +725,7 @@ cleanup_at_exit()
         fi
     fi
 
-    if [ -n "${SST_PID:-}" ]; then
+    if [ -n "$SST_PID" ]; then
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
 
@@ -752,7 +749,7 @@ setup_ports()
 wait_for_listen()
 {
     for i in {1..150}; do
-        if check_port "" "$SST_PORT" 'socat|nc'; then
+        if check_port "" "$SST_PORT" 'socat|nc|netcat'; then
             break
         fi
         sleep 0.2
@@ -803,7 +800,8 @@ recv_joiner()
     if [ $tmt -gt 0 ]; then
         if [ -n "$(commandex timeout)" ]; then
             local koption=0
-            if [ "$OS" = 'FreeBSD' ]; then
+            if [ "$OS" = 'FreeBSD' -o "$OS" = 'NetBSD' -o "$OS" = 'OpenBSD' -o \
+                 "$OS" = 'DragonFly' ]; then
                 if timeout 2>&1 | grep -qw -F -- '-k'; then
                     koption=1
                 fi
@@ -850,7 +848,7 @@ recv_joiner()
             wsrep_log_error "receiving process ended without creating" \
                             "magic file ($MAGIC_FILE)"
             wsrep_log_info "Contents of datadir:"
-            wsrep_log_info $(ls -l "$dir/"*)
+            wsrep_log_info "$(ls -l "$dir/"*)"
             exit 32
         fi
 
@@ -904,22 +902,19 @@ monitor_process()
     local sst_stream_pid=$1
 
     while :; do
-        if ! ps -p "$WSREP_SST_OPT_PARENT" >/dev/null 2>&1; then
+        if ! ps -p $WSREP_SST_OPT_PARENT >/dev/null 2>&1; then
             wsrep_log_error \
                 "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT)" \
                 "terminated unexpectedly."
-            kill -- -"$WSREP_SST_OPT_PARENT"
+            kill -- -$WSREP_SST_OPT_PARENT
             exit 32
         fi
-        if ! ps -p "$sst_stream_pid" >/dev/null 2>&1; then
+        if ! ps -p $sst_stream_pid >/dev/null 2>&1; then
             break
         fi
         sleep 0.1
     done
 }
-
-[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
-[ -f "$DONOR_MAGIC_FILE" ] && rm -rf "$DONOR_MAGIC_FILE"
 
 read_cnf
 setup_ports
@@ -936,15 +931,17 @@ if "$BACKUP_BIN" --help 2>/dev/null | grep -qw -F -- '--version-check'; then
     disver=' --no-version-check'
 fi
 
-OLD_PWD="$(pwd)"
+get_stream
+get_transfer
 
-if [ -n "$DATA" -a "$DATA" != '.' ]; then
-    [ ! -d "$DATA" ] && mkdir -p "$DATA"
-    cd "$DATA"
-fi
-DATA_DIR="$(pwd)"
+findopt='-L'
+[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
 
-cd "$OLD_PWD"
+wait_previous_sst
+
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
+[ -f "$DONOR_MAGIC_FILE" ] && rm -f "$DONOR_MAGIC_FILE"
+[ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
 if [ $ssyslog -eq 1 ]; then
     if [ -n "$(commandex logger)" ]; then
@@ -954,17 +951,17 @@ if [ $ssyslog -eq 1 ]; then
 
         wsrep_log_error()
         {
-            logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
 
         wsrep_log_warning()
         {
-            logger -p daemon.warning -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.warning -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
 
         wsrep_log_info()
         {
-            logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
+            logger -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE -- "$@"
         }
     else
         wsrep_log_error "logger not in path: $PATH. Ignoring"
@@ -1064,12 +1061,6 @@ send_magic()
     fi
 }
 
-get_stream
-get_transfer
-
-findopt='-L'
-[ "$OS" = 'FreeBSD' ] && findopt="$findopt -E"
-
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
     trap cleanup_at_exit EXIT
@@ -1085,27 +1076,27 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
         tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
         if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
+            itmpdir="$(mktemp -d)"
         elif [ "$OS" = 'Linux' ]; then
-            xtmpdir=$(mktemp '-d' "--tmpdir=$tmpdir")
+            xtmpdir=$(mktemp -d "--tmpdir=$tmpdir")
+            itmpdir=$(mktemp -d "--tmpdir=$tmpdir")
         else
-            xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
+            xtmpdir=$(TMPDIR="$tmpdir"; mktemp -d)
+            itmpdir=$(TMPDIR="$tmpdir"; mktemp -d)
         fi
 
         wsrep_log_info "Using '$xtmpdir' as mariadb-backup temporary directory"
         tmpopts=" --tmpdir='$xtmpdir'"
 
-        itmpdir="$(mktemp -d)"
-        wsrep_log_info "Using '$itmpdir' as mariadb-abackup working directory"
+        wsrep_log_info "Using '$itmpdir' as mariadb-backup working directory"
 
-        usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
            INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
-           usrst=1
         fi
 
         if [ -n "$WSREP_SST_OPT_PSWD" ]; then
             export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-        elif [ $usrst -eq 1 ]; then
+        elif [ -n "$WSREP_SST_OPT_USER" ]; then
             # Empty password, used for testing, debugging etc.
             unset MYSQL_PWD
         fi
@@ -1203,17 +1194,14 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
             exit 22
         fi
 
-        # mariadb-backup implicitly writes PID to fixed location in $xtmpdir
-        BACKUP_PID="$xtmpdir/xtrabackup_pid"
-
     else # BYPASS FOR IST
 
         wsrep_log_info "Bypassing the SST for IST"
-        echo "continue" # now server can resume updating data
+        echo 'continue' # now server can resume updating data
 
         send_magic
 
-        echo "1" > "$DATA/$IST_FILE"
+        echo '1' > "$DATA/$IST_FILE"
 
         if [ -n "$scomp" ]; then
             tcmd="$scomp | $tcmd"
@@ -1235,132 +1223,26 @@ if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
 
 else # joiner
 
+    create_dirs 1
+
     [ -e "$SST_PROGRESS_FILE" ] && \
         wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
     [ -n "$SST_PROGRESS_FILE" ] && touch "$SST_PROGRESS_FILE"
-
-    # if no command line argument and INNODB_DATA_HOME_DIR environment
-    # variable is not set, try to get it from the my.cnf:
-    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
-        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
-    fi
-
-    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
-         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
-        cd "$INNODB_DATA_HOME_DIR"
-        ib_home_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
-    fi
-
-    # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
-    # then try to get it from the my.cnf:
-    if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
-        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
-    fi
-
-    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
-         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
-        cd "$INNODB_LOG_GROUP_HOME"
-        ib_log_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
-    fi
-
-    # if no command line argument and INNODB_UNDO_DIR is not set,
-    # then try to get it from the my.cnf:
-    if [ -z "$INNODB_UNDO_DIR" ]; then
-        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
-        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
-    fi
-
-    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
-         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
-        cd "$INNODB_UNDO_DIR"
-        ib_undo_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
-    fi
-
-    # if no command line argument then try to get it from the my.cnf:
-    if [ -z "$ARIA_LOG_DIR" ]; then
-        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
-        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
-    fi
-
-    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
-         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
-    then
-        # handle both relative and absolute paths:
-        cd "$DATA"
-        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
-        cd "$ARIA_LOG_DIR"
-        ar_log_dir="$(pwd)"
-        cd "$OLD_PWD"
-        [ "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
-    fi
 
     if [ -n "$backup_threads" ]; then
         impts="--parallel=$backup_threads${impts:+ }$impts"
     fi
 
-    SST_PID="$DATA/wsrep_sst.pid"
-
-    # give some time for previous SST to complete:
-    check_round=0
-    while check_pid "$SST_PID" 0; do
-        wsrep_log_info "previous SST is not completed, waiting for it to exit"
-        check_round=$(( check_round + 1 ))
-        if [ $check_round -eq 10 ]; then
-            wsrep_log_error "previous SST script still running."
-            exit 114 # EALREADY
-        fi
-        sleep 1
-    done
-
-    trap simple_cleanup EXIT
-    echo $$ > "$SST_PID"
-
     stagemsg='Joiner-Recv'
 
     MODULE="${WSREP_SST_OPT_MODULE:-xtrabackup_sst}"
-
-    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
-
-    # May need xtrabackup_checkpoints later on
-    [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
-    [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
-
     ADDR="$WSREP_SST_OPT_HOST"
 
     if [ "${tmode#VERIFY}" != "$tmode" ]; then
         # backward-incompatible behavior:
         CN=""
         if [ -n "$tpem" ]; then
-            # find out my Common Name
-            get_openssl
-            if [ -z "$OPENSSL_BINARY" ]; then
-                wsrep_log_error \
-                    'openssl not found but it is required for authentication'
-                exit 42
-            fi
-            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr ',' '\n' | grep -F 'CN =' | cut -d '=' -f2 | sed s/^\ // | \
-                 sed s/\ %//)
+            CN=$(openssl_getCN "$tpem")
         fi
         MY_SECRET="$(wsrep_gen_secret)"
         # Add authentication data to address
@@ -1384,6 +1266,7 @@ else # joiner
 
     STATDIR="$(mktemp -d)"
     MAGIC_FILE="$STATDIR/$INFO_FILE"
+    DONOR_MAGIC_FILE="$STATDIR/$DONOR_INFO_FILE"
 
     recv_joiner "$STATDIR" "$stagemsg-gtid" $stimeout 1 1
 
@@ -1414,7 +1297,7 @@ else # joiner
         fi
         mkdir -p "$DATA/.sst"
         (recv_joiner "$DATA/.sst" "$stagemsg-SST" 0 0 0) &
-        jpid=$!
+        BACKUP_PID=$!
         wsrep_log_info "Proceeding with SST"
 
         get_binlog
@@ -1457,12 +1340,21 @@ else # joiner
                 "$DATA" -mindepth 1 -prune -regex "$cpat" \
                 -o -exec rm -rf {} >&2 \+
 
+        # Deleting files from previous SST and legacy files from old versions:
+        [ -f "$DATA/xtrabackup_binary" ]      && rm -f "$DATA/xtrabackup_binary"
+        [ -f "$DATA/xtrabackup_pid" ]         && rm -f "$DATA/xtrabackup_pid"
+        [ -f "$DATA/xtrabackup_checkpoints" ] && rm -f "$DATA/xtrabackup_checkpoints"
+        [ -f "$DATA/xtrabackup_info" ]        && rm -f "$DATA/xtrabackup_info"
+        [ -f "$DATA/xtrabackup_slave_info" ]  && rm -f "$DATA/xtrabackup_slave_info"
+        [ -f "$DATA/xtrabackup_binlog_pos_innodb" ] && rm -f "$DATA/xtrabackup_binlog_pos_innodb"
+
         TDATA="$DATA"
         DATA="$DATA/.sst"
         MAGIC_FILE="$DATA/$INFO_FILE"
 
         wsrep_log_info "Waiting for SST streaming to complete!"
-        monitor_process $jpid
+        monitor_process $BACKUP_PID
+        BACKUP_PID=""
 
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing," \
@@ -1473,7 +1365,7 @@ else # joiner
         # Compact backups are not supported by mariadb-backup
         if grep -qw -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
-            wsrel_log_error "Compact backups are not supported by mariadb-backup"
+            wsrep_log_error "Compact backups are not supported by mariadb-backup"
             exit 2
         fi
 
@@ -1570,6 +1462,7 @@ else # joiner
         fi
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
+        DONOR_MAGIC_FILE="$TDATA/$DONOR_INFO_FILE"
 
         wsrep_log_info "Moving the backup to $TDATA"
         timeit 'mariadb-backup move stage' "$INNOMOVE"
@@ -1594,7 +1487,8 @@ else # joiner
     fi
 
     if [ ! -r "$MAGIC_FILE" ]; then
-        wsrep_log_error "SST magic file '$MAGIC_FILE' not found/readable"
+        wsrep_log_error "Internal error: SST magic file '$MAGIC_FILE'" \
+                        "not found or not readable"
         exit 2
     fi
 

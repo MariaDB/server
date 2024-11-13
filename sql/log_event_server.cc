@@ -1437,7 +1437,7 @@ Query_log_event::Query_log_event(THD* thd_arg, const char* query_arg,
     is created we create tables with thd->variables.wsrep_on=false
     to avoid replicating wsrep_schema tables to other nodes.
    */
-  if (WSREP_ON && !is_trans_keyword())
+  if (WSREP_ON && !is_trans_keyword(false))
   {
     thd->wsrep_PA_safe= false;
   }
@@ -1715,13 +1715,22 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             ::do_apply_event(), then the companion SET also have so
             we don't need to reset_one_shot_variables().
   */
-  if (is_trans_keyword() || rpl_filter->db_ok(thd->db.str))
+  if (rpl_filter->is_db_empty() ||
+      is_trans_keyword(
+          (rgi->gtid_ev_flags2 & (Gtid_log_event::FL_PREPARED_XA |
+                                  Gtid_log_event::FL_COMPLETED_XA))) ||
+      rpl_filter->db_ok(thd->db.str))
   {
     thd->set_time(when, when_sec_part);
     thd->set_query_and_id((char*)query_arg, q_len_arg,
                           thd->charset(), next_query_id());
     thd->variables.pseudo_thread_id= thread_id;		// for temp tables
     DBUG_PRINT("query",("%s", thd->query()));
+
+#ifdef WITH_WSREP
+    WSREP_DEBUG("Query_log_event thread=%llu for query=%s",
+		thd_get_thread_id(thd), wsrep_thd_query(thd));
+#endif
 
     if (unlikely(!(expected_error= error_code)) ||
         ignored_error_code(expected_error) ||
@@ -2031,6 +2040,16 @@ compare_errors:
       if (actual_error == ER_QUERY_INTERRUPTED ||
           actual_error == ER_CONNECTION_KILLED)
         thd->reset_killed();
+    }
+    else if (actual_error == ER_XAER_NOTA && !rpl_filter->db_ok(get_db()))
+    {
+      /*
+        If there is an XA query whos XID cannot be found, if the replication
+        filter is active and filters the target database, assume that the XID
+        cache has been cleared (e.g. by server restart) since it was prepared,
+        so we can just ignore this event.
+      */
+      thd->clear_error(1);
     }
     /*
       Other cases: mostly we expected no error and get one.
@@ -2817,7 +2836,7 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
   thd->lex->local_file= local_fname;
   thd->reset_for_next_command(0);               // Errors are cleared above
 
-   /*
+  /*
     We test replicate_*_db rules. Note that we have already prepared
     the file to load, even if we are going to ignore and delete it
     now. So it is possible that we did a lot of disk writes for
@@ -2829,7 +2848,6 @@ int Load_log_event::do_apply_event(NET* net, rpl_group_info *rgi,
     and then discarding Append_block and al. Another way is do the
     filtering in the I/O thread (more efficient: no disk writes at
     all).
-
 
     Note:   We do not need to execute reset_one_shot_variables() if this
             db_ok() test fails.
@@ -5495,13 +5513,15 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
 #ifdef WITH_WSREP
       if (WSREP(thd))
       {
-        WSREP_WARN("BF applier failed to open_and_lock_tables: %u, fatal: %d "
+        WSREP_WARN("BF applier thread=%lu failed to open_and_lock_tables for "
+                   "%s, fatal: %d "
                    "wsrep = (exec_mode: %d conflict_state: %d seqno: %lld)",
-                    thd->get_stmt_da()->sql_errno(),
-                    thd->is_fatal_error,
-                    thd->wsrep_cs().mode(),
-                    thd->wsrep_trx().state(),
-                    (long long) wsrep_thd_trx_seqno(thd));
+                   thd_get_thread_id(thd),
+                   thd->get_stmt_da()->message(),
+                   thd->is_fatal_error,
+                   thd->wsrep_cs().mode(),
+                   thd->wsrep_trx().state(),
+                   wsrep_thd_trx_seqno(thd));
       }
 #endif /* WITH_WSREP */
       if (thd->is_error() &&
@@ -5677,21 +5697,21 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
     thd->set_time(when, when_sec_part);
 
-     if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
+    if (m_width == table->s->fields && bitmap_is_set_all(&m_cols))
       set_flags(COMPLETE_ROWS_F);
 
-    /* 
+    /*
       Set tables write and read sets.
-      
+
       Read_set contains all slave columns (in case we are going to fetch
-      a complete record from slave)
-      
-      Write_set equals the m_cols bitmap sent from master but it can be 
-      longer if slave has extra columns. 
-     */ 
+      a complete record from slave).
+
+      Write_set equals the m_cols bitmap sent from master but it can be
+      longer if slave has extra columns.
+    */
 
     DBUG_PRINT_BITSET("debug", "Setting table's read_set from: %s", &m_cols);
-    
+
     bitmap_set_all(table->read_set);
     if (get_general_type_code() == DELETE_ROWS_EVENT ||
         get_general_type_code() == UPDATE_ROWS_EVENT)
@@ -5926,11 +5946,13 @@ static int rows_event_stmt_cleanup(rpl_group_info *rgi, THD * thd)
       Xid_log_event will come next which will, if some transactional engines
       are involved, commit the transaction and flush the pending event to the
       binlog.
-      If there was a deadlock the transaction should have been rolled back
-      already. So there should be no need to rollback the transaction.
+      We check for thd->transaction_rollback_request because it is possible
+      there was a deadlock that was ignored by slave-skip-errors. Normally, the
+      deadlock would have been rolled back already.
     */
-    DBUG_ASSERT(! thd->transaction_rollback_request);
-    error|= (int)(error ? trans_rollback_stmt(thd) : trans_commit_stmt(thd));
+    error|= (int) ((error || thd->transaction_rollback_request)
+                       ? trans_rollback_stmt(thd)
+                       : trans_commit_stmt(thd));
 
     /*
       Now what if this is not a transactional engine? we still need to
@@ -7544,6 +7566,7 @@ int Rows_log_event::update_sequence()
 #if defined(WITH_WSREP)
        ! WSREP(thd) &&
 #endif
+       table->in_use->rgi_slave &&
        !(table->in_use->rgi_slave->gtid_ev_flags2 & Gtid_log_event::FL_DDL) &&
        !(old_master=
          rpl_master_has_bug(thd->rgi_slave->rli,
@@ -8507,6 +8530,7 @@ uint8 Update_rows_log_event::get_trg_event_map()
 #endif
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 void Incident_log_event::pack_info(Protocol *protocol)
 {
   char buf[256];
@@ -8519,7 +8543,7 @@ void Incident_log_event::pack_info(Protocol *protocol)
                        m_incident, description(), m_message.str);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(WITH_WSREP)
 /*
@@ -8606,6 +8630,7 @@ Incident_log_event::write_data_body()
 }
 
 
+#if defined(MYSQL_SERVER) && defined(HAVE_REPLICATION)
 /* Pack info for its unrecognized ignorable event */
 void Ignorable_log_event::pack_info(Protocol *protocol)
 {
@@ -8615,7 +8640,7 @@ void Ignorable_log_event::pack_info(Protocol *protocol)
                      number, description);
   protocol->store(buf, bytes, &my_charset_bin);
 }
-
+#endif
 
 #if defined(HAVE_REPLICATION)
 Heartbeat_log_event::Heartbeat_log_event(const char* buf, ulong event_len,

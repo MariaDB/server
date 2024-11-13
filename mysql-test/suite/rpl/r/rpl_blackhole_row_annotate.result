@@ -191,10 +191,10 @@ ROLLBACK/*!*/;
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Binlog checkpoint slave-bin.000001
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-1 ddl
-/*!100101 SET @@session.skip_parallel_replication=0*//*!*/;
-/*!100001 SET @@session.gtid_domain_id=0*//*!*/;
-/*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=1*//*!*/;
+/*M!100101 SET @@session.skip_parallel_replication=0*//*!*/;
+/*M!100001 SET @@session.gtid_domain_id=0*//*!*/;
+/*M!100001 SET @@session.server_id=1*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 use `test`/*!*/;
@@ -211,7 +211,7 @@ CREATE TABLE t1 (a INT, b INT, c INT)
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-2 ddl
-/*!100001 SET @@session.gtid_seq_no=2*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=2*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -219,8 +219,8 @@ CREATE TABLE t2 (a INT, b INT, c INT)
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-2-3 ddl
-/*!100001 SET @@session.server_id=2*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+/*M!100001 SET @@session.server_id=2*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -228,8 +228,8 @@ ALTER TABLE t1 ENGINE=BLACKHOLE
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 trans
-/*!100001 SET @@session.server_id=1*//*!*/;
-/*!100001 SET @@session.gtid_seq_no=3*//*!*/;
+/*M!100001 SET @@session.server_id=1*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=3*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -247,7 +247,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-4 trans
-/*!100001 SET @@session.gtid_seq_no=4*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=4*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -265,7 +265,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-5 trans
-/*!100001 SET @@session.gtid_seq_no=5*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=5*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -283,7 +283,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-6 trans
-/*!100001 SET @@session.gtid_seq_no=6*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=6*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -301,7 +301,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-7 trans
-/*!100001 SET @@session.gtid_seq_no=7*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=7*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -319,7 +319,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-8 ddl
-/*!100001 SET @@session.gtid_seq_no=8*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=8*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -327,7 +327,7 @@ ALTER TABLE t1 ADD PRIMARY KEY pk_t1 (a,b)
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-9 trans
-/*!100001 SET @@session.gtid_seq_no=9*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=9*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -345,7 +345,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-10 trans
-/*!100001 SET @@session.gtid_seq_no=10*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=10*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -363,7 +363,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-11 trans
-/*!100001 SET @@session.gtid_seq_no=11*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=11*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -381,7 +381,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-12 ddl
-/*!100001 SET @@session.gtid_seq_no=12*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=12*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;
@@ -389,7 +389,7 @@ ALTER TABLE t1 DROP PRIMARY KEY, ADD KEY key_t1 (a)
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-13 trans
-/*!100001 SET @@session.gtid_seq_no=13*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=13*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -407,7 +407,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-14 trans
-/*!100001 SET @@session.gtid_seq_no=14*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=14*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -425,7 +425,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-15 trans
-/*!100001 SET @@session.gtid_seq_no=15*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=15*//*!*/;
 START TRANSACTION
 /*!*/;
 # at #
@@ -443,7 +443,7 @@ COMMIT
 /*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-16 ddl
-/*!100001 SET @@session.gtid_seq_no=16*//*!*/;
+/*M!100001 SET @@session.gtid_seq_no=16*//*!*/;
 # at #
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
 SET TIMESTAMP=1000000000/*!*/;

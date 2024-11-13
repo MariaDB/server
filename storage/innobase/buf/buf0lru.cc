@@ -837,7 +837,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 		break;
 	case 1:
 		mysql_mutex_lock(&buf_pool.flush_list_mutex);
-		if (const lsn_t om = bpage->oldest_modification()) {
+		if (ut_d(const lsn_t om =) bpage->oldest_modification()) {
 			ut_ad(om == 1);
 			buf_pool.delete_from_flush_list(bpage);
 		}

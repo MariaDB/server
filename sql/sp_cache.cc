@@ -78,6 +78,8 @@ private:
 
   /* All routines in this cache */
   HASH m_hashtable;
+public:
+  void clear();
 }; // class sp_cache
 
 #ifdef HAVE_PSI_INTERFACE
@@ -313,6 +315,10 @@ sp_cache::cleanup()
   my_hash_free(&m_hashtable);
 }
 
+void sp_cache::clear()
+{
+  my_hash_reset(&m_hashtable);
+}
 
 void Sp_caches::sp_caches_clear()
 {
@@ -320,4 +326,16 @@ void Sp_caches::sp_caches_clear()
   sp_cache_clear(&sp_func_cache);
   sp_cache_clear(&sp_package_spec_cache);
   sp_cache_clear(&sp_package_body_cache);
+}
+
+void Sp_caches::sp_caches_empty()
+{
+  if (sp_proc_cache)
+    sp_proc_cache->clear();
+  if (sp_func_cache)
+    sp_func_cache->clear();
+  if (sp_package_spec_cache)
+    sp_package_spec_cache->clear();
+  if (sp_package_body_cache)
+    sp_package_body_cache->clear();
 }

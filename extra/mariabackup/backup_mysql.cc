@@ -66,14 +66,13 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include "page0zip.h"
 
 char *tool_name;
-char tool_args[2048];
+char tool_args[8192];
 
 /* mysql flavor and version */
 mysql_flavor_t server_flavor = FLAVOR_UNKNOWN;
 unsigned long mysql_server_version = 0;
 
 /* server capabilities */
-bool have_changed_page_bitmaps = false;
 bool have_backup_locks = false;
 bool have_lock_wait_timeout = false;
 bool have_galera_enabled = false;
@@ -606,34 +605,6 @@ Query the server to find out what backup capabilities it supports.
 bool
 detect_mysql_capabilities_for_backup()
 {
-	const char *query = "SELECT 'INNODB_CHANGED_PAGES', COUNT(*) FROM "
-				"INFORMATION_SCHEMA.PLUGINS "
-			    "WHERE PLUGIN_NAME LIKE 'INNODB_CHANGED_PAGES'";
-	char *innodb_changed_pages = NULL;
-	mysql_variable vars[] = {
-		{"INNODB_CHANGED_PAGES", &innodb_changed_pages}, {NULL, NULL}};
-
-	if (xtrabackup_incremental) {
-
-		read_mysql_variables(mysql_connection, query, vars, true);
-
-		ut_ad(innodb_changed_pages != NULL);
-
-		have_changed_page_bitmaps = (atoi(innodb_changed_pages) == 1);
-
-		/* INNODB_CHANGED_PAGES are listed in
-		INFORMATION_SCHEMA.PLUGINS in MariaDB, but
-		FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS
-		is not supported for versions below 10.1.6
-		(see MDEV-7472) */
-		if (server_flavor == FLAVOR_MARIADB &&
-		    mysql_server_version < 100106) {
-			have_changed_page_bitmaps = false;
-		}
-
-		free_mysql_variables(vars);
-	}
-
 	/* do some sanity checks */
 	if (opt_galera_info && !have_galera_enabled) {
 		msg("--galera-info is specified on the command "
@@ -1963,12 +1934,22 @@ char *make_argv(char *buf, size_t len, int argc, char **argv)
 	while (argc > 0 && left > 0)
 	{
 		arg = *argv;
-		if (strncmp(*argv, "--password", strlen("--password")) == 0) {
+		if (strncmp(*argv, STRING_WITH_LEN("--password=")) == 0) {
 			arg = "--password=...";
+		} else
+		if (strcmp(*argv, "--password") == 0) {
+			arg = "--password ...";
+                        ++argv; --argc;
+                } else
+                if (strncmp(*argv, STRING_WITH_LEN("-p")) == 0) {
+			arg = "-p...";
 		}
-		left-= snprintf(buf + len - left, left,
+
+		uint l= snprintf(buf + len - left, left,
 				"%s%c", arg, argc > 1 ? ' ' : 0);
 		++argv; --argc;
+                if (l < left)
+                  left-= l;
 	}
 
 	return buf;
@@ -1996,18 +1977,6 @@ select_history()
 	}
 	return(true);
 }
-
-bool
-flush_changed_page_bitmaps()
-{
-	if (xtrabackup_incremental && have_changed_page_bitmaps &&
-	    !xtrabackup_incremental_force_scan) {
-		xb_mysql_query(mysql_connection,
-			"FLUSH NO_WRITE_TO_BINLOG CHANGED_PAGE_BITMAPS", false);
-	}
-	return(true);
-}
-
 
 /*********************************************************************//**
 Deallocate memory, disconnect from server, etc.

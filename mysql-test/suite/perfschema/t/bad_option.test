@@ -13,7 +13,7 @@ let $error_log= $MYSQLTEST_VARDIR/log/my_restart.err;
 let SEARCH_FILE= $error_log;
 # Stop the server
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --shutdown_server 
 --source include/wait_until_disconnected.inc
 --error 7
@@ -61,7 +61,7 @@ let SEARCH_PATTERN= Can.t change dir to .*bad_option_h_param;
 
 --remove_file $error_log
 # Write file to make mysql-test-run.pl start up the server again
---exec echo "restart" > $restart_file
+--write_line restart $restart_file
 
 # Turn on reconnect
 --enable_reconnect

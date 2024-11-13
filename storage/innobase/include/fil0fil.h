@@ -590,9 +590,10 @@ private:
 
 public:
   /** Try to close a file to adhere to the innodb_open_files limit.
+  @param ignore_space Ignore the tablespace which is acquired by caller
   @param print_info   whether to diagnose why a file cannot be closed
   @return whether a file was closed */
-  static bool try_to_close(bool print_info);
+  static bool try_to_close(fil_space_t *ignore_space, bool print_info);
 
   /** Close all tablespace files at shutdown */
   static void close_all();
@@ -1059,17 +1060,12 @@ struct fil_node_t final
 		return(handle != OS_FILE_CLOSED);
 	}
 
-	/** Read the first page of a data file.
-	@return	whether the page was found valid */
-	bool read_page0();
+  /** Read the first page of a data file.
+  @return whether the page was found valid */
+  bool read_page0() noexcept;
 
-	/** Determine some file metadata when creating or reading the file.
-	@param	file	the file that is being created, or OS_FILE_CLOSED */
-	void find_metadata(os_file_t file = OS_FILE_CLOSED
-#ifndef _WIN32
-			   , struct stat* statbuf = NULL
-#endif
-			   );
+  /** Determine some file metadata when creating or reading the file. */
+  void find_metadata() noexcept;
 
   /** Close the file handle. */
   void close();
@@ -1618,14 +1614,44 @@ Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
 @param[in] path NULL or the directory path or the full path and filename.
 @param[in] name NULL if path is full, or Table/Tablespace name
-@param[in] suffix NULL or the file extention to use.
+@param[in] extension NULL or the file extension to use.
+@param[in] trim_name true if the last name on the path should be trimmed.
 @return own: file name */
 char*
-fil_make_filepath(
+fil_make_filepath_low(
 	const char*	path,
 	const char*	name,
-	ib_extention	suffix,
-	bool		strip_name);
+	ib_extention	extension,
+	bool		trim_name);
+
+/** Wrapper function over fil_make_filepath_low to build file name.
+@param path NULL or the directory path or the full path and filename.
+@param name NULL if path is full, or Table/Tablespace name
+@param extension NULL or the file extension to use.
+@param trim_name true if the last name on the path should be trimmed.
+@return own: file name */
+static inline char*
+fil_make_filepath(const char* path, const char* name, ib_extention extension,
+                  bool trim_name)
+{
+  /* If we are going to strip a name off the path, there better be a
+  path and a new name to put back on. */
+  ut_ad(!trim_name || (path && name));
+  return fil_make_filepath_low(path, name, extension, trim_name);
+}
+
+/** Wrapper function over fil_make_filepath_low to build directory name.
+@param path NULL or the directory path or the full path and filename.
+@param name NULL if path is full, or Table/Tablespace name
+@param extension NULL or the file extension to use.
+@param trim_name true if the last name on the path should be trimmed.
+@return own: directory name */
+static inline char*
+fil_make_dirpath(const char* path, const char* name, ib_extention extension,
+                 bool trim_name)
+{
+  return fil_make_filepath_low(path, name, extension, trim_name);
+}
 
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID

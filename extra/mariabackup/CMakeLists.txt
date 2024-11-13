@@ -36,7 +36,7 @@ INCLUDE_DIRECTORIES(
   )
 
 IF(NOT HAVE_SYSTEM_REGEX)
-  INCLUDE_DIRECTORIES(${PCRE_INCLUDES})
+  INCLUDE_DIRECTORIES(${PCRE_INCLUDE_DIRS})
   ADD_DEFINITIONS(${PCRE2_DEBIAN_HACK})
 ENDIF()
 
@@ -57,7 +57,6 @@ ADD_DEFINITIONS(${SSL_DEFINES})
 MYSQL_ADD_EXECUTABLE(mariadb-backup
   xtrabackup.cc
   innobackupex.cc
-  changed_page_bitmap.cc
   datasink.cc
   ds_buffer.cc
   ds_compress.cc

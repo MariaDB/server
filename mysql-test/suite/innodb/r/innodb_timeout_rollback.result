@@ -41,4 +41,4 @@ a
 drop table t1;
 disconnect con1;
 disconnect con2;
-End of 5.0 tests
+# End of 5.0 tests

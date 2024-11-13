@@ -228,16 +228,7 @@ btr_root_block_get(
 					   mtr);
 
 	if (!block) {
-		index->table->file_unreadable = true;
-
-		ib_push_warning(
-			static_cast<THD*>(NULL), DB_DECRYPTION_FAILED,
-			"Table %s in file %s is encrypted but encryption service or"
-			" used key_id is not available. "
-			" Can't continue reading table.",
-			index->table->name.m_name,
-			UT_LIST_GET_FIRST(index->table->space->chain)->name);
-
+		innodb_decryption_failed(nullptr, index->table);
 		return NULL;
 	}
 

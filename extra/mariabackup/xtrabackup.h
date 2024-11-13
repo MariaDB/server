@@ -24,7 +24,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <my_getopt.h>
 #include "datasink.h"
 #include "xbstream.h"
-#include "changed_page_bitmap.h"
+#include "fil0fil.h"
 #include <set>
 
 #define XB_TOOL_NAME "mariadb-backup"
@@ -85,8 +85,6 @@ extern uint		opt_protocol;
 
 /* The last checkpoint LSN at the backup startup time */
 extern lsn_t checkpoint_lsn_start;
-
-extern xb_page_bitmap *changed_page_bitmap;
 
 extern char		*xtrabackup_incremental;
 extern my_bool		xtrabackup_incremental_force_scan;

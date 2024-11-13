@@ -569,6 +569,13 @@ int mysql_update(THD *thd,
     if (thd->is_error())
       DBUG_RETURN(1);
 
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
+
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
@@ -598,6 +605,14 @@ int mysql_update(THD *thd,
     {
       DBUG_RETURN(1);				// Error in where
     }
+
+    if (!thd->lex->current_select->leaf_tables_saved)
+    {
+      thd->lex->current_select->save_leaf_tables(thd);
+      thd->lex->current_select->leaf_tables_saved= true;
+      thd->lex->current_select->first_cond_optimization= 0;
+    }
+
     my_ok(thd);				// No matching records
     DBUG_RETURN(0);
   }
@@ -1146,13 +1161,19 @@ error:
         rows_inserted++;
       }
 
+      void *save_bulk_param= thd->bulk_param;
+      thd->bulk_param= nullptr;
+
       if (table->triggers &&
           unlikely(table->triggers->process_triggers(thd, TRG_EVENT_UPDATE,
                                                      TRG_ACTION_AFTER, TRUE)))
       {
         error= 1;
+        thd->bulk_param= save_bulk_param;
+
         break;
       }
+      thd->bulk_param= save_bulk_param;
 
       if (!--limit && using_limit)
       {
@@ -1342,13 +1363,28 @@ update_end:
                   (ulong) thd->get_stmt_da()->current_statement_warn_count());
     my_ok(thd, (thd->client_capabilities & CLIENT_FOUND_ROWS) ? found : updated,
           id, buff);
+    if (thd->get_stmt_da()->is_bulk_op())
+    {
+      /*
+        Update the diagnostics message sent to a client with number of actual
+        rows update by the statement. For bulk UPDATE operation it should be
+        done after returning from my_ok() since the final number of updated
+        rows be knows on finishing the entire bulk update statement.
+      */
+      my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_UPDATE_INFO),
+                  (ulong) thd->get_stmt_da()->affected_rows(),
+                  (ulong) thd->get_stmt_da()->affected_rows(),
+                  (ulong) thd->get_stmt_da()->current_statement_warn_count());
+      thd->get_stmt_da()->set_message(buff);
+    }
     DBUG_PRINT("info",("%ld records updated", (long) updated));
   }
   thd->count_cuted_fields= CHECK_FIELD_IGNORE;		/* calc cuted fields */
   thd->abort_on_warning= 0;
-  if (thd->lex->current_select->first_cond_optimization)
+  if (!thd->lex->current_select->leaf_tables_saved)
   {
     thd->lex->current_select->save_leaf_tables(thd);
+    thd->lex->current_select->leaf_tables_saved= true;
     thd->lex->current_select->first_cond_optimization= 0;
   }
   *found_return= found;
@@ -1689,8 +1725,8 @@ class Multiupdate_prelocking_strategy : public DML_prelocking_strategy
   bool done;
   bool has_prelocking_list;
 public:
-  void reset(THD *thd);
-  bool handle_end(THD *thd);
+  void reset(THD *thd) override;
+  bool handle_end(THD *thd) override;
 };
 
 void Multiupdate_prelocking_strategy::reset(THD *thd)

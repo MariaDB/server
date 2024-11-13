@@ -314,22 +314,22 @@ public:
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg,
                     const char *substitute);
-  sys_var_pluginvar *cast_pluginvar() { return this; }
+  sys_var_pluginvar *cast_pluginvar() override { return this; }
   uchar* real_value_ptr(THD *thd, enum_var_type type) const;
   TYPELIB* plugin_var_typelib(void) const;
   const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
-  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const override
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  const uchar *default_value_ptr(THD *thd) const
+  const uchar *default_value_ptr(THD *thd) const override
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
-  bool do_check(THD *thd, set_var *var);
-  virtual void session_save_default(THD *thd, set_var *var) {}
-  virtual void global_save_default(THD *thd, set_var *var) {}
-  bool session_update(THD *thd, set_var *var);
-  bool global_update(THD *thd, set_var *var);
-  bool session_is_default(THD *thd);
+  bool do_check(THD *thd, set_var *var) override;
+  void session_save_default(THD *thd, set_var *var) override {}
+  void global_save_default(THD *thd, set_var *var) override {}
+  bool session_update(THD *thd, set_var *var) override;
+  bool global_update(THD *thd, set_var *var) override;
+  bool session_is_default(THD *thd) override;
 };
 
 
@@ -379,9 +379,10 @@ static void fix_dl_name(MEM_ROOT *root, LEX_CSTRING *dl)
       my_strcasecmp(&my_charset_latin1, dl->str + dl->length - so_ext_len,
                     SO_EXT))
   {
-    char *s= (char*)alloc_root(root, dl->length + so_ext_len + 1);
+    size_t s_size= dl->length + so_ext_len + 1;
+    char *s= (char*)alloc_root(root, s_size);
     memcpy(s, dl->str, dl->length);
-    strcpy(s + dl->length, SO_EXT);
+    safe_strcpy(s + dl->length, s_size - dl->length, SO_EXT);
     dl->str= s;
     dl->length+= so_ext_len;
   }
@@ -1502,7 +1503,7 @@ static int plugin_initialize(MEM_ROOT *tmp_root, struct st_plugin_int *plugin,
   else
     ret= plugin_do_initialize(plugin, state);
 
-  if (ret)
+  if (ret && ret != HA_ERR_RETRY_INIT)
     plugin_variables_deinit(plugin);
 
   mysql_mutex_lock(&LOCK_plugin);
@@ -1782,6 +1783,7 @@ int plugin_init(int *argc, char **argv, int flags)
         uint state= plugin_ptr->state;
         mysql_mutex_unlock(&LOCK_plugin);
         error= plugin_do_initialize(plugin_ptr, state);
+        DBUG_EXECUTE_IF("fail_spider_init_retry", error= 1;);
         mysql_mutex_lock(&LOCK_plugin);
         plugin_ptr->state= state;
         if (error == HA_ERR_RETRY_INIT)
@@ -1885,7 +1887,7 @@ static void plugin_load(MEM_ROOT *tmp_root)
   if (global_system_variables.log_warnings >= 9)
     sql_print_information("Initializing installed plugins");
 
-  new_thd->thread_stack= (char*) &tables;
+  new_thd->thread_stack= (void*) &tables;       // Big stack
   new_thd->store_globals();
   new_thd->db= MYSQL_SCHEMA_NAME;
   bzero((char*) &new_thd->net, sizeof(new_thd->net));
@@ -3837,7 +3839,7 @@ static int construct_options(MEM_ROOT *mem_root, struct st_plugin_int *tmp,
   DBUG_ENTER("construct_options");
 
   plugin_name_ptr= (char*) alloc_root(mem_root, plugin_name_len + 1);
-  strcpy(plugin_name_ptr, plugin_name);
+  safe_strcpy(plugin_name_ptr, plugin_name_len + 1, plugin_name);
   my_casedn_str(&my_charset_latin1, plugin_name_ptr);
   convert_underscore_to_dash(plugin_name_ptr, plugin_name_len);
   plugin_name_with_prefix_ptr= (char*) alloc_root(mem_root,
@@ -4257,7 +4259,7 @@ static int test_plugin_options(MEM_ROOT *tmp_root, struct st_plugin_int *tmp,
 
     if (unlikely(error))
     {
-       sql_print_error("Parsing options for plugin '%s' failed.",
+       sql_print_error("Parsing options for plugin '%s' failed. Disabling plugin",
                        tmp->name.str);
        goto err;
     }

@@ -17,15 +17,9 @@
 #define MYSQL_SERVER 1
 #include <my_global.h>
 #include "mysql_version.h"
-#include "spd_environ.h"
-#if MYSQL_VERSION_ID < 50500
-#include "mysql_priv.h"
-#include <mysql/plugin.h>
-#else
 #include "sql_priv.h"
 #include "probes_mysql.h"
 #include "sql_class.h"
-#endif
 #include "sql_common.h"
 #include <mysql.h>
 #include <errmsg.h>
@@ -45,7 +39,6 @@ spider_db_result::spider_db_result(
   DBUG_VOID_RETURN;
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int spider_db_result::fetch_table_checksum(
   ha_spider *spider
 ) {
@@ -53,7 +46,6 @@ int spider_db_result::fetch_table_checksum(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
-#endif
 
 uint spider_db_result::limit_mode()
 {
@@ -71,23 +63,7 @@ spider_db_conn::spider_db_conn(
   DBUG_VOID_RETURN;
 }
 
-bool spider_db_conn::set_loop_check_in_bulk_sql()
-{
-  DBUG_ENTER("spider_db_conn::set_loop_check_in_bulk_sql");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_RETURN(FALSE);
-}
-
-int spider_db_conn::set_loop_check(
-  int *need_mon
-) {
-  DBUG_ENTER("spider_db_conn::set_loop_check");
-  DBUG_PRINT("info",("spider this=%p", this));
-  /* nothing to do */
-  DBUG_RETURN(0);
-}
-
-int spider_db_conn::fin_loop_check()
+int spider_db_conn::fin_loop_check() /* reset flags of all relevant SPIDER_CONN_LOOP_CHECKs */
 {
   st_spider_conn_loop_check *lcptr;
   DBUG_ENTER("spider_db_conn::fin_loop_check");
@@ -103,20 +79,6 @@ int spider_db_conn::fin_loop_check()
     }
     my_hash_reset(&conn->loop_check_queue);
   }
-  lcptr = conn->loop_check_ignored_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_ignored_first = NULL;
-  lcptr = conn->loop_check_meraged_first;
-  while (lcptr)
-  {
-    lcptr->flag = 0;
-    lcptr = lcptr->next;
-  }
-  conn->loop_check_meraged_first = NULL;
   DBUG_RETURN(0);
 }
 
@@ -172,7 +134,6 @@ uint spider_db_util::limit_mode()
   DBUG_RETURN(0);
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 bool spider_db_share::checksum_support()
 {
   DBUG_ENTER("spider_db_share::checksum_support");
@@ -187,9 +148,7 @@ int spider_db_handler::checksum_table(
   DBUG_PRINT("info",("spider this=%p", this));
   DBUG_RETURN(0);
 }
-#endif
 
-#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
 bool spider_db_handler::check_direct_update(
   st_select_lex *select_lex,
   longlong select_limit,
@@ -223,4 +182,3 @@ bool spider_db_handler::check_direct_delete(
   }
   DBUG_RETURN(FALSE);
 }
-#endif

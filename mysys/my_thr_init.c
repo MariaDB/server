@@ -220,7 +220,11 @@ void my_thread_global_end(void)
         fprintf(stderr,
                 "Error in my_thread_global_end(): %d threads didn't exit\n",
                 THR_thread_count);
-#endif
+#endif /* HAVE_PTHREAD_KILL */
+#ifdef SAFEMALLOC
+      /* We know we will have memoryleaks, suppress the leak report */
+      sf_leaking_memory= 1;
+#endif /* SAFEMALLOC */
       all_threads_killed= 0;
       break;
     }
@@ -234,9 +238,7 @@ void my_thread_global_end(void)
     that could use them.
   */
   if (all_threads_killed)
-  {
     my_thread_destroy_internal_mutex();
-  }
   my_thread_global_init_done= 0;
 }
 

@@ -940,9 +940,9 @@ class User_table_tabular: public User_table
 {
  public:
 
-  LEX_CSTRING& name() const { return MYSQL_TABLE_NAME_USER; }
+  LEX_CSTRING& name() const override { return MYSQL_TABLE_NAME_USER; }
 
-  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const
+  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const override
   {
     mysql_mutex_assert_owner(&acl_cache->lock);
     u->alloc_auth(root, 1);
@@ -985,7 +985,7 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  bool set_auth(const ACL_USER &u) const
+  bool set_auth(const ACL_USER &u) const override
   {
     if (u.nauth != 1)
       return 1;
@@ -1006,7 +1006,7 @@ class User_table_tabular: public User_table
     return 0;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access() const override
   {
     privilege_t access(Grant_table_base::get_access());
     if ((num_fields() <= 13) && (access & CREATE_ACL))
@@ -1065,7 +1065,7 @@ class User_table_tabular: public User_table
     return access & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights, bool revoke) const override
   {
     ulonglong priv(SELECT_ACL);
     for (uint i= start_priv_columns; i < end_priv_columns; i++, priv <<= 1)
@@ -1075,132 +1075,132 @@ class User_table_tabular: public User_table
     }
   }
 
-  SSL_type get_ssl_type () const
+  SSL_type get_ssl_type () const override
   {
     Field *f= get_field(end_priv_columns, MYSQL_TYPE_ENUM);
     return (SSL_type)(f ? f->val_int()-1 : 0);
   }
-  int set_ssl_type (SSL_type x) const
+  int set_ssl_type (SSL_type x) const override
   {
     if (Field *f= get_field(end_priv_columns, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
     else
       return 1;
   }
-  const char* get_ssl_cipher (MEM_ROOT *root) const
+  const char* get_ssl_cipher (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 1, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_ssl_cipher (const char *s, size_t l) const
+  int set_ssl_cipher (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 1, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  const char* get_x509_issuer (MEM_ROOT *root) const
+  const char* get_x509_issuer (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 2, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_x509_issuer (const char *s, size_t l) const
+  int set_x509_issuer (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 2, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  const char* get_x509_subject (MEM_ROOT *root) const
+  const char* get_x509_subject (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 3, MYSQL_TYPE_BLOB);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_x509_subject (const char *s, size_t l) const
+  int set_x509_subject (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 3, MYSQL_TYPE_BLOB))
       return f->store(s, l, &my_charset_latin1);
     else
       return 1;
   }
-  longlong get_max_questions () const
+  longlong get_max_questions () const override
   {
     Field *f= get_field(end_priv_columns + 4, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_questions (longlong x) const
+  int set_max_questions (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 4, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_updates () const
+  longlong get_max_updates () const override
   {
     Field *f= get_field(end_priv_columns + 5, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_updates (longlong x) const
+  int set_max_updates (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 5, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_connections () const
+  longlong get_max_connections () const override
   {
     Field *f= get_field(end_priv_columns + 6, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_connections (longlong x) const
+  int set_max_connections (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 6, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  longlong get_max_user_connections () const
+  longlong get_max_user_connections () const override
   {
     Field *f= get_field(end_priv_columns + 7, MYSQL_TYPE_LONG);
     return f ? f->val_int() : 0;
   }
-  int set_max_user_connections (longlong x) const
+  int set_max_user_connections (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 7, MYSQL_TYPE_LONG))
       return f->store(x, 0);
     else
       return 1;
   }
-  double get_max_statement_time () const
+  double get_max_statement_time () const override
   {
     Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_NEWDECIMAL);
     return f ? f->val_real() : 0;
   }
-  int set_max_statement_time (double x) const
+  int set_max_statement_time (double x) const override
   {
     if (Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_NEWDECIMAL))
       return f->store(x);
     else
       return 1;
   }
-  bool get_is_role () const
+  bool get_is_role () const override
   {
     Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_is_role (bool x) const
+  int set_is_role (bool x) const override
   {
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
     else
       return 1;
   }
-  const char* get_default_role (MEM_ROOT *root) const
+  const char* get_default_role (MEM_ROOT *root) const override
   {
     Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_STRING);
     return f ? ::get_field(root,f) : 0;
   }
-  int set_default_role (const char *s, size_t l) const
+  int set_default_role (const char *s, size_t l) const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_STRING))
       return f->store(s, l, system_charset_info);
@@ -1210,12 +1210,12 @@ class User_table_tabular: public User_table
   /* On a MariaDB 10.3 user table, the account locking accessors will try to
      get the content of the max_statement_time column, but they will fail due
      to the typecheck in get_field. */
-  bool get_account_locked () const
+  bool get_account_locked () const override
   {
     Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_account_locked (bool x) const
+  int set_account_locked (bool x) const override
   {
     if (Field *f= get_field(end_priv_columns + 13, MYSQL_TYPE_ENUM))
       return f->store(x+1, 0);
@@ -1223,14 +1223,14 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  bool get_password_expired () const
+  bool get_password_expired () const override
   {
     uint field_num= end_priv_columns + 10;
 
     Field *f= get_field(field_num, MYSQL_TYPE_ENUM);
     return f ? f->val_int()-1 : 0;
   }
-  int set_password_expired (bool x) const
+  int set_password_expired (bool x) const override
   {
     uint field_num= end_priv_columns + 10;
 
@@ -1238,14 +1238,14 @@ class User_table_tabular: public User_table
       return f->store(x+1, 0);
     return 1;
   }
-  my_time_t get_password_last_changed () const
+  my_time_t get_password_last_changed () const override
   {
     ulong unused_dec;
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_TIMESTAMP2))
       return f->get_timestamp(&unused_dec);
     return 0;
   }
-  int set_password_last_changed (my_time_t x) const
+  int set_password_last_changed (my_time_t x) const override
   {
     if (Field *f= get_field(end_priv_columns + 11, MYSQL_TYPE_TIMESTAMP2))
     {
@@ -1254,7 +1254,7 @@ class User_table_tabular: public User_table
     }
     return 1;
   }
-  longlong get_password_lifetime () const
+  longlong get_password_lifetime () const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_SHORT))
     {
@@ -1264,7 +1264,7 @@ class User_table_tabular: public User_table
     }
     return 0;
   }
-  int set_password_lifetime (longlong x) const
+  int set_password_lifetime (longlong x) const override
   {
     if (Field *f= get_field(end_priv_columns + 12, MYSQL_TYPE_SHORT))
     {
@@ -1279,7 +1279,7 @@ class User_table_tabular: public User_table
     return 1;
   }
 
-  virtual ~User_table_tabular() = default;
+  ~User_table_tabular() override = default;
  private:
   friend class Grant_tables;
 
@@ -1304,7 +1304,7 @@ class User_table_tabular: public User_table
     return f->real_type() == type ? f : NULL;
   }
 
-  int setup_sysvars() const
+  int setup_sysvars() const override
   {
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
                                  USERNAME_CHAR_LENGTH);
@@ -1378,9 +1378,9 @@ class User_table_tabular: public User_table
 */
 class User_table_json: public User_table
 {
-  LEX_CSTRING& name() const { return MYSQL_TABLE_NAME[USER_TABLE]; }
+  LEX_CSTRING& name() const override { return MYSQL_TABLE_NAME[USER_TABLE]; }
 
-  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const
+  int get_auth(THD *thd, MEM_ROOT *root, ACL_USER *u) const override
   {
     size_t array_len;
     const char *array;
@@ -1459,7 +1459,7 @@ class User_table_json: public User_table
     return 0;
   }
 
-  bool set_auth(const ACL_USER &u) const
+  bool set_auth(const ACL_USER &u) const override
   {
     size_t array_len;
     const char *array;
@@ -1584,7 +1584,7 @@ class User_table_json: public User_table
     return access & ALL_KNOWN_ACL;
   }
 
-  privilege_t get_access() const
+  privilege_t get_access() const override
   {
     ulonglong version_id= (ulonglong) get_int_value("version_id");
     ulonglong access= (ulonglong) get_int_value("access");
@@ -1611,7 +1611,7 @@ class User_table_json: public User_table
     return adjust_access(version_id, access) & GLOBAL_ACLS;
   }
 
-  void set_access(const privilege_t rights, bool revoke) const
+  void set_access(const privilege_t rights, bool revoke) const override
   {
     privilege_t access= get_access();
     if (revoke)
@@ -1624,77 +1624,77 @@ class User_table_json: public User_table
   const char *unsafe_str(const char *s) const
   { return s[0] ? s : NULL; }
 
-  SSL_type get_ssl_type () const
+  SSL_type get_ssl_type () const override
   { return (SSL_type)get_int_value("ssl_type"); }
-  int set_ssl_type (SSL_type x) const
+  int set_ssl_type (SSL_type x) const override
   { return set_int_value("ssl_type", x); }
-  const char* get_ssl_cipher (MEM_ROOT *root) const
+  const char* get_ssl_cipher (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "ssl_cipher")); }
-  int set_ssl_cipher (const char *s, size_t l) const
+  int set_ssl_cipher (const char *s, size_t l) const override
   { return set_str_value("ssl_cipher", s, l); }
-  const char* get_x509_issuer (MEM_ROOT *root) const
+  const char* get_x509_issuer (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "x509_issuer")); }
-  int set_x509_issuer (const char *s, size_t l) const
+  int set_x509_issuer (const char *s, size_t l) const override
   { return set_str_value("x509_issuer", s, l); }
-  const char* get_x509_subject (MEM_ROOT *root) const
+  const char* get_x509_subject (MEM_ROOT *root) const override
   { return unsafe_str(get_str_value(root, "x509_subject")); }
-  int set_x509_subject (const char *s, size_t l) const
+  int set_x509_subject (const char *s, size_t l) const override
   { return set_str_value("x509_subject", s, l); }
-  longlong get_max_questions () const
+  longlong get_max_questions () const override
   { return get_int_value("max_questions"); }
-  int set_max_questions (longlong x) const
+  int set_max_questions (longlong x) const override
   { return set_int_value("max_questions", x); }
-  longlong get_max_updates () const
+  longlong get_max_updates () const override
   { return get_int_value("max_updates"); }
-  int set_max_updates (longlong x) const
+  int set_max_updates (longlong x) const override
   { return set_int_value("max_updates", x); }
-  longlong get_max_connections () const
+  longlong get_max_connections () const override
   { return get_int_value("max_connections"); }
-  int set_max_connections (longlong x) const
+  int set_max_connections (longlong x) const override
   { return set_int_value("max_connections", x); }
-  longlong get_max_user_connections () const
+  longlong get_max_user_connections () const override
   { return get_int_value("max_user_connections"); }
-  int set_max_user_connections (longlong x) const
+  int set_max_user_connections (longlong x) const override
   { return set_int_value("max_user_connections", x); }
-  double get_max_statement_time () const
+  double get_max_statement_time () const override
   { return get_double_value("max_statement_time"); }
-  int set_max_statement_time (double x) const
+  int set_max_statement_time (double x) const override
   { return set_double_value("max_statement_time", x); }
-  bool get_is_role () const
+  bool get_is_role () const override
   { return get_bool_value("is_role"); }
-  int set_is_role (bool x) const
+  int set_is_role (bool x) const override
   { return set_bool_value("is_role", x); }
-  const char* get_default_role (MEM_ROOT *root) const
+  const char* get_default_role (MEM_ROOT *root) const override
   { return get_str_value(root, "default_role"); }
-  int set_default_role (const char *s, size_t l) const
+  int set_default_role (const char *s, size_t l) const override
   { return set_str_value("default_role", s, l); }
-  bool get_account_locked () const
+  bool get_account_locked () const override
   { return get_bool_value("account_locked"); }
-  int set_account_locked (bool x) const
+  int set_account_locked (bool x) const override
   { return set_bool_value("account_locked", x); }
-  my_time_t get_password_last_changed () const
+  my_time_t get_password_last_changed () const override
   { return static_cast<my_time_t>(get_int_value("password_last_changed")); }
-  int set_password_last_changed (my_time_t x) const
+  int set_password_last_changed (my_time_t x) const override
   { return set_int_value("password_last_changed", static_cast<longlong>(x)); }
-  int set_password_lifetime (longlong x) const
+  int set_password_lifetime (longlong x) const override
   { return set_int_value("password_lifetime", x); }
-  longlong get_password_lifetime () const
+  longlong get_password_lifetime () const override
   { return get_int_value("password_lifetime", -1); }
   /*
      password_last_changed=0 means the password is manually expired.
      In MySQL 5.7+ this state is described using the password_expired column
      in mysql.user
   */
-  bool get_password_expired () const
+  bool get_password_expired () const override
   { return get_int_value("password_last_changed", -1) == 0; }
-  int set_password_expired (bool x) const
+  int set_password_expired (bool x) const override
   { return x ? set_password_last_changed(0) : 0; }
 
-  ~User_table_json() = default;
+  ~User_table_json() override = default;
  private:
   friend class Grant_tables;
   static const uint JSON_SIZE=1024;
-  int setup_sysvars() const
+  int setup_sysvars() const override
   {
     using_global_priv_table= true;
     username_char_length= MY_MIN(m_table->field[1]->char_length(),
@@ -2312,11 +2312,10 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  // check for SET PASSWORD
   if (!plugin)
   {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_PLUGIN_IS_NOT_LOADED,
-                        ER_THD(thd, ER_PLUGIN_IS_NOT_LOADED), plugin_name);
+    my_error(ER_PLUGIN_IS_NOT_LOADED, MYF(0), plugin_name);
     return ER_PLUGIN_IS_NOT_LOADED;
   }
 
@@ -2370,6 +2369,21 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
 
   res= 0;
 end:
+  switch(res)
+  {
+    case ER_OUTOFMEMORY:        // should be reported by my_malloc
+    case ER_NOT_VALID_PASSWORD: // should be reported by plugin
+    case ER_PASSWD_LENGTH:      // should be reported by plugin
+      DBUG_ASSERT(thd->is_error());
+      /* fall through*/
+    case 0:
+      break;
+    case ER_SET_PASSWORD_AUTH_PLUGIN:
+      my_error(res, MYF(0), plugin_name);
+      break;
+    default:
+      DBUG_ASSERT(0);
+  }
   if (unlock_plugin)
     plugin_unlock(thd, plugin);
   return res;
@@ -2495,7 +2509,6 @@ bool acl_init(bool dont_read_acl_tables)
   */
   if (!(thd=new THD(0)))
     DBUG_RETURN(1); /* purecov: inspected */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   /*
     It is safe to call acl_reload() since acl_* arrays and hashes which
@@ -2899,6 +2912,7 @@ bool acl_reload(THD *thd)
   }
 
   acl_cache->clear(0);
+  mysql_mutex_record_order(&acl_cache->lock, &LOCK_status);
   mysql_mutex_lock(&acl_cache->lock);
 
   old_acl_hosts= acl_hosts;
@@ -5365,8 +5379,8 @@ public:
   GRANT_TABLE(const char *h, const char *d,const char *u,
               const char *t, privilege_t p, privilege_t c);
   GRANT_TABLE (TABLE *form, TABLE *col_privs);
-  ~GRANT_TABLE();
-  bool ok() { return privs != NO_ACL || cols != NO_ACL; }
+  ~GRANT_TABLE() override;
+  bool ok() override { return privs != NO_ACL || cols != NO_ACL; }
   void init_hash()
   {
     my_hash_init2(key_memory_acl_memex, &hash_columns, 4, system_charset_info,
@@ -7225,8 +7239,8 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
       continue;					// Add next user
     }
 
-    db_name= table_list->get_db_name();
-    table_name= table_list->get_table_name();
+    db_name= table_list->get_db_name().str;
+    table_name= table_list->get_table_name().str;
 
     /* Find/create cached table grant */
     grant_table= table_hash_search(Str->host.str, NullS, db_name,
@@ -7532,7 +7546,7 @@ static bool can_grant_role(THD *thd, ACL_ROLE *role)
 {
   Security_context *sctx= thd->security_ctx;
 
-  if (!sctx->user) // replication
+  if (!sctx->is_user_defined()) // galera
     return true;
 
   ACL_USER *grantee= find_user_exact(sctx->priv_host, sctx->priv_user);
@@ -7927,7 +7941,6 @@ bool grant_init()
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);				/* purecov: deadcode */
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   return_val=  grant_reload(thd);
   delete thd;
@@ -8293,8 +8306,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
 
     const ACL_internal_table_access *access=
       get_cached_table_access(&t_ref->grant.m_internal,
-                              t_ref->get_db_name(),
-                              t_ref->get_table_name());
+                              t_ref->get_db_name().str,
+                              t_ref->get_table_name().str);
 
     if (access)
     {
@@ -8358,14 +8371,14 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     }
 
     grant_table= table_hash_search(sctx->host, sctx->ip,
-                                   t_ref->get_db_name(),
+                                   t_ref->get_db_name().str,
                                    sctx->priv_user,
-                                   t_ref->get_table_name(),
+                                   t_ref->get_table_name().str,
                                    FALSE);
     if (sctx->priv_role[0])
-      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name(),
+      grant_table_role= table_hash_search("", NULL, t_ref->get_db_name().str,
                                           sctx->priv_role,
-                                          t_ref->get_table_name(),
+                                          t_ref->get_table_name().str,
                                           TRUE);
 
     if (!grant_table && !grant_table_role)
@@ -8413,7 +8426,7 @@ err:
              command,
              sctx->priv_user,
              sctx->host_or_ip, tl ? tl->db.str : "unknown",
-             tl ? tl->get_table_name() : "unknown");
+             tl ? tl->get_table_name().str : "unknown");
   }
   DBUG_RETURN(TRUE);
 }
@@ -10191,6 +10204,10 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   int result= 0;
   int error;
   TABLE *table= grant_table.table();
+  DBUG_ENTER("handle_grant_table");
+  if (!table)
+    DBUG_RETURN(0);
+
   Field *host_field= table->field[0];
   Field *user_field= table->field[which_table == USER_TABLE ||
                                   which_table == PROXIES_PRIV_TABLE ? 1 : 2];
@@ -10200,7 +10217,6 @@ static int handle_grant_table(THD *thd, const Grant_table_base& grant_table,
   const char *user;
   uchar user_key[MAX_KEY_LENGTH];
   uint key_prefix_length;
-  DBUG_ENTER("handle_grant_table");
 
   if (which_table == ROLES_MAPPING_TABLE)
   {
@@ -11627,14 +11643,14 @@ public:
     : is_grave(FALSE)
   {}
 
-  virtual ~Silence_routine_definer_errors() = default;
+  ~Silence_routine_definer_errors() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
   bool has_errors() { return is_grave; }
 
@@ -13214,8 +13230,27 @@ static bool send_server_handshake_packet(MPVIO_EXT *mpvio,
   *end++= 0;
 
   int2store(end, thd->client_capabilities);
+
+  CHARSET_INFO *handshake_cs= default_charset_info;
+  if (handshake_cs->number > 0xFF)
+  {
+    /*
+      A workaround for a 2-byte collation ID: translate it into
+      the ID of the primary collation of this character set.
+    */
+    CHARSET_INFO *cs= get_charset_by_csname(handshake_cs->csname,
+                                            MY_CS_PRIMARY, MYF(MY_WME));
+    /*
+      cs should not normally be NULL, however it may be possible
+      with a dynamic character set incorrectly defined in Index.xml.
+      For safety let's fallback to latin1 in case cs is NULL.
+    */
+    handshake_cs= cs ? cs : &my_charset_latin1;
+  }
+
   /* write server characteristics: up to 16 bytes allowed */
-  end[2]= (char) default_charset_info->number;
+  end[2]= (char) handshake_cs->number;
+
   int2store(end+3, mpvio->auth_info.thd->server_status);
   int2store(end+5, thd->client_capabilities >> 16);
   end[7]= data_len;
@@ -13779,9 +13814,11 @@ static ulong parse_client_handshake_packet(MPVIO_EXT *mpvio,
     Since 4.1 all database names are stored in utf8
     The cast is ok as copy_with_error will create a new area for db
   */
+  DBUG_ASSERT(db || !db_len);
+  // Don't pass db==nullptr to avoid UB nullptr+0 inside copy_with_error()
   if (unlikely(thd->copy_with_error(system_charset_info,
                                     (LEX_STRING*) &mpvio->db,
-                                    thd->charset(), db, db_len)))
+                                    thd->charset(), db ? db : "", db_len)))
     return packet_error;
 
   user_len= copy_and_convert(user_buff, sizeof(user_buff) - 1,

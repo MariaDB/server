@@ -1686,7 +1686,6 @@ void execute_ddl_log_recovery()
   */
   if (!(thd=new THD(0)))
     DBUG_VOID_RETURN;
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
 
   thd->set_query(recover_query_string, strlen(recover_query_string));
@@ -1906,7 +1905,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     */
     build_table_filename(path, sizeof(path) - 1, lpt->alter_info->db.str,
                          lpt->alter_info->table_name.str, "", 0);
-    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+    strxnmov(frm_name, sizeof(frm_name)-1, path, reg_ext, NullS);
     /*
       When we are changing to use new frm file we need to ensure that we
       don't collide with another thread in process to open the frm file.
@@ -2393,6 +2392,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         table->table= 0;
         temporary_table_was_dropped= 1;
       }
+      thd->reset_sp_cache= true;
     }
 
     if ((drop_temporary && if_exists) || temporary_table_was_dropped)
@@ -2701,8 +2701,11 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     }
     DBUG_PRINT("table", ("table: %p  s: %p", table->table,
                          table->table ?  table->table->s :  NULL));
+    if (is_temporary_table(table))
+      thd->reset_sp_cache= true;
   }
   DEBUG_SYNC(thd, "rm_table_no_locks_before_binlog");
+
   thd->thread_specific_used= TRUE;
   error= 0;
 
@@ -3630,7 +3633,8 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     DBUG_RETURN(TRUE);
   }
 
-  select_field_pos= alter_info->create_list.elements - select_field_count;
+  select_field_pos= get_select_field_pos(alter_info, select_field_count,
+                                         create_info->versioned());
   null_fields= 0;
   create_info->varchar= 0;
   max_key_length= file->max_key_length();
@@ -3695,7 +3699,16 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
 	/*
 	  If this was a CREATE ... SELECT statement, accept a field
 	  redefinition if we are changing a field in the SELECT part
+
+          The cases are:
+
+          field_no < select_field_pos: both field and dup are table fields;
+          dup_no >= select_field_pos: both field and dup are select fields or
+            field is implicit systrem field and dup is select field.
+
+          We are not allowed to put row_start/row_end into SELECT expression.
 	*/
+        DBUG_ASSERT(dup_no < field_no);
 	if (field_no < select_field_pos || dup_no >= select_field_pos ||
             dup_field->invisible >= INVISIBLE_SYSTEM)
 	{
@@ -3754,7 +3767,10 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     sql_field->offset= record_offset;
     if (MTYP_TYPENR(sql_field->unireg_check) == Field::NEXT_NUMBER)
       auto_increment++;
-    if (parse_option_list(thd, create_info->db_type, &sql_field->option_struct,
+    extend_option_list(thd, create_info->db_type, !sql_field->field,
+                       &sql_field->option_list,
+                       create_info->db_type->field_options);
+    if (parse_option_list(thd, &sql_field->option_struct,
                           &sql_field->option_list,
                           create_info->db_type->field_options, FALSE,
                           thd->mem_root))
@@ -4021,7 +4037,9 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     key_info->usable_key_parts= key_number;
     key_info->algorithm= key->key_create_info.algorithm;
     key_info->option_list= key->option_list;
-    if (parse_option_list(thd, create_info->db_type, &key_info->option_struct,
+    extend_option_list(thd, create_info->db_type, !key->old,
+                  &key_info->option_list, create_info->db_type->index_options);
+    if (parse_option_list(thd, &key_info->option_struct,
                           &key_info->option_list,
                           create_info->db_type->index_options, FALSE,
                           thd->mem_root))
@@ -4611,10 +4629,12 @@ without_overlaps_err:
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_UNKNOWN_OPTION,
                         ER_THD(thd, ER_UNKNOWN_OPTION), "transactional");
 
-  if (parse_option_list(thd, file->partition_ht(), &create_info->option_struct,
-                          &create_info->option_list,
-                          file->partition_ht()->table_options, FALSE,
-                          thd->mem_root))
+  extend_option_list(thd, file->partition_ht(),
+              !thd->lex->create_like() && create_table_mode > C_ALTER_TABLE,
+              &create_info->option_list, file->partition_ht()->table_options);
+  if (parse_option_list(thd, &create_info->option_struct,
+                    &create_info->option_list,
+                    file->partition_ht()->table_options, FALSE, thd->mem_root))
       DBUG_RETURN(TRUE);
 
   DBUG_EXECUTE_IF("key",
@@ -4729,6 +4749,33 @@ static void set_table_default_charset(THD *thd, HA_CREATE_INFO *create_info,
 bool Column_definition::prepare_blob_field(THD *thd)
 {
   DBUG_ENTER("Column_definition::prepare_blob_field");
+
+  if (real_field_type() == FIELD_TYPE_STRING && length > 1024)
+  {
+    DBUG_ASSERT(charset->mbmaxlen > 4);
+    /*
+      Convert long CHAR columns to VARCHAR.
+      CHAR has an octet length limit of 1024 bytes.
+      The code in Binlog_type_info_fixed_string::Binlog_type_info_fixed_string
+      relies on this limit. If octet length of a CHAR column is greater
+      than 1024, then it cannot write its metadata to binlog properly.
+      In case of the filename character set with mbmaxlen=5,
+      the maximum possible character length is 1024/5=204 characters.
+      Upgrade to VARCHAR if octet length is greater than 1024.
+    */
+    char warn_buff[MYSQL_ERRMSG_SIZE];
+    if (thd->is_strict_mode())
+    {
+      my_error(ER_TOO_BIG_FIELDLENGTH, MYF(0), field_name.str,
+               static_cast<ulong>(1024 / charset->mbmaxlen));
+      DBUG_RETURN(1);
+    }
+    set_handler(&type_handler_varchar);
+    my_snprintf(warn_buff, sizeof(warn_buff), ER_THD(thd, ER_AUTO_CONVERT),
+                field_name.str, "CHAR", "VARCHAR");
+    push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, ER_AUTO_CONVERT,
+                 warn_buff);
+  }
 
   if (length > MAX_FIELD_VARCHARLENGTH && !(flags & BLOB_FLAG))
   {
@@ -5424,6 +5471,7 @@ int create_table_impl(THD *thd, const LEX_CSTRING &orig_db,
     if (is_trans != NULL)
       *is_trans= table->file->has_transactions();
 
+    thd->reset_sp_cache= true;
     thd->thread_specific_used= TRUE;
     create_info->table= table;                  // Store pointer to table
   }
@@ -5861,7 +5909,8 @@ static bool make_unique_constraint_name(THD *thd, LEX_CSTRING *name,
     if (!check)                                 // Found unique name
     {
       name->length= (size_t) (real_end - buff);
-      name->str= strmake_root(thd->stmt_arena->mem_root, buff, name->length);
+      name->str= thd->strmake(buff, name->length);
+
       return (name->str == NULL);
     }
   }
@@ -7949,14 +7998,28 @@ bool alter_table_manage_keys(TABLE *table, int indexes_were_disabled,
   switch (keys_onoff) {
   case Alter_info::ENABLE:
     DEBUG_SYNC(table->in_use, "alter_table_enable_indexes");
-    error= table->file->ha_enable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+    error= table->file->ha_enable_indexes(key_map(table->s->keys), true);
     break;
   case Alter_info::LEAVE_AS_IS:
     if (!indexes_were_disabled)
       break;
     /* fall through */
   case Alter_info::DISABLE:
-    error= table->file->ha_disable_indexes(HA_KEY_SWITCH_NONUNIQ_SAVE);
+  {
+    key_map map= table->s->keys_in_use;
+    bool do_clear= false;
+    for (uint i=0; i < table->s->keys; i++)
+    {
+      if (!(table->s->key_info[i].flags & HA_NOSAME) &&
+          i != table->s->next_number_index)
+      {
+        map.clear_bit(i);
+        do_clear= true;
+      }
+    }
+    if (do_clear)
+      error= table->file->ha_disable_indexes(map, true);
+  }
   }
 
   if (unlikely(error))
@@ -9542,18 +9605,20 @@ static Create_field *get_field_by_old_name(Alter_info *alter_info,
 enum fk_column_change_type
 {
   FK_COLUMN_NO_CHANGE, FK_COLUMN_DATA_CHANGE,
-  FK_COLUMN_RENAMED, FK_COLUMN_DROPPED
+  FK_COLUMN_RENAMED, FK_COLUMN_DROPPED, FK_COLUMN_NOT_NULL
 };
 
 /**
   Check that ALTER TABLE's changes on columns of a foreign key are allowed.
 
   @param[in]   thd              Thread context.
+  @param[in]   table            table to be altered
   @param[in]   alter_info       Alter_info describing changes to be done
                                 by ALTER TABLE.
-  @param[in]   fk_columns       List of columns of the foreign key to check.
+  @param[in]   fk               Foreign key information.
   @param[out]  bad_column_name  Name of field on which ALTER TABLE tries to
                                 do prohibited operation.
+  @param[in]   referenced       Check the referenced fields
 
   @note This function takes into account value of @@foreign_key_checks
         setting.
@@ -9564,17 +9629,27 @@ enum fk_column_change_type
                                  change in foreign key column.
   @retval FK_COLUMN_RENAMED      Foreign key column is renamed.
   @retval FK_COLUMN_DROPPED      Foreign key column is dropped.
+  @retval FK_COLUMN_NOT_NULL     Foreign key column cannot be null
+                                 if ON...SET NULL or ON UPDATE
+                                 CASCADE conflicts with NOT NULL
 */
 
 static enum fk_column_change_type
-fk_check_column_changes(THD *thd, Alter_info *alter_info,
-                        List<LEX_CSTRING> &fk_columns,
-                        const char **bad_column_name)
+fk_check_column_changes(THD *thd, const TABLE *table,
+                        Alter_info *alter_info,
+                        FOREIGN_KEY_INFO *fk,
+                        const char **bad_column_name,
+                        bool referenced=false)
 {
+  List<LEX_CSTRING> &fk_columns= referenced
+    ? fk->referenced_fields
+    : fk->foreign_fields;
   List_iterator_fast<LEX_CSTRING> column_it(fk_columns);
   LEX_CSTRING *column;
+  int n_col= 0;
 
   *bad_column_name= NULL;
+  enum fk_column_change_type result= FK_COLUMN_NO_CHANGE;
 
   while ((column= column_it++))
   {
@@ -9593,8 +9668,8 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
           SE that foreign keys should be updated to use new name of column
           like it happens in case of in-place algorithm.
         */
-        *bad_column_name= column->str;
-        return FK_COLUMN_RENAMED;
+        result= FK_COLUMN_RENAMED;
+        goto func_exit;
       }
 
       /*
@@ -9607,17 +9682,55 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
       new_field->flags&= ~AUTO_INCREMENT_FLAG;
       const bool equal_result= old_field->is_equal(*new_field);
       new_field->flags= flags;
+      const bool old_field_not_null= old_field->flags & NOT_NULL_FLAG;
+      const bool new_field_not_null= new_field->flags & NOT_NULL_FLAG;
 
-      if ((equal_result == IS_EQUAL_NO) ||
-          ((new_field->flags & NOT_NULL_FLAG) &&
-           !(old_field->flags & NOT_NULL_FLAG)))
+      if ((equal_result == IS_EQUAL_NO))
       {
         /*
           Column in a FK has changed significantly and it
           may break referential intergrity.
         */
-        *bad_column_name= column->str;
-        return FK_COLUMN_DATA_CHANGE;
+        result= FK_COLUMN_DATA_CHANGE;
+        goto func_exit;
+      }
+
+      if (old_field_not_null != new_field_not_null)
+      {
+        if (referenced && !new_field_not_null)
+        {
+          /*
+            Don't allow referenced column to change from
+            NOT NULL to NULL when foreign key relation is
+            ON UPDATE CASCADE and the referencing column
+            is declared as NOT NULL
+          */
+          if (fk->update_method == FK_OPTION_CASCADE &&
+              !fk->is_nullable(false, n_col))
+          {
+            result= FK_COLUMN_DATA_CHANGE;
+            goto func_exit;
+          }
+        }
+        else if (!referenced && new_field_not_null)
+        {
+          /*
+            Don't allow the foreign column to change
+            from NULL to NOT NULL when foreign key type is
+            1) UPDATE SET NULL
+            2) DELETE SET NULL
+            3) UPDATE CASCADE and referenced column is declared as NULL
+	  */
+          if (fk->update_method == FK_OPTION_SET_NULL ||
+              fk->delete_method == FK_OPTION_SET_NULL ||
+              (fk->update_method == FK_OPTION_CASCADE &&
+               fk->referenced_key_name &&
+               fk->is_nullable(true, n_col)))
+          {
+            result= FK_COLUMN_NOT_NULL;
+            goto func_exit;
+          }
+        }
       }
     }
     else
@@ -9631,12 +9744,15 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         field being dropped since it is easy to break referential
         integrity in this case.
       */
-      *bad_column_name= column->str;
-      return FK_COLUMN_DROPPED;
+      result= FK_COLUMN_DROPPED;
+      goto func_exit;
     }
+    n_col++;
   }
-
   return FK_COLUMN_NO_CHANGE;
+func_exit:
+  *bad_column_name= column->str;
+  return result;
 }
 
 
@@ -9728,9 +9844,8 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     enum fk_column_change_type changes;
     const char *bad_column_name;
 
-    changes= fk_check_column_changes(thd, alter_info,
-                                     f_key->referenced_fields,
-                                     &bad_column_name);
+    changes= fk_check_column_changes(thd, table, alter_info, f_key,
+                                     &bad_column_name, true);
 
     switch(changes)
     {
@@ -9764,6 +9879,9 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
                f_key->foreign_id->str, buff.c_ptr());
       DBUG_RETURN(true);
     }
+    /* FK_COLUMN_NOT_NULL error happens only when changing
+    the foreign key column from NULL to NOT NULL */
+    case FK_COLUMN_NOT_NULL:
     default:
       DBUG_ASSERT(0);
     }
@@ -9802,8 +9920,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     enum fk_column_change_type changes;
     const char *bad_column_name;
 
-    changes= fk_check_column_changes(thd, alter_info,
-                                     f_key->foreign_fields,
+    changes= fk_check_column_changes(thd, table, alter_info, f_key,
                                      &bad_column_name);
 
     switch(changes)
@@ -9823,6 +9940,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
       my_error(ER_FK_COLUMN_CANNOT_DROP, MYF(0), bad_column_name,
+               f_key->foreign_id->str);
+      DBUG_RETURN(true);
+    case FK_COLUMN_NOT_NULL:
+      my_error(ER_FK_COLUMN_NOT_NULL, MYF(0), bad_column_name,
                f_key->foreign_id->str);
       DBUG_RETURN(true);
     default:
@@ -10293,14 +10414,14 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
     if we can support implementing storage engine.
   */
   if (WSREP(thd) && table && table->s->sequence &&
-      wsrep_check_sequence(thd, thd->lex->create_info.seq_create_info, used_engine))
+      wsrep_check_sequence(thd, create_info->seq_create_info, used_engine))
     DBUG_RETURN(TRUE);
 
-  if (WSREP(thd) &&
+  if (WSREP(thd) && table &&
       (thd->lex->sql_command == SQLCOM_ALTER_TABLE ||
        thd->lex->sql_command == SQLCOM_CREATE_INDEX ||
        thd->lex->sql_command == SQLCOM_DROP_INDEX) &&
-      !wsrep_should_replicate_ddl(thd, table_list->table->s->db_type()->db_type))
+      !wsrep_should_replicate_ddl(thd, table->s->db_type()->db_type))
     DBUG_RETURN(true);
 #endif /* WITH_WSREP */
 
@@ -12180,8 +12301,7 @@ bool check_engine(THD *thd, const char *db_name,
   {
     if (no_substitution)
     {
-      const char *engine_name= ha_resolve_storage_engine_name(req_engine);
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), engine_name);
+      my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "NO_ENGINE_SUBSTITUTION");
       DBUG_RETURN(TRUE);
     }
     *new_engine= enf_engine;
@@ -12538,12 +12658,10 @@ bool Sql_cmd_create_table_like::execute(THD *thd)
               wsrep_check_sequence(thd, lex->create_info.seq_create_info, used_engine))
             DBUG_RETURN(true);
 
-          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str,
-                                         create_table->table_name.str,
-                                         first_table, &alter_info, NULL,
-                                         &create_info)
-	  {
-	    WSREP_WARN("CREATE TABLE isolation failure");
+          WSREP_TO_ISOLATION_BEGIN_ALTER(create_table->db.str, create_table->table_name.str,
+                                         first_table, &alter_info, NULL, &create_info)
+          {
+            WSREP_WARN("CREATE TABLE isolation failure");
             res= true;
             goto end_with_restore_list;
           }

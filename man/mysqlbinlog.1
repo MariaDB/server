@@ -167,7 +167,7 @@ option is given\&.
 .sp
 .\}
 .RS 4
-.it 1 an-trap
+.it 1
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
@@ -424,7 +424,7 @@ USE\&. (In particular, no cross\-database updates should be used\&.)
 .sp
 .\}
 .RS 4
-.it 1 an-trap
+.it 1
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
@@ -563,6 +563,22 @@ SET
 statement is ineffective unless you have the
 SUPER
 privilege\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysqlbinlog: flashback option
+.\" flashback option: mysqlbinlog
+\fB\-\-flashback\fR,
+\fB\-B\fR
+.sp
+Support flashback mode\&.
 .RE
 .sp
 .RS 4
@@ -1307,7 +1323,7 @@ capability enabled\&.
 .sp
 .\}
 .RS 4
-.it 1 an-trap
+.it 1
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br
@@ -1981,7 +1997,7 @@ shell> \fBmysqlbinlog \-v \-\-base64\-output=DECODE\-ROWS \fR\fB\fIlog_file\fR\f
 .sp
 .\}
 .RS 4
-.it 1 an-trap
+.it 1
 .nr an-no-space-flag 1
 .nr an-break-flag 1
 .br

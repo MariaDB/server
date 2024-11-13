@@ -39,14 +39,18 @@ source include/diff_tables.inc;
 # delete a row
 connection master;
 delete from t where a=2;
+--disable_cursor_protocol
 select unix_timestamp() into @tstart;
+--enable_cursor_protocol
 
 # wait for the delete to finish on the slave
 connection master;
 sync_slave_with_master;
 # source include/sync_slave_sql_with_master.inc;
 connection master;
+--disable_cursor_protocol
 select unix_timestamp() into @tend;
+--enable_cursor_protocol
 select @tend-@tstart <= 5; # assert no delay in the delete time
 
 # diff tables

@@ -117,7 +117,7 @@ namespace ftcxx {
             return _code;
         }
 
-        virtual const char *what() const noexcept {
+        const char *what() const noexcept override {
             return ft_strerror(_code);
         }
     };
@@ -132,7 +132,7 @@ namespace ftcxx {
             return _code;
         }
 
-        virtual const char *what() const noexcept {
+        const char *what() const noexcept override {
             return strerror(_code);
         }
     };

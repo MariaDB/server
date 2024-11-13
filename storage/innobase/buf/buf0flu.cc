@@ -1300,9 +1300,21 @@ static void buf_flush_LRU_list_batch(ulint max, bool evict,
   static_assert(FIL_NULL > SRV_TMP_SPACE_ID, "consistency");
   static_assert(FIL_NULL > SRV_SPACE_ID_UPPER_BOUND, "consistency");
 
+  /* BUF_LRU_MIN_LEN (256) is too high value for low buffer pool(BP) size. For
+  example, for BP size lower than 80M and 16 K page size, the limit is more than
+  5% of total BP and for lowest BP 5M, it is 80% of the BP. Non-data objects
+  like explicit locks could occupy part of the BP pool reducing the pages
+  available for LRU. If LRU reaches minimum limit and if no free pages are
+  available, server would hang with page cleaner not able to free any more
+  pages. To avoid such hang, we adjust the LRU limit lower than the limit for
+  data objects as checked in buf_LRU_check_size_of_non_data_objects() i.e. one
+  page less than 5% of BP. */
+  size_t pool_limit= buf_pool.curr_size / 20 - 1;
+  auto buf_lru_min_len= std::min<size_t>(pool_limit, BUF_LRU_MIN_LEN);
+
   for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.LRU);
        bpage &&
-       ((UT_LIST_GET_LEN(buf_pool.LRU) > BUF_LRU_MIN_LEN &&
+       ((UT_LIST_GET_LEN(buf_pool.LRU) > buf_lru_min_len &&
          UT_LIST_GET_LEN(buf_pool.free) < free_limit) ||
         recv_recovery_is_on()); ++scanned)
   {
@@ -1389,10 +1401,12 @@ reacquire_mutex:
   mysql_mutex_assert_owner(&buf_pool.mutex);
 
   if (scanned)
+  {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_SCANNED,
                                  MONITOR_LRU_BATCH_SCANNED_NUM_CALL,
                                  MONITOR_LRU_BATCH_SCANNED_PER_CALL,
                                  scanned);
+  }
 }
 
 /** Flush and move pages from LRU or unzip_LRU list to the free list.
@@ -1543,15 +1557,19 @@ static ulint buf_do_flush_list_batch(ulint max_n, lsn_t lsn)
     space->release();
 
   if (scanned)
+  {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BATCH_SCANNED,
                                  MONITOR_FLUSH_BATCH_SCANNED_NUM_CALL,
                                  MONITOR_FLUSH_BATCH_SCANNED_PER_CALL,
                                  scanned);
+  }
   if (count)
+  {
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_FLUSH_BATCH_TOTAL_PAGE,
                                  MONITOR_FLUSH_BATCH_COUNT,
                                  MONITOR_FLUSH_BATCH_PAGES,
                                  count);
+  }
   mysql_mutex_assert_owner(&buf_pool.mutex);
   return count;
 }
@@ -2162,7 +2180,7 @@ func_exit:
 
 	sum_pages += last_pages_in;
 
-	const ulint time_elapsed = std::max<ulint>(curr_time - prev_time, 1);
+	const ulint time_elapsed = std::max<ulint>(ulint(curr_time - prev_time), 1);
 
 	/* We update our variables every innodb_flushing_avg_loops
 	iterations to smooth out transition in workload. */

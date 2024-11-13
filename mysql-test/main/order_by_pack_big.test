@@ -100,7 +100,7 @@ select id, generate_random_string(a), generate_random_string(b) from t2;
 
 let $query= select id DIV 100 as x,
             MD5(group_concat(substring(names,1,3), substring(address,1,3)
-                order by id))
+                order by id)) as md5
             FROM t3
             GROUP BY x;
 
@@ -112,12 +112,9 @@ set sort_buffer_size=262144*10;
 --source include/analyze-format.inc
 eval analyze format=json $query;
 flush status;
-# Enable view-protocol after fix MDEV-27871
---disable_view_protocol
 --disable_ps2_protocol
 eval $query;
 --enable_ps2_protocol
---enable_view_protocol
 show status like '%sort%';
 set sort_buffer_size=default;
 
@@ -129,12 +126,9 @@ set sort_buffer_size=32768;
 --source include/analyze-format.inc
 eval analyze format=json $query;
 flush status;
-# Enable view-protocol after fix MDEV-27871
---disable_view_protocol
 --disable_ps2_protocol
 eval $query;
 --enable_ps2_protocol
---enable_view_protocol
 show status like '%sort%';
 set sort_buffer_size=default;
 
@@ -151,16 +145,20 @@ set sort_buffer_size= 2097152;
 --source include/analyze-format.inc
 eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
 flush status;
+--disable_cursor_protocol
 --disable_ps2_protocol
 evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo # Sort_merge_passes should be 0
 show status like '%sort%';
 
+--disable_cursor_protocol
 --disable_ps2_protocol
 evalp SELECT id, names, address INTO OUTFILE '$file2' FROM t3 FORCE INDEX(idx) ORDER BY names, address;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 diff_files $file1 $file2;
 
@@ -177,9 +175,11 @@ set sort_buffer_size= 1097152;
 --source include/analyze-format.inc
 eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
 flush status;
+--disable_cursor_protocol
 --disable_ps2_protocol
 evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
 --enable_ps2_protocol
+--enable_cursor_protocol
 
 --echo # Sort_merge_passes should be 0
 show status like '%sort%';

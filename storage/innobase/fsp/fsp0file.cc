@@ -538,9 +538,10 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
-		sql_print_error("InnoDB: %s in datafile: %s, Space ID: %zu, "
-				"Flags: %zu", error_txt, m_filepath,
-				m_space_id, m_flags);
+		sql_print_information(
+			"InnoDB: %s in datafile: %s, Space ID: %zu, "
+			"Flags: %zu", error_txt, m_filepath,
+			m_space_id, m_flags);
 		m_is_valid = false;
 		free_first_page();
 		return(DB_CORRUPTION);

@@ -67,6 +67,15 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
   bool result=0;
   select_errors=0;				/* Write if more errors */
   int tmp_write_to_binlog= *write_to_binlog= 1;
+#ifndef DBUG_OFF
+  /*
+    When invoked for handling a SIGHUP by rpl_shutdown_sighup.test, we need to
+    force the signal handler to wait after REFRESH_TABLES, as that will check
+    for a killed server, and we need to call hostname_cache_refresh after
+    server cleanup has happened to trigger MDEV-30260.
+  */
+  int do_dbug_sleep= 0;
+#endif
 
   DBUG_ASSERT(!thd || !thd->in_sub_stmt);
 
@@ -79,10 +88,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
       allocate temporary THD for execution of acl_reload()/grant_reload().
     */
     if (unlikely(!thd) && (thd= (tmp_thd= new THD(0))))
-    {
-      thd->thread_stack= (char*) &tmp_thd;
       thd->store_globals();
-    }
 
     if (likely(thd))
     {
@@ -99,6 +105,15 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
         */
         my_error(ER_UNKNOWN_ERROR, MYF(0));
       }
+
+#ifndef DBUG_OFF
+      DBUG_EXECUTE_IF("hold_sighup_log_refresh", {
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN("now SIGNAL in_reload_acl_and_cache "
+                                 "WAIT_FOR refresh_logs")));
+        do_dbug_sleep= 1;
+      });
+#endif
     }
     opt_noacl= 0;
 
@@ -351,6 +366,11 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
     my_dbopt_cleanup();
   }
+
+#ifndef DBUG_OFF
+  if (do_dbug_sleep)
+    my_sleep(3000000); // 3s
+#endif
   if (options & REFRESH_HOSTS)
     hostname_cache_refresh();
   if (thd && (options & REFRESH_STATUS))
@@ -369,7 +389,7 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
     }
   }
 #endif
-#ifdef HAVE_OPENSSL
+#ifdef HAVE_des
    if (options & REFRESH_DES_KEY_FILE)
    {
      if (des_key_file && load_des_key_file(des_key_file))

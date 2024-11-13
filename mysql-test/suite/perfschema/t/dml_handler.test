@@ -21,7 +21,9 @@ CREATE TEMPORARY TABLE table_list (id INT AUTO_INCREMENT, PRIMARY KEY (id)) AS
   WHERE TABLE_SCHEMA='performance_schema'
   ORDER BY TABLE_NAME;
 
+--disable_cursor_protocol
 SELECT COUNT(*) FROM table_list INTO @table_count;
+--enable_cursor_protocol
 
 let $count=`SELECT @table_count`;
 
@@ -32,7 +34,9 @@ let $count=`SELECT @table_count`;
 
 while ($count > 0)
 {
+   --disable_cursor_protocol
    eval SELECT TABLE_NAME INTO @table_name FROM table_list WHERE id=$count;
+   --enable_cursor_protocol
    let $table_name = `SELECT @table_name`;
    --error ER_ILLEGAL_HA
    eval HANDLER performance_schema.$table_name OPEN;

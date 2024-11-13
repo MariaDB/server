@@ -567,11 +567,14 @@ select (1.175494351E-37 div 1.7976931348623157E+308);
 
 select round(999999999, -9);
 select round(999999999.0, -9);
+#enable after fix MDEV-31555
+--disable_cursor_protocol
 #enable after fix MDEV-29526
 --disable_view_protocol
 select round(999999999999999999, -18);
 select round(999999999999999999.0, -18);
 --enable_view_protocol
+--enable_cursor_protocol
 
 --echo #
 --echo # Bug#12537160 ASSERTION FAILED:
@@ -1927,6 +1930,16 @@ DROP TABLE t2, t1;
 --echo # MDEV-23680 Assertion `data' failed in crcr32_calc_pclmulqdq
 --echo #
 SELECT CRC32(ExtractValue('<a><b/></a>', '/a/b')) AS f;
+
+
+--echo #
+--echo # MDEV-33534 UBSAN: Negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_double_round from sql/item_func.cc|
+--echo #
+
+SELECT TRUNCATE(EXP(-1.e-2),-1.e+30) AS c1;
+SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) AS c1;
+SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
+SELECT(ASIN(-1)+ LN(-1)) % (ATAN(-1) MOD FLOOR(1)) * (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
 
 
 --echo #

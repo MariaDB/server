@@ -32,49 +32,49 @@ public:
     : m_server_state(server_state)
   { }
 
-  wsrep::storage_service* storage_service(wsrep::client_service&);
+  wsrep::storage_service* storage_service(wsrep::client_service&) override;
 
-  wsrep::storage_service* storage_service(wsrep::high_priority_service&);
+  wsrep::storage_service* storage_service(wsrep::high_priority_service&) override;
 
-  void release_storage_service(wsrep::storage_service*);
-
-  wsrep::high_priority_service*
-  streaming_applier_service(wsrep::client_service&);
+  void release_storage_service(wsrep::storage_service*) override;
 
   wsrep::high_priority_service*
-  streaming_applier_service(wsrep::high_priority_service&);
+  streaming_applier_service(wsrep::client_service&) override;
 
-  void release_high_priority_service(wsrep::high_priority_service*);
+  wsrep::high_priority_service*
+  streaming_applier_service(wsrep::high_priority_service&) override;
+
+  void release_high_priority_service(wsrep::high_priority_service*) override;
 
   void background_rollback(wsrep::unique_lock<wsrep::mutex> &,
-                           wsrep::client_state &);
+                           wsrep::client_state &) override;
 
-  void bootstrap();
-  void log_message(enum wsrep::log::level, const char*);
+  void bootstrap() override;
+  void log_message(enum wsrep::log::level, const char*) override;
 
-  void log_dummy_write_set(wsrep::client_state&, const wsrep::ws_meta&)
+  void log_dummy_write_set(wsrep::client_state&, const wsrep::ws_meta&) override
   { throw wsrep::not_implemented_error(); }
 
-  void log_view(wsrep::high_priority_service*, const wsrep::view&);
+  void log_view(wsrep::high_priority_service*, const wsrep::view&) override;
 
-  void recover_streaming_appliers(wsrep::client_service&);
-  void recover_streaming_appliers(wsrep::high_priority_service&);
-  wsrep::view get_view(wsrep::client_service&, const wsrep::id& own_id);
+  void recover_streaming_appliers(wsrep::client_service&) override;
+  void recover_streaming_appliers(wsrep::high_priority_service&) override;
+  wsrep::view get_view(wsrep::client_service&, const wsrep::id& own_id) override;
 
-  wsrep::gtid get_position(wsrep::client_service&);
-  void set_position(wsrep::client_service&, const wsrep::gtid&);
+  wsrep::gtid get_position(wsrep::client_service&) override;
+  void set_position(wsrep::client_service&, const wsrep::gtid&) override;
 
   void log_state_change(enum wsrep::server_state::state,
-                        enum wsrep::server_state::state);
+                        enum wsrep::server_state::state) override;
 
-  bool sst_before_init() const;
+  bool sst_before_init() const override;
 
-  std::string sst_request();
-  int start_sst(const std::string&, const wsrep::gtid&, bool);
+  std::string sst_request() override;
+  int start_sst(const std::string&, const wsrep::gtid&, bool) override;
 
-  int wait_committing_transactions(int);
+  int wait_committing_transactions(int) override;
 
-  void debug_sync(const char*);
+  void debug_sync(const char*) override;
 private:
   Wsrep_server_state& m_server_state;
 };
@@ -99,4 +99,8 @@ class Wsrep_storage_service;
 Wsrep_storage_service*
 wsrep_create_storage_service(THD *orig_thd, const char *ctx);
 
+/**
+   Suppress all error logging from wsrep/Galera library.
+ */
+void wsrep_suppress_error_logging();
 #endif /* WSREP_SERVER_SERVICE */

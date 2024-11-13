@@ -77,7 +77,7 @@ public:
   { return max_supported_key_length(); }
   enum row_type get_row_type() const override final;
   void change_table_ptr(TABLE *table_arg, TABLE_SHARE *share) override final;
-  virtual double scan_time() override final;
+  double scan_time() override final;
 
   int open(const char *name, int mode, uint test_if_locked) override;
   int close(void) override final;
@@ -122,8 +122,8 @@ public:
   int external_lock(THD * thd, int lock_type) override;
   int start_stmt(THD *thd, thr_lock_type lock_type) override final;
   int delete_all_rows(void) override final;
-  int disable_indexes(uint mode) override final;
-  int enable_indexes(uint mode) override final;
+  int disable_indexes(key_map map, bool persist) override final;
+  int enable_indexes(key_map map, bool persist) override final;
   int indexes_are_disabled(void) override final;
   void start_bulk_insert(ha_rows rows, uint flags) override final;
   int end_bulk_insert() override final;

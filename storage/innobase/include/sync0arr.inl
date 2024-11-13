@@ -44,7 +44,7 @@ sync_array_get()
 		return(sync_wait_array[0]);
 	}
 
-	return(sync_wait_array[get_rnd_value() % sync_array_size]);
+	return(sync_wait_array[my_pseudo_random() % sync_array_size]);
 }
 
 /******************************************************************//**

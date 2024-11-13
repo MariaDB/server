@@ -27,14 +27,16 @@ SET(MY_WARNING_FLAGS
   -Wenum-conversion
   -Wextra
   -Wformat-security
+  -Winconsistent-missing-override
   -Wno-format-truncation
   -Wno-init-self
   -Wno-nonnull-compare
   -Wno-null-conversion
   -Wno-unused-parameter
   -Wno-unused-private-field
-  -Woverloaded-virtual
   -Wnon-virtual-dtor
+  -Woverloaded-virtual
+  -Wsuggest-override
   -Wvla
   -Wwrite-strings
   )
@@ -43,7 +45,7 @@ FOREACH(F ${MY_WARNING_FLAGS})
   MY_CHECK_AND_SET_COMPILER_FLAG(${F} DEBUG RELWITHDEBINFO)
 ENDFOREACH()
 
-SET(MY_ERROR_FLAGS -Werror)
+SET(MY_ERROR_FLAGS -Werror -fno-operator-names)
 
 IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)

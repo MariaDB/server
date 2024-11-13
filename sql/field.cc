@@ -5184,6 +5184,8 @@ int Field_timestamp::save_in_field(Field *to)
 {
   ulong sec_part;
   my_time_t ts= get_timestamp(&sec_part);
+  if (!ts && !sec_part)
+    return to->store_time_dec(Datetime::zero().get_mysql_time(), decimals());
   return to->store_timestamp_dec(Timeval(ts, sec_part), decimals());
 }
 
@@ -5305,11 +5307,33 @@ int Field_timestamp::store(longlong nr, bool unsigned_val)
 }
 
 
-int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
+int Field_timestamp::store_timestamp_dec(const timeval &tv, uint dec)
 {
   int warn= 0;
   time_round_mode_t mode= Datetime::default_round_mode(get_thd());
-  store_TIMESTAMP(Timestamp(ts).round(decimals(), mode, &warn));
+  const Timestamp ts= Timestamp(tv).round(decimals(), mode, &warn);
+  store_TIMESTAMP(ts);
+  if (ts.tv().tv_sec == 0 && ts.tv().tv_usec == 0)
+  {
+    /*
+      The value {tv_sec==0, tv_usec==0} here means '1970-01-01 00:00:00 +00'.
+      It does not mean zero datetime! because store_timestamp_dec() knows
+      nothing about zero dates. It inserts only real timeval values.
+      Zero ts={0,0} here is possible in two scenarios:
+      - the passed tv was already {0,0} meaning '1970-01-01 00:00:00 +00'
+      - the passed tv had some microseconds but they were rounded/truncated
+        to zero: '1970-01-01 00:00:00.1 +00' -> '1970-01-01 00:00:00 +00'.
+      It does not matter whether rounding/truncation really happened.
+      In both cases the call for store_TIMESTAMP(ts) above re-interpreted
+      '1970-01-01 00:00:00 +00:00' to zero date. Return 1 no matter what
+      sql_mode is. Even if sql_mode allows zero dates, there is still a problem
+      here: '1970-01-01 00:00:00 +00' could not be stored as-is!
+    */
+    ErrConvString str(STRING_WITH_LEN("1970-01-01 00:00:00 +00:00"),
+                      system_charset_info);
+    set_datetime_warning(ER_WARN_DATA_OUT_OF_RANGE, &str, "datetime", 1);
+    return 1; // '1970-01-01 00:00:00 +00' was converted to a zero date
+  }
   if (warn)
   {
     /*
@@ -5323,9 +5347,6 @@ int Field_timestamp::store_timestamp_dec(const timeval &ts, uint dec)
     */
     set_warning(Sql_condition::WARN_LEVEL_WARN, ER_WARN_DATA_OUT_OF_RANGE, 1);
   }
-  if (ts.tv_sec == 0 && ts.tv_usec == 0 &&
-      get_thd()->variables.sql_mode & (ulonglong) TIME_NO_ZERO_DATE)
-    return zero_time_stored_return_code_with_warning();
   return 0;
 }
 
@@ -5696,8 +5717,10 @@ my_time_t Field_timestampf::get_timestamp(const uchar *pos,
 bool Field_timestampf::val_native(Native *to)
 {
   DBUG_ASSERT(marked_for_read());
+  char zero[8]= "\0\0\0\0\0\0\0";
+  DBUG_ASSERT(pack_length () <= sizeof(zero));
   // Check if it's '0000-00-00 00:00:00' rather than a real timestamp
-  if (ptr[0] == 0 && ptr[1] == 0 && ptr[2] == 0 && ptr[3] == 0)
+  if (!memcmp(ptr, zero, pack_length()))
   {
     to->length(0);
     return false;
@@ -7462,11 +7485,11 @@ double Field_string::val_real(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
-  return Converter_strntod_with_warn(get_thd(),
+  const LEX_CSTRING str= to_lex_cstring();
+  return Converter_strntod_with_warn(thd,
                                      Warn_filter_string(thd, this),
                                      Field_string::charset(),
-                                     (const char *) ptr,
-                                     field_length).result();
+                                     str.str, str.length).result();
 }
 
 
@@ -7474,10 +7497,10 @@ longlong Field_string::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
   return Converter_strntoll_with_warn(thd, Warn_filter_string(thd, this),
                                       Field_string::charset(),
-                                      (const char *) ptr,
-                                      field_length).result();
+                                      str.str, str.length).result();
 }
 
 
@@ -7493,20 +7516,26 @@ sql_mode_t Field_string::can_handle_sql_mode_dependency_on_store() const
 }
 
 
-String *Field_string::val_str(String *val_buffer __attribute__((unused)),
-			      String *val_ptr)
+LEX_CSTRING Field_string::to_lex_cstring() const
 {
   DBUG_ASSERT(marked_for_read());
   /* See the comment for Field_long::store(long long) */
   DBUG_ASSERT(!table || table->in_use == current_thd);
-  size_t length;
-  if (get_thd()->variables.sql_mode &
-      MODE_PAD_CHAR_TO_FULL_LENGTH)
-    length= field_charset()->charpos(ptr, ptr + field_length,
-                                     Field_string::char_length());
-  else
-    length= field_charset()->lengthsp((const char*) ptr, field_length);
-  val_ptr->set((const char*) ptr, length, field_charset());
+  if (get_thd()->variables.sql_mode & MODE_PAD_CHAR_TO_FULL_LENGTH)
+    return Lex_cstring((const char*) ptr,
+                       field_charset()->charpos(ptr, ptr + field_length,
+                                                Field_string::char_length()));
+  return Lex_cstring((const char *) ptr,
+                     field_charset()->lengthsp((const char*) ptr, field_length));
+}
+
+
+String *Field_string::val_str(String *val_buffer __attribute__((unused)),
+			      String *val_ptr)
+{
+  DBUG_ASSERT(marked_for_read());
+  const LEX_CSTRING str= to_lex_cstring();
+  val_ptr->set(str.str, str.length, field_charset());
   return val_ptr;
 }
 
@@ -7515,12 +7544,12 @@ my_decimal *Field_string::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(marked_for_read());
   THD *thd= get_thd();
+  const LEX_CSTRING str= to_lex_cstring();
   Converter_str2my_decimal_with_warn(thd,
                                      Warn_filter_string(thd, this),
                                      E_DEC_FATAL_ERROR & ~E_DEC_BAD_NUM,
                                      Field_string::charset(),
-                                     (const char *) ptr,
-                                     field_length, decimal_value);
+                                     str.str, str.length, decimal_value);
   return decimal_value;
 }
 
@@ -8850,6 +8879,24 @@ int Field_blob::key_cmp(const uchar *a,const uchar *b) const
 {
   return Field_blob::cmp(a+HA_KEY_BLOB_LENGTH, uint2korr(a),
 			 b+HA_KEY_BLOB_LENGTH, uint2korr(b));
+}
+
+
+#ifndef DBUG_OFF
+/* helper to assert that new_table->blob_storage is NULL */
+static struct blob_storage_check
+{
+  union { bool b; intptr p; } val;
+  blob_storage_check() { val.p= -1; val.b= false; }
+} blob_storage_check;
+#endif
+Field *Field_blob::make_new_field(MEM_ROOT *root, TABLE *newt, bool keep_type)
+{
+  DBUG_ASSERT((intptr(newt->blob_storage) & blob_storage_check.val.p) == 0);
+  if (newt->group_concat)
+    return new (root) Field_blob(field_length, maybe_null(), &field_name,
+                                 charset());
+  return Field::make_new_field(root, newt, keep_type);
 }
 
 

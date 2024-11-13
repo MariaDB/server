@@ -71,7 +71,16 @@ static std::string get_encryption_plugin_from_cnf()
       plugin_load = line + 12;
       // remote \n at the end of string
       plugin_load.resize(plugin_load.size() - 1);
-      break;
+    }
+
+    if (strncmp(line, "innodb_encrypt_tables=", 22) == 0)
+    {
+      if (!strncmp(line + 22, "ON", 2) ||
+          !strncmp(line + 22, "1", 1))
+        srv_encrypt_tables= 1;
+      else if (!strncmp(line + 22, "FORCE", 5) ||
+               !strncmp(line + 22, "2", 1))
+        srv_encrypt_tables= 2;
     }
   }
   fclose(f);
@@ -154,6 +163,17 @@ void encryption_plugin_backup_init(MYSQL *mysql)
 
   mysql_free_result(result);
 
+  result = xb_mysql_query(mysql, "select @@innodb_encrypt_tables", true, true);
+  row = mysql_fetch_row(result);
+  if (!row);
+  else if (const char *r= row[0])
+  {
+    if (!strcmp(r, "ON")) srv_encrypt_tables= 1;
+    else if (!strcmp(r, "FORCE")) srv_encrypt_tables= 2;
+    oss << "innodb_encrypt_tables=" << r << std::endl;
+  }
+
+  mysql_free_result(result);
   encryption_plugin_config = oss.str();
 
   argc = 0;

@@ -55,9 +55,7 @@ SET sql_log_bin=1;
 # Restart the slave mysqld server, and verify that the GTID position is
 # read correctly from the new mysql.gtid_slave_pos_innodb table.
 
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-wait
-EOF
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -94,9 +92,7 @@ DROP TABLE mysql.gtid_slave_pos;
 RENAME TABLE mysql.gtid_slave_pos_innodb TO mysql.gtid_slave_pos;
 SET sql_log_bin=1;
 
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-wait
-EOF
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -132,9 +128,7 @@ SET sql_log_bin=0;
 ALTER TABLE mysql.gtid_slave_pos ENGINE=Aria;
 SET sql_log_bin=1;
 
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-wait
-EOF
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -176,9 +170,7 @@ INSERT INTO mysql.gtid_slave_pos SELECT * FROM mysql.gtid_slave_pos_InnoDB;
 DROP TABLE mysql.gtid_slave_pos_InnoDB;
 SET sql_log_bin=1;
 
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-wait
-EOF
+--write_line "wait" $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --shutdown_server
 --source include/wait_until_disconnected.inc
 
@@ -272,9 +264,7 @@ while (!$done)
 # MDEV-15373 engine gtid_slave_pos table name disobeys lower-case-table-names
 # This snippet verifies that engine gtid_slave_pos table is found,
 # its data are up-to-date.
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
-wait
-EOF
+--write_line wait $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
 --connection server_2
 --shutdown_server
 --source include/wait_until_disconnected.inc
@@ -287,7 +277,9 @@ EOF
 --connection server_2
 --enable_reconnect
 --source include/wait_until_connected_again.inc
+--disable_cursor_protocol
 SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+--enable_cursor_protocol
 
 --connection server_1
 INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;

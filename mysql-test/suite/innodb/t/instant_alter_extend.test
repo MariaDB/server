@@ -256,3 +256,16 @@ select * from t1;
 check table t1;
 
 drop database best;
+
+--echo #
+--echo # MDEV-33214 Table is getting rebuild with
+--echo #         ALTER TABLE ADD COLUMN
+--echo #
+use test;
+CREATE TABLE t1(f1 INT, f2 VARCHAR(10)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+INSERT INTO t1 VALUES(1,'abc'),(2,'def');
+ALTER TABLE t1 ADD (f3 VARCHAR(5000), f4 VARCHAR(20)), ALGORITHM=instant;
+ALTER TABLE t1 ADD f5 TEXT, ALGORITHM=INSTANT;
+DROP TABLE t1;
+
+--echo # End of 10.4 tests

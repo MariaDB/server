@@ -513,42 +513,48 @@ int ip_to_hostname(struct sockaddr_storage *ip_storage,
 
   DBUG_EXECUTE_IF("getnameinfo_error_noname",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_NONAME;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_error_again",
                   {
-                    strcpy(hostname_buffer, "<garbage>");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "<garbage>");
                     err_code= EAI_AGAIN;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv4",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv4.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv4.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_fake_ipv6",
                   {
-                    strcpy(hostname_buffer, "santa.claus.ipv6.example.com");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "santa.claus.ipv6.example.com");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv4",
                   {
-                    strcpy(hostname_buffer, "12.12.12.12");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12.12.12.12");
                     err_code= 0;
                   }
                   );
 
   DBUG_EXECUTE_IF("getnameinfo_format_ipv6",
                   {
-                    strcpy(hostname_buffer, "12:DEAD:BEEF:0");
+                    safe_strcpy(hostname_buffer, sizeof(hostname_buffer),
+                                "12:DEAD:BEEF:0");
                     err_code= 0;
                   }
                   );

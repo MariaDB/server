@@ -1835,7 +1835,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
 
   if ((flags & LOG_EVENT_SUPPRESS_USE_F))
   {
-    if (!is_trans_keyword())
+    if (!is_trans_keyword(print_event_info->is_xa_trans()))
       print_event_info->db[0]= '\0';
   }
   else if (db)
@@ -3033,7 +3033,7 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
 {
   char *pbeg;   // beginning of the next line
   char *pend;   // end of the next line
-  uint cnt= 0;  // characters counter
+  char *qend= m_query_txt + m_query_len;
 
   if (!pinfo->short_form)
   {
@@ -3044,28 +3044,21 @@ bool Annotate_rows_log_event::print(FILE *file, PRINT_EVENT_INFO *pinfo)
   else if (my_b_printf(&pinfo->head_cache, "# Annotate_rows:\n"))
     goto err;
 
-  for (pbeg= m_query_txt; ; pbeg= pend)
+  for (pbeg= m_query_txt; pbeg < qend; pbeg= pend)
   {
     // skip all \r's and \n's at the beginning of the next line
-    for (;; pbeg++)
-    {
-      if (++cnt > m_query_len)
-        return 0;
-
-      if (*pbeg != '\r' && *pbeg != '\n')
-        break;
-    }
+    for (; pbeg < qend && (*pbeg == '\r' || *pbeg == '\n'); pbeg++)
+      ;
 
     // find end of the next line
-    for (pend= pbeg + 1;
-         ++cnt <= m_query_len && *pend != '\r' && *pend != '\n';
-         pend++)
+    for (pend= pbeg + 1; pend < qend && *pend != '\r' && *pend != '\n'; pend++)
       ;
 
     // print next line
-    if (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
-        my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1))
+    if (pbeg < qend &&
+        (my_b_write(&pinfo->head_cache, (const uchar*) "#Q> ", 4) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) pbeg, pend - pbeg) ||
+         my_b_write(&pinfo->head_cache, (const uchar*) "\n", 1)))
       goto err;
   }
 
@@ -3769,6 +3762,7 @@ st_print_event_info::st_print_event_info()
   bzero(time_zone_str, sizeof(time_zone_str));
   delimiter[0]= ';';
   delimiter[1]= 0;
+  gtid_ev_flags2= 0;
   flags2_inited= 0;
   flags2= 0;
   sql_mode_inited= 0;
@@ -3802,6 +3796,11 @@ st_print_event_info::st_print_event_info()
 #endif
 }
 
+my_bool st_print_event_info::is_xa_trans()
+{
+  return (gtid_ev_flags2 &
+          (Gtid_log_event::FL_PREPARED_XA | Gtid_log_event::FL_COMPLETED_XA));
+}
 
 bool copy_event_cache_to_string_and_reinit(IO_CACHE *cache, LEX_STRING *to)
 {
@@ -3864,7 +3863,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->allow_parallel != !!(flags2 & FL_ALLOW_PARALLEL))
     {
       if (my_b_printf(&cache,
-                  "/*!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
+                  "/*M!100101 SET @@session.skip_parallel_replication=%u*/%s\n",
                       !(flags2 & FL_ALLOW_PARALLEL),
                       print_event_info->delimiter))
         goto err;
@@ -3876,7 +3875,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
         print_event_info->domain_id != domain_id)
     {
       if (my_b_printf(&cache,
-                      "/*!100001 SET @@session.gtid_domain_id=%u*/%s\n",
+                      "/*M!100001 SET @@session.gtid_domain_id=%u*/%s\n",
                       domain_id, print_event_info->delimiter))
         goto err;
       print_event_info->domain_id= domain_id;
@@ -3886,7 +3885,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     if (!print_event_info->server_id_printed ||
         print_event_info->server_id != server_id)
     {
-      if (my_b_printf(&cache, "/*!100001 SET @@session.server_id=%u*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.server_id=%u*/%s\n",
                       server_id, print_event_info->delimiter))
         goto err;
       print_event_info->server_id= server_id;
@@ -3894,7 +3893,7 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
     }
 
     if (!is_flashback)
-      if (my_b_printf(&cache, "/*!100001 SET @@session.gtid_seq_no=%s*/%s\n",
+      if (my_b_printf(&cache, "/*M!100001 SET @@session.gtid_seq_no=%s*/%s\n",
                       buf, print_event_info->delimiter))
         goto err;
   }
@@ -3912,6 +3911,8 @@ Gtid_log_event::print(FILE *file, PRINT_EVENT_INFO *print_event_info)
                     "START TRANSACTION\n%s\n", print_event_info->delimiter))
       goto err;
   }
+
+  print_event_info->gtid_ev_flags2= flags2;
 
   return cache.flush_data();
 err:

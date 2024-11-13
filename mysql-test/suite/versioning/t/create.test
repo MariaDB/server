@@ -212,9 +212,11 @@ show create table t3;
 
 --echo ## For versioned table
 insert into t1 values (1);
+--disable_cursor_protocol
 select row_start from t1 into @row_start;
 insert into t0 (y) values (2);
 select st from t0 into @st;
+--enable_cursor_protocol
 
 create or replace table t2 with system versioning as select * from t1;
 --replace_result $default_engine DEFAULT_ENGINE
@@ -253,10 +255,12 @@ create or replace table t3 with system versioning select x23, row_start from t1;
 create or replace table t3 with system versioning select x23, row_end from t1;
 
 --echo # Prepare checking for historical row
+--disable_cursor_protocol
 delete from t1;
 select row_end from t1 for system_time all into @row_end;
 delete from t0;
 select en from t0 for system_time all into @en;
+--enable_cursor_protocol
 
 --echo ## Combinations of versioned + non-versioned
 create or replace table t2 (y int);
@@ -272,9 +276,13 @@ insert into t2 (y) values (1), (2);
 delete from t2 where y = 2;
 
 create or replace table t3 select * from t2 for system_time all;
+--disable_cursor_protocol
 select st, en from t3 where y = 1 into @st, @en;
+--enable_cursor_protocol
 select y from t2 for system_time all where st = @st and en = @en;
+--disable_cursor_protocol
 select st, en from t3 where y = 2 into @st, @en;
+--enable_cursor_protocol
 select y from t2 for system_time all where st = @st and en = @en;
 
 --echo ## Default engine detection

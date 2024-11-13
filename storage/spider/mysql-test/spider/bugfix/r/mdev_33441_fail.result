@@ -1,0 +1,10 @@
+#
+# MDEV-33441 No spider variables available is Spider is loaded upon server startup
+#
+select * from mysql.plugin;
+name	dl
+show variables like 'spider%';
+Variable_name	Value
+#
+# end of test mdev_33441_fail
+#

@@ -888,7 +888,7 @@ public:
     : ErrConv(), str(str_arg), len(strlen(str_arg)), cs(cs_arg) {}
   ErrConvString(const String *s)
     : ErrConv(), str(s->ptr()), len(s->length()), cs(s->charset()) {}
-  const char *ptr() const
+  const char *ptr() const override
   {
     return set_str(str, len, cs);
   }
@@ -899,7 +899,7 @@ class ErrConvInteger : public ErrConv, public Longlong_hybrid
 public:
   ErrConvInteger(const Longlong_hybrid &nr)
    : ErrConv(), Longlong_hybrid(nr) { }
-  const char *ptr() const
+  const char *ptr() const override
   {
     return set_longlong(static_cast<Longlong_hybrid>(*this));
   }
@@ -910,7 +910,7 @@ class ErrConvDouble: public ErrConv
   double num;
 public:
   ErrConvDouble(double num_arg) : ErrConv(), num(num_arg) {}
-  const char *ptr() const
+  const char *ptr() const override
   {
     return set_double(num);
   }
@@ -921,7 +921,7 @@ class ErrConvTime : public ErrConv
   const MYSQL_TIME *ltime;
 public:
   ErrConvTime(const MYSQL_TIME *ltime_arg) : ErrConv(), ltime(ltime_arg) {}
-  const char *ptr() const
+  const char *ptr() const override
   {
     return set_mysql_time(ltime);
   }
@@ -932,7 +932,7 @@ class ErrConvDecimal : public ErrConv
   const decimal_t *d;
 public:
   ErrConvDecimal(const decimal_t *d_arg) : ErrConv(), d(d_arg) {}
-  const char *ptr() const
+  const char *ptr() const override
   {
     return set_decimal(d);
   }
@@ -1064,6 +1064,11 @@ public:
   {
     DBUG_ASSERT(m_status == DA_OK || m_status == DA_OK_BULK);
     return m_affected_rows;
+  }
+
+  void set_message(const char *msg)
+  {
+    strmake_buf(m_message, msg);
   }
 
   ulonglong last_insert_id() const

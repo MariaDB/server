@@ -258,7 +258,9 @@ bool test_if_number(NUM_INFO *info, const char *str, uint str_len)
       info->decimals++;
     if (str == end)
     {
-      info->dval = my_atof(begin);
+      int error;
+      const char *end2= end;
+      info->dval= my_strtod(begin, (char **) &end2, &error);
       DBUG_RETURN(1);
     }
   }

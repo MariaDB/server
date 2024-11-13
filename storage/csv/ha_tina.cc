@@ -184,7 +184,8 @@ static int tina_init_func(void *p)
   tina_hton= (handlerton *)p;
   mysql_mutex_init(csv_key_mutex_tina, &tina_mutex, MY_MUTEX_INIT_FAST);
   (void) my_hash_init(csv_key_memory_tina_share, &tina_open_tables,
-                      system_charset_info, 32, 0, 0, (my_hash_get_key)
+                      Lex_ident_table::charset_info(),
+                      32, 0, 0, (my_hash_get_key)
                       tina_get_key, 0, 0);
   tina_hton->db_type= DB_TYPE_CSV_DB;
   tina_hton->create= tina_create_handler;
@@ -332,7 +333,7 @@ static int read_meta_file(File meta_file, ha_rows *rows)
   /* check crashed bit and magic number */
   if ((meta_buffer[0] != (uchar)TINA_CHECK_HEADER) ||
       ((bool)(*ptr)== TRUE))
-    DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno= HA_ERR_CRASHED_ON_USAGE);
 
   mysql_file_sync(meta_file, MYF(MY_WME));
 
@@ -973,7 +974,7 @@ int ha_tina::open(const char *name, int mode, uint open_options)
   if (share->crashed && !(open_options & HA_OPEN_FOR_REPAIR))
   {
     free_share(share);
-    DBUG_RETURN(my_errno ? my_errno : HA_ERR_CRASHED_ON_USAGE);
+    DBUG_RETURN(my_errno);
   }
 
   local_data_file_version= share->data_file_version;

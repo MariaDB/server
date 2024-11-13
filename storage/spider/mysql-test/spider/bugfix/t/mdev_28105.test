@@ -1,0 +1,8 @@
+install soname 'ha_spider';
+SET @@insert_id=128;  # 127 does not crash
+CREATE TABLE t(c TINYINT AUTO_INCREMENT KEY) ENGINE=Spider;
+--error ER_CONNECT_TO_FOREIGN_DATA_SOURCE
+INSERT IGNORE INTO t VALUES(0);
+drop table t;
+--disable_query_log
+--source ../../include/clean_up_spider.inc

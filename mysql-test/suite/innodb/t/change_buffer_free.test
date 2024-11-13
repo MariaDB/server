@@ -1,0 +1,54 @@
+#
+# MDEV 33431: Latching order violation reported fil_system.sys_space.latch and ibuf_pessimistic_insert_mutex
+#
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+SET @saved_change_buffering = @@GLOBAL.innodb_change_buffering;
+SET @saved_file_per_table = @@GLOBAL.innodb_file_per_table;
+SET @saved_change_buffering_debug = @@GLOBAL.innodb_change_buffering_debug;
+
+SET GLOBAL innodb_change_buffering = NONE;
+SET GLOBAL innodb_file_per_table = OFF;
+
+let $loop=2;
+while ($loop)
+{
+  eval CREATE TABLE t$loop(c1 INT AUTO_INCREMENT PRIMARY KEY,c2 CHAR(100))ENGINE=InnoDB;
+  eval CREATE INDEX i1 ON t$loop (c2);
+
+  eval INSERT INTO t$loop(c2) VALUES('mariadb');
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop;
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop;
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop;
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop;
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop;
+
+  dec $loop;
+}
+
+SET GLOBAL innodb_change_buffering = all;
+SET GLOBAL innodb_change_buffering_debug = 1;
+
+SET DEBUG_DBUG='+d,ibuf_force_remove_free_page';
+let $loop=2;
+
+while ($loop)
+{
+  eval INSERT INTO t$loop(c2) SELECT c2 FROM t$loop IGNORE INDEX (i1) LIMIT 4;
+  dec $loop;
+}
+SET DEBUG_DBUG='-d,ibuf_force_remove_free_page';
+
+SET GLOBAL innodb_change_buffering_debug = @saved_change_buffering_debug;
+SET GLOBAL innodb_change_buffering = @saved_change_buffering;
+
+let $loop=2;
+while ($loop)
+{
+  eval DROP TABLE t$loop;
+  dec $loop;
+}
+
+SET GLOBAL innodb_file_per_table = @saved_file_per_table;

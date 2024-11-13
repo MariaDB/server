@@ -2016,15 +2016,6 @@ struct gtid_binlog_state_data { rpl_gtid *list; uint32 list_len; };
 bool
 Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
 {
-  String str, *res;
-  struct gtid_binlog_state_data *data;
-  rpl_gtid *list;
-  uint32 list_len;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!(res= var->value->val_str(&str)))
-    return true;
   if (thd->in_active_multi_stmt_transaction())
   {
     my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
@@ -2040,6 +2031,31 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
     my_error(ER_BINLOG_MUST_BE_EMPTY, MYF(0));
     return true;
   }
+  return false;
+}
+
+
+bool
+Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
+{
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!var->value)
+  {
+    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    return true;
+  }
+
+  bool result;
+  String str, *res;
+  struct gtid_binlog_state_data *data;
+  rpl_gtid *list;
+  uint32 list_len;
+
+  DBUG_ASSERT(var->type == OPT_GLOBAL);
+
+  if (!(res= var->value->val_str(&str)))
+    return true;
   if (res->length() == 0)
   {
     list= NULL;
@@ -2061,31 +2077,13 @@ Sys_var_gtid_binlog_state::do_check(THD *thd, set_var *var)
   data->list= list;
   data->list_len= list_len;
   var->save_result.ptr= data;
-  return false;
-}
-
-
-bool
-Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
-{
-  bool res;
-
-  DBUG_ASSERT(var->type == OPT_GLOBAL);
-
-  if (!var->value)
-  {
-    my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
-    return true;
-  }
-
-  struct gtid_binlog_state_data *data=
-    (struct gtid_binlog_state_data *)var->save_result.ptr;
+  
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  res= (reset_master(thd, data->list, data->list_len, 0) != 0);
+  result= (reset_master(thd, data->list, data->list_len, 0) != 0);
   mysql_mutex_lock(&LOCK_global_system_variables);
   my_free(data->list);
   my_free(data);
-  return res;
+  return result;
 }
 
 
@@ -2779,6 +2777,25 @@ static Sys_var_ulong Sys_optimizer_trace_max_mem_size(
     SESSION_VAR(optimizer_trace_max_mem_size), CMD_LINE(REQUIRED_ARG),
     VALID_RANGE(0, ULONG_MAX), DEFAULT(1024 * 1024), BLOCK_SIZE(1));
 
+/*
+  Symbolic names for OPTIMIZER_ADJ_* flags in sql_priv.h
+*/
+static const char *adjust_secondary_key_cost[]=
+{
+  "fix_card_multiplier", 0
+};
+
+static Sys_var_set Sys_optimizer_adjust_secondary_key_costs(
+    "optimizer_adjust_secondary_key_costs",
+    "A bit field with the following values: "
+    "fix_card_multiplier = Fix the computation in selectivity_for_indexes."
+    " selectivity_multiplier. "
+    "This variable will be deleted in MariaDB 11.0 as it is not needed with the "
+    "new 11.0 optimizer.",
+    SESSION_VAR(optimizer_adjust_secondary_key_costs), CMD_LINE(REQUIRED_ARG),
+    adjust_secondary_key_cost, DEFAULT(OPTIMIZER_ADJ_FIX_CARD_MULT));
+
+
 static Sys_var_charptr_fscs Sys_pid_file(
        "pid_file", "Pid file used by safe_mysqld",
        READ_ONLY GLOBAL_VAR(pidfile_name_ptr), CMD_LINE(REQUIRED_ARG),
@@ -2798,7 +2815,7 @@ static Sys_var_uint Sys_port(
 #endif
        "built-in default (" STRINGIFY_ARG(MYSQL_PORT) "), whatever comes first",
        READ_ONLY GLOBAL_VAR(mysqld_port), CMD_LINE(REQUIRED_ARG, 'P'),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_preload_buff_size(
        "preload_buffer_size",
@@ -3272,6 +3289,14 @@ Sys_server_id(
        SESSION_VAR(server_id), CMD_LINE(REQUIRED_ARG, OPT_SERVER_ID),
        VALID_RANGE(1, UINT_MAX32), DEFAULT(1), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(check_server_id), ON_UPDATE(fix_server_id));
+
+char *server_uid_ptr= &server_uid[0];
+
+static Sys_var_charptr Sys_server_uid(
+      "server_uid", "Automatically calculated server unique id hash",
+       READ_ONLY GLOBAL_VAR(server_uid_ptr),
+       CMD_LINE_HELP_ONLY,
+       DEFAULT(server_uid));
 
 static Sys_var_on_access_global<Sys_var_mybool,
                           PRIV_SET_SYSTEM_GLOBAL_VAR_SLAVE_COMPRESSED_PROTOCOL>
@@ -3939,7 +3964,8 @@ static Sys_var_on_access_global<Sys_var_enum,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_THREAD_POOL>
 Sys_threadpool_mode(
   "thread_pool_mode",
-  "Chose implementation of the threadpool",
+  "Chose implementation of the threadpool. Use 'windows' unless you have a "
+  "workload with a lot of concurrent connections and minimal contention",
   READ_ONLY GLOBAL_VAR(threadpool_mode), CMD_LINE(REQUIRED_ARG),
   threadpool_mode_names, DEFAULT(TP_MODE_WINDOWS)
   );
@@ -4655,7 +4681,7 @@ bool Sys_var_timestamp::on_check_access_session(THD *thd) const
     break;
   }
   char buf[1024];
-  strxnmov(buf, sizeof(buf), "--secure-timestamp=",
+  strxnmov(buf, sizeof(buf)-1, "--secure-timestamp=",
            secure_timestamp_levels[opt_secure_timestamp], NULL);
   my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), buf);
   return true;
@@ -6244,7 +6270,7 @@ static Sys_var_uint Sys_extra_port(
        "Extra port number to use for tcp connections in a "
        "one-thread-per-connection manner. 0 means don't use another port",
        READ_ONLY GLOBAL_VAR(mysqld_extra_port), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(0, UINT_MAX32), DEFAULT(0), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX16), DEFAULT(0), BLOCK_SIZE(1));
 
 static Sys_var_on_access_global<Sys_var_ulong,
                               PRIV_SET_SYSTEM_GLOBAL_VAR_EXTRA_MAX_CONNECTIONS>
@@ -6280,8 +6306,9 @@ static const char *log_slow_filter_names[]=
 
 static Sys_var_set Sys_log_slow_filter(
        "log_slow_filter",
-       "Log only certain types of queries to the slow log. If variable empty alll kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
-       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG),
+       "Log only certain types of queries to the slow log. If variable empty all kind of queries are logged.  All types are bound by slow_query_time, except 'not_using_index' which is always logged if enabled",
+       SESSION_VAR(log_slow_filter), CMD_LINE(REQUIRED_ARG,
+                                              OPT_LOG_SLOW_FILTER),
        log_slow_filter_names,
        /* by default we log all queries except 'not_using_index' */
        DEFAULT(my_set_bits(array_elements(log_slow_filter_names)-1) &

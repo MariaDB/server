@@ -68,7 +68,7 @@ Created 9/17/2000 Heikki Tuuri
 #include <algorithm>
 #include <deque>
 #include <vector>
-
+#include "log.h"
 
 /** Provide optional 4.x backwards compatibility for 5.0 and above */
 ibool	row_rollback_on_timeout	= FALSE;
@@ -1257,51 +1257,26 @@ run_again:
 	return(err);
 }
 
-/** Determine is tablespace encrypted but decryption failed, is table corrupted
-or is tablespace .ibd file missing.
-@param[in]	table		Table
-@param[in]	trx		Transaction
-@param[in]	push_warning	true if we should push warning to user
+/** Report an error for a failure to access a table.
+@param table   unreadable table
+@param trx     transaction
 @retval	DB_DECRYPTION_FAILED	table is encrypted but decryption failed
 @retval	DB_CORRUPTION		table is corrupted
 @retval	DB_TABLESPACE_NOT_FOUND	tablespace .ibd file not found */
-static
-dberr_t
-row_mysql_get_table_status(
-	const dict_table_t*	table,
-	trx_t*			trx,
-	bool 			push_warning = true)
+ATTRIBUTE_COLD
+static dberr_t row_mysql_get_table_error(trx_t *trx, dict_table_t *table)
 {
-	dberr_t err;
-	if (const fil_space_t* space = table->space) {
-		if (space->crypt_data && space->crypt_data->is_encrypted()) {
-			// maybe we cannot access the table due to failing
-			// to decrypt
-			if (push_warning) {
-				ib_push_warning(trx, DB_DECRYPTION_FAILED,
-					"Table %s in tablespace %lu encrypted."
-					"However key management plugin or used key_id is not found or"
-					" used encryption algorithm or method does not match.",
-					table->name.m_name, table->space);
-			}
+  if (const fil_space_t *space= table->space)
+  {
+    if (space->crypt_data && space->crypt_data->is_encrypted())
+      return innodb_decryption_failed(trx->mysql_thd, table);
+    return DB_CORRUPTION;
+  }
 
-			err = DB_DECRYPTION_FAILED;
-		} else {
-			if (push_warning) {
-				ib_push_warning(trx, DB_CORRUPTION,
-					"Table %s in tablespace %lu corrupted.",
-					table->name.m_name, table->space);
-			}
-
-			err = DB_CORRUPTION;
-		}
-	} else {
-		ib::error() << ".ibd file is missing for table "
-			<< table->name;
-		err = DB_TABLESPACE_NOT_FOUND;
-	}
-
-	return(err);
+  const int dblen= int(table->name.dblen());
+  sql_print_error("InnoDB .ibd file is missing for table %`.*s.%`s",
+                  dblen, table->name.m_name, table->name.m_name + dblen + 1);
+  return DB_TABLESPACE_NOT_FOUND;
 }
 
 /** Does an insert for MySQL.
@@ -1339,7 +1314,7 @@ row_insert_for_mysql(
 		return(DB_TABLESPACE_DELETED);
 
 	} else if (!prebuilt->table->is_readable()) {
-		return(row_mysql_get_table_status(prebuilt->table, trx, true));
+		return row_mysql_get_table_error(trx, prebuilt->table);
 	} else if (high_level_read_only) {
 		return(DB_READ_ONLY);
 	}
@@ -1688,7 +1663,8 @@ init_fts_doc_id_for_ref(
 
 		ut_ad(foreign->foreign_table != NULL);
 
-		if (foreign->foreign_table->fts != NULL) {
+		if (foreign->foreign_table->space
+		    && foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
 		}
 
@@ -1725,7 +1701,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(table->stat_initialized);
 
 	if (!table->is_readable()) {
-		return(row_mysql_get_table_status(table, trx, true));
+		return row_mysql_get_table_error(trx, table);
 	}
 
 	if (high_level_read_only) {

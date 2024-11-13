@@ -23,7 +23,7 @@ DROP TABLE performance_schema.processlist;
 SHOW CREATE TABLE performance_schema.processlist;
 
 let $restart_file= $MYSQLTEST_VARDIR/tmp/mysqld.1.expect;
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --echo ##
 --echo ## Server shutdown
 --echo ##
@@ -93,7 +93,7 @@ SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --error ER_BAD_FIELD_ERROR
 SHOW PROCESSLIST;
 
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --echo ##
 --echo ## Server shutdown
 --echo ##
@@ -166,7 +166,7 @@ SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 # Works and returns no data, innodb table is empty.
 SHOW PROCESSLIST;
 
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --echo ##
 --echo ## Server shutdown
 --echo ##
@@ -231,7 +231,7 @@ SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 # Works and returns no data, innodb table is empty.
 SHOW PROCESSLIST;
 
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --echo ##
 --echo ## Server shutdown
 --echo ##
@@ -306,7 +306,7 @@ SELECT * FROM INFORMATION_SCHEMA.PROCESSLIST;
 --replace_column 3 [HOST:PORT] 6 [TIME]
 SHOW PROCESSLIST;
 
---exec echo "wait" > $restart_file
+--write_line wait $restart_file
 --echo ##
 --echo ## Server shutdown
 --echo ##

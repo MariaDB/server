@@ -8,15 +8,17 @@ SET(CONC_WITH_SIGNCODE ${SIGNCODE})
 SET(SIGN_OPTIONS ${SIGNTOOL_PARAMETERS})
 SET(CONC_WITH_EXTERNAL_ZLIB ON)
 
-IF(SSL_DEFINES MATCHES "WOLFSSL")
-  IF(WIN32)
-    SET(CONC_WITH_SSL "SCHANNEL")
+IF(NOT CONC_WITH_SSL)
+  IF(SSL_DEFINES MATCHES "WOLFSSL")
+    IF(WIN32)
+      SET(CONC_WITH_SSL "SCHANNEL")
+    ELSE()
+      SET(CONC_WITH_SSL "GNUTLS") # that's what debian wants, right?
+    ENDIF()
   ELSE()
-    SET(CONC_WITH_SSL "GNUTLS") # that's what debian wants, right?
+    SET(CONC_WITH_SSL "OPENSSL")
+    SET(OPENSSL_FOUND TRUE)
   ENDIF()
-ELSE()
-  SET(CONC_WITH_SSL "OPENSSL")
-  SET(OPENSSL_FOUND TRUE)
 ENDIF()
 
 SET(CONC_WITH_CURL OFF)
@@ -39,6 +41,13 @@ SET(CLIENT_PLUGIN_PVIO_SOCKET STATIC)
 
 MESSAGE("== Configuring MariaDB Connector/C")
 ADD_SUBDIRECTORY(libmariadb)
+
+IF(MSVC AND TARGET mariadb_obj AND TARGET mariadbclient)
+  # With MSVC, do not produce LTCG-compiled static client libraries.
+  # They are not usable by end-users, being tied to exact compiler version
+  MAYBE_DISABLE_IPO(mariadb_obj)
+  MAYBE_DISABLE_IPO(mariadbclient)
+ENDIF()
 
 IF(UNIX)
   INSTALL(CODE "EXECUTE_PROCESS(

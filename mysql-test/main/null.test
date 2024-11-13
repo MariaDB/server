@@ -326,7 +326,10 @@ SELECT NOT NOT NULLIF(2,3);
 CREATE TABLE t1 (a YEAR(2));
 INSERT INTO t1 VALUES (0);
 SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
+# Enable after fix MDEV-31722
+--disable_cursor_protocol
 SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
+--enable_cursor_protocol
 DROP TABLE t1;
 
 --echo #

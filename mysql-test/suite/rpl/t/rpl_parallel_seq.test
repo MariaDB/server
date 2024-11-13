@@ -147,7 +147,9 @@ if (`select $iter = 1`)
 --connection master
 CREATE OR REPLACE SEQUENCE s3 ENGINE=innodb;
 # select may return non-deterministically, don't print its result
+--disable_cursor_protocol
 SELECT NEXT VALUE FOR s3 into @tmpvar;
+--enable_cursor_protocol
 --source include/save_master_gtid.inc
 
 --connection slave
@@ -194,5 +196,23 @@ DROP SEQUENCE s2,s3,s4;
 DROP TABLE ti;
 
 --sync_slave_with_master
+
+# MDEV-31779 server crash in Rows_log_event::update_sequence at replaying binlog
+--connection master
+--let $binlog_file  = query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+CREATE SEQUENCE s;
+--disable_ps2_protocol
+SELECT NEXTVAL(s);
+--enable_ps2_protocol
+flush binary logs;
+DROP SEQUENCE s;
+--exec $MYSQL_BINLOG $datadir/$binlog_file | $MYSQL test
+DROP SEQUENCE s;
+
+--sync_slave_with_master
+
+--connection master
+
 
 --source include/rpl_end.inc

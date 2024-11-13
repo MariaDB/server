@@ -1,6 +1,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
---source include/have_log_bin.inc
+--source include/log_bin.inc
 --source include/have_sequence.inc
 --source include/have_aria.inc
 
@@ -81,8 +81,6 @@ INSERT INTO t3(id) SELECT seq FROM seq_1_to_1000;
 
 REPLACE INTO t4 SELECT * FROM t1;
 REPLACE INTO t5 SELECT * FROM t2;
-# For some reason Aria storage engine does register_ha
---error ER_ERROR_DURING_COMMIT
 REPLACE INTO t6 SELECT * FROM t3;
 REPLACE INTO t7 SELECT * FROM t2;
 REPLACE INTO t8 SELECT * FROM t3;
@@ -92,14 +90,14 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t2;
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
-SELECT COUNT(*) AS EXPECT_0 FROM t6;
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
 SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -107,9 +105,9 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t2;
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
-SELECT COUNT(*) AS EXPECT_0 FROM t6;
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;
@@ -131,8 +129,6 @@ INSERT INTO t3(id) SELECT seq FROM seq_1_to_1000;
 
 INSERT INTO t4 SELECT * FROM t1;
 INSERT INTO t5 SELECT * FROM t2;
-# For some reason Aria storage engine does register_ha
---error ER_ERROR_DURING_COMMIT
 INSERT INTO t6 SELECT * FROM t3;
 INSERT INTO t7 SELECT * FROM t2;
 INSERT INTO t8 SELECT * FROM t3;
@@ -142,14 +138,14 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t2;
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
-SELECT COUNT(*) AS EXPECT_0 FROM t6;
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
 SELECT COUNT(*) AS EXPECT_1000 FROM t8;
 
 --connection node_2
 --let $wait_condition = SELECT COUNT(*) = 8 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = 'test' AND TABLE_NAME LIKE 't_'
 --source include/wait_condition.inc
---let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t8;
+--let $wait_condition = SELECT COUNT(*) = 1000 FROM test.t7;
 --source include/wait_condition.inc
 
 SELECT COUNT(*) AS EXPECT_1000 FROM t1;
@@ -157,9 +153,9 @@ SELECT COUNT(*) AS EXPECT_1000 FROM t2;
 SELECT COUNT(*) AS EXPECT_1000 FROM t3;
 SELECT COUNT(*) AS EXPECT_1000 FROM t4;
 SELECT COUNT(*) AS EXPECT_1000 FROM t5;
-SELECT COUNT(*) AS EXPECT_0 FROM t6;
+SELECT COUNT(*) AS EXPECT_1000 FROM t6;
 SELECT COUNT(*) AS EXPECT_1000 FROM t7;
-SELECT COUNT(*) AS EXPECT_1000 FROM t8;
+SELECT COUNT(*) AS EXPECT_0 FROM t8;
 
 --connection node_1
 DROP TABLE t1,t2,t3,t4,t5,t6,t7,t8;

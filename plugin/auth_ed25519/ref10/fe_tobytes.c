@@ -1,4 +1,5 @@
 #include "fe.h"
+#include "crypto_uint32.h"
 
 /*
 Preconditions:
@@ -38,16 +39,16 @@ void fe_tobytes(unsigned char *s,const fe h)
   crypto_int32 h8 = h[8];
   crypto_int32 h9 = h[9];
   crypto_int32 q;
-  crypto_int32 carry0;
-  crypto_int32 carry1;
-  crypto_int32 carry2;
-  crypto_int32 carry3;
-  crypto_int32 carry4;
-  crypto_int32 carry5;
-  crypto_int32 carry6;
-  crypto_int32 carry7;
-  crypto_int32 carry8;
-  crypto_int32 carry9;
+  crypto_uint32 carry0;
+  crypto_uint32 carry1;
+  crypto_uint32 carry2;
+  crypto_uint32 carry3;
+  crypto_uint32 carry4;
+  crypto_uint32 carry5;
+  crypto_uint32 carry6;
+  crypto_uint32 carry7;
+  crypto_uint32 carry8;
+  crypto_uint32 carry9;
 
   q = (19 * h9 + (((crypto_int32) 1) << 24)) >> 25;
   q = (h0 + q) >> 26;
@@ -87,32 +88,32 @@ void fe_tobytes(unsigned char *s,const fe h)
   s[0] = h0 >> 0;
   s[1] = h0 >> 8;
   s[2] = h0 >> 16;
-  s[3] = (h0 >> 24) | (h1 << 2);
+  s[3] = (h0 >> 24) | ((crypto_uint32)h1 << 2);
   s[4] = h1 >> 6;
   s[5] = h1 >> 14;
-  s[6] = (h1 >> 22) | (h2 << 3);
+  s[6] = (h1 >> 22) | ((crypto_uint32)h2 << 3);
   s[7] = h2 >> 5;
   s[8] = h2 >> 13;
-  s[9] = (h2 >> 21) | (h3 << 5);
+  s[9] = (h2 >> 21) | ((crypto_uint32)h3 << 5);
   s[10] = h3 >> 3;
   s[11] = h3 >> 11;
-  s[12] = (h3 >> 19) | (h4 << 6);
+  s[12] = (h3 >> 19) | ((crypto_uint32)h4 << 6);
   s[13] = h4 >> 2;
   s[14] = h4 >> 10;
   s[15] = h4 >> 18;
   s[16] = h5 >> 0;
   s[17] = h5 >> 8;
   s[18] = h5 >> 16;
-  s[19] = (h5 >> 24) | (h6 << 1);
+  s[19] = (h5 >> 24) | ((crypto_uint32)h6 << 1);
   s[20] = h6 >> 7;
   s[21] = h6 >> 15;
-  s[22] = (h6 >> 23) | (h7 << 3);
+  s[22] = (h6 >> 23) | ((crypto_uint32)h7 << 3);
   s[23] = h7 >> 5;
   s[24] = h7 >> 13;
-  s[25] = (h7 >> 21) | (h8 << 4);
+  s[25] = (h7 >> 21) | ((crypto_uint32)h8 << 4);
   s[26] = h8 >> 4;
   s[27] = h8 >> 12;
-  s[28] = (h8 >> 20) | (h9 << 6);
+  s[28] = (h8 >> 20) | ((crypto_uint32)h9 << 6);
   s[29] = h9 >> 2;
   s[30] = h9 >> 10;
   s[31] = h9 >> 18;

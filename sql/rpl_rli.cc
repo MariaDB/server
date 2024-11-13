@@ -44,8 +44,6 @@ rpl_slave_state *rpl_global_gtid_slave_state;
 /* Object used for MASTER_GTID_WAIT(). */
 gtid_waiting rpl_global_gtid_waiting;
 
-const char *const Relay_log_info::state_delaying_string = "Waiting until MASTER_DELAY seconds after master executed event";
-
 Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
   :Slave_reporting_capability(thread_name),
    replicate_same_server_id(::replicate_same_server_id),
@@ -1010,7 +1008,8 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
     {
       if (cmp < 0)
       {
-        strcpy(group_master_log_name, rgi->future_event_master_log_name);
+        safe_strcpy(group_master_log_name, sizeof(group_master_log_name),
+                    rgi->future_event_master_log_name);
         group_master_log_pos= log_pos;
       }
       else if (group_master_log_pos < log_pos)
@@ -2251,7 +2250,7 @@ delete_or_keep_event_post_apply(rpl_group_info *rgi,
 }
 
 
-void rpl_group_info::cleanup_context(THD *thd, bool error)
+void rpl_group_info::cleanup_context(THD *thd, bool error, bool keep_domain_owner)
 {
   DBUG_ENTER("rpl_group_info::cleanup_context");
   DBUG_PRINT("enter", ("error: %d", (int) error));
@@ -2306,7 +2305,7 @@ void rpl_group_info::cleanup_context(THD *thd, bool error)
       Ensure we always release the domain for others to process, when using
       --gtid-ignore-duplicates.
     */
-    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL)
+    if (gtid_ignore_duplicate_state != GTID_DUPLICATE_NULL && !keep_domain_owner)
       rpl_global_gtid_slave_state->release_domain_owner(this);
   }
 
@@ -2519,6 +2518,23 @@ rpl_group_info::unmark_start_commit()
 
   e= this->parallel_entry;
   mysql_mutex_lock(&e->LOCK_parallel_entry);
+  /*
+    Assert that we have not already wrongly completed this GCO and signalled
+    the next one to start, only to now unmark and make the signal invalid.
+    This is to catch problems like MDEV-34696.
+
+    The error inject rpl_parallel_simulate_temp_err_xid is used to test this
+    precise situation, that we handle it gracefully if it somehow occurs in a
+    release build. So disable the assert in this case.
+  */
+#ifndef DBUG_OFF
+  bool allow_unmark_after_complete= false;
+  DBUG_EXECUTE_IF("rpl_parallel_simulate_temp_err_xid",
+                  allow_unmark_after_complete= true;);
+  DBUG_ASSERT(!gco->next_gco ||
+              gco->next_gco->wait_count > e->count_committing_event_groups ||
+              allow_unmark_after_complete);
+#endif
   --e->count_committing_event_groups;
   mysql_mutex_unlock(&e->LOCK_parallel_entry);
 }

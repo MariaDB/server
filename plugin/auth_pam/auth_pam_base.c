@@ -99,7 +99,7 @@ static int conv(int n, const struct pam_message **msg,
          freeing it is the responsibility of the caller */
       if (*resp == 0)
       {
-        *resp = calloc(sizeof(struct pam_response), n);
+        *resp = calloc(n, sizeof(struct pam_response));
         if (*resp == 0)
           return PAM_BUF_ERR;
       }

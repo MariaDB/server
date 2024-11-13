@@ -3156,7 +3156,7 @@ public:
     :Field_temporal(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                     unireg_check_arg, field_name_arg)
     {}
-  bool validate_value_in_record(THD *thd, const uchar *record) const;
+  bool validate_value_in_record(THD *thd, const uchar *record) const override;
 };
 
 
@@ -4013,6 +4013,7 @@ class Field_string final :public Field_longstr {
            field_length >= 4 &&
            orig_table->s->frm_version < FRM_VER_TRUE_VARCHAR;
   }
+  LEX_CSTRING to_lex_cstring() const;
 public:
   bool can_alter_field_type;
   Field_string(uchar *ptr_arg, uint32 len_arg,uchar *null_ptr_arg,
@@ -4160,7 +4161,7 @@ public:
   {
     return (uint32) field_length + sort_suffix_length();
   }
-  virtual uint32 sort_suffix_length() const override
+  uint32 sort_suffix_length() const override
   {
     return (field_charset() == &my_charset_bin ? length_bytes : 0);
   }
@@ -4254,7 +4255,7 @@ private:
   void sql_type(String &str) const override
   {
     Field_varstring::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
   uint32 max_display_length() const override { return field_length - 1; }
   uint32 character_octet_length() const override { return field_length - 1; }
@@ -4506,7 +4507,7 @@ public:
   uint32 sort_length() const override;
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
-  virtual uint32 max_data_length() const override
+  uint32 max_data_length() const override
   {
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }
@@ -4558,6 +4559,7 @@ public:
     return get_key_image_itRAW(ptr_arg, buff, length);
   }
   void set_key_image(const uchar *buff,uint length) override;
+  Field *make_new_field(MEM_ROOT *, TABLE *new_table, bool keep_type) override;
   Field *new_key_field(MEM_ROOT *root, TABLE *new_table,
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
@@ -4690,7 +4692,7 @@ private:
   void sql_type(String &str) const override
   {
     Field_blob::sql_type(str);
-    str.append(STRING_WITH_LEN(" /*!100301 COMPRESSED*/"));
+    str.append(STRING_WITH_LEN(" /*M!100301 COMPRESSED*/"));
   }
 
   /*
@@ -5118,20 +5120,20 @@ public:
      m_table(NULL)
     {}
   ~Field_row();
-  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const
+  en_fieldtype tmp_engine_column_type(bool use_packed_rows) const override
   {
     DBUG_ASSERT(0);
     return Field::tmp_engine_column_type(use_packed_rows);
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,
-                                    const Conv_param &param) const
+                                    const Conv_param &param) const override
   {
     DBUG_ASSERT(0);
     return CONV_TYPE_IMPOSSIBLE;
   }
-  Virtual_tmp_table **virtual_tmp_table_addr() { return &m_table; }
-  bool sp_prepare_and_store_item(THD *thd, Item **value);
+  Virtual_tmp_table **virtual_tmp_table_addr() override { return &m_table; }
+  bool sp_prepare_and_store_item(THD *thd, Item **value) override;
 };
 
 

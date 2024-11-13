@@ -658,6 +658,7 @@ insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 create table t3 (a int not null, primary key(a));
 insert into t3 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+--disable_cursor_protocol
 flush status;
 --disable_ps2_protocol
 select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
@@ -665,6 +666,7 @@ select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
 explain select * from t1, t2, t3 where t3.a=t1.a and t2.a=t1.b;
 --echo We expect rnd_next=5, and read_key must be 0 because of short-cutting:
 show status like 'Handler_read%'; 
+--enable_cursor_protocol
 drop table t1, t2, t3;
 
 #
@@ -959,11 +961,13 @@ INSERT INTO t1 VALUES (3,'b'),(4,NULL),(5,'c'),(6,'cc'),(7,'d'),
   (8,'dd'),(9,'e'),(10,'ee');
 INSERT INTO t2 VALUES (2,NULL);
 ANALYZE TABLE t1,t2;
+--disable_cursor_protocol
 FLUSH STATUS;
 --disable_ps2_protocol
 SELECT * FROM t1 JOIN t2 ON t1.v = t2.v WHERE t2.v IS NULL ORDER BY 1;
 --enable_ps2_protocol
 SHOW STATUS LIKE 'Handler_read_%';
+--enable_cursor_protocol
 DROP TABLE t1, t2;
 
 --echo End of 5.1 tests
@@ -1837,6 +1841,52 @@ CREATE TABLE t3 (c INT PRIMARY KEY) ENGINE=MyISAM;
 SELECT * FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.b;
 SELECT COUNT(*) FROM t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b = t3.c) ON t1.a = t2.b;
 DROP TABLE t1, t2, t3;
+
+--echo #
+--echo # MDEV-30975: Wrong result with cross Join given join order
+--echo #
+
+CREATE TABLE `t1` (
+	`t1_seq` INT NOT NULL,
+	`c1` VARCHAR(10) NOT NULL ,
+	PRIMARY KEY (`t1_seq`) USING BTREE
+);
+
+CREATE TABLE `t2` (
+	`t2_seq` INT NOT NULL,
+	`t1_seq` INT NOT NULL,
+	`c2` VARCHAR(10) NOT NULL ,
+	PRIMARY KEY (`t2_seq`, `t1_seq`) USING BTREE
+);
+
+INSERT INTO t1 VALUES(1, 'A');
+INSERT INTO t2 VALUES(1, 1, 'T2-1-1');
+INSERT INTO t2 VALUES(2, 1, 'T2-1-2');
+INSERT INTO t2 VALUES(3, 1, 'T2-1-3');
+
+SELECT LPAD(@rownum := @rownum + 1, 8, 0) AS str_num
+     , t1.t1_seq
+     , t2.t2_seq
+     , t1.c1
+     , t2.c2
+  FROM t1
+       INNER JOIN t2 ON (t1.t1_seq = t2.t1_seq)
+       CROSS JOIN ( SELECT @rownum := 0 ) X;
+
+SELECT STRAIGHT_JOIN LPAD(@rownum := @rownum + 1, 8, 0) AS str_num
+     , t1.t1_seq
+     , t2.t2_seq
+     , t1.c1
+     , t2.c2
+  FROM t1
+       INNER JOIN t2 ON (t1.t1_seq = t2.t1_seq)
+       CROSS JOIN ( SELECT @rownum := 0 ) X;
+
+SELECT STRAIGHT_JOIN * FROM t1 JOIN t2 ON (t1.t1_seq = t2.t1_seq) JOIN (SELECT @a := 0) x;
+SELECT * FROM t1 JOIN t2 ON (t1.t1_seq = t2.t1_seq) JOIN (SELECT @a := 0) x;
+SELECT STRAIGHT_JOIN c1 FROM t1 JOIN (SELECT @a := 0) x;
+
+DROP TABLE t1, t2;
 
 --echo # End of 10.5 tests
 

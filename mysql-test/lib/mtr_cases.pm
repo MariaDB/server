@@ -398,7 +398,8 @@ sub collect_suite_name($$)
     {
       my @dirs = my_find_dir(dirname($::glob_mysql_test_dir),
                              ["mysql-test/suite", @plugin_suitedirs ],
-                             $suitename);
+                             $suitename,
+                             $::opt_skip_not_found ? NOT_REQUIRED : undef);
       #
       # if $suitename contained wildcards, we'll have many suites and
       # their overlays here. Let's group them appropriately.

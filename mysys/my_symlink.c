@@ -141,7 +141,7 @@ int my_is_symlink(const char *filename __attribute__((unused)))
 
 int my_realpath(char *to, const char *filename, myf MyFlags)
 {
-#if defined(HAVE_REALPATH) && !defined(HAVE_BROKEN_REALPATH)
+#if defined(HAVE_REALPATH)
   int result=0;
   char buff[BUFF_LEN];
   char *ptr;

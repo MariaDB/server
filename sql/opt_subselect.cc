@@ -2752,7 +2752,8 @@ bool find_eq_ref_candidate(TABLE *table, table_map sj_inner_tables)
           keyuse++;
         } while (keyuse->key == key && keyuse->table == table);
 
-        if (bound_parts == PREV_BITS(uint, keyinfo->user_defined_key_parts))
+        if (bound_parts == PREV_BITS(key_part_map,
+                                     keyinfo->user_defined_key_parts))
           return TRUE;
       }
       else
@@ -5837,7 +5838,7 @@ public:
   select_value_catcher(THD *thd_arg, Item_subselect *item_arg):
     select_subselect(thd_arg, item_arg)
   {}
-  int send_data(List<Item> &items);
+  int send_data(List<Item> &items) override;
   int setup(List<Item> *items);
   bool assigned;  /* TRUE <=> we've caught a value */
   uint n_elements; /* How many elements we get */

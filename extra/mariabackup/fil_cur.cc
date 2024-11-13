@@ -238,8 +238,7 @@ xb_fil_cur_open(
 				     / cursor->page_size);
 
 	cursor->read_filter = read_filter;
-	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor,
-				  node->space->id);
+	cursor->read_filter->init(&cursor->read_filter_ctxt, cursor);
 
 	return(XB_FIL_CUR_SUCCESS);
 }
@@ -503,10 +502,6 @@ xb_fil_cur_close(
 /*=============*/
 	xb_fil_cur_t *cursor)	/*!< in/out: source file cursor */
 {
-	if (cursor->read_filter) {
-		cursor->read_filter->deinit(&cursor->read_filter_ctxt);
-	}
-
 	aligned_free(cursor->buf);
 	cursor->buf = NULL;
 

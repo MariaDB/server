@@ -3,7 +3,7 @@
 set -ue
 
 # Copyright (C) 2009-2015 Codership Oy
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,9 +19,25 @@ set -ue
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a reference script for mysqldump-based state snapshot tansfer
+# This is a reference script for mysqldump-based state snapshot tansfer.
 
 . $(dirname "$0")/wsrep_sst_common
+
+CLIENT_DIR="$SCRIPTS_DIR/../client"
+
+if [ -x "$CLIENT_DIR/mysql" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+else
+    MYSQL_CLIENT=$(commandex 'mysql')
+fi
+
+if [ -x "$CLIENT_DIR/mysqldump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+else
+    MYSQLDUMP=$(commandex 'mysqldump')
+fi
+
+wait_previous_sst
 
 EINVAL=22
 
@@ -35,22 +51,21 @@ if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED" && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
     wsrep_log_error \
-    "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT' matches source address."
+        "destination address '$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT'" \
+        "matches source address."
     exit $EINVAL
 fi
 
 # Check client version
-if ! $MYSQL_CLIENT --version | grep -q -E 'Distrib 10\.[1-9]'; then
+if ! $MYSQL_CLIENT --version | grep -q -E '(Distrib 10\.[1-9])|( from 1[1-9]\.)'; then
     $MYSQL_CLIENT --version >&2
     wsrep_log_error "this operation requires MySQL client version 10.1 or newer"
     exit $EINVAL
 fi
 
 AUTH=""
-usrst=0
 if [ -n "$WSREP_SST_OPT_USER" ]; then
     AUTH="-u$WSREP_SST_OPT_USER"
-    usrst=1
 fi
 
 # Refs https://github.com/codership/mysql-wsrep/issues/141
@@ -64,7 +79,7 @@ fi
 # word, it is arguably more secure than passing password on the command line.
 if [ -n "$WSREP_SST_OPT_PSWD" ]; then
     export MYSQL_PWD="$WSREP_SST_OPT_PSWD"
-elif [ $usrst -eq 1 ]; then
+elif [ -n "$WSREP_SST_OPT_USER" ]; then
     # Empty password, used for testing, debugging etc.
     unset MYSQL_PWD
 fi

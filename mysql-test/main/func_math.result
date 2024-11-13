@@ -3617,5 +3617,20 @@ SELECT CRC32(ExtractValue('<a><b/></a>', '/a/b')) AS f;
 f
 0
 #
+# MDEV-33534 UBSAN: Negation of -X cannot be represented in type 'long long int'; cast to an unsigned type to negate this value to itself in my_double_round from sql/item_func.cc|
+#
+SELECT TRUNCATE(EXP(-1.e-2),-1.e+30) AS c1;
+c1
+0
+SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) AS c1;
+c1
+0
+SELECT (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
+c1
+0
+SELECT(ASIN(-1)+ LN(-1)) % (ATAN(-1) MOD FLOOR(1)) * (TRUNCATE(EXP(-1.e-2),-1.e+30) % RADIANS(-1)) * (LAST_DAY('1-03-30 1:29:12') MOD 1 + COS(-1)) AS c1;
+c1
+NULL
+#
 # End of 10.5 tests
 #

@@ -5,7 +5,6 @@
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
 
-CALL mtr.add_suppression("WSREP: .*conflict state . after post commit .*");
 CREATE TABLE t1 (f1 INTEGER, f2 CHAR(20) DEFAULT 'abc') ENGINE=InnoDB;
 
 # We start with a populated table
@@ -78,7 +77,6 @@ while ($count)
 --eval SELECT $wsrep_local_replays_new - $wsrep_local_replays_old > 0 AS wsrep_local_replays;
 --enable_query_log
 
-
 #
 # Terminate the stored procedure
 #
@@ -99,6 +97,6 @@ DROP PROCEDURE proc_insert;
 DROP TABLE t1;
 
 # Due to MW-330, Multiple "conflict state 3 after post commit" warnings if table is dropped while SP is running
-CALL mtr.add_suppression("conflict state 3 after post commit");
+CALL mtr.add_suppression("WSREP: .* conflict state after post commit ");
 
 set global innodb_status_output=Default;

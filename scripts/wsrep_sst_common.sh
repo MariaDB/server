@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2017-2024 MariaDB
 # Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
@@ -15,13 +15,69 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# This is a common command line parser to be sourced by other SST scripts
+# This is a common command line parser and common functions to
+# be sourced by other SST scripts.
 
 trap 'exit 32' HUP PIPE
 trap 'exit 3'  INT QUIT TERM
 
-# Setting the path for some utilities on CentOS
-export PATH="$PATH:/usr/sbin:/usr/bin:/sbin:/bin"
+OS="$(uname)"
+
+# Setting the paths for some utilities on CentOS
+export PATH="${PATH:+$PATH:}/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:/usr/sbin:/sbin"
+if [ "$OS" != 'Darwin' ]; then
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:+$LD_LIBRARY_PATH:}/usr/local/lib:/usr/lib:/lib:/opt/lib"
+fi
+
+commandex()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        command -v "$1" || :
+    elif [ -x "$1" ]; then
+        echo "$1"
+    else
+        which "$1" || :
+    fi
+}
+
+with_bash_42=0
+with_printf=1
+if [ -z "$BASH_VERSION" ]; then
+    [ -z "$(commandex printf)" ] && with_printf=0
+else
+    [ "${BASH_VERSINFO[0]}" -eq 4 -a "${BASH_VERSINFO[1]}" -ge 2 -o \
+      "${BASH_VERSINFO[0]}" -gt 4 ] && with_bash_42=1
+fi
+
+wsrep_log()
+{
+    local t
+    # echo everything to stderr so that it gets into common error log
+    # deliberately made to look different from the rest of the log
+    if [ "$OS" = 'Linux' ]; then
+        t=$(date '+%Y%m%d %H:%M:%S.%3N')
+    elif [ $with_bash_42 -ne 0 ]; then
+        printf -v t '%(%Y%m%d %H:%M:%S)T.000'
+    else
+        t=$(date '+%Y%m%d %H:%M:%S.000')
+    fi
+    echo "WSREP_SST: $* ($t)" >&2
+}
+
+wsrep_log_error()
+{
+    wsrep_log "[ERROR] $*"
+}
+
+wsrep_log_warning()
+{
+    wsrep_log "[WARNING] $*"
+}
+
+wsrep_log_info()
+{
+    wsrep_log "[INFO] $*"
+}
 
 trim_string()
 {
@@ -35,9 +91,9 @@ trim_string()
             y=${#y}
             x=$(( z-x-1 ))
             y=$(( y-x+1 ))
-            printf '%s' "${1:$x:$y}"
+            echo "${1:$x:$y}"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[[:space:]${2:-}]"
@@ -59,9 +115,9 @@ trim_dir()
             y=$(( y-x+1 ))
             x="${1:$x:$y}"
             [ -z "$x" ] && x='.'
-            printf '%s' "$x"
+            echo "$x"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[:space:]${2:-}"
@@ -85,13 +141,32 @@ trim_right()
         y=${#y}
         if [ $y -ne $z ]; then
             y=$(( y+1 ))
-            printf '%s' "${1:0:$y}"
+            echo "${1:0:$y}"
         else
-            printf ''
+            echo ''
         fi
     else
         local pattern="[[:space:]${2:-}]"
         echo "$1" | sed -E "s/$pattern+\$//g"
+    fi
+}
+
+trim_left()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            x=$(( z-x-1 ))
+            echo "${1:$x:$z}"
+        else
+            echo ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+//g"
     fi
 }
 
@@ -105,11 +180,7 @@ to_minuses()
        x="$t"
        t="${t#*_}"
     done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$r$x"
-    else
-        echo "$r$x"
-    fi
+    echo "$r$x"
 }
 
 WSREP_SST_OPT_BYPASS=0
@@ -121,7 +192,6 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH="${WSREP_SST_OPT_AUTH:-}"
 WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
-WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_DEFAULTS=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
@@ -383,9 +453,11 @@ case "$1" in
                        # option name:
                        if [ -n "$BASH_VERSION" ]; then
                            option="${options:0:1}"
+                       elif [ $with_printf -ne 0 ]; then
+                           option=$(printf '%.1s' "$options")
                        else
-                           # If it's not bash, then we need to use slow
-                           # external utilities:
+                           # If it's not bash and without printf,
+                           # then we need to use slow external utilities:
                            option=$(echo "$options" | cut -c1)
                        fi
                        # And the subsequent characters consider option value:
@@ -788,58 +860,11 @@ WSREP_SST_OPT_ADDR="$WSREP_SST_OPT_HOST:$WSREP_SST_OPT_PORT$sst_path"
 readonly WSREP_SST_OPT_ADDR
 readonly WSREP_SST_OPT_ADDR_PORT
 
-commandex()
-{
-    if [ -n "$BASH_VERSION" ]; then
-        command -v "$1" || :
-    elif [ -x "$1" ]; then
-        echo "$1"
-    else
-        which "$1" || :
-    fi
-}
-
 # try to use my_print_defaults, mysql and mysqldump that come
 # with the sources (for MTR suite):
 script_binary=$(dirname "$0")
 SCRIPTS_DIR=$(cd "$script_binary"; pwd)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
-CLIENT_DIR="$SCRIPTS_DIR/../client"
-
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
-else
-    MYSQL_CLIENT=$(commandex 'mysql')
-fi
-
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
-else
-    MYSQLDUMP=$(commandex 'mysqldump')
-fi
-
-wsrep_log()
-{
-    # echo everything to stderr so that it gets into common error log
-    # deliberately made to look different from the rest of the log
-    local readonly tst=$(date "+%Y%m%d %H:%M:%S.%N" | cut -b -21)
-    echo "WSREP_SST: $* ($tst)" >&2
-}
-
-wsrep_log_error()
-{
-    wsrep_log "[ERROR] $*"
-}
-
-wsrep_log_warning()
-{
-    wsrep_log "[WARNING] $*"
-}
-
-wsrep_log_info()
-{
-    wsrep_log "[INFO] $*"
-}
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
@@ -929,11 +954,7 @@ parse_cnf()
     # Truncate spaces:
     [ -n "$reval" ] && reval=$(trim_string "$reval")
 
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' "$reval"
-    else
-        echo "$reval"
-    fi
+    echo "$reval"
 }
 
 #
@@ -986,16 +1007,8 @@ in_config()
             break
         fi
     done
-    if [ -n "$BASH_VERSION" ]; then
-        printf '%s' $found
-    else
-        echo $found
-    fi
-}
 
-wsrep_auth_not_set()
-{
-    [ -z "$WSREP_SST_OPT_AUTH" ]
+    echo $found
 }
 
 # Get rid of incorrect values resulting from substitution
@@ -1013,12 +1026,12 @@ fi
 # Let's read the value of the authentication string from the
 # configuration file so that it does not go to the command line
 # and does not appear in the ps output:
-if wsrep_auth_not_set; then
+if [ -z "$WSREP_SST_OPT_AUTH" ]; then
     WSREP_SST_OPT_AUTH=$(parse_cnf 'sst' 'wsrep-sst-auth')
 fi
 
 # Splitting WSREP_SST_OPT_AUTH as "user:password" pair:
-if ! wsrep_auth_not_set; then
+if [ -n "$WSREP_SST_OPT_AUTH" ]; then
     # Extract username as shortest prefix up to first ':' character:
     WSREP_SST_OPT_AUTH_USER="${WSREP_SST_OPT_AUTH%%:*}"
     if [ -z "$WSREP_SST_OPT_USER" ]; then
@@ -1042,19 +1055,20 @@ if ! wsrep_auth_not_set; then
     fi
 fi
 
+WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
+WSREP_SST_OPT_REMOTE_USER=
+WSREP_SST_OPT_REMOTE_PSWD=
+if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
+    # Split auth string at the last ':'
+    WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
+    WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
+fi
+
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
 readonly WSREP_SST_OPT_AUTH
-
-if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]; then
-    # Split auth string at the last ':'
-    readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
-    readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
-else
-    readonly WSREP_SST_OPT_REMOTE_USER=
-    readonly WSREP_SST_OPT_REMOTE_PSWD=
-fi
-
+readonly WSREP_SST_OPT_REMOTE_USER
+readonly WSREP_SST_OPT_REMOTE_PSWD
 readonly WSREP_SST_OPT_REMOTE_AUTH
 
 if [ -n "$WSREP_SST_OPT_DATA" ]; then
@@ -1075,7 +1089,7 @@ wsrep_check_program()
     local prog="$1"
     local cmd=$(commandex "$prog")
     if [ -z "$cmd" ]; then
-        echo "'$prog' not found in PATH"
+        wsrep_log_error "'$prog' not found in path"
         return 2 # no such file or directory
     fi
 }
@@ -1128,9 +1142,7 @@ wsrep_gen_secret()
         printf '%04x%04x%04x%04x%04x%04x%04x%04x' \
                $RANDOM $RANDOM $RANDOM $RANDOM \
                $RANDOM $RANDOM $RANDOM $RANDOM
-    elif [ -n "$(commandex cksum)" -a \
-           -n "$(commandex printf)" ]
-    then
+    elif [ $with_printf -ne 0 -a -n "$(commandex cksum)" ]; then
         printf '%08x%08x%08x%08x' \
             $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
             $(head -8 /dev/urandom | cksum | cut -d ' ' -f1) \
@@ -1196,22 +1208,56 @@ is_local_ip()
 
 check_sockets_utils()
 {
+    # The presence of any of these utilities is enough for us:
     lsof_available=0
     sockstat_available=0
     ss_available=0
 
-    [ -n "$(commandex lsof)" ] && lsof_available=1
-    [ -n "$(commandex sockstat)" ] && sockstat_available=1
-    [ -n "$(commandex ss)" ] && ss_available=1
-
-    if [ $lsof_available -eq 0 -a \
-         $sockstat_available -eq 0 -a \
-         $ss_available -eq 0 ]
-    then
-        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in" \
-                        "the PATH. Make sure you have it installed."
-        exit 2 # ENOENT
+    socket_utility="$(commandex ss)"
+    if [ -n "$socket_utility" ]; then
+        socket_uname='ss'
+        ss_available=1
+        ss_opts='-nlp'
+        # Let's check that ss has an option to skip headers:
+        if $socket_utility -h 2>&1 | grep -qw -F -- '-H'; then
+            ss_available=2
+            ss_opts="${ss_opts}H"
+        fi
+    else
+        socket_utility="$(commandex sockstat)"
+        if [ -n "$socket_utility" ]; then
+            socket_uname='sockstat'
+            sockstat_available=1
+            sockstat_opts='-p'
+            if [ "$OS" = 'FreeBSD' ]; then
+                # sockstat in FreeBSD is different from other systems,
+                # let's denote it with a different value:
+                sockstat_available=2
+                sockstat_opts='-46lq -P tcp -p'
+            fi
+        else
+            socket_utility="$(commandex lsof)"
+            if [ -n "$socket_utility" ]; then
+                socket_uname='lsof'
+                lsof_available=1
+                lsof_opts='-Pnl'
+                # Let's check that lsof has an option to bypass blocking:
+                if $socket_utility -h 2>&1 | grep -qw -F -- '-b'; then
+                    lsof_available=2
+                    lsof_opts="$lsof_opts -b -w"
+                else
+                    lsof_opts="$lsof_opts -S 10"
+                fi
+            else
+                wsrep_log_error "Neither lsof, nor sockstat, nor ss tool" \
+                                "were found in the path. Make sure you have" \
+                                "at least one of them installed."
+                exit 2 # ENOENT
+            fi
+        fi
     fi
+    wsrep_log_info "'$socket_uname' is selected as a socket" \
+                   "information utility."
 }
 
 #
@@ -1232,23 +1278,33 @@ check_port()
 
     [ $pid -le 0 ] && pid='[0-9]+'
 
-    local rc=1
+    local rc=2 # ENOENT
 
-    if [ $lsof_available -ne 0 ]; then
-        lsof -Pnl -i ":$port" 2>/dev/null | \
-        grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
+    if [ $ss_available -ne 0 ]; then
+        $socket_utility $ss_opts -t "( sport = :$port )" 2>/dev/null | \
+            grep -q -E "[[:space:]]users:[[:space:]]?\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
-        local opts='-p'
-        if [ "$OS" = 'FreeBSD' ]; then
-            # sockstat on FreeBSD requires the "-s" option
-            # to display the connection state:
-            opts='-sp'
+        if [ $sockstat_available -gt 1 ]; then
+            # The sockstat command on FreeBSD does not return
+            # the connection state without special option, but
+            # it supports filtering by connection state:
+            local out
+            out=$($socket_utility $sockstat_opts "$port" 2>/dev/null) || rc=16 # EBUSY
+            # On FreeBSD, the sockstat utility may exit without
+            # any output due to locking issues in certain versions;
+            # let's return a special exit code in such cases:
+            if [ $rc -eq 16 -o -z "$out" ]; then
+                return 16 # EBUSY
+            fi
+            echo "$out" | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]]|\$)" && rc=0
+        else
+            $socket_utility $sockstat_opts "$port" 2>/dev/null | \
+                grep -q -E "^[^[:space:]]+[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]LISTEN([[:space:]]|\$)" && rc=0
         fi
-        sockstat "$opts" "$port" 2>/dev/null | \
-        grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
-    elif [ $ss_available -ne 0 ]; then
-        ss -nlpH "( sport = :$port )" 2>/dev/null | \
-        grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+    elif [ $lsof_available -ne 0 ]; then
+        $socket_utility $lsof_opts -i ":$port" 2>/dev/null | \
+            grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid([[:space:]].+)?[[:space:]]\\(LISTEN\\)([[:space:]]|\$)" && rc=0
     else
         wsrep_log_error "Unknown sockets utility"
         exit 2 # ENOENT
@@ -1519,7 +1575,7 @@ get_proc()
     if [ -z "$nproc" ]; then
         set +e
         if [ "$OS" = 'Linux' ]; then
-            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null)
+            nproc=$(grep -cw -E '^processor' /proc/cpuinfo 2>/dev/null || :)
         elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
             nproc=$(sysctl -n hw.ncpu)
         fi
@@ -1569,6 +1625,139 @@ check_server_ssl_config()
     fi
 }
 
+# Get Common Name (CN) from the certificate:
+openssl_getCN()
+{
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        wsrep_log_error \
+            'openssl not found but it is required for authentication'
+        exit 42
+    fi
+
+    local bug=0
+    local CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$1" 2>&1) || bug=1
+
+    if [ $bug -ne 0 ]; then
+        wsrep_log_info "run: \"$OPENSSL_BINARY\" x509 -noout -subject -in \"$1\""
+        wsrep_log_info "output: $CN"
+        wsrep_log_error "******** FATAL ERROR **********************************************"
+        wsrep_log_error "* Unable to parse the certificate file to obtain the common name. *"
+        wsrep_log_error "*******************************************************************"
+        exit 22
+    fi
+
+    CN=$(trim_string "$CN")
+
+    if [ -n "$CN" ]; then
+        # If the string begins with the "subject" prefix
+        # then we need to remove it:
+        local saved="$CN"
+        local remain="${CN#subject}"
+        if [ "$remain" != "$saved" ]; then
+            remain=$(trim_left "$remain")
+            # Now let's check for the presence of "=" character
+            # after the "subject":
+            saved="$remain"
+            remain="${remain#=}"
+            if [ "$remain" != "$saved" ]; then
+                remain=$(trim_left "$remain")
+            else
+                remain=""
+                bug=1
+            fi
+        fi
+        while [ -n "$remain" ]; do
+            local value=""
+            # Let's extract the option name - all characters
+            # up to the first '=' or ',' character (if present):
+            local option="${remain%%[=,]*}"
+            if [ "$option" != "$remain" ]; then
+                option=$(trim_right "$option")
+                # These variables will be needed to determine
+                # which separator comes first:
+                local x="${remain#*=}"
+                local y="${remain#*,}"
+                local z=${#remain}
+                x=${#x}; [ $x -eq $z ] && x=0
+                y=${#y}; [ $y -eq $z ] && y=0
+                # The remaining string is everything that follows
+                # the separator character:
+                remain=$(trim_left "${remain#*[=,]}")
+                # Let's check what we are dealing with - an equal
+                # sign or a comma?
+                if [ $x -gt $y ]; then
+                    # If the remainder begins with a double quote,
+                    # then there is a string containing commas and
+                    # we need to parse it:
+                    saved="$remain"
+                    remain="${remain#\"}"
+                    if [ "$remain" != "$saved" ]; then
+                        while :; do
+                            # We need to find the closing quote:
+                            local prefix="$remain"
+                            remain="${remain#*\"}"
+                            # Let's check if there is a closing quote?
+                            if [ "$remain" = "$prefix" ]; then
+                                bug=1
+                                break
+                            fi
+                            # Everything up to the closing quote is
+                            # the next part of the value:
+                            value="$value${prefix%%\"*}"
+                            # But if the last character of the value
+                            # is a backslash, then it is a quoted quotation
+                            # mark and we need to add it to the value:
+                            if [ "${value%\\}" != "$value" ]; then
+                                value="$value\""
+                            else
+                                break
+                            fi
+                        done
+                        [ $bug -ne 0 ] && break
+                        # Now we have to remove "," if it is present
+                        # in the string after the value:
+                        saved=$(trim_left "$remain")
+                        remain="${saved#,}"
+                        if [ "$remain" != "$saved" ]; then
+                            remain=$(trim_left "$remain")
+                        elif [ -n "$remain" ]; then
+                            bug=1
+                            break
+                        fi
+                    else
+                        # We are dealing with a simple unquoted string value,
+                        # therefore we need to take everything up to the end
+                        # of the string, or up to the next comma character:
+                        value="${remain%%,*}"
+                        if [ "$value" != "$remain" ]; then
+                            remain=$(trim_left "${remain#*,}")
+                        else
+                            remain=""
+                        fi
+                        value=$(trim_right "$value")
+                    fi
+                    if [ "$option" = 'CN' -a -n "$value" ]; then
+                        echo "$value"
+                        return
+                    fi
+                fi
+            else
+                remain=""
+            fi
+        done
+    fi
+
+    if [ $bug -ne 0 ]; then
+        wsrep_log_error "******** FATAL ERROR **********************************************"
+        wsrep_log_error "* Unable to parse the certificate options: '$CN'"
+        wsrep_log_error "*******************************************************************"
+        exit 22
+    fi
+
+    echo ''
+}
+
 simple_cleanup()
 {
     # Since this is invoked just after exit NNN
@@ -1576,11 +1765,129 @@ simple_cleanup()
     if [ $estatus -ne 0 ]; then
         wsrep_log_error "Cleanup after exit with status: $estatus"
     fi
-    if [ -n "${SST_PID:-}" ]; then
+    if [ -n "$SST_PID" ]; then
         [ "$(pwd)" != "$OLD_PWD" ] && cd "$OLD_PWD"
         [ -f "$SST_PID" ] && rm -f "$SST_PID" || :
     fi
     exit $estatus
 }
+
+create_data()
+{
+    OLD_PWD="$(pwd)"
+
+    if [ -n "$DATA" -a "$DATA" != '.' ]; then
+        [ ! -d "$DATA" ] && mkdir -p "$DATA"
+        cd "$DATA"
+    fi
+    DATA_DIR="$(pwd)"
+
+    cd "$OLD_PWD"
+}
+
+create_dirs()
+{
+    local simplify=${1:-0}
+
+    # if no command line argument and INNODB_DATA_HOME_DIR environment
+    # variable is not set, try to get it from the my.cnf:
+    if [ -z "$INNODB_DATA_HOME_DIR" ]; then
+        INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
+        INNODB_DATA_HOME_DIR=$(trim_dir "$INNODB_DATA_HOME_DIR")
+    fi
+
+    if [ -n "$INNODB_DATA_HOME_DIR" -a "$INNODB_DATA_HOME_DIR" != '.' -a \
+         "$INNODB_DATA_HOME_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+        cd "$INNODB_DATA_HOME_DIR"
+        ib_home_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_home_dir" = "$DATA_DIR" ] && ib_home_dir=""
+    fi
+
+    # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
+        INNODB_LOG_GROUP_HOME=$(trim_dir "$INNODB_LOG_GROUP_HOME")
+    fi
+
+    if [ -n "$INNODB_LOG_GROUP_HOME" -a "$INNODB_LOG_GROUP_HOME" != '.' -a \
+         "$INNODB_LOG_GROUP_HOME" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_LOG_GROUP_HOME" ] && mkdir -p "$INNODB_LOG_GROUP_HOME"
+        cd "$INNODB_LOG_GROUP_HOME"
+        ib_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_log_dir" = "$DATA_DIR" ] && ib_log_dir=""
+    fi
+
+    # if no command line argument and INNODB_UNDO_DIR is not set,
+    # then try to get it from the my.cnf:
+    if [ -z "$INNODB_UNDO_DIR" ]; then
+        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
+        INNODB_UNDO_DIR=$(trim_dir "$INNODB_UNDO_DIR")
+    fi
+
+    if [ -n "$INNODB_UNDO_DIR" -a "$INNODB_UNDO_DIR" != '.' -a \
+         "$INNODB_UNDO_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
+        cd "$INNODB_UNDO_DIR"
+        ib_undo_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ib_undo_dir" = "$DATA_DIR" ] && ib_undo_dir=""
+    fi
+
+    # if no command line argument then try to get it from the my.cnf:
+    if [ -z "$ARIA_LOG_DIR" ]; then
+        ARIA_LOG_DIR=$(parse_cnf '--mysqld' 'aria-log-dir-path')
+        ARIA_LOG_DIR=$(trim_dir "$ARIA_LOG_DIR")
+    fi
+
+    if [ -n "$ARIA_LOG_DIR" -a "$ARIA_LOG_DIR" != '.' -a \
+         "$ARIA_LOG_DIR" != "$DATA_DIR" ]
+    then
+        # handle both relative and absolute paths:
+        cd "$DATA"
+        [ ! -d "$ARIA_LOG_DIR" ] && mkdir -p "$ARIA_LOG_DIR"
+        cd "$ARIA_LOG_DIR"
+        ar_log_dir="$(pwd)"
+        cd "$OLD_PWD"
+        [ $simplify -ne 0 -a "$ar_log_dir" = "$DATA_DIR" ] && ar_log_dir=""
+    fi
+}
+
+wait_previous_sst()
+{
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 1; do
+        wsrep_log_info "Previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round+1 ))
+        if [ $check_round -eq 30 ]; then
+            wsrep_log_error "previous SST script still running..."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    trap simple_cleanup EXIT
+    echo $$ > "$SST_PID"
+}
+
+DATA="$WSREP_SST_OPT_DATA"
+
+wsrep_check_datadir
+create_data
+
+SST_PID="$DATA/wsrep_sst.pid"
 
 wsrep_log_info "$WSREP_METHOD $WSREP_TRANSFER_TYPE started on $WSREP_SST_OPT_ROLE"

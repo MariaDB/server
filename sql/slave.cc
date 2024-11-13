@@ -367,7 +367,6 @@ end:
 static THD *new_bg_THD()
 {
   THD *thd= new THD(next_thread_id());
-  thd->thread_stack= (char*) &thd;
   thd->store_globals();
   thd->system_thread = SYSTEM_THREAD_SLAVE_BACKGROUND;
   thd->security_ctx->skip_grants();
@@ -628,7 +627,6 @@ int init_slave()
   {
     int error;
     THD *thd= new THD(next_thread_id());
-    thd->thread_stack= (char*) &thd;
     thd->store_globals();
 
     error= start_slave_threads(0, /* No active thd */
@@ -1087,6 +1085,8 @@ terminate_slave_thread(THD *thd,
 
     mysql_mutex_unlock(&thd->LOCK_thd_kill);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+    DEBUG_SYNC(current_thd, "after_thd_awake_kill");
 
     /*
       There is a small chance that slave thread might miss the first
@@ -2292,6 +2292,9 @@ past_checksum:
     if (unlikely(mysql_real_query(mysql,
                                   STRING_WITH_LEN("SET skip_replication=1"))))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2336,6 +2339,9 @@ past_checksum:
                          STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2377,6 +2383,9 @@ after_set_capability:
         !(master_res= mysql_store_result(mysql)) ||
         !(master_row= mysql_fetch_row(master_res)))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2412,6 +2421,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2445,6 +2457,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2478,6 +2493,9 @@ after_set_capability:
     rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
     if (unlikely(rc))
     {
+      if (check_io_slave_killed(mi, NULL))
+        goto slave_killed_err;
+
       err_code= mysql_errno(mysql);
       if (is_network_error(err_code))
       {
@@ -2514,6 +2532,9 @@ after_set_capability:
       rc= mysql_real_query(mysql, query_str.ptr(), query_str.length());
       if (unlikely(rc))
       {
+        if (check_io_slave_killed(mi, NULL))
+          goto slave_killed_err;
+
         err_code= mysql_errno(mysql);
         if (is_network_error(err_code))
         {
@@ -3324,7 +3345,7 @@ static bool send_show_master_info_data(THD *thd, Master_info *mi, bool full,
     // to ensure that we use the same value throughout this function.
     const char *slave_sql_running_state=
       mi->rli.sql_driver_thd ? mi->rli.sql_driver_thd->proc_info : "";
-    if (slave_sql_running_state == Relay_log_info::state_delaying_string)
+    if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
     {
       time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
       protocol->store((uint32)(t < sql_delay_end ? sql_delay_end - t : 0));
@@ -3511,6 +3532,7 @@ static int init_slave_thread(THD* thd, Master_info *mi,
   }
 
   thd->security_ctx->skip_grants();
+  thd->security_ctx->user=(char*) slave_user;
   thd->slave_thread= 1;
   thd->connection_name= mi->connection_name;
   thd->variables.sql_log_slow= !MY_TEST(thd->variables.log_slow_disabled_statements & LOG_SLOW_DISABLE_SLAVE);
@@ -3657,7 +3679,7 @@ static ulong read_event(MYSQL* mysql, Master_info *mi, bool* suppress_warnings,
     }
     else
     {
-      if (!mi->rli.abort_slave)
+      if (!(mi->rli.abort_slave || io_slave_killed(mi)))
       {
         sql_print_error("Error reading packet from server: %s (server_errno=%d)",
                         mysql_error(mysql), mysql_errno(mysql));
@@ -3772,13 +3794,26 @@ sql_delay_event(Log_event *ev, THD *thd, rpl_group_info *rgi)
                         sql_delay, (long)ev->when,
                         rli->mi->clock_diff_with_master,
                         (long)now, (ulonglong)sql_delay_end, (long)nap_time));
-
-    if (sql_delay_end > now)
+    /* if using debug_sync for sql_delay, only delay once per event group */
+    if (DBUG_EVALUATE_IF("sql_delay_by_debug_sync", type == GTID_EVENT,
+                         sql_delay_end > now))
     {
       DBUG_PRINT("info", ("delaying replication event %lu secs",
                           nap_time));
       rli->start_sql_delay(sql_delay_end);
       mysql_mutex_unlock(&rli->data_lock);
+
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("sql_delay_by_debug_sync", {
+        DBUG_ASSERT(!debug_sync_set_action(
+            thd, STRING_WITH_LEN(
+                     "now SIGNAL at_sql_delay WAIT_FOR continue_sql_thread")));
+
+        // Skip the actual sleep if using DEBUG_SYNC to coordinate SQL_DELAY
+        DBUG_RETURN(0);
+      };);
+#endif
+
       DBUG_RETURN(slave_sleep(thd, nap_time, sql_slave_killed, rgi));
     }
   }
@@ -3894,7 +3929,7 @@ apply_event_and_update_pos_apply(Log_event* ev, THD* thd, rpl_group_info *rgi,
           if (thd->system_thread == SYSTEM_THREAD_SLAVE_SQL &&
               ((rli->mi->using_parallel() &&
                 rli->mi->parallel_mode <= SLAVE_PARALLEL_CONSERVATIVE) ||
-               wsrep_ready == 0)) {
+                !wsrep_ready_get())) {
             rli->abort_slave= 1;
             rli->report(ERROR_LEVEL, ER_UNKNOWN_COM_ERROR, rgi->gtid_info(),
                         "Node has dropped from cluster");
@@ -4687,7 +4722,12 @@ pthread_handler_t handle_slave_io(void *arg)
   thd->set_psi(PSI_CALL_get_thread());
 
   pthread_detach_this_thread();
-  thd->thread_stack= (char*) &thd; // remember where our stack is
+  /*
+    Remember where our stack is. This is needed for this function as
+    there are a lot of stack variables. It will be fixed in store_globals()
+    called by init_slave_thread().
+  */
+  thd->thread_stack= (void*) &thd; // remember where our stack is
   mi->clear_error();
   if (init_slave_thread(thd, mi, SLAVE_THD_IO))
   {
@@ -5311,7 +5351,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi= new rpl_group_info(rli);
   thd = new THD(next_thread_id()); // note that contructor of THD uses DBUG_ !
-  thd->thread_stack = (char*)&thd; // remember where our stack is
+  thd->thread_stack= (void*) &thd; // Big stack, remember where our stack is
   thd->system_thread_info.rpl_sql_info= &sql_info;
 
   DBUG_ASSERT(rli->inited);
@@ -7411,9 +7451,6 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                   default_client_charset_info->csname);
   }
 
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
-
   /* Set MYSQL_PLUGIN_DIR in case master asks for an external authentication plugin */
   if (opt_plugin_dir_ptr && *opt_plugin_dir_ptr)
     mysql_options(mysql, MYSQL_PLUGIN_DIR, opt_plugin_dir_ptr);
@@ -7434,7 +7471,7 @@ static int connect_to_master(THD* thd, MYSQL* mysql, Master_info* mi,
                              mi->port, 0, client_flag) == 0))
   {
     /* Don't repeat last error */
-    if ((int)mysql_errno(mysql) != last_errno)
+    if ((int)mysql_errno(mysql) != last_errno && !io_slave_killed(mi))
     {
       last_errno=mysql_errno(mysql);
       suppress_warnings= 0;
@@ -7556,8 +7593,6 @@ MYSQL *rpl_connect_master(MYSQL *mysql)
 #endif
 
   mysql_options(mysql, MYSQL_SET_CHARSET_NAME, default_charset_info->csname);
-  /* This one is not strictly needed but we have it here for completeness */
-  mysql_options(mysql, MYSQL_SET_CHARSET_DIR, (char *) charsets_dir);
 
   if (mi->user == NULL
       || mi->user[0] == 0
@@ -8090,7 +8125,7 @@ end:
 #ifdef WITH_WSREP
 enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
 {
-  enum Log_event_type ev_type;
+  enum Log_event_type ev_type= UNKNOWN_EVENT;
 
   mysql_mutex_lock(&rgi->rli->data_lock);
 
@@ -8101,6 +8136,11 @@ enum Log_event_type wsrep_peak_event(rpl_group_info *rgi, ulonglong* event_size)
   /* scan the log to read next event and we skip
      annotate events. */
   do {
+    /* We've reached the end of log, return the last found event, if any. */
+    if (future_pos >= rgi->rli->cur_log->end_of_file)
+    {
+      break;
+    }
     my_b_seek(rgi->rli->cur_log, future_pos);
     rgi->rli->event_relay_log_pos= future_pos;
     rgi->event_relay_log_pos= future_pos;

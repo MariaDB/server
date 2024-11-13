@@ -267,6 +267,11 @@
                                     OPTIMIZER_SWITCH_OPTIMIZE_JOIN_BUFFER_SIZE)
 
 /*
+  See adjust_secondary_key_cost in sys_vars.cc for symbolic names.
+*/
+#define OPTIMIZER_ADJ_FIX_CARD_MULT (1)
+
+/*
   Replication uses 8 bytes to store SQL_MODE in the binary log. The day you
   use strictly more than 64 bits by adding one more define above, you should
   contact the replication team because the replication code should then be
@@ -316,7 +321,10 @@
 */
 /* This subquery has fields from outer query (put by user) */
 #define UNCACHEABLE_DEPENDENT_GENERATED   1
-/* This subquery contains functions with random result */
+/*
+  This subquery contains functions with random result.
+  Something that is uncacheable is by default unmergeable.
+*/
 #define UNCACHEABLE_RAND        2
 /* This subquery contains functions with side effect */
 #define UNCACHEABLE_SIDEEFFECT	4

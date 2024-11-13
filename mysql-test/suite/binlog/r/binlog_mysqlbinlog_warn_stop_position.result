@@ -1,0 +1,13 @@
+
+# MDEV-27037 mysqlbinlog emits a warning when reaching EOF before stop-condition
+
+Case: Default stop position, WARNING must not appear
+# MYSQL_BINLOG --short-form --start-position=4 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+Case: Stop position before EOF, WARNING must not appear
+# MYSQL_BINLOG --short-form --start-position=4 --stop-position=97 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+Case: Stop position at EOF, WARNING must not appear
+# MYSQL_BINLOG --short-form --start-position=4 --stop-position=98 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+Case: Stop position after EOF, WARNING must appear
+# MYSQL_BINLOG --short-form --start-position=4 --stop-position=99 mysql-test/std_data/master-bin.000001 --result-file=warn_pos_test_file.out 2>&1
+WARNING: Did not reach stop position 99 before end of input
+# End of binlog_mysqlbinlog_warn_stop_position.test

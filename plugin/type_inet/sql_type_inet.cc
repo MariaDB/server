@@ -229,7 +229,7 @@ bool Inet6::ascii_to_ipv6(const char *str, size_t str_length)
         continue;
       }
 
-      if (!*p || p >= str_end)
+      if (p >= str_end || !*p)
       {
         DBUG_PRINT("error", ("ascii_to_ipv6(%.*s): invalid IPv6 address: "
                              "ending at ':'.", (int) str_length, str));
@@ -1090,7 +1090,7 @@ public:
     Inet6_null tmp(args[0]);
     return null_value= tmp.is_null() || tmp.to_native(to);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_typecast_inet6>(thd, this); }
 };
 
@@ -1102,9 +1102,10 @@ public:
   Item_cache_inet6(THD *thd)
    :Item_cache(thd, &type_handler_inet6)
   { }
-  Item *get_copy(THD *thd)
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_cache_inet6>(thd, this); }
-  bool cache_value()
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
+  bool cache_value() override
   {
     if (!example)
       return false;
@@ -1119,54 +1120,54 @@ public:
                                                  type_handler());
     return true;
   }
-  String* val_str(String *to)
+  String* val_str(String *to) override
   {
     if (!has_value())
       return NULL;
     Inet6_null tmp(m_value.ptr(), m_value.length());
     return tmp.is_null() || tmp.to_string(to) ? NULL : to;
   }
-  my_decimal *val_decimal(my_decimal *to)
+  my_decimal *val_decimal(my_decimal *to) override
   {
     if (!has_value())
       return NULL;
     my_decimal_set_zero(to);
     return to;
   }
-  longlong val_int()
+  longlong val_int() override
   {
     if (!has_value())
       return 0;
     return 0;
   }
-  double val_real()
+  double val_real() override
   {
     if (!has_value())
       return 0;
     return 0;
   }
-  longlong val_datetime_packed(THD *thd)
-  {
-    DBUG_ASSERT(0);
-    if (!has_value())
-      return 0;
-    return 0;
-  }
-  longlong val_time_packed(THD *thd)
+  longlong val_datetime_packed(THD *thd) override
   {
     DBUG_ASSERT(0);
     if (!has_value())
       return 0;
     return 0;
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  longlong val_time_packed(THD *thd) override
+  {
+    DBUG_ASSERT(0);
+    if (!has_value())
+      return 0;
+    return 0;
+  }
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     if (!has_value())
       return true;
     set_zero_time(ltime, MYSQL_TIMESTAMP_TIME);
     return false;
   }
-  bool val_native(THD *thd, Native *to)
+  bool val_native(THD *thd, Native *to) override
   {
     if (!has_value())
       return true;
@@ -1225,8 +1226,9 @@ public:
     str->append(tmp);
     str->append('\'');
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_literal_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 
   // Non-overriding methods
   void set_value(const Inet6 &value)
@@ -1282,8 +1284,9 @@ public:
   {
     return Item::save_in_field(field, no_conversions);
   }
-  Item *get_copy(THD *thd) override
+  Item *do_get_copy(THD *thd) const override
   { return get_item_copy<Item_copy_inet6>(thd, this); }
+  Item *do_build_clone(THD *thd) const override { return get_copy(thd); }
 };
 
 

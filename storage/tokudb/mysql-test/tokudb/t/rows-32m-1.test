@@ -12,7 +12,9 @@ drop table if exists t;
 
 create table t (id int not null primary key, v0 longblob not null,v1 longblob not null);
 
+--disable_cursor_protocol
 select @@max_allowed_packet into @my_max_allowed_packet;
+--enable_cursor_protocol
 --disable_warnings
 set global max_allowed_packet=100000000;
 --enable_warnings

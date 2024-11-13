@@ -81,9 +81,11 @@ flush tables;
 select create_time is not null, update_time is not null, check_time 
 from information_schema.tables where table_schema=database() and table_name='t1';
 
+--disable_cursor_protocol
 select create_time, update_time into @create_tm, @update_tm
 from information_schema.tables 
 where table_schema=database() and table_name='t1';
+--enable_cursor_protocol
 
 select sleep(3);
 insert into t1 values (2);
@@ -109,9 +111,11 @@ where table_schema=database() and table_name='t1';
 
 insert into t1 values (5,5);
 
+--disable_cursor_protocol
 select create_time, update_time into @create_tm, @update_tm
 from information_schema.tables 
 where table_schema=database() and table_name='t1';
+--enable_cursor_protocol
 
 --echo # Then, an in-place ALTER TABLE:
 select sleep(2);
@@ -126,9 +130,11 @@ where table_schema=database() and table_name='t1';
 
 --echo # Check TRUNCATE TABLE
 insert into t1 values (10,10);
+--disable_cursor_protocol
 select create_time, update_time into @create_tm, @update_tm
 from information_schema.tables 
 where table_schema=database() and table_name='t1';
+--enable_cursor_protocol
 
 select sleep(2);
 truncate table t1;

@@ -116,7 +116,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl);
+                        Sql_condition ** cond_hdl) override;
 
   /**
     Returns TRUE if there were ER_NO_SUCH_/WRONG_MRG_TABLE and there
@@ -200,9 +200,9 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     is properly initialized, so table definition cache can be produced
     from key used by MDL subsystem.
   */
-  DBUG_ASSERT(!strcmp(table_list->get_db_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_db_name().str,
                       table_list->mdl_request.key.db_name()));
-  DBUG_ASSERT(!strcmp(table_list->get_table_name(),
+  DBUG_ASSERT(!strcmp(table_list->get_table_name().str,
                       table_list->mdl_request.key.name()));
 
   *key= (const char*)table_list->mdl_request.key.ptr() + 1;
@@ -233,33 +233,41 @@ uint get_table_def_key(const TABLE_LIST *table_list, const char **key)
     #		Pointer to list of names of open tables.
 */
 
-struct list_open_tables_arg
+class list_open_tables_arg
 {
+public:
   THD *thd;
-  const char *db;
+  const Lex_ident_db db;
   const char *wild;
   TABLE_LIST table_list;
   OPEN_TABLE_LIST **start_list, *open_list;
+
+  list_open_tables_arg(THD *thd_arg, const LEX_CSTRING &db_arg,
+                       const char *wild_arg)
+   :thd(thd_arg), db(db_arg), wild(wild_arg),
+    start_list(&open_list), open_list(0)
+  {
+    bzero((char*) &table_list, sizeof(table_list));
+  }
 };
 
 
-static my_bool list_open_tables_callback(TDC_element *element,
-                                         list_open_tables_arg *arg)
+static my_bool list_open_tables_callback(void *el, void *a)
 {
-  const char *db= (char*) element->m_key;
-  size_t db_length= strlen(db);
-  const char *table_name= db + db_length + 1;
+  TDC_element *element= static_cast<TDC_element*>(el);
+  list_open_tables_arg *arg= static_cast<list_open_tables_arg*>(a);
+  const Lex_ident_db
+    db= Lex_ident_db(Lex_cstring_strlen((const char*) element->m_key));
+  const char *table_name= db.str + db.length + 1;
 
-  if (arg->db && my_strcasecmp(system_charset_info, arg->db, db))
+  if (arg->db.str && !arg->db.streq(db))
     return FALSE;
   if (arg->wild && wild_compare(table_name, arg->wild, 0))
     return FALSE;
 
   /* Check if user has SELECT privilege for any column in the table */
-  arg->table_list.db.str= db;
-  arg->table_list.db.length= db_length;
-  arg->table_list.table_name.str= table_name;
-  arg->table_list.table_name.length= strlen(table_name);
+  arg->table_list.db= db;
+  arg->table_list.table_name= Lex_cstring_strlen(table_name);
   arg->table_list.grant.privilege= NO_ACL;
 
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
@@ -271,7 +279,7 @@ static my_bool list_open_tables_callback(TDC_element *element,
 
   strmov((*arg->start_list)->table=
          strmov(((*arg->start_list)->db= (char*) ((*arg->start_list) + 1)),
-                db) + 1, table_name);
+                db.str) + 1, table_name);
   (*arg->start_list)->in_use= 0;
 
   mysql_mutex_lock(&element->LOCK_table_share);
@@ -288,20 +296,14 @@ static my_bool list_open_tables_callback(TDC_element *element,
 }
 
 
-OPEN_TABLE_LIST *list_open_tables(THD *thd, const char *db, const char *wild)
+OPEN_TABLE_LIST *list_open_tables(THD *thd,
+                                  const LEX_CSTRING &db,
+                                  const char *wild)
 {
-  list_open_tables_arg argument;
   DBUG_ENTER("list_open_tables");
+  list_open_tables_arg argument(thd, db, wild);
 
-  argument.thd= thd;
-  argument.db= db;
-  argument.wild= wild;
-  bzero((char*) &argument.table_list, sizeof(argument.table_list));
-  argument.start_list= &argument.open_list;
-  argument.open_list= 0;
-
-  if (tdc_iterate(thd, (my_hash_walk_action) list_open_tables_callback,
-                  &argument, true))
+  if (tdc_iterate(thd, list_open_tables_callback, &argument, true))
     DBUG_RETURN(0);
 
   DBUG_RETURN(argument.open_list);
@@ -460,9 +462,10 @@ struct tc_collect_arg
   flush_tables_type flush_type;
 };
 
-static my_bool tc_collect_used_shares(TDC_element *element,
-                                      tc_collect_arg *arg)
+static my_bool tc_collect_used_shares(void *el, void *a)
 {
+  TDC_element *element= static_cast<TDC_element*>(el);
+  tc_collect_arg *arg= static_cast<tc_collect_arg*>(a);
   my_bool result= FALSE;
 
   DYNAMIC_ARRAY *shares= &arg->shares;
@@ -514,7 +517,7 @@ public:
                         const char* sqlstate,
                         Sql_condition::enum_warning_level *level,
                         const char* msg,
-                        Sql_condition ** cond_hdl)
+                        Sql_condition ** cond_hdl) override
   {
     *cond_hdl= NULL;
     if (sql_errno == ER_OPEN_AS_READONLY)
@@ -571,8 +574,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &collect_arg.shares,
                         sizeof(TABLE_SHARE*), 100, 100, MYF(0));
   collect_arg.flush_type= flag;
-  if (tdc_iterate(thd, (my_hash_walk_action) tc_collect_used_shares,
-                  &collect_arg, true))
+  if (tdc_iterate(thd, tc_collect_used_shares, &collect_arg, true))
   {
     /* Release already collected shares */
     for (uint i= 0 ; i < collect_arg.shares.elements ; i++)
@@ -1398,14 +1400,14 @@ public:
     : m_ot_ctx(ot_ctx_arg), m_is_active(FALSE)
   {}
 
-  virtual ~MDL_deadlock_handler() = default;
+  ~MDL_deadlock_handler() override = default;
 
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                 uint sql_errno,
                                 const char* sqlstate,
                                 Sql_condition::enum_warning_level *level,
                                 const char* msg,
-                                Sql_condition ** cond_hdl);
+                                Sql_condition ** cond_hdl) override;
 
 private:
   /** Open table context to be used for back-off request. */
@@ -1682,7 +1684,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   TABLE *table;
   const char *key;
   uint	key_length;
-  const char *alias= table_list->alias.str;
+  const LEX_CSTRING &alias= table_list->alias;
   uint flags= ot_ctx->get_flags();
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
@@ -1750,7 +1752,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       if (table->s->table_cache_key.length == key_length &&
 	  !memcmp(table->s->table_cache_key.str, key, key_length))
       {
-        if (!my_strcasecmp(system_charset_info, table->alias.c_ptr(), alias) &&
+        if (Lex_ident_table(table->alias.to_lex_cstring()).streq(alias) &&
             table->query_id != thd->query_id && /* skip tables already used */
             (thd->locked_tables_mode == LTM_LOCK_TABLES ||
              table->query_id == 0))
@@ -1821,7 +1823,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     if (thd->locked_tables_mode == LTM_PRELOCKED)
       my_error(ER_NO_SUCH_TABLE, MYF(0), table_list->db.str, table_list->alias.str);
     else
-      my_error(ER_TABLE_NOT_LOCKED, MYF(0), alias);
+      my_error(ER_TABLE_NOT_LOCKED, MYF(0), alias.str);
     DBUG_RETURN(TRUE);
   }
 
@@ -2991,7 +2993,7 @@ static bool open_table_entry_fini(THD *thd, TABLE_SHARE *share, TABLE *entry)
       String query(query_buf, sizeof(query_buf), system_charset_info);
 
       query.length(0);
-      query.append("DELETE FROM ");
+      query.append("TRUNCATE TABLE ");
       append_identifier(thd, &query, &share->db);
       query.append(".");
       append_identifier(thd, &query, &share->table_name);
@@ -3165,12 +3167,12 @@ request_backoff_action(enum_open_table_action action_arg,
 class MDL_deadlock_discovery_repair_handler : public Internal_error_handler
 {
 public:
-  virtual bool handle_condition(THD *thd,
+  bool handle_condition(THD *thd,
                                   uint sql_errno,
                                   const char* sqlstate,
                                   Sql_condition::enum_warning_level *level,
                                   const char* msg,
-                                  Sql_condition ** cond_hdl)
+                                  Sql_condition ** cond_hdl) override
   {
     if (sql_errno == ER_LOCK_DEADLOCK)
     {
@@ -3459,7 +3461,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           DBUG_RETURN(TRUE);
 
         /* Ensures the routine is up-to-date and cached, if exists. */
-        if (rt->sp_cache_routine(thd, has_prelocking_list, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
 
         /* Remember the version of the routine in the parse tree. */
@@ -3500,7 +3502,7 @@ open_and_process_routine(THD *thd, Query_tables_list *prelocking_ctx,
           Validating routine version is unnecessary, since CALL
           does not affect the prepared statement prelocked list.
         */
-        if (rt->sp_cache_routine(thd, false, &sp))
+        if (rt->sp_cache_routine(thd, &sp))
           DBUG_RETURN(TRUE);
       }
     }
@@ -5492,13 +5494,23 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
       }
     }
 
-    DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "before_lock_tables_takes_lock");
+#endif
 
     if (! (thd->lock= mysql_lock_tables(thd, start, (uint) (ptr - start),
                                         flags)))
       DBUG_RETURN(TRUE);
 
-    DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#ifdef ENABLED_DEBUG_SYNC
+    if (!tables ||
+        !(strcmp(tables->db.str, "mysql") == 0 &&
+          strcmp(tables->table_name.str, "proc") == 0))
+      DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
+#endif
 
     if (thd->lex->requires_prelocking() &&
         thd->lex->sql_command != SQLCOM_LOCK_TABLES)
@@ -8772,10 +8784,22 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 
   if (!result && triggers)
   {
+    void *save_bulk_param= thd->bulk_param;
+    /*
+      Reset the sentinel thd->bulk_param in order not to consume the next
+      values of a bound array in case one of statement executed by
+      the trigger's body is INSERT statement.
+    */
+    thd->bulk_param= nullptr;
+
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
                                     TRUE) ||
         not_null_fields_have_null_values(table))
+    {
+      thd->bulk_param= save_bulk_param;
       return TRUE;
+    }
+    thd->bulk_param= save_bulk_param;
 
     /*
       Re-calculate virtual fields to cater for cases when base columns are
@@ -8961,17 +8985,17 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
+  THD *thd;
   uint i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
   TABLE_SHARE share;
-  THD *thd;
   DBUG_ENTER("mysql_rm_tmp_tables");
 
   if (!(thd= new THD(0)))
     DBUG_RETURN(1);
-  thd->thread_stack= (char*) &thd;
+  thd->thread_stack= (void*) &thd;              // Big stack
   thd->store_globals();
 
   for (i=0; i<=mysql_tmpdir_list.max; i++)

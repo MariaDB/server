@@ -63,23 +63,23 @@ class LIBXMLDOC : public XMLDOCUMENT {
   LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp);
 
   // Properties
-  virtual short  GetDocType(void) {return TYPE_FB_XML2;}
-  virtual void  *GetDocPtr(void) {return Docp;}
-  virtual void   SetNofree(bool b) {Nofreelist = b;}
+  short  GetDocType(void) override {return TYPE_FB_XML2;}
+  void  *GetDocPtr(void) override {return Docp;}
+  void   SetNofree(bool b) override {Nofreelist = b;}
 
   // Methods
-	virtual bool    Initialize(PGLOBAL g, PCSZ entry, bool zipped);
-  virtual bool    ParseFile(PGLOBAL g, char *fn);
-  virtual bool    NewDoc(PGLOBAL g, PCSZ ver);
-  virtual void    AddComment(PGLOBAL g, char *com);
-  virtual PXNODE  GetRoot(PGLOBAL g);
-  virtual PXNODE  NewRoot(PGLOBAL g, char *name);
-  virtual PXNODE  NewPnode(PGLOBAL g, char *name);
-  virtual PXATTR  NewPattr(PGLOBAL g);
-  virtual PXLIST  NewPlist(PGLOBAL g);
-  virtual int     DumpDoc(PGLOBAL g, char *ofn);
-  virtual void    CloseDoc(PGLOBAL g, PFBLOCK xp);
-  virtual PFBLOCK LinkXblock(PGLOBAL g, MODE m, int rc, char *fn);
+	bool    Initialize(PGLOBAL g, PCSZ entry, bool zipped) override;
+  bool    ParseFile(PGLOBAL g, char *fn) override;
+  bool    NewDoc(PGLOBAL g, PCSZ ver) override;
+  void    AddComment(PGLOBAL g, char *com) override;
+  PXNODE  GetRoot(PGLOBAL g) override;
+  PXNODE  NewRoot(PGLOBAL g, char *name) override;
+  PXNODE  NewPnode(PGLOBAL g, char *name) override;
+  PXATTR  NewPattr(PGLOBAL g) override;
+  PXLIST  NewPlist(PGLOBAL g) override;
+  int     DumpDoc(PGLOBAL g, char *ofn) override;
+  void    CloseDoc(PGLOBAL g, PFBLOCK xp) override;
+  PFBLOCK LinkXblock(PGLOBAL g, MODE m, int rc, char *fn) override;
 
  protected:
 //        bool     CheckDocument(FILE *of, xmlNodePtr np);
@@ -93,7 +93,6 @@ class LIBXMLDOC : public XMLDOCUMENT {
   xmlXPathContextPtr Ctxp;
   xmlXPathObjectPtr  Xop;
   xmlXPathObjectPtr  NlXop;
-  xmlErrorPtr        Xerr;
   char              *Buf;                  // Temporary
   bool               Nofreelist;
 }; // end of class LIBXMLDOC
@@ -106,23 +105,23 @@ class XML2NODE : public XMLNODE {
   friend class XML2NODELIST;
  public:
   // Properties
-  virtual char  *GetName(PGLOBAL g) {return (char*)Nodep->name;}
-  virtual int    GetType(void);
-  virtual PXNODE GetNext(PGLOBAL g);
-  virtual PXNODE GetChild(PGLOBAL g);
+  char  *GetName(PGLOBAL g) override {return (char*)Nodep->name;}
+  int    GetType(void) override;
+  PXNODE GetNext(PGLOBAL g) override;
+  PXNODE GetChild(PGLOBAL g) override;
 
   // Methods
-  virtual RCODE  GetContent(PGLOBAL g, char *buf, int len);
-  virtual bool   SetContent(PGLOBAL g, char *txtp, int len);
-  virtual PXNODE Clone(PGLOBAL g, PXNODE np);
-  virtual PXLIST GetChildElements(PGLOBAL g, char *xp, PXLIST lp);
-  virtual PXLIST SelectNodes(PGLOBAL g, char *xp, PXLIST lp);
-  virtual PXNODE SelectSingleNode(PGLOBAL g, char *xp, PXNODE np);
-  virtual PXATTR GetAttribute(PGLOBAL g, char *name, PXATTR ap);
-  virtual PXNODE AddChildNode(PGLOBAL g, PCSZ name, PXNODE np);
-  virtual PXATTR AddProperty(PGLOBAL g, char *name, PXATTR ap);
-  virtual void   AddText(PGLOBAL g, PCSZ txtp);
-  virtual void   DeleteChild(PGLOBAL g, PXNODE dnp);
+  RCODE  GetContent(PGLOBAL g, char *buf, int len) override;
+  bool   SetContent(PGLOBAL g, char *txtp, int len) override;
+  PXNODE Clone(PGLOBAL g, PXNODE np) override;
+  PXLIST GetChildElements(PGLOBAL g, char *xp, PXLIST lp) override;
+  PXLIST SelectNodes(PGLOBAL g, char *xp, PXLIST lp) override;
+  PXNODE SelectSingleNode(PGLOBAL g, char *xp, PXNODE np) override;
+  PXATTR GetAttribute(PGLOBAL g, char *name, PXATTR ap) override;
+  PXNODE AddChildNode(PGLOBAL g, PCSZ name, PXNODE np) override;
+  PXATTR AddProperty(PGLOBAL g, char *name, PXATTR ap) override;
+  void   AddText(PGLOBAL g, PCSZ txtp) override;
+  void   DeleteChild(PGLOBAL g, PXNODE dnp) override;
 
  protected:
   // Constructor
@@ -142,9 +141,9 @@ class XML2NODELIST : public XMLNODELIST {
   friend class XML2NODE;
  public:
   // Methods
-  virtual int    GetLength(void);
-  virtual PXNODE GetItem(PGLOBAL g, int n, PXNODE np);
-  virtual bool   DropItem(PGLOBAL g, int n);
+  int    GetLength(void) override;
+  PXNODE GetItem(PGLOBAL g, int n, PXNODE np) override;
+  bool   DropItem(PGLOBAL g, int n) override;
 
  protected:
   // Constructor
@@ -162,12 +161,12 @@ class XML2ATTR : public XMLATTRIBUTE {
   friend class XML2NODE;
  public:
   // Properties
-  virtual char  *GetName(PGLOBAL g) {return (char*)Atrp->name;}
-  virtual PXATTR GetNext(PGLOBAL g);
+  char  *GetName(PGLOBAL g) override {return (char*)Atrp->name;}
+  PXATTR GetNext(PGLOBAL g) override;
 
   // Methods
-  virtual RCODE  GetText(PGLOBAL g, char *bufp, int len);
-  virtual bool   SetText(PGLOBAL g, char *txtp, int len);
+  RCODE  GetText(PGLOBAL g, char *bufp, int len) override;
+  bool   SetText(PGLOBAL g, char *txtp, int len) override;
 
  protected:
   // Constructor
@@ -327,7 +326,6 @@ LIBXMLDOC::LIBXMLDOC(char *nsl, char *nsdf, char *enc, PFBLOCK fp)
   Ctxp = NULL;
   Xop = NULL;
   NlXop = NULL;
-  Xerr = NULL;
   Buf = NULL;
   Nofreelist = false;
   } // end of LIBXMLDOC constructor
@@ -365,8 +363,8 @@ bool LIBXMLDOC::ParseFile(PGLOBAL g, char *fn)
       Encoding = (char*)Docp->encoding;
 
     return false;
-  } else if ((Xerr = xmlGetLastError()))
-    xmlResetError(Xerr);
+  } else if (xmlGetLastError())
+    xmlResetLastError();
 
   return true;
   } // end of ParseFile
@@ -505,9 +503,9 @@ int LIBXMLDOC::DumpDoc(PGLOBAL g, char *ofn)
 #if 1
   // This function does not crash (
   if (xmlSaveFormatFileEnc((const char *)ofn, Docp, Encoding, 0) < 0) {
-    xmlErrorPtr err = xmlGetLastError();
+    const xmlError *err = xmlGetLastError();
     strcpy(g->Message, (err) ? err->message : "Error saving XML doc");
-    xmlResetError(Xerr);
+    xmlResetLastError();
     rc = -1;
     } // endif Save
 //  rc = xmlDocDump(of, Docp);
@@ -546,8 +544,8 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     if (Nlist) {
       xmlXPathFreeNodeSet(Nlist);
 
-      if ((Xerr = xmlGetLastError()))
-        xmlResetError(Xerr);
+      if (xmlGetLastError())
+        xmlResetLastError();
 
       Nlist = NULL;
       } // endif Nlist
@@ -555,8 +553,8 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     if (Xop) {
       xmlXPathFreeObject(Xop);
 
-      if ((Xerr = xmlGetLastError()))
-        xmlResetError(Xerr);
+      if (xmlGetLastError())
+        xmlResetLastError();
 
       Xop = NULL;
       } // endif Xop
@@ -564,8 +562,8 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     if (NlXop) {
       xmlXPathFreeObject(NlXop);
 
-      if ((Xerr = xmlGetLastError()))
-        xmlResetError(Xerr);
+      if (xmlGetLastError())
+        xmlResetLastError();
 
       NlXop = NULL;
       } // endif NlXop
@@ -573,8 +571,8 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
     if (Ctxp) {
       xmlXPathFreeContext(Ctxp);
 
-      if ((Xerr = xmlGetLastError()))
-        xmlResetError(Xerr);
+      if (xmlGetLastError())
+        xmlResetLastError();
 
       Ctxp = NULL;
       } // endif Ctxp
@@ -590,6 +588,7 @@ void LIBXMLDOC::CloseDoc(PGLOBAL g, PFBLOCK xp)
 /******************************************************************/
 xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
   {
+  const xmlError *xerr;
   xmlNodeSetPtr nl;
 
   if (trace(1))
@@ -649,11 +648,11 @@ xmlNodeSetPtr LIBXMLDOC::GetNodeList(PGLOBAL g, xmlNodePtr np, char *xp)
     } else
       xmlXPathFreeObject(Xop);            // Caused node not found
 
-    if ((Xerr = xmlGetLastError())) {
-      strcpy(g->Message, Xerr->message);
-      xmlResetError(Xerr);
+    if ((xerr = xmlGetLastError())) {
+      strcpy(g->Message, xerr->message);
+      xmlResetLastError();
       return NULL;
-      } // endif Xerr
+      } // endif xerr
 
     } // endif Xop
 
@@ -1079,7 +1078,7 @@ void XML2NODE::AddText(PGLOBAL g, PCSZ txtp)
 /******************************************************************/
 void XML2NODE::DeleteChild(PGLOBAL g, PXNODE dnp)
   {
-  xmlErrorPtr xerr;
+  const xmlError *xerr;
 
   if (trace(1))
     htrc("DeleteChild: node=%p\n", dnp);
@@ -1122,7 +1121,7 @@ err:
   if (trace(1))
     htrc("DeleteChild: errmsg=%-.256s\n", xerr->message);
 
-  xmlResetError(xerr);
+  xmlResetLastError();
   } // end of DeleteChild
 
 /* -------------------- class XML2NODELIST ---------------------- */

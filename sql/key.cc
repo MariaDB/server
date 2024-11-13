@@ -754,13 +754,13 @@ ulong key_hashnr(KEY *key_info, uint used_key_parts, const uchar *key)
 
     if (is_string)
     {
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length= cs->charpos(pos + pack_length,
-                                        pos + pack_length + length,
-                                        length / cs->mbmaxlen);
-        set_if_smaller(length, char_length);
-      }
+      /*
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+
+        In this case, the passed key tuple is already a prefix, no
+        special handling is required.
+      */
       cs->hash_sort(pos+pack_length, length, &nr, &nr2);
       key+= pack_length;
     }
@@ -864,25 +864,13 @@ bool key_buf_cmp(KEY *key_info, uint used_key_parts,
     if (is_string)
     {
       /*
-        Compare the strings taking into account length in characters
-        and collation
+        Surprisingly, BNL-H joins may use prefix keys. This may happen
+        when there is a real index on the column used in equi-join.
+        In this case, we get properly truncated prefixes here.
       */
-      size_t byte_len1= length1, byte_len2= length2;
-      if (cs->mbmaxlen > 1)
-      {
-        size_t char_length1= cs->charpos(pos1 + pack_length,
-                                         pos1 + pack_length + length1,
-                                         length1 / cs->mbmaxlen);
-        size_t char_length2= cs->charpos(pos2 + pack_length,
-                                         pos2 + pack_length + length2,
-                                         length2 / cs->mbmaxlen);
-        set_if_smaller(length1, char_length1);
-        set_if_smaller(length2, char_length2);
-      }
-      if (length1 != length2 ||
-          cs->strnncollsp(pos1 + pack_length, byte_len1,
-                          pos2 + pack_length, byte_len2))
-        return TRUE;
+      if (cs->strnncollsp(pos1 + pack_length, length1,
+                          pos2 + pack_length, length2))
+        return true;
       key1+= pack_length; key2+= pack_length;
     }
     else

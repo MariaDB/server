@@ -19,7 +19,7 @@ if (!$SLAVE1_1_SLAVE_STATUS)
     MASTER_PORT = $MASTER_1_MYPORT
   ;
 }
-START SLAVE;
+--source include/start_slave.inc
 --connection master_1
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 --connection slave1_1

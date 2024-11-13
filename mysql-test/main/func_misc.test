@@ -248,6 +248,7 @@ SELECT NAME_CONST('var', 'value') COLLATE latin1_general_cs;
 #
 # Bug #35848: UUID() returns UUIDs with the wrong time
 #
+--disable_cursor_protocol
 select @@session.time_zone into @save_tz;
 
 # make sure all times are UTC so the DayNr won't differ
@@ -259,6 +260,7 @@ select 24 * 60 * 60 * 1000 * 1000 * 10 into @my_uuid_one_day;
 select concat('0',mid(@my_uuid,16,3),mid(@my_uuid,10,4),left(@my_uuid,8)) into @my_uuidate;
 select floor(conv(@my_uuidate,16,10)/@my_uuid_one_day) into @my_uuid_date;
 select 141427 + datediff(curdate(),'1970-01-01') into @my_uuid_synthetic;
+--enable_cursor_protocol
 # these should be identical; date part of UUID should be current date
 select @my_uuid_date - @my_uuid_synthetic;
 
@@ -1361,3 +1363,18 @@ FROM information_schema.metadata_lock_info WHERE thread_id>0 ORDER BY TABLE_SCHE
 
 --enable_ps2_protocol
 --enable_view_protocol
+
+--echo #
+--echo # MDEV-32583 UUID() should be treated as stochastic for the purposes of
+--echo #   forcing query materialization
+--echo #
+
+--source include/have_sequence.inc
+create table t1 as WITH cte AS (SELECT UUID() as r  FROM seq_1_to_10)
+SELECT r as r1, r FROM cte;
+select count(*) from t1 where r1!=r;
+drop table t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

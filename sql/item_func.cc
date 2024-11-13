@@ -1918,6 +1918,18 @@ void Item_func_abs::fix_length_and_dec_int()
   set_handler(type_handler_long_or_longlong());
 }
 
+void Item_func_abs::fix_length_and_dec_sint_ge0()
+{
+  /*
+    We're converting slong_ge0 to slong/slonglong.
+    Add one character for the sign into max_length.
+  */
+  max_length= args[0]->decimal_precision() + 1/*sign*/;
+  DBUG_ASSERT(!args[0]->unsigned_flag);
+  unsigned_flag= false;
+  set_handler(type_handler_long_or_longlong());
+}
+
 
 void Item_func_abs::fix_length_and_dec_double()
 {
@@ -2138,7 +2150,7 @@ class Func_handler_shift_left_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null() <<
@@ -2151,7 +2163,7 @@ class Func_handler_shift_left_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() <<
@@ -2172,7 +2184,7 @@ class Func_handler_shift_right_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->fixed == 1);
     return item->arguments()[0]->to_longlong_null() >>
@@ -2185,7 +2197,7 @@ class Func_handler_shift_right_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() >>
@@ -2206,7 +2218,7 @@ class Func_handler_bit_neg_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return ~ item->arguments()[0]->to_longlong_null();
@@ -2218,7 +2230,7 @@ class Func_handler_bit_neg_decimal_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return ~ VDec(item->arguments()[0]).to_xlonglong_null();
@@ -2594,6 +2606,22 @@ void Item_func_round::fix_arg_int(const Type_handler *preferred,
 }
 
 
+void Item_func_round::fix_arg_slong_ge0()
+{
+  DBUG_ASSERT(!args[0]->unsigned_flag);
+  DBUG_ASSERT(args[0]->decimals == 0);
+  Type_std_attributes::set(args[0]);
+  /*
+    We're converting the data type from slong_ge0 to slong/slonglong.
+    Add one character for the sign,
+    to change max_length notation from "max_length digits" to
+    "max_length-1 digits and the sign".
+  */
+  max_length+= 1/*sign*/ + test_if_length_can_increase();
+  set_handler(type_handler_long_or_longlong());
+}
+
+
 void Item_func_round::fix_arg_hex_hybrid()
 {
   DBUG_ASSERT(args[0]->decimals == 0);
@@ -2610,12 +2638,12 @@ void Item_func_round::fix_arg_hex_hybrid()
 }
 
 
-double my_double_round(double value, longlong dec, bool dec_unsigned,
+double my_double_round(double value, longlong dec_value, bool dec_unsigned,
                        bool truncate)
 {
   double tmp;
-  bool dec_negative= (dec < 0) && !dec_unsigned;
-  ulonglong abs_dec= dec_negative ? -dec : dec;
+  const Longlong_hybrid dec(dec_value, dec_unsigned);
+  const ulonglong abs_dec= dec.abs();
   /*
     tmp2 is here to avoid return the value with 80 bit precision
     This will fix that the test round(0.1,1) = round(0.1,1) is true
@@ -2630,22 +2658,24 @@ double my_double_round(double value, longlong dec, bool dec_unsigned,
   volatile double value_div_tmp= value / tmp;
   volatile double value_mul_tmp= value * tmp;
 
-  if (!dec_negative && std::isinf(tmp)) // "dec" is too large positive number
+  if (!dec.neg() && std::isinf(tmp)) // "dec" is a too large positive number
     return value;
 
-  if (dec_negative && std::isinf(tmp))
-    tmp2= 0.0;
-  else if (!dec_negative && std::isinf(value_mul_tmp))
+  if (dec.neg() && std::isinf(tmp)) // "dec" is a too small negative number
+    return 0.0;
+
+  // Handle "dec" with a reasonably small absolute value
+  if (!dec.neg() && std::isinf(value_mul_tmp))
     tmp2= value;
   else if (truncate)
   {
     if (value >= 0.0)
-      tmp2= dec < 0 ? floor(value_div_tmp) * tmp : floor(value_mul_tmp) / tmp;
+      tmp2= dec.neg() ? floor(value_div_tmp) * tmp : floor(value_mul_tmp) / tmp;
     else
-      tmp2= dec < 0 ? ceil(value_div_tmp) * tmp : ceil(value_mul_tmp) / tmp;
+      tmp2= dec.neg() ? ceil(value_div_tmp) * tmp : ceil(value_mul_tmp) / tmp;
   }
   else
-    tmp2=dec < 0 ? rint(value_div_tmp) * tmp : rint(value_mul_tmp) / tmp;
+    tmp2=dec.neg() ? rint(value_div_tmp) * tmp : rint(value_mul_tmp) / tmp;
 
   return tmp2;
 }
@@ -2994,7 +3024,7 @@ double Item_func_min_max::val_real_native()
 	value=tmp;
     }
     if ((null_value= args[i]->null_value))
-      break;
+      return 0;
   }
   return value;
 }
@@ -3015,7 +3045,7 @@ longlong Item_func_min_max::val_int_native()
 	value=tmp;
     }
     if ((null_value= args[i]->null_value))
-      break;
+      return 0;
   }
   return value;
 }
@@ -3113,11 +3143,27 @@ longlong Item_func_char_length::val_int()
 }
 
 
+bool Item_func_coercibility::fix_length_and_dec()
+{
+  max_length=10;
+  maybe_null= 0;
+  /*
+    Since this is a const item which doesn't use tables (see used_tables()),
+    we don't want to access the function arguments during execution.
+    That's why we store the derivation here during the preparation phase
+    and only return it later at the execution phase
+  */
+  DBUG_ASSERT(args[0]->is_fixed());
+  m_cached_collation_derivation= (longlong) args[0]->collation.derivation;
+  return false;
+}
+
+
 longlong Item_func_coercibility::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   null_value= 0;
-  return (longlong) args[0]->collation.derivation;
+  return m_cached_collation_derivation;
 }
 
 
@@ -3398,7 +3444,7 @@ class Func_handler_bit_count_int_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null().bit_count();
@@ -3410,7 +3456,7 @@ class Func_handler_bit_count_decimal_to_slong:
         public Item_handled_func::Handler_slong2
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null().bit_count();
@@ -3547,6 +3593,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
   initid.const_item=func->const_item_cache;
   initid.decimals=func->decimals;
   initid.ptr=0;
+  not_original=0;
   for (uint i1= 0 ; i1 < arg_count ; i1++)
     buffers[i1].set_thread_specific();
 
@@ -4151,7 +4198,7 @@ public:
                         const char * /* sqlstate */,
                         Sql_condition::enum_warning_level* /* level */,
                         const char *message,
-                        Sql_condition ** /* cond_hdl */);
+                        Sql_condition ** /* cond_hdl */) override;
 };
 
 bool
@@ -4800,7 +4847,9 @@ Item_func_set_user_var::fix_length_and_dec()
   if (args[0]->collation.derivation == DERIVATION_NUMERIC)
   {
     collation.set(DERIVATION_NUMERIC);
-    fix_length_and_charset(args[0]->max_char_length(), &my_charset_numeric);
+    uint sign_length= args[0]->type_handler() == &type_handler_slong_ge0 ? 1: 0;
+    fix_length_and_charset(args[0]->max_char_length() + sign_length,
+                           &my_charset_numeric);
   }
   else
   {
@@ -6467,7 +6516,7 @@ class Func_handler_bit_xor_int_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return item->arguments()[0]->to_longlong_null() ^
@@ -6480,7 +6529,7 @@ class Func_handler_bit_xor_dec_to_ulonglong:
         public Item_handled_func::Handler_ulonglong
 {
 public:
-  Longlong_null to_longlong_null(Item_handled_func *item) const
+  Longlong_null to_longlong_null(Item_handled_func *item) const override
   {
     DBUG_ASSERT(item->is_fixed());
     return VDec(item->arguments()[0]).to_xlonglong_null() ^

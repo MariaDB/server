@@ -40,7 +40,7 @@ connection purge_control;
 COMMIT;
 disconnect purge_control;
 connection default;
-InnoDB		0 transactions not purged
+SET GLOBAL innodb_max_purge_lag_wait=2;
 SET debug_sync = 'now SIGNAL con2_go WAIT_FOR con2_insert_done';
 SET debug_sync = 'now SIGNAL con1_go WAIT_FOR con1_insert_done';
 SET debug_sync = 'now SIGNAL con1_finish';
@@ -99,7 +99,7 @@ connection purge_control;
 COMMIT;
 disconnect purge_control;
 connection default;
-InnoDB		0 transactions not purged
+SET GLOBAL innodb_max_purge_lag_wait=2;
 SET debug_sync = 'now SIGNAL con2_go WAIT_FOR con2_insert_done';
 SET debug_sync = 'now SIGNAL con1_go WAIT_FOR con1_insert_done';
 SET debug_sync = 'now SIGNAL con1_finish';

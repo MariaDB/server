@@ -129,6 +129,7 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
                     struct st_mysql_value *value)
 {
+  *(my_bool*)save= 1; // must initialize the return value
   return (test_passed= (do_tests() == 0)) == 0;
 }
 
@@ -139,6 +140,7 @@ static int run_sql(MYSQL *mysql, void *save, struct st_mysql_value *value)
   int len= 0;
   MYSQL_RES *res;
 
+  *(my_bool*)save= 1; // must initialize the return value
   str= value->val_str(value, NULL, &len);
 
   if (mysql_real_query(mysql, str, len))

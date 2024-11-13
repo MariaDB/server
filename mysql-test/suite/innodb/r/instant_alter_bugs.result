@@ -521,3 +521,21 @@ COUNT(*)
 1
 DROP TABLE t1;
 # End of 10.4 tests
+#
+#  MDEV-29010  Table cannot be loaded after instant ALTER
+#
+CREATE TABLE t1 (a CHAR(255), b INT,
+c INT as (b) VIRTUAL)ENGINE=InnoDB CHARACTER SET utf32;
+ALTER TABLE t1 DROP COLUMN a;
+ALTER TABLE t1 DROP COLUMN c;
+DROP TABLE t1;
+#
+#  MDEV-35122  Incorrect NULL value handling for instantly
+#                 dropped BLOB columns
+#
+CREATE TABLE t1 (c1 INT, c2 BLOB, c3 BLOB NOT NULL) ROW_FORMAT=REDUNDANT,ENGINE=InnoDB;
+ALTER TABLE t1 DROP c2;
+ALTER TABLE t1 DROP c3;
+INSERT INTO t1 VALUES(1);
+DROP TABLE t1;
+# End of 10.5 tests

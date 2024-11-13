@@ -100,6 +100,7 @@ usr/share/man/man1/mysqlhotcopy.1
 usr/share/man/man1/perror.1
 usr/share/man/man1/replace.1
 usr/share/man/man1/resolve_stack_dump.1
+usr/share/man/man1/wsrep_sst_backup.1
 usr/share/man/man1/wsrep_sst_common.1
 usr/share/man/man1/wsrep_sst_mariabackup.1
 usr/share/man/man1/wsrep_sst_mysqldump.1
