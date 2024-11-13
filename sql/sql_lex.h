@@ -3237,6 +3237,8 @@ public:
   inline bool is_arena_for_set_stmt() {return arena_for_set_stmt != 0;}
   int single_multi_table_alias_ref_list(THD *thd);
   int query_expression_body_query_simple(st_select_lex_unit *&unit, SELECT_LEX *select_lex);
+  int delete_delete_sym(THD *thd);
+  int delete_part2(THD *thd);
   bool set_arena_for_set_stmt(Query_arena *backup);
   void reset_arena_for_set_stmt(Query_arena *backup);
   void free_arena_for_set_stmt();

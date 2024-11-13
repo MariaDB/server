@@ -6028,6 +6028,35 @@ int LEX::query_expression_body_query_simple(st_select_lex_unit *&unit,
 }
 
 
+int LEX::delete_delete_sym(THD *thd)
+{
+    LEX *lex= this;
+    auto YYPS= &thd->m_parser_state->m_yacc;
+    YYPS->m_lock_type= TL_WRITE_DEFAULT;
+    YYPS->m_mdl_type= MDL_SHARED_WRITE;
+    if (lex->main_select_push())
+        return 1;
+    mysql_init_delete(lex);
+    lex->ignore= 0;
+    lex->first_select_lex()->order_list.empty();
+    return 0;
+}
+
+
+int LEX::delete_part2(THD *thd)
+{
+    LEX *lex= this;
+    lex->last_table()->vers_conditions= lex->vers_conditions;
+    lex->sql_command= SQLCOM_DELETE;
+    if (!(lex->m_sql_cmd=
+          new (thd->mem_root) Sql_cmd_delete(false)))
+        return 1;
+    if (lex->check_main_unit_semantics())
+        return 1;
+    return 0;
+}
+
+
 /**
   Allocates and set arena for SET STATEMENT old values.
 

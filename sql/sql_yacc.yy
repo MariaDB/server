@@ -13824,14 +13824,8 @@ opt_low_priority:
 delete:
           DELETE_SYM
           {
-            LEX *lex= Lex;
-            YYPS->m_lock_type= TL_WRITE_DEFAULT;
-            YYPS->m_mdl_type= MDL_SHARED_WRITE;
-            if (Lex->main_select_push())
+            if (Lex->delete_delete_sym(thd))
               MYSQL_YYABORT;
-            mysql_init_delete(lex);
-            lex->ignore= 0;
-            lex->first_select_lex()->order_list.empty();
           }
           delete_part2
           {
@@ -13855,13 +13849,7 @@ delete_part2:
           opt_delete_options single_multi {}
         | HISTORY_SYM delete_single_table opt_delete_system_time
           {
-            LEX *lex= Lex;
-            lex->last_table()->vers_conditions= lex->vers_conditions;
-            lex->sql_command= SQLCOM_DELETE;
-            if (!(lex->m_sql_cmd=
-                  new (thd->mem_root) Sql_cmd_delete(false)))
-              MYSQL_YYABORT;
-            if (lex->check_main_unit_semantics())
+            if (Lex->delete_part2(thd));
               MYSQL_YYABORT;
           }
           stmt_end
