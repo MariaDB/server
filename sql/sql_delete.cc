@@ -1705,6 +1705,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
 
   THD_STAGE_INFO(thd, stage_init_update);
 
+  if (lex->derived_tables)
   {
     if (mysql_handle_derived(lex, DT_INIT))
       DBUG_RETURN(TRUE);
