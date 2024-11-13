@@ -641,6 +641,9 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
           table_list->table &&
           table_list->table->file->extra(HA_EXTRA_FLUSH))
         goto error_reset_bits;
+      if (table_list->table &&
+          table_list->table->open_hlindexes_for_write())
+        goto error_reset_bits;
     }
   }
 

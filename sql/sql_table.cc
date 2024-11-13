@@ -6082,6 +6082,23 @@ int mysql_discard_or_import_tablespace(THD *thd,
     DBUG_RETURN(-1);
   }
 
+  DBUG_ASSERT(table_list->table->s->hlindexes() <= 1);
+  for (uint i= table_list->table->s->keys; i < table_list->table->s->total_keys; i++)
+  {
+    if (table_list->table->hlindex_open(i))
+    {
+      thd->tablespace_op= FALSE;
+      DBUG_RETURN(-1);
+    }
+  }
+  for (uint i= table_list->table->s->keys; i < table_list->table->s->total_keys; i++)
+  {
+    error= table_list->table->hlindex->file->
+      ha_discard_or_import_tablespace(discard);
+    if (unlikely(error))
+      goto err;
+  }
+
   error= table_list->table->file->ha_discard_or_import_tablespace(discard);
 
   THD_STAGE_INFO(thd, stage_end);
