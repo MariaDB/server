@@ -3520,7 +3520,7 @@ String *Item_func_conv::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   String *res= args[0]->val_str(str);
-  char *endptr,ans[65],*ptr;
+  char *endptr,ans[66],*ptr;
   longlong dec;
   int from_base= (int) args[1]->val_int();
   int to_base= (int) args[2]->val_int();

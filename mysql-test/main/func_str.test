@@ -2422,5 +2422,23 @@ DROP TABLE t;
 SET sql_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-32755 Stack-Buffer-Overflow at /mariadb-11.3.0/strings/int2str.c:122
+--echo #
+
+CREATE TABLE t0 ( c55 INT , c38 INT ) ;
+INSERT INTO t0 VALUES ( -54 , -27 ) , ( -107 , -62 ) ;
+CREATE INDEX i0 ON t0 ( c38 ) ;
+INSERT INTO t0 ( c55 ) VALUES ( 43 ) , ( 77 ) ;
+SELECT t0 . c55 AS c47 FROM
+( SELECT c15 AS c40 FROM
+  ( SELECT c55 AS c15 FROM t0 ) AS t1
+  JOIN t0 ON t1.c15 = t1.c15 SOUNDS LIKE + CONV ( -2919286674558440404 , -17 , -2 ) ) AS t2
+  JOIN t0 ON t0.c38 = t0.c38;
+DROP TABLE t0;
+
+SELECT CONV(-29223372036854775809, -10, 18446744073709551614);
+SELECT CONV(1<<63, 10, -2);
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
