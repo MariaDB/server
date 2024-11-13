@@ -261,15 +261,26 @@ void mysql_client_binlog_statement(THD* thd)
   int err;
   Relay_log_info *rli;
   rpl_group_info *rgi;
+  bool use_fake_rgi= false;
   uchar *buf= NULL;
   size_t coded_len= 0, decoded_len= 0;
 
-  rli= thd->rli_fake;
-  if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
-    rli->sql_driver_thd= thd;
-  if (!(rgi= thd->rgi_fake))
-    rgi= thd->rgi_fake= new rpl_group_info(rli);
-  rgi->thd= thd;
+
+  if (!thd->rgi_slave)
+  {
+    rli= thd->rli_fake;
+    if (!rli && (rli= thd->rli_fake= new Relay_log_info(FALSE, "BINLOG_BASE64_EVENT")))
+      rli->sql_driver_thd= thd;
+    if (!(rgi= thd->rgi_fake))
+      rgi= thd->rgi_fake= new rpl_group_info(rli);
+    rgi->thd= thd;
+    use_fake_rgi= true;
+  }
+  else
+  {
+    rgi= thd->rgi_slave;
+    rli= rgi->rli;
+  }
   const char *error= 0;
   Log_event *ev = 0;
   my_bool is_fragmented= FALSE;
@@ -466,7 +477,10 @@ end:
   thd->variables.option_bits= thd_options;
   rgi->slave_close_thread_tables(thd);
   my_free(buf);
-  delete rgi;
-  rgi= thd->rgi_fake= NULL;
+  if (use_fake_rgi)
+  {
+    delete rgi;
+    rgi= thd->rgi_fake= NULL;
+  }
   DBUG_VOID_RETURN;
 }

@@ -1903,9 +1903,12 @@ int Query_log_event::from_rows_event(String *packet, ulong ev_offset,
   /*
     Use a dummy query event, just a comment.
   */
-  static const char message[]=
     //"# Dummy event replacing event type %u that slave cannot handle.";
-    "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='";
+//  static const char message[]=
+//"BINLOG 'Z6MzZxMBAAAALQAAAAAAAAAAACEAAAAAAAEABHRlc3QAAnQxAAEDAAHlFCsAZ6MzZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAI73ap8='";
+  static const char message[]=
+"set @b0= 'Z6MzZxMBAAAALQAAAAAAAAAAACEAAAAAAAEABHRlc3QAAnQxAAEDAAHlFCsAZ6MzZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAI73ap8='/*!*/; set @b1= ''/*!*/; BINLOG @b0, @b1/*!*/;";
+//    "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='";
   char buf[sizeof(message)+1];  /* +1, as %u can expand to 3 digits. */
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t comment_len, len;
