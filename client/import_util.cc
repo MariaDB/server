@@ -68,7 +68,7 @@ TableDDLInfo::TableDDLInfo(const std::string &create_table_stmt)
           "\\n\\s*(CONSTRAINT\\s+(`?(?:[^`]|``)+`?)\\s+.*?),?\\n",
           REG_EXTENDED);
   regcomp(&index_regex,
-          "\\n\\s*(((?:UNIQUE|FULLTEXT)\\s+)?(INDEX|KEY)\\s+(`(?:[^`]|``)+`)\\s+.*?),?\\n",
+          "\\n\\s*(((?:UNIQUE|FULLTEXT|VECTOR|SPATIAL)\\s+)?(INDEX|KEY)\\s+(`(?:[^`]|``)+`)\\s+.*?),?\\n",
           REG_EXTENDED);
   regcomp(&engine_regex, "\\bENGINE\\s*=\\s*(\\w+)", REG_EXTENDED);
   regcomp(&table_name_regex, "CREATE\\s+TABLE\\s+(`?(?:[^`]|``)+`?)\\s*\\(",

@@ -237,8 +237,10 @@ Executing SQL script vardir/tmp/dump/db2/offices.sql
 Executing SQL script vardir/tmp/dump/db2/parent.sql
 Loading data from SERVER file: vardir/tmp/dump/db2/users.txt into users
 db2.users: Records: 3  Deleted: 0  Skipped: 0  Warnings: 0
+Adding secondary indexes to table `users`
 Loading data from SERVER file: vardir/tmp/dump/db2/child.txt into child
 db2.child: Records: 4  Deleted: 0  Skipped: 0  Warnings: 0
+Adding secondary indexes to table `child`
 Loading data from SERVER file: vardir/tmp/dump/db2/offices.txt into offices
 db2.offices: Records: 4  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from SERVER file: vardir/tmp/dump/db2/parent.txt into parent
@@ -257,6 +259,60 @@ Loading data from SERVER file: vardir/tmp/dump/db2/offices.txt into offices
 db2.offices: Records: 4  Deleted: 0  Skipped: 0  Warnings: 0
 Loading data from SERVER file: vardir/tmp/dump/db2/parent.txt into parent
 db2.parent: Records: 2  Deleted: 0  Skipped: 0  Warnings: 0
+drop database db2;
+create database db2;
+use db2;
+create table vec (id int auto_increment primary key, v vector(5) not null,
+vector index (v)) ENGINE=InnoDB;
+insert vec(v) values (x'e360d63ebe554f3fcdbc523f4522193f5236083d'),
+(x'f511303f72224a3fdd05fe3eb22a133ffae86a3f'),
+(x'f09baa3ea172763f123def3e0c7fe53e288bf33e'),
+(x'b97a523f2a193e3eb4f62e3f2d23583e9dd60d3f'),
+(x'f7c5df3e984b2b3e65e59d3d7376db3eac63773e'),
+(x'de01453ffa486d3f10aa4d3fdd66813c71cb163f'),
+(x'76edfc3e4b57243f10f8423fb158713f020bda3e'),
+(x'56926c3fdf098d3e2c8c5e3d1ad4953daa9d0b3e'),
+(x'7b713f3e5258323f80d1113d673b2b3f66e3583f'),
+(x'6ca1d43e9df91b3fe580da3e1c247d3f147cf33e');
+create table ft(v text, fulltext(v)) ENGINE=InnoDB;
+insert into ft(v) values ('Once upon a time'),
+('There was a wicked witch'), ('Who ate everybody up');
+create table locations (id int auto_increment primary key, geom geometry NOT NULL) ENGINE=InnoDB;
+create spatial index idx_geom on locations (geom);
+insert into locations (geom) values (ST_GeomFromText('POINT(40.785091 -73.968285)'));
+# use --verbose to see "Adding secondary indexes" in the output
+Connecting to localhost
+Executing SQL script vardir/tmp/dump/db2/vec.sql
+Executing SQL script vardir/tmp/dump/db2/ft.sql
+Executing SQL script vardir/tmp/dump/db2/locations.sql
+Loading data from SERVER file: vardir/tmp/dump/db2/vec.txt into vec
+db2.vec: Records: 10  Deleted: 0  Skipped: 0  Warnings: 0
+Adding secondary indexes to table `vec`
+Loading data from SERVER file: vardir/tmp/dump/db2/ft.txt into ft
+db2.ft: Records: 3  Deleted: 0  Skipped: 0  Warnings: 0
+Adding secondary indexes to table `ft`
+Loading data from SERVER file: vardir/tmp/dump/db2/locations.txt into locations
+db2.locations: Records: 1  Deleted: 0  Skipped: 0  Warnings: 0
+Adding secondary indexes to table `locations`
+show index from vec;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+vec	0	PRIMARY	1	id	A	10	NULL	NULL		BTREE			NO
+vec	1	v	1	v	A	NULL	NULL	NULL		VECTOR			NO
+show index from locations;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+locations	0	PRIMARY	1	id	A	0	NULL	NULL		BTREE			NO
+locations	1	idx_geom	1	geom	A	NULL	32	NULL		SPATIAL			NO
+show index from ft;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+ft	1	v	1	v	NULL	NULL	NULL	NULL	YES	FULLTEXT			NO
+select id,vec_distance_euclidean(v, x'B047263c9f87233fcfd27e3eae493e3f0329f43e') d from vec order by d limit 3;
+id	d
+9	0.47199
+10	0.50690
+3	0.58656
+select * from ft where match(v) against('wicked');
+v
+There was a wicked witch
 drop database db2;
 create database db2;
 use db2;

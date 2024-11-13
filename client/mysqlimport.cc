@@ -772,6 +772,10 @@ int table_load_params::load_data(MYSQL *mysql)
     auto create_secondary_keys_sql= ddl_info.add_secondary_indexes_sql();
     if (!create_secondary_keys_sql.empty())
     {
+      if (verbose)
+      {
+        fprintf(stdout, "Adding secondary indexes to table %s\n", ddl_info.table_name.c_str());
+      }
       if (exec_sql(mysql, create_secondary_keys_sql))
         DBUG_RETURN(1);
     }
