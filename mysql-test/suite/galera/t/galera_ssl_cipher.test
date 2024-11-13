@@ -1,0 +1,82 @@
+#
+# Test upgrading the SSL chipher
+#
+
+--source include/galera_cluster.inc
+--source include/have_ssl_communication.inc
+--source include/have_openssl.inc
+--source include/force_restart.inc
+
+#
+# Lowest supported Galera library version
+#
+--let $galera_version=26.4.21
+source ../wsrep/include/check_galera_version.inc;
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--source include/auto_increment_offset_save.inc
+
+# Setup galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 2. Restart node #1 with a socket.ssl_cipher
+
+--connection node_1
+--source include/shutdown_mysqld.inc
+--let $restart_noprint = 1
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem;socket.ssl_cipher=AES256-SHA
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 3. Restart node #2 with the new socket.ssl_ca , socket.ssl_cert, socket.ssl_key and socket.ssl_cipher
+
+--connection node_2
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-key.pem;socket.ssl_cipher=AES256-SHA
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 4. Restart node #1 with the new socket.ssl_ca , socket.ssl_cert, socket.ssl_key and socket.ssl_cipher
+
+--connection node_1
+--source include/shutdown_mysqld.inc
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-upgrade-server-key.pem;socket.ssl_cipher=AES256-SHA
+--source include/start_mysqld.inc
+--source include/wait_until_connected_again.inc
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+# 5. Make sure node_2 is ready as well
+--connection node_2
+--source include/galera_wait_ready.inc
+
+# Upgrade complete. Both nodes now use the new key and certificate
+
+# Restore original auto_increment_offset values.
+--source include/auto_increment_offset_restore.inc
+
+--connection node_1
+call mtr.add_suppression("WSREP: write_handler\\(\\)");
+--connection node_2
+call mtr.add_suppression("WSREP: write_handler\\(\\)");
