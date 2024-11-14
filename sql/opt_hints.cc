@@ -20,8 +20,6 @@
 #include "sql_select.h"
 #include "opt_hints.h"
 
-typedef Optimizer_hint_parser Parser;
-
 /**
   Information about hints. Sould be
   synchronized with opt_hints_enum enum.
@@ -35,13 +33,13 @@ typedef Optimizer_hint_parser Parser;
 
 struct st_opt_hint_info opt_hint_info[]=
 {
-  {{STRING_WITH_LEN("BKA")}, true, true},
-  {{STRING_WITH_LEN("BNL")}, true, true},
-  {{STRING_WITH_LEN("ICP")}, true, true},
-  {{STRING_WITH_LEN("MRR")}, true, true},
-  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, true},
+  {{STRING_WITH_LEN("BKA")}, true, false},
+  {{STRING_WITH_LEN("BNL")}, true, false},
+  {{STRING_WITH_LEN("ICP")}, true, false},
+  {{STRING_WITH_LEN("MRR")}, true, false},
+  {{STRING_WITH_LEN("NO_RANGE_OPTIMIZATION")}, true, false},
   {{STRING_WITH_LEN("QB_NAME")}, false, false},
-  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, false},
+  {{STRING_WITH_LEN("MAX_EXECUTION_TIME")}, false, true},
   {null_clex_str, 0, 0}
 };
 
@@ -280,7 +278,11 @@ void Opt_hints::print(THD *thd, String *str)
       uint32 len_after_name= str->length();
       if (len_after_name > len_before_name)
         str->append(' ');
-      append_args(thd, str);
+      if (opt_hint_info[i].has_arguments)
+      {
+        std::function<void(THD*, String*)> args_printer= get_args_printer();
+        args_printer(thd, str);
+      }
       if (str->length() == len_after_name + 1)
       {
         // No additional arguments were printed, trim the space added before
@@ -429,7 +431,7 @@ static bool get_hint_state(Opt_hints *hint,
 {
   DBUG_ASSERT(parent_hint);
 
-  if (opt_hint_info[type_arg].switch_hint)
+  if (!opt_hint_info[type_arg].has_arguments)
   {
     if (hint && hint->is_specified(type_arg))
     {
@@ -445,7 +447,7 @@ static bool get_hint_state(Opt_hints *hint,
   }
   else
   {
-    /* Complex hint, not implemented atm */
+    /* Complex hint with arguments, not implemented atm */
     DBUG_ASSERT(0);
   }
   return false;
