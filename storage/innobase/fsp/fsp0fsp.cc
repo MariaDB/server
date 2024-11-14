@@ -6058,7 +6058,14 @@ enum fsp_binlog_chunk_types {
 */
 static constexpr uint32_t FSP_BINLOG_FLAG_BIT_CONT= 7;
 static constexpr uint32_t FSP_BINLOG_FLAG_CONT= (1 << FSP_BINLOG_FLAG_BIT_CONT);
-static constexpr uint32_t FSP_BINLOG_TYPE_MASK= ~(FSP_BINLOG_FLAG_CONT);
+/*
+  Bit set on the chunk type for the last chunk (no continuation chunks
+  follow)
+*/
+static constexpr uint32_t FSP_BINLOG_FLAG_BIT_LAST= 6;
+static constexpr uint32_t FSP_BINLOG_FLAG_LAST= (1 << FSP_BINLOG_FLAG_BIT_LAST);
+static constexpr uint32_t FSP_BINLOG_TYPE_MASK=
+  ~(FSP_BINLOG_FLAG_CONT | FSP_BINLOG_FLAG_LAST);
 
 
 static uint32_t binlog_size_in_pages;
@@ -6961,11 +6968,13 @@ binlog_gtid_state(rpl_binlog_state_base *state, mtr_t *mtr,
       page_offset= FIL_PAGE_DATA;
       byte *ptr= page_offset + block->page.frame;
       ssize_t chunk= used_bytes;
+      byte last_flag= FSP_BINLOG_FLAG_LAST;
       if (chunk > page_room - 3) {
+        last_flag= 0;
         chunk= page_room - 3;
         ++page_no;
       }
-      ptr[0]= FSP_BINLOG_TYPE_GTID_STATE | cont_flag;
+      ptr[0]= FSP_BINLOG_TYPE_GTID_STATE | cont_flag | last_flag;
       ptr[1] = (byte)chunk & 0xff;
       ptr[2] = (byte)(chunk >> 8);
       ut_ad(chunk <= 0xffff);
@@ -7013,7 +7022,7 @@ read_gtid_state_from_page(rpl_binlog_state_base *state, const byte *page,
   if (UNIV_UNLIKELY((t & FSP_BINLOG_TYPE_MASK) != FSP_BINLOG_TYPE_GTID_STATE))
     return 0;
   /* ToDo: Handle reading a state that spans multiple pages. For now, we assume the state fits in a single page. */
-  ut_a(!(t & FSP_BINLOG_FLAG_CONT));
+  ut_a(t & FSP_BINLOG_FLAG_LAST);
 
   uint32_t len= ((uint32_t)p[2] << 8) | p[1];
   const byte *p_end= p + 3 + len;
@@ -7357,7 +7366,8 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
       size+= size2;
       page_remain-= size2;
     }
-    ptr[0]= FSP_BINLOG_TYPE_COMMIT | cont_flag;
+    byte last_flag= (size >= remain) << FSP_BINLOG_FLAG_BIT_LAST;
+    ptr[0]= FSP_BINLOG_TYPE_COMMIT | cont_flag | last_flag;
     ptr[1]= size & 0xff;
     ptr[2]= (byte)(size >> 8);
     ut_ad(size <= 0xffff);
