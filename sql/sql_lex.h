@@ -1269,7 +1269,7 @@ public:
   List<Item_outer_ref> inner_refs_list;
 
   /* List of Items that are in inner selects but resolved here */
-  List<Item_field> *resolved_here;
+  List<Item_field> *resolved_here_or_above;
   void update_resolved_items_used_tables();
   void lower_outer_height();
 

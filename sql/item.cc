@@ -5755,7 +5755,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
   SELECT_LEX *current_sel= thd->lex->current_select;
-  Name_resolution_context *outer_context= 0;
+  Name_resolution_context *ctx, *outer_context= 0;
   SELECT_LEX *select= 0;
 
   /* Currently derived tables cannot be correlated */
@@ -5772,6 +5772,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   DBUG_ASSERT(outer_context || !*from_field ||
               *from_field == not_found_field);
+  ctx= outer_context;
   for (;
        outer_context;
        outer_context= outer_context->outer_context)
@@ -5837,20 +5838,37 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
         {
           /*
             Populate the resolved_here list in statement memory
+            so we can access it during 2nd execution
           */
           if (thd->stmt_arena->is_stmt_prepare_or_first_stmt_execute() ||
                   thd->stmt_arena->is_conventional())
           {
-            // TODO does this *really* need to be in statement memory?
             Query_arena *arena, backup;
             arena= thd->activate_stmt_arena_if_needed(&backup);
 
-            if (!select->resolved_here)
+            if (!select->resolved_here_or_above)
             {
-              if (!(select->resolved_here= new (thd->mem_root)List<Item_field>))
+              if (!(select->resolved_here_or_above= new (thd->mem_root)
+                                                              List<Item_field>))
                 return -1;
             }
-            select->resolved_here->push_back( this, thd->mem_root);
+            select->resolved_here_or_above->push_back(this, thd->mem_root);
+#if 1                   // need to populate all the other selects between 
+                        // where the item is defined and found too
+
+            for (Name_resolution_context *c= ctx; c && c->select_lex != select;)
+            {
+              SELECT_LEX *s= c->select_lex;
+              if (!s->resolved_here_or_above)
+              {
+                if (!(s->resolved_here_or_above= new (thd->mem_root)
+                                                              List<Item_field>))
+                  return -1;
+                s->resolved_here_or_above->push_back(this, thd->mem_root);
+              }
+              c= c->outer_context;
+            }
+#endif
             if (arena)
               thd->restore_active_arena(arena, &backup);
             if (select->nest_level < thd->lex->min_nest_level_with_outer_ref)

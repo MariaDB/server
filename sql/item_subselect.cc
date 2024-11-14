@@ -1077,6 +1077,9 @@ void Item_subselect::print(String *str, enum_query_type query_type)
 
 bool Item_subselect::update_resolved_here_processor( void *arg )
 {
+  // TODO, find something to indicate that this is the droid we are looking for.
+  // it might not be.
+
   List<Item_field> *refs = (List<Item_field> *)arg;
   DBUG_ENTER("Item_subselect::update_resolved_items_used_tables");
   if (!refs ||

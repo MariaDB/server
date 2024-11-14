@@ -1983,22 +1983,22 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
     sj_nest->sj_on_expr->walk(&Item::clear_used_tables_bit_processor, 0, 
                               (void *)OUTER_REF_TABLE_BIT);
 
-  if (subq_lex->resolved_here)
+  if (subq_lex->resolved_here_or_above)
   {
-    DBUG_PRINT("info", ("shifting resolved_here from select #%d to #%d",
+    DBUG_PRINT("info", ("shifting resolved_here_or_above from select #%d to #%d",
           subq_lex->select_number,
           parent_lex->select_number) );
-    if (!parent_lex->resolved_here)
-      parent_lex->resolved_here= subq_lex->resolved_here;
+    if (!parent_lex->resolved_here_or_above)
+      parent_lex->resolved_here_or_above= subq_lex->resolved_here_or_above;
     else
     {
-      parent_lex->resolved_here->append(subq_lex->resolved_here);
-      subq_lex->resolved_here= nullptr;
+      parent_lex->resolved_here_or_above->append(subq_lex->resolved_here_or_above);
+      subq_lex->resolved_here_or_above= nullptr;
     }
 
     // update used_tables_cache for items resolved in this parent SELECT_LEX
     sj_nest->sj_on_expr->walk(&Item::update_resolved_here_processor,
-                              0, parent_lex->resolved_here);
+                              0, parent_lex->resolved_here_or_above);
   }
 
   DBUG_EXECUTE("where",
