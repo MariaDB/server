@@ -452,7 +452,7 @@ String *Item_func_boundary::val_str(String *str_value)
   Transporter trn(&res_receiver);
 
   Geometry *g= Geometry::construct(&buffer, swkb->ptr(), swkb->length());
-  if (!g)
+  if ((null_value= !g))
     DBUG_RETURN(0);
 
   if (g->store_shapes(&trn))

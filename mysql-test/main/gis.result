@@ -5453,4 +5453,10 @@ t2	CREATE TABLE `t2` (
   `c` polygon DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 drop table t1, t2;
+#
+# MDEV-33987 Server crashes at Item_func_as_wkt::val_str_ascii
+#
+SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
+c1
+NULL
 # End of 10.5 tests
