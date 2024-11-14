@@ -2440,5 +2440,13 @@ SELECT CONV(-29223372036854775809, -10, 18446744073709551614);
 SELECT CONV(1<<63, 10, -2);
 
 --echo #
+--echo # MDEV-35416 CONV(1<<63, 10, -2) fails with --view-protocol
+--echo #
+
+CREATE TABLE t1 AS SELECT CONV(1<<63, 10, -2) AS c1;
+SHOW CREATE TABLE t1;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

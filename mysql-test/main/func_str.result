@@ -745,9 +745,9 @@ encode('abcd','ab')
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `bin(130)` varchar(64) DEFAULT NULL,
-  `oct(130)` varchar(64) DEFAULT NULL,
-  `conv(130,16,10)` varchar(64) DEFAULT NULL,
+  `bin(130)` varchar(65) DEFAULT NULL,
+  `oct(130)` varchar(65) DEFAULT NULL,
+  `conv(130,16,10)` varchar(65) DEFAULT NULL,
   `hex(130)` varchar(16) DEFAULT NULL,
   `char(130)` varbinary(4) DEFAULT NULL,
   `format(130,10)` varchar(25) DEFAULT NULL,
@@ -5260,7 +5260,7 @@ conv(i,16,2)
 SHOW CREATE TABLE t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `conv(i,16,2)` varchar(64) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+  `conv(i,16,2)` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
 DROP TABLE t1,t2;
 #
@@ -5396,6 +5396,16 @@ CONV(-29223372036854775809, -10, 18446744073709551614)
 SELECT CONV(1<<63, 10, -2);
 CONV(1<<63, 10, -2)
 -1000000000000000000000000000000000000000000000000000000000000000
+#
+# MDEV-35416 CONV(1<<63, 10, -2) fails with --view-protocol
+#
+CREATE TABLE t1 AS SELECT CONV(1<<63, 10, -2) AS c1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(65) CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COLLATE=latin1_swedish_ci
+DROP TABLE t1;
 #
 # End of 10.6 tests
 #
