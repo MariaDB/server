@@ -65,6 +65,7 @@
 #ifndef OPT_HINTS_INCLUDED
 #define OPT_HINTS_INCLUDED
 
+#include <functional>
 #include "my_config.h"
 #include "sql_alloc.h"
 #include "sql_list.h"
@@ -101,9 +102,10 @@ struct st_opt_hint_info
   LEX_CSTRING hint_name;  // Hint name.
   bool check_upper_lvl;   // true if upper level hint check is needed (for hints
                           // which can be specified on more than one level).
-  bool switch_hint;       // true if hint is not complex.
+  bool has_arguments;     // true if hint has additional arguments.
 };
 
+typedef Optimizer_hint_parser Parser;
 
 /**
   Opt_hints_map contains information
@@ -306,11 +308,14 @@ public:
   virtual void append_name(THD *thd, String *str)= 0;
 
   /**
-    Append additional hint arguments to the printed string if they exist.
-    For example, SEMIJOIN and SUBQUERY hints may have a list of strategies
-    as additional arguments
+    Get the function appending additional hint arguments to the printed string,
+    if the arguments exist. For example, SEMIJOIN and SUBQUERY hints may have
+    a list of strategies as additional arguments
   */
-  virtual void append_args(THD *thd, String *str) const {}
+  virtual std::function<void(THD*, String*)> get_args_printer() const
+  {
+    return [](THD*, String*) {};
+  }
 
   virtual ~Opt_hints() {}
 
@@ -345,7 +350,7 @@ protected:
 class Opt_hints_global : public Opt_hints
 {
 public:
-  const Optimizer_hint_parser::Max_execution_time_hint *max_exec_time_hint= nullptr;
+  const Parser::Max_execution_time_hint *max_exec_time_hint= nullptr;
 
   /*
     If MAX_EXECUTION_TIME() hint was provided, this pointer is set to
@@ -360,10 +365,12 @@ public:
 
   virtual void append_name(THD *thd, String *str) override {}
 
-  virtual void append_args(THD *thd, String *str) const override
+  virtual std::function<void(THD*, String*)> get_args_printer() const override
   {
-    if (max_exec_time_hint)
-      max_exec_time_hint->append_args(thd, str);
+    using std::placeholders::_1;
+    using std::placeholders::_2;
+    return std::bind(&Parser::Max_execution_time_hint::append_args,
+                     max_exec_time_hint, _1, _2);
   }
 
   bool resolve(THD *thd);
