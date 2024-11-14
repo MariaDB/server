@@ -1196,5 +1196,10 @@ static bool slave_applier_reset_xa_trans(THD *thd)
   thd->has_waiter= false;
   MYSQL_COMMIT_TRANSACTION(thd->m_transaction_psi); // TODO/Fixme: commit?
   thd->m_transaction_psi= NULL;
+  if (thd->variables.pseudo_slave_mode && thd->variables.pseudo_thread_id == 0)
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+		 ER_PSEUDO_THREAD_ID_OVERWRITE,
+		 ER_THD(thd, ER_PSEUDO_THREAD_ID_OVERWRITE));
+  thd->variables.pseudo_thread_id= 0;
   return thd->is_error();
 }

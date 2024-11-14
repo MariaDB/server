@@ -12270,3 +12270,5 @@ ER_JSON_SCHEMA_KEYWORD_UNSUPPORTED
         sw "%s neno kuu halitumiki"
 ER_JSON_NO_VARIABLE_SCHEMA
         eng "Variable schema is not supported."
+ER_PSEUDO_THREAD_ID_OVERWRITE
+        eng "Pseudo thread id should not be modified by the client as it will be overwritten"
