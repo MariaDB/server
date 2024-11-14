@@ -5174,7 +5174,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_ENTER("get_all_tables");
   LEX *lex= thd->lex;
   TABLE *table= tables->table;
-  TABLE_LIST table_acl_check;
   SELECT_LEX *lsel= tables->schema_select_lex;
   ST_SCHEMA_TABLE *schema_table= tables->schema_table;
   IS_table_read_plan *plan= tables->is_table_read_plan;
@@ -5264,8 +5263,6 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     goto err;
   }
 
-  bzero((char*) &table_acl_check, sizeof(table_acl_check));
-
   if (make_db_list(thd, &db_names, &plan->lookup_field_vals))
     goto err;
 
@@ -5278,9 +5275,7 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
     LEX_CSTRING *db_name= db_names.at(i);
     DBUG_ASSERT(db_name->length <= NAME_LEN);
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
-    if (!(check_access(thd, SELECT_ACL, db_name->str,
-                       &thd->col_access, NULL, 0, 1) ||
-          (!thd->col_access && check_grant_db(thd, db_name->str))) ||
+    if (!check_access(thd, SELECT_ACL, db_name->str, &thd->col_access, 0,0,1) ||
         sctx->master_access & (DB_ACLS | SHOW_DB_ACL) ||
         acl_get(sctx->host, sctx->ip, sctx->priv_user, db_name->str, 0))
 #endif
@@ -5301,6 +5296,8 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
         if (!(thd->col_access & TABLE_ACLS))
         {
+          TABLE_LIST table_acl_check;
+          table_acl_check.reset();
           table_acl_check.db= *db_name;
           table_acl_check.table_name= *table_name;
           table_acl_check.grant.privilege= thd->col_access;
