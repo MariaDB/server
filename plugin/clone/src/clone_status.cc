@@ -847,8 +847,7 @@ void log_error(THD *thd, bool is_client, int32_t error,
 
   uint32_t thd_error = 0;
   const char *error_mesg = nullptr;
-  mysql_service_clone_protocol->mysql_clone_get_error(thd, &thd_error,
-                                                      &error_mesg);
+  clone_get_error(thd, &thd_error, &error_mesg);
   char info_mesg[256];
   snprintf(info_mesg, 256, "%s: error: %d: %s", message_start, error,
            error_mesg != nullptr ? error_mesg : "");

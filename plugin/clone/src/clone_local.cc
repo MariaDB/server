@@ -45,8 +45,7 @@ static void clone_local(Client_Share *share, Server *server, uint32_t index) {
   THD *thd = nullptr;
 
   /* Create a session statement and set PFS keys */
-  // mysql_service_clone_protocol->mysql_clone_start_statement(
-  //     thd, clone_local_thd_key, PSI_NOT_INSTRUMENTED);
+  clone_start_statement(thd, clone_local_thd_key, PSI_NOT_INSTRUMENTED);
 
   Local clone_inst(thd, server, share, index, false);
 
@@ -55,7 +54,7 @@ static void clone_local(Client_Share *share, Server *server, uint32_t index) {
   static_cast<void>(clone_inst.clone_exec());
 
   /* Drop the statement and session */
-  // mysql_service_clone_protocol->mysql_clone_finish_statement(thd);
+  clone_finish_statement(thd);
 }
 
 Local::Local(THD *thd, Server *server, Client_Share *share, uint32_t index,
@@ -78,10 +77,9 @@ int Local::clone() {
   /* End PFS table state. */
   const char *err_mesg = nullptr;
   uint32_t err_number = 0;
-  // auto thd = m_clone_client.get_thd();
+  auto thd = m_clone_client.get_thd();
 
-  // mysql_service_clone_protocol->mysql_clone_get_error(thd, &err_number,
-  //                                                     &err_mesg);
+  clone_get_error(thd, &err_number, &err_mesg);
   m_clone_client.pfs_end_state(err_number, err_mesg);
   return (err);
 }
