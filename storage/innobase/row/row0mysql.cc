@@ -1811,7 +1811,7 @@ row_unlock_for_mysql(
 
 			lock_rec_unlock(
 				trx,
-				btr_pcur_get_block(pcur)->page.id(),
+				*btr_pcur_get_block(pcur),
 				rec,
 				static_cast<enum lock_mode>(
 					prebuilt->select_lock_type));
