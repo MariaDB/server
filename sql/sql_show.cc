@@ -9541,7 +9541,7 @@ static double fix_cost(double cost)
 }
 
 static int run_fill_optimizer_costs_tables(const LEX_CSTRING *name,
-                                           const OPTIMIZER_COSTS *costs,
+                                           OPTIMIZER_COSTS *costs,
                                            TABLE *table)
 {
   THD *thd= table->in_use;
