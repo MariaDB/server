@@ -6105,7 +6105,7 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
                                         (PCRE2_UCHAR8 *)buff, sizeof(buff));
       if (lmsg >= 0)
         my_snprintf(buff+lmsg, sizeof(buff)-lmsg,
-                    " at offset %d", pcreErrorOffset);
+                    " at offset %zu", pcreErrorOffset);
       my_error(ER_REGEXP_ERROR, MYF(0), buff);
     }
     return true;

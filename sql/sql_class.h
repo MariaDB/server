@@ -67,8 +67,8 @@ void set_thd_stage_info(void *thd,
 
 #include "wsrep.h"
 #include "wsrep_on.h"
-#ifdef WITH_WSREP
 #include <inttypes.h>
+#ifdef WITH_WSREP
 /* wsrep-lib */
 #include "wsrep_client_service.h"
 #include "wsrep_client_state.h"
