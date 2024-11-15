@@ -121,6 +121,7 @@ SET (SQL_SOURCE
                opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
+               service_clone_protocol.cc
                session_tracker.cc
                set_var.cc
                slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc

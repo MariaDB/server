@@ -162,7 +162,7 @@ const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Daemon") },          //29
   { STRING_WITH_LEN("Unimpl get tid") },  //30
   { STRING_WITH_LEN("Reset connection") },//31
-  { 0, 0 }, //32
+  { STRING_WITH_LEN("Remote Clone") },    //32
   { 0, 0 }, //33
   { 0, 0 }, //34
   { 0, 0 }, //35

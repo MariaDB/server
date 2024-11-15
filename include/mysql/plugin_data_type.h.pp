@@ -22,6 +22,67 @@ int my_base64_decode(const char *src, size_t src_len,
                   void *dst, const char **end_ptr, int flags);
 }
 extern "C" {
+typedef struct st_net_server NET_SERVER;
+typedef struct st_mysql MYSQL;
+typedef struct st_mysql_socket MYSQL_SOCKET;
+typedef struct mysql_clone_ssl_context_t {
+  int m_ssl_mode;
+  const char *m_ssl_key;
+  const char *m_ssl_cert;
+  const char *m_ssl_ca;
+  bool m_enable_compression;
+  NET_SERVER *m_server_extn;
+} mysql_clone_ssl_context;
+extern struct clone_protocol_service_st {
+  THD* (*start_statement_fn)(THD* thd, unsigned int thread_key,
+                                  unsigned int statement_key);
+  void (*finish_statement_fn)(THD* thd);
+  MYSQL* (*connect_fn)(THD* thd, const char *host, uint32_t port,
+                             const char *user, const char *passwd,
+                             mysql_clone_ssl_context *ssl_ctx,
+                             MYSQL_SOCKET *socket);
+  int (*send_command_fn)(THD* thd, MYSQL *connection, bool set_active,
+                         unsigned char command, unsigned char *com_buffer,
+                         size_t buffer_length);
+  int (*get_response_fn)(THD* thd, MYSQL *connection, bool set_active,
+                         uint32_t timeout, unsigned char **packet,
+                         size_t *length, size_t *net_length);
+  int (*kill_fn)(MYSQL *connection, MYSQL *kill_connection);
+  void (*disconnect_fn)(THD* thd, MYSQL *connection, bool is_fatal,
+                        bool clear_error);
+  void (*get_error_fn)(THD* thd, uint32_t *err_num,
+                       const char **err_mesg);
+  int (*get_command_fn)(THD* thd, unsigned char *command,
+                        unsigned char **com_buffer, size_t *buffer_length);
+  int (*send_response_fn)(THD* thd, bool secure, unsigned char *packet,
+                          size_t length);
+  int (*send_error_fn)(THD* thd, unsigned char err_cmd, bool is_fatal);
+} *clone_protocol_service;
+  THD* clone_start_statement(THD* thd, unsigned int thread_key,
+                                  unsigned int statement_key);
+  void clone_finish_statement(THD* thd);
+  MYSQL* clone_connect(THD* thd, const char *host, uint32_t port,
+                       const char *user, const char *passwd,
+                       mysql_clone_ssl_context *ssl_ctx,
+                       MYSQL_SOCKET *socket);
+  int clone_send_command(THD* thd, MYSQL *connection, bool set_active,
+                         unsigned char command, unsigned char *com_buffer,
+                         size_t buffer_length);
+  int clone_get_response(THD* thd, MYSQL *connection, bool set_active,
+                         uint32_t timeout, unsigned char **packet,
+                         size_t *length, size_t *net_length);
+  int clone_kill(MYSQL *connection, MYSQL *kill_connection);
+  void clone_disconnect(THD* thd, MYSQL *connection, bool is_fatal,
+                        bool clear_error);
+  void clone_get_error(THD* thd, uint32_t *err_num,
+                       const char **err_mesg);
+  int clone_get_command(THD* thd, unsigned char *command,
+                        unsigned char **com_buffer, size_t *buffer_length);
+  int clone_send_response(THD* thd, bool secure, unsigned char *packet,
+                          size_t length);
+  int clone_send_error(THD* thd, unsigned char err_cmd, bool is_fatal);
+}
+extern "C" {
 extern void (*debug_sync_C_callback_ptr)(THD*, const char *, size_t);
 }
 extern "C" {
