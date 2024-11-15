@@ -185,7 +185,8 @@ Sprintfs a timestamp to a buffer, 13..14 chars plus terminating NUL. */
 void
 ut_sprintf_timestamp(
 /*=================*/
-	char*	buf); /*!< in: buffer where to sprintf */
+	char*	buf, /*!< in: buffer where to sprintf */
+	size_t len); /*!< in: length of buffer where to sprintf */
 
 /*************************************************************//**
 Prints the contents of a memory buffer in hex and ascii. */

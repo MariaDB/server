@@ -64,7 +64,6 @@
 #undef pthread_cond_destroy
 #endif
 #define pthread_cond_destroy mysql_cond_destroy
-#define my_sprintf(A,B) sprintf B
 
 
 #define spider_stmt_da_message(A) thd_get_error_message(A)

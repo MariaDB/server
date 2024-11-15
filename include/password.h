@@ -18,7 +18,8 @@
 
 C_MODE_START
 
-void my_make_scrambled_password_323(char *to, const char *password,
+void my_make_scrambled_password_323(char *to,  size_t buf_capacity,
+                                    const char *password,
                                     size_t pass_len);
 void my_make_scrambled_password(char *to, const char *password,
                                 size_t pass_len);
