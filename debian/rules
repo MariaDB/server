@@ -4,6 +4,9 @@
 # https://wiki.debian.org/Hardening
 export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
+# LTO is generally enabled. Only ColumnStore doesn't support it (MCOL-5819)
+# and disables it in storage/columnstore/CMakeLists.txt
+
 DPKG_EXPORT_BUILDFLAGS = 1
 # Include all defaults, including buildflags.mk
 include /usr/share/dpkg/default.mk
