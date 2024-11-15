@@ -467,7 +467,6 @@ public:
 
   Rowid_filter_container *create_container();
 
-<<<<<<< HEAD
   double get_setup_cost() const { return cost_of_building_range_filter; }
   double get_lookup_cost();
   double get_gain() const { return gain; }

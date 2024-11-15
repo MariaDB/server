@@ -5932,14 +5932,9 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 static
 int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
-<<<<<<< HEAD
-  return CMP_NUM((*a)->records, (*b)->records);
-=======
   auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
   auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
-  return (*a)->records < (*b)->records ?
-          -1 : (*a)->records == (*b)->records ? 0 : 1;
->>>>>>> 1573cfcf0b7 (MDEV-34348: Consolidate cmp function declarations)
+  return CMP_NUM((*a)->records, (*b)->records);
 }
 
 
