@@ -2705,10 +2705,10 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %llu-%u-%u could not "
+    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
                       "be completed because of unexpected master server "
-                      "or its binlog change", info->sa_seq_no, // todo:gtid
-                      0, 0);
+                      "or its binlog change", info->domain_id,
+                      mi->master_id, info->sa_seq_no);
     info_iterator.remove();
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
