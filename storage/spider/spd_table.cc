@@ -6981,6 +6981,10 @@ int spider_get_crd(
     /* copy */
     get_type = 0;
   }
+  if (get_type == 0)
+    spider_copy_crd_to_share(share, share->wide_share, table->s->fields);
+  else
+    error_num = spider_db_show_index(spider, link_idx, table, crd_mode);
   if (get_type >= 2)
     pthread_mutex_unlock(&share->wide_share->crd_mutex);
   if (error_num)
