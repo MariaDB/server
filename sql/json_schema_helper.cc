@@ -51,11 +51,11 @@ bool json_assign_type(uint *curr_type, json_engine_t *je)
   return false;
 }
 
-uchar* get_key_name(const char *key_name, size_t *length,
-                    my_bool /* unused */)
+const uchar *get_key_name(const void *key_name_, size_t *length, my_bool)
 {
+  auto key_name= static_cast<const char *>(key_name_);
   *length= strlen(key_name);
-  return (uchar*) key_name;
+  return reinterpret_cast<const uchar *>(key_name);
 }
 
 void json_get_normalized_string(json_engine_t *je, String *res,

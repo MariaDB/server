@@ -547,7 +547,7 @@ bool Json_schema_enum::handle_keyword(THD *thd, json_engine_t *je,
   int count= 0;
   if (my_hash_init(PSI_INSTRUMENT_ME,
                    &this->enum_values,
-                   je->s.cs, 1024, 0, 0, (my_hash_get_key) get_key_name,
+                   je->s.cs, 1024, 0, 0, get_key_name,
                    NULL, 0))
     return true;
 
@@ -1326,7 +1326,7 @@ bool Json_schema_unique_items::validate(const json_engine_t *je,
     return false;
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &unique_items, curr_je.s.cs,
-                   1024, 0, 0, (my_hash_get_key) get_key_name, NULL, 0))
+                   1024, 0, 0, get_key_name, NULL, 0))
     return true;
 
   while(json_scan_next(&curr_je)==0 && level <= curr_je.stack_p)
@@ -1538,7 +1538,7 @@ bool Json_schema_required::validate(const json_engine_t *je,
     return false;
 
   if(my_hash_init(PSI_INSTRUMENT_ME, &required,
-               curr_je.s.cs, 1024, 0, 0, (my_hash_get_key) get_key_name,
+               curr_je.s.cs, 1024, 0, 0, get_key_name,
                NULL, 0))
       return true;
   while (json_scan_next(&curr_je)== 0 && curr_je.stack_p >= curr_level)
@@ -1636,7 +1636,7 @@ bool Json_schema_dependent_required::validate(const json_engine_t *je,
     return false;
 
   if (my_hash_init(PSI_INSTRUMENT_ME, &properties,
-                 curr_je.s.cs, 1024, 0, 0, (my_hash_get_key) get_key_name,
+                 curr_je.s.cs, 1024, 0, 0, get_key_name,
                  NULL, 0))
     return true;
 
@@ -2096,7 +2096,7 @@ bool Json_schema_properties::handle_keyword(THD *thd, json_engine_t *je,
   if (my_hash_init(PSI_INSTRUMENT_ME,
                    &this->properties,
                    je->s.cs, 1024, 0, 0,
-                   (my_hash_get_key) get_key_name_for_property,
+                   get_key_name_for_property,
                    NULL, 0))
       return true;
   is_hash_inited= true;
@@ -2496,7 +2496,7 @@ bool Json_schema_dependent_schemas::handle_keyword(THD *thd, json_engine_t *je,
   if (my_hash_init(PSI_INSTRUMENT_ME,
                    &this->properties,
                    je->s.cs, 1024, 0, 0,
-                   (my_hash_get_key) get_key_name_for_property,
+                   get_key_name_for_property,
                    NULL, 0))
       return true;
   is_hash_inited= true;
@@ -2829,23 +2829,22 @@ bool create_object_and_handle_keyword(THD *thd, json_engine_t *je,
   return je->s.error ? true : false;
 }
 
-uchar* get_key_name_for_property(const char *key_name, size_t *length,
-                    my_bool /* unused */)
+const uchar *get_key_name_for_property(const void *key_name, size_t *length,
+                                       my_bool)
 {
-  st_property * curr_property= (st_property*)(key_name);
-
+  auto curr_property= static_cast<const st_property *>(key_name);
   *length= strlen(curr_property->key_name);
-  return (uchar*) curr_property->key_name;
+  return reinterpret_cast<const uchar *>(curr_property->key_name);
 }
 
-uchar* get_key_name_for_func(const char *key_name, size_t *length,
-                    my_bool /* unused */)
+const uchar *get_key_name_for_func(const void *key_name, size_t *length,
+                                   my_bool)
 {
-  st_json_schema_keyword_map * curr_keyword=
-             (st_json_schema_keyword_map*)(key_name);
+  auto curr_keyword=
+             static_cast<const st_json_schema_keyword_map *>(key_name);
 
   *length= curr_keyword->func_name.length;
-  return (uchar*)curr_keyword->func_name.str;
+  return reinterpret_cast<const uchar *>(curr_keyword->func_name.str);
 }
 
 bool setup_json_schema_keyword_hash()
@@ -2853,7 +2852,7 @@ bool setup_json_schema_keyword_hash()
   if (my_hash_init(PSI_INSTRUMENT_ME,
                    &all_keywords_hash,
                    system_charset_info, 1024, 0, 0,
-                   (my_hash_get_key) get_key_name_for_func,
+                   get_key_name_for_func,
                    NULL, 0))
     return true;
 
