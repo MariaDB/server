@@ -1692,7 +1692,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
   JOIN *join;
   SELECT_LEX *const select_lex = thd->lex->first_select_lex();
   TABLE_LIST *const table_list = select_lex->get_table_list();
-  TABLE_LIST *aux_tables= thd->lex->auxiliary_table_list.first;
+  TABLE_LIST *delete_tables= thd->lex->auxiliary_table_list.first;
   ulonglong select_options= select_lex->options;
   bool free_join= 1;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
@@ -1715,7 +1715,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
       DBUG_RETURN(TRUE);
   }
 
-  if (!(result= new (thd->mem_root) multi_delete(thd, aux_tables,
+  if (!(result= new (thd->mem_root) multi_delete(thd, delete_tables,
                                                  lex->table_count_update)))
   {
     DBUG_RETURN(TRUE);
@@ -1850,7 +1850,7 @@ bool Sql_cmd_delete::prepare_inner(THD *thd)
     */
     lex->first_select_lex()->set_unique_exclude();
     /* Fix tables-to-be-deleted-from list to point at opened tables */
-    for (target_tbl= (TABLE_LIST*) aux_tables;
+    for (target_tbl= (TABLE_LIST*) delete_tables;
          target_tbl;
          target_tbl= target_tbl->next_local)
     {

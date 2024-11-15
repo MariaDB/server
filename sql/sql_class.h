@@ -7586,7 +7586,7 @@ public:
   multi_delete(THD *thd_arg, TABLE_LIST *dt, uint num_of_tables);
   ~multi_delete();
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u) override;
-  int prepare2(JOIN *join);
+  int prepare2(JOIN *join) override;
   int send_data(List<Item> &items) override;
   bool initialize_tables (JOIN *join) override;
   int do_deletes();
