@@ -1,4 +1,8 @@
 # Upgrade test
+check table t2;
+Table	Op	Msg_type	Msg_text
+test.t2	check	Note	Found 2 referenced keys
+test.t2	check	status	OK
 delete from t2;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`a`) REFERENCES `t2` (`a`))
 drop tables t1, t2, t3;

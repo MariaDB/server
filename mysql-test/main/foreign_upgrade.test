@@ -103,6 +103,8 @@ call mtr.add_suppression("InnoDB: Table `mysql`.\`innodb_(table|index)_stats`");
 let $restart_bindir=;
 --source include/start_mysqld.inc
 
+check table t2;
+
 --error ER_ROW_IS_REFERENCED_2
 delete from t2;
 
