@@ -3884,7 +3884,7 @@ innobase_create_index_def(
 	index->rebuild = new_clustered;
 
 	if (key_clustered) {
-		DBUG_ASSERT(key->algorithm <= HA_KEY_ALG_BTREE);
+		DBUG_ASSERT(key->algorithm <= HA_KEY_ALG_HASH);
 		DBUG_ASSERT(key->flags & HA_NOSAME);
 		index->ind_type = DICT_CLUSTERED | DICT_UNIQUE;
 	} else if (key->algorithm == HA_KEY_ALG_FULLTEXT) {
