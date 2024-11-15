@@ -15,7 +15,9 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
 CHECK_CXX_SOURCE_COMPILES(
-"#define _GNU_SOURCE
+"#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <sys/socket.h>
 int main() {
   struct ucred cred;
