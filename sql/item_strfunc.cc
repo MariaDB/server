@@ -4231,9 +4231,9 @@ longlong Item_func_uncompressed_length::val_int()
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_ZLIB_Z_DATA_ERROR,
-                        ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+                 ER_ZLIB_Z_DATA_ERROR,
+                 ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     null_value= 1;
     return 0;
   }
@@ -4350,7 +4350,7 @@ String *Item_func_uncompress::val_str(String *str)
   if (res->length() <= 4)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+    push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
 			ER_ZLIB_Z_DATA_ERROR,
 			ER_THD(thd, ER_ZLIB_Z_DATA_ERROR));
     goto err;
