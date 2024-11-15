@@ -6137,6 +6137,29 @@ std::atomic<uint64_t> binlog_cur_written_offset[2];
 std::atomic<uint64_t> binlog_cur_end_offset[2];
 
 
+/*
+  The struct chunk_data_base is a simple encapsulation of data for a chunk that
+  is to be written to the binlog. Used to separate the generic code that
+  handles binlog writing with page format and so on, from the details of the
+  data being written, avoiding an intermediary buffer holding consecutive data.
+
+  Currently used for:
+   - chunk_data_cache: A binlog trx cache to be binlogged as a commit record.
+   - chunk_data_oob: An out-of-band piece of event group data.
+*/
+struct chunk_data_base {
+  /*
+    Copy at most max_len bytes to address p.
+    Returns a pair with amount copied, and a bool if this is the last data.
+    Should return the maximum amount of data available (up to max_len). Thus
+    the size returned should only be less than max_len if the last-data flag
+    is returned as true.
+  */
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) = 0;
+  virtual ~chunk_data_base() {};
+};
+
+
 class ha_innodb_binlog_reader : public handler_binlog_reader {
   /* Buffer to hold a page read directly from the binlog file. */
   uchar *page_buf;
@@ -7177,7 +7200,8 @@ binlog_state_recover()
 }
 
 
-void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
+void fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr,
+                            byte chunk_type)
 {
   uint32_t page_size= (uint32_t)srv_page_size;
   uint32_t page_size_shift= srv_page_size_shift;
@@ -7194,30 +7218,8 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
     Write out the event data in chunks of whatever size will fit in the current
     page, until all data has been written.
   */
-  size_t remain= my_b_tell(cache);
-  ut_ad(remain > main_size);
-  if (cache->pos_in_file > 0) {
-    /*
-      ToDo: A limitation in mysys IO_CACHE. If I change (reinit_io_cache())
-      the cache from WRITE_CACHE to READ_CACHE without seeking out of the
-      current buffer, then the cache will not be flushed to disk (which is
-      good for small cache that fits completely in buffer). But then if I
-      later my_b_seek() or reinit_io_cache() it again and seek out of the
-      current buffer, the buffered data will not be flushed to the file
-      because the cache is now a READ_CACHE! The result is that the end of the
-      cache will be lost if the cache doesn't fit in memory.
-
-      So for now, have to do this somewhat in-elegant conditional flush
-      myself.
-    */
-    flush_io_cache(cache);
-  }
-  /* Start with the GTID event, which is put at the end of the IO_CACHE. */
-  my_bool res= reinit_io_cache(cache, READ_CACHE, main_size, 0, 0);
-  ut_a(!res /* ToDo: Error handling. */);
-  size_t gtid_remain= remain - main_size;
   byte cont_flag= 0;
-  while (remain > 0) {
+  for (;;) {
     if (page_offset == FIL_PAGE_DATA) {
       if (UNIV_UNLIKELY(page_no >= space->size)) {
         /*
@@ -7346,36 +7348,19 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
       continue;
     }
     page_remain-= 3;    /* Type byte and 2-byte length. */
-    uint32_t size= 0;
-    /* Write GTID data, if any still available. */
-    if (gtid_remain > 0)
-    {
-      size= gtid_remain > page_remain ? page_remain : (uint32_t)gtid_remain;
-      int res2= my_b_read(cache, ptr+3, size);
-      ut_a(!res2 /* ToDo: Error handling */);
-      gtid_remain-= size;
-      page_remain-= size;
-      if (gtid_remain == 0)
-        my_b_seek(cache, 0);    /* Move to read the rest of the events. */
-    }
-    /* Write remaining data, if any available _and_ more room on page. */
-    ut_ad(remain >= size);
-    size_t remain2= remain - size;
-    if (remain2 + page_remain > 0) {
-      uint32_t size2= remain2 > page_remain ? page_remain : (uint32_t)remain2;
-      int res2= my_b_read(cache, ptr+3+size, size2);
-      ut_a(!res2 /* ToDo: Error handling */);
-      size+= size2;
-      page_remain-= size2;
-    }
-    byte last_flag= (size >= remain) << FSP_BINLOG_FLAG_BIT_LAST;
-    ptr[0]= FSP_BINLOG_TYPE_COMMIT | cont_flag | last_flag;
+    std::pair<uint32_t, bool> size_last=
+      chunk_data->copy_data(ptr+3, page_remain);
+    uint32_t size= size_last.first;
+    ut_ad(size_last.second || size == page_remain);
+    ut_ad(size <= page_remain);
+    page_remain-= size;
+    byte last_flag= size_last.second ? FSP_BINLOG_FLAG_LAST : 0;
+    ptr[0]= chunk_type | cont_flag | last_flag;
     ptr[1]= size & 0xff;
     ptr[2]= (byte)(size >> 8);
     ut_ad(size <= 0xffff);
 
     mtr->memcpy(*block, page_offset, size+3);
-    remain-= size;
     cont_flag= FSP_BINLOG_FLAG_CONT;
     if (page_remain == 0) {
       block= nullptr;
@@ -7384,6 +7369,8 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
     } else {
       page_offset+= size+3;
     }
+    if (size_last.second)
+      break;
   }
   binlog_cur_block= block;
   binlog_cur_page_no= page_no;
@@ -7393,6 +7380,90 @@ void fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
                                                  std::memory_order_relaxed);
   binlog_cur_end_offset[file_no & 1].store((page_no << page_size_shift) + page_offset,
                                            std::memory_order_relaxed);
+}
+
+
+struct chunk_data_cache : public chunk_data_base {
+  IO_CACHE *cache;
+  size_t main_remain;
+  size_t gtid_remain;
+
+  chunk_data_cache(IO_CACHE *cache_arg, size_t main_size_arg)
+  : cache(cache_arg), main_remain(main_size_arg)
+  {
+    size_t remain= my_b_tell(cache);
+    ut_ad(remain > 0);
+    ut_ad(remain >= main_size_arg);
+    gtid_remain= remain - main_size_arg;
+
+    if (cache->pos_in_file > 0) {
+      /*
+        ToDo: A limitation in mysys IO_CACHE. If I change (reinit_io_cache())
+        the cache from WRITE_CACHE to READ_CACHE without seeking out of the
+        current buffer, then the cache will not be flushed to disk (which is
+        good for small cache that fits completely in buffer). But then if I
+        later my_b_seek() or reinit_io_cache() it again and seek out of the
+        current buffer, the buffered data will not be flushed to the file
+        because the cache is now a READ_CACHE! The result is that the end of the
+        cache will be lost if the cache doesn't fit in memory.
+
+        So for now, have to do this somewhat in-elegant conditional flush
+        myself.
+      */
+      flush_io_cache(cache);
+    }
+
+    /* Start with the GTID event, which is put at the end of the IO_CACHE. */
+    my_bool res= reinit_io_cache(cache, READ_CACHE, main_size_arg, 0, 0);
+    ut_a(!res /* ToDo: Error handling. */);
+
+    gtid_remain= remain - main_size_arg;
+  }
+  ~chunk_data_cache() { }
+
+  virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
+  {
+    uint32_t size= 0;
+    /* Write GTID data, if any still available. */
+    if (gtid_remain > 0)
+    {
+      size= gtid_remain > max_len ? max_len : (uint32_t)gtid_remain;
+      int res2= my_b_read(cache, p, size);
+      ut_a(!res2 /* ToDo: Error handling */);
+      gtid_remain-= size;
+      if (gtid_remain == 0)
+        my_b_seek(cache, 0);    /* Move to read the rest of the events. */
+      max_len-= size;
+      if (max_len == 0)
+        return {size, gtid_remain + main_remain == 0};
+    }
+
+    /* Write remaining data. */
+    ut_ad(gtid_remain == 0);
+    if (UNIV_UNLIKELY(main_remain == 0))
+    {
+      /*
+        This would imply that only GTID data is present, which probably does
+        not happen currently, but let's not leave an unhandled case.
+      */
+      ut_ad(size > 0);
+      return {size, true};
+    }
+    uint32_t size2= main_remain > max_len ? max_len : (uint32_t)main_remain;
+    int res2= my_b_read(cache, p + size, size2);
+    ut_a(!res2 /* ToDo: Error handling */);
+    ut_ad(main_remain >= size2);
+    main_remain-= size2;
+    return {size + size2, main_remain == 0};
+  }
+};
+
+
+void
+fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
+{
+  chunk_data_cache chunk_data(cache, main_size);
+  fsp_binlog_write_chunk(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
 }
 
 
