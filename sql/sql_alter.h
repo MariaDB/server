@@ -403,8 +403,8 @@ public:
   void set_fk_error_if_delete_row(FOREIGN_KEY_INFO *fk)
   {
     fk_error_if_delete_row= true;
-    fk_error_id= fk->foreign_id->str;
-    fk_error_table= fk->foreign_table->str;
+    fk_error_id= fk->foreign_id.str;
+    fk_error_table= fk->foreign_table.str;
   }
 
   void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;

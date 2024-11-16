@@ -16693,19 +16693,9 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     grn_id ref_table_id = grn_obj_get_range(ctx, column);
     grn_obj *ref_table = grn_ctx_at(ctx, ref_table_id);
     FOREIGN_KEY_INFO f_key_info;
-    f_key_info.foreign_id = thd_make_lex_string(thd,
-                                                NULL,
-                                                column_name.c_str(),
-                                                column_name.length(),
-                                                TRUE);
-    f_key_info.foreign_db = thd_make_lex_string(thd, NULL,
-                                                table_share->db.str,
-                                                table_share->db.length,
-                                                TRUE);
-    f_key_info.foreign_table = thd_make_lex_string(thd, NULL,
-                                                   table_share->table_name.str,
-                                                   table_share->table_name.length,
-                                                   TRUE);
+    f_key_info.foreign_id.set_dup(thd, field->field_name);
+    f_key_info.foreign_db.set_dup(thd, table_share->db);
+    f_key_info.foreign_table.set_dup(thd, table_share->table_name);
     f_key_info.referenced_db = f_key_info.foreign_db;
 
     char ref_table_buff[NAME_LEN + 1];
@@ -16714,20 +16704,16 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     ref_table_buff[ref_table_name_length] = '\0';
     DBUG_PRINT("info", ("mroonga: ref_table_buff=%s", ref_table_buff));
     DBUG_PRINT("info", ("mroonga: ref_table_name_length=%d", ref_table_name_length));
-    f_key_info.referenced_table = thd_make_lex_string(thd, NULL,
-                                                       ref_table_buff,
-                                                       ref_table_name_length,
-                                                       TRUE);
+
+    f_key_info.referenced_table.set_dup(thd, ref_table_buff,
+                                        ref_table_name_length);
     f_key_info.update_method = FK_OPTION_RESTRICT;
     f_key_info.delete_method = FK_OPTION_RESTRICT;
-    f_key_info.referenced_key_name = thd_make_lex_string(thd, NULL, "PRIMARY",
-                                                          7, TRUE);
-    LEX_CSTRING *field_name = thd_make_lex_string(thd,
-                                                 NULL,
-                                                 column_name.c_str(),
-                                                 column_name.length(),
-                                                 TRUE);
-    f_key_info.foreign_fields.push_back(field_name);
+    f_key_info.referenced_key_name = "PRIMARY"_Lex_ident_column;
+
+    f_key_info.foreign_fields.alloc(thd, 1);
+    f_key_info.referenced_fields.alloc(thd, 1);
+    f_key_info.foreign_fields[0].set_dup(thd, field->field_name);
 
     char ref_path[FN_REFLEN + 1];
     TABLE_LIST table_list;
@@ -16736,7 +16722,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
                          table_share->db.str, ref_table_buff, "", 0);
     DBUG_PRINT("info", ("mroonga: ref_path=%s", ref_path));
 
-    LEX_CSTRING table_name= { ref_table_buff, (size_t) ref_table_name_length };
+    LEX_CSTRING table_name { ref_table_buff, (size_t) ref_table_name_length };
     table_list.init_one_table(&table_share->db, &table_name, 0, TL_WRITE);
     mrn_open_mutex_lock(table_share);
     tmp_ref_table_share =
@@ -16748,11 +16734,7 @@ int ha_mroonga::storage_get_foreign_key_list(THD *thd,
     uint ref_pkey_nr = tmp_ref_table_share->primary_key;
     KEY *ref_key_info = &tmp_ref_table_share->key_info[ref_pkey_nr];
     Field *ref_field = &ref_key_info->key_part->field[0];
-    LEX_CSTRING *ref_col_name = thd_make_lex_string(thd, NULL,
-                                                   ref_field->field_name.str,
-                                                   ref_field->field_name.length,
-                                                   TRUE);
-    f_key_info.referenced_fields.push_back(ref_col_name);
+    f_key_info.referenced_fields[0].set_dup(thd, ref_field->field_name);
     mrn_open_mutex_lock(table_share);
     mrn_free_tmp_table_share(tmp_ref_table_share);
     mrn_open_mutex_unlock(table_share);
