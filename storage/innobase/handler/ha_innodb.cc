@@ -15421,15 +15421,13 @@ get_foreign_key_info(
 	char			tmp_buff[NAME_LEN+1];
 	char			name_buff[NAME_LEN+1];
 	const char*		ptr;
-	LEX_CSTRING*		name = NULL;
 
 	if (dict_table_t::is_temporary_name(foreign->foreign_table_name)) {
  		return NULL;
  	}
 
 	ptr = dict_remove_db_name(foreign->id);
-	f_key_info.foreign_id = thd_make_lex_string(
-		thd, 0, ptr, strlen(ptr), 1);
+	f_key_info.foreign_id.set_dup(thd, ptr);
 
 	/* Name format: database name, '/', table name, '\0' */
 
@@ -15440,14 +15438,12 @@ get_foreign_key_info(
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
-	f_key_info.referenced_db = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.referenced_db.set_dup(thd, name_buff, len);
 
 	/* Referenced (parent) table name */
 	ptr = dict_remove_db_name(foreign->referenced_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
-	f_key_info.referenced_table = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.referenced_table.set_dup(thd, name_buff, len);
 
 	/* Dependent (child) database name */
 	len = dict_get_db_name_len(foreign->foreign_table_name);
@@ -15456,20 +15452,21 @@ get_foreign_key_info(
 	tmp_buff[len] = 0;
 
 	len = filename_to_tablename(tmp_buff, name_buff, sizeof(name_buff));
-	f_key_info.foreign_db = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.foreign_db.set_dup(thd, name_buff, len);
 
 	/* Dependent (child) table name */
 	ptr = dict_remove_db_name(foreign->foreign_table_name);
 	len = filename_to_tablename(ptr, name_buff, sizeof(name_buff), 1);
-	f_key_info.foreign_table = thd_make_lex_string(
-		thd, 0, name_buff, len, 1);
+	f_key_info.foreign_table.set_dup(thd, name_buff, len);
+
+	f_key_info.foreign_fields.alloc(thd, foreign->n_fields);
+	f_key_info.referenced_fields.alloc(thd, foreign->n_fields);
 
 	do {
-		ptr = foreign->foreign_col_names[i];
-		name = thd_make_lex_string(thd, name, ptr,
-					   strlen(ptr), 1);
-		f_key_info.foreign_fields.push_back(name);
+		f_key_info.foreign_fields[i].set_dup(thd,
+				     foreign->foreign_col_names[i]);
+		f_key_info.referenced_fields[i].set_dup(thd,
+					foreign->referenced_col_names[i]);
 
 		if (dict_index_t* fidx = foreign->foreign_index) {
 			if (fidx->fields[i].col->is_nullable()) {
@@ -15477,18 +15474,12 @@ get_foreign_key_info(
 							foreign->n_fields);
 			}
 		}
-		ptr = foreign->referenced_col_names[i];
-		name = thd_make_lex_string(thd, name, ptr,
-					   strlen(ptr), 1);
-		f_key_info.referenced_fields.push_back(name);
-
 		if (dict_index_t* ref_idx = foreign->referenced_index) {
 			if (ref_idx->fields[i].col->is_nullable()) {
 				f_key_info.set_nullable(thd, true, i,
 							foreign->n_fields);
 			}
 		}
-
 	} while (++i < foreign->n_fields);
 
 	if (foreign->type & foreign->DELETE_CASCADE) {
@@ -15534,17 +15525,9 @@ get_foreign_key_info(
 		}
 	}
 
-	if (foreign->referenced_index
-	    && foreign->referenced_index->name != NULL) {
-		f_key_info.referenced_key_name = thd_make_lex_string(
-			thd,
-			nullptr,
-			foreign->referenced_index->name,
-			strlen(foreign->referenced_index->name),
-			1);
-	} else {
-		f_key_info.referenced_key_name = NULL;
-	}
+	if (foreign->referenced_index && foreign->referenced_index->name)
+		f_key_info.referenced_key_name.set_dup(thd,
+					       foreign->referenced_index->name);
 
 	pf_key_info = (FOREIGN_KEY_INFO*) thd_memdup(thd, &f_key_info,
 						      sizeof(FOREIGN_KEY_INFO));

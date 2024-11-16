@@ -1805,9 +1805,9 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
         List_iterator_fast<FOREIGN_KEY_INFO> it(f_key_list);
         while ((f_key_info=it++))
         {
-          WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table->str);
-          keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db->str,
-                                                    f_key_info->referenced_table->str,
+          WSREP_DEBUG("appended fkey %s", f_key_info->referenced_table.str);
+          keys->push_back(wsrep_prepare_key_for_toi(f_key_info->referenced_db.str,
+                                                    f_key_info->referenced_table.str,
                                                     wsrep::key::shared));
         }
       }

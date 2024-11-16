@@ -7691,8 +7691,8 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
     while ((f_key_info=it++))
     {
       if (store_constraints(thd, table, db_name, table_name,
-                            f_key_info->foreign_id->str,
-                            strlen(f_key_info->foreign_id->str),
+                            f_key_info->foreign_id.str,
+                            f_key_info->foreign_id.length,
                             STRING_WITH_LEN("FOREIGN KEY")))
         DBUG_RETURN(1);
     }
@@ -7879,50 +7879,47 @@ get_schema_key_column_usage_record(THD *thd, TABLE_LIST *tables,
     List_iterator_fast<FOREIGN_KEY_INFO> fkey_it(f_key_list);
     while ((f_key_info= fkey_it++))
     {
-      LEX_CSTRING *f_info;
-      LEX_CSTRING *r_info;
-      List_iterator_fast<LEX_CSTRING> it(f_key_info->foreign_fields),
-        it1(f_key_info->referenced_fields);
       uint f_idx= 0;
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
       if (need_column_checks)
       {
-        while ((r_info= it1++))
+        uint r_idx= 0;
+        for (const Lex_ident_column &r_info: f_key_info->referenced_fields)
         {
           auto access= get_column_grant(thd, &tables->grant, db_name->str,
-                                        table_name->str,
-                                        Lex_ident_column(*r_info));
+                                        table_name->str, r_info);
 
           if (!access)
             break;
+          r_idx++;
         }
-        if (!it1.at_end())
+        if (r_idx < f_key_info->referenced_fields.size())
           continue;
-        it1.rewind();
       }
 #endif
-      while ((f_info= it++))
+      for (uint r_idx= 0; r_idx < f_key_info->foreign_fields.size(); r_idx++)
       {
-        r_info= it1++;
+        const Lex_ident_column &f_info= f_key_info->foreign_fields[r_idx];
+        const Lex_ident_column &r_info= f_key_info->referenced_fields[r_idx];
         f_idx++;
         restore_record(table, s->default_values);
         store_key_column_usage(table, db_name, table_name,
-                               f_key_info->foreign_id->str,
-                               f_key_info->foreign_id->length,
-                               f_info->str, f_info->length,
+                               f_key_info->foreign_id.str,
+                               f_key_info->foreign_id.length,
+                               f_info.str, f_info.length,
                                (longlong) f_idx);
         table->field[8]->store((longlong) f_idx, TRUE);
         table->field[8]->set_notnull();
-        table->field[9]->store(f_key_info->referenced_db->str,
-                               f_key_info->referenced_db->length,
+        table->field[9]->store(f_key_info->referenced_db.str,
+                               f_key_info->referenced_db.length,
                                system_charset_info);
         table->field[9]->set_notnull();
-        table->field[10]->store(f_key_info->referenced_table->str,
-                                f_key_info->referenced_table->length,
+        table->field[10]->store(f_key_info->referenced_table.str,
+                                f_key_info->referenced_table.length,
                                 system_charset_info);
         table->field[10]->set_notnull();
-        table->field[11]->store(r_info->str, r_info->length,
+        table->field[11]->store(r_info.str, r_info.length,
                                 system_charset_info);
         table->field[11]->set_notnull();
         if (schema_table_store_record(thd, table))
@@ -8734,11 +8731,11 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       table->field[0]->store(STRING_WITH_LEN("def"), cs);
       table->field[1]->store(db_name->str, db_name->length, cs);
       table->field[9]->store(table_name->str, table_name->length, cs);
-      table->field[2]->store(f_key_info->foreign_id->str,
-                             f_key_info->foreign_id->length, cs);
+      table->field[2]->store(f_key_info->foreign_id.str,
+                             f_key_info->foreign_id.length, cs);
       table->field[3]->store(STRING_WITH_LEN("def"), cs);
-      table->field[4]->store(f_key_info->referenced_db->str, 
-                             f_key_info->referenced_db->length, cs);
+      table->field[4]->store(f_key_info->referenced_db.str,
+                             f_key_info->referenced_db.length, cs);
       bool show_ref_table= true;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* need any non-SELECT privilege on the table or any of its columns */
@@ -8746,8 +8743,8 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
     {
       TABLE_LIST table_acl_check;
       bzero((char*) &table_acl_check, sizeof(table_acl_check));
-      table_acl_check.db= Lex_ident_db(*f_key_info->referenced_db);
-      table_acl_check.table_name= Lex_ident_table(*f_key_info->referenced_table);
+      table_acl_check.db= f_key_info->referenced_db;
+      table_acl_check.table_name= f_key_info->referenced_table;
       table_acl_check.grant.privilege= thd->col_access;
       check_grant(thd, SELECT_ACL, &table_acl_check, 0, 1, 1);
 
@@ -8758,13 +8755,13 @@ get_referential_constraints_record(THD *thd, TABLE_LIST *tables,
       if (show_ref_table)
       {
         table->field[10]->set_notnull();
-        table->field[10]->store(f_key_info->referenced_table->str,
-                               f_key_info->referenced_table->length, cs);
+        table->field[10]->store(f_key_info->referenced_table.str,
+                               f_key_info->referenced_table.length, cs);
       }
       if (f_key_info->referenced_key_name)
       {
-        table->field[5]->store(f_key_info->referenced_key_name->str,
-                               f_key_info->referenced_key_name->length, cs);
+        table->field[5]->store(f_key_info->referenced_key_name.str,
+                               f_key_info->referenced_key_name.length, cs);
         table->field[5]->set_notnull();
       }
       else

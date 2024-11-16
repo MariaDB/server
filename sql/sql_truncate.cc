@@ -40,15 +40,13 @@
 */
 
 static bool fk_info_append_fields(THD *thd, String *str,
-                                  List<LEX_CSTRING> *fields)
+                                  const st_::span<Lex_ident_column> &fields)
 {
   bool res= FALSE;
-  LEX_CSTRING *field;
-  List_iterator_fast<LEX_CSTRING> it(*fields);
 
-  while ((field= it++))
+  for (Lex_ident_column &field: fields)
   {
-    res|= append_identifier(thd, str, field);
+    res|= append_identifier(thd, str, &field);
     res|= str->append(STRING_WITH_LEN(", "));
   }
 
@@ -80,19 +78,19 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
     `db`.`tbl`, CONSTRAINT `id` FOREIGN KEY (`fk`) REFERENCES `db`.`tbl` (`fk`)
   */
 
-  res|= append_identifier(thd, &str, fk_info->foreign_db);
+  res|= append_identifier(thd, &str, &fk_info->foreign_db);
   res|= str.append('.');
-  res|= append_identifier(thd, &str, fk_info->foreign_table);
+  res|= append_identifier(thd, &str, &fk_info->foreign_table);
   res|= str.append(STRING_WITH_LEN(", CONSTRAINT "));
-  res|= append_identifier(thd, &str, fk_info->foreign_id);
+  res|= append_identifier(thd, &str, &fk_info->foreign_id);
   res|= str.append(STRING_WITH_LEN(" FOREIGN KEY ("));
-  res|= fk_info_append_fields(thd, &str, &fk_info->foreign_fields);
+  res|= fk_info_append_fields(thd, &str, fk_info->foreign_fields);
   res|= str.append(STRING_WITH_LEN(") REFERENCES "));
-  res|= append_identifier(thd, &str, fk_info->referenced_db);
+  res|= append_identifier(thd, &str, &fk_info->referenced_db);
   res|= str.append('.');
-  res|= append_identifier(thd, &str, fk_info->referenced_table);
+  res|= append_identifier(thd, &str, &fk_info->referenced_table);
   res|= str.append(STRING_WITH_LEN(" ("));
-  res|= fk_info_append_fields(thd, &str, &fk_info->referenced_fields);
+  res|= fk_info_append_fields(thd, &str, fk_info->referenced_fields);
   res|= str.append(')');
 
   return res ? NULL : thd->strmake(str.ptr(), str.length());
@@ -147,10 +145,10 @@ fk_truncate_illegal_if_parent(THD *thd, TABLE *table)
   /* Loop over the set of foreign keys for which this table is a parent. */
   while ((fk_info= it++))
   {
-    if (!table->s->db.streq(*fk_info->referenced_db) ||
-        !table->s->table_name.streq(*fk_info->referenced_table) ||
-        !table->s->db.streq(*fk_info->foreign_db) ||
-        !table->s->table_name.streq(*fk_info->foreign_table))
+    if (!table->s->db.streq(fk_info->referenced_db) ||
+        !table->s->table_name.streq(fk_info->referenced_table) ||
+        !table->s->db.streq(fk_info->foreign_db) ||
+        !table->s->table_name.streq(fk_info->foreign_table))
       break;
   }
 
