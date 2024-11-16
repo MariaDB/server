@@ -5078,10 +5078,17 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
     goto end_share;
   }
 
-  if (!open_table_from_share(thd, share, table_name, 0,
-                             (EXTRA_RECORD | OPEN_FRM_FILE_ONLY),
-                             thd->open_options, &tbl, FALSE))
+  res= open_table_from_share(thd, share, table_name, 0,
+                             EXTRA_RECORD | OPEN_FRM_FILE_ONLY,
+                             thd->open_options, &tbl, FALSE);
+  if (res && hide_object_error(thd->get_stmt_da()->sql_errno()))
+    res= 0;
+  else
   {
+    char buf[NAME_CHAR_LEN + 1];
+    if (unlikely(res))
+      get_table_engine_for_i_s(thd, buf, &table_list, db_name, table_name);
+
     tbl.s= share;
     table_list.table= &tbl;
     table_list.view= (LEX*) share->is_view;
