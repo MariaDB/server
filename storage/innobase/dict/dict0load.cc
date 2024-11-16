@@ -2300,9 +2300,9 @@ dict_load_tablespace(
 		table->file_unreadable = true;
 
 		if (!(ignore_err & DICT_ERR_IGNORE_RECOVER_LOCK)) {
-			sql_print_error("InnoDB: Failed to load tablespace "
-					ULINTPF " for table %s",
-					table->space_id, table->name);
+			sql_print_error("InnoDB: Failed to load tablespace %"
+					PRIu32 " for table %s",
+					table->space_id, table->name.m_name);
 		}
 	}
 
