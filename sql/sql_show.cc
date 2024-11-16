@@ -4563,6 +4563,19 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
 }
 
 
+/*
+  Hide error for a non-existing table.
+  For example, this error can occur when we use a where condition
+  with a db name and table, but the table does not exist or
+  there is a view with the same name.
+*/
+static bool hide_object_error(uint err)
+{
+  return err == ER_NO_SUCH_TABLE || err == ER_WRONG_OBJECT ||
+         err == ER_NOT_SEQUENCE;
+}
+
+
 /**
   Fill I_S table with data obtained by performing full-blown table open.
 
@@ -4691,16 +4704,8 @@ fill_schema_table_by_open(THD *thd, MEM_ROOT *mem_root,
     of backward compatibility.
   */
   if (!is_show_fields_or_keys && result && thd->is_error() &&
-      (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-       thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-       thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE))
+      hide_object_error(thd->get_stmt_da()->sql_errno()))
   {
-    /*
-      Hide error for a non-existing table.
-      For example, this error can occur when we use a where condition
-      with a db name and table, but the table does not exist or
-      there is a view with the same name.
-    */
     result= false;
     thd->clear_error();
   }
@@ -4791,8 +4796,8 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     else
       table->field[3]->store(STRING_WITH_LEN("ERROR"), cs);
 
-    if (unlikely(thd->is_error() &&
-                 thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE))
+    if (unlikely(thd->is_error()) &&
+        hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       thd->clear_error();
       return 0;
@@ -5032,9 +5037,7 @@ static int fill_schema_table_from_frm(THD *thd, MEM_ROOT *mem_root,
   share= tdc_acquire_share(thd, &table_list, GTS_TABLE | GTS_VIEW);
   if (!share)
   {
-    if (thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE ||
-        thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT ||
-        thd->get_stmt_da()->sql_errno() == ER_NOT_SEQUENCE)
+    if (hide_object_error(thd->get_stmt_da()->sql_errno()))
     {
       res= 0;
     }
