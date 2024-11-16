@@ -8705,7 +8705,7 @@ my_bool translog_purge(TRANSLOG_ADDRESS low)
                     log_descriptor.open_files.elements);
         DBUG_ASSERT(log_descriptor.min_file == i);
         file= *((TRANSLOG_FILE **)pop_dynamic(&log_descriptor.open_files));
-        DBUG_PRINT("info", ("Files : %d", log_descriptor.open_files.elements));
+        DBUG_PRINT("info", ("Files : %zu", log_descriptor.open_files.elements));
         DBUG_ASSERT(i == file->number);
         log_descriptor.min_file++;
         DBUG_ASSERT(log_descriptor.max_file - log_descriptor.min_file + 1 ==

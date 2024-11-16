@@ -11412,7 +11412,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         Query_log_event *query_ev= (Query_log_event*) ev;
         if (query_ev->xid)
         {
-          DBUG_PRINT("QQ", ("xid: %llu xid"));
+          DBUG_PRINT("QQ", ("xid: %llu xid", query_ev->xid));
           DBUG_ASSERT(sizeof(query_ev->xid) == sizeof(my_xid));
           uchar *x= (uchar *) memdup_root(&mem_root,
                                           (uchar*) &query_ev->xid,

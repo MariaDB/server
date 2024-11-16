@@ -1474,8 +1474,8 @@ bool print_admin_msg(THD* thd, uint len,
      Also we likely need to lock mutex here (in both cases with protocol and
      push_warning).
   */
-  DBUG_PRINT("info",("print_admin_msg:  %s, %s, %s, %s", name, op_name,
-                     msg_type, msgbuf));
+  DBUG_PRINT("info",("print_admin_msg:  %s, %s, %s, %s", name, op_name->str,
+                     msg_type->str, msgbuf));
   protocol->prepare_for_resend();
   protocol->store(name, length, system_charset_info);
   protocol->store(op_name, system_charset_info);
