@@ -6250,7 +6250,7 @@ drop_create_field:
           List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
           while ((f_key= fk_key_it++))
           {
-            if (Lex_ident_column(*f_key->foreign_id).streq(drop->name))
+            if (f_key->foreign_id.streq(drop->name))
             {
               remove_drop= FALSE;
               break;
@@ -6403,7 +6403,7 @@ drop_create_field:
         List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
         while ((f_key= fk_key_it++))
         {
-          if (Lex_ident_column(*f_key->foreign_id).streq(keyname))
+          if (f_key->foreign_id.streq(keyname))
             goto remove_key;
         }
       }
@@ -8437,9 +8437,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
-  if ((create_info->fields_option_struct= 
+  if ((create_info->fields_option_struct=
          thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
-      (create_info->indexes_option_struct= 
+      (create_info->indexes_option_struct=
          thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
     DBUG_RETURN(1);
 
@@ -9152,7 +9152,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       Alter_drop *drop;
       for(drop_it.rewind(); (drop=drop_it++); )
         if (drop->type == Alter_drop::FOREIGN_KEY &&
-            drop->name.streq(*fk.foreign_id))
+            drop->name.streq(fk.foreign_id))
           break;
       if (drop)
         continue;
@@ -9162,8 +9162,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       for (LEX_CSTRING &c : fk.referenced_fields)
         ref_cols.push_back(new (root) Key_part_spec(&c, 0));
       auto key= new (root)
-        Foreign_key(fk.foreign_id, &cols, fk.foreign_id, fk.referenced_db,
-          fk.referenced_table, &ref_cols, fk.delete_method, fk.update_method,
+        Foreign_key(&fk.foreign_id, &cols, &fk.foreign_id, &fk.referenced_db,
+          &fk.referenced_table, &ref_cols, fk.delete_method, fk.update_method,
           Foreign_key::FK_MATCH_UNDEF, DDL_options());
       key->old= true;
       new_key_list.push_back(key, root);
@@ -9304,7 +9304,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
         if (!check->name.length || check->automatic_name)
           continue;
 
-        if (check->name.streq(*f_key->foreign_id))
+        if (check->name.streq(f_key->foreign_id))
         {
           my_error(ER_DUP_CONSTRAINT_NAME, MYF(0), "CHECK", check->name.str);
           goto err;
@@ -9347,7 +9347,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           List_iterator<FOREIGN_KEY_INFO> fk_key_it(fk_child_key_list);
           while (FOREIGN_KEY_INFO *f_key= fk_key_it++)
           {
-            if (Lex_ident_column(*f_key->foreign_id).streq(drop->name))
+            if (Lex_ident_column(f_key->foreign_id).streq(drop->name))
               goto fk_found;
           }
           goto fk_not_found;
@@ -9479,20 +9479,19 @@ fk_check_column_changes(THD *thd, const TABLE *table,
                         const char **bad_column_name,
                         bool referenced=false)
 {
-  List<LEX_CSTRING> &fk_columns= referenced
-    ? fk->referenced_fields
-    : fk->foreign_fields;
-  List_iterator_fast<LEX_CSTRING> column_it(fk_columns);
-  LEX_CSTRING *column;
+  auto &fk_columns= referenced ? fk->referenced_fields
+                               : fk->foreign_fields;
   int n_col= 0;
 
   *bad_column_name= NULL;
   enum fk_column_change_type result= FK_COLUMN_NO_CHANGE;
+  const char *last_column_name;
 
-  while ((column= column_it++))
+  for(const Lex_ident_column &column: fk_columns)
   {
-    Create_field *new_field= get_field_by_old_name(alter_info, *column);
+    Create_field *new_field= get_field_by_old_name(alter_info, column);
 
+    last_column_name= column.str;
     if (new_field)
     {
       Field *old_field= new_field->field;
@@ -9588,7 +9587,7 @@ fk_check_column_changes(THD *thd, const TABLE *table,
   }
   return FK_COLUMN_NO_CHANGE;
 func_exit:
-  *bad_column_name= column->str;
+  *bad_column_name= last_column_name;
   return result;
 }
 
@@ -9655,9 +9654,9 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
         l_c_t_n > 0 modes case-insensitive comparison is used.
       */
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
-          drop->name.streq(*f_key->foreign_id) &&
-          table->s->db.streq(*f_key->foreign_db) &&
-          table->s->table_name.streq(*f_key->foreign_table))
+          drop->name.streq(f_key->foreign_id) &&
+          table->s->db.streq(f_key->foreign_db) &&
+          table->s->table_name.streq(f_key->foreign_table))
         fk_parent_key_it.remove();
     }
   }
@@ -9689,10 +9688,10 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     case FK_COLUMN_DATA_CHANGE:
     {
       char buff[NAME_LEN*2+2];
-      strxnmov(buff, sizeof(buff)-1, f_key->foreign_db->str, ".",
-               f_key->foreign_table->str, NullS);
+      strxnmov(buff, sizeof(buff)-1, f_key->foreign_db.str, ".",
+               f_key->foreign_table.str, NullS);
       my_error(ER_FK_COLUMN_CANNOT_CHANGE_CHILD, MYF(0), bad_column_name,
-               f_key->foreign_id->str, buff);
+               f_key->foreign_id.str, buff);
       DBUG_RETURN(true);
     }
     case FK_COLUMN_RENAMED:
@@ -9704,13 +9703,13 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     case FK_COLUMN_DROPPED:
     {
       StringBuffer<NAME_LEN*2+2> buff(system_charset_info);
-      LEX_CSTRING *db= f_key->foreign_db, *tbl= f_key->foreign_table;
+      const LEX_CSTRING *db= &f_key->foreign_db, *tbl= &f_key->foreign_table;
 
       append_identifier(thd, &buff, db);
       buff.append('.');
       append_identifier(thd, &buff, tbl);
       my_error(ER_FK_COLUMN_CANNOT_DROP_CHILD, MYF(0), bad_column_name,
-               f_key->foreign_id->str, buff.c_ptr());
+               f_key->foreign_id.str, buff.c_ptr());
       DBUG_RETURN(true);
     }
     /* FK_COLUMN_NOT_NULL error happens only when changing
@@ -9742,7 +9741,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
     {
       /* Names of foreign keys in InnoDB are case-insensitive. */
       if ((drop->type == Alter_drop::FOREIGN_KEY) &&
-          (Lex_ident_column(*f_key->foreign_id).streq(drop->name)))
+          (Lex_ident_column(f_key->foreign_id).streq(drop->name)))
         fk_key_it.remove();
     }
   }
@@ -9763,7 +9762,7 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       break;
     case FK_COLUMN_DATA_CHANGE:
       my_error(ER_FK_COLUMN_CANNOT_CHANGE, MYF(0), bad_column_name,
-               f_key->foreign_id->str);
+               f_key->foreign_id.str);
       DBUG_RETURN(true);
     case FK_COLUMN_RENAMED:
       my_error(ER_ALTER_OPERATION_NOT_SUPPORTED_REASON, MYF(0),
@@ -9773,11 +9772,11 @@ static bool fk_prepare_copy_alter_table(THD *thd, TABLE *table,
       DBUG_RETURN(true);
     case FK_COLUMN_DROPPED:
       my_error(ER_FK_COLUMN_CANNOT_DROP, MYF(0), bad_column_name,
-               f_key->foreign_id->str);
+               f_key->foreign_id.str);
       DBUG_RETURN(true);
     case FK_COLUMN_NOT_NULL:
       my_error(ER_FK_COLUMN_NOT_NULL, MYF(0), bad_column_name,
-               f_key->foreign_id->str);
+               f_key->foreign_id.str);
       DBUG_RETURN(true);
     default:
       DBUG_ASSERT(0);
@@ -10932,7 +10931,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
           while ((f_key= fk_key_it++))
           {
-            if (Lex_ident_column(*f_key->foreign_id).streq(drop->name))
+            if (f_key->foreign_id.streq(drop->name))
             {
               drop->type= Alter_drop::FOREIGN_KEY;
               alter_info->flags|= ALTER_DROP_FOREIGN_KEY;

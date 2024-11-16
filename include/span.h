@@ -20,6 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <cstddef>
 #include <iterator>
+#include "mysql/service_thd_alloc.h"
 
 namespace st_
 {
@@ -151,6 +152,12 @@ public:
   reverse_iterator rend() const
   {
     return std::reverse_iterator<iterator>(begin());
+  }
+
+  void alloc(const THD *thd, size_t elements)
+  {
+    data_= (element_type*) thd_alloc(thd, sizeof (element_type) * elements);
+    size_= elements;
   }
 
 private:

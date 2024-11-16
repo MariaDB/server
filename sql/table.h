@@ -37,6 +37,7 @@
 #include "sql_type.h"               /* vers_kind_t */
 #include "privilege.h"              /* privilege_t */
 #include "my_bit.h"
+#include "span.h"
 
 /*
   Buffer for unix timestamp in microseconds:
@@ -2035,27 +2036,27 @@ enum enum_fk_option { FK_OPTION_UNDEF, FK_OPTION_RESTRICT, FK_OPTION_NO_ACTION,
 
 typedef struct st_foreign_key_info
 {
-  LEX_CSTRING *foreign_id;
-  LEX_CSTRING *foreign_db;
-  LEX_CSTRING *foreign_table;
-  LEX_CSTRING *referenced_db;
-  LEX_CSTRING *referenced_table;
+  Lex_ident_column foreign_id;
+  Lex_ident_db    foreign_db;
+  Lex_ident_table foreign_table;
+  Lex_ident_db    referenced_db;
+  Lex_ident_table referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  LEX_CSTRING *referenced_key_name;
-  List<LEX_CSTRING> foreign_fields;
-  List<LEX_CSTRING> referenced_fields;
+  Lex_ident_column referenced_key_name;
+  st_::span<Lex_ident_column> foreign_fields;
+  st_::span<Lex_ident_column> referenced_fields;
 private:
   unsigned char *fields_nullable= nullptr;
 
   /**
     Get the number of fields exist in foreign key relationship
   */
-  unsigned get_n_fields() const noexcept
+  size_t get_n_fields() const noexcept
   {
-    unsigned n_fields= foreign_fields.elements;
+    size_t n_fields= foreign_fields.size();
     if (n_fields == 0)
-      n_fields= referenced_fields.elements;
+      n_fields= referenced_fields.size();
     return n_fields;
   }
 
@@ -2110,12 +2111,11 @@ public:
   {
     if (!fields_nullable)
       return false;
-    unsigned n_field= get_n_fields();
+    size_t n_field= get_n_fields();
     DBUG_ASSERT(field < n_field);
     size_t bit= size_t{field} + referenced * n_field;
     return fields_nullable[bit / 8] & (1U << (bit % 8));
   }
-
 } FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);

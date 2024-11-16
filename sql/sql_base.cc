@@ -5072,11 +5072,11 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
       lock_type= TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          fk->foreign_db, fk->foreign_table, lock_type))
+          &fk->foreign_db, &fk->foreign_table, lock_type))
       continue;
 
     TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
-    tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
+    tl->init_one_table_for_prelocking(&fk->foreign_db, &fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
         op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
   }

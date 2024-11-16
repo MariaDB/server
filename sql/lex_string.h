@@ -130,6 +130,22 @@ class Lex_cstring : public LEX_CSTRING
     DBUG_ASSERT(rhs.str);
     return length >= rhs.length && !memcmp(str, rhs.str, rhs.length);
   }
+
+  void set_dup(const THD *thd, const char *ptr, size_t len)
+  {
+    str= thd_strmake(thd, ptr, len);
+    length = len;
+  }
+
+  void set_dup(const THD *thd, const char *ptr)
+  {
+    set_dup(thd, ptr, strlen(ptr));
+  }
+
+  void set_dup(const THD *thd, const LEX_CSTRING &other)
+  {
+    set_dup(thd, other.str, other.length);
+  }
 };
 
 
