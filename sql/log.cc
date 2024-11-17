@@ -361,15 +361,19 @@ Log_event::select_checksum_alg(const binlog_cache_data *data)
 
 class binlog_cache_mngr {
 public:
-  binlog_cache_mngr(my_off_t param_max_binlog_stmt_cache_size,
+  binlog_cache_mngr(THD *thd_arg,
+                    my_off_t param_max_binlog_stmt_cache_size,
                     my_off_t param_max_binlog_cache_size,
                     ulong *param_ptr_binlog_stmt_cache_use,
                     ulong *param_ptr_binlog_stmt_cache_disk_use,
                     ulong *param_ptr_binlog_cache_use,
                     ulong *param_ptr_binlog_cache_disk_use,
                     bool precompute_checksums)
-    : stmt_cache(precompute_checksums), trx_cache(precompute_checksums),
-      last_commit_pos_offset(0), gtid_cache_offset(0), using_xa(FALSE), xa_xid(0)
+    : thd(thd_arg), engine_ptr(0),
+      stmt_cache(precompute_checksums),
+      trx_cache(precompute_checksums),
+      last_commit_pos_offset(0), gtid_cache_offset(0), did_oob_spill(false),
+      using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
                                       param_ptr_binlog_stmt_cache_use,
@@ -382,6 +386,8 @@ public:
 
   void reset(bool do_stmt, bool do_trx)
   {
+    if (engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_free)(thd, engine_ptr);
     if (do_stmt)
       stmt_cache.reset();
     if (do_trx)
@@ -404,6 +410,10 @@ public:
     return (is_transactional ? &trx_cache.cache_log : &stmt_cache.cache_log);
   }
 
+  THD *thd;
+  /* For use by engine when --binlog-storage-engine. */
+  void *engine_ptr;
+
   binlog_cache_data stmt_cache;
 
   binlog_cache_data trx_cache;
@@ -420,6 +430,11 @@ public:
   /* Point in trx cache where GTID event sits after end event. */
   my_off_t gtid_cache_offset;
 
+  /*
+    Flag to remember if we spilled any partial transaction data to the binlog
+    implemented in storage engine.
+  */
+  bool did_oob_spill;
   /*
     Flag set true if this transaction is committed with log_xid() as part of
     XA, false if not.
@@ -6326,6 +6341,18 @@ bool stmt_has_updated_non_trans_table(const THD* thd)
   return (thd->transaction->stmt.modified_non_trans_table);
 }
 
+
+static int
+binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
+{
+  binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
+  bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,
+                                                       &mngr->engine_ptr);
+  mngr->did_oob_spill= true;
+  return res;
+}
+
+
 /*
   These functions are placed in this file since they need access to
   binlog_hton, which has internal linkage.
@@ -6338,9 +6365,36 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
                                                    MYF(MY_ZEROFILL));
   if (!cache_mngr ||
       open_cached_file(&cache_mngr->stmt_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)) ||
-      open_cached_file(&cache_mngr->trx_cache.cache_log, mysql_tmpdir,
-                       LOG_PREFIX, (size_t)binlog_cache_size, MYF(MY_WME)))
+                       LOG_PREFIX, (size_t)binlog_stmt_cache_size, MYF(MY_WME)))
+  {
+    my_free(cache_mngr);
+    return NULL;
+  }
+  IO_CACHE *trx_cache= &cache_mngr->trx_cache.cache_log;
+  my_bool res;
+  if (likely(opt_binlog_engine_hton) &&
+      likely(opt_binlog_engine_hton->binlog_oob_data))
+  {
+    /*
+      With binlog implementation in engine, we do not need to spill large
+      transactions to temporary file, we will binlog data out-of-band spread
+      through the binlog as the transaction runs. Setting the file to INT_MIN
+      makes IO_CACHE not attempt to create the temporary file.
+    */
+    res= init_io_cache(trx_cache, (File)INT_MIN, (size_t)binlog_cache_size,
+                       WRITE_CACHE, 0L, 0, MYF(MY_WME | MY_NABP));
+    /*
+      Use a custom write_function to spill to the engine-implemented binlog.
+      And re-use the IO_CACHE::append_read_pos as a handle for our
+      write_function; it is unused when the cache is not SEQ_READ_APPEND.
+    */
+    trx_cache->write_function= binlog_spill_to_engine;
+    trx_cache->append_read_pos= (uchar *)cache_mngr;
+  }
+  else
+    res= open_cached_file(trx_cache, mysql_tmpdir, LOG_PREFIX,
+                          (size_t)binlog_cache_size, MYF(MY_WME));
+  if (unlikely(res))
   {
     my_free(cache_mngr);
     return NULL;
@@ -6355,7 +6409,7 @@ static binlog_cache_mngr *binlog_setup_cache_mngr(THD *thd)
   bool precompute_checksums=
     !WSREP_NNULL(thd) && !encrypt_binlog && !opt_binlog_legacy_event_pos;
   cache_mngr= new (cache_mngr)
-          binlog_cache_mngr(max_binlog_stmt_cache_size,
+          binlog_cache_mngr(thd, max_binlog_stmt_cache_size,
                             max_binlog_cache_size,
                             &binlog_stmt_cache_use,
                             &binlog_stmt_cache_disk_use,
