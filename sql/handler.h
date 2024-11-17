@@ -1534,8 +1534,21 @@ struct handlerton
 
   /* Optional implementation of binlog in the engine. */
   bool (*binlog_init)(size_t binlog_size);
+  /* Binlog an event group that doesn't go through commit_ordered. */
   bool (*binlog_write_direct)(IO_CACHE *cache, size_t main_size,
                               const rpl_gtid *gtid);
+  /*
+    Binlog parts of large transactions out-of-band, in different chunks in the
+    binlog as the transaction executes. This limits the amount of data that
+    must be binlogged transactionally during COMMIT. The engine_data points to
+    a pointer location that the engine can set to maintain its own context
+    for the out-of-band data.
+   */
+  bool (*binlog_oob_data)(THD *thd, const unsigned char *data, size_t data_len,
+                          void **engine_data);
+  /* Call to allow engine to release the engine_data from binlog_oob_data(). */
+  void (*binlog_oob_free)(THD *thd, void *engine_data);
+  /* Obtain an object to allow reading from the binlog. */
   handler_binlog_reader * (*get_binlog_reader)();
 
    /*
