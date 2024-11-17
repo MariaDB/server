@@ -6057,6 +6057,8 @@ enum fsp_binlog_chunk_types {
   FSP_BINLOG_TYPE_COMMIT= 1,
   /* A binlog GTID state record. */
   FSP_BINLOG_TYPE_GTID_STATE= 2,
+  /* Out-of-band event group data. */
+  FSP_BINLOG_TYPE_OOB_DATA= 3,
 
   /* Padding data at end of page. */
   FSP_BINLOG_TYPE_FILLER= 0xff
@@ -6165,6 +6167,59 @@ struct chunk_data_base {
   */
   virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) = 0;
   virtual ~chunk_data_base() {};
+};
+
+
+/* Structure holding context for out-of-band chunks of binlogged event group. */
+struct binlog_oob_context {
+#ifdef _MSC_VER
+/* Flexible array member is not standard C++, disable compiler warning. */
+#pragma warning(disable : 4200)
+#endif
+  uint32_t node_list_len;
+  uint32_t node_list_alloc_len;
+  /*
+    The node_list contains the root of each tree in the forest of perfect
+    binary trees.
+  */
+  struct node_info {
+    uint64_t file_no;
+    uint64_t offset;
+    uint64_t node_index;
+    uint32_t height;
+  } node_list [];
+
+  /*
+    Structure used to encapsulate the data to be binlogged in an out-of-band
+    chunk, for use by fsp_binlog_write_chunk().
+  */
+  struct chunk_data_oob : public chunk_data_base {
+    /*
+      Need room for 5 numbers:
+        node index
+        left child file_no
+        left child offset
+        right child file_no
+        right child offset
+    */
+    static constexpr uint32_t max_buffer= 5*COMPR_INT_MAX64;
+    uint64_t sofar;
+    uint64_t main_len;
+    byte *main_data;
+    uint32_t header_len;
+    byte header_buf[max_buffer];
+
+    chunk_data_oob(uint64_t idx,
+                   uint64_t left_file_no, uint64_t left_offset,
+                   uint64_t right_file_no, uint64_t right_offset,
+                   byte *data, size_t data_len);
+    virtual ~chunk_data_oob() {};
+    virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final;
+  };
+
+  bool binlog_node(uint32_t node, uint64_t new_idx,
+                   uint32_t left_node, uint32_t right_node,
+                   chunk_data_oob *oob_data);
 };
 
 
@@ -7208,8 +7263,8 @@ binlog_state_recover()
 }
 
 
-void fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr,
-                            byte chunk_type)
+std::pair<uint64_t, uint64_t>
+fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr, byte chunk_type)
 {
   uint32_t page_size= (uint32_t)srv_page_size;
   uint32_t page_size_shift= srv_page_size_shift;
@@ -7221,6 +7276,8 @@ void fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr,
   buf_block_t *block= binlog_cur_block;
   uint64_t file_no= active_binlog_file_no.load(std::memory_order_relaxed);
   uint64_t pending_prev_end_offset= 0;
+  uint64_t start_file_no= 0;
+  uint64_t start_offset= 0;
 
   /*
     Write out the event data in chunks of whatever size will fit in the current
@@ -7355,6 +7412,11 @@ void fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr,
       page_offset= FIL_PAGE_DATA;
       continue;
     }
+    if (start_offset == 0)
+    {
+      start_file_no= file_no;
+      start_offset= (page_no << page_size_shift) + page_offset;
+    }
     page_remain-= 3;    /* Type byte and 2-byte length. */
     std::pair<uint32_t, bool> size_last=
       chunk_data->copy_data(ptr+3, page_remain);
@@ -7388,6 +7450,7 @@ void fsp_binlog_write_chunk(chunk_data_base *chunk_data, mtr_t *mtr,
                                                  std::memory_order_relaxed);
   binlog_cur_end_offset[file_no & 1].store((page_no << page_size_shift) + page_offset,
                                            std::memory_order_relaxed);
+  return {start_file_no, start_offset};
 }
 
 
@@ -7472,6 +7535,232 @@ fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
 {
   chunk_data_cache chunk_data(cache, main_size);
   fsp_binlog_write_chunk(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
+}
+
+
+/* Allocate a context for out-of-band binlogging. */
+static binlog_oob_context *
+alloc_oob_context(uint32 list_length)
+{
+  size_t needed= sizeof(binlog_oob_context) +
+    list_length * sizeof(binlog_oob_context::node_info);
+  binlog_oob_context *c=
+    (binlog_oob_context *) ut_malloc(needed, mem_key_binlog);
+  if (c)
+  {
+    c->node_list_alloc_len= list_length;
+    c->node_list_len= 0;
+  }
+  else
+    my_error(ER_OUTOFMEMORY, MYF(0), needed);
+
+  return c;
+}
+
+
+static inline void
+free_oob_context(binlog_oob_context *c)
+{
+  ut_free(c);
+}
+
+
+static binlog_oob_context *
+ensure_oob_context(void **engine_data, uint32_t needed_len)
+{
+  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  if (c->node_list_alloc_len >= needed_len)
+    return c;
+  if (needed_len < c->node_list_alloc_len + 10)
+    needed_len= c->node_list_alloc_len + 10;
+  binlog_oob_context *new_c= alloc_oob_context(needed_len);
+  if (UNIV_UNLIKELY(!new_c))
+    return nullptr;
+  memcpy(new_c, c, sizeof(binlog_oob_context) +
+         needed_len*sizeof(binlog_oob_context::node_info));
+  new_c->node_list_alloc_len= needed_len;
+  *engine_data= new_c;
+  free_oob_context(c);
+  return new_c;
+}
+
+
+/*
+  Binlog an out-of-band piece of event group data.
+
+  For large transactions, we binlog the data in pieces spread out over the
+  binlog file(s), to avoid a large stall to write large amounts of data during
+  transaction commit, and to avoid having to keep all of the transaction in
+  memory or spill it to temporary file.
+
+  The chunks of data are written out in a binary tree structure, to allow
+  efficiently reading the transaction back in order from start to end. Note
+  that the binlog is written append-only, so we cannot simply link each chunk
+  to the following chunk, as the following chunk is unknown when binlogging the
+  prior chunk. With a binary tree structure, the reader can do a post-order
+  traversal and only need to keep log_2(N) node pointers in-memory at any time.
+
+  A perfect binary tree of height h has 2**h - 1 nodes. At any time during a
+  transaction, the out-of-band data in the binary log for that transaction
+  consists of a forest (eg. a list) of perfect binary trees of strictly
+  decreasing height, except that the last two trees may have the same height.
+  For example, here is how it looks for a transaction where 13 nodes (0-12)
+  have been binlogged out-of-band so far:
+
+          6
+       _ / \_
+      2      5      9     12
+     / \    / \    / \    / \
+    0   1  3   4  7   8 10  11
+
+  In addition to the shown binary tree parent->child pointers, each leaf has a
+  (single) link to the root node of the prior (at the time the leaf was added)
+  tree. In the example this means the following links:
+    11->10, 10->9, 8->7, 7->6, 4->3, 3->2, 1->0
+  This allows to fully traverse the forest of perfect binary trees starting
+  from the last node (12 in the example). In the example, only 10->9 and 7->6
+  will be needed, but the other links would be needed if the tree had been
+  completed at earlier stages.
+
+  As a new node is added, there are two different cases on how to maintain
+  the binary tree forest structure:
+
+    1. If the last two trees in the forest have the same height h, then those
+       two trees are replaced by a single tree of height (h+1) with the new
+       node as root and the two trees as left and right child. The number of
+       trees in the forest thus decrease by one.
+
+    2. Otherwise the new node is added at the end of the forest as a tree of
+       height 1; in this case the forest increases by one tree.
+
+  In both cases, we maintain the invariants that the forest consist of a list
+  of perfect binary trees, and that the heights of the trees are strictly
+  decreasing except that the last two trees can have the same height.
+
+  When a transaction is committed, the commit record contains a pointer to
+  the root node of the last tree in the forest. If the transaction is never
+  committed (explicitly rolled back or lost due to disconnect or server
+  restart or crash), then the out-of-band data is simply left in place; it
+  will be ignored by readers and eventually discarded as the old binlog files
+  are purged.
+*/
+bool
+fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
+               void **engine_data)
+{
+  binlog_oob_context *c= (binlog_oob_context *)*engine_data;
+  if (!c)
+    *engine_data= c= alloc_oob_context(10);
+  if (UNIV_UNLIKELY(!c))
+    return true;
+
+  uint32_t i= c->node_list_len;
+  uint64_t new_idx= i==0 ? 0 : c->node_list[i-1].node_index + 1;
+  if (i >= 2 && c->node_list[i-2].height == c->node_list[i-1].height)
+  {
+    /* Case 1: Replace two trees with a tree rooted in a new node. */
+    binlog_oob_context::chunk_data_oob oob_data
+      (new_idx,
+       c->node_list[i-2].file_no, c->node_list[i-2].offset,
+       c->node_list[i-1].file_no, c->node_list[i-1].offset,
+       (byte *)data, data_len);
+    if (c->binlog_node(i-2, new_idx, i-2, i-1, &oob_data))
+      return true;
+    c->node_list_len= i - 1;
+  }
+  else
+  {
+    /* Case 2: Add the new node as a singleton tree. */
+    c= ensure_oob_context(engine_data, i+1);
+    if (!c)
+      return true;
+    binlog_oob_context::chunk_data_oob oob_data
+      (new_idx,
+       0, 0, /* NULL left child signifies a leaf */
+       c->node_list[i-1].file_no, c->node_list[i-1].offset,
+       (byte *)data, data_len);
+    if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data))
+      return true;
+    c->node_list_len= i + 1;
+  }
+
+  return false;
+}
+
+
+/*
+  Binlog a new out-of-band tree node and put it at position `node` in the list
+  of trees. A leaf node is denoted by left and right child being identical (and
+  in this case they point to the root of the prior tree).
+*/
+bool
+binlog_oob_context::binlog_node(uint32_t node, uint64_t new_idx,
+                                uint32_t left_node, uint32_t right_node,
+                                chunk_data_oob *oob_data)
+{
+  uint32_t new_height=
+    left_node == right_node ? 1 : 1 + node_list[left_node].height;
+  mtr_t mtr;
+  mtr.start();
+  std::pair<uint64_t, uint64_t> new_file_no_offset=
+    fsp_binlog_write_chunk(oob_data, &mtr, FSP_BINLOG_TYPE_OOB_DATA);
+  mtr.commit();
+  node_list[node].file_no= new_file_no_offset.first;
+  node_list[node].offset= new_file_no_offset.second;
+  node_list[node].node_index= new_idx;
+  node_list[node].height= new_height;
+  return false;  // ToDo: Error handling?
+}
+
+
+binlog_oob_context::chunk_data_oob::chunk_data_oob(uint64_t idx,
+        uint64_t left_file_no, uint64_t left_offset,
+        uint64_t right_file_no, uint64_t right_offset,
+        byte *data, size_t data_len)
+  : sofar(0), main_len(data_len), main_data(data)
+{
+  ut_ad(data_len > 0);
+  byte *p= &header_buf[0];
+  p= compr_int_write(p, idx);
+  p= compr_int_write(p, left_file_no);
+  p= compr_int_write(p, left_offset);
+  p= compr_int_write(p, right_file_no);
+  p= compr_int_write(p, right_offset);
+  ut_ad(p - &header_buf[0] <= max_buffer);
+  header_len= (uint32_t)(p - &header_buf[0]);
+}
+
+
+std::pair<uint32_t, bool>
+binlog_oob_context::chunk_data_oob::copy_data(byte *p, uint32_t max_len)
+{
+  uint32_t size;
+  /* First write header data, if any left. */
+  if (sofar < header_len)
+  {
+    size= std::min(header_len - (uint32_t)sofar, max_len);
+    memcpy(p, header_buf + sofar, size);
+    p+= size;
+    sofar+= size;
+    if (UNIV_UNLIKELY(max_len == size))
+      return {size, sofar == header_len + main_len};
+    max_len-= size;
+  }
+
+  /* Then write the main chunk data. */
+  ut_ad(sofar >= header_len);
+  ut_ad(main_len > 0);
+  size= (uint32_t)std::min(header_len + main_len - sofar, (uint64_t)max_len);
+  memcpy(p, main_data + (sofar - header_len), size);
+  sofar+= size;
+  return {size, sofar == header_len + main_len};
+}
+
+
+void
+fsp_free_oob(THD *thd, void *engine_data)
+{
+  free_oob_context((binlog_oob_context *)engine_data);
 }
 
 
