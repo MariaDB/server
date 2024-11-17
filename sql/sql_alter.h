@@ -187,6 +187,8 @@ public:
   /* Delete/update statistics in EITS tables */
   void apply_statistics_deletes_renames(THD *thd, TABLE *table);
 
+  // Sequence field error
+  bool                          seq_checked;
 private:
   // Type of ALTER TABLE algorithm.
   enum_alter_table_algorithm    requested_algorithm;
@@ -201,6 +203,7 @@ public:
     keys_onoff(LEAVE_AS_IS),
     original_table(0),
     num_parts(0),
+    seq_checked(0),
     requested_algorithm(ALTER_TABLE_ALGORITHM_NONE),
     requested_lock(ALTER_TABLE_LOCK_DEFAULT)
   {}
@@ -225,6 +228,7 @@ public:
     partition_names.empty();
     requested_algorithm= ALTER_TABLE_ALGORITHM_NONE;
     requested_lock= ALTER_TABLE_LOCK_DEFAULT;
+    seq_checked= false;
   }
 
 
