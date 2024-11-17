@@ -561,6 +561,9 @@ extern void fsp_binlog_trx(trx_t *trx, mtr_t *mtr);
 class handler_binlog_reader;
 extern bool innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size,
                                          const struct rpl_gtid *gtid);
+extern bool fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
+                           void **engine_data);
+extern void fsp_free_oob(THD *thd, void *engine_data);
 extern handler_binlog_reader *innodb_get_binlog_reader();
 extern void fsp_binlog_init();
 extern bool innodb_binlog_init(size_t binlog_size);
