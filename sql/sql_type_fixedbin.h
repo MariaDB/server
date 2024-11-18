@@ -1365,7 +1365,7 @@ public:
   void sort_length(THD *thd, const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const override
   {
-    attr->original_length= attr->length= FbtImpl::binary_length();
+    attr->length= FbtImpl::binary_length();
     attr->suffix_length= 0;
   }
   uint32 max_display_length(const Item *item) const override

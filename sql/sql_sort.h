@@ -258,9 +258,8 @@ public:
   Sort_keys(SORT_FIELD* arr, size_t count):
     Sort_keys_array(arr, count),
     m_using_packed_sortkeys(false),
-    size_of_packable_fields(0),
-    sort_length_with_original_values(0),
-    sort_length_with_memcmp_values(0),
+    bytes_used_for_var_length_keys_lengths(0),
+    max_sort_length_without_packing(0),
     parameters_computed(false)
   {
     DBUG_ASSERT(!is_null());
@@ -273,34 +272,25 @@ public:
   {
     m_using_packed_sortkeys= val;
   }
-  void set_size_of_packable_fields(uint len)
+
+  bool have_variable_sized_keys() const
   {
-    size_of_packable_fields= len;
+    return bytes_used_for_var_length_keys_lengths;
   }
 
-  uint get_size_of_packable_fields() const
+  uint get_extra_storage_needed_to_pack_sortkeys() const
   {
-    return size_of_packable_fields;
+    return SIZE_OF_LENGTH_FIELD + bytes_used_for_var_length_keys_lengths;
   }
 
-  void set_sort_length_with_original_values(uint len)
+  uint get_bytes_used_for_var_length_keys_lengths() const
   {
-    sort_length_with_original_values= len;
+    return bytes_used_for_var_length_keys_lengths;
   }
 
-  uint get_sort_length_with_original_values() const
+  uint get_max_sort_length_without_packing() const
   {
-    return sort_length_with_original_values;
-  }
-
-  void set_sort_length_with_memcmp_values(uint len)
-  {
-    sort_length_with_memcmp_values= len;
-  }
-
-  uint get_sort_length_with_memcmp_values() const
-  {
-    return sort_length_with_memcmp_values;
+    return max_sort_length_without_packing;
   }
 
   static void store_sortkey_length(uchar *p, uint sz)
@@ -313,17 +303,7 @@ public:
     return SIZE_OF_LENGTH_FIELD + uint4korr(p);
   }
 
-  void increment_size_of_packable_fields(uint len)
-  {
-    size_of_packable_fields+= len;
-  }
-
-  void increment_original_sort_length(uint len)
-  {
-    sort_length_with_original_values+= len;
-  }
-
-  uint compute_sort_length(THD *thd, bool *allow_packing_for_sortkeys);
+  uint sort_length(THD *thd, bool *allow_packing_for_sortkeys);
 
   bool is_parameters_computed() const { return parameters_computed; }
   int compare_keys(const uchar *a, const uchar *b) const;
@@ -332,17 +312,13 @@ public:
 
 private:
   bool m_using_packed_sortkeys;     // Are we packing sort keys
-  uint size_of_packable_fields;     // Total length bytes for packable columns
-
-  /*
-    The sort length for all the keyparts storing the original values
-  */
-  uint sort_length_with_original_values;
+  uint bytes_used_for_var_length_keys_lengths; // Extra bytes needed to store the
+                                               // lengths of packable keys.
 
   /*
     The sort length for all the keyparts storing the mem-comparable images
   */
-  uint sort_length_with_memcmp_values;
+  uint max_sort_length_without_packing;
 
   /*
     TRUE       parameters(like sort_length_* , size_of_packable_field)
@@ -561,7 +537,7 @@ public:
   */
   uint res_length;
   uint max_keys_per_buffer;   // Max keys / buffer.
-  uint min_dupl_count;
+  uint16_t min_dupl_count;
   ha_rows limit_rows;         // Select limit, or HA_POS_ERROR if unlimited.
   ha_rows examined_rows;      // Number of examined rows.
   TABLE *sort_form;           // For quicker make_sortkey.

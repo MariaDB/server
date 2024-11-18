@@ -1103,8 +1103,8 @@ Field::make_packed_sort_key_part(uchar *buff,
     }
     *buff++=1;
   }
-  sort_string(buff, sort_field->original_length);
-  return sort_field->original_length;
+  sort_string(buff, sort_field->length);
+  return sort_field->length;
 }
 
 
@@ -1137,8 +1137,8 @@ Field::make_packed_key_part(uchar *buff, const SORT_FIELD_ATTR *sort_field)
     }
     *buff++=1;
   }
-  memcpy(buff, ptr, sort_field->original_length);
-  return sort_field->original_length;
+  memcpy(buff, ptr, sort_field->length);
+  return sort_field->length;
 }
 
 
