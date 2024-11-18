@@ -1,0 +1,21 @@
+#
+# MDEV-35398 Improve shrinking of system tablespace
+#
+# restart: --debug_dbug=d,skip_cached_undo
+set global innodb_file_per_table= 0;
+Warnings:
+Warning	1287	'@@innodb_file_per_table' is deprecated and will be removed in a future release
+create table t1(f1 int not null)engine=innodb;
+create table t2(f2 int not null)engine=innodb;
+INSERT INTO t1 SELECT seq FROM seq_1_to_32768;
+INSERT INTO t2 SELECT seq FROM seq_1_to_32768;
+# Insert 63 transaction which has undo cached records
+DROP TABLE t2, t1;
+SET GLOBAL innodb_fast_shutdown=0;
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	79691776
+# restart
+SELECT NAME, FILE_SIZE FROM information_schema.innodb_sys_tablespaces WHERE SPACE = 0;
+NAME	FILE_SIZE
+innodb_system	12582912
