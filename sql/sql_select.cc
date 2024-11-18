@@ -3647,7 +3647,7 @@ bool JOIN::make_aggr_tables_info()
                     (int) all_fields.elements - (int) fields_list.elements,
                     select_distinct || group_optimized_away,
                     tables_list, conds,
-                    group_list, order ? order : group_list, having,
+                    group_list, order, having,
                     &select_lex->master_unit()->lim};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
 

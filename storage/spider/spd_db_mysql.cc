@@ -14151,7 +14151,7 @@ int spider_mbase_handler::append_group_by(
   int error_num;
   DBUG_ENTER("spider_mbase_handler::append_group_by");
   DBUG_PRINT("info",("spider this=%p", this));
-  if (order)
+  if (order && order->item_ptr)
   {
     if (str->reserve(SPIDER_SQL_GROUP_LEN))
       DBUG_RETURN(HA_ERR_OUT_OF_MEM);
