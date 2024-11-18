@@ -10699,3 +10699,24 @@ CREATE PROCEDURE sp() SELECT @;
 --echo #
 --echo # End of 10.7 tests
 --echo #
+
+
+--echo #
+--echo # Start of 11.8 tests
+--echo #
+
+--echo #
+--echo # MDEV-35437 Suppress "This function has the same name" warnings in I_S queries
+--echo #
+
+CREATE FUNCTION upper() RETURNS TEXT RETURN 'upper';
+SELECT test.upper();
+# I_S queries should not produce warnings
+SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='upper';
+SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test' AND SPECIFIC_NAME='upper';
+DROP FUNCTION upper;
+
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

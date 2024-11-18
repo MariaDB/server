@@ -7174,6 +7174,27 @@ int store_schema_proc(THD *thd, TABLE *table, TABLE *proc_table,
 }
 
 
+/*
+  Suppress "This function 'func' has the same name as a native function"
+  during INFORMATION_SCHEMA.ROUTINES queries.
+*/
+class Native_fct_name_collision_error_handler : public Internal_error_handler
+{
+public:
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl) override
+  {
+    if (sql_errno == ER_NATIVE_FCT_NAME_COLLISION)
+      return true;
+    return false;
+  }
+};
+
+
 int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   TABLE *proc_table;
@@ -7184,6 +7205,7 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
   char definer[USER_HOST_BUFF_SIZE];
   enum enum_schema_tables schema_table_idx=
     get_schema_table_idx(tables->schema_table);
+  Native_fct_name_collision_error_handler err_handler;
   DBUG_ENTER("fill_schema_proc");
 
   strxmov(definer, thd->security_ctx->priv_user, "@",
@@ -7254,7 +7276,8 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
 
   if (res)
     goto err;
-  
+  thd->push_internal_handler(&err_handler);
+
   res= schema_table_idx == SCH_PROCEDURES ?
     store_schema_proc(thd, table, proc_table, &lookup, full_access,definer) :
     store_schema_params(thd, table, proc_table, &lookup, full_access, definer);
@@ -7264,6 +7287,7 @@ int fill_schema_proc(THD *thd, TABLE_LIST *tables, COND *cond)
       store_schema_proc(thd, table, proc_table, &lookup, full_access, definer) :
       store_schema_params(thd, table, proc_table, &lookup, full_access, definer);
   }
+  thd->pop_internal_handler();
 
 err:
   if (proc_table->file->inited)

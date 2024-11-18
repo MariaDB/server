@@ -9101,3 +9101,27 @@ ERROR 42000: You have an error in your SQL syntax; check the manual that corresp
 #
 # End of 10.7 tests
 #
+#
+# Start of 11.8 tests
+#
+#
+# MDEV-35437 Suppress "This function has the same name" warnings in I_S queries
+#
+CREATE FUNCTION upper() RETURNS TEXT RETURN 'upper';
+Warnings:
+Note	1585	This function 'upper' has the same name as a native function
+SELECT test.upper();
+test.upper()
+upper
+Warnings:
+Note	1585	This function 'upper' has the same name as a native function
+SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES WHERE ROUTINE_SCHEMA='test' AND ROUTINE_NAME='upper';
+ROUTINE_NAME
+upper
+SELECT SPECIFIC_NAME FROM INFORMATION_SCHEMA.PARAMETERS WHERE SPECIFIC_SCHEMA='test' AND SPECIFIC_NAME='upper';
+SPECIFIC_NAME
+upper
+DROP FUNCTION upper;
+#
+# End of 11.8 tests
+#
