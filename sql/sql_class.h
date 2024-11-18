@@ -7415,12 +7415,9 @@ struct SORT_FIELD_ATTR
   /*
     If using packed keys, number of bytes that are used to store the length
     of the packed key.
-
   */
   uint length_bytes;
 
-  /* Max. length of the original value, in bytes */
-  uint original_length;
   bool is_mem_comparable; /* use memcmp or field->cmp for comparison. */
   enum Type { FIXED_SIZE, VARIABLE_SIZE } type;
   /*
@@ -7431,9 +7428,8 @@ struct SORT_FIELD_ATTR
   CHARSET_INFO *cs;
   uint pack_sort_string(uchar *to, const Binary_string *str,
                         CHARSET_INFO *cs) const;
-  bool check_if_packing_possible(THD *thd) const;
   bool is_variable_sized() const { return type == VARIABLE_SIZE; }
-  void set_length_and_original_length(THD *thd, uint length_arg);
+  void set_length(THD *thd, uint length_arg);
   void setup_key_part(Field *fld, bool is_mem_comparable);
 };
 
@@ -7447,6 +7443,8 @@ struct SORT_FIELD: public SORT_FIELD_ATTR
   void setup_key_cmp_function();
   int compare_keys(const uchar *a, size_t *a_len,
                    const uchar *b, size_t *b_len) const;
+
+  bool setup_sort_field_length(THD *thd);
 
 private:
   typedef int (*compare_fun_type) (const SORT_FIELD *,

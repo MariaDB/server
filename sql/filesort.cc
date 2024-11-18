@@ -313,7 +313,7 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->found_rows= HA_POS_ERROR;
 
   param.sort_keys= sort_keys;
-  sort_len= sort_keys->compute_sort_length(thd, &allow_packing_for_sortkeys);
+  sort_len= sort_keys->sort_length(thd, &allow_packing_for_sortkeys);
   param.init_for_filesort(table, filesort, sort_len, limit_rows);
   if (!param.accepted_rows)
     param.accepted_rows= &not_used;
@@ -1409,8 +1409,7 @@ Type_handler::make_packed_sort_key_longlong(uchar *to, bool maybe_null,
     *to++= 1;
   }
   store_sort_key_longlong(to, unsigned_flag, value);
-  DBUG_ASSERT(sort_field->original_length == sort_field->length);
-  return sort_field->original_length;
+  return sort_field->length;
 }
 
 
@@ -2126,7 +2125,7 @@ Type_handler_string_result::sort_length(THD *thd,
                                        SORT_FIELD_ATTR *sortorder) const
 {
   CHARSET_INFO *cs;
-  sortorder->set_length_and_original_length(thd, item->max_length);
+  sortorder->set_length(thd, item->max_length);
 
   if (use_strnxfrm((cs= item->collation.collation)))
   {
@@ -2138,10 +2137,6 @@ Type_handler_string_result::sort_length(THD *thd,
     sortorder->suffix_length= suffix_length(item->max_length);
     DBUG_ASSERT(sortorder->length <= UINT_MAX32 - sortorder->suffix_length);
     sortorder->length+= sortorder->suffix_length;
-    if (sortorder->original_length >= UINT_MAX32 - sortorder->suffix_length)
-      sortorder->original_length= UINT_MAX32;
-    else
-      sortorder->original_length+= sortorder->suffix_length;
   }
 }
 
@@ -2151,7 +2146,7 @@ Type_handler_temporal_result::sort_length(THD *thd,
                                           const Type_std_attributes *item,
                                           SORT_FIELD_ATTR *sortorder) const
 {
-  sortorder->original_length= sortorder->length= 8; // Sizof intern longlong
+  sortorder->length= 8; // Sizof intern longlong
 }
 
 
@@ -2162,7 +2157,6 @@ Type_handler_timestamp_common::sort_length(THD *thd,
 {
   decimal_digits_t dec= MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
   sortorder->length= my_timestamp_binary_length(dec);
-  sortorder->original_length= sortorder->length;
 }
 
 
@@ -2171,7 +2165,7 @@ Type_handler_int_result::sort_length(THD *thd,
                                      const Type_std_attributes *item,
                                      SORT_FIELD_ATTR *sortorder) const
 {
-  sortorder->original_length= sortorder->length= 8; // Sizof intern longlong
+  sortorder->length= 8; // Sizof intern longlong
 }
 
 
@@ -2180,7 +2174,7 @@ Type_handler_real_result::sort_length(THD *thd,
                                       const Type_std_attributes *item,
                                       SORT_FIELD_ATTR *sortorder) const
 {
-  sortorder->original_length= sortorder->length= sizeof(double);
+  sortorder->length= sizeof(double);
 }
 
 
@@ -2191,8 +2185,7 @@ Type_handler_decimal_result::sort_length(THD *thd,
 {
   sortorder->length=
     my_decimal_get_binary_size(item->max_length - (item->decimals ? 1 : 0),
-                               item->decimals);  
-  sortorder->original_length= sortorder->length;
+                               item->decimals);
 }
 
 
@@ -2215,83 +2208,34 @@ Type_handler_decimal_result::sort_length(THD *thd,
 */
 
 uint
-Sort_keys::compute_sort_length(THD *thd, bool *allow_packing_for_sortkeys)
+Sort_keys::sort_length(THD *thd, bool *allow_packing_for_sortkeys)
 {
-  uint length;
-  *allow_packing_for_sortkeys= true;
-
-  length=0;
+  uint length= 0;
   uint nullable_cols=0;
 
   if (parameters_computed)
   {
     *allow_packing_for_sortkeys= m_using_packed_sortkeys;
-    return sort_length_with_memcmp_values;
+    return max_sort_length_without_packing;
   }
 
+  *allow_packing_for_sortkeys= true;
   for (SORT_FIELD *sortorder= begin(); sortorder != end(); sortorder++)
   {
-    sortorder->suffix_length= 0;
-    sortorder->length_bytes= 0;
-    if (sortorder->field)
-    {
-      Field *field= sortorder->field;
-      CHARSET_INFO *cs= sortorder->field->sort_charset();
-      sortorder->type= field->is_packable() ?
-                       SORT_FIELD_ATTR::VARIABLE_SIZE :
-                       SORT_FIELD_ATTR::FIXED_SIZE;
-      sortorder->set_length_and_original_length(thd, field->sort_length());
-      sortorder->suffix_length= sortorder->field->sort_suffix_length();
-      sortorder->cs= cs;
-
-      if (use_strnxfrm((cs=sortorder->field->sort_charset())))
-        sortorder->length= (uint) cs->strnxfrmlen(sortorder->length);
-
-      if ((sortorder->maybe_null= sortorder->field->maybe_null()))
-        nullable_cols++;				// Place for NULL marker
-    }
-    else
-    {
-      sortorder->type= sortorder->item->type_handler()->is_packable() ?
-                       SORT_FIELD_ATTR::VARIABLE_SIZE :
-                       SORT_FIELD_ATTR::FIXED_SIZE;
-      sortorder->item->type_handler()->sort_length(thd, sortorder->item,
-                                                   sortorder);
-      sortorder->cs= sortorder->item->collation.collation;
-
-      if ((sortorder->maybe_null= sortorder->item->maybe_null()))
-        nullable_cols++;				// Place for NULL marker
-    }
-
-    if (sortorder->is_variable_sized())
-    {
-      *allow_packing_for_sortkeys&= sortorder->check_if_packing_possible(thd);
-
-      set_if_smaller(sortorder->length, thd->variables.max_sort_length);
-      set_if_smaller(sortorder->original_length, thd->variables.max_sort_length);
-      sortorder->length_bytes=
-        number_storage_requirement(sortorder->original_length);
-    }
-    // TODO(cvicentiu) this flag should be set by calling setup_key_part, as
-    // happens in uniques.cc,
-    // but for filesort we'll manually set it here to true.
-    //
-    // GConcat fields might be different so these need to be tested.
-    sortorder->is_mem_comparable= true;
-    sortorder->setup_key_cmp_function();
+    *allow_packing_for_sortkeys&=
+        sortorder->setup_sort_field_length(thd);
+    nullable_cols+= sortorder->maybe_null;
 
     DBUG_ASSERT(length < UINT_MAX32 - sortorder->length);
     length+= sortorder->length;
 
-    size_of_packable_fields+= sortorder->length_bytes;
-    sort_length_with_original_values+= sortorder->original_length;
+    bytes_used_for_var_length_keys_lengths+= sortorder->length_bytes;
   }
   // add bytes for nullable_cols
-  sort_length_with_original_values+= nullable_cols;
-  sort_length_with_memcmp_values= length + nullable_cols;
+  max_sort_length_without_packing= length + nullable_cols;
   parameters_computed= true;
   DBUG_PRINT("info",("sort_length: %d",length));
-  return sort_length_with_memcmp_values;
+  return max_sort_length_without_packing;
 }
 
 
@@ -2535,35 +2479,39 @@ SORT_INFO::~SORT_INFO()
 
 void Sort_param::try_to_pack_sortkeys()
 {
-  #ifdef WITHOUT_PACKED_SORT_KEYS
-    return;
-  #endif
+#ifdef WITHOUT_PACKED_SORT_KEYS
+  return;
+#endif
 
-  uint size_of_packable_fields= sort_keys->get_size_of_packable_fields();
-
-  /*
-    Disable packing when all fields are fixed-size fields.
-  */
-  if (size_of_packable_fields == 0)
-    return;
-
-  const uint sz= Sort_keys::SIZE_OF_LENGTH_FIELD;
-  uint sort_len= sort_keys->get_sort_length_with_original_values();
+  uint extra_storage = sort_keys->get_extra_storage_needed_to_pack_sortkeys();
+  uint max_sort_len= sort_keys->get_max_sort_length_without_packing();
 
   /*
-    Heuristic introduced, skip packing sort keys if saving less than 128 bytes
+    Disable packing when all fields are fixed-size.
+   */
+  if (!sort_keys->have_variable_sized_keys())
+    return;
+
+  /*
+    Heuristic introduced:
+    We assume all fields are variable size and all have length 0 (empty
+    strings). Skip packing sort keys if in this case we can not save more than
+    128 bytes.
   */
 
-  if (sort_len < 128 + sz + size_of_packable_fields)
+  if (max_sort_len < 128 + extra_storage)
     return;
 
   sort_keys->set_using_packed_sortkeys(true);
   m_packed_format= true;
   m_using_packed_sortkeys= true;
-  sort_length= sort_len + sz + size_of_packable_fields +
+  // TODO(cvicentiu) what is res_length, why is it linked to using_addon_fields?
+  // It looks like it should be res_length - max_sort_len - extra_storage?
+  sort_length= max_sort_len + extra_storage +
                (using_addon_fields() ?  0 : res_length);
-  /* Only the record length needs to be updated, the res_length does not need
-     to be updated
+  /*
+    Only the record length needs to be updated, the res_length does not need
+    to be updated
   */
   rec_length= sort_length + addon_length;
 }
@@ -2619,7 +2567,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
                  ("Got null on something that shouldn't be null"));
       memset(to, 0, sort_field->length);  // Avoid crash
       /* purecov: end */
-      return sort_field->original_length;
+      return sort_field->length;
     }
   }
   return sort_field->pack_sort_string(to, res, cs);
@@ -2655,8 +2603,7 @@ Type_handler_decimal_result::make_packed_sort_key_part(uchar *to, Item *item,
   }
   dec_val->to_binary(to, item->max_length - (item->decimals ? 1 : 0),
                      item->decimals);
-  DBUG_ASSERT(sort_field->original_length == sort_field->length);
-  return sort_field->original_length;
+  return sort_field->length;
 }
 
 
@@ -2676,8 +2623,7 @@ Type_handler_real_result::make_packed_sort_key_part(uchar *to, Item *item,
     *to++= 1;
   }
   change_double_for_sort(value, to);
-  DBUG_ASSERT(sort_field->original_length == sort_field->length);
-  return sort_field->original_length;
+  return sort_field->length;
 }
 
 
@@ -2782,26 +2728,28 @@ void reverse_key(uchar *to, const SORT_FIELD_ATTR *sort_field)
     TRUE  packing allowed
     FALSE packing not allowed
 */
-bool SORT_FIELD_ATTR::check_if_packing_possible(THD *thd) const
+static bool check_if_packing_possible(THD *thd,
+                                      CHARSET_INFO *cs, uint32_t field_length)
 {
   /*
     Packing not allowed when original length is greater than max_sort_length
     and we have a complex collation because cutting a prefix is not safe in
     such a case
   */
-  if (original_length > thd->variables.max_sort_length &&
+  if (field_length > thd->variables.max_sort_length &&
       cs->state & MY_CS_NON1TO1)
+  {
     return false;
+  }
   return true;
 }
 
 
-void SORT_FIELD_ATTR::set_length_and_original_length(THD *thd, uint length_arg)
+void SORT_FIELD_ATTR::set_length(THD *thd, uint length_arg)
 {
   length= length_arg;
   if (is_variable_sized())
     set_if_smaller(length, thd->variables.max_sort_length);
-  original_length= length_arg;
 }
 
 void SORT_FIELD::setup_key_cmp_function()
@@ -2848,7 +2796,7 @@ void SORT_FIELD::setup_key_part(Field *fld, bool is_mem_comparable_arg)
 */
 void SORT_FIELD_ATTR::setup_key_part(Field *field, bool is_mem_comparable_arg)
 {
-  original_length= length= field->max_storage_size_without_length_storage();
+  length= field->max_storage_size_without_length_storage();
   cs= field->sort_charset();
   suffix_length= 0;
   type= field->is_packable() ? VARIABLE_SIZE : FIXED_SIZE;
@@ -2927,6 +2875,55 @@ int SORT_FIELD::compare_keys(const uchar *a, size_t *a_len,
   return result;
 }
 
+
+bool SORT_FIELD::setup_sort_field_length(THD *thd)
+{
+  bool allow_packing= true;
+  suffix_length= 0;
+  length_bytes= 0;
+  size_t field_length, final_field_length;
+  if (field)
+  {
+    type= field->is_packable() ? SORT_FIELD_ATTR::VARIABLE_SIZE
+                               : SORT_FIELD_ATTR::FIXED_SIZE;
+    field_length= field->sort_length();
+    suffix_length= field->sort_suffix_length();
+    cs= field->sort_charset();
+
+    if (use_strnxfrm(cs))
+      field_length= cs->strnxfrmlen(field_length);
+    maybe_null= field->maybe_null();
+  }
+  else
+  {
+    type= item->type_handler()->is_packable() ? SORT_FIELD_ATTR::VARIABLE_SIZE
+                                              : SORT_FIELD_ATTR::FIXED_SIZE;
+    item->type_handler()->sort_length(thd, item, this);
+    field_length= length;
+    cs= item->collation.collation;
+    maybe_null= item->maybe_null();
+  }
+
+  final_field_length= field_length;
+  // Prevent overflows
+  set_if_smaller(final_field_length, thd->variables.max_sort_length);
+
+  if (is_variable_sized())
+  {
+    allow_packing= check_if_packing_possible(thd, cs, field_length);
+    //set_if_smaller(original_length, thd->variables.max_sort_length);
+    length_bytes= number_storage_requirement(final_field_length);
+  }
+  length= final_field_length;
+  // TODO(cvicentiu) this flag should be set by calling setup_key_part, as
+  // happens in uniques.cc,
+  // but for filesort we'll manually set it here to true.
+  //
+  // GConcat fields might be different so these need to be tested.
+  is_mem_comparable= true;
+  setup_key_cmp_function();
+  return allow_packing;
+}
 
 int SORT_FIELD::compare_packed_varstrings(const SORT_FIELD *sort_field,
                                           const uchar *a, size_t *a_len,
@@ -3092,17 +3089,13 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
                                   const CHARSET_INFO *cs) const
 {
   uchar *orig_to= to;
-  uint32 length, data_length;
   DBUG_ASSERT(str->length() <= UINT32_MAX);
-  length= (uint32) str->length();
+  uint32 data_length= (uint32) str->length();
 
-  if (length + suffix_length <= original_length)
+  // Keep space for suffix length.
+  if (data_length + suffix_length > length)
   {
-    data_length= length;
-  }
-  else
-  {
-    data_length= original_length - suffix_length;
+    data_length= length - suffix_length;
     current_thd->num_of_strings_sorted_on_truncated_length++;
   }
 
@@ -3116,7 +3109,7 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   if (cs == &my_charset_bin && suffix_length)
   {
     // suffix length stored in bigendian form
-    store_bigendian(length, to, suffix_length);
+    store_bigendian(str->length(), to, suffix_length);
     to+= suffix_length;
   }
   return static_cast<uint>(to - orig_to);
