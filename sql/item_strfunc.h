@@ -693,6 +693,7 @@ public:
   bool hash_not_null(Hasher *hasher) override;
   String *val_str(String *) override;
   bool fix_length_and_dec(THD *thd) override;
+  enum Functype functype() const override { return LEFT_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("left") };
@@ -739,6 +740,7 @@ public:
     print_sql_mode_qualified_name(str, query_type);
     print_args_parenthesized(str, query_type);
   }
+  enum Functype functype() const override { return SUBSTR_FUNC; }
   LEX_CSTRING func_name_cstring() const override
   {
     static LEX_CSTRING name= {STRING_WITH_LEN("substr") };
