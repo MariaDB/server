@@ -5459,4 +5459,11 @@ drop table t1, t2;
 SELECT ST_ASTEXT(BOUNDARY(INET6_ATON('255.255.255.255'))) AS c1;
 c1
 NULL
+#
+# Server crash in DTCollation::set_repertoire_from_charset
+#
+CREATE TABLE t (f POINT, KEY(f));
+DELETE FROM t WHERE f NOT IN (NULL,'x');
+ERROR 22003: Cannot get geometry object from data you send to the GEOMETRY field
+DROP TABLE t;
 # End of 10.5 tests
