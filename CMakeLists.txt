@@ -581,6 +581,13 @@ ENDIF()
 
 INCLUDE(build_depends)
 
+INCLUDE(CMakeDependentOption)
+CMAKE_DEPENDENT_OPTION(WITH_SBOM "Generate Software Bill of Materials (SBOM)" OFF "BUILD_CONFIG" ON)
+IF(WITH_SBOM)
+  INCLUDE(generate_sbom)
+  GENERATE_SBOM()
+ENDIF()
+
 INCLUDE(CPack)
 
 IF(WIN32 AND SIGNCODE)
