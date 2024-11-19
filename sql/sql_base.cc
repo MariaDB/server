@@ -9286,7 +9286,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
     thd->bulk_param= nullptr;
 
     if (triggers->process_triggers(thd, event, TRG_ACTION_BEFORE,
-                                    TRUE) ||
+                                   true, &fields) ||
         not_null_fields_have_null_values(table))
     {
       thd->bulk_param= save_bulk_param;
