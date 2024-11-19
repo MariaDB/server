@@ -497,6 +497,7 @@ loop:
       if (UNIV_UNLIKELY(mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT +
                                          rseg_hdr->page.frame)))
         trx_rseg_format_upgrade(rseg_hdr, &mtr);
+      DBUG_EXECUTE_IF("skip_cached_undo", goto skip_purge_free;);
       if (UNIV_LIKELY(undo != nullptr))
       {
         UT_LIST_REMOVE(rseg.undo_cached, undo);

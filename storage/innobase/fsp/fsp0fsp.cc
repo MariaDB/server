@@ -3851,22 +3851,6 @@ static dberr_t fsp_get_sys_used_segment(inode_info *inodes, mtr_t *mtr)
                               TRX_RSEG_FSEG_HEADER))
         err= DB_CORRUPTION;
       block->page.unfix();
-
-      /* Even after slow shutdown, there is a possiblity that
-      cached undo log can exist. So store the segment as used one */
-      for (trx_undo_t *undo= UT_LIST_GET_FIRST(rseg->undo_cached);
-           undo && err == DB_SUCCESS;
-           undo= UT_LIST_GET_NEXT(undo_list, undo))
-      {
-        block= buf_pool.page_fix(page_id_t{0, undo->hdr_page_no}, &err,
-                                 buf_pool_t::FIX_WAIT_READ);
-        if (!block)
-	  return err;
-	if (!inodes->insert_seg(block->page.frame + TRX_UNDO_SEG_HDR +
-                                TRX_UNDO_FSEG_HEADER))
-          err= DB_CORRUPTION;
-        block->page.unfix();
-      }
     }
   }
 
@@ -4009,6 +3993,33 @@ dberr_t fil_space_t::garbage_collect(bool shutdown)
                     "%s %s ", ut_strerr(err), ctx);
     return err;
   }
+
+  /* Reset the undo log segments slots in the rollback segment header
+  which exist in system tablespace. Undo cached segment will be
+  treated as unused file segment. These segments will be freed as a
+  part of inode_info::free_segs  */
+  mtr.start();
+  mtr.x_lock_space(fil_system.sys_space);
+  for (trx_rseg_t &rseg : trx_sys.rseg_array)
+  {
+    if (rseg.space == fil_system.sys_space &&
+        UT_LIST_GET_LEN(rseg.undo_cached))
+    {
+      buf_block_t *block=
+        buf_page_get_gen(page_id_t{0, rseg.page_no}, 0,
+                         RW_X_LATCH, nullptr, BUF_GET, &mtr, &err);
+      if (!block)
+      {
+        mtr.commit();
+        return err;
+      }
+
+      mtr.memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
+                 TRX_RSEG_N_SLOTS * TRX_RSEG_SLOT_SIZE, 0xff);
+      rseg.reinit(rseg.page_no);
+    }
+  }
+  mtr.commit();
 
   return unused_inodes.free_segs();
 }
