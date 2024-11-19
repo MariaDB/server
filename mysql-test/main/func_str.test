@@ -2744,7 +2744,14 @@ explain select * from t1 where substr(a, 1, 2)='12';
 # Can we really handle this? Either way, add this testcase
 explain select * from t1 where substr(a, 1, b)='12';
 
-# TODO: add more checks for this
+# TODO: add more checks like this.
+
+
+## with_sargable_substr needs "real_item()" calls.
+## Without them, we have this:
+
+create view v1 as select a,b from t1;
+explain select * from v1 where substr(a, 1, b)='12';
 
 drop table t1;
 

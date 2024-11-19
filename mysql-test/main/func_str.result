@@ -5856,6 +5856,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 explain select * from t1 where substr(a, 1, b)='12';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	a	a	35	NULL	1	Using where
+create view v1 as select a,b from t1;
+explain select * from v1 where substr(a, 1, b)='12';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	100	Using where
 drop table t1;
 #
 # End of 11.8 tests
