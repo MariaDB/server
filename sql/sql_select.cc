@@ -20564,7 +20564,7 @@ free_tmp_table(THD *thd, TABLE *entry)
       thd->tmp_tables_size+= (entry->file->stats.data_file_length +
                               entry->file->stats.index_file_length);
     }
-    entry->file->ha_drop_table(entry->s->path.str);
+    entry->file->drop_table(entry->s->path.str);
     delete entry->file;
     entry->file= NULL;
     entry->reset_created();

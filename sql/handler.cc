@@ -553,13 +553,6 @@ static void update_discovery_counters(handlerton *hton, int val)
     engines_with_discover+= val;
 }
 
-int ha_drop_table(THD *thd, handlerton *hton, const char *path)
-{
-  if (ha_check_if_updates_are_ignored(thd, hton, "DROP"))
-    return 0;                                   // Simulate dropped
-  return hton->drop_table(hton, path);
-}
-
 static int hton_drop_table(handlerton *hton, const char *path)
 {
   char tmp_path[FN_REFLEN];
@@ -5139,27 +5132,6 @@ handler::ha_rename_table(const char *from, const char *to)
   mark_trx_read_write();
 
   return rename_table(from, to);
-}
-
-
-/**
-  Drop table in the engine: public interface.
-
-  @sa handler::drop_table()
-
-  The difference between this and delete_table() is that the table is open in
-  drop_table().
-*/
-
-void
-handler::ha_drop_table(const char *name)
-{
-  DBUG_ASSERT(m_lock_type == F_UNLCK);
-  if (check_if_updates_are_ignored("DROP"))
-    return;
-
-  mark_trx_read_write();
-  drop_table(name);
 }
 
 
