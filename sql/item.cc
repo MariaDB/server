@@ -4422,6 +4422,7 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     if (item->null_value)
     {
       set_null();
+      set_handler(&type_handler_null);
       DBUG_RETURN(false);
     }
     else
@@ -4439,7 +4440,10 @@ bool Item_param::set_from_item(THD *thd, Item *item)
     DBUG_RETURN(set_value(thd, item, &tmp, h));
   }
   else
+  {
     set_null();
+    set_handler(&type_handler_null);
+  }
 
   DBUG_RETURN(0);
 }
@@ -4959,7 +4963,7 @@ Item_param::set_param_type_and_swap_value(Item_param *src)
 }
 
 
-void Item_param::set_default()
+void Item_param::set_default(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= DEFAULT_VALUE;
@@ -4972,13 +4976,17 @@ void Item_param::set_default()
     can misbehave (e.g. crash on asserts).
   */
   null_value= true;
+  if (set_type_handler_null)
+    set_handler(&type_handler_null);
 }
 
-void Item_param::set_ignore()
+void Item_param::set_ignore(bool set_type_handler_null)
 {
   m_is_settable_routine_parameter= false;
   state= IGNORE_VALUE;
   null_value= true;
+  if (set_type_handler_null)
+    set_handler(&type_handler_null);
 }
 
 /**
