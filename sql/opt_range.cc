@@ -9152,6 +9152,9 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
   KEY_PART *end = param->key_parts_end;
   SEL_TREE *tree=0;
   table_map value_used_tables= 0;
+  bool know_sargable_substr= false;
+  bool sargable_substr; // protected by know_sargable_substr
+
   if (value &&
       (value_used_tables= value->used_tables()) &
       ~(param->prev_tables | param->read_tables))
@@ -9176,10 +9179,14 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
         */
         MEM_ROOT *tmp_root= param->mem_root;
         param->thd->mem_root= param->old_root;
-        if (with_sargable_substr())
-          sel_arg= get_mm_leaf_for_LIKE(this, param, key_part->field, key_part, type, value);
-        else
-          sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+        sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
+        if (!sel_arg &&
+            know_sargable_substr? sargable_substr :
+                                  (sargable_substr= with_sargable_substr()))
+        {
+          sel_arg= get_mm_leaf_for_LIKE(this, param, key_part->field,
+                                        key_part, type, value);
+        }
         param->thd->mem_root= tmp_root;
 
 	if (!sel_arg)
