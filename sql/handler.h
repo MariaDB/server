@@ -63,6 +63,7 @@ class handler_binlog_reader;
 struct rpl_gtid;
 struct slave_connection_state;
 struct rpl_binlog_state_base;
+struct handler_binlog_event_group_info;
 
 // the following is for checking tables
 
@@ -1536,7 +1537,8 @@ struct handlerton
   /* Optional implementation of binlog in the engine. */
   bool (*binlog_init)(size_t binlog_size);
   /* Binlog an event group that doesn't go through commit_ordered. */
-  bool (*binlog_write_direct)(IO_CACHE *cache, size_t main_size,
+  bool (*binlog_write_direct)(IO_CACHE *cache,
+                              handler_binlog_event_group_info *binlog_info,
                               const rpl_gtid *gtid);
   /*
     Binlog parts of large transactions out-of-band, in different chunks in the
@@ -5834,6 +5836,20 @@ int get_select_field_pos(Alter_info *alter_info, int select_field_count,
 #ifndef DBUG_OFF
 String dbug_format_row(TABLE *table, const uchar *rec, bool print_names= true);
 #endif /* DBUG_OFF */
+
+/* Struct with info about an event group to be binlogged by a storage engine. */
+struct handler_binlog_event_group_info {
+  /* Opaque pointer for the engine's use. */
+  void *engine_ptr;
+  /* End of data that has already been binlogged out-of-band. */
+  my_off_t out_of_band_offset;
+  /*
+    Offset of the GTID event, which comes first in the event group, but is put
+    at the end of the IO_CACHE containing the data to be binlogged.
+  */
+  my_off_t gtid_offset;
+};
+
 
 /*
   Class for reading a binlog implemented in an engine.
