@@ -103,6 +103,8 @@ static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
                               bool using_trx, bool is_ro_1pc);
+static int binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data,
+                                  size_t len);
 
 static const LEX_CSTRING write_error_msg=
     { STRING_WITH_LEN("error writing to the binary log") };
@@ -370,10 +372,11 @@ public:
                     ulong *param_ptr_binlog_cache_use,
                     ulong *param_ptr_binlog_cache_disk_use,
                     bool precompute_checksums)
-    : thd(thd_arg), engine_ptr(0),
+    : thd(thd_arg),
       stmt_cache(precompute_checksums),
       trx_cache(precompute_checksums),
-      last_commit_pos_offset(0), gtid_cache_offset(0), did_oob_spill(false),
+      last_commit_pos_offset(0),
+      engine_binlog_info {0, 0, 0},
       using_xa(FALSE), xa_xid(0)
   {
      stmt_cache.set_binlog_cache_info(param_max_binlog_stmt_cache_size,
@@ -387,8 +390,9 @@ public:
 
   void reset(bool do_stmt, bool do_trx)
   {
-    if (engine_ptr)
-      (*opt_binlog_engine_hton->binlog_oob_free)(thd, engine_ptr);
+    if (engine_binlog_info.engine_ptr)
+      (*opt_binlog_engine_hton->binlog_oob_free)(thd,
+                                                 engine_binlog_info.engine_ptr);
     if (do_stmt)
       stmt_cache.reset();
     if (do_trx)
@@ -397,8 +401,15 @@ public:
       using_xa= FALSE;
       last_commit_pos_file[0]= 0;
       last_commit_pos_offset= 0;
-      gtid_cache_offset= 0;
     }
+    /*
+      Use a custom write_function to spill to the engine-implemented binlog.
+      And re-use the IO_CACHE::append_read_pos as a handle for our
+      write_function; it is unused when the cache is not SEQ_READ_APPEND.
+    */
+    trx_cache.cache_log.write_function= binlog_spill_to_engine;
+    trx_cache.cache_log.append_read_pos= (uchar *)this;
+    engine_binlog_info= {0, 0, 0};
   }
 
   binlog_cache_data* get_binlog_cache_data(bool is_transactional)
@@ -412,8 +423,6 @@ public:
   }
 
   THD *thd;
-  /* For use by engine when --binlog-storage-engine. */
-  void *engine_ptr;
 
   binlog_cache_data stmt_cache;
 
@@ -428,14 +437,10 @@ public:
   */
   char last_commit_pos_file[FN_REFLEN];
   my_off_t last_commit_pos_offset;
-  /* Point in trx cache where GTID event sits after end event. */
-  my_off_t gtid_cache_offset;
 
-  /*
-    Flag to remember if we spilled any partial transaction data to the binlog
-    implemented in storage engine.
-  */
-  bool did_oob_spill;
+  /* Context for engine-implemented binlogging. */
+  handler_binlog_event_group_info engine_binlog_info;
+
   /*
     Flag set true if this transaction is committed with log_xid() as part of
     XA, false if not.
@@ -1799,9 +1804,9 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
   DBUG_ENTER("binlog_flush_cache");
   DBUG_PRINT("enter", ("end_ev: %p", end_ev));
 
-  if ((using_stmt && !cache_mngr->stmt_cache.empty()) ||
-      (using_trx && !cache_mngr->trx_cache.empty())   ||
-      thd->transaction->xid_state.is_explicit_XA())
+  bool doing_stmt= using_stmt && !cache_mngr->stmt_cache.empty();
+  bool doing_trx= using_trx && !cache_mngr->trx_cache.empty();
+  if (doing_stmt || doing_trx || thd->transaction->xid_state.is_explicit_XA())
   {
     if (using_stmt && thd->binlog_flush_pending_rows_event(TRUE, FALSE))
       DBUG_RETURN(1);
@@ -1817,6 +1822,41 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
       DBUG_RETURN(0);
     }
 #endif /* WITH_WSREP */
+
+    if (opt_binlog_engine_hton)
+    {
+      /*
+        Write the end_event into the cache, in preparation for sending the
+        cache to the engine to be binlogged as a whole.
+      */
+      binlog_cache_data *cache_data;
+      if (doing_trx || !doing_stmt)
+      {
+        end_ev->cache_type= Log_event::EVENT_TRANSACTIONAL_CACHE;
+        cache_data= &cache_mngr->trx_cache;
+      }
+      else
+      {
+        end_ev->cache_type= Log_event::EVENT_STMT_CACHE;
+        cache_data= &cache_mngr->stmt_cache;
+      }
+      if (mysql_bin_log.write_event(end_ev, cache_data, &cache_data->cache_log))
+        DBUG_RETURN(1);
+
+      if (cache_mngr->engine_binlog_info.out_of_band_offset)
+      {
+        /*
+          This is a "large" transaction, where parts of the transaction were
+          already binlogged out-of-band to the engine binlog.
+
+          Binlog the remaining bits of event data as well, so all the event
+          group is consecutive out-of-band data and the commit record will
+          only contain the GTID event (depending on engine implementation).
+        */
+        if (my_b_flush_io_cache(&cache_mngr->trx_cache.cache_log, 0))
+          DBUG_RETURN(1);
+      }
+    }
 
     /*
       Doing a commit or a rollback including non-transactional tables,
@@ -1857,24 +1897,25 @@ binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
 
 extern "C"
 void
-binlog_get_cache(THD *thd, IO_CACHE **out_cache, size_t *out_main_size,
+binlog_get_cache(THD *thd, IO_CACHE **out_cache,
+                 handler_binlog_event_group_info **out_context,
                  const rpl_gtid **out_gtid)
 {
   IO_CACHE *cache= nullptr;
-  size_t main_size= 0;
+  handler_binlog_event_group_info *context= nullptr;
   binlog_cache_mngr *cache_mngr;
   const rpl_gtid *gtid= nullptr;
   if (likely(!opt_bootstrap /* ToDo needed? */) &&
       opt_binlog_engine_hton &&
       (cache_mngr= thd->binlog_get_cache_mngr()))
   {
-    main_size= cache_mngr->gtid_cache_offset;
+    context= &cache_mngr->engine_binlog_info;
     cache= !cache_mngr->trx_cache.empty() ?
       &cache_mngr->trx_cache.cache_log : &cache_mngr->stmt_cache.cache_log;
     gtid= thd->get_last_commit_gtid();
   }
   *out_cache= cache;
-  *out_main_size= main_size;
+  *out_context= context;
   *out_gtid= gtid;
 }
 
@@ -6297,9 +6338,12 @@ static int
 binlog_spill_to_engine(struct st_io_cache *cache, const uchar *data, size_t len)
 {
   binlog_cache_mngr *mngr= (binlog_cache_mngr *)cache->append_read_pos;
+  void **engine_ptr= &mngr->engine_binlog_info.engine_ptr;
   bool res= (*opt_binlog_engine_hton->binlog_oob_data)(mngr->thd, data, len,
-                                                       &mngr->engine_ptr);
-  mngr->did_oob_spill= true;
+                                                       engine_ptr);
+  mngr->engine_binlog_info.out_of_band_offset+= len;
+  cache->pos_in_file+= len;
+
   return res;
 }
 
@@ -7617,7 +7661,9 @@ err:
       DBUG_ASSERT(!is_relay_log);
       if (opt_binlog_engine_hton)
       {
-        my_off_t binlog_main_bytes= my_b_write_tell(file);
+        handler_binlog_event_group_info *engine_context=
+          &cache_mngr->engine_binlog_info;
+        engine_context->gtid_offset= my_b_tell(file);
         my_off_t binlog_total_bytes;
         MDL_request mdl_request;
         int res;
@@ -7664,7 +7710,7 @@ err:
         mysql_mutex_lock(&LOCK_commit_ordered);
         mysql_mutex_unlock(&LOCK_after_binlog_sync);
         if ((*opt_binlog_engine_hton->binlog_write_direct)
-            (file, binlog_main_bytes, thd->get_last_commit_gtid()))
+            (file, engine_context, thd->get_last_commit_gtid()))
           goto engine_fail;
         /* ToDo: Need to set last_commit_pos_offset here? */
         /* ToDo: Maybe binlog_write_direct() could return the coords. */
@@ -9581,6 +9627,12 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
                     DBUG_RETURN(ER_ERROR_ON_WRITE);
                   });
 
+  /*
+    Write the end event (XID_EVENT, commit QUERY_LOG_EVENT) directly to the
+    legacy binary log. This is required to get the correct end position in the
+    event as currently needed by non-GTID slaves (since write_cache() does a
+    direct write of the cache, leaving end positions at zero).
+  */
   if (write_event(entry->end_event))
   {
     entry->error_cache= NULL;
@@ -9600,17 +9652,11 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
     IO_CACHE *cache= (entry->using_trx_cache && !mngr->trx_cache.empty()) ?
       &mngr->trx_cache.cache_log : &mngr->stmt_cache.cache_log;
     /*
-      Prepare the full event data in the trx cache for the engine to binlog.
       The GTID event cannot go first since we only allocate the GTID at binlog
       time. So write the GTID at the very end, and record its offset so that the
       engine can pick it out and binlog it at the start.
     */
-    if (write_event(entry->end_event, NULL, cache))
-    {
-      entry->error_cache= NULL;
-      DBUG_RETURN(ER_ERROR_ON_WRITE);
-    }
-    mngr->gtid_cache_offset= my_b_tell(cache);
+    mngr->engine_binlog_info.gtid_offset= my_b_tell(cache);
     /* ToDo: This gets written with a checksum! Which is wrong, need some way to mark that GTID is being written to a cache... */
     if (write_gtid_event(entry->thd, cache, is_prepared_xa(entry->thd),
                          false,
