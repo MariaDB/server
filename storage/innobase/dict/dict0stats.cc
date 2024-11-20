@@ -34,6 +34,9 @@ Created Jan 06, 2010 Vasil Dimov
 #include <mysql_com.h>
 #include "btr0btr.h"
 #include "sync0sync.h"
+#ifdef WITH_WSREP
+#include <mysql/service_wsrep.h>
+#endif
 
 #include <algorithm>
 #include <map>
@@ -3355,7 +3358,11 @@ dict_stats_update(
 			if (srv_read_only_mode) {
 				goto transient;
 			}
-
+#ifdef WITH_WSREP
+			if (wsrep_thd_skip_locking(current_thd)) {
+				goto transient;
+			}
+#endif
 			if (dict_stats_auto_recalc_is_enabled(table)) {
 				return(dict_stats_update(
 						table,
