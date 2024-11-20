@@ -6196,6 +6196,8 @@ struct binlog_oob_context {
                    uint32_t left_node, uint32_t right_node,
                    chunk_data_oob *oob_data);
 
+  uint64_t first_node_file_no;
+  uint64_t first_node_offset;
   uint32_t node_list_len;
   uint32_t node_list_alloc_len;
   /*
@@ -7450,18 +7452,50 @@ struct chunk_data_cache : public chunk_data_base {
   IO_CACHE *cache;
   size_t main_remain;
   size_t gtid_remain;
+  uint32_t header_remain;
+  uint32_t header_sofar;
+  byte header_buf[5*COMPR_INT_MAX64];
 
-  chunk_data_cache(IO_CACHE *cache_arg, my_off_t main_offset,
-                   my_off_t gtid_offset)
-  : cache(cache_arg), main_remain(gtid_offset - main_offset)
+  chunk_data_cache(IO_CACHE *cache_arg,
+                   handler_binlog_event_group_info *binlog_info)
+  : cache(cache_arg),
+    main_remain(binlog_info->gtid_offset - binlog_info->out_of_band_offset),
+    header_sofar(0)
   {
     size_t end_offset= my_b_tell(cache);
-    ut_ad(end_offset > main_offset);
-    ut_ad(gtid_offset >= main_offset);
-    ut_ad(end_offset >= gtid_offset);
-    gtid_remain= end_offset - gtid_offset;
+    ut_ad(end_offset > binlog_info->out_of_band_offset);
+    ut_ad(binlog_info->gtid_offset >= binlog_info->out_of_band_offset);
+    ut_ad(end_offset >= binlog_info->gtid_offset);
+    gtid_remain= end_offset - binlog_info->gtid_offset;
 
-    if (cache->pos_in_file > main_offset) {
+    binlog_oob_context *c= (binlog_oob_context *)binlog_info->engine_ptr;
+    unsigned char *p;
+    if (c && c->node_list_len)
+    {
+      /*
+        Link to the out-of-band data. First store the number of nodes; then
+        store 2 x 2 numbers of file_no/offset for the first and last node.
+      */
+      uint32_t last= c->node_list_len-1;
+      uint64_t num_nodes= c->node_list[last].node_index + 1;
+      p= compr_int_write(header_buf, num_nodes);
+      p= compr_int_write(p, c->first_node_file_no);
+      p= compr_int_write(p, c->first_node_offset);
+      p= compr_int_write(p, c->node_list[last].file_no);
+      p= compr_int_write(p, c->node_list[last].offset);
+    }
+    else
+    {
+      /*
+        No out-of-band data, marked with a single 0 count for nodes and no
+        first/last links.
+      */
+      p= compr_int_write(header_buf, 0);
+    }
+    header_remain= (uint32_t)(p - header_buf);
+    ut_ad((size_t)(p - header_buf) <= sizeof(header_buf));
+
+    if (cache->pos_in_file > binlog_info->out_of_band_offset) {
       /*
         ToDo: A limitation in mysys IO_CACHE. If I change (reinit_io_cache())
         the cache from WRITE_CACHE to READ_CACHE without seeking out of the
@@ -7479,7 +7513,7 @@ struct chunk_data_cache : public chunk_data_base {
     }
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
-    my_bool res= reinit_io_cache(cache, READ_CACHE, gtid_offset, 0, 0);
+    my_bool res= reinit_io_cache(cache, READ_CACHE, binlog_info->gtid_offset, 0, 0);
     ut_a(!res /* ToDo: Error handling. */);
   }
   ~chunk_data_cache() { }
@@ -7487,16 +7521,33 @@ struct chunk_data_cache : public chunk_data_base {
   virtual std::pair<uint32_t, bool> copy_data(byte *p, uint32_t max_len) final
   {
     uint32_t size= 0;
+    /* Write header data, if any still available. */
+    if (header_remain > 0)
+    {
+      size= header_remain > max_len ? max_len : (uint32_t)header_remain;
+      memcpy(p, header_buf + header_sofar, size);
+      header_remain-= size;
+      header_sofar+= size;
+      max_len-= size;
+      if (UNIV_UNLIKELY(max_len == 0))
+      {
+        ut_ad(gtid_remain + main_remain > 0);
+        return {size, false};
+      }
+    }
+
     /* Write GTID data, if any still available. */
+    ut_ad(header_remain == 0);
     if (gtid_remain > 0)
     {
-      size= gtid_remain > max_len ? max_len : (uint32_t)gtid_remain;
-      int res2= my_b_read(cache, p, size);
+      uint32_t size2= gtid_remain > max_len ? max_len : (uint32_t)gtid_remain;
+      int res2= my_b_read(cache, p, size2);
       ut_a(!res2 /* ToDo: Error handling */);
-      gtid_remain-= size;
+      gtid_remain-= size2;
       if (gtid_remain == 0)
         my_b_seek(cache, 0);    /* Move to read the rest of the events. */
-      max_len-= size;
+      max_len-= size2;
+      size+= size2;
       if (max_len == 0)
         return {size, gtid_remain + main_remain == 0};
     }
@@ -7526,8 +7577,7 @@ static void
 fsp_binlog_write_cache(IO_CACHE *cache,
                        handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
 {
-  chunk_data_cache chunk_data(cache, binlog_info->out_of_band_offset,
-                              binlog_info->gtid_offset);
+  chunk_data_cache chunk_data(cache, binlog_info);
   fsp_binlog_write_chunk(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
 }
 
@@ -7684,6 +7734,8 @@ fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
       (new_idx, 0, 0, 0, 0, (byte *)data, data_len);
     if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data))
       return true;
+    c->first_node_file_no= c->node_list[i].file_no;
+    c->first_node_offset= c->node_list[i].offset;
     c->node_list_len= 1;
   }
 
