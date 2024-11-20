@@ -6172,23 +6172,6 @@ struct chunk_data_base {
 
 /* Structure holding context for out-of-band chunks of binlogged event group. */
 struct binlog_oob_context {
-#ifdef _MSC_VER
-/* Flexible array member is not standard C++, disable compiler warning. */
-#pragma warning(disable : 4200)
-#endif
-  uint32_t node_list_len;
-  uint32_t node_list_alloc_len;
-  /*
-    The node_list contains the root of each tree in the forest of perfect
-    binary trees.
-  */
-  struct node_info {
-    uint64_t file_no;
-    uint64_t offset;
-    uint64_t node_index;
-    uint32_t height;
-  } node_list [];
-
   /*
     Structure used to encapsulate the data to be binlogged in an out-of-band
     chunk, for use by fsp_binlog_write_chunk().
@@ -6220,6 +6203,23 @@ struct binlog_oob_context {
   bool binlog_node(uint32_t node, uint64_t new_idx,
                    uint32_t left_node, uint32_t right_node,
                    chunk_data_oob *oob_data);
+
+  uint32_t node_list_len;
+  uint32_t node_list_alloc_len;
+  /*
+    The node_list contains the root of each tree in the forest of perfect
+    binary trees.
+  */
+#ifdef _MSC_VER
+/* Flexible array member is not standard C++, disable compiler warning. */
+#pragma warning(disable : 4200)
+#endif
+  struct node_info {
+    uint64_t file_no;
+    uint64_t offset;
+    uint64_t node_index;
+    uint32_t height;
+  } node_list [];
 };
 
 
@@ -7459,15 +7459,17 @@ struct chunk_data_cache : public chunk_data_base {
   size_t main_remain;
   size_t gtid_remain;
 
-  chunk_data_cache(IO_CACHE *cache_arg, size_t main_size_arg)
-  : cache(cache_arg), main_remain(main_size_arg)
+  chunk_data_cache(IO_CACHE *cache_arg, my_off_t main_offset,
+                   my_off_t gtid_offset)
+  : cache(cache_arg), main_remain(gtid_offset - main_offset)
   {
-    size_t remain= my_b_tell(cache);
-    ut_ad(remain > 0);
-    ut_ad(remain >= main_size_arg);
-    gtid_remain= remain - main_size_arg;
+    size_t end_offset= my_b_tell(cache);
+    ut_ad(end_offset > main_offset);
+    ut_ad(gtid_offset >= main_offset);
+    ut_ad(end_offset >= gtid_offset);
+    gtid_remain= end_offset - gtid_offset;
 
-    if (cache->pos_in_file > 0) {
+    if (cache->pos_in_file > main_offset) {
       /*
         ToDo: A limitation in mysys IO_CACHE. If I change (reinit_io_cache())
         the cache from WRITE_CACHE to READ_CACHE without seeking out of the
@@ -7485,10 +7487,8 @@ struct chunk_data_cache : public chunk_data_base {
     }
 
     /* Start with the GTID event, which is put at the end of the IO_CACHE. */
-    my_bool res= reinit_io_cache(cache, READ_CACHE, main_size_arg, 0, 0);
+    my_bool res= reinit_io_cache(cache, READ_CACHE, gtid_offset, 0, 0);
     ut_a(!res /* ToDo: Error handling. */);
-
-    gtid_remain= remain - main_size_arg;
   }
   ~chunk_data_cache() { }
 
@@ -7511,11 +7511,11 @@ struct chunk_data_cache : public chunk_data_base {
 
     /* Write remaining data. */
     ut_ad(gtid_remain == 0);
-    if (UNIV_UNLIKELY(main_remain == 0))
+    if (main_remain == 0)
     {
       /*
-        This would imply that only GTID data is present, which probably does
-        not happen currently, but let's not leave an unhandled case.
+        This means that only GTID data is present, eg. when the main data was
+        already binlogged out-of-band.
       */
       ut_ad(size > 0);
       return {size, true};
@@ -7530,10 +7530,12 @@ struct chunk_data_cache : public chunk_data_base {
 };
 
 
-void
-fsp_binlog_write_cache(IO_CACHE *cache, size_t main_size, mtr_t *mtr)
+static void
+fsp_binlog_write_cache(IO_CACHE *cache,
+                       handler_binlog_event_group_info *binlog_info, mtr_t *mtr)
 {
-  chunk_data_cache chunk_data(cache, main_size);
+  chunk_data_cache chunk_data(cache, binlog_info->out_of_band_offset,
+                              binlog_info->gtid_offset);
   fsp_binlog_write_chunk(&chunk_data, mtr, FSP_BINLOG_TYPE_COMMIT);
 }
 
@@ -7668,7 +7670,7 @@ fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
       return true;
     c->node_list_len= i - 1;
   }
-  else
+  else if (i > 0)
   {
     /* Case 2: Add the new node as a singleton tree. */
     c= ensure_oob_context(engine_data, i+1);
@@ -7682,6 +7684,15 @@ fsp_binlog_oob(THD *thd, const unsigned char *data, size_t data_len,
     if (c->binlog_node(i, new_idx, i-1, i-1, &oob_data))
       return true;
     c->node_list_len= i + 1;
+  }
+  else
+  {
+    /* Special case i==0, like case 2 but no prior node to link to. */
+    binlog_oob_context::chunk_data_oob oob_data
+      (new_idx, 0, 0, 0, 0, (byte *)data, data_len);
+    if (c->binlog_node(i, new_idx, ~(uint32_t)0, ~(uint32_t)0, &oob_data))
+      return true;
+    c->node_list_len= 1;
   }
 
   return false;
@@ -7734,7 +7745,7 @@ binlog_oob_context::chunk_data_oob::chunk_data_oob(uint64_t idx,
 std::pair<uint32_t, bool>
 binlog_oob_context::chunk_data_oob::copy_data(byte *p, uint32_t max_len)
 {
-  uint32_t size;
+  uint32_t size= 0;
   /* First write header data, if any left. */
   if (sofar < header_len)
   {
@@ -7750,10 +7761,11 @@ binlog_oob_context::chunk_data_oob::copy_data(byte *p, uint32_t max_len)
   /* Then write the main chunk data. */
   ut_ad(sofar >= header_len);
   ut_ad(main_len > 0);
-  size= (uint32_t)std::min(header_len + main_len - sofar, (uint64_t)max_len);
-  memcpy(p, main_data + (sofar - header_len), size);
-  sofar+= size;
-  return {size, sofar == header_len + main_len};
+  uint32_t size2=
+    (uint32_t)std::min(header_len + main_len - sofar, (uint64_t)max_len);
+  memcpy(p, main_data + (sofar - header_len), size2);
+  sofar+= size2;
+  return {size + size2, sofar == header_len + main_len};
 }
 
 
@@ -7764,22 +7776,24 @@ fsp_free_oob(THD *thd, void *engine_data)
 }
 
 
-extern "C" void binlog_get_cache(THD *, IO_CACHE **, size_t *,
+extern "C" void binlog_get_cache(THD *, IO_CACHE **,
+                                 handler_binlog_event_group_info **,
                                  const rpl_gtid **);
 
 void
 fsp_binlog_trx(trx_t *trx, mtr_t *mtr)
 {
   IO_CACHE *cache;
-  size_t main_size;
+  handler_binlog_event_group_info *binlog_info;
   const rpl_gtid *gtid;
 
   if (!trx->mysql_thd)
     return;
-  binlog_get_cache(trx->mysql_thd, &cache, &main_size, &gtid);
-  if (main_size) {
+  binlog_get_cache(trx->mysql_thd, &cache, &binlog_info, &gtid);
+  if (UNIV_LIKELY(binlog_info != nullptr) &&
+      UNIV_LIKELY(binlog_info->gtid_offset > 0)) {
     binlog_diff_state.update_nolock(gtid);
-    fsp_binlog_write_cache(cache, main_size, mtr);
+    fsp_binlog_write_cache(cache, binlog_info, mtr);
   }
 }
 
@@ -8443,14 +8457,15 @@ ha_innodb_binlog_reader::init_gtid_pos(slave_connection_state *pos,
 
 
 bool
-innobase_binlog_write_direct(IO_CACHE *cache, size_t main_size,
+innobase_binlog_write_direct(IO_CACHE *cache,
+                             handler_binlog_event_group_info *binlog_info,
                              const rpl_gtid *gtid)
 {
   mtr_t mtr;
   if (gtid)
     binlog_diff_state.update_nolock(gtid);
   mtr.start();
-  fsp_binlog_write_cache(cache, main_size, &mtr);
+  fsp_binlog_write_cache(cache, binlog_info, &mtr);
   mtr.commit();
   /* ToDo: Should we sync the log here? Maybe depending on an extra bool parameter? */
   /* ToDo: Presumably fsp_binlog_write_cache() should be able to fail in some cases? Then return any such error to the caller. */
