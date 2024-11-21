@@ -340,7 +340,7 @@ set global table_open_cache=100;
 set default_storage_engine=myisam;
 set global thread_cache_size=100;
 set timestamp=1, timestamp=default;
-set tmp_table_size=1024;
+set tmp_table_size=16384;
 set tx_isolation="READ-COMMITTED";
 set wait_timeout=100;
 set log_warnings=1;

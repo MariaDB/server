@@ -1117,7 +1117,7 @@ f varchar(45000)
 partition by system_time interval 1 year (partition p1 history,
 partition pn current);
 # fill the table until full
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 insert into t1 (f) select f from t1;
 ERROR HY000: The table 't1' is full
 # leave space for exactly one record in current partition
@@ -1133,7 +1133,7 @@ f varchar(45000)
 ) with system versioning engine=memory
 partition by system_time interval 1 year (partition p1 history,
 partition pn current);
-insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
+insert into t1 () values (),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),(),();
 select * into outfile 'load.data' from t1;
 load data infile 'load.data' replace into table t1;
 load data infile 'load.data' replace into table t1;

@@ -1,23 +1,20 @@
 --source include/have_debug.inc
 --source include/not_embedded.inc
-
+--source include/have_sequence.inc
 #
 # Bug #28499: crash for grouping query when tmp_table_size is too small
 #
 CREATE TABLE t1 (
-  a varchar(32) character set utf8 collate utf8_bin NOT NULL,
-  b varchar(32) character set utf8 collate utf8_bin NOT NULL )
+  a varchar(128) character set utf8 collate utf8_bin NOT NULL,
+  b varchar(128) character set utf8 collate utf8_bin NOT NULL )
 ENGINE=MyISAM DEFAULT CHARSET=utf8;
 
-INSERT INTO t1 VALUES
-  ('AAAAAAAAAA','AAAAAAAAAA'), ('AAAAAAAAAB','AAAAAAAAAB '),
-  ('AAAAAAAAAB','AAAAAAAAAB'), ('AAAAAAAAAC','AAAAAAAAAC'),
-  ('AAAAAAAAAD','AAAAAAAAAD'), ('AAAAAAAAAE','AAAAAAAAAE'),
-  ('AAAAAAAAAF','AAAAAAAAAF'), ('AAAAAAAAAG','AAAAAAAAAG'),
-  ('AAAAAAAAAH','AAAAAAAAAH'), ('AAAAAAAAAI','AAAAAAAAAI'),
-  ('AAAAAAAAAJ','AAAAAAAAAJ'), ('AAAAAAAAAK','AAAAAAAAAK');
+INSERT INTO t1
+select concat(repeat("A", 50),char(32+mod(seq,31)),char(32+mod(seq,29))),
+       concat(repeat("A", 50),char(32+mod(seq,31)),char(32+mod(seq,29)))
+       from seq_1_to_128;
 
-set tmp_table_size=1024;
+set tmp_table_size=16384;
 
 # Set debug flag so an error is returned when
 # tmp table in query is converted from heap to myisam

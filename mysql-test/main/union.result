@@ -874,7 +874,7 @@ insert into t1 select * from t2;
 insert into t2 select * from t1;
 insert into t1 select * from t2;
 insert into t2 select * from t1;
-set local tmp_table_size=1024;
+set local tmp_table_size=16384;
 select count(*) from (select * from t1 union all select * from t2 order by 1) b;
 count(*)
 21

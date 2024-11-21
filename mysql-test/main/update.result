@@ -491,7 +491,9 @@ a	quux
 DROP TABLE t1;
 connect  con1,localhost,root,,test;
 connection con1;
-set tmp_table_size=1024;
+set tmp_table_size=2048;
+Warnings:
+Warning	1292	Truncated incorrect tmp_table_size value: '2048'
 create table t1 (id int, a int, key idx(a));
 create table t2 (id int unsigned not null auto_increment primary key, a int);
 insert into t2(a) values(1),(2),(3),(4),(5),(6),(7),(8);

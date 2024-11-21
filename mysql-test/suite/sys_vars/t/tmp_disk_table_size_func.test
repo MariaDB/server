@@ -12,7 +12,7 @@
 SET @start_tmp_memory_table_size=@@session.tmp_memory_table_size;
 SET @start_tmp_disk_table_size=@@session.tmp_disk_table_size;
 
-set @@session.tmp_memory_table_size=1000;
+set @@session.tmp_memory_table_size=16384;
 set @@session.tmp_disk_table_size=3000000;
 
 --disable_ps2_protocol

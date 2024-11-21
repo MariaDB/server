@@ -4218,7 +4218,7 @@ static Sys_var_ulonglong Sys_tmp_table_size(
        "will automatically convert it to an on-disk MyISAM or Aria table.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "tmp_memory_table_size",
@@ -4227,7 +4227,7 @@ static Sys_var_ulonglong Sys_tmp_memory_table_size(
        "Same as tmp_table_size.",
        SESSION_VAR(tmp_memory_table_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, (ulonglong)~(intptr)0), DEFAULT(16*1024*1024),
-       BLOCK_SIZE(1));
+       BLOCK_SIZE(16384));
 
 static Sys_var_ulonglong Sys_tmp_disk_table_size(
        "tmp_disk_table_size",
