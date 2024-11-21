@@ -1204,7 +1204,7 @@ uint check_ulonglong(const char *str, uint length)
   const char *long_str = "2147483647", *ulonglong_str = "18446744073709551615";
   const uint long_len = 10, ulonglong_len = 20;
 
-  while (*str == '0' && length)
+  while (length && *str == '0')
   {
     str++; length--;
   }
