@@ -342,9 +342,11 @@ static inline bool table_not_corrupt_error(uint sql_errno)
 static int debug_fail_counter= 0;
 #endif
 
-static bool open_only_one_table(THD* thd, TABLE_LIST* table,
-                                bool repair_table_use_frm,
-                                bool is_view_operator_func)
+static
+bool open_only_one_table(THD* thd, TABLE_LIST* table,
+                         bool repair_table_use_frm,
+                         bool is_view_operator_func,
+                         Prelocking_strategy *prelock_strategy)
 {
   LEX *lex= thd->lex;
   SELECT_LEX *select= lex->first_select_lex();
@@ -433,7 +435,7 @@ static bool open_only_one_table(THD* thd, TABLE_LIST* table,
     */
 
     open_error= (thd->open_temporary_tables(table) ||
-                 open_and_lock_tables(thd, table, TRUE, 0));
+                 open_and_lock_tables(thd, table, TRUE, 0, prelock_strategy));
   }
 
 #ifndef DBUG_OFF
@@ -647,9 +649,11 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     /* open only one table from local list of command */
     while (1)
     {
+      Check_table_prelocking_strategy prelocking_strategy;
       open_error= open_only_one_table(thd, table,
                                       no_errors_from_open,
-                                      (view_operator_func != NULL));
+                                      (view_operator_func != NULL),
+                                      &prelocking_strategy);
       thd->open_options&= ~extra_open_options;
 
       /*
@@ -974,8 +978,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
       table->lock_type= TL_READ;
       DBUG_ASSERT(view_operator_func == NULL);
+      DML_prelocking_strategy prelocking_strategy;
       open_error= open_only_one_table(thd, table,
-                                      no_errors_from_open, FALSE);
+                                      no_errors_from_open, FALSE,
+                                      &prelocking_strategy);
       thd->open_options&= ~extra_open_options;
 
       if (unlikely(!open_error))

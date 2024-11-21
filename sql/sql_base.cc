@@ -3910,9 +3910,8 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
 {
   bool error= false;
   LEX *lex= thd->lex;
-  bool maybe_need_prelocking=
-    (tables->updating && tables->lock_type >= TL_FIRST_WRITE)
-    || thd->lex->default_used;
+  bool maybe_need_prelocking= prelocking_strategy->may_need_prelocking(thd,
+                                                                       tables);
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
       ! has_prelocking_list && maybe_need_prelocking)
@@ -4946,8 +4945,8 @@ bool DML_prelocking_strategy::handle_routine(THD *thd,
   @note this can be changed to use a hash, instead of scanning the linked
   list, if the performance of this function will ever become an issue
 */
-bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_CSTRING *db,
-                                LEX_CSTRING *table, thr_lock_type lock_type)
+bool table_already_fk_prelocked(TABLE_LIST *tl, const LEX_CSTRING *db,
+                                const LEX_CSTRING *table, thr_lock_type lock_type)
 {
   for (; tl; tl= tl->next_global )
   {
@@ -5009,6 +5008,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
                                       TABLE_LIST::PRELOCK_NONE,
                                       0, 0,
                                       &prelocking_ctx->query_tables_last,
+                                      TABLE_LIST::OPEN_NORMAL,
                                       tables->for_insert_data);
     /*
       Store link to the new table_list that will be used by open so that
@@ -5020,6 +5020,12 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_RETURN(FALSE);
 }
 
+static bool
+prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
+                           const TABLE_LIST *table_list,
+                           const List <FOREIGN_KEY_INFO> &fk_list,
+                           const Prelocking_strategy *prelocking_strategy,
+                           uint8 row_event_map, bool parent);
 /**
   Extend the table_list to include foreign tables for prelocking.
 
@@ -5034,55 +5040,77 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
   @retval TRUE   Failure (OOM).
 */
 inline bool
-prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
-                           TABLE_LIST *table_list, bool *need_prelocking,
-                           uint8 op)
+prepare_fk_parent_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
+                                  TABLE_LIST *table_list,
+                                  const
+                                  Prelocking_strategy *prelocking_strategy,
+                                  bool *need_prelocking,
+                                  uint8 op)
 {
-  DBUG_ENTER("prepare_fk_prelocking_list");
+  DBUG_ENTER("prepare_fk_parent_prelocking_list");
   List <FOREIGN_KEY_INFO> fk_list;
-  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-  FOREIGN_KEY_INFO *fk;
-  Query_arena *arena, backup;
   TABLE *table= table_list->table;
 
   if (!table->file->referenced_by_foreign_key())
     DBUG_RETURN(FALSE);
 
-  arena= thd->activate_stmt_arena_if_needed(&backup);
+  Query_arena_stmt arena_ctx(thd);
 
   table->file->get_parent_foreign_key_list(thd, &fk_list);
   if (unlikely(thd->is_error()))
-  {
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
     return TRUE;
-  }
 
-  *need_prelocking= TRUE;
+  *need_prelocking= true;
+  DBUG_RETURN(prepare_fk_prelocking_list(thd, prelocking_ctx, table_list, fk_list,
+                                         prelocking_strategy, op, true));
+}
 
-  while ((fk= fk_list_it++))
+inline bool fk_has_cascade_event(const FOREIGN_KEY_INFO &fk,
+                                 uint8 row_event_map)
+{
+  bool can_delete= row_event_map & trg2bit(TRG_EVENT_DELETE);
+  bool can_update= row_event_map & trg2bit(TRG_EVENT_UPDATE);
+  return (can_delete && fk_modifies_child(fk.delete_method))
+      || (can_update && fk_modifies_child(fk.update_method));
+}
+
+inline bool
+prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
+                           const TABLE_LIST *table_list,
+                           const List <FOREIGN_KEY_INFO> &fk_list,
+                           const Prelocking_strategy *prelocking_strategy,
+                           uint8 row_event_map,
+                           bool parent)
+{
+  if (!parent)
+    row_event_map= 0; // Child tables are never updated.
+
+  for (const FOREIGN_KEY_INFO &fk: fk_list)
   {
-    // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-    thr_lock_type lock_type;
+    const LEX_CSTRING &rel_table_name= parent ? fk.foreign_table
+                                              : fk.referenced_table;
+    const LEX_CSTRING &rel_table_db= parent ? fk.foreign_db : fk.referenced_db;
 
-    if ((op & trg2bit(TRG_EVENT_DELETE) && fk_modifies_child(fk->delete_method))
-     || (op & trg2bit(TRG_EVENT_UPDATE) && fk_modifies_child(fk->update_method)))
-      lock_type= TL_FIRST_WRITE;
-    else
-      lock_type= TL_READ;
+    // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
+    thr_lock_type lock_type= fk_has_cascade_event(fk, row_event_map)
+                             ? TL_FIRST_WRITE : TL_READ;
 
     if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-          &fk->foreign_db, &fk->foreign_table, lock_type))
+                                   &rel_table_db, &rel_table_name,
+                                   lock_type))
       continue;
 
     TABLE_LIST *tl= new(thd) TABLE_LIST();
-    tl->init_one_table_for_prelocking(&fk->foreign_db, &fk->foreign_table,
-        NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
-        op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);
+    tl->init_one_table_for_prelocking(&rel_table_db,
+        &rel_table_name,
+        NULL, lock_type,
+        TABLE_LIST::PRELOCK_FK,
+        table_list->belong_to_view, row_event_map,
+        &prelocking_ctx->query_tables_last,
+        prelocking_strategy->get_fk_open_strategy(lock_type),
+        table_list->for_insert_data);
   }
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
-  DBUG_RETURN(FALSE);
+  return FALSE;
 }
 
 /**
@@ -5128,16 +5156,16 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
         return TRUE;
     }
 
-    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                   need_prelocking,
-                                   table_list->trg_event_map))
+    if (prepare_fk_parent_prelocking_list(thd, prelocking_ctx, table_list,
+                                          this, need_prelocking,
+                                          table_list->trg_event_map))
       return TRUE;
   }
   else if (table_list->slave_fk_event_map)
   {
-    if (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
-                                   need_prelocking,
-                                   table_list->slave_fk_event_map))
+    if (prepare_fk_parent_prelocking_list(thd, prelocking_ctx, table_list,
+                                          this, need_prelocking,
+                                          table_list->slave_fk_event_map))
       return TRUE;
   }
 
@@ -5165,6 +5193,28 @@ bool DML_prelocking_strategy::handle_table(THD *thd,
   DBUG_RETURN(FALSE);
 }
 
+
+bool
+Check_table_prelocking_strategy::handle_table(THD *thd,
+                                              Query_tables_list *prelocking_ctx,
+                                              TABLE_LIST *tables,
+                                              bool *need_prelocking)
+{
+  Query_arena_stmt stmt_ctx(thd);
+  List <FOREIGN_KEY_INFO> fk_child_list, fk_parent_list;
+  tables->table->file->get_foreign_key_list(thd, &fk_child_list);
+  tables->table->file->get_parent_foreign_key_list(thd, &fk_parent_list);
+  if (unlikely(thd->is_error()))
+    return TRUE;
+
+  for (const auto *fk_list: {&fk_child_list, &fk_parent_list})
+  {
+    if (prepare_fk_prelocking_list(thd, prelocking_ctx, tables, *fk_list, this,
+                                   0, fk_list == &fk_parent_list))
+      return TRUE;
+  }
+  return FALSE;
+}
 
 /**
   Open all tables used by DEFAULT functions.
