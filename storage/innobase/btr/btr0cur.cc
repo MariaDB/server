@@ -237,7 +237,7 @@ unreadable:
 	}
 
 	ut_ad(page_cur_is_before_first(&cur.page_cur));
-	ut_ad(page_is_leaf(cur.page_cur.block->page.frame));
+	ut_ad(page_is_leaf(btr_cur_get_page(&cur)));
 
 	const rec_t* rec = page_cur_move_to_next(&cur.page_cur);
 	const ulint comp = dict_table_is_comp(index->table);
@@ -591,14 +591,17 @@ btr_intention_t btr_cur_get_and_clear_intention(btr_latch_mode *latch_mode)
 
 /** @return whether the distance between two records is at most the
 specified value */
+template<bool comp>
 static bool
-page_rec_distance_is_at_most(const rec_t *left, const rec_t *right, ulint val)
+page_rec_distance_is_at_most(const page_t *page, const rec_t *left,
+                             const rec_t *right, ulint val)
+  noexcept
 {
   do
   {
     if (left == right)
       return true;
-    left= page_rec_get_next_const(left);
+    left= page_rec_next_get<comp>(page, left);
   }
   while (left && val--);
   return false;
@@ -669,25 +672,52 @@ btr_cur_will_modify_tree(
 			}
 			/* check delete will cause. (BTR_INTENTION_BOTH
 			or BTR_INTENTION_DELETE) */
-			if (n_recs <= max_nodes_deleted * 2
-			    || page_rec_is_first(rec, page)) {
+			if (n_recs <= max_nodes_deleted * 2) {
 				/* The cursor record can be the left most record
 				in this page. */
 				return true;
 			}
 
-			if (page_has_prev(page)
-			    && page_rec_distance_is_at_most(
-				    page_get_infimum_rec(page), rec,
-				    max_nodes_deleted)) {
-				return true;
-			}
-
-			if (page_has_next(page)
-			    && page_rec_distance_is_at_most(
-				    rec, page_get_supremum_rec(page),
-				    max_nodes_deleted)) {
-				return true;
+			if (page_is_comp(page)) {
+				const rec_t *const infimum
+					= page + PAGE_NEW_INFIMUM;
+				if (page_rec_next_get<true>(page, infimum)
+				    == rec) {
+					return true;
+				}
+				if (page_has_prev(page)
+				    && page_rec_distance_is_at_most<true>(
+					    page, infimum, rec,
+					    max_nodes_deleted)) {
+					return true;
+				}
+				if (page_has_next(page)
+				    && page_rec_distance_is_at_most<true>(
+					    page, rec,
+					    page + PAGE_NEW_SUPREMUM,
+					    max_nodes_deleted)) {
+					return true;
+				}
+			} else {
+				const rec_t *const infimum
+					= page + PAGE_OLD_INFIMUM;
+				if (page_rec_next_get<false>(page, infimum)
+				    == rec) {
+					return true;
+				}
+				if (page_has_prev(page)
+				    && page_rec_distance_is_at_most<false>(
+					    page, infimum, rec,
+					    max_nodes_deleted)) {
+					return true;
+				}
+				if (page_has_next(page)
+				    && page_rec_distance_is_at_most<false>(
+					    page, rec,
+					    page + PAGE_OLD_SUPREMUM,
+					    max_nodes_deleted)) {
+					return true;
+				}
 			}
 
 			/* Delete at leftmost record in a page causes delete
@@ -2308,7 +2338,7 @@ btr_cur_ins_lock_and_undo(
 		}
 	}
 
-	if (!index->is_primary() || !page_is_leaf(page_align(rec))) {
+	if (!index->is_primary() || !page_is_leaf(btr_cur_get_page(cursor))) {
 		return DB_SUCCESS;
 	}
 
@@ -2997,7 +3027,8 @@ static dberr_t btr_cur_upd_rec_sys(buf_block_t *block, rec_t *rec,
       To save space, we must have d>6, that is, the complete DB_TRX_ID and
       the first byte(s) of DB_ROLL_PTR must match the previous record. */
       memcpy(dest, src, d);
-      mtr->memmove(*block, page_offset(dest), page_offset(src), d);
+      mtr->memmove(*block, dest - block->page.frame, src - block->page.frame,
+                   d);
       dest+= d;
       len-= d;
       /* DB_TRX_ID,DB_ROLL_PTR must be unique in each record when
@@ -3185,8 +3216,8 @@ void btr_cur_upd_rec_in_place(rec_t *rec, const dict_index_t *index,
 			default:
 				mtr->memset(
 					block,
-					page_offset(rec_get_field_start_offs(
-							    rec, n) + rec),
+					rec_get_field_start_offs(rec, n) + rec
+					- block->page.frame,
 					size, 0);
 			}
 			ulint l = rec_get_1byte_offs_flag(rec)
@@ -3936,7 +3967,9 @@ btr_cur_pess_upd_restore_supremum(
 
 	lock_rec_reset_and_inherit_gap_locks(*prev_block, block_id,
 					     PAGE_HEAP_NO_SUPREMUM,
-					     page_rec_get_heap_no(rec));
+					     page_is_comp(page)
+					     ? rec_get_heap_no_new(rec)
+					     : rec_get_heap_no_old(rec));
 	return DB_SUCCESS;
 }
 
@@ -4418,7 +4451,7 @@ return_after_reservations:
 template<bool flag>
 void btr_rec_set_deleted(buf_block_t *block, rec_t *rec, mtr_t *mtr)
 {
-  if (page_rec_is_comp(rec))
+  if (UNIV_LIKELY(page_is_comp(block->page.frame) != 0))
   {
     byte *b= &rec[-REC_NEW_INFO_BITS];
     const byte v= flag
@@ -4661,7 +4694,7 @@ btr_cur_optimistic_delete(
 		page_t*		page	= buf_block_get_frame(block);
 		page_zip_des_t*	page_zip= buf_block_get_page_zip(block);
 
-		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_rec_is_comp(rec))
+		if (UNIV_UNLIKELY(rec_get_info_bits(rec, page_is_comp(page))
 				  & REC_INFO_MIN_REC_FLAG)) {
 			/* This should be rolling back instant ADD COLUMN.
 			If this is a recovered transaction, then
@@ -4829,7 +4862,7 @@ btr_cur_pessimistic_delete(
 
 	if (page_is_leaf(page)) {
 		const bool is_metadata = rec_is_metadata(
-			rec, page_rec_is_comp(rec));
+			rec, page_is_comp(block->page.frame));
 		if (UNIV_UNLIKELY(is_metadata)) {
 			/* This should be rolling back instant ALTER TABLE.
 			If this is a recovered transaction, then
@@ -5972,7 +6005,8 @@ struct btr_blob_log_check_t {
 		uint32_t	page_no = FIL_NULL;
 
 		if (UNIV_UNLIKELY(m_op == BTR_STORE_INSERT_BULK)) {
-			offs = page_offset(*m_rec);
+			offs = *m_rec - (*m_block)->page.frame;
+			ut_ad(offs == page_offset(*m_rec));
 			page_no = (*m_block)->page.id().page_no();
 			(*m_block)->page.fix();
 			ut_ad(page_no != FIL_NULL);
@@ -6081,7 +6115,7 @@ btr_store_big_rec_extern_fields(
 	ut_ad(buf_block_get_frame(rec_block) == page_align(rec));
 	ut_a(dict_index_is_clust(index));
 
-	if (!fil_page_index_page_check(page_align(rec))) {
+	if (!fil_page_index_page_check(btr_pcur_get_page(pcur))) {
 		if (op != BTR_STORE_INSERT_BULK) {
 			return DB_PAGE_CORRUPTED;
 		}

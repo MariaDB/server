@@ -1620,7 +1620,8 @@ row_sel_try_search_shortcut(
 			return SEL_RETRY;
 		}
 	} else if (!srv_read_only_mode) {
-		trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+		trx_id_t trx_id =
+			page_get_max_trx_id(btr_pcur_get_page(&plan->pcur));
 		ut_ad(trx_id);
 		if (!node->read_view->sees(trx_id)) {
 			return SEL_RETRY;
@@ -2041,7 +2042,8 @@ skip_lock:
 				rec = old_vers;
 			}
 		} else if (!srv_read_only_mode) {
-			trx_id_t trx_id = page_get_max_trx_id(page_align(rec));
+			trx_id_t trx_id = page_get_max_trx_id(
+				btr_pcur_get_page(&plan->pcur));
 			ut_ad(trx_id);
 			if (!node->read_view->sees(trx_id)) {
 				cons_read_requires_clust_rec = TRUE;
@@ -3411,8 +3413,9 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		page and verify that */
 		if  (dict_index_is_spatial(sec_index)
 		     && btr_cur->rtr_info->matches
-		     && (page_align(rec)
-			== btr_cur->rtr_info->matches->block->page.frame
+		     && (!(ulint(rec
+				 - btr_cur->rtr_info->matches->block->page.frame)
+			   >> srv_page_size_shift)
 			|| rec != btr_pcur_get_rec(prebuilt->pcur))) {
 #ifdef UNIV_DEBUG
 			rtr_info_t*	rtr_info = btr_cur->rtr_info;
@@ -3539,7 +3542,7 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 				prebuilt->clust_pcur)->page;
 
 			const lsn_t lsn = mach_read_from_8(
-				page_align(clust_rec) + FIL_PAGE_LSN);
+				bpage.frame + FIL_PAGE_LSN);
 
 			if (lsn != cached_lsn
 			    || bpage.id() != cached_page_id
@@ -5008,7 +5011,8 @@ wrong_offs:
 				.buf_fix_count();
 
 			ib::error() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
+				<< rec - btr_pcur_get_page(pcur)
+				<< " next offs "
 				<< next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
@@ -5025,7 +5029,8 @@ wrong_offs:
 			over the corruption to recover as much as possible. */
 
 			ib::info() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
+				<< rec - btr_pcur_get_page(pcur)
+				<< " next offs "
 				<< next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
@@ -5050,10 +5055,12 @@ wrong_offs:
 
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
 		if (!rec_validate(rec, offsets)
-		    || !btr_index_rec_validate(rec, index, FALSE)) {
+		    || !btr_index_rec_validate(pcur->btr_cur.page_cur,
+					       index, FALSE)) {
 
 			ib::error() << "Index corruption: rec offs "
-				<< page_offset(rec) << " next offs "
+				<< rec - btr_pcur_get_page(pcur)
+				<< " next offs "
 				<< next_offs
 				<< btr_pcur_get_block(pcur)->page.id()
 				<< ", index " << index->name
@@ -5416,7 +5423,7 @@ no_gap_lock:
 
 			if (!srv_read_only_mode) {
 				trx_id_t trx_id = page_get_max_trx_id(
-					page_align(rec));
+					btr_pcur_get_page(pcur));
 				ut_ad(trx_id);
 				if (trx->read_view.sees(trx_id)) {
 					goto locks_ok;
@@ -6399,7 +6406,8 @@ rec_loop:
 
     goto count_or_not;
   }
-  else if (const trx_id_t page_trx_id= page_get_max_trx_id(page_align(rec)))
+  else if (const trx_id_t page_trx_id=
+           page_get_max_trx_id(btr_pcur_get_page(prebuilt->pcur)))
   {
     if (page_trx_id >= trx_sys.get_max_trx_id())
       goto invalid_PAGE_MAX_TRX_ID;

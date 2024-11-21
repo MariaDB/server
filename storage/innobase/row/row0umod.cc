@@ -445,7 +445,8 @@ row_undo_mod_clust(
 					0, 1ULL << ROLL_PTR_INSERT_FLAG_POS,
 					&mtr);
 			} else {
-				size_t offs = page_offset(rec + trx_id_offset);
+				size_t offs = rec + trx_id_offset
+					- block->page.frame;
 				mtr.memset(block, offs, DATA_TRX_ID_LEN, 0);
 				offs += DATA_TRX_ID_LEN;
 				mtr.write<1,mtr_t::MAYBE_NOP>(*block,
@@ -489,15 +490,14 @@ static bool row_undo_mod_sec_is_unsafe(const rec_t *rec, dict_index_t *index,
 	mem_heap_t*	heap2;
 	dtuple_t*	row;
 	const dtuple_t*	entry;
-	ulint		comp;
 	dtuple_t*	vrow = NULL;
 	mem_heap_t*	v_heap = NULL;
 	dtuple_t*	cur_vrow = NULL;
 
+	const bool comp = index->table->not_redundant();
 	clust_index = dict_table_get_first_index(index->table);
 
-	comp = page_rec_is_comp(rec);
-	ut_ad(!dict_table_is_comp(index->table) == !comp);
+	ut_ad(!!page_rec_is_comp(rec) == comp);
 	heap = mem_heap_create(1024);
 	clust_offsets = rec_get_offsets(rec, clust_index, NULL,
 					clust_index->n_core_fields,
