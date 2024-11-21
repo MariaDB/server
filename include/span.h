@@ -20,7 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <cstddef>
 #include <iterator>
-#include "mysql/service_thd_alloc.h"
+#include "sql_alloc.h"
 
 namespace st_
 {
@@ -156,7 +156,7 @@ public:
 
   void alloc(const THD *thd, size_t elements)
   {
-    data_= (element_type*) thd_alloc(thd, sizeof (element_type) * elements);
+    data_= new(thd) element_type[elements];
     size_= elements;
   }
 

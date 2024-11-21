@@ -1986,7 +1986,7 @@ public:
       return;
     }
         
-    if ((calc_state= thd->alloc<Prefix_calc_state>(key_parts)))
+    if ((calc_state= new(thd) Prefix_calc_state[key_parts]))
     {
       uint keyno= (uint)(key_info-table->key_info);
       for (i= 0, state= calc_state; i < key_parts; i++, state++)
