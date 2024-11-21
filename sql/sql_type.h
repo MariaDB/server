@@ -4330,9 +4330,8 @@ public:
                                          const SORT_FIELD_ATTR *sort_field,
                                          String *tmp) const=0;
 
-  virtual void sort_length(THD *thd,
-                          const Type_std_attributes *item,
-                          SORT_FIELD_ATTR *attr) const= 0;
+  virtual uint32 sort_length(const Type_std_attributes *item) const= 0;
+  virtual uint32 sort_suffix_length(const Type_std_attributes *item) const { return 0; };
   virtual bool is_packable() const { return false; }
 
   virtual uint32 max_display_length(const Item *item) const= 0;
@@ -4785,8 +4784,7 @@ public:
     MY_ASSERT_UNREACHABLE();
     return 0;
   }
-  void sort_length(THD *, const Type_std_attributes *, SORT_FIELD_ATTR *)
-    const override
+  uint32 sort_length(const Type_std_attributes *) const override
   {
     MY_ASSERT_UNREACHABLE();
   }
@@ -5124,9 +5122,7 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
@@ -5245,9 +5241,7 @@ public:
                                           const uchar *buffer,
                                           LEX_CUSTRING *gis_options)
                                           const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
   uint32 max_display_length(const Item *item) const override;
   uint32 Item_decimal_notation_int_digits(const Item *item) const override;
   Item *create_typecast_item(THD *thd, Item *item,
@@ -5495,9 +5489,7 @@ public:
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
                                         uchar *buff) const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
   bool Item_eq_value(THD *thd, const Type_cmp_attributes *attr,
@@ -5609,9 +5601,7 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -5709,9 +5699,8 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
+  uint32 sort_suffix_length(const Type_std_attributes *item) const override;
   bool is_packable() const override { return true; }
   bool union_element_finalize(Item_type_holder* item) const override;
   uint calc_key_length(const Column_definition &def) const override;
@@ -6973,9 +6962,7 @@ public:
   uint make_packed_sort_key_part(uchar *to, Item *item,
                                  const SORT_FIELD_ATTR *sort_field,
                                  String *tmp) const override;
-  void sort_length(THD *thd,
-                   const Type_std_attributes *item,
-                   SORT_FIELD_ATTR *attr) const override;
+  uint32 sort_length(const Type_std_attributes *item) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   decimal_digits_t Item_decimal_scale(const Item *item) const override
   {

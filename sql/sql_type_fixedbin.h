@@ -1362,11 +1362,9 @@ public:
     FbtImpl::memory_to_record((char*) to, tmp.ptr());
     return tmp.length();
   }
-  void sort_length(THD *thd, const Type_std_attributes *item,
-                  SORT_FIELD_ATTR *attr) const override
+  uint32 sort_length(const Type_std_attributes *item) const override
   {
-    attr->length= FbtImpl::binary_length();
-    attr->suffix_length= 0;
+    return FbtImpl::binary_length();
   }
   uint32 max_display_length(const Item *item) const override
   {
