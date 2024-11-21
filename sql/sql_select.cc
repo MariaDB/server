@@ -27910,7 +27910,8 @@ JOIN_TAB::remove_duplicates()
                       SORT_FIELD_ATTR::VARIABLE_SIZE :
                       SORT_FIELD_ATTR::FIXED_SIZE;
         /* Calculate sorder->length */
-        item->type_handler()->sort_length(thd, item, sorder);
+        sorder->length= item->type_handler()->sort_length(item);
+        sorder->suffix_length= item->type_handler()->sort_suffix_length(item);
         sorder++;
         item_count++;
       }
