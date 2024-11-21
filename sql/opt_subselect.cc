@@ -2577,7 +2577,7 @@ bool optimize_semijoin_nests(JOIN *join, table_map all_table_map)
         uint n_tables= my_count_bits(sj_nest->sj_inner_tables & ~join->const_table_map);
         SJ_MATERIALIZATION_INFO* sjm;
         if (!(sjm= new SJ_MATERIALIZATION_INFO) ||
-            !(sjm->positions= join->thd->alloc<POSITION>(n_tables)))
+            !(sjm->positions= new(join->thd) POSITION[n_tables]))
           DBUG_RETURN(TRUE); /* purecov: inspected */
         sjm->tables= n_tables;
         sjm->is_used= FALSE;
@@ -4438,8 +4438,8 @@ bool setup_sj_materialization_part2(JOIN_TAB *sjm_tab)
     tab_ref->key_length= tmp_key->key_length;
     if (!(tab_ref->key_buff=
             thd->calloc<uchar>(ALIGN_SIZE(tmp_key->key_length) * 2)) ||
-        !(tab_ref->key_copy= thd->alloc<store_key*>(tmp_key_parts + 1)) ||
-        !(tab_ref->items= thd->alloc<Item*>(tmp_key_parts)))
+        !(tab_ref->key_copy= new(thd) store_key*[tmp_key_parts + 1]) ||
+        !(tab_ref->items= new(thd) Item*[tmp_key_parts]))
       DBUG_RETURN(TRUE); /* purecov: inspected */
 
     tab_ref->key_buff2=tab_ref->key_buff+ALIGN_SIZE(tmp_key->key_length);
@@ -5176,7 +5176,7 @@ int init_dups_weedout(JOIN *join, uint first_table, int first_fanout_table, uint
   {
     size_t ntabs= last_tab - sjtabs;
     if (!(sjtbl= thd->alloc<SJ_TMP_TABLE>(1)) ||
-        !(sjtbl->tabs= thd->alloc<SJ_TMP_TABLE::TAB>(ntabs)))
+        !(sjtbl->tabs= new (thd) SJ_TMP_TABLE::TAB[ntabs]))
       DBUG_RETURN(TRUE); /* purecov: inspected */
     memcpy(sjtbl->tabs, sjtabs, ntabs * sizeof(SJ_TMP_TABLE::TAB));
     sjtbl->is_degenerate= FALSE;
@@ -6045,7 +6045,7 @@ int select_value_catcher::setup(List<Item> *items)
   assigned= FALSE;
   n_elements= items->elements;
  
-  if (!(row= thd->alloc<Item_cache*>(n_elements)))
+  if (!(row= new(thd) Item_cache*[n_elements]))
     return TRUE;
   
   Item *sel_item;

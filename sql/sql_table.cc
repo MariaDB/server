@@ -6951,12 +6951,12 @@ static bool fill_alter_inplace_info(THD *thd, TABLE *table,
   /* Allocate result buffers. */
   DBUG_ASSERT(ha_alter_info->rename_keys.mem_root() == thd->mem_root);
   if (! (ha_alter_info->index_drop_buffer=
-           thd->alloc<KEY*>(table->s->total_keys)) ||
+           new(thd) KEY*[table->s->total_keys]) ||
       ! (ha_alter_info->index_add_buffer=
-           thd->alloc<uint>(alter_info->key_list.elements)) ||
+           new(thd) uint[alter_info->key_list.elements]) ||
       ha_alter_info->rename_keys.reserve(ha_alter_info->index_add_count) ||
       ! (ha_alter_info->index_altered_ignorability_buffer=
-           thd->alloc<KEY_PAIR>(alter_info->alter_index_ignorability_list.elements)))
+           new(thd) KEY_PAIR[alter_info->alter_index_ignorability_list.elements]))
     DBUG_RETURN(true);
 
   /*

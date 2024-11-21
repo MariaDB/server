@@ -5902,7 +5902,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     TABLE **start,**ptr;
     bool found_first_not_own= 0;
 
-    if (!(ptr= start= thd->alloc<TABLE*>(count)))
+    if (!(ptr= start= new(thd) TABLE*[count]))
       DBUG_RETURN(TRUE);
 
     /*

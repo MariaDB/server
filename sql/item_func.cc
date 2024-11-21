@@ -93,7 +93,7 @@ bool Item_args::alloc_arguments(THD *thd, uint count)
     args= tmp_arg;
     return false;
   }
-  if ((args= thd->alloc<Item*>(count)) == NULL)
+  if ((args= new(thd) Item*[count]) == NULL)
   {
     arg_count= 0;
     return true;
@@ -120,7 +120,7 @@ Item_args::Item_args(THD *thd, const Item_args *other)
   {
     args= tmp_arg;
   }
-  else if (!(args= thd->alloc<Item*>(arg_count)))
+  else if (!(args= new(thd) Item*[arg_count]))
   {
     arg_count= 0;
     return;
@@ -3564,7 +3564,7 @@ udf_handler::fix_fields(THD *thd, Item_func_or_sum *func,
 
   if ((f_args.arg_count=arg_count))
   {
-    if (!(f_args.arg_type= thd->alloc<Item_result>(f_args.arg_count)))
+    if (!(f_args.arg_type= new(thd) Item_result[f_args.arg_count]))
 
     {
     err_exit:

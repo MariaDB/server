@@ -683,6 +683,8 @@ public:
    uchar m_type_code;     // according to Field::binlog_type()
    uchar m_geom_type; // Non-geometry fields can return 0
 
+   Binlog_type_info() = default;
+
    Binlog_type_info(uchar type_code,
                     uint16 metadata,
                     uint8 metadata_size)

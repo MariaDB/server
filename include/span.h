@@ -20,6 +20,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <cstddef>
 #include <iterator>
+#include "sql_alloc.h"
 
 namespace st_
 {

@@ -3188,7 +3188,7 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
   char **row;
   int column= 0;
 
-  if (!(row= thd->alloc<char*>(n_columns)) ||
+  if (!(row= new(thd) char*[n_columns]) ||
       rows.push_back(row, thd->mem_root))
     return true;
 
@@ -9011,7 +9011,7 @@ int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
     Sort lines to get them into a predicted order
     (needed for test cases and to not confuse users)
   */
-  if (!(tmp= thd->alloc<Master_info*>(elements)))
+  if (!(tmp= new(thd) Master_info*[elements]))
     goto error;
 
   if (single_slave)
@@ -9349,8 +9349,8 @@ int mysql_schema_table(THD *thd, LEX *lex, TABLE_LIST *table_list)
       DBUG_RETURN(0);
     }
     List_iterator_fast<Item> it(sel->item_list);
-    if (!(transl= thd->active_stmt_arena_to_use()->
-          alloc<Field_translator>(sel->item_list.elements))) // ???
+    if (!(transl= new (thd->active_stmt_arena_to_use())
+                    Field_translator[sel->item_list.elements])) // ???
     {
       DBUG_RETURN(1);
     }

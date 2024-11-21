@@ -1314,7 +1314,7 @@ bool Item_singlerow_subselect::fix_length_and_dec()
   }
   else
   {
-    if (!(row= current_thd->alloc<Item_cache*>(max_columns)) ||
+    if (!(row= new(current_thd) Item_cache*[max_columns]) ||
         engine->fix_length_and_dec(row))
       return TRUE;
     value= *row;
@@ -3741,7 +3741,7 @@ bool Item_in_subselect::init_cond_guards()
   if (!is_top_level_item() && !pushed_cond_guards &&
       (left_expr->maybe_null() || cols_num > 1))
   {
-    if (!(pushed_cond_guards= thd->alloc<bool>(cols_num)))
+    if (!(pushed_cond_guards= new(thd) bool[cols_num]))
         return TRUE;
     for (uint i= 0; i < cols_num; i++)
       pushed_cond_guards[i]= TRUE;
@@ -6046,8 +6046,8 @@ bool Ordered_key::init(MY_BITMAP *columns_to_index)
   Item_func_lt *fn_less_than;
 
   key_column_count= bitmap_bits_set(columns_to_index);
-  key_columns= thd->alloc<Item_field*>(key_column_count);
-  compare_pred= thd->alloc<Item_func_lt*>(key_column_count);
+  key_columns= new(thd) Item_field*[key_column_count];
+  compare_pred= new(thd) Item_func_lt*[key_column_count];
 
   if (!key_columns || !compare_pred)
     return TRUE; /* Revert to table scan partial match. */
@@ -6087,8 +6087,8 @@ bool Ordered_key::init(int col_idx)
 
   // TIMOUR: check for mem allocation err, revert to scan
 
-  key_columns= thd->alloc<Item_field*>(1);
-  compare_pred= thd->alloc<Item_func_lt*>(1);
+  key_columns= new(thd) Item_field*();;
+  compare_pred= new(thd) Item_func_lt*();;
 
   key_columns[0]= new (thd->mem_root) Item_field(thd, tbl->field[col_idx]);
   /* Create the predicate (tmp_column[i] < outer_ref[i]). */
@@ -6561,8 +6561,8 @@ subselect_rowid_merge_engine::init(MY_BITMAP *non_null_key_parts,
     row numbers. All small buffers are allocated in the runtime memroot. Big
     buffers are allocated from the OS via malloc.
   */
-  if (!(merge_keys= thd->alloc<Ordered_key*>(merge_keys_count)) ||
-      !(null_bitmaps= thd->alloc<MY_BITMAP*>(merge_keys_count)) ||
+  if (!(merge_keys= new(thd) Ordered_key*[merge_keys_count]) ||
+      !(null_bitmaps= new(thd) MY_BITMAP*[merge_keys_count]) ||
       !(row_num_to_rowid= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
                               static_cast<size_t>(row_count * rowid_length),
                               MYF(MY_WME | MY_THREAD_SPECIFIC))))

@@ -1324,7 +1324,7 @@ static bool check_range_constants(THD *thd, partition_info *part_info)
     longlong part_range_value;
     bool signed_flag= !part_info->part_expr->unsigned_flag;
 
-    part_info->range_int_array= thd->alloc<longlong>(part_info->num_parts);
+    part_info->range_int_array= new(thd) longlong[part_info->num_parts];
     if (unlikely(part_info->range_int_array == NULL))
       goto end;
 
@@ -1551,7 +1551,7 @@ static bool check_vers_constants(THD *thd, partition_info *part_info)
   if (!vers_info->interval.is_set())
     return 0;
 
-  part_info->range_int_array= thd->alloc<longlong>(part_info->num_parts);
+  part_info->range_int_array= new(thd) longlong[part_info->num_parts];
 
   MYSQL_TIME ltime;
   List_iterator<partition_element> it(part_info->partitions);

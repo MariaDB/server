@@ -4672,7 +4672,7 @@ create_result_table(THD *thd_arg, List<Item> *column_types,
                                  !create_table, keep_row_order)))
     return TRUE;
 
-  col_stat= table->in_use->alloc<Column_statistics>(table->s->fields);
+  col_stat= new (table->in_use) Column_statistics [table->s->fields];
   if (!col_stat)
     return TRUE;
 
@@ -9021,3 +9021,20 @@ LEX_CSTRING make_string(THD *thd, const char *start_ptr,
   size_t length= end_ptr - start_ptr;
   return {strmake_root(thd->mem_root, start_ptr, length), length};
 }
+
+void* operator new[](size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
+void operator delete[](void *ptr, const THD *thd) noexcept
+{}
+
+
+void* operator new[](size_t size, const Query_arena *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
+void operator delete[](void *ptr, const Query_arena *thd) noexcept
+{}

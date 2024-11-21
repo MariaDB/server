@@ -5764,7 +5764,7 @@ Table_map_log_event::Table_map_log_event(THD *thd, TABLE *tbl, ulonglong tid,
               (tbl->s->db.str[tbl->s->db.length] == 0));
   DBUG_ASSERT(tbl->s->table_name.str[tbl->s->table_name.length] == 0);
 
-  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
+  binlog_type_info_array= new(thd) Binlog_type_info[m_table->s->fields];
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 

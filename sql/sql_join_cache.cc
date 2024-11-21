@@ -2835,7 +2835,7 @@ int JOIN_CACHE_HASHED::init(bool for_explain)
   if (for_explain)
     DBUG_RETURN(0);
 
-  if (!(key_buff= join->thd->alloc<uchar>(key_length)))
+  if (!(key_buff= new(join->thd) uchar[key_length]))
     DBUG_RETURN(1);
 
   /* Take into account a reference to the next record in the key chain */

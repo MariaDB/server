@@ -465,7 +465,7 @@ bool Item_sum::collect_outer_ref_processor(void *param)
 
 Item_sum::Item_sum(THD *thd, List<Item> &list): Item_func_or_sum(thd, list)
 {
-  if (!(orig_args= thd->alloc<Item *>(arg_count)))
+  if (!(orig_args= new(thd) Item *[arg_count]))
     args= NULL;
   mark_as_sum_func();
   init_aggregator();
@@ -490,7 +490,7 @@ Item_sum::Item_sum(THD *thd, Item_sum *item):
   }
   else
   {
-    if (!(orig_args= thd->alloc<Item*>(arg_count)))
+    if (!(orig_args= new(thd) Item*[arg_count]))
       return;
   }
   if (arg_count)
@@ -846,7 +846,7 @@ bool Aggregator_distinct::setup(THD *thd)
           uint32 *length;
           compare_key= composite_key_cmp;
           cmp_arg= (void*) this;
-          field_lengths= thd->alloc<uint32>(table->s->fields);
+          field_lengths= new(thd) uint32[table->s->fields];
           for (tree_key_length= 0, length= field_lengths, field= table->field;
                field < field_end; ++field, ++length)
           {
@@ -4356,7 +4356,7 @@ bool Item_func_group_concat::setup(THD *thd)
   if (arg_count_order)
   {
     uint n_elems= arg_count_order + all_fields.elements;
-    ref_pointer_array= thd->alloc<Item*>(n_elems);
+    ref_pointer_array= new(thd) Item*[n_elems];
     if (!ref_pointer_array)
       DBUG_RETURN(TRUE);
     memcpy(ref_pointer_array, args, arg_count * sizeof(Item*));

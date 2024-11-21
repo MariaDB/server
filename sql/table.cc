@@ -6185,7 +6185,7 @@ allocate:
 
   /* Create view fields translation table */
 
-  if (!(transl= thd->alloc<Field_translator>(select->item_list.elements)))
+  if (!(transl= new(thd) Field_translator[select->item_list.elements]))
   {
     res= TRUE;
     goto exit;

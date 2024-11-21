@@ -3556,7 +3556,7 @@ Table_map_log_event::Table_map_log_event(const uchar *buf, uint event_len,
 #ifdef MYSQL_SERVER
   if (!m_table)
     DBUG_VOID_RETURN;
-  binlog_type_info_array= thd->alloc<Binlog_type_info>(m_table->s->fields);
+  binlog_type_info_array= new(thd) Binlog_type_info[m_table->s->fields];
   for (uint i= 0; i <  m_table->s->fields; i++)
     binlog_type_info_array[i]= m_table->field[i]->binlog_type_info();
 #endif

@@ -146,7 +146,7 @@ void table_host_cache::materialize(THD *thd)
     goto end;
   }
 
-  rows= thd->alloc<row_host_cache>(size);
+  rows= new(thd) row_host_cache[size];
   if (rows == NULL)
   {
     /* Out of memory, this thread will error out. */

@@ -2038,7 +2038,7 @@ bool Item_func_interval::fix_length_and_dec(THD *thd)
 
     if (not_null_consts)
     {
-      intervals= thd->alloc<interval_range>(rows - 1);
+      intervals= new(current_thd) interval_range[rows - 1];
       if (!intervals)
         return true;
 
@@ -4289,7 +4289,7 @@ bool cmp_item_row::store_value_by_template(THD *thd, cmp_item *t, Item *item)
   }
   n= tmpl->n;
   bool rc= false;
-  if ((comparators= thd->alloc<cmp_item *>(n)))
+  if ((comparators= new(thd) cmp_item *[n]))
   {
     item->bring_value();
     item->null_value= 0;
@@ -6126,7 +6126,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
         pattern_len = (int) len - 2;
         pattern     = thd->strmake(first + 1, pattern_len);
         DBUG_PRINT("info", ("Initializing pattern: '%s'", first));
-        int *suff = thd->alloc<int>((pattern_len + 1) * 2 + alphabet_size);
+        int *suff = new(thd) int[(pattern_len + 1) * 2 + alphabet_size];
         bmGs      = suff + pattern_len + 1;
         bmBc      = bmGs + pattern_len + 1;
         turboBM_compute_good_suffix_shifts(suff);
@@ -7767,7 +7767,7 @@ bool Item_func_dyncol_exists::val_bool()
     {
       uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= current_thd->alloc(strlen);
+      buf.str= new(current_thd) char[strlen];
       if (buf.str)
       {
         buf.length=

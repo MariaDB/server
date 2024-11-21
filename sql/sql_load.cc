@@ -1471,7 +1471,7 @@ READ_INFO::READ_INFO(THD *thd, File file_par,
   uint length= MY_MAX(charset()->mbmaxlen, MY_MAX(m_field_term.length(),
                                                   m_line_term.length())) + 1;
   set_if_bigger(length,line_start.length());
-  stack= stack_pos= thd->alloc<int>(length);
+  stack= stack_pos= new(thd) int[length];
 
   DBUG_ASSERT(m_fixed_length < UINT_MAX32);
   if (data.reserve((size_t) m_fixed_length))

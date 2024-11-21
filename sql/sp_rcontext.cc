@@ -220,7 +220,7 @@ bool sp_rcontext::alloc_arrays(THD *thd)
 {
   {
     size_t n= m_root_parsing_ctx->max_cursor_index();
-    m_cstack.reset(thd->alloc<sp_cursor*>(n), n);
+    m_cstack.reset(new(thd) sp_cursor*[n], n);
   }
 
   {
@@ -426,7 +426,7 @@ bool sp_rcontext::init_var_items(THD *thd,
 {
   uint num_vars= m_root_parsing_ctx->max_var_index();
 
-  m_var_items.reset(thd->alloc<Item_field*>(num_vars), num_vars);
+  m_var_items.reset(new(thd) Item_field*[num_vars], num_vars);
 
   if (!m_var_items.array())
     return true;

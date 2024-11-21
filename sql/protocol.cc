@@ -1226,7 +1226,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
     Item *item;
     Protocol_text prot(thd, thd->variables.net_buffer_length);
 #ifndef DBUG_OFF
-    field_handlers= thd->alloc<const Type_handler *>(list->elements);
+    field_handlers= new(thd) const Type_handler *[list->elements];
 #endif
 
     for (uint pos= 0; (item= it++); pos++)
@@ -1275,7 +1275,7 @@ bool Protocol::send_list_fields(List<Field> *list, const TABLE_LIST *table_list)
   Protocol_text prot(thd, thd->variables.net_buffer_length);
 
 #ifndef DBUG_OFF
-  field_handlers= thd->alloc<const Type_handler *>(list->elements);
+  field_handlers= new(thd) const Type_handler *[list->elements];
 #endif
 
   for (uint pos= 0; (fld= it++); pos++)

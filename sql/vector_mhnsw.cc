@@ -1276,7 +1276,7 @@ int mhnsw_insert(TABLE *table, KEY *keyinfo)
 
   const size_t max_found= ctx->max_neighbors(0);
   Neighborhood candidates;
-  candidates.init(thd->alloc<FVectorNode*>(max_found + 7), max_found);
+  candidates.init(new(thd) FVectorNode*[max_found + 7], max_found);
   candidates.links[candidates.num++]= ctx->start;
 
   const double NORMALIZATION_FACTOR= 1 / std::log(ctx->M);
@@ -1363,7 +1363,7 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
     return err;
 
   Neighborhood candidates;
-  candidates.init(thd->alloc<FVectorNode*>(limit + 7), limit);
+  candidates.init(new(thd) FVectorNode*[limit + 7], limit);
 
   // one could put all max_layer nodes in candidates
   // but it has no effect on the recall or speed

@@ -10643,7 +10643,7 @@ ha_partition::check_if_supported_inplace_alter(TABLE *altered_table,
     DBUG_RETURN(HA_ALTER_ERROR);
 
   part_inplace_ctx->handler_ctx_array=
-    thd->alloc<inplace_alter_handler_ctx *>(m_tot_parts + 1);
+          new (thd) inplace_alter_handler_ctx *[m_tot_parts + 1];
   if (!part_inplace_ctx->handler_ctx_array)
     DBUG_RETURN(HA_ALTER_ERROR);
 
