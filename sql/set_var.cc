@@ -653,7 +653,7 @@ ulong get_system_variable_hash_records(void)
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type scope)
 {
   int count= system_variable_hash.records, i;
-  SHOW_VAR *result= thd->alloc<SHOW_VAR>(count + 1);
+  SHOW_VAR *result= new(thd) SHOW_VAR[count + 1];
 
   if (result)
   {
@@ -1498,7 +1498,7 @@ temp_copy_engine_list(THD *thd, plugin_ref *list)
 
   for (p= list, count= 0; *p; ++p, ++count)
     ;
-  p= thd->alloc<plugin_ref>(count+1);
+  p= new(thd) plugin_ref[count+1];
   if (!p)
   {
     my_error(ER_OUTOFMEMORY, MYF(0), (int)((count+1)*sizeof(*p)));

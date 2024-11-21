@@ -1501,7 +1501,7 @@ int ha_myisammrg::create_mrg(const char *name, HA_CREATE_INFO *create_info)
     ntables++;
 
   /* Allocate a table_names array in thread mem_root. */
-  if (!(pos= table_names= thd->alloc<const char*>(ntables + 1)))
+  if (!(pos= table_names= new(thd) const char*[ntables + 1]))
     DBUG_RETURN(HA_ERR_OUT_OF_MEM); /* purecov: inspected */
 
   /* Create child path names. */
