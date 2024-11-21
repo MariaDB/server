@@ -1,24 +1,40 @@
 --echo #
---echo # Path resolution
+--echo # MDEV-34391 Path resolution
 --echo #
-###########################################################################
-#                             Path resolution                             #
-###########################################################################
+######################################################################################
+#                             Path resolution                                        #
+######################################################################################
+# The path resolution unit test basically contains with 8 kind of tests.             #
+# Following listed the types sequence in this test:                                  #
+# type 1: MariaDB Default SQL/PSM mode syntax, unqualified function                  #
+# type 2: MariaDB Default SQL/PSM mode syntax, qualified function, ie: with package  #
+# type 3: MariaDB Default SQL/PSM mode syntax, unqualified procedure                 #
+# type 4: MariaDB Default SQL/PSM mode syntax, qualified procedure, ie: with package #
+# type 5: MariaDB Oracle PL/SQL mode syntax,   unqualified function                  #
+# type 6: MariaDB Oracle PL/SQL mode syntax,   qualified function, ie: with package  #
+# type 7: MariaDB Oracle PL/SQL mode syntax,   unqualified procedure                 #
+# type 8: MariaDB Oracle PL/SQL mode syntax,   qualified procedure, ie: with package #
+#                                                                                    #
+# All the tests start with the following header that contained                       #
+# with 5 attributes delimited with the pipe ('|') symbol.                            #
+#                                                                                    #
+# sql_mode: DEFAULT | function | is unqualified                                      #
+# curr db: X | path set: no                                                          #
+#                                                                                    #
+# 1. sql_mode: To test DEFAULT or ORACLE mode                                        #
+# 2. function / procedure: To test function or procedure routine                     #
+# 3. is unqualified / is qualified: The test is contained unqualified routine only   #
+#                                   or qualified routine or package                  #
+# 4. curr db: Current selected database before execute the test                       #
+# 5. path set: is the system variable, path, set during the test?                    #
+######################################################################################
+
 --echo #
 --echo # sql_mode: DEFAULT | function | is unqualified
 --echo # curr db: X | path set: no
 --echo #
 
-USE test;
-
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -42,14 +58,7 @@ DROP FUNCTION func;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -76,14 +85,7 @@ SET @@path = DEFAULT;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # subtest start
 CREATE DATABASE test2;
@@ -105,14 +107,7 @@ DROP FUNCTION func;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # set path
 SET path 'sys,test';
@@ -137,25 +132,11 @@ SET @@path = DEFAULT;
 --echo #
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 # subtest start
 # Drop the current db. This de-selects any db.
@@ -187,15 +168,7 @@ SET @@path = DEFAULT;
 --echo #
 
 USE test;
-
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # set path
 SET path 'sys,test';
@@ -205,14 +178,7 @@ CREATE DATABASE test2;
 USE test2;
 SELECT func();
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 SELECT func();
 DROP FUNCTION func;
@@ -239,24 +205,10 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_call_func()
-  RETURNS TEXT
-BEGIN
-  RETURN func();
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -265,14 +217,7 @@ DROP DATABASE deselect_db;
 SELECT func_call_func();
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -305,35 +250,14 @@ SET path 'sys,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_call_func()
-  RETURNS TEXT
-BEGIN
-  RETURN func();
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_call_func() RETURNS TEXT RETURN func();
 
 SELECT func_call_func();
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func';
 
 SELECT func_call_func();
 
@@ -356,15 +280,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -393,15 +314,12 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -433,15 +351,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -468,15 +383,12 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -506,15 +418,12 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -522,15 +431,12 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -569,15 +475,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -591,15 +494,12 @@ USE test2;
 SELECT pack.func();
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -631,26 +531,16 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func_local';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN func_local();
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN func_local();
 END;
 $$
 DELIMITER ;$$
@@ -662,14 +552,7 @@ DROP DATABASE deselect_db;
 SELECT pack.func();
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func_local';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -703,40 +586,23 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func_local';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_local';
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN func_local();
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN func_local();
 END;
 $$
 DELIMITER ;$$
 
 SELECT pack.func();
 
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func_local';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_local() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_local';
 
 SELECT pack.func();
 DROP FUNCTION func_local;
@@ -766,30 +632,24 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
 END;
 $$
 DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN pack2.func();
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN pack2.func();
 END;
 $$
 DELIMITER ;$$
@@ -802,15 +662,12 @@ SELECT pack.func();
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -850,30 +707,24 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
 END;
 $$
 DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN pack2.func();
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN pack2.func();
 END;
 $$
 DELIMITER ;$$
@@ -881,15 +732,12 @@ DELIMITER ;$$
 SELECT pack.func();
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
 END;
 $$
 DELIMITER ;$$
@@ -921,29 +769,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -977,29 +815,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
 # subtest start
 USE test;
@@ -1026,29 +854,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   FUNCTION func() RETURNS TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: pack, Rt: func';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func() RETURNS TEXT RETURN 'Invoke from Db: pack, Rt: func';
 
 # subtest start
 CREATE DATABASE test2;
@@ -1083,38 +901,20 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func_prv';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func_prv';
-END;
-$$
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_prv';
 
-CREATE OR REPLACE PACKAGE pack
+DELIMITER $$;
+CREATE PACKAGE pack
   FUNCTION func_pub() RETURNS TEXT;
 END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
 
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func_prv() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
-  END;
-
-  FUNCTION func_pub() RETURNS TEXT
-  BEGIN
-    RETURN func_prv();
-  END;
+  FUNCTION func_pub() RETURNS TEXT RETURN func_prv();
 END;
 $$
 DELIMITER ;$$
@@ -1147,38 +947,20 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test2, Rt: func_prv';
-END;
-$$
-DELIMITER ;$$
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test2, Rt: func_prv';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
-  RETURNS TEXT
-BEGIN
-  RETURN 'Invoke from Db: test, Rt: func_prv';
-END;
-$$
+CREATE FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Rt: func_prv';
 
-CREATE OR REPLACE PACKAGE pack
+DELIMITER $$;
+CREATE PACKAGE pack
   FUNCTION func_pub() RETURNS TEXT;
 END;
+$$
+CREATE PACKAGE BODY pack
+  FUNCTION func_prv() RETURNS TEXT RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
 
-CREATE OR REPLACE PACKAGE BODY pack
-  FUNCTION func_prv() RETURNS TEXT
-  BEGIN
-    RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
-  END;
-
-  FUNCTION func_pub() RETURNS TEXT
-  BEGIN
-    RETURN func_prv();
-  END;
+  FUNCTION func_pub() RETURNS TEXT RETURN func_prv();
 END;
 $$
 DELIMITER ;$$
@@ -1194,6 +976,9 @@ DROP FUNCTION func_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+
+
+
 --echo #
 --echo # sql_mode: DEFAULT | procedure | is unqualified
 --echo # curr db: X | path set: no
@@ -1201,13 +986,7 @@ SET @@path = DEFAULT;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -1231,13 +1010,7 @@ DROP PROCEDURE proc;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -1264,13 +1037,7 @@ SET @@path = DEFAULT;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # subtest start
 CREATE DATABASE test2;
@@ -1292,13 +1059,7 @@ DROP PROCEDURE proc;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # set path
 SET path 'sys,test';
@@ -1323,23 +1084,11 @@ SET @@path = DEFAULT;
 --echo #
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 # subtest start
 # Drop the current db. This de-selects any db.
@@ -1372,13 +1121,7 @@ SET @@path = DEFAULT;
 
 USE test;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # set path
 SET path 'sys,test';
@@ -1388,13 +1131,7 @@ CREATE DATABASE test2;
 USE test2;
 CALL proc;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 CALL proc;
 DROP PROCEDURE proc;
@@ -1421,22 +1158,10 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_call_proc()
-BEGIN
-  CALL proc;
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_call_proc() CALL proc;
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -1445,13 +1170,7 @@ DROP DATABASE deselect_db;
 CALL proc_call_proc;
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -1484,32 +1203,14 @@ SET path 'sys,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test2, Rt: proc';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_call_proc()
-BEGIN
-  CALL proc;
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_call_proc() CALL proc;
 
 CALL proc_call_proc;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: test, Rt: proc';
 
 CALL proc_call_proc;
 
@@ -1524,6 +1225,9 @@ DROP DATABASE test2;
 USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
+
+
+
 --echo #
 --echo # sql_mode: DEFAULT | procedure | is qualified
 --echo # curr db: X | path set: no
@@ -1532,15 +1236,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1569,15 +1270,12 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1609,15 +1307,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1644,15 +1339,12 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1682,15 +1374,12 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1698,15 +1387,12 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1745,15 +1431,12 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1767,15 +1450,12 @@ USE test2;
 CALL pack.proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -1807,25 +1487,16 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc_local';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    CALL proc_local;
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL proc_local;
 END;
 $$
 DELIMITER ;$$
@@ -1837,13 +1508,7 @@ DROP DATABASE deselect_db;
 CALL pack.proc;
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc_local';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -1877,38 +1542,23 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc_local';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test2, Rt: proc_local';
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    CALL proc_local;
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL proc_local;
 END;
 $$
 DELIMITER ;$$
 
 CALL pack.proc;
 
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc_local';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_local() SELECT 'Invoke from Db: test, Rt: proc_local';
 
 CALL pack.proc;
 DROP PROCEDURE proc_local;
@@ -1938,30 +1588,24 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
 END;
 $$
 DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    CALL pack2.proc;
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL pack2.proc;
 END;
 $$
 DELIMITER ;$$
@@ -1974,15 +1618,12 @@ CALL pack.proc;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -2022,30 +1663,24 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
 END;
 $$
 DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    CALL pack2.proc;
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() CALL pack2.proc;
 END;
 $$
 DELIMITER ;$$
@@ -2053,15 +1688,12 @@ DELIMITER ;$$
 CALL pack.proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2
+CREATE PACKAGE pack2
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack2
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
 END;
 $$
 DELIMITER ;$$
@@ -2093,28 +1725,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
 # Drop the current db. This de-selects any db.
 CREATE DATABASE deselect_db;
@@ -2148,28 +1771,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
 # subtest start
 USE test;
@@ -2196,28 +1810,19 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack
+CREATE PACKAGE pack
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
-  END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
 END;
 $$
 DELIMITER ;$$
 
 CREATE DATABASE pack;
 USE pack;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc()
-BEGIN
-  SELECT 'Invoke from Db: pack, Rt: proc';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc() SELECT 'Invoke from Db: pack, Rt: proc';
 
 # subtest start
 CREATE DATABASE test2;
@@ -2252,36 +1857,21 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv()
-BEGIN
-  SELECT 'Invoke from Db: test2, Rt: proc_prv';
-END;
-$$
-DELIMITER ;$$
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test2, Rt: proc_prv';
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv()
-BEGIN
+CREATE PROCEDURE proc_prv()
   SELECT 'Invoke from Db: test, Rt: proc_prv';
-END;
-$$
 
-CREATE OR REPLACE PACKAGE pack
+DELIMITER $$;
+CREATE PACKAGE pack
   PROCEDURE proc_pub();
 END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
 
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc_prv()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
-  END;
-
-  PROCEDURE proc_pub()
-  BEGIN
-    CALL proc_prv;
-  END;
+  PROCEDURE proc_pub() CALL proc_prv;
 END;
 $$
 DELIMITER ;$$
@@ -2314,36 +1904,21 @@ SET path 'test,test2';
 
 CREATE DATABASE test2;
 USE test2;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv()
-BEGIN
+CREATE PROCEDURE proc_prv()
   SELECT 'Invoke from Db: test2, Rt: proc_prv';
-END;
-$$
-DELIMITER ;$$
 
 USE test;
-DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv()
-BEGIN
-  SELECT 'Invoke from Db: test, Rt: proc_prv';
-END;
-$$
+CREATE PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Rt: proc_prv';
 
-CREATE OR REPLACE PACKAGE pack
+DELIMITER $$;
+CREATE PACKAGE pack
   PROCEDURE proc_pub();
 END;
+$$
+CREATE PACKAGE BODY pack
+  PROCEDURE proc_prv() SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
 
-CREATE OR REPLACE PACKAGE BODY pack
-  PROCEDURE proc_prv()
-  BEGIN
-    SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
-  END;
-
-  PROCEDURE proc_pub()
-  BEGIN
-    CALL proc_prv;
-  END;
+  PROCEDURE proc_pub() CALL proc_prv;
 END;
 $$
 DELIMITER ;$$
@@ -2359,6 +1934,9 @@ DROP PROCEDURE proc_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+
+
+
 --echo #
 --echo # sql_mode: ORACLE | function | is unqualified
 --echo # curr db: X | path set: no
@@ -2369,7 +1947,7 @@ SET sql_mode = ORACLE;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2400,7 +1978,7 @@ DROP FUNCTION func;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2434,7 +2012,7 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2463,7 +2041,7 @@ DROP FUNCTION func;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2495,7 +2073,7 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2506,7 +2084,7 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func';
@@ -2546,7 +2124,7 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2563,7 +2141,7 @@ USE test2;
 SELECT func();
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func';
@@ -2597,7 +2175,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func';
@@ -2607,7 +2185,7 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_call_func()
+CREATE FUNCTION func_call_func()
   RETURN TEXT AS
 BEGIN
   RETURN func();
@@ -2623,7 +2201,7 @@ SELECT func_call_func();
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2663,7 +2241,7 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func';
@@ -2673,7 +2251,7 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_call_func()
+CREATE FUNCTION func_call_func()
   RETURN TEXT AS
 BEGIN
   RETURN func();
@@ -2684,7 +2262,7 @@ DELIMITER ;$$
 SELECT func_call_func();
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func';
@@ -2705,6 +2283,9 @@ DROP DATABASE test2;
 USE test;
 DROP FUNCTION func_call_func;
 SET @@path = DEFAULT;
+
+
+
 --echo #
 --echo # sql_mode: ORACLE | function | is qualified
 --echo # curr db: X | path set: no
@@ -2713,11 +2294,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2750,11 +2331,11 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2790,11 +2371,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2825,11 +2406,11 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2863,11 +2444,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2879,11 +2460,11 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
@@ -2926,11 +2507,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -2948,11 +2529,11 @@ USE test2;
 SELECT pack.func();
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test2, Pack: pack, Rt: func';
@@ -2989,7 +2570,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
+CREATE FUNCTION func_local()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func_local';
@@ -2999,11 +2580,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN func_local();
@@ -3020,7 +2601,7 @@ SELECT pack.func();
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
+CREATE FUNCTION func_local()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func_local';
@@ -3061,7 +2642,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
+CREATE FUNCTION func_local()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func_local';
@@ -3071,11 +2652,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN func_local();
@@ -3087,7 +2668,7 @@ DELIMITER ;$$
 SELECT pack.func();
 
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_local()
+CREATE FUNCTION func_local()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func_local';
@@ -3123,11 +2704,11 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
@@ -3138,11 +2719,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN pack2.func();
@@ -3159,11 +2740,11 @@ SELECT pack.func();
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
@@ -3207,11 +2788,11 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test2, Pack: pack2, Rt: func';
@@ -3222,11 +2803,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN pack2.func();
@@ -3238,11 +2819,11 @@ DELIMITER ;$$
 SELECT pack.func();
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack2, Rt: func';
@@ -3278,11 +2859,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -3294,7 +2875,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: pack, Rt: func';
@@ -3334,11 +2915,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -3350,7 +2931,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: pack, Rt: func';
@@ -3383,11 +2964,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func';
@@ -3399,7 +2980,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func()
+CREATE FUNCTION func()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: pack, Rt: func';
@@ -3441,7 +3022,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
+CREATE FUNCTION func_prv()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func_prv';
@@ -3451,18 +3032,18 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
+CREATE FUNCTION func_prv()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func_prv';
 END;
 $$
 
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func_pub() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func_prv() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
@@ -3505,7 +3086,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
+CREATE FUNCTION func_prv()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test2, Rt: func_prv';
@@ -3515,18 +3096,18 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE FUNCTION func_prv()
+CREATE FUNCTION func_prv()
   RETURN TEXT AS
 BEGIN
   RETURN 'Invoke from Db: test, Rt: func_prv';
 END;
 $$
 
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   FUNCTION func_pub() RETURN TEXT;
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   FUNCTION func_prv() RETURN TEXT AS
   BEGIN
     RETURN 'Invoke from Db: test, Pack: pack, Rt: func_prv';
@@ -3551,6 +3132,9 @@ DROP FUNCTION func_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+
+
+
 --echo #
 --echo # sql_mode: ORACLE | procedure | is unqualified
 --echo # curr db: X | path set: no
@@ -3559,7 +3143,7 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3589,7 +3173,7 @@ DROP PROCEDURE proc;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3622,7 +3206,7 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3650,7 +3234,7 @@ DROP PROCEDURE proc;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3681,7 +3265,7 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3691,7 +3275,7 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc';
 END;
@@ -3730,7 +3314,7 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3746,7 +3330,7 @@ USE test2;
 CALL proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc';
 END;
@@ -3779,7 +3363,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc';
 END;
@@ -3788,7 +3372,7 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_call_proc() AS
+CREATE PROCEDURE proc_call_proc() AS
 BEGIN
   CALL proc;
 END;
@@ -3803,7 +3387,7 @@ CALL proc_call_proc;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3842,7 +3426,7 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc';
 END;
@@ -3851,7 +3435,7 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_call_proc() AS
+CREATE PROCEDURE proc_call_proc() AS
 BEGIN
   CALL proc;
 END;
@@ -3861,7 +3445,7 @@ DELIMITER ;$$
 CALL proc_call_proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc';
 END;
@@ -3882,6 +3466,9 @@ USE test;
 DROP PROCEDURE proc_call_proc;
 SET @@path = DEFAULT;
 --echo #
+
+
+
 --echo # sql_mode: ORACLE | procedure | is qualified
 --echo # curr db: X | path set: no
 --echo #
@@ -3889,11 +3476,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -3926,11 +3513,11 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -3966,11 +3553,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4001,11 +3588,11 @@ DROP PACKAGE pack;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4039,11 +3626,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4055,11 +3642,11 @@ DELIMITER ;$$
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
@@ -4102,11 +3689,11 @@ SET @@path = DEFAULT;
 USE test;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4124,11 +3711,11 @@ USE test2;
 CALL pack.proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test2, Pack: pack, Rt: proc';
@@ -4165,7 +3752,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local() AS
+CREATE PROCEDURE proc_local() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc_local';
 END;
@@ -4174,11 +3761,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     CALL proc_local;
@@ -4195,7 +3782,7 @@ CALL pack.proc;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local() AS
+CREATE PROCEDURE proc_local() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc_local';
 END;
@@ -4235,7 +3822,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local() AS
+CREATE PROCEDURE proc_local() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc_local';
 END;
@@ -4244,11 +3831,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     CALL proc_local;
@@ -4260,7 +3847,7 @@ DELIMITER ;$$
 CALL pack.proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_local() AS
+CREATE PROCEDURE proc_local() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc_local';
 END;
@@ -4295,11 +3882,11 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
@@ -4310,11 +3897,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     CALL pack2.proc;
@@ -4331,11 +3918,11 @@ CALL pack.proc;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
@@ -4379,11 +3966,11 @@ SET path 'sys,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test2, Pack: pack2, Rt: proc';
@@ -4394,11 +3981,11 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     CALL pack2.proc;
@@ -4410,11 +3997,11 @@ DELIMITER ;$$
 CALL pack.proc;
 
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack2 AS
+CREATE PACKAGE pack2 AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack2 AS
+$$
+CREATE PACKAGE BODY pack2 AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack2, Rt: proc';
@@ -4450,11 +4037,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4466,7 +4053,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: pack, Rt: proc';
 END;
@@ -4505,11 +4092,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4521,7 +4108,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: pack, Rt: proc';
 END;
@@ -4553,11 +4140,11 @@ SET @@path = DEFAULT;
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc';
@@ -4569,7 +4156,7 @@ DELIMITER ;$$
 CREATE DATABASE pack;
 USE pack;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc() AS
+CREATE PROCEDURE proc() AS
 BEGIN
   SELECT 'Invoke from Db: pack, Rt: proc';
 END;
@@ -4610,7 +4197,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv() AS
+CREATE PROCEDURE proc_prv() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc_prv';
 END;
@@ -4619,17 +4206,17 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv() AS
+CREATE PROCEDURE proc_prv() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc_prv';
 END;
 $$
 
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc_pub();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc_prv() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
@@ -4672,7 +4259,7 @@ SET path 'test,test2';
 CREATE DATABASE test2;
 USE test2;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv() AS
+CREATE PROCEDURE proc_prv() AS
 BEGIN
   SELECT 'Invoke from Db: test2, Rt: proc_prv';
 END;
@@ -4681,17 +4268,17 @@ DELIMITER ;$$
 
 USE test;
 DELIMITER $$;
-CREATE OR REPLACE PROCEDURE proc_prv() AS
+CREATE PROCEDURE proc_prv() AS
 BEGIN
   SELECT 'Invoke from Db: test, Rt: proc_prv';
 END;
 $$
 
-CREATE OR REPLACE PACKAGE pack AS
+CREATE PACKAGE pack AS
   PROCEDURE proc_pub();
 END;
-
-CREATE OR REPLACE PACKAGE BODY pack AS
+$$
+CREATE PACKAGE BODY pack AS
   PROCEDURE proc_prv() AS
   BEGIN
     SELECT 'Invoke from Db: test, Pack: pack, Rt: proc_prv';
@@ -4716,3 +4303,7 @@ DROP PROCEDURE proc_prv;
 DROP PACKAGE BODY pack;
 DROP PACKAGE pack;
 SET @@path = DEFAULT;
+
+--echo #
+--echo # End of 11.8 tests
+--echo #

@@ -645,6 +645,9 @@ f1()
 2
 # Two commits because a binary log record is written, and another two
 # as the function f1() is reloaded after creating temporary table.
+# After the function f1() is reloaded, another two commits increased due
+# to the read of the stored procedure from mysql.proc table during the
+# invocation of f1() with using new sql path resolution mechanism.
 call p_verify_status_increment(6, 0, 3, 0);
 SUCCESS
 

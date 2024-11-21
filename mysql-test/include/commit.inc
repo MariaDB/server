@@ -620,6 +620,9 @@ create temporary table t2 (a int);
 # One commit for the create temporary table, and two for committing the
 # read of the stored procedure from Aria table (creating temporary table
 # clears the sp cache).
+# After the sp cache cleard, another two commits increased due to the read
+# of the stored procedure from mysql.proc table during the invocation of
+# p_verify_status_increment() with using new sql path resolution mechanism.
 call p_verify_status_increment(5, 0, 2, 0);
 set sql_mode=default;
 --echo # 19. A function changes temp-trans-table.
@@ -627,6 +630,9 @@ set sql_mode=default;
 select f1();
 --echo # Two commits because a binary log record is written, and another two
 --echo # as the function f1() is reloaded after creating temporary table.
+--echo # After the function f1() is reloaded, another two commits increased due
+--echo # to the read of the stored procedure from mysql.proc table during the
+--echo # invocation of f1() with using new sql path resolution mechanism.
 call p_verify_status_increment(6, 0, 3, 0);
 commit;
 call p_verify_status_increment(2, 0, 1, 0);
@@ -682,6 +688,9 @@ call p_verify_status_increment(2, 0, 1, 0);
 drop temporary table t2;
 # Dropping temporary table clears SP caches, so get another two commit
 # increments from loading the p_verify_status_increment procedure.
+# After the sp cache cleard, another two commits increased due to the read
+# of the stored procedure from mysql.proc table during the invocation of
+# p_verify_status_increment() with using new sql path resolution mechanism.
 call p_verify_status_increment(5, 0, 2, 0);
 commit;
 call p_verify_status_increment(1, 0, 0, 0);
@@ -733,6 +742,9 @@ call p_verify_status_increment(0, 0, 0, 0);
 do (select f1() from t1 where a=2);
 # Again extra 2 commit increments from re-loading function f1 after
 # dropping temporary table.
+# After the function f1() is reloaded, another two commits increased due
+# to the read of the stored procedure from mysql.proc table during the
+# invocation of f1() with using new sql path resolution mechanism.
 call p_verify_status_increment(6, 2, 4, 2);
 commit;
 call p_verify_status_increment(2, 2, 2, 2);

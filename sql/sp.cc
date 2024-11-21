@@ -553,6 +553,8 @@ static TABLE *open_proc_table_for_update(THD *thd)
   @param thd    Thread context
   @param name   Name of routine
   @param table  TABLE object for open mysql.proc table.
+  @param update A flag paseds to function, handler::ha_index_read_idx_map
+                to update internal data
 
   @retval
     SP_OK             Routine found
@@ -2239,6 +2241,19 @@ Sp_handler::sp_find_routine(THD *thd, const Database_qualified_name *name,
 }
 
 
+/**
+  Determine the existence of the routine.
+  Note: ONLY determine the unqualified routine
+
+  @param thd          thread context
+  @param name         name of routine
+
+  @retval
+    Not 0  routine is not exists
+  @retval
+    0      routine is exists
+*/
+
 int
 Sp_handler::sp_find_routine_quick(THD *thd,
                                   const Database_qualified_name *name) const
@@ -2552,6 +2567,21 @@ is_package_public_routine(THD *thd,
 }
 
 
+/**
+  Check if a routine has a declaration in the CREATE PACKAGE statement
+  and the its implementation is exists in the PACKAGE BODY
+  Note that this function is extends from the function,
+  is_package_public_routine()
+
+    @param thd      current thd
+    @param db       the database name
+    @param package  the package name
+    @param name     the routine name
+    @param type     the routine type
+    @retval         true,  if both routine declaration and implementation exist
+    @retval         false, either routine declaration or implementation does not exist
+*/
+
 static bool
 is_package_public_routine_with_body(THD *thd,
                                     const Lex_ident_db &db,
@@ -2772,6 +2802,22 @@ Sp_handler::sp_resolve_package_routine(THD *thd,
 }
 
 
+/**
+  Detect cases when a package routine (rather than a standalone routine)
+  is called, and rewrite sp_name accordingly.
+  Note that this function is extends from the function,
+  Sp_handler::sp_resolve_package_routine()
+
+  @param thd              Current thd
+  @param caller           The caller routine (or NULL if outside of a routine)
+  @param [IN/OUT] name    The called routine name
+  @param [OUT]    pkgname If the routine is found to be a package routine,
+                          pkgname is populated with the package name.
+                          Otherwise, it's not touched.
+  @retval         false   on success
+  @retval         true    on error (e.g. EOM, could not read CREATE PACKAGE)
+*/
+
 bool
 Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
                                        sp_head *caller,
@@ -2832,6 +2878,13 @@ Sp_handler::sp_resolve_package_routine_sql_path(THD *thd,
   return ret;
 }
 
+
+/**
+  Wrapper function for function is_package_public_routine_with_body()
+
+  @retval         true,  either routine declaration or implementation does not exist
+  @retval         false, if both routine declaration and implementation exist
+*/
 
 bool Sp_handler::sp_find_qualified_routine(THD *thd,
                                            const Lex_ident_db &tmpdb,
