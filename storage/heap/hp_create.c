@@ -15,6 +15,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "heapdef.h"
+#include <my_bit.h>
 
 static int keys_compare(void *heap_rb, const void *key1, const void *key2);
 static void init_block(HP_BLOCK *block,uint reclength,ulong min_records,
@@ -279,28 +280,35 @@ static void init_block(HP_BLOCK *block, uint reclength, ulong min_records,
   if (!max_records)
     max_records= MY_MAX(min_records, 1000);
 
-  /*
+  recbuffer= (uint) MY_ALIGN(reclength, sizeof(uchar*));
+
+ /*
     We don't want too few records_in_block as otherwise the overhead of
     of the HP_PTRS block will be too notable
   */
   records_in_block= MY_MAX(1000, min_records);
-  records_in_block= MY_MIN(records_in_block, max_records);
-  /* If big max_records is given, allocate bigger blocks */
-  records_in_block= MY_MAX(records_in_block, max_records / 10);
+  if (max_records)
+    records_in_block= MY_MAX(records_in_block, max_records / 16);
+
+  /*
+    Align alloation sizes to power of 2 to get less memory fragmentation from
+    system alloc().
+    As long as we have less than 128 allocations, all but one of the
+    allocations will have an extra HP_PTRS size structure at the start
+    of the block.
+   */
+  records_in_block=
+    (my_round_up_to_next_power((uint32)
+                               (records_in_block * recbuffer +
+                                sizeof(HP_PTRS) + MALLOC_OVERHEAD)/2) /
+     recbuffer);
+
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
-    records_in_block= 10;
+    records_in_block= MY_MIN(10, max_records);
 
-  recbuffer= (uint) (reclength + sizeof(uchar**) - 1) & ~(sizeof(uchar**) - 1);
-  /*
-    Don't allocate more than my_default_record_cache_size per level.
-    The + 1 is there to ensure that we get at least 1 row per level (for
-    the exceptional case of very long rows)
-  */
-  if ((ulonglong) records_in_block*recbuffer >
-      (my_default_record_cache_size-sizeof(HP_PTRS)*HP_MAX_LEVELS))
-    records_in_block= (my_default_record_cache_size - sizeof(HP_PTRS) *
-                       HP_MAX_LEVELS) / recbuffer + 1;
+  DBUG_PRINT("info", ("records_in_block: %lu" ,records_in_block));
+
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
