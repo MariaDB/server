@@ -284,23 +284,14 @@ static void init_block(HP_BLOCK *block, uint reclength, ulong min_records,
     of the HP_PTRS block will be too notable
   */
   records_in_block= MY_MAX(1000, min_records);
-  records_in_block= MY_MIN(records_in_block, max_records);
-  /* If big max_records is given, allocate bigger blocks */
-  records_in_block= MY_MAX(records_in_block, max_records / 10);
+  if (max_records)
+    records_in_block= MY_MIN(records_in_block, max_records / 10);
   /* We don't want too few blocks per row either */
   if (records_in_block < 10)
-    records_in_block= 10;
+    records_in_block= MY_MIN(10, max_records);
 
-  recbuffer= (uint) (reclength + sizeof(uchar**) - 1) & ~(sizeof(uchar**) - 1);
-  /*
-    Don't allocate more than my_default_record_cache_size per level.
-    The + 1 is there to ensure that we get at least 1 row per level (for
-    the exceptional case of very long rows)
-  */
-  if ((ulonglong) records_in_block*recbuffer >
-      (my_default_record_cache_size-sizeof(HP_PTRS)*HP_MAX_LEVELS))
-    records_in_block= (my_default_record_cache_size - sizeof(HP_PTRS) *
-                       HP_MAX_LEVELS) / recbuffer + 1;
+  recbuffer= (uint) MY_ALIGN(reclength, sizeof(uchar*));
+
   block->records_in_block= records_in_block;
   block->recbuffer= recbuffer;
   block->last_allocated= 0L;
