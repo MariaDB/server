@@ -1127,13 +1127,22 @@ send_result:
       while ((err= it++))
       {
         const char *err_msg= err->get_message_text();
+        const char *err_msg_end= strend(err_msg);
+        /*
+          Remove end newline from error message if it exists.
+          This is needed as some engine, like InnoDB, is ending some
+          (but not all) error messages with \n.
+        */
+        if (err_msg != err_msg_end && err_msg_end[0] == '\n')
+          err_msg_end--;
+
         protocol->prepare_for_resend();
         protocol->store(&table_name, system_charset_info);
         protocol->store(operator_name, system_charset_info);
         protocol->store(warning_level_names[err->get_level()].str,
                         warning_level_names[err->get_level()].length,
                         system_charset_info);
-        protocol->store(err_msg, strlen(err_msg), system_charset_info);
+        protocol->store(err_msg, (err_msg_end - err_msg), system_charset_info);
         if (protocol->write())
           goto err;
       }
