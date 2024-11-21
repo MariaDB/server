@@ -1,0 +1,44 @@
+--source include/not_windows.inc
+--echo #
+--echo # MDEV-32061: Allow INTO OUTFILE to write to a fifo
+--echo # This test (as well as the feature itself) does not currently
+--echo # work on Windows, although one day it probably could.
+--echo #
+CREATE TABLE t1 (val1 VARCHAR(255), val2 VARCHAR(255));
+INSERT INTO t1 VALUES('hello', 'there');
+SELECT * FROM t1;
+--disable_ps2_protocol
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval SELECT * INTO OUTFILE '$MYSQL_TMP_DIR/fifo' FROM t1;
+--enable_ps2_protocol
+
+TRUNCATE TABLE t1;
+
+# Let's make sure that `cat` which was started by the .sh script has
+# had a chance to complete.
+
+let $counter= 600;
+while ($counter)
+{
+--error 0,1
+--file_exists $MYSQL_TMP_DIR/done.txt
+  if ($errno)
+  {
+    dec $counter;
+    real_sleep 0.1;
+  }
+  if (!$errno)
+  {
+    let $counter= 0;
+  }
+}
+--file_exists $MYSQL_TMP_DIR/done.txt
+
+--replace_result $MYSQL_TMP_DIR MYSQL_TMP_DIR
+eval LOAD DATA INFILE '$MYSQL_TMP_DIR/fifo_data.txt' INTO TABLE t1;
+SELECT * FROM t1;
+
+remove_file $MYSQL_TMP_DIR/fifo;
+remove_file $MYSQL_TMP_DIR/fifo_data.txt;
+remove_file $MYSQL_TMP_DIR/done.txt;
+DROP TABLE t1;
