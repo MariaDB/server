@@ -1648,13 +1648,10 @@ public:
       return 1 + latches + empty_slots + h;
     }
   private:
-    /** @return the hash value before any ELEMENTS_PER_LATCH padding */
-    static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
-
     /** @return the index of an array element */
-    static ulint calc_hash(ulint fold, ulint n_cells)
+    static ulint calc_hash(ulint fold, ulint n_cells) noexcept
     {
-      return pad(hash(fold, n_cells));
+      return pad(fold % n_cells);
     }
   public:
     /** @return the latch covering a hash table chain */

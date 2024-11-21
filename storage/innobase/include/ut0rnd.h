@@ -70,17 +70,6 @@ inline ulint ut_rnd_interval(ulint n)
   return n > 1 ? static_cast<ulint>(ut_rnd_gen() % n) : 0;
 }
 
-/*******************************************************//**
-The following function generates a hash value for a ulint integer
-to a hash table of size table_size, which should be a prime or some
-random number to work reliably.
-@return hash value */
-UNIV_INLINE
-ulint
-ut_hash_ulint(
-/*==========*/
-	ulint	 key,		/*!< in: value to be hashed */
-	ulint	 table_size);	/*!< in: hash table size */
 # if SIZEOF_SIZE_T < 8
 inline size_t ut_fold_ull(uint64_t d) noexcept
 {

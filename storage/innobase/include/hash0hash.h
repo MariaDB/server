@@ -135,8 +135,7 @@ struct hash_table_t
   /** Free the hash table. */
   void free() noexcept { ut_free(array); array= nullptr; }
 
-  ulint calc_hash(ulint fold) const noexcept
-  { return ut_hash_ulint(fold, n_cells); }
+  ulint calc_hash(ulint fold) const noexcept { return fold % n_cells; }
 
   hash_cell_t *cell_get(ulint fold) const noexcept
   { return &array[calc_hash(fold)]; }
