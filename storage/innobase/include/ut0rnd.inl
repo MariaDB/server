@@ -46,19 +46,6 @@ ut_hash_ulint(
 
 	return(key % table_size);
 }
-
-/*************************************************************//**
-Folds a 64-bit integer.
-@return folded value */
-UNIV_INLINE
-ulint
-ut_fold_ull(
-/*========*/
-	ib_uint64_t	d)	/*!< in: 64-bit integer */
-{
-	return(ut_fold_ulint_pair((ulint) d & ULINT32_MASK,
-				  (ulint) (d >> 32)));
-}
 #endif /* !UNIV_INNOCHECKSUM */
 
 /*************************************************************//**
