@@ -18,8 +18,8 @@ FROM Fibonacci
 WHERE N < 100000
 )
 SELECT PrevN as N, Stack FROM Fibonacci;
-select (select stack from t1 where n=2) = (select stack from t1 where N=75025);
-(select stack from t1 where n=2) = (select stack from t1 where N=75025)
+select (select stack from t1 where n=2) = (select stack from t1 where N=75025) as c;
+c
 1
 DROP table t1;
 #
