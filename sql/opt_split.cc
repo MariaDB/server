@@ -1106,7 +1106,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       if (!(first_non_const_pos->key &&
             spl_keys.is_set(first_non_const_pos->key->key)) ||
           !(spl_plan= thd->alloc<SplM_plan_info>(1)) ||
-	  !(spl_plan->best_positions= thd->alloc<POSITION>(join->table_count)) ||
+	  !(spl_plan->best_positions= new(thd) POSITION[join->table_count]) ||
 	  spl_opt_info->plan_cache.push_back(spl_plan))
       {
         reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,

@@ -374,7 +374,7 @@ LEX_CUSTRING build_frm_image(THD *thd, const LEX_CSTRING &table,
 
   if (!create_info->tabledef_version.str)
   {
-    uchar *to= thd->alloc<uchar>(MY_UUID_SIZE);
+    uchar *to= new(thd) uchar[MY_UUID_SIZE];
     if (unlikely(!to))
       DBUG_RETURN(frm);
     my_uuid(to);
@@ -913,8 +913,8 @@ static bool pack_header(THD *thd, uchar *forminfo,
         field->save_interval= field->typelib();
         field->set_typelib(tmpint= thd->alloc<TYPELIB>(1));
         *tmpint= *field->save_interval;
-        tmpint->type_names= thd->alloc<const char*>(count + 1);
-        tmpint->type_lengths= thd->alloc<uint>(count + 1);
+        tmpint->type_names= new(thd) const char*[count + 1];
+        tmpint->type_lengths= new(thd) uint[count + 1];
         tmpint->type_names[count]= 0;
         tmpint->type_lengths[count]= 0;
 

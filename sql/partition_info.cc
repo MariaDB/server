@@ -1671,7 +1671,7 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     if (!(char_ptrs= thd->calloc<uchar*>(tot_part_fields)))
       goto error;
     restore_part_field_ptrs= char_ptrs;
-    if (!(char_ptrs= thd->alloc<uchar*>(tot_part_fields + 1)))
+    if (!(char_ptrs= new(thd) uchar*[tot_part_fields + 1]))
       goto error;
     part_charset_field_array= (Field**)char_ptrs;
     ptr= part_field_array;
@@ -1703,7 +1703,7 @@ bool partition_info::set_up_charset_field_preps(THD *thd)
     if (!(char_ptrs= (uchar**) thd->calloc<uchar*>(tot_subpart_fields)))
       goto error;
     restore_subpart_field_ptrs= char_ptrs;
-    if (!(char_ptrs= (uchar**) thd->alloc<uchar*>(tot_subpart_fields + 1)))
+    if (!(char_ptrs= (uchar**) new(thd) uchar*[tot_subpart_fields + 1]))
       goto error;
     subpart_charset_field_array= (Field**)char_ptrs;
     ptr= subpart_field_array;
