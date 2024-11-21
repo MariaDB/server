@@ -8975,17 +8975,67 @@ static bool is_field_an_unique_index(Field *field)
   DBUG_RETURN(false);
 }
 
+
 /*
-  Get mm leaf for sargable string functions.
+  @brief
+    Given a string, escape the LIKE pattern characters (%, _, \) with the '\'.
 
-  Use for
-
-  ... LIKE "...%"
-
-  and
-
-  substr(..., 1, ...) = "..."
+  @detail
+    Currently we fail if the escaped string didn't fit into MAX_FIELD_WIDTH
+    bytes but this is not necessary.
 */
+
+static bool escape_like_characters(String *res)
+{
+  CHARSET_INFO *cs= res->charset();
+  StringBuffer<MAX_FIELD_WIDTH> tmp2(cs);
+  tmp2.copy(*res);
+  int ret;
+  uchar *src= (uchar *) tmp2.ptr(), *src_end= (uchar *) tmp2.end(),
+    *dst= (uchar *) res->ptr(), *dst_end= dst + MAX_FIELD_WIDTH;
+  my_wc_t wc;
+  while (src < src_end)
+  {
+    /* Advance to the next character */
+    if ((ret= my_ci_mb_wc(cs, &wc, src, src_end)) <= 0)
+    {
+      if (ret == MY_CS_ILSEQ) /* Bad sequence */
+        return true;       /* Cannot LIKE optimize */
+      break;                  /* End of the string */
+    }
+    src+= ret;
+
+    /* If the next char is escape-able in actual LIKE, escape it */
+    if (wc == (my_wc_t) '%' || wc == (my_wc_t) '_' || wc == (my_wc_t) '\\')
+    {
+      if ((ret= my_ci_wc_mb(cs, (my_wc_t) '\\', dst, dst_end)) <= 0)
+        return true; /* No space - no LIKE optimize */
+      dst+= ret;
+    }
+    if ((ret= my_ci_wc_mb(cs, wc, dst, dst_end)) <= 0)
+      return true; /* No space - no LIKE optimize */
+    dst+= ret;
+  }
+  res->length((char *) dst - res->ptr());
+  return false; /* Ok */
+}
+
+
+/*
+  @brief
+    Produce SEL_ARG interval for LIKE and prefix match functions.
+
+  @detail
+    This is used for conditions in forms:
+
+     - key_col LIKE 'sargable_pattern'
+     - SUBSTR(key_col, 1, ...) = 'value' - see with_sargable_substr() for
+       details.
+
+  @param
+     item The comparison item (Item_func_like or Item_func_eq)
+*/
+
 static SEL_ARG *
 get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
                      Field *field, KEY_PART *key_part,
@@ -9054,42 +9104,19 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
   }
 
   /*
-    If the item is sargable because it is in the form of substr(...,
-    1, n) = ... or left(..., n) = ..., then append a LIKE wildcard for
-    the like_range() call
+    If we're handling a predicate in one of these forms:
+     - LEFT(key_col, N) ='string_const'
+     - SUBSTRING(key_col, 1, N)='string_const'
+
+    then we need to:
+    - escape the LIKE pattern characters in the string_const,
+    - make the search pattern to be 'string_const%':
   */
   if (type != Item_func::LIKE_FUNC)
   {
-    StringBuffer<MAX_FIELD_WIDTH> tmp2(value->collation.collation);
-    tmp2.copy(*res);
-    int ret;
-    uchar *src= (uchar *) tmp2.ptr(), *src_end= (uchar *) tmp2.end(),
-      *dst= (uchar *) res->ptr(), *dst_end= dst + MAX_FIELD_WIDTH;
-    my_wc_t wc;
-    CHARSET_INFO *cs= field->charset();
-    while (src < src_end)
-    {
-      /* Advance to the next character */
-      if ((ret= my_ci_mb_wc(cs, &wc, src, src_end)) <= 0)
-      {
-        if (ret == MY_CS_ILSEQ) /* Bad sequence */
-          DBUG_RETURN(0);       /* Cannot LIKE optimize */
-        break;                  /* End of the string */
-      }
-      src+= ret;
-
-      /* If the next char is escape-able in actual LIKE, escape it */
-      if (wc == (my_wc_t) '%' || wc == (my_wc_t) '_' || wc == (my_wc_t) '\\')
-      {
-        if ((ret= my_ci_wc_mb(cs, (my_wc_t) '\\', dst, dst_end)) <= 0)
-          DBUG_RETURN(0); /* No space - no LIKE optimize */
-        dst+= ret;
-      }
-      if ((ret= my_ci_wc_mb(cs, wc, dst, dst_end)) <= 0)
-        DBUG_RETURN(0); /* No space - no LIKE optimize */
-      dst+= ret;
-    }
-    res->length((char *) dst - res->ptr());
+    DBUG_ASSERT(type == Item_func::EQ_FUNC);
+    if (escape_like_characters(res))
+      DBUG_RETURN(0); /* Error, no optimization */
     res->append("%", 1);
   }
 
@@ -9147,6 +9174,7 @@ get_mm_leaf_for_LIKE(Item_bool_func *item, RANGE_OPT_PARAM *param,
   DBUG_RETURN(tree);
 }
 
+
 SEL_TREE *
 Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
 	                     Item_func::Functype type, Item *value)
@@ -9192,7 +9220,10 @@ Item_bool_func::get_mm_parts(RANGE_OPT_PARAM *param, Field *field,
           know_sargable_substr= true;
         }
         if (sargable_substr)
-          sel_arg= get_mm_leaf_for_LIKE(this, param, key_part->field, key_part, type, value);
+        {
+          sel_arg= get_mm_leaf_for_LIKE(this, param, key_part->field, key_part,
+                                        type, value);
+        }
         else
           sel_arg= get_mm_leaf(param, key_part->field, key_part, type, value);
         param->thd->mem_root= tmp_root;

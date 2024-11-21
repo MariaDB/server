@@ -7093,6 +7093,7 @@ Item_bool_func2::add_key_fields_optimize_op(JOIN *join, KEY_FIELD **key_fields,
   {
     Item_field *field= NULL;
     int value_idx= -1;
+    /* Handle SUBSTR(key,1,N)='const', 'const'=SUBSTR(key,1,N),  etc */
     if (with_sargable_substr(&field, &value_idx))
     {
       add_key_equal_fields(join, key_fields, *and_level, this, field,
