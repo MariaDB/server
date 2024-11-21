@@ -2251,43 +2251,90 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       return NULL;
   }
 
-  if (event_type == WRITE_ROWS_EVENT)
-  {
-    fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT\n");
-  }
+  //if (event_type == WRITE_ROWS_EVENT)
+  //{
+  //  fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT\n");
+  //}
 
-  if (event_type == WRITE_ROWS_EVENT_V1)
-  {
-    //const char* c_data= packet->ptr();
-    //size_t const tmp_str_sz= my_base64_needed_encoded_length((int) packet->length());
-    //char *tmp_str;
-    //tmp_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, tmp_str_sz, MYF(MY_WME));
+  //if (event_type == WRITE_ROWS_EVENT_V1)
+  //{
+  //  //const char* c_data= packet->ptr();
+  //  //size_t const tmp_str_sz= my_base64_needed_encoded_length((int) packet->length());
+  //  //char *tmp_str;
+  //  //tmp_str= (char *) my_malloc(PSI_NOT_INSTRUMENTED, tmp_str_sz, MYF(MY_WME));
 
-    //if (my_base64_encode(c_data, (size_t) packet->length(), tmp_str))
-    //{
-    //  DBUG_ASSERT(0);
-    //}
-    //fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT_V1\nData: %s\nBase64: %s\n\n", c_data, tmp_str);
-    //my_free(tmp_str);
-    fprintf(stderr, "\n\tConverting WRITE_ROWS_EVENT_V1 to Query_log_event with BINLOG ''\n");
-    //packet->realloc(512);
-    //Query_log_event qev(
-    //    current_thd,
-    //    C_STRING_WITH_LEN(
-    //        "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='"),
-    //    false, false, false, 0);
-    if (Query_log_event::from_rows_event(packet, ev_offset, current_checksum_alg))
+  //  //if (my_base64_encode(c_data, (size_t) packet->length(), tmp_str))
+  //  //{
+  //  //  DBUG_ASSERT(0);
+  //  //}
+  //  //fprintf(stderr, "\n\tSending a WRITE_ROWS_EVENT_V1\nData: %s\nBase64: %s\n\n", c_data, tmp_str);
+  //  //my_free(tmp_str);
+  //  fprintf(stderr, "\n\tConverting WRITE_ROWS_EVENT_V1 to Query_log_event with BINLOG ''\n");
+  //  //packet->realloc(512);
+  //  //Query_log_event qev(
+  //  //    current_thd,
+  //  //    C_STRING_WITH_LEN(
+  //  //        "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='"),
+  //  //    false, false, false, 0);
+  //  if (Query_log_event::from_rows_event(packet, ev_offset, current_checksum_alg))
+  //  {
+  //    info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
+  //    return "Failed to replace rows event with query BINLOG ''.";
+  //  }
+
+
+
+
+  //  //Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
+  //  //                          suppress_use, errcode);
+
+  //}
+
+    if (event_type == WRITE_ROWS_EVENT_V1 ||
+        event_type == UPDATE_ROWS_EVENT_V1 ||
+        event_type == DELETE_ROWS_EVENT_V1)
     {
-      info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
-      return "Failed to replace rows event with query BINLOG ''.";
+      if (packet->length() > info->net->max_packet_size)
+      {
+        /*
+          Our rows event is too big, write it as BINLGO @b0, @b1
+        */
+        const char *data_start= packet->ptr();
+        ulong data_len= packet->length() - ev_offset;
+        size_t b64_len= my_base64_needed_encoded_length(data_len);
+        char *b64_str;
+        char *setvar_query_str;
+
+        /*
+          TODO error handling
+        */
+        if (!(b64_str= static_cast<char *>(my_malloc(PSI_NOT_INSTRUMENTED, b64_len, MYF(MY_WME)))))
+          DBUG_ASSERT(0);
+
+        if (!(setvar_query_str= static_cast<char *>(my_malloc(
+                  PSI_NOT_INSTRUMENTED,
+                  b64_len + 2 + QUERY_HEADER_LEN + LOG_EVENT_HEADER_LEN,
+                  MYF(MY_WME)))))
+          DBUG_ASSERT(0);
+
+
+        if (my_base64_encode(data_start, (size_t) b64_len, (char *) b64_str))
+        {
+          DBUG_ASSERT(0);
+        }
+        va_list args;
+        va_start(args, b64_str);
+        const char *b64_query= my_vsnprintf(setvar_query_str, b64_len+11, "set @b0= '%s'", args);
+        
+        va_end(args);
+
+
+        String a(b64_len+2+QUERY_HEADER_LEN+LOG_EVENT_HEADER_LEN);
+        Query_log_event::surround_query(const char *query, size_t query_len, String *packet, enum_binlog_checksum_alg checksum_alg)
+
+
+      }
     }
-
-
-
-    //Query_log_event qinfo(this, query_arg, query_len, is_trans, direct,
-    //                          suppress_use, errcode);
-
-  }
 
   THD_STAGE_INFO(info->thd, stage_sending_binlog_event_to_slave);
 

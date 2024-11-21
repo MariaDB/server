@@ -1879,6 +1879,58 @@ Query_log_event::dummy_event(String *packet, ulong ev_offset,
   return 0;
 }
 
+int Query_log_event::surround_query(const char *query, size_t query_len,
+                                    String *packet,
+                                    enum_binlog_checksum_alg checksum_alg)
+{
+  uchar *p= reinterpret_cast<uchar *>(packet->c_ptr());
+  uint16 flags;
+  //static const size_t min_query_event_len=
+  //  LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN + 1 + 1; // 34
+  size_t data_len= packet->length();
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+    data_len-= BINLOG_CHECKSUM_LEN;
+  else
+    DBUG_ASSERT(checksum_alg == BINLOG_CHECKSUM_ALG_UNDEF ||
+                checksum_alg == BINLOG_CHECKSUM_ALG_OFF);
+
+  flags= uint2korr(p + FLAGS_OFFSET);
+  flags&= ~LOG_EVENT_THREAD_SPECIFIC_F;
+  flags|= LOG_EVENT_SUPPRESS_USE_F;
+  int2store(p + FLAGS_OFFSET, flags);
+
+  uchar *q= p + LOG_EVENT_HEADER_LEN;
+  //size_t comment_len, len;
+
+  p[EVENT_TYPE_OFFSET]= QUERY_EVENT;
+  int4store(q + Q_THREAD_ID_OFFSET, 0);
+  int4store(q + Q_EXEC_TIME_OFFSET, 0);
+  q[Q_DB_LEN_OFFSET]= 0;
+  int2store(q + Q_ERR_CODE_OFFSET, 0);
+  int2store(q + Q_STATUS_VARS_LEN_OFFSET, 0);
+  q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
+  q+= Q_DATA_OFFSET + 1;
+  //len= my_snprintf(buf, sizeof(buf), message);
+  //len= my_snprintf(buf, query_len, "%s", query);
+  //comment_len= data_len - (min_query_event_len - 1);
+  //if (comment_len <= len)
+  //  memcpy(q, buf, comment_len);
+  //else
+  //{
+  memcpy(q, query, query_len);
+
+ //   memset(q+len, ' ', comment_len - len);
+  //}
+
+
+  if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
+  {
+    ha_checksum crc= my_checksum(0, p, data_len);
+    int4store(p + data_len, crc);
+  }
+  return 0;
+}
+
 int Query_log_event::from_rows_event(String *packet, ulong ev_offset,
                                      enum_binlog_checksum_alg checksum_alg)
 {
@@ -1887,6 +1939,7 @@ int Query_log_event::from_rows_event(String *packet, ulong ev_offset,
   uint16 flags;
   static const size_t min_query_event_len=
     LOG_EVENT_HEADER_LEN + QUERY_HEADER_LEN + 1 + 1; // 34
+  static uint write_ctr= 0;
 
   if (checksum_alg == BINLOG_CHECKSUM_ALG_CRC32)
     data_len-= BINLOG_CHECKSUM_LEN;
@@ -1906,10 +1959,29 @@ int Query_log_event::from_rows_event(String *packet, ulong ev_offset,
     //"# Dummy event replacing event type %u that slave cannot handle.";
 //  static const char message[]=
 //"BINLOG 'Z6MzZxMBAAAALQAAAAAAAAAAACEAAAAAAAEABHRlc3QAAnQxAAEDAAHlFCsAZ6MzZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAI73ap8='";
-  static const char message[]=
-"set @b0= 'Z6MzZxMBAAAALQAAAAAAAAAAACEAAAAAAAEABHRlc3QAAnQxAAEDAAHlFCsAZ6MzZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAI73ap8='/*!*/; set @b1= ''/*!*/; BINLOG @b0, @b1/*!*/;";
+  static const char m1[]=
+"set @b0= 'Z6MzZxMBAAAALQAAAAAAAAAAACEAAAAAAAEABHRlc3QAAnQxAAEDAAHlFCsAZ6MzZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAI73ap8='";
+  static const char m2[]= "set @b1= ''";
+  static const char m3[]= "BINLOG @b0, @b1";
+
+  //static const char m1[]= "set @a=17";
+  //static const char m2[]= "insert into test.t1 values (@a);";
+  const char *m_ptr;
+  if (write_ctr == 0)
+  {
+    m_ptr= m1;
+  }
+  if (write_ctr == 1)
+  {
+    m_ptr= m2;
+  }
+  if (write_ctr == 2)
+  {
+    m_ptr= m3;
+  }
+  write_ctr++;
 //    "BINLOG 'IlUZZxcBAAAAJgAAAAAAAAAAACEAAAAAAAEAAQH+AQAAAF0AevA='";
-  char buf[sizeof(message)+1];  /* +1, as %u can expand to 3 digits. */
+  char buf[sizeof(m1)+1];  /* +1, as %u can expand to 3 digits. */
   uchar *q= p + LOG_EVENT_HEADER_LEN;
   size_t comment_len, len;
 
@@ -1922,7 +1994,8 @@ int Query_log_event::from_rows_event(String *packet, ulong ev_offset,
   q[Q_DATA_OFFSET]= 0;                    /* Zero terminator for empty db */
   q+= Q_DATA_OFFSET + 1;
   //len= my_snprintf(buf, sizeof(buf), message, old_type);
-  len= my_snprintf(buf, sizeof(buf), message);
+  //len= my_snprintf(buf, sizeof(buf), message);
+  len= my_snprintf(buf, sizeof(buf), m_ptr);
   comment_len= data_len - (min_query_event_len - 1);
   //if (comment_len <= len)
   //  memcpy(q, buf, comment_len);
