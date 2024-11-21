@@ -20577,7 +20577,7 @@ bool Create_tmp_table::finalize(THD *thd,
                                  MY_MIN(thd->variables.tmp_memory_table_size,
                                      thd->variables.max_heap_table_size) :
                                  thd->variables.tmp_disk_table_size) /
-                                share->reclength);
+                                MY_ALIGN(share->reclength, sizeof(char*)));
   set_if_bigger(share->max_rows,1);		// For dummy start options
   /*
     Push the LIMIT clause to the temporary table creation, so that we

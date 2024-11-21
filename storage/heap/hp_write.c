@@ -145,21 +145,22 @@ static uchar *next_free_record_pos(HP_SHARE *info)
     DBUG_PRINT("exit",("Used old position: %p", pos));
     DBUG_RETURN(pos);
   }
-  if ((info->records > info->max_records && info->max_records) ||
-      (info->data_length + info->index_length >= info->max_table_size))
-  {
-    DBUG_PRINT("error",
-                ("record file full. records: %lu  max_records: %lu  "
-                "data_length: %llu  index_length: %llu  "
-                "max_table_size: %llu",
-                info->records, info->max_records,
-                info->data_length, info->index_length,
-                info->max_table_size));
-    my_errno=HA_ERR_RECORD_FILE_FULL;
-    DBUG_RETURN(NULL);
-  }
   if (!(block_pos=(info->records % info->block.records_in_block)))
   {
+    if ((info->records > info->max_records && info->max_records) ||
+        (info->data_length + info->index_length >= info->max_table_size))
+    {
+      DBUG_PRINT("error",
+                 ("record file full. records: %lu  max_records: %lu  "
+                  "data_length: %llu  index_length: %llu  "
+                  "max_table_size: %llu",
+                  info->records, info->max_records,
+                  info->data_length, info->index_length,
+                  info->max_table_size));
+      my_errno=HA_ERR_RECORD_FILE_FULL;
+      DBUG_RETURN(NULL);
+    }
+
     if (hp_get_new_block(info, &info->block,&length))
       DBUG_RETURN(NULL);
     info->data_length+=length;

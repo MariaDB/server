@@ -397,7 +397,7 @@ DROP TABLE t1;
 connect (con1,localhost,root,,test);
 connection con1;
 
-set tmp_table_size=1024;
+set tmp_table_size=2048;
 
 # Create the test tables
 create table t1 (id int, a int, key idx(a));
