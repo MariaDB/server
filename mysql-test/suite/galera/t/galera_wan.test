@@ -40,3 +40,12 @@ SELECT COUNT(*) AS EXPECT_1 FROM t1;
 
 SELECT VARIABLE_VALUE LIKE '%gmcast.segment = 3%' FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME = 'wsrep_provider_options';
 DROP TABLE t1;
+
+--connection node_1
+call mtr.add_suppression("WSREP: read_completion_condition.*");
+call mtr.add_suppression("WSREP: read_handler.*");
+
+--disconnect node_3
+--disconnect node_4
+
+--source include/galera_end.inc
