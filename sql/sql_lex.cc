@@ -6550,6 +6550,58 @@ bool LEX::sp_param_fill_definition(sp_variable *spvar,
 }
 
 
+bool LEX::sp_param_set_default_and_finalize(sp_variable *spvar,
+                                        Item *default_value,
+                                        const LEX_CSTRING &expr_str)
+{
+  DBUG_ASSERT(spvar);
+
+  if (default_value)
+  {
+    if (spvar->mode != sp_variable::MODE_IN)
+    {
+      // PLS-00230: OUT and IN OUT formal parameters may not have default expressions
+      my_error(ER_INVALID_DEFAULT_PARAM, MYF(0));
+      return true;
+    }
+
+    spvar->default_value= default_value;
+
+    sp_instr_set_default_param *is= new (thd->mem_root)
+                      sp_instr_set_default_param(sphead->instructions(),
+                                   spcont, &sp_rcontext_handler_local,
+                                   spvar->offset, default_value,
+                                   this, true, expr_str);
+    if (unlikely(is == NULL || sphead->add_instr(is)))
+      return true;
+  }
+  else if (spcont->context_var_count() > 1)
+  {
+    if (unlikely(spcont->get_last_context_variable(1)->default_value))
+    {
+      /*
+        Previous formal parameter has a default value, but this one doesn't.
+      */
+      if (spvar->mode == sp_variable::MODE_IN)
+        my_error(ER_NO_DEFAULT, MYF(0), spvar->name.str);
+      else if (thd->variables.sql_mode & MODE_ORACLE)
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "sparam1 IN <type> DEFAULT <expr>, spparam2 OUT <type>");
+      else
+        my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+                 "IN sparam1 <type> DEFAULT <expr>, OUT spparam2 <type>");
+      return true;
+    }
+  }
+
+  spcont->declare_var_boundary(0);
+  if (sphead->restore_lex(thd))
+    return true;
+  
+  return false;
+}
+
+
 bool LEX::sf_return_fill_definition(const Lex_field_type_st &def)
 {
   return

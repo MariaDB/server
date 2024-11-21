@@ -1,0 +1,247 @@
+--echo # Start of 11.8 tests
+
+--echo #
+--echo # MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+--echo #
+
+SET sql_mode=oracle;
+
+--echo #
+--echo # Basic default parameter test for procedures
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+AS
+BEGIN
+  SELECT par1, par2 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1(2,3);
+CALL p1(2);
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p1(2,3,4);
+--error ER_SP_WRONG_NO_OF_ARGS
+CALL p1();
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Basic default parameter test for functions
+--echo #
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(par1 INT, par2 INT DEFAULT 1) RETURN INT
+AS
+BEGIN
+  RETURN par1 + par2;
+END;
+$$
+DELIMITER ;$$
+SELECT f1(2,3) FROM DUAL;
+SELECT f1(2) FROM DUAL;
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f1(2,3,4) FROM DUAL;
+--error ER_SP_WRONG_NO_OF_ARGS
+SELECT f1() FROM DUAL;
+
+DROP FUNCTION f1;
+
+--echo #
+--echo # OUT parameters cannot have default values
+--echo #
+DELIMITER $$;
+--error ER_INVALID_DEFAULT_PARAM
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT DEFAULT 1, par2 OUT INT DEFAULT 2)
+AS
+BEGIN
+  SELECT par1 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # INOUT parameters cannot have default values
+--echo #
+DELIMITER $$;
+--error ER_INVALID_DEFAULT_PARAM
+CREATE OR REPLACE PROCEDURE p1(par1 INOUT INT DEFAULT 1, par2 OUT INT DEFAULT 2)
+AS
+BEGIN
+  SELECT par1 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Test various data types
+--echo #
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+
+CREATE DATABASE d1;
+USE d1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+
+USE test;
+DELIMITER $$;
+CREATE OR REPLACE PROCEDURE p1(
+                par1 IN INT DEFAULT 1,
+                par2 IN VARCHAR(10) DEFAULT 'abc',
+                par3 IN DATETIME DEFAULT '2010-01-01 12:34:56',
+                par4 IN DECIMAL(10,2) DEFAULT 123.45,
+                par5 IN FLOAT DEFAULT 123.45,
+                par6 IN DOUBLE DEFAULT 123.45,
+                par7 IN CHAR DEFAULT 'a',
+                par8 IN BOOLEAN DEFAULT TRUE,
+                par9 IN ROW(a INT, b VARCHAR(10)) DEFAULT ROW(1, 'abc'),
+                par10 IN t1.a%TYPE DEFAULT 10,
+                par11 IN d1.t1.a%TYPE DEFAULT 10,
+                par12 IN t1%ROWTYPE DEFAULT (1, 'cde'),
+                par13 IN d1.t1%ROWTYPE DEFAULT (1, 'cde')
+                )
+AS
+BEGIN
+    SELECT par1, par2, par3, par4, par5, par6, par7, par8, par9.b, par10, par11, par12.b, par13.b FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+CALL p1();
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE d1;
+
+--echo #
+--echo # Expression as default value is not evaluated if value is provided
+--echo #
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+DELIMITER $$;
+CREATE FUNCTION f1() RETURN INT
+AS
+BEGIN
+  INSERT INTO t1 VALUES (NULL);
+  RETURN LAST_INSERT_ID();
+END;
+$$
+CREATE PROCEDURE p1(par1 IN INT DEFAULT f1())
+AS
+BEGIN
+  SELECT par1 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+--disable_ps_protocol
+CALL p1();
+CALL p1(10);
+CALL p1();
+--enable_ps_protocol
+
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+
+--echo #
+--echo # Subquery as default value
+--echo # NOTE: Oracle does not allow this
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+DELIMITER $$;
+CREATE PROCEDURE p1(par1 IN INT DEFAULT (SELECT a FROM t1))
+AS
+BEGIN
+  SELECT par1 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1();
+CALL p1(10);
+
+DROP PROCEDURE p1;
+DROP TABLE t1;
+
+--echo #
+--echo # Default value from another parameter
+--echo # NOTE: Oracle does not allow this
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT par1)
+AS
+BEGIN
+  SELECT par1, par2 FROM DUAL;
+END;
+$$
+DELIMITER ;$$
+
+CALL p1(10);
+CALL p1(10,20);
+
+DROP PROCEDURE p1;
+
+--echo #
+--echo # Default value referencing self
+--echo # NOTE: Oracle does not allow this
+--echo #
+DELIMITER $$;
+--error ER_SP_UNDECLARED_VAR
+CREATE PROCEDURE p1(par1 IN INT DEFAULT par1)
+AS
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+--echo #
+--echo # Default parameters in package's routines
+--echo #
+DELIMITER $$;
+CREATE PACKAGE p1 AS
+  PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1);
+  FUNCTION f1(par1 IN INT, par2 IN INT DEFAULT 1) RETURN INT;
+END p1;
+$$
+CREATE PACKAGE BODY p1 AS
+  PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+  AS
+  BEGIN
+    SELECT par1, par2 FROM DUAL;
+  END;
+
+  FUNCTION f1(par1 IN INT, par2 IN INT DEFAULT 1) RETURN INT
+  AS
+  BEGIN
+    RETURN par1 + par2;
+  END;
+END p1;
+$$
+DELIMITER ;$$
+
+CALL p1.p1(5);
+CALL p1.p1(5, 10);
+SELECT p1.f1(5) FROM DUAL;
+SELECT p1.f1(5, 10) FROM DUAL;
+
+DROP PACKAGE p1;
+
+
+--echo #
+--echo # MDEV-35925 OUT and INOUT parameters shouldn't expect a default value
+--echo #
+
+# An IN param with default followed by an OUT param
+DELIMITER $$;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 OUT INT)
+BEGIN
+  SET p2 = p2 + 1;
+END;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 INOUT INT)
+BEGIN
+  SET p2 = p2 + 1;
+END;
+DELIMITER ;$$
+
+--echo # End of 11.8 tests

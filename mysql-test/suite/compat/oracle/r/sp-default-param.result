@@ -1,0 +1,225 @@
+# Start of 11.8 tests
+#
+# MDEV-10862 Stored procedures: default values for parameters (optional parameters)
+#
+SET sql_mode=oracle;
+#
+# Basic default parameter test for procedures
+#
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+AS
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+$$
+CALL p1(2,3);
+par1	par2
+2	3
+CALL p1(2);
+par1	par2
+2	1
+CALL p1(2,3,4);
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p1; expected 2, got 3
+CALL p1();
+ERROR 42000: Incorrect number of arguments for PROCEDURE test.p1; expected 2, got 0
+DROP PROCEDURE p1;
+#
+# Basic default parameter test for functions
+#
+CREATE OR REPLACE FUNCTION f1(par1 INT, par2 INT DEFAULT 1) RETURN INT
+AS
+BEGIN
+RETURN par1 + par2;
+END;
+$$
+SELECT f1(2,3) FROM DUAL;
+f1(2,3)
+5
+SELECT f1(2) FROM DUAL;
+f1(2)
+3
+SELECT f1(2,3,4) FROM DUAL;
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 2, got 3
+SELECT f1() FROM DUAL;
+ERROR 42000: Incorrect number of arguments for FUNCTION test.f1; expected 2, got 0
+DROP FUNCTION f1;
+#
+# OUT parameters cannot have default values
+#
+CREATE OR REPLACE PROCEDURE p1(par1 IN INT DEFAULT 1, par2 OUT INT DEFAULT 2)
+AS
+BEGIN
+SELECT par1 FROM DUAL;
+END;
+$$
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+#
+# INOUT parameters cannot have default values
+#
+CREATE OR REPLACE PROCEDURE p1(par1 INOUT INT DEFAULT 1, par2 OUT INT DEFAULT 2)
+AS
+BEGIN
+SELECT par1 FROM DUAL;
+END;
+$$
+ERROR HY000: Default/ignore value is not supported for such parameter usage
+#
+# Test various data types
+#
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+CREATE DATABASE d1;
+USE d1;
+CREATE TABLE t1 (a INT, b VARCHAR(10));
+USE test;
+CREATE OR REPLACE PROCEDURE p1(
+par1 IN INT DEFAULT 1,
+par2 IN VARCHAR(10) DEFAULT 'abc',
+par3 IN DATETIME DEFAULT '2010-01-01 12:34:56',
+par4 IN DECIMAL(10,2) DEFAULT 123.45,
+par5 IN FLOAT DEFAULT 123.45,
+par6 IN DOUBLE DEFAULT 123.45,
+par7 IN CHAR DEFAULT 'a',
+par8 IN BOOLEAN DEFAULT TRUE,
+par9 IN ROW(a INT, b VARCHAR(10)) DEFAULT ROW(1, 'abc'),
+par10 IN t1.a%TYPE DEFAULT 10,
+par11 IN d1.t1.a%TYPE DEFAULT 10,
+par12 IN t1%ROWTYPE DEFAULT (1, 'cde'),
+par13 IN d1.t1%ROWTYPE DEFAULT (1, 'cde')
+)
+AS
+BEGIN
+SELECT par1, par2, par3, par4, par5, par6, par7, par8, par9.b, par10, par11, par12.b, par13.b FROM DUAL;
+END;
+$$
+CALL p1();
+par1	par2	par3	par4	par5	par6	par7	par8	par9.b	par10	par11	par12.b	par13.b
+1	abc	2010-01-01 12:34:56	123.45	123.45	123.45	a	1	abc	10	10	cde	cde
+DROP PROCEDURE p1;
+DROP TABLE t1;
+DROP DATABASE d1;
+#
+# Expression as default value is not evaluated if value is provided
+#
+CREATE TABLE t1 (a INT AUTO_INCREMENT PRIMARY KEY);
+CREATE FUNCTION f1() RETURN INT
+AS
+BEGIN
+INSERT INTO t1 VALUES (NULL);
+RETURN LAST_INSERT_ID();
+END;
+$$
+CREATE PROCEDURE p1(par1 IN INT DEFAULT f1())
+AS
+BEGIN
+SELECT par1 FROM DUAL;
+END;
+$$
+CALL p1();
+par1
+1
+CALL p1(10);
+par1
+10
+CALL p1();
+par1
+2
+DROP PROCEDURE p1;
+DROP FUNCTION f1;
+DROP TABLE t1;
+#
+# Subquery as default value
+# NOTE: Oracle does not allow this
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+CREATE PROCEDURE p1(par1 IN INT DEFAULT (SELECT a FROM t1))
+AS
+BEGIN
+SELECT par1 FROM DUAL;
+END;
+$$
+CALL p1();
+par1
+1
+CALL p1(10);
+par1
+10
+DROP PROCEDURE p1;
+DROP TABLE t1;
+#
+# Default value from another parameter
+# NOTE: Oracle does not allow this
+#
+CREATE PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT par1)
+AS
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+$$
+CALL p1(10);
+par1	par2
+10	10
+CALL p1(10,20);
+par1	par2
+10	20
+DROP PROCEDURE p1;
+#
+# Default value referencing self
+# NOTE: Oracle does not allow this
+#
+CREATE PROCEDURE p1(par1 IN INT DEFAULT par1)
+AS
+BEGIN
+NULL;
+END;
+$$
+ERROR 42000: Undeclared variable: par1
+#
+# Default parameters in package's routines
+#
+CREATE PACKAGE p1 AS
+PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1);
+FUNCTION f1(par1 IN INT, par2 IN INT DEFAULT 1) RETURN INT;
+END p1;
+$$
+CREATE PACKAGE BODY p1 AS
+PROCEDURE p1(par1 IN INT, par2 IN INT DEFAULT 1)
+AS
+BEGIN
+SELECT par1, par2 FROM DUAL;
+END;
+FUNCTION f1(par1 IN INT, par2 IN INT DEFAULT 1) RETURN INT
+AS
+BEGIN
+RETURN par1 + par2;
+END;
+END p1;
+$$
+CALL p1.p1(5);
+par1	par2
+5	1
+CALL p1.p1(5, 10);
+par1	par2
+5	10
+SELECT p1.f1(5) FROM DUAL;
+p1.f1(5)
+6
+SELECT p1.f1(5, 10) FROM DUAL;
+p1.f1(5, 10)
+15
+DROP PACKAGE p1;
+#
+# MDEV-35925 OUT and INOUT parameters shouldn't expect a default value
+#
+CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 OUT INT)
+BEGIN
+SET p2 = p2 + 1;
+END;
+--error ER_NOT_SUPPORTED_YET
+CREATE PROCEDURE sp1(p1 IN INT DEFAULT 0, p2 INOUT INT)
+BEGIN
+SET p2 = p2 + 1;
+END;
+DELIMITER ;$$
+ERROR 42000: This version of MariaDB doesn't yet support 'sparam1 IN <type> DEFAULT <expr>, spparam2 OUT <type>'
+# End of 11.8 tests

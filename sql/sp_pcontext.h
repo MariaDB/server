@@ -481,6 +481,9 @@ public:
     return m_vars.at(i);
   }
 
+  /// @return the number of variables with default values in this context.
+  uint default_context_var_count() const;
+
   /*
     Return the i-th last context variable.
     If i is 0, then return the very last variable in m_vars.

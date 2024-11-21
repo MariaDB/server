@@ -211,6 +211,14 @@ public:
   { return m_return_value_set; }
 
   /////////////////////////////////////////////////////////////////////////
+  // Parameters.
+  /////////////////////////////////////////////////////////////////////////
+  uint get_inited_param_count() const
+  { return m_inited_params_count; }
+  void set_inited_param_count(uint count)
+  { m_inited_params_count= count; }
+
+  /////////////////////////////////////////////////////////////////////////
   // SQL-handlers.
   /////////////////////////////////////////////////////////////////////////
 
@@ -401,6 +409,10 @@ private:
 
   /// Array of CASE expression holders.
   Bounds_checked_array<Item_cache *> m_case_expr_holders;
+
+  /// Number of parameters initialized by the callee. This is used to
+  /// determine which parameters should be initialized with the default value.
+  uint m_inited_params_count;
 }; // class sp_rcontext : public Sql_alloc
 
 #endif /* _SP_RCONTEXT_H_ */

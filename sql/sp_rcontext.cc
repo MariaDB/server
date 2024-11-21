@@ -72,7 +72,8 @@ sp_rcontext::sp_rcontext(sp_head *owner,
    m_return_value_set(false),
    m_in_sub_stmt(in_sub_stmt),
    m_handlers(PSI_INSTRUMENT_MEM), m_handler_call_stack(PSI_INSTRUMENT_MEM),
-   m_ccount(0)
+   m_ccount(0),
+   m_inited_params_count(0)
 {
 }
 

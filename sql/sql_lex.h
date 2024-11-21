@@ -3789,6 +3789,9 @@ public:
   sp_variable *sp_param_init(LEX_CSTRING *name);
   bool sp_param_fill_definition(sp_variable *spvar,
                                 const Lex_field_type_st &def);
+  bool sp_param_set_default_and_finalize(sp_variable *spvar,
+                                        Item *default_value,
+                                        const LEX_CSTRING &expr_str);
   bool sf_return_fill_definition(const Lex_field_type_st &def);
   bool sf_return_fill_definition_row(Row_definition_list *def);
   bool sf_return_fill_definition_rowtype_of(const Qualified_column_ident &col);
