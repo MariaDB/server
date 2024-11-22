@@ -3174,10 +3174,7 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   }
 
   if (result)
-  {
     res= false;
-    delete result;
-  }
 
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
