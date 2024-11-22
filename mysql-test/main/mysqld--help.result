@@ -1785,14 +1785,14 @@ profiling-history-size 15
 progress-report-time 5
 protocol-version 10
 proxy-protocol-networks 
-query-alloc-block-size 16384
+query-alloc-block-size 32768
 query-cache-limit 1048576
 query-cache-min-res-unit 4096
 query-cache-size 1048576
 query-cache-strip-comments FALSE
 query-cache-type OFF
 query-cache-wlock-invalidate FALSE
-query-prealloc-size 24576
+query-prealloc-size 32768
 range-alloc-block-size 4096
 read-binlog-speed-limit 0
 read-buffer-size 131072
