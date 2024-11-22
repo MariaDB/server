@@ -5859,12 +5859,15 @@ public:
     written out to the file on the OS level.
   */
   File cur_file;
+
+private:
   /* Position and length of any remaining data in buf[]. */
   uint32_t buf_data_pos;
   uint32_t buf_data_remain;
   /* Buffer used when reading data out via read_binlog_data(). */
   uchar buf[32768];
 
+public:
   handler_binlog_reader()
     : cur_file_no(~(uint64_t)0), cur_file_offset(0), cur_file((File)-1),
       buf_data_pos(0), buf_data_remain(0)
