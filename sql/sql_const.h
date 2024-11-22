@@ -175,21 +175,26 @@
 #define MYSQLD_NET_RETRY_COUNT  10	///< Abort read after this many int.
 #endif
 
-#define QUERY_ALLOC_BLOCK_SIZE		16384
-#define QUERY_ALLOC_PREALLOC_SIZE   	24576
+/*
+  Allocations with MEM_ROOT. We should try to keep these as powers of 2
+  and not higher than 32768 to get full benefit of allocators like
+  tcmalloc that will for these use a local heap without locks.
+*/
+
+#define QUERY_ALLOC_BLOCK_SIZE		32768
+#define QUERY_ALLOC_PREALLOC_SIZE   	32768 /* 65536 could be better */
 #define TRANS_ALLOC_BLOCK_SIZE		8192
 #define TRANS_ALLOC_PREALLOC_SIZE	4096
 #define RANGE_ALLOC_BLOCK_SIZE		4096
 #define ACL_ALLOC_BLOCK_SIZE		1024
 #define UDF_ALLOC_BLOCK_SIZE		1024
-#define TABLE_ALLOC_BLOCK_SIZE		1024
+#define TABLE_PREALLOC_BLOCK_SIZE	8192
+#define TABLE_ALLOC_BLOCK_SIZE		4096
 #define WARN_ALLOC_BLOCK_SIZE		2048
 #define WARN_ALLOC_PREALLOC_SIZE	1024
-/*
-  Note that if we are using 32K or less, then TCmalloc will use a local
-  heap without locks!
-*/
-#define SHOW_ALLOC_BLOCK_SIZE           (32768-MALLOC_OVERHEAD)
+#define TMP_TABLE_BLOCK_SIZE            16384
+#define TMP_TABLE_PREALLOC_SIZE         32768
+#define SHOW_ALLOC_BLOCK_SIZE           32768
 
 /*
   The following parameters is to decide when to use an extra cache to
