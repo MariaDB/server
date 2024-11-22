@@ -1478,5 +1478,30 @@ NULL
 Warnings:
 Warning	1292	Incorrect interval value: '42949672955000x1'
 #
+# MDEV-23687 Assertion `is_valid_value_slow()' failed in Datetime::Datetime upon EXTRACT under mode ZERO_DATE_TIME_CAST
+#
+SET SESSION old_mode='ZERO_DATE_TIME_CAST';
+SELECT CAST('100000:00:00' AS DATETIME);
+CAST('100000:00:00' AS DATETIME)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATETIME))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT CAST('100000:00:00' AS DATE);
+CAST('100000:00:00' AS DATE)
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATE));
+EXTRACT(DAY FROM CAST('100000:00:00' AS DATE))
+NULL
+Warnings:
+Warning	1292	Incorrect datetime value: '100000:00:00'
+SET SESSION old_mode=DEFAULT;
+#
 # End of 10.5 tests
 #
