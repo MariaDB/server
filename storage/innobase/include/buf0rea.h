@@ -32,13 +32,14 @@ Created 11/5/1995 Heikki Tuuri
 /** Read a page synchronously from a file. buf_page_t::read_complete()
 will be invoked on read completion.
 @param page_id   page id
+@param unzip     whether to decompress ROW_FORMAT=COMPRESSED pages
 @retval DB_SUCCESS if the page was read and is not corrupted
 @retval DB_SUCCESS_LOCKED_REC if the page was not read
 @retval DB_PAGE_CORRUPTED if page based on checksum check is corrupted
 @retval DB_DECRYPTION_FAILED if page post encryption checksum matches but
 after decryption normal page checksum does not match.
 @retval DB_TABLESPACE_DELETED if tablespace .ibd file is missing */
-dberr_t buf_read_page(const page_id_t page_id);
+dberr_t buf_read_page(const page_id_t page_id, bool unzip= true);
 
 /** High-level function which reads a page asynchronously from a file to the
 buffer buf_pool if it is not already there. Sets the io_fix flag and sets
