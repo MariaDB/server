@@ -10393,7 +10393,7 @@ const char *online_alter_check_supported(THD *thd,
       LEX_CSTRING dflt{STRING_WITH_LEN("DEFAULT")};
       LEX_CSTRING nxvl{STRING_WITH_LEN("NEXTVAL()")};
       size_t len= strlen(fmt) + nxvl.length + c.field_name.length + dflt.length;
-      char *resp= thd->alloc(len);
+      char *resp= new(thd) char[len];
       // expression %s cannot be used in the %s clause of %`s
       my_snprintf(resp, len, fmt, nxvl.str, dflt.str, c.field_name.str);
       return resp;

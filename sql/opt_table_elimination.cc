@@ -1139,9 +1139,8 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
     }
   }
  
-  void *buf;
-  if (!(buf= thd->alloc(bitmap_buffer_size(offset))) ||
-      my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset))
+  my_bitmap_map *buf= new (thd) my_bitmap_map [bitmap_array_size(offset)];
+  if (!buf || my_bitmap_init(&expr_deps, buf, offset))
   {
     DBUG_RETURN(TRUE); /* purecov: inspected */
   }
@@ -1727,12 +1726,10 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
       first_select->group_list.elements > 0)
   {
     auto max_possible_elements= first_select->join->fields_list.elements;
-    void *buf;
-    MY_BITMAP *exposed_fields= (MY_BITMAP*)
-        new(current_thd) MY_BITMAP();
-    if (!(buf= current_thd->alloc(bitmap_buffer_size(max_possible_elements))) ||
-        my_bitmap_init(exposed_fields, (my_bitmap_map*)buf,
-                       max_possible_elements))
+    MY_BITMAP *exposed_fields= new(current_thd) MY_BITMAP();
+    my_bitmap_map *buf= new(current_thd)
+                       my_bitmap_map [bitmap_array_size(max_possible_elements)];
+    if (!buf || my_bitmap_init(exposed_fields, buf, max_possible_elements))
       // Memory allocation failed
       return;
     bitmap_clear_all(exposed_fields);

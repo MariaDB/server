@@ -965,7 +965,7 @@ public:
     {
       static Name name= singleton()->name();
       size_t len= 9+name.length()+1;
-      char *buf= current_thd->alloc(len);
+      char *buf= new(current_thd) char[len];
       strmov(strmov(buf, "cast_as_"), name.ptr());
       return { buf, len };
     }

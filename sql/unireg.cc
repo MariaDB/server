@@ -926,7 +926,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
           length= field->save_interval->type_lengths[pos];
           hex_length= length * 2;
           tmpint->type_lengths[pos]= (uint) hex_length;
-          tmpint->type_names[pos]= dst= thd->alloc(hex_length + 1);
+          tmpint->type_names[pos]= dst= new(thd) char[hex_length + 1];
           octet2hex(dst, (uchar*)src, length);
         }
       }
