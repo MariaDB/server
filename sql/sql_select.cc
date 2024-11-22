@@ -34462,6 +34462,8 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   MYSQL_DML_DONE(thd, res);
 
+  delete result;
+  result= NULL;
   return res;
 
 err:
