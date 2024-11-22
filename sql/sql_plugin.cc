@@ -1616,9 +1616,9 @@ int plugin_init(int *argc, char **argv, int flags)
 
   init_plugin_psi_keys();
 
-  init_alloc_root(key_memory_plugin_mem_root, &plugin_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(key_memory_plugin_mem_root, &plugin_vars_mem_root, 4096, 4096, MYF(0));
-  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_root, 4096, 4096, MYF(0));
+  init_alloc_root(key_memory_plugin_mem_root, &plugin_mem_root, 4096, 16384, MYF(0));
+  init_alloc_root(key_memory_plugin_mem_root, &plugin_vars_mem_root, 4096, 32768, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &tmp_root, 16384, 32768, MYF(0));
 
   if (my_hash_init(key_memory_plugin_bookmark, &bookmark_hash, &my_charset_bin, 32, 0, 0,
                    get_bookmark_hash_key, NULL, HASH_UNIQUE))

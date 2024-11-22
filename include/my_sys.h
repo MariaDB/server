@@ -878,6 +878,7 @@ extern void my_free_lock(void *ptr);
 #endif
 #define alloc_root_inited(A) ((A)->min_malloc != 0)
 #define ALLOC_ROOT_MIN_BLOCK_SIZE (MALLOC_OVERHEAD + sizeof(USED_MEM) + 8)
+#define DEFAULT_ROOT_BLOCK_SIZE 1024
 #define clear_alloc_root(A) do { (A)->free= (A)->used= (A)->pre_alloc= 0; (A)->min_malloc=0;} while(0)
 extern void init_alloc_root(PSI_memory_key key, MEM_ROOT *mem_root,
                             size_t block_size, size_t pre_alloc_size,

@@ -803,9 +803,10 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     Pass nominal parameters to init_alloc_root only to ensure that
     the destructor works OK in case of an error. The main_mem_root
     will be re-initialized in init_for_queries().
+    The base one will mainly be use to allocate memory during authentication.
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
+                 &main_mem_root, DEFAULT_ROOT_BLOCK_SIZE, 0,
                  MYF(MY_THREAD_SPECIFIC));
 
   /*
