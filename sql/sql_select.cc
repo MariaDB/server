@@ -34253,6 +34253,7 @@ bool Sql_cmd_dml::prepare(THD *thd)
 
   MYSQL_DML_START(thd);
 
+  result= nullptr; // It could've been set since the last run.
   lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
 
   if (open_tables_for_query(thd, lex->query_tables, &table_count, 0,
@@ -34364,11 +34365,15 @@ bool Sql_cmd_dml::execute(THD *thd)
 
   MYSQL_DML_DONE(thd, res);
 
+  delete result;
+  result= nullptr;
   return res;
 
 err:
   DBUG_ASSERT(thd->is_error() || thd->killed);
   MYSQL_DML_DONE(thd, 1);
+  delete result;
+  result= nullptr;
   THD_STAGE_INFO(thd, stage_end);
   (void)unit->cleanup();
   if (is_prepared())

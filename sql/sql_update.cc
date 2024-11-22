@@ -3188,7 +3188,7 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   res|= thd->is_error();
   if (multitable)
   {
-    if (unlikely(res))
+    if (unlikely(res) && result)
       result->abort_result_set();
     else
     {
@@ -3201,10 +3201,7 @@ bool Sql_cmd_update::execute_inner(THD *thd)
   }
 
   if (result)
-  {
     res= false;
-    delete result;
-  }
 
   status_var_add(thd->status_var.rows_sent, thd->get_sent_row_count());
   return res;
