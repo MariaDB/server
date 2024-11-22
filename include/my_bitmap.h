@@ -80,6 +80,7 @@ extern void bitmap_import(MY_BITMAP *map, uchar *from);
 #define my_bitmap_map_bits  (my_bitmap_map_bytes*8)
 /* Size in bytes to store 'bits' number of bits */
 #define bitmap_buffer_size(bits) (MY_ALIGN((bits), my_bitmap_map_bits)/8)
+#define bitmap_array_size(bits) (MY_ALIGN((bits), my_bitmap_map_bits)/8/my_bitmap_map_bytes)
 #define my_bitmap_buffer_size(map) bitmap_buffer_size((map)->n_bits)
 #define no_bytes_in_export_map(map) (((map)->n_bits + 7)/8)
 #define no_words_in_map(map) (((map)->n_bits + (my_bitmap_map_bits-1))/my_bitmap_map_bits)

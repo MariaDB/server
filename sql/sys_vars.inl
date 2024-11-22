@@ -2936,7 +2936,7 @@ private:
       break;
     case SYSTEM_TIME_AS_OF:
     {
-      char *buf= thd->alloc(MAX_DATE_STRING_REP_LENGTH);
+      char *buf= new(thd) char[MAX_DATE_STRING_REP_LENGTH];
       MYSQL_TIME ltime;
 
       thd->variables.time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
@@ -2997,7 +2997,7 @@ private:
                                      const Charset_collation_map_st &map)
   {
     size_t nbytes= map.text_format_nbytes_needed();
-    char *buf= thd->alloc(nbytes + 1);
+    char *buf= new(thd) char[nbytes + 1];
     size_t length= map.print(buf, nbytes);
     buf[length]= '\0';
     return (uchar *) buf;

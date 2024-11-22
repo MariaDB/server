@@ -1203,7 +1203,7 @@ ret:
 extern "C"
 void *thd_alloc(const MYSQL_THD thd, size_t size)
 {
-  return thd->alloc(size);
+  return new(thd) char[size];
 }
 
 extern "C"
@@ -2574,7 +2574,7 @@ bool THD::reinterpret_string_from_binary(LEX_CSTRING *to, CHARSET_INFO *cs,
   {
     size_t zeros= cs->mbminlen - incomplete;
     size_t aligned_length= zeros + length;
-    char *dst= alloc(aligned_length + 1);
+    char *dst= new(this) char[aligned_length + 1];
     if (!dst)
     {
       to->str= NULL; // Safety

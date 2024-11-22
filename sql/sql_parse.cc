@@ -7995,15 +7995,18 @@ bool mysql_test_parse_for_slave(THD *thd, char *rawbuf, uint length)
 bool
 add_proc_to_list(THD* thd, Item *item)
 {
-  ORDER *order;
-  Item	**item_ptr;
+  struct Order_Item
+  {
+    ORDER order;
+    Item *item;
+  };
+  Order_Item *order_item= new (thd) Order_Item();
 
-  if (unlikely(!(order= (ORDER *) thd->alloc(sizeof(ORDER)+sizeof(Item*)))))
+  if (unlikely(!order_item))
     return 1;
-  item_ptr = (Item**) (order+1);
-  *item_ptr= item;
-  order->item=item_ptr;
-  thd->lex->proc_list.insert(order, &order->next);
+  order_item->item= item;
+  order_item->order.item= &order_item->item;
+  thd->lex->proc_list.insert(&order_item->order, &order_item->order.next);
   return 0;
 }
 
@@ -9369,7 +9372,7 @@ bool append_file_to_dir(THD *thd, const char **filename_ptr,
   /* Fix is using unix filename format on dos */
   strmov(buff,*filename_ptr);
   end=convert_dirname(buff, *filename_ptr, NullS);
-  if (unlikely(!(ptr= thd->alloc((size_t)(end-buff) + table_name->length + 1))))
+  if (unlikely(!(ptr= new (thd) char[(size_t)(end-buff) + table_name->length + 1])))
     return 1;					// End of memory
   *filename_ptr=ptr;
   strxmov(ptr,buff,table_name->str,NullS);

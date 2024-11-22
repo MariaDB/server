@@ -2672,8 +2672,8 @@ String *Item_func_password::val_str_ascii(String *str)
 char *Item_func_password::alloc(THD *thd, const char *password,
                                 size_t pass_len, enum PW_Alg al)
 {
-  char *buff= thd->alloc(al==NEW ? SCRAMBLED_PASSWORD_CHAR_LENGTH + 1
-                                 : SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1);
+  char *buff= new(thd) char[al==NEW ? SCRAMBLED_PASSWORD_CHAR_LENGTH + 1
+                                    : SCRAMBLED_PASSWORD_CHAR_LENGTH_323 + 1];
   if (!buff)
     return NULL;
 
@@ -4991,7 +4991,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
         {
           uint strlen= res->length() * DYNCOL_UTF->mbmaxlen + 1;
           uint dummy_errors;
-          if (char *str= thd->alloc(strlen))
+          if (char *str= new(thd) char[strlen])
           {
             keys_str[i].length=
               copy_and_convert(str, strlen, DYNCOL_UTF,
@@ -5331,7 +5331,7 @@ bool Item_dyncol_get::get_dyn_value(THD *thd, DYNAMIC_COLUMN_VALUE *val,
     {
       uint strlen= nm->length() * DYNCOL_UTF->mbmaxlen + 1;
       uint dummy_errors;
-      buf.str= thd->alloc(strlen);
+      buf.str= new(thd) char[strlen];
       if (buf.str)
       {
         buf.length=

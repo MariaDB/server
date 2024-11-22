@@ -942,7 +942,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
   {
     if (view->md5.length != VIEW_MD5_LEN)
     {
-       if ((view->md5.str= thd->alloc(VIEW_MD5_LEN + 1)) == NULL)
+       if ((view->md5.str= new(thd) char[VIEW_MD5_LEN + 1]) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
     view->calc_md5(const_cast<char*>(view->md5.str));

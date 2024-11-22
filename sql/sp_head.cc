@@ -3712,8 +3712,8 @@ sp_head::add_used_tables_to_table_list(THD *thd,
     if (stab->temp)
       continue;
 
-    if (!(tab_buff= thd->alloc(ALIGN_SIZE(sizeof(TABLE_LIST)) *
-                                        stab->lock_count)) ||
+    if (!(tab_buff= new(thd) char[ALIGN_SIZE(sizeof(TABLE_LIST)) *
+                                                          stab->lock_count]) ||
         !(key_buff= (char*)thd->memdup(stab->qname.str,
                                        stab->qname.length)))
       DBUG_RETURN(FALSE);

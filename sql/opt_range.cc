@@ -1302,7 +1302,8 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
                          MYF(MY_THREAD_SPECIFIC));
 
   /* Allocate a bitmap for used columns */
-  if (!(bitmap= (my_bitmap_map*) thd->alloc(head->s->column_bitmap_size)))
+  size_t bitmap_arr_size= table->s->column_bitmap_size / my_bitmap_map_bytes;
+  if (!(bitmap= new(thd) my_bitmap_map[bitmap_arr_size]))
   {
     column_bitmap.bitmap= 0;
     *create_error= 1;
@@ -3529,7 +3530,8 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     tables. Would also avoid extra memory allocations if this function would
     be called multiple times per query.
   */
-  if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
+  size_t bitmap_arr_size= table->s->column_bitmap_size / my_bitmap_map_bytes;
+  if (!(buf= new(thd) my_bitmap_map[bitmap_arr_size]))
     DBUG_RETURN(TRUE);
   my_bitmap_init(&handled_columns, buf, table->s->fields);
 
@@ -3713,8 +3715,8 @@ end_of_range_loop:
     thd->no_errors=1;
     table->reginfo.impossible_range= 0;
 
-    uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-    my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
+    uint used_fields_arr_size= bitmap_array_size(table->s->fields);
+    auto *used_fields_buff= new (thd) my_bitmap_map[used_fields_arr_size];
     MY_BITMAP cols_for_indexes;
     (void) my_bitmap_init(&cols_for_indexes, used_fields_buff, table->s->fields);
     bitmap_clear_all(&cols_for_indexes);

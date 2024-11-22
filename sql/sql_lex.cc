@@ -809,7 +809,7 @@ bool Lex_input_stream::init(THD *thd,
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("+d,simulate_out_of_memory"););
 
-  m_cpp_buf= thd->alloc(length + 1);
+  m_cpp_buf= new(thd) char[length + 1];
 
   DBUG_EXECUTE_IF("bug42064_simulate_oom",
                   DBUG_SET("-d,bug42064_simulate_oom");); 
@@ -881,7 +881,7 @@ void Lex_input_stream::body_utf8_start(THD *thd, const char *begin_ptr)
 
   size_t body_utf8_length= get_body_utf8_maximum_length(thd);
 
-  m_body_utf8= thd->alloc(body_utf8_length + 1);
+  m_body_utf8= new(thd) char[body_utf8_length + 1];
   m_body_utf8_ptr= m_body_utf8;
   *m_body_utf8_ptr= 0;
 
@@ -1683,7 +1683,7 @@ bool Lex_input_stream::get_text(Lex_string_with_metadata_st *dst, uint sep,
       end -= post_skip;
       DBUG_ASSERT(end >= str);
 
-      if (!(to= m_thd->alloc((uint) (end - str) + 1)))
+      if (!(to= new(m_thd) char[(uint) (end - str) + 1]))
       {
         dst->set(&empty_clex_str, 0, '\0');
         return true;                   // Sql_alloc has set error flag

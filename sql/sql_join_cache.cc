@@ -324,8 +324,8 @@ int JOIN_CACHE::alloc_fields()
 {
   uint ptr_cnt= external_key_arg_fields+blobs+1;
   uint fields_size= sizeof(CACHE_FIELD)*fields;
-  field_descr= (CACHE_FIELD*) join->thd->alloc(fields_size +
-                                               sizeof(CACHE_FIELD*)*ptr_cnt);
+  field_descr= (CACHE_FIELD*) new(join->thd) char[fields_size +
+                                                  sizeof(CACHE_FIELD*)*ptr_cnt];
   blob_ptr= (CACHE_FIELD **) ((uchar *) field_descr + fields_size);
   return (field_descr == NULL);
 }  

@@ -1239,7 +1239,7 @@ make_name(THD *thd,
   uint errors;
   size_t dst_nbytes= length * system_charset_info->mbmaxlen;
   set_if_smaller(dst_nbytes, max_octet_length);
-  char *dst= thd->alloc(dst_nbytes + 1);
+  char *dst= new(thd) char[dst_nbytes + 1];
   if (!dst)
     return Lex_ident_column();
   uint32 cnv_length= my_convert_using_func(dst, dst_nbytes, system_charset_info,
@@ -1624,7 +1624,7 @@ bool mark_unsupported_function(const char *where, void *store, uint result)
 bool mark_unsupported_function(const char *w1, const char *w2,
                                void *store, uint result)
 {
-  char *ptr= current_thd->alloc(strlen(w1) + strlen(w2) + 1);
+  char *ptr= new (current_thd) char[strlen(w1) + strlen(w2) + 1];
   if (ptr)
     strxmov(ptr, w1, w2, NullS);
   return mark_unsupported_function(ptr, store, result);
@@ -3179,7 +3179,7 @@ Item_sp::init_result_field(THD *thd, uint max_length, uint maybe_null,
   if (sp_result_field->pack_length() > sizeof(result_buf))
   {
     void *tmp;
-    if (!(tmp= thd->alloc(sp_result_field->pack_length())))
+    if (!(tmp= new(thd) char[sp_result_field->pack_length()]))
       DBUG_RETURN(TRUE);
     sp_result_field->move_field((uchar*) tmp);
   }
@@ -3425,8 +3425,8 @@ LEX_CSTRING Item_ident::full_name_cstring() const
   }
   if (db_name.str && db_name.str[0])
   {
-    tmp= current_thd->alloc((uint) db_name.length+ (uint) table_name.length +
-                            (uint) field_name.length+3);
+    tmp= new(current_thd) char[(uint) db_name.length+ (uint) table_name.length +
+                               (uint) field_name.length+3];
     length= (strxmov(tmp,db_name.str,".",table_name.str,".",field_name.str,
                      NullS) - tmp);
   }
@@ -3435,7 +3435,7 @@ LEX_CSTRING Item_ident::full_name_cstring() const
     if (!table_name.str[0])
       return field_name;
 
-    tmp= current_thd->alloc((uint) table_name.length + field_name.length + 2);
+    tmp= new(current_thd)char[(uint) table_name.length + field_name.length + 2];
     length= (strxmov(tmp, table_name.str, ".", field_name.str, NullS) - tmp);
   }
   return {tmp, length};
@@ -5336,7 +5336,7 @@ static Field *make_default_field(THD *thd, Field *field_arg)
 {
   Field *def_field;
 
-  if (!(def_field= (Field*) thd->alloc(field_arg->size_of())))
+  if (!(def_field= (Field*) thd_alloc(thd, field_arg->size_of())))
     return nullptr;
 
   memcpy((void *)def_field, (void *)field_arg, field_arg->size_of());
@@ -5345,7 +5345,7 @@ static Field *make_default_field(THD *thd, Field *field_arg)
   if (def_field->default_value &&
       (def_field->default_value->flags || (def_field->flags & BLOB_FLAG)))
   {
-    uchar *newptr= (uchar*)thd->alloc(1+def_field->pack_length());
+    uchar *newptr= new (thd) uchar [1+def_field->pack_length()];
     if (!newptr)
       return nullptr;
 
@@ -7398,7 +7398,7 @@ Item *Item_float::neg(THD *thd)
     else
     {
       size_t presentation_length= strlen(presentation);
-      if (char *tmp= thd->alloc(presentation_length + 2))
+      if (char *tmp= new(thd) char[presentation_length + 2])
       {
         tmp[0]= '-';
         // Copy with the trailing '\0'
@@ -7537,7 +7537,7 @@ inline uint char_val(char X)
 void Item_hex_constant::hex_string_init(THD *thd, const char *str, size_t str_length)
 {
   max_length=(uint)((str_length+1)/2);
-  char *ptr= thd->alloc(max_length+1);
+  char *ptr= new(thd) char[max_length+1];
   if (!ptr)
   {
     str_value.set("", 0, &my_charset_bin);
@@ -7604,7 +7604,7 @@ Item_bin_string::Item_bin_string(THD *thd, const char *str, size_t str_length):
   uint power= 1;
 
   max_length= (uint)((str_length + 7) >> 3);
-  if (!(ptr= thd->alloc(max_length + 1)))
+  if (!(ptr= new(thd) char[max_length + 1]))
     return;
   str_value.set(ptr, max_length, &my_charset_bin);
 
@@ -10279,7 +10279,7 @@ bool Item_insert_value::fix_fields(THD *thd, Item **items)
 
   if (field_arg->field->table->insert_values)
   {
-    Field *def_field= (Field*) thd->alloc(field_arg->field->size_of());
+    Field *def_field= (Field*) thd_alloc(thd, field_arg->field->size_of());
     if (!def_field)
       return TRUE;
     memcpy((void *)def_field, (void *)field_arg->field,

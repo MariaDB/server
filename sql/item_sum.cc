@@ -3964,11 +3964,13 @@ Item_func_group_concat(THD *thd, Name_resolution_context *context_arg,
            (for possible order items in temporary tables)
     order - arg_count_order
   */
-  if (!(args= (Item**) thd->alloc(sizeof(Item*) * arg_count * 2 +
-                                  sizeof(ORDER*)*arg_count_order)))
+  char *buf= new (thd) char [sizeof(Item*) * arg_count * 2 +
+                             sizeof(ORDER*) * arg_count_order];
+  if (!buf)
     return;
 
-  order= (ORDER**)(args + arg_count);
+  args= (Item**) buf;
+  order= (ORDER**)(buf + arg_count * sizeof(Item*));
 
   /* fill args items of show and sort */
   List_iterator_fast<Item> li(*select_list);
@@ -4030,11 +4032,13 @@ Item_func_group_concat::Item_func_group_concat(THD *thd,
     such modifications done in this object would not have any effect on the
     object being copied.
   */
-  ORDER *tmp;
-  if (!(tmp= (ORDER *) thd->alloc(sizeof(ORDER *) * arg_count_order +
-                                  sizeof(ORDER) * arg_count_order)))
+  char *buf= new (thd) char[sizeof(ORDER *) * arg_count_order +
+                            sizeof(ORDER) * arg_count_order];
+
+  if (!buf)
     return;
-  order= (ORDER **)(tmp + arg_count_order);
+  ORDER *tmp= (ORDER*) buf;
+  order= (ORDER **)(buf + arg_count_order * sizeof(ORDER));
   for (uint i= 0; i < arg_count_order; i++, tmp++)
   {
     /*
@@ -4299,7 +4303,7 @@ Item_func_group_concat::fix_fields_impl(THD *thd, Item **ref)
                   is_conventional() ||
                 thd->active_stmt_arena_to_use()->state ==
                   Query_arena::STMT_SP_QUERY_ARGUMENTS);
-    if (!(buf= thd->active_stmt_arena_to_use()->alloc(buflen)) ||
+    if (!(buf= new(thd->active_stmt_arena_to_use()) char [buflen]) ||
         !(new_separator= new(thd->active_stmt_arena_to_use()->mem_root)
                            String(buf, buflen, collation.collation)))
       return TRUE;

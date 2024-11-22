@@ -1310,12 +1310,6 @@ public:
   { return state == STMT_CONVENTIONAL_EXECUTION; }
 
   template <typename T=char>
-  inline T* alloc(size_t size) const
-  {
-    return (T*)alloc_root(mem_root, sizeof(T)*size);
-  }
-
-  template <typename T=char>
   inline T* calloc(size_t size) const
   {
     void* ptr= alloc_root(mem_root, sizeof(T)*size);
@@ -1329,7 +1323,7 @@ public:
   { return strmake_root(mem_root,str,size); }
   inline LEX_CSTRING strcat(const LEX_CSTRING &a, const LEX_CSTRING &b) const
   {
-    char *buf= alloc(a.length + b.length + 1);
+    char *buf= new (this) char[a.length + b.length + 1];
     if (unlikely(!buf))
       return null_clex_str;
     memcpy(buf, a.str, a.length);
@@ -1435,7 +1429,7 @@ public:
   // Allocate LEX_STRING for character set conversion
   bool alloc_lex_string(LEX_STRING *dst, size_t length) const
   {
-    if (likely((dst->str= alloc(length))))
+    if (likely((dst->str= new(this) char[length])))
       return false;
     dst->length= 0;  // Safety
     return true;     // EOM
@@ -1448,7 +1442,7 @@ public:
     const char *tmp= src->str;
     const char *tmpend= src->str + src->length;
     char *to;
-    if (!(dst->str= to= alloc(src->length + 1)))
+    if (!(dst->str= to= new(this) char[src->length + 1]))
     {
       dst->length= 0; // Safety
       return true;

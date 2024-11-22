@@ -2942,7 +2942,7 @@ static my_bool list_callback(THD *tmp, list_callback_arg *arg)
     if (tmp->peer_port && (tmp_sctx->host || tmp_sctx->ip) &&
         arg->thd->security_ctx->host_or_ip[0])
     {
-      if ((thd_info->host= arg->thd->alloc(LIST_PROCESS_HOST_LEN+1)))
+      if ((thd_info->host= new(arg->thd) char[LIST_PROCESS_HOST_LEN+1]))
         my_snprintf((char *) thd_info->host, LIST_PROCESS_HOST_LEN,
                     "%s:%u", tmp_sctx->host_or_ip, tmp->peer_port);
     }
@@ -3361,7 +3361,7 @@ int fill_show_explain_or_analyze(THD *thd, TABLE_LIST *table, COND *cond,
                               fromcs->mbminlen;
         uint dummy_errors;
         char *to, *p;
-        if (!(to= thd->alloc(conv_length + 1)))
+        if (!(to= new(thd) char[conv_length + 1]))
           DBUG_RETURN(1);
         p= to;
         p+= copy_and_convert(to, conv_length, tocs,
@@ -8969,8 +8969,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
                                     table_list->alias, !need_all_fields,
                                     keep_row_order)))
     DBUG_RETURN(0);
-  my_bitmap_map* bitmaps=
-    (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
+  auto* bitmaps= new(thd) my_bitmap_map[bitmap_array_size(field_count)];
   my_bitmap_init(&table->def_read_set, bitmaps, field_count);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);

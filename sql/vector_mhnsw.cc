@@ -1384,7 +1384,8 @@ int mhnsw_read_first(TABLE *table, KEY *keyinfo, Item *dist, ulonglong limit)
   }
 
   const longlong max_layer= candidates.links[0]->max_layer;
-  auto target= FVector::create(ctx->metric, thd->alloc(FVector::alloc_size(ctx->vec_len)),
+  auto target= FVector::create(ctx->metric,
+                               thd_alloc(thd,FVector::alloc_size(ctx->vec_len)),
                                res->ptr(), res->length());
 
   if (int err= graph->file->ha_rnd_init(0))
@@ -1565,7 +1566,7 @@ const LEX_CSTRING mhnsw_hlindex_table_def(THD *thd, uint ref_length)
                      "  unique (tref),                   "
                      "  key (layer))                     ";
   size_t len= sizeof(templ) + 32;
-  char *s= thd->alloc(len);
+  char *s= new(thd) char[len];
   len= my_snprintf(s, len, templ, ref_length);
   return {s, len};
 }

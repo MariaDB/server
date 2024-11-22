@@ -7626,7 +7626,7 @@ update_ref_and_keys(THD *thd, DYNAMIC_ARRAY *keyuse,JOIN_TAB *join_tab,
   */ 
   sz= MY_MAX(sizeof(KEY_FIELD),sizeof(SARGABLE_PARAM))*
     ((sel->cond_count*2 + sel->between_count)*m+1);
-  if (!(key_fields=(KEY_FIELD*)	thd->alloc(sz)))
+  if (!(key_fields=(KEY_FIELD*) thd_alloc(thd, sz)))
     DBUG_RETURN(TRUE); /* purecov: inspected */
   and_level= 0;
   field= end= key_fields;
@@ -29317,7 +29317,7 @@ setup_copy_fields(THD *thd, TMP_TABLE_PARAM *param,
           another extra byte to not get warnings from purify in
           Field_string::val_int
         */
-	if (!(tmp= thd->alloc<uchar>(field->pack_length()+2)))
+	if (!(tmp= new(thd) uchar[field->pack_length()+2]))
 	  goto err;
         if (copy)
         {
@@ -30107,8 +30107,8 @@ bool JOIN::rollup_init()
   rollup.null_items= Item_null_array(null_items, send_group_parts);
   rollup.ref_pointer_arrays=
     reinterpret_cast<Ref_ptr_array*>
-    (thd->alloc((sizeof(Ref_ptr_array) +
-                 all_fields.elements * sizeof(Item*)) * send_group_parts));
+    (thd_alloc(thd, (sizeof(Ref_ptr_array) +
+                    all_fields.elements * sizeof(Item*)) * send_group_parts));
   rollup.fields= new (thd->mem_root) List<Item>[send_group_parts];
 
   if (!null_items || !rollup.ref_pointer_arrays || !rollup.fields)

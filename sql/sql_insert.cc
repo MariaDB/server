@@ -1486,8 +1486,8 @@ static bool check_view_insertability(THD *thd, TABLE_LIST *view,
   Field_translator *trans_start= view->field_translation,
 		   *trans_end= trans_start + num;
   Field_translator *trans;
-  uint used_fields_buff_size= bitmap_buffer_size(table->s->fields);
-  my_bitmap_map *used_fields_buff= (my_bitmap_map*)thd->alloc(used_fields_buff_size);
+  uint used_fields_arr_size= bitmap_array_size(table->s->fields);
+  auto *used_fields_buff= new(thd) my_bitmap_map[used_fields_arr_size];
   MY_BITMAP used_fields;
   enum_column_usage saved_column_usage= thd->column_usage;
   List_iterator_fast<Item> it(fields);

@@ -1242,7 +1242,7 @@ update_binlog:
     char *query, *query_pos, *query_end, *query_data_start;
     TABLE_LIST *tbl;
 
-    if (!(query= thd->alloc(MAX_DROP_TABLE_Q_LEN)))
+    if (!(query= new(thd) char[MAX_DROP_TABLE_Q_LEN]))
       goto exit; /* not much else we can do */
     query_pos= query_data_start= strmov(query,"DROP TABLE IF EXISTS ");
     query_end= query + MAX_DROP_TABLE_Q_LEN;

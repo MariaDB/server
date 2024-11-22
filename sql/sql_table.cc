@@ -8602,9 +8602,9 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
 
   restore_record(table, s->default_values);     // Empty record for DEFAULT
 
-  if ((create_info->fields_option_struct= 
+  if ((create_info->fields_option_struct=
          thd->calloc<ha_field_option_struct*>(table->s->fields)) == NULL ||
-      (create_info->indexes_option_struct= 
+      (create_info->indexes_option_struct=
          thd->calloc<ha_index_option_struct*>(table->s->total_keys)) == NULL)
     DBUG_RETURN(1);
 
@@ -10567,7 +10567,7 @@ const char *online_alter_check_supported(THD *thd,
       LEX_CSTRING dflt{STRING_WITH_LEN("DEFAULT")};
       LEX_CSTRING nxvl{STRING_WITH_LEN("NEXTVAL()")};
       size_t len= strlen(fmt) + nxvl.length + c.field_name.length + dflt.length;
-      char *resp= thd->alloc(len);
+      char *resp= new(thd) char[len];
       // expression %s cannot be used in the %s clause of %sQ
       my_snprintf(resp, len, fmt, nxvl.str, dflt.str, c.field_name.str);
       return resp;
