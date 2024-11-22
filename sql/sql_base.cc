@@ -276,8 +276,8 @@ static my_bool list_open_tables_callback(void *el, void *a)
   if (check_table_access(arg->thd, SELECT_ACL, &arg->table_list, TRUE, 1, TRUE))
     return FALSE;
 
-  if (!(*arg->start_list= (OPEN_TABLE_LIST *) arg->thd->alloc(
-                    sizeof(**arg->start_list) + element->m_key_length)))
+  if (!(*arg->start_list= (OPEN_TABLE_LIST *) new(arg->thd)
+                      char[sizeof(**arg->start_list) + element->m_key_length]))
     return TRUE;
 
   strmov((*arg->start_list)->table=

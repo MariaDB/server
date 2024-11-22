@@ -3758,7 +3758,7 @@ static void my_malloc_size_cb_func(long long size, my_bool is_thread_specific)
         thd->set_killed_no_mutex(KILL_QUERY);
         my_snprintf(buf, sizeof(buf), "--max-session-mem-used=%llu",
                     thd->variables.max_mem_used);
-        if ((buf2= thd->alloc(256)))
+        if ((buf2= new(thd) char[256]))
         {
           my_snprintf(buf2, 256,
                       ER_THD(thd, ER_OPTION_PREVENTS_STATEMENT), buf);

@@ -1524,7 +1524,7 @@ pretty_print_engine_list(THD *thd, plugin_ref *list)
   size= 0;
   for (p= list; *p; ++p)
     size+= plugin_name(*p)->length + 1;
-  buf= thd->alloc(size);
+  buf= new(thd) char[size];
   if (!buf)
     return NULL;
   pos= buf;

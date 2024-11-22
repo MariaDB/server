@@ -282,9 +282,9 @@ uint Alter_info::check_vcol_field(Item_field *item) const
       ((item->db_name.length && !db.streq(item->db_name)) ||
        (item->table_name.length && !table_name.streq(item->table_name))))
   {
-    char *ptr= current_thd->alloc(item->db_name.length +
-                                  item->table_name.length +
-                                  item->field_name.length + 3);
+    char *ptr= new(current_thd) char[item->db_name.length +
+                                     item->table_name.length +
+                                     item->field_name.length + 3];
     strxmov(ptr, safe_str(item->db_name.str), item->db_name.length ? "." : "",
             item->table_name.str, ".", item->field_name.str, NullS);
     item->field_name.str= ptr;

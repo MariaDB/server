@@ -671,7 +671,7 @@ MYSQL_LOCK *mysql_lock_merge(MYSQL_LOCK *a, MYSQL_LOCK *b, THD *thd)
     sizeof(TABLE *) * (a->table_count + b->table_count);
   if (thd)
   {
-    sql_lock= (MYSQL_LOCK *) thd->alloc(lock_size);
+    sql_lock= (MYSQL_LOCK *) new(thd) char[lock_size];
     if (!sql_lock)
       DBUG_RETURN(0);
     sql_lock->flags= GET_LOCK_ON_THD;
@@ -802,7 +802,7 @@ MYSQL_LOCK *get_lock_data(THD *thd, TABLE **table_ptr, uint count, uint flags)
                  sizeof(THR_LOCK_DATA*) * lock_count * 2 +
                  sizeof(table_ptr) * table_count;
   if (!(sql_lock= (MYSQL_LOCK*) (flags & GET_LOCK_ON_THD ?
-                                 thd->alloc(amount) :
+                                 new(thd) char[amount] :
                                  my_malloc(key_memory_MYSQL_LOCK, amount,
                                            MYF(0)))))
     DBUG_RETURN(0);

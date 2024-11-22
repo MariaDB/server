@@ -76,7 +76,7 @@ char *sql_strmake_with_convert(THD *thd, const char *str, size_t arg_length,
   max_res_length--;				// Reserve place for end null
 
   set_if_smaller(new_length, max_res_length);
-  if (!(pos= thd->alloc(new_length + 1)))
+  if (!(pos= new(thd) char[new_length + 1]))
     return pos;					// Error
 
   if ((from_cs == &my_charset_bin) || (to_cs == &my_charset_bin))

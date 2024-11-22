@@ -877,9 +877,8 @@ TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table)
   }
   sql_table->schema_table_name.length= 0;
 
-  my_bitmap_map* bitmaps=
-    (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count);
+  auto* bitmaps= new (thd) my_bitmap_map [bitmap_array_size(field_count)];
+  my_bitmap_init(&table->def_read_set, bitmaps, field_count);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
   table->alias_name_used= true;

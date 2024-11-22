@@ -571,7 +571,7 @@ Event_parse_data::init_definer(THD *thd)
   /* + 1 for @ */
   DBUG_PRINT("info",("init definer as whole"));
   definer.length= definer_user_len + definer_host_len + 1;
-  definer.str= tmp= thd->alloc(definer.length + 1);
+  definer.str= tmp= new(thd) char[definer.length + 1];
 
   DBUG_PRINT("info",("copy the user"));
   strmake(tmp, definer_user, definer_user_len);

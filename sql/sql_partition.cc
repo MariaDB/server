@@ -508,8 +508,8 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     when updating. We need to set all bits in read_set because the row
     may need to be inserted in a different [sub]partition.
   */
-  if (!(bitmap_buf= (my_bitmap_map*)
-        thd->alloc(bitmap_buffer_size(table->s->fields))))
+  if (!(bitmap_buf= new (thd)
+                    my_bitmap_map [bitmap_array_size(table->s->fields)]))
   {
     result= TRUE;
     goto end;
