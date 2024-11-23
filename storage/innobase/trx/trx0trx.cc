@@ -1267,28 +1267,14 @@ static void trx_flush_log_if_needed(lsn_t lsn, trx_t *trx)
   {
     completion_callback cb;
 
-<<<<<<< HEAD
     if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
     {
-      cb.m_callback= (void (*)(void *)) thd_decrement_pending_ops;
+      cb.m_callback= [](void *p) -> void {
+        thd_decrement_pending_ops((MYSQL_THD) p);
+      };
       log_write_up_to(lsn, flush, &cb);
       return;
     }
-=======
-  completion_callback cb;
-  if ((cb.m_param= thd_increment_pending_ops(trx->mysql_thd)))
-  {
-    cb.m_callback= [](void *p) -> void {
-      thd_decrement_pending_ops((MYSQL_THD)p);
-    };
-    log_write_up_to(lsn, flush, false, &cb);
-  }
-  else
-  {
-    trx->op_info= "flushing log";
-    log_write_up_to(lsn, flush);
-    trx->op_info= "";
->>>>>>> 759f7e44863 (MDEV-34348: Miscellaneous fixes)
   }
   trx->op_info= "flushing log";
   log_write_up_to(lsn, flush);
