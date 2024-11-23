@@ -2725,13 +2725,10 @@ static bool check_if_packing_possible(THD *thd,
     and we have a complex collation because cutting a prefix is not safe in
     such a case
   */
-  /*
-  if (field_length > thd->variables.max_sort_length &&
-      cs->state & MY_CS_NON1TO1)
+  if (cs->state & MY_CS_NON1TO1)
   {
     return false;
   }
-  */
   return true;
 }
 
@@ -2931,10 +2928,33 @@ int SORT_FIELD::compare_packed_varstrings(const SORT_FIELD *sort_field,
   *a_len= length_bytes + a_length;
   *b_len= length_bytes + b_length;
 
-  retval= sort_field->cs->strnncollsp(a + length_bytes,
-                                      a_length - suffix_length,
-                                      b + length_bytes,
-                                      b_length - suffix_length);
+  /*
+  if (use_strnxfrm(sort_field->cs))
+  {
+    size_t max_len= std::max(a_length, b_length) * sort_field->cs->strxfrm_multiply * 10000;
+    char *buf1= new char[max_len];
+    char *buf2= new char[max_len];
+
+    sort_field->cs->strnxfrm(buf1, max_len, max_len,
+                         (const char *) a + length_bytes, a_length - suffix_length,
+                         MY_STRXFRM_PAD_WITH_SPACE |
+                         MY_STRXFRM_PAD_TO_MAXLEN);
+    sort_field->cs->strnxfrm(buf2, max_len, max_len,
+                         (const char *) b + length_bytes, b_length - suffix_length,
+                         MY_STRXFRM_PAD_WITH_SPACE |
+                         MY_STRXFRM_PAD_TO_MAXLEN);
+    retval= memcmp(buf1, buf2, max_len);
+    delete[] buf1;
+    delete[] buf2;
+  }
+  else
+  */
+  {
+    retval= sort_field->cs->strnncollsp(a + length_bytes,
+                                        a_length - suffix_length,
+                                        b + length_bytes,
+                                        b_length - suffix_length);
+  }
 
   if (!retval && suffix_length)
   {
@@ -3098,8 +3118,9 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   memcpy(to, (uchar*)str->ptr(), data_length);
   to+= data_length;
 
-  if (cs == &my_charset_bin)
+  if (suffix_length)
   {
+    DBUG_ASSERT(cs == &my_charset_bin);
     DBUG_ASSERT(suffix_length);
     // suffix length stored in bigendian form
     store_bigendian(str->length(), to, suffix_length);
