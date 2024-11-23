@@ -638,14 +638,10 @@ int ha_finalize_handlerton(void *plugin_)
 }
 
 
-<<<<<<< HEAD
 const char *hton_no_exts[]= { 0 };
 static bool ddl_recovery_done= false;
 
-int ha_initialize_handlerton(st_plugin_int *plugin)
-=======
 int ha_initialize_handlerton(void *plugin_)
->>>>>>> 7a8eb26bda7 (MDEV-34348: Fix casting related to plugins)
 {
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   handlerton *hton;
