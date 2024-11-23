@@ -105,7 +105,6 @@ static uint make_sortkey(Sort_param *param, uchar *to);
 
 static void register_used_fields(Sort_param *param);
 static bool save_index(Sort_param *, uint, SORT_INFO *);
-static uint suffix_length(ulong string_length);
 static Addon_fields *get_addon_fields(TABLE *table, uint sortlength,
                                       uint *addon_length,
                                       uint *m_packable_length);
@@ -2107,7 +2106,7 @@ int merge_index(Sort_param *param, Sort_buffer sort_buffer,
 } /* merge_index */
 
 
-static uint suffix_length(ulong string_length)
+static uint32 suffix_length(uint32 string_length)
 {
   if (string_length < 256)
     return 1;
@@ -2122,17 +2121,14 @@ static uint suffix_length(ulong string_length)
 uint32
 Type_handler_string_result::sort_length(const Type_std_attributes *item) const
 {
-  CHARSET_INFO *cs;
+  CHARSET_INFO *cs= item->collation.collation;
   uint32_t length = item->max_length;
 
-  if (use_strnxfrm((cs= item->collation.collation)))
-  {
+  if (use_strnxfrm(cs))
     return (uint32_t) cs->strnxfrmlen(length);
-  }
-  else if (cs == &my_charset_bin)
-  {
-    return length + suffix_length(item->max_length);
-  }
+  if (cs == &my_charset_bin)
+    return std::min<size_t>(static_cast<size_t>(length) + suffix_length(length),
+                            UINT32_MAX);
   return length;
 }
 
@@ -2727,11 +2723,13 @@ static bool check_if_packing_possible(THD *thd,
     and we have a complex collation because cutting a prefix is not safe in
     such a case
   */
+  /*
   if (field_length > thd->variables.max_sort_length &&
       cs->state & MY_CS_NON1TO1)
   {
     return false;
   }
+  */
   return true;
 }
 
@@ -2878,12 +2876,12 @@ bool SORT_FIELD::setup_sort_field_length(THD *thd)
   {
     type= field->is_packable() ? SORT_FIELD_ATTR::VARIABLE_SIZE
                                : SORT_FIELD_ATTR::FIXED_SIZE;
-    field_length= original_field_length= field->sort_length();
+    field_length= field->sort_length();
     suffix_length= field->sort_suffix_length();
     cs= field->sort_charset();
 
     if (use_strnxfrm(cs))
-      field_length= cs->strnxfrmlen(original_field_length);
+      field_length= cs->strnxfrmlen(field_length);
     maybe_null= field->maybe_null();
   }
   else
@@ -2897,9 +2895,6 @@ bool SORT_FIELD::setup_sort_field_length(THD *thd)
     maybe_null= item->maybe_null();
   }
 
-  // Prevent overflows
-  set_if_smaller(field_length, thd->variables.max_sort_length);
-
   if (is_variable_sized())
   {
     // TODO(cvicentiu) This is a sketchy use of original_field_length...
@@ -2907,6 +2902,8 @@ bool SORT_FIELD::setup_sort_field_length(THD *thd)
     //set_if_smaller(original_length, thd->variables.max_sort_length);
     length_bytes= number_storage_requirement(field_length);
   }
+  // size_t field_length instead of uint32 prevent overflows from strnxfrmlen
+  set_if_smaller(field_length, thd->variables.max_sort_length);
   length= field_length;
   // TODO(cvicentiu) this flag should be set by calling setup_key_part, as
   // happens in uniques.cc,
