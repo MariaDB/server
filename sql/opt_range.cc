@@ -5932,8 +5932,7 @@ int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
   auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
   auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
-  return (*a)->records < (*b)->records ?
-          -1 : (*a)->records == (*b)->records ? 0 : 1;
+  return CMP_NUM((*a)->records, (*b)->records);
 }
 
 

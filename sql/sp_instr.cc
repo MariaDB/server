@@ -16,10 +16,11 @@
 */
 static const int SP_STMT_PRINT_MAXLEN= 40;
 
-static int cmp_rqp_locations(const void *a, const void *b)
+static int cmp_rqp_locations(const void *a_, const void *b_)
 {
-  return int(static_cast<const Rewritable_query_parameter*>(a)->pos_in_query -
-             static_cast<const Rewritable_query_parameter*>(b)->pos_in_query);
+  auto a= static_cast<Rewritable_query_parameter *const *>(a_);
+  auto b= static_cast<Rewritable_query_parameter *const *>(b_);
+  return (int)((*a)->pos_in_query - (*b)->pos_in_query);
 }
 
 
