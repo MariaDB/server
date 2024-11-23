@@ -587,11 +587,8 @@ static int hton_drop_table(handlerton *hton, const char *path)
 
 int ha_finalize_handlerton(void *plugin_)
 {
-<<<<<<< HEAD
   int deinit_status= 0;
-=======
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
->>>>>>> 7b62895c9ee (MDEV-34348: Fix casting related to plugins)
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 

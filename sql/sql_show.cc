@@ -10242,13 +10242,9 @@ int initialize_schema_table(void *plugin_)
 
 int finalize_schema_table(void *plugin_)
 {
-<<<<<<< HEAD
   int deinit_status= 0;
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
-=======
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
->>>>>>> 7b62895c9ee (MDEV-34348: Fix casting related to plugins)
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)

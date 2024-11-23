@@ -349,11 +349,8 @@ static my_bool calc_class_mask(THD *thd, plugin_ref plugin, void *arg)
 */
 int finalize_audit_plugin(void *plugin_)
 {
-<<<<<<< HEAD
   int deinit_status= 0;
-=======
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
->>>>>>> 7b62895c9ee (MDEV-34348: Fix casting related to plugins)
   unsigned long event_class_mask[MYSQL_AUDIT_CLASS_MASK_SIZE];
   
   if (plugin->plugin->deinit)

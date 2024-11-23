@@ -110,11 +110,8 @@ int initialize_encryption_plugin(void *plugin_)
 
 int finalize_encryption_plugin(void *plugin_)
 {
-<<<<<<< HEAD
   int deinit_status= 0;
-=======
   st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
->>>>>>> 7b62895c9ee (MDEV-34348: Fix casting related to plugins)
   bool used= plugin_ref_to_int(encryption_manager) == plugin;
 
   if (used)
