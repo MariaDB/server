@@ -2135,7 +2135,9 @@ Type_handler_string_result::sort_length(const Type_std_attributes *item) const
 uint32
 Type_handler_string_result::sort_suffix_length(const Type_std_attributes *item) const
 {
-  return suffix_length(item->max_length);
+  if (item->collation.collation == &my_charset_bin)
+    return suffix_length(item->max_length);
+  return 0;
 }
 
 
@@ -2785,9 +2787,9 @@ void SORT_FIELD::setup_key_part(Field *fld, bool is_mem_comparable_arg)
 */
 void SORT_FIELD_ATTR::setup_key_part(Field *field, bool is_mem_comparable_arg)
 {
-  length= field->max_storage_size_without_length_storage();
+  length= field->sort_length();
   cs= field->sort_charset();
-  suffix_length= 0;
+  suffix_length= field->sort_suffix_length();
   type= field->is_packable() ? VARIABLE_SIZE : FIXED_SIZE;
   maybe_null= field->maybe_null();
   is_mem_comparable= is_mem_comparable_arg;
@@ -3096,8 +3098,9 @@ SORT_FIELD_ATTR::pack_sort_string(uchar *to, const Binary_string *str,
   memcpy(to, (uchar*)str->ptr(), data_length);
   to+= data_length;
 
-  if (cs == &my_charset_bin && suffix_length)
+  if (cs == &my_charset_bin)
   {
+    DBUG_ASSERT(suffix_length);
     // suffix length stored in bigendian form
     store_bigendian(str->length(), to, suffix_length);
     to+= suffix_length;
