@@ -6420,17 +6420,9 @@ int spider_db_init(
     spider_init_error_tables,
     spider_init_error_tables.array.max_element *
     spider_init_error_tables.array.size_of_element);
-<<<<<<< HEAD
-  if(
-    my_hash_init(PSI_INSTRUMENT_ME, &spider_open_wide_share, spd_charset_utf8mb3_bin, 32, 0, 0,
-                   (my_hash_get_key) spider_wide_share_get_key, 0, 0)
-  )
-=======
-#ifdef WITH_PARTITION_STORAGE_ENGINE
   if (my_hash_init(PSI_INSTRUMENT_ME, &spider_open_wide_share,
                    spd_charset_utf8mb3_bin, 32, 0, 0,
                    spider_wide_share_get_key, 0, 0))
->>>>>>> 060b21be1c3 (MDEV-34348: my_hash_get_key fixes)
     goto error_open_wide_share_hash_init;
 
   spider_alloc_calc_mem_init(spider_open_wide_share, SPD_MID_DB_INIT_3);

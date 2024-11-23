@@ -1189,17 +1189,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_another_conn_hash.array.max_element *
       trx->trx_another_conn_hash.array.size_of_element);
 
-<<<<<<< HEAD
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_alter_tbl_get_key, 0, 0)
-    )
-=======
     if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
                      spd_charset_utf8mb3_bin, 32, 0, 0,
                      spider_alter_tbl_get_key, 0, 0))
->>>>>>> 060b21be1c3 (MDEV-34348: my_hash_get_key fixes)
       goto error_init_alter_hash;
     spider_alloc_calc_mem_init(trx->trx_alter_table_hash, SPD_MID_GET_TRX_8);
     spider_alloc_calc_mem(
