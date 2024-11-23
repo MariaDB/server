@@ -291,7 +291,7 @@ public:
   uchar *tref() const;
   void push_neighbor(size_t layer, FVectorNode *v);
 
-  static uchar *get_key(const FVectorNode *elem, size_t *key_len, my_bool);
+  static const uchar *get_key(const void *elem, size_t *key_len, my_bool);
 };
 #pragma pack(pop)
 
@@ -812,8 +812,9 @@ size_t FVectorNode::gref_len() const { return ctx->gref_len; }
 uchar *FVectorNode::gref() const { return (uchar*)(this+1); }
 uchar *FVectorNode::tref() const { return gref() + gref_len(); }
 
-uchar *FVectorNode::get_key(const FVectorNode *elem, size_t *key_len, my_bool)
+const uchar *FVectorNode::get_key(const void *elem_, size_t *key_len, my_bool)
 {
+  const FVectorNode *elem= static_cast<const FVectorNode *>(elem_);
   *key_len= elem->gref_len();
   return elem->gref();
 }

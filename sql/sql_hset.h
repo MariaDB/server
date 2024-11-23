@@ -81,7 +81,7 @@ public:
   {
     DBUG_ASSERT(m_hash.get_key);
     size_t klen;
-    uchar *key= m_hash.get_key(reinterpret_cast<const uchar *>(other),
+    const uchar *key= m_hash.get_key(reinterpret_cast<const uchar *>(other),
                                &klen, false);
     return find(key, klen);
   }
