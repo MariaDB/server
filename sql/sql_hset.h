@@ -35,15 +35,8 @@ public:
            const uchar *(*K)(const void *, size_t *, my_bool),
            CHARSET_INFO *cs= &my_charset_bin)
   {
-<<<<<<< HEAD
-    my_hash_init(psi_key, &m_hash, cs, START_SIZE, 0, 0, (my_hash_get_key)K, 0,
+    my_hash_init(psi_key, &m_hash, cs, START_SIZE, 0, 0, K, 0,
                  HASH_UNIQUE);
-=======
-    my_hash_clear(&m_hash);
-    m_hash.get_key= K;
-    m_hash.charset= cs;
-    m_hash.array.m_psi_key= psi_key;
->>>>>>> 840fe316d41 (MDEV-34348: my_hash_get_key fixes)
   }
 
   Hash_set(PSI_memory_key psi_key, CHARSET_INFO *charset, ulong default_array_elements,

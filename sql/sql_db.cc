@@ -146,16 +146,17 @@ private:
   Hash_set<LEX_STRING> m_set;
   mysql_rwlock_t m_lock;
 
-  static uchar *get_key(const LEX_STRING *ls, size_t *sz, my_bool)
+  static const uchar *get_key(const void *ls_, size_t *sz, my_bool)
   {
+    const LEX_STRING *ls= static_cast<const LEX_STRING *>(ls_);
     *sz= ls->length;
-    return (uchar *) ls->str;
+    return reinterpret_cast<const uchar *>(ls->str);
   }
 
 public:
   dbname_cache_t()
       : m_set(key_memory_dbnames_cache, table_alias_charset, 10, 0,
-              sizeof(char *), (my_hash_get_key) get_key, my_free, 0)
+              sizeof(char *), get_key, my_free, 0)
   {
     mysql_rwlock_init(key_rwlock_LOCK_dbnames, &m_lock);
   }

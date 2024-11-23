@@ -696,15 +696,9 @@ HASH charset_name_hash;
 static const uchar *get_charset_key(const void *object, size_t *size,
                                     my_bool not_used __attribute__((unused)))
 {
-<<<<<<< HEAD
-  CHARSET_INFO *cs= (CHARSET_INFO*) object;
-  *size= cs->cs_name.length;
-  return (uchar*) cs->cs_name.str;
-=======
   CHARSET_INFO *cs= object;
-  *size= strlen(cs->csname);
-  return (const uchar *) cs->csname;
->>>>>>> 840fe316d41 (MDEV-34348: my_hash_get_key fixes)
+  *size= cs->cs_name.length;
+  return (const uchar*) cs->cs_name.str;
 }
 
 static void init_available_charsets(void)
