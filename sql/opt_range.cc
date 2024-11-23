@@ -3451,19 +3451,11 @@ double records_in_column_ranges(PARAM *param, uint idx,
   use histograms for columns b and c
 */
 
-static
-<<<<<<< HEAD
-int cmp_quick_ranges(TABLE::OPT_RANGE **a, TABLE::OPT_RANGE **b)
+static int cmp_quick_ranges(const void *a_, const void *b_)
 {
+  auto a= static_cast<const TABLE::OPT_RANGE *const *>(a_);
+  auto b= static_cast<const TABLE::OPT_RANGE *const *>(b_);
   int tmp=CMP_NUM((*a)->rows, (*b)->rows);
-=======
-int cmp_quick_ranges(void *table_, const void *a_, const void *b_)
-{
-  TABLE *table= static_cast<TABLE *>(table_);
-  const uint *a= static_cast<const uint *>(a_);
-  const uint *b= static_cast<const uint *>(b_);
-  int tmp= CMP_NUM(table->opt_range[*a].rows, table->opt_range[*b].rows);
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
   if (tmp)
     return tmp;
   return -CMP_NUM((*a)->key_parts, (*b)->key_parts);
@@ -3567,14 +3559,9 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
     if (table->opt_range_keys.is_set(keynr))
       optimal_key_order[ranges++]= table->opt_range + keynr;
 
-<<<<<<< HEAD
   my_qsort(optimal_key_order, ranges,
            sizeof(optimal_key_order[0]),
-           (qsort_cmp) cmp_quick_ranges);
-=======
-  my_qsort2(optimal_key_order, ranges, sizeof(optimal_key_order[0]),
-            cmp_quick_ranges, table);
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
+           cmp_quick_ranges);
 
   for (range_index= 0 ; range_index < ranges ; range_index++)
   {
@@ -5945,14 +5932,9 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
 static
 int cmp_intersect_index_scan(const void *a_, const void *b_)
 {
-<<<<<<< HEAD
-  return CMP_NUM((*a)->records, (*b)->records);
-=======
   auto a= static_cast<const INDEX_SCAN_INFO *const *>(a_);
   auto b= static_cast<const INDEX_SCAN_INFO *const *>(b_);
-  return (*a)->records < (*b)->records ?
-          -1 : (*a)->records == (*b)->records ? 0 : 1;
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
+  return CMP_NUM((*a)->records, (*b)->records);
 }
 
 

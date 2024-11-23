@@ -10058,7 +10058,7 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
          join->thd->variables.optimizer_use_condition_selectivity;
   bool straight_join= MY_TEST(join->select_options & SELECT_STRAIGHT_JOIN);
   THD *thd= join->thd;
-  qsort2_cmp jtab_sort_func;
+  qsort_cmp2 jtab_sort_func;
   DBUG_ENTER("choose_plan");
 
   join->limit_optimization_mode= false;
@@ -10067,10 +10067,6 @@ choose_plan(JOIN *join, table_map join_tables, TABLE_LIST *emb_sjm_nest)
   join->prune_level= join->thd->variables.optimizer_prune_level;
 
   reset_nj_counters(join, join->join_list);
-<<<<<<< HEAD
-=======
-  qsort_cmp2 jtab_sort_func;
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
 
   if ((join->emb_sjm_nest= emb_sjm_nest))
   {

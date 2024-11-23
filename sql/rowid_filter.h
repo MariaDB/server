@@ -341,13 +341,8 @@ public:
 
   void sort(qsort_cmp2 cmp, void *cmp_arg)
   {
-<<<<<<< HEAD
     my_qsort2(array.buffer, array.elements,
-              elem_size, (qsort2_cmp) cmp, cmp_arg);
-=======
-    my_qsort2(array->front(), array->elements() / elem_size, elem_size, cmp,
-              cmp_arg);
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
+              elem_size, cmp, cmp_arg);
   }
 };
 
@@ -472,14 +467,10 @@ public:
 
   Rowid_filter_container *create_container();
 
-<<<<<<< HEAD
-  double get_setup_cost() { return cost_of_building_range_filter; }
+  double get_setup_cost() const { return cost_of_building_range_filter; }
   double get_lookup_cost();
-  double get_gain() { return gain; }
-  uint get_key_no() { return key_no; }
-=======
-  double get_a() const { return a; }
->>>>>>> 3998b92b8f0 (MDEV-34348: Consolidate cmp function declarations)
+  double get_gain() const { return gain; }
+  uint get_key_no() const { return key_no; }
 
   void trace_info(THD *thd);
 
