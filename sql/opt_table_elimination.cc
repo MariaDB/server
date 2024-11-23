@@ -1729,7 +1729,7 @@ void Dep_analysis_context::create_unique_pseudo_key_if_needed(
     auto max_possible_elements= first_select->join->fields_list.elements;
     void *buf;
     MY_BITMAP *exposed_fields= (MY_BITMAP*)
-        current_thd->alloc<MY_BITMAP>(1);
+        new(current_thd) MY_BITMAP();
     if (!(buf= current_thd->alloc(bitmap_buffer_size(max_possible_elements))) ||
         my_bitmap_init(exposed_fields, (my_bitmap_map*)buf,
                        max_possible_elements))
