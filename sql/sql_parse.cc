@@ -2274,7 +2274,7 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     char buff[250];
     uint buff_len= sizeof(buff);
 
-    if (!(current_global_status_var= thd->alloc<STATUS_VAR>(1)))
+    if (!(current_global_status_var= new(thd) STATUS_VAR()))
       break;
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
@@ -8016,7 +8016,7 @@ bool add_to_list(THD *thd, SQL_I_List<ORDER> &list, Item *item,bool asc)
 {
   ORDER *order;
   DBUG_ENTER("add_to_list");
-  if (unlikely(!(order= thd->alloc<ORDER>(1))))
+  if (unlikely(!(order= new(thd) ORDER())))
     DBUG_RETURN(1);
   order->item_ptr= item;
   order->item= &order->item_ptr;
@@ -8143,12 +8143,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   }
 
   bool has_alias_ptr= alias != nullptr;
-  void *memregion= thd->alloc(sizeof(TABLE_LIST));
-  TABLE_LIST *ptr= new (memregion) TABLE_LIST(thd, db, fqtn, alias_str,
-                                              has_alias_ptr, table, lock_type,
-                                              mdl_type, table_options,
-                                              info_schema, this,
-                                              index_hints_arg, option);
+  TABLE_LIST *ptr= new (thd) TABLE_LIST(thd, db, fqtn, alias_str,
+                                        has_alias_ptr, table, lock_type,
+                                        mdl_type, table_options,
+                                        info_schema, this,
+                                        index_hints_arg, option);
   if (!ptr->table_name.str)
     DBUG_RETURN(0); // EOM
 
@@ -10018,7 +10017,7 @@ LEX_USER *create_default_definer(THD *thd, bool role)
 {
   LEX_USER *definer;
 
-  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
+  if (unlikely(!(definer= new(thd) LEX_USER())))
     return 0;
 
   thd->get_definer(definer, role);
@@ -10053,7 +10052,7 @@ LEX_USER *create_definer(THD *thd, LEX_CSTRING *user_name,
 
   /* Create and initialize. */
 
-  if (unlikely(!(definer= thd->alloc<LEX_USER>(1))))
+  if (unlikely(!(definer= new(thd) LEX_USER())))
     return 0;
 
   definer->user= *user_name;

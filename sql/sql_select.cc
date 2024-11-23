@@ -3537,7 +3537,7 @@ setup_subq_exit:
 
     if (select_lex->have_window_funcs())
     {
-      if (!(join_tab= thd->alloc<JOIN_TAB>(1)))
+      if (!(join_tab= new(thd) JOIN_TAB()))
         DBUG_RETURN(1);
 #ifndef DBUG_OFF
       dbug_join_tab_array_size= 1;
@@ -13442,7 +13442,7 @@ static bool create_hj_key_for_table(JOIN *join, JOIN_TAB *join_tab,
   if (!key_parts)
     DBUG_RETURN(TRUE);
   /* This memory is allocated only once for the joined table join_tab */
-  if (!(keyinfo= thd->alloc<KEY>(1)) ||
+  if (!(keyinfo= new(thd) KEY()) ||
       !(key_part_info = new(thd) KEY_PART_INFO[key_parts]))
     DBUG_RETURN(TRUE);
   keyinfo->usable_key_parts= keyinfo->user_defined_key_parts = key_parts;

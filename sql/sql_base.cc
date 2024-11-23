@@ -3416,7 +3416,7 @@ request_backoff_action(enum_open_table_action action_arg,
   {
     DBUG_ASSERT(action_arg == OT_DISCOVER || action_arg == OT_REPAIR ||
                 action_arg == OT_ADD_HISTORY_PARTITION);
-    m_failed_table= m_thd->alloc<TABLE_LIST>(1);
+    m_failed_table= new(m_thd) TABLE_LIST();
     if (m_failed_table == NULL)
       return TRUE;
     m_failed_table->init_one_table(&table->db, &table->table_name, &table->alias, TL_WRITE);
@@ -5022,7 +5022,7 @@ add_internal_tables(THD *thd, Query_tables_list *prelocking_ctx,
       continue;
     }
 
-    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    TABLE_LIST *tl= new(thd) TABLE_LIST();
     if (!tl)
       DBUG_RETURN(TRUE);
     tl->init_one_table_for_prelocking(&tables->db,
@@ -5097,7 +5097,7 @@ prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
           fk->foreign_db, fk->foreign_table, lock_type))
       continue;
 
-    TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+    TABLE_LIST *tl= new(thd) TABLE_LIST();
     tl->init_one_table_for_prelocking(fk->foreign_db, fk->foreign_table,
         NULL, lock_type, TABLE_LIST::PRELOCK_FK, table_list->belong_to_view,
         op, &prelocking_ctx->query_tables_last, table_list->for_insert_data);

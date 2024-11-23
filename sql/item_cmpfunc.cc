@@ -6156,7 +6156,7 @@ bool Item_func_like::find_selective_predicates_list_processor(void *arg)
     THD *thd= data->table->in_use;
     COND_STATISTIC *stat;
     Item *arg0;
-    if (!(stat= thd->alloc<COND_STATISTIC>(1)))
+    if (!(stat= new(thd) COND_STATISTIC()))
       return TRUE;
     stat->cond= this;
     arg0= args[0]->real_item();

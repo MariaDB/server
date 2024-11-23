@@ -18687,14 +18687,14 @@ xid:
           text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE);
-            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
+            if (unlikely(!(Lex->xid= new(thd) XID())))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), 0, 0);
           }
           | text_string ',' text_string
           {
             MYSQL_YYABORT_UNLESS($1->length() <= MAXGTRIDSIZE && $3->length() <= MAXBQUALSIZE);
-            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
+            if (unlikely(!(Lex->xid= new(thd) XID())))
               MYSQL_YYABORT;
             Lex->xid->set(1L, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }
@@ -18704,7 +18704,7 @@ xid:
                                  $3->length() <= MAXBQUALSIZE &&
                                  $5 <= static_cast<ulong>(
                                          std::numeric_limits<int32_t>::max()));
-            if (unlikely(!(Lex->xid= thd->alloc<XID>(1))))
+            if (unlikely(!(Lex->xid= new(thd) XID())))
               MYSQL_YYABORT;
             Lex->xid->set($5, $1->ptr(), $1->length(), $3->ptr(), $3->length());
           }

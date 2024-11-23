@@ -4863,10 +4863,7 @@ void st_select_lex::fix_prepare_information(THD *thd, Item **conds,
     if (group_list.first)
     {
       if (!group_list_ptrs)
-      {
-        void *mem= active_arena->alloc<Group_list_ptrs>(1);
-        group_list_ptrs= new (mem) Group_list_ptrs(active_arena->mem_root);
-      }
+        group_list_ptrs= new (thd) Group_list_ptrs(active_arena->mem_root);
       group_list_ptrs->reserve(group_list.elements);
       for (ORDER *order= group_list.first; order; order= order->next)
       {

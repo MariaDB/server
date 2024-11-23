@@ -12046,7 +12046,7 @@ bool sp_grant_privileges(THD *thd,
   Lex_cstring_strlen sctx_user(sctx->priv_user);
   Lex_cstring_strlen sctx_host(sctx->priv_host);
 
-  if (!(combo= thd->alloc<LEX_USER>(1)))
+  if (!(combo= new(thd) LEX_USER()))
     DBUG_RETURN(TRUE);
 
   mysql_mutex_lock(&acl_cache->lock);

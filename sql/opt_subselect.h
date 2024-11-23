@@ -357,7 +357,7 @@ uint get_number_of_tables_at_top_level(JOIN *join);
   the tuple.
 */
 
-class SJ_TMP_TABLE : public Sql_alloc
+class SJ_TMP_TABLE
 {
 public:
   /*

@@ -5290,7 +5290,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
 
   /* Purge already hold the MDL for the table */
   Open_table_context ot_ctx(thd, MYSQL_OPEN_HAS_MDL_LOCK);
-  TABLE_LIST *tl= thd->alloc<TABLE_LIST>(1);
+  TABLE_LIST *tl= new(thd) TABLE_LIST();
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };
 
@@ -9027,7 +9027,15 @@ void* operator new[](size_t size, const THD *thd) noexcept
   return alloc_root(thd->mem_root, size);
 }
 
+void* operator new(size_t size, const THD *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
 void operator delete[](void *ptr, const THD *thd) noexcept
+{}
+
+void operator delete(void *ptr, const THD *thd) noexcept
 {}
 
 
@@ -9036,5 +9044,13 @@ void* operator new[](size_t size, const Query_arena *thd) noexcept
   return alloc_root(thd->mem_root, size);
 }
 
+void* operator new(size_t size, const Query_arena *thd) noexcept
+{
+  return alloc_root(thd->mem_root, size);
+}
+
 void operator delete[](void *ptr, const Query_arena *thd) noexcept
+{}
+
+void operator delete(void *ptr, const Query_arena *thd) noexcept
 {}

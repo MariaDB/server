@@ -82,7 +82,7 @@ static inline bool test_if_sum_overflows_ull(ulonglong arg1, ulonglong arg2)
 
 
 /**
-  Allocate memory for arguments using tmp_args or thd->alloc().
+  Allocate memory for arguments using tmp_args or new(thd) Item*[].
   @retval false  - success
   @retval true   - error (arg_count is set to 0 for convenience)
 */
@@ -2852,7 +2852,7 @@ bool Item_func_rand::fix_fields(THD *thd,Item **ref)
                  )
                 ) || rand);
     if (!rand &&
-        !(rand= thd->active_stmt_arena_to_use()->alloc<my_rnd_struct>(1)))
+        !(rand= new(thd->active_stmt_arena_to_use()) my_rnd_struct()))
       return TRUE;
   }
   else

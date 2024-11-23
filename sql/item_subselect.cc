@@ -5398,7 +5398,7 @@ bool subselect_hash_sj_engine::make_semi_join_conds()
   if (!(semi_join_conds= new (thd->mem_root) Item_cond_and(thd)))
     DBUG_RETURN(TRUE);
 
-  if (!(tmp_table_ref= thd->alloc<TABLE_LIST>(1)))
+  if (!(tmp_table_ref= new(thd) TABLE_LIST()))
     DBUG_RETURN(TRUE);
 
   table_name.str=    tmp_table->alias.c_ptr();
@@ -5466,7 +5466,7 @@ subselect_hash_sj_engine::make_unique_engine()
     - here we initialize only those members that are used by
       subselect_uniquesubquery_engine, so these objects are incomplete.
   */
-  if (!(tab= thd->alloc<JOIN_TAB>(1)))
+  if (!(tab= new(thd) JOIN_TAB()))
     DBUG_RETURN(NULL);
 
   tab->table= tmp_table;

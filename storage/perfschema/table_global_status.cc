@@ -109,8 +109,8 @@ int table_global_status::rnd_init(bool scan)
     If scan == true, then allocate a new context from mem_root and store in TLS.
     If scan == false, then restore from TLS.
   */
-  m_context= current_thd->alloc<table_global_status_context>(1);
-  new (m_context) table_global_status_context(status_version, !scan);
+  m_context= new(current_thd) table_global_status_context(status_version,
+                                                          !scan);
   return 0;
 }
 

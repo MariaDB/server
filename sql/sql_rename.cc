@@ -509,7 +509,7 @@ rename_tables(THD *thd, TABLE_LIST *table_list, DDL_LOG_STATE *ddl_log_state,
         when only using temporary tables.  We don't need the log as
         all temporary tables will disappear anyway in a crash.
       */
-      TABLE_PAIR *pair= thd->alloc<TABLE_PAIR>(1);
+      TABLE_PAIR *pair= new(thd) TABLE_PAIR();
       if (! pair || tmp_tables.push_front(pair, thd->mem_root))
         goto revert_rename;
       pair->from= ren_table;

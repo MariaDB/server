@@ -11154,7 +11154,7 @@ TABLE_LIST *get_trigger_table(THD *thd, const sp_name *trg_name)
     return NULL;
 
   /* We need to reset statement table list to be PS/SP friendly. */
-  if (!(table= thd->alloc<TABLE_LIST>(1)))
+  if (!(table= new(thd) TABLE_LIST()))
     return NULL;
 
   db= thd->make_ident_opt_casedn(trg_name->m_db, lower_case_table_names);

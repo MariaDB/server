@@ -2629,7 +2629,7 @@ int
 sp_head::push_backpatch(THD *thd, sp_instr *i, sp_label *lab,
                         List<bp_t> *list, backpatch_instr_type itype)
 {
-  bp_t *bp= thd->alloc<bp_t>(1);
+  bp_t *bp= new(thd) bp_t();
 
   if (!bp)
     return 1;
