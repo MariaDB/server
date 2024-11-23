@@ -309,9 +309,11 @@ json_norm_value_string_init(struct json_norm_value *val,
 
 
 static int
-json_norm_kv_comp(const struct json_norm_kv *a,
-                  const struct json_norm_kv *b)
+json_norm_kv_comp(const void *a_,
+                  const void *b_)
 {
+  const struct json_norm_kv *a= (const struct json_norm_kv *) a_;
+  const struct json_norm_kv *b= (const struct json_norm_kv *) b_;
   return my_strnncoll(&my_charset_utf8mb4_bin,
                       (const uchar *)a->key.str, a->key.length,
                       (const uchar *)b->key.str, b->key.length);
@@ -334,7 +336,7 @@ json_normalize_sort(struct json_norm_value *val)
 
     my_qsort(dynamic_element(pairs, 0, struct json_norm_kv*),
              pairs->elements, sizeof(struct json_norm_kv),
-             (qsort_cmp) json_norm_kv_comp);
+             json_norm_kv_comp);
     break;
   }
   case JSON_VALUE_ARRAY:

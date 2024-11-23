@@ -10595,8 +10595,10 @@ struct SORT_POSITION
 */
 
 static int
-sort_positions(SORT_POSITION *a, SORT_POSITION *b)
+sort_positions(const void *a_, const void *b_)
 {
+  const SORT_POSITION *a= static_cast<const SORT_POSITION *>(a_);
+  const SORT_POSITION *b= static_cast<const SORT_POSITION *>(b_);
   int cmp;
   if ((cmp= compare_embedding_subqueries(*a->join_tab, *b->join_tab)) != 0)
     return cmp;
@@ -11257,7 +11259,7 @@ best_extension_by_limited_search(JOIN      *join,
     */
     if (found_tables > 1)
       my_qsort(sort, found_tables, sizeof(SORT_POSITION),
-               (qsort_cmp) sort_positions);
+               sort_positions);
   }
   DBUG_ASSERT(join->next_sort_position <=
               join->sort_positions + join->sort_space);
