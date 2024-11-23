@@ -824,8 +824,10 @@ struct Visited : public Sql_alloc
   FVectorNode *node;
   const float distance_to_target;
   Visited(FVectorNode *n, float d) : node(n), distance_to_target(d) {}
-  static int cmp(void *, const Visited* a, const Visited *b)
+  static int cmp(void *, const void* a_, const void *b_)
   {
+    const Visited *a= static_cast<const Visited *>(a_);
+    const Visited *b= static_cast<const Visited *>(b_);
     return a->distance_to_target < b->distance_to_target ? -1 :
            a->distance_to_target > b->distance_to_target ?  1 : 0;
   }

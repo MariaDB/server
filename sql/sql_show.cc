@@ -8931,7 +8931,7 @@ int fill_slave_status(THD *thd, TABLE_LIST *tables, COND *cond)
       tmp[i]= (Master_info *) my_hash_element(&master_info_index->
                                               master_info_hash, i);
     }
-    my_qsort(tmp, elements, sizeof(Master_info*), (qsort_cmp) cmp_mi_by_name);
+    my_qsort(tmp, elements, sizeof(Master_info*),  cmp_mi_by_name);
 
     for (i= 0; i < elements; i++)
     {

@@ -26,15 +26,13 @@ template<typename Element, typename Param=void>
 class Queue
 {
 public:
-  typedef int (*Queue_compare)(Param *, const Element *, const Element *);
-
   Queue() { m_queue.root= 0; }
   ~Queue() { delete_queue(&m_queue); }
-  int init(uint max_elements, bool max_at_top, Queue_compare compare,
+  int init(uint max_elements, bool max_at_top, qsort_cmp2 compare,
            Param *param= 0)
   {
     return init_queue(&m_queue, max_elements, 0, max_at_top,
-                      (queue_compare)compare, (void *)param, 0, 0);
+                      compare, (void *)param, 0, 0);
   }
 
   size_t elements() const { return m_queue.elements; }

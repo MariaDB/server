@@ -68,8 +68,7 @@ int Bounded_queue::init(ha_rows max_elements, size_t cmplen,
   if (max_elements >= UINT_MAX - 1)
     return 1;
   // We allocate space for one extra element, for replace when queue is full.
-  return m_queue.init((uint)max_elements + 1, true,
-                      (decltype(m_queue)::Queue_compare)get_ptr_compare(cmplen),
+  return m_queue.init((uint) max_elements + 1, true, get_ptr_compare(cmplen),
                       &m_compare_length);
 }
 
