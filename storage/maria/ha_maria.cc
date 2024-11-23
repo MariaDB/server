@@ -1239,7 +1239,7 @@ int ha_maria::write_row(const uchar * buf)
 int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 {
   int error, fatal_error;
-  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+  HA_CHECK *param= new (thd) HA_CHECK();
   MARIA_SHARE *share= file->s;
   const char *old_proc_info;
   TRN *old_trn= file->trn;
@@ -1393,7 +1393,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 int ha_maria::analyze(THD *thd, HA_CHECK_OPT * check_opt)
 {
   int error= 0;
-  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+  HA_CHECK *param= new (thd) HA_CHECK();
   MARIA_SHARE *share= file->s;
   const char *old_proc_info;
 
@@ -1432,7 +1432,7 @@ int ha_maria::analyze(THD *thd, HA_CHECK_OPT * check_opt)
 int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+  HA_CHECK *param= new (thd) HA_CHECK();
   ha_rows start_records;
   const char *old_proc_info;
 
@@ -1519,7 +1519,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
 int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+  HA_CHECK *param= new (thd) HA_CHECK();
   TRN *old_trn;
   MARIA_SHARE *share= file->s;
 
@@ -1558,7 +1558,7 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
 int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
 {
   int error;
-  HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+  HA_CHECK *param= new (thd) HA_CHECK();
 
   if (!file || !param)
     return HA_ADMIN_INTERNAL_ERROR;
@@ -1921,7 +1921,7 @@ int ha_maria::preload_keys(THD * thd, HA_CHECK_OPT *check_opt)
       errmsg= buf;
     }
 
-    HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+    HA_CHECK *param= new (thd) HA_CHECK();
     if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
 
@@ -2032,7 +2032,7 @@ int ha_maria::enable_indexes(key_map map, bool persist)
   else
   {
     THD *thd= table->in_use;
-    HA_CHECK *param= thd->alloc<HA_CHECK>(1);
+    HA_CHECK *param= new (thd) HA_CHECK();
     if (!param)
       return HA_ADMIN_INTERNAL_ERROR;
 

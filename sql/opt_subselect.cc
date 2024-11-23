@@ -5175,7 +5175,7 @@ int init_dups_weedout(JOIN *join, uint first_table, int first_fanout_table, uint
   if (jt_rowid_offset) /* Temptable has at least one rowid */
   {
     size_t ntabs= last_tab - sjtabs;
-    if (!(sjtbl= thd->alloc<SJ_TMP_TABLE>(1)) ||
+    if (!(sjtbl= new(thd) SJ_TMP_TABLE()) ||
         !(sjtbl->tabs= new (thd) SJ_TMP_TABLE::TAB[ntabs]))
       DBUG_RETURN(TRUE); /* purecov: inspected */
     memcpy(sjtbl->tabs, sjtabs, ntabs * sizeof(SJ_TMP_TABLE::TAB));
@@ -5195,7 +5195,7 @@ int init_dups_weedout(JOIN *join, uint first_table, int first_fanout_table, uint
       not depend on anything at all, ie this is 
         WHERE const IN (uncorrelated select)
     */
-    if (!(sjtbl= thd->alloc<SJ_TMP_TABLE>(1)))
+    if (!(sjtbl= new(thd) SJ_TMP_TABLE()))
       DBUG_RETURN(TRUE); /* purecov: inspected */
     sjtbl->tmp_table= NULL;
     sjtbl->is_degenerate= TRUE;

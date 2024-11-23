@@ -43,10 +43,14 @@ public:
 };
 
 void* operator new[](size_t size, const THD *thd) noexcept;
+void* operator new(size_t size, const THD *thd) noexcept;
 void operator delete[](void *ptr, const THD *thd) noexcept;
+void operator delete(void *ptr, const THD *thd) noexcept;
 
 class Query_arena;
 void* operator new[](size_t size, const Query_arena *thd) noexcept;
+void* operator new(size_t size, const Query_arena *thd) noexcept;
 void operator delete[](void *ptr, const Query_arena *thd) noexcept;
+void operator delete(void *ptr, const Query_arena *thd) noexcept;
 
 #endif /* SQL_ALLOC_INCLUDED */

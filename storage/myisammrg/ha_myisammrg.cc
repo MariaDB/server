@@ -462,7 +462,7 @@ int ha_myisammrg::add_children_list(void)
     LEX_CSTRING db;
     LEX_CSTRING table_name;
 
-    child_l= thd->alloc<TABLE_LIST>(1);
+    child_l= new(thd) TABLE_LIST();
     db.str= (char*) thd->memdup(mrg_child_def->db.str, mrg_child_def->db.length+1);
     db.length= mrg_child_def->db.length;
     table_name.str= (char*) thd->memdup(mrg_child_def->name.str,

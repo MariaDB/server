@@ -3007,7 +3007,7 @@ private:
 
   bool do_check(THD *thd, set_var *var) override
   {
-    Charset_collation_map_st *map= thd->alloc<Charset_collation_map_st>(1);
+    Charset_collation_map_st *map= new(thd) Charset_collation_map_st();
     if (!map || charset_collation_map_from_item(map, var->value,
                                                 thd->get_utf8_flag()))
       return true;

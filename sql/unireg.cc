@@ -911,7 +911,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
         */
         uint count= field->typelib()->count;
         field->save_interval= field->typelib();
-        field->set_typelib(tmpint= thd->alloc<TYPELIB>(1));
+        field->set_typelib(tmpint= new(thd) TYPELIB());
         *tmpint= *field->save_interval;
         tmpint->type_names= new(thd) const char*[count + 1];
         tmpint->type_lengths= new(thd) uint[count + 1];
