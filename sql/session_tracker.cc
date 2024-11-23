@@ -569,9 +569,10 @@ void Session_sysvars_tracker::mark_as_changed(THD *thd, const sys_var *var)
 const uchar *Session_sysvars_tracker::sysvars_get_key(const void *entry,
                                                       size_t *length, my_bool)
 {
-  *length= sizeof(sys_var *);
-  return reinterpret_cast<const uchar *>(
-      &((static_cast<const sysvar_node_st *>(entry))->m_svar));
+  ptrdiff_t *key=
+      &((static_cast<const sysvar_node_st *>(entry))->m_svar->offset);
+  *length= sizeof(*key);
+  return reinterpret_cast<const uchar *>(key);
 }
 
 
