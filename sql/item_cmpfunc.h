@@ -1717,13 +1717,8 @@ public:
   virtual int cmp(Item *item)= 0;
   virtual int cmp_not_null(const Value *value)= 0;
   // for optimized IN with row
-<<<<<<< HEAD
-  virtual int compare(cmp_item *item)= 0;
-  virtual cmp_item *make_same(THD *thd)= 0;
-=======
   virtual int compare(const cmp_item *item) const = 0;
-  virtual cmp_item *make_same()= 0;
->>>>>>> dbfee9fc2bc (MDEV-34348: Consolidate cmp function declarations)
+  virtual cmp_item *make_same(THD *thd)= 0;
   /*
     Store a scalar or a ROW value into "this".
     @returns false - the value (or every component in case of ROW) was
@@ -1897,13 +1892,8 @@ public:
   void store_value(Item *item) override;
   int cmp_not_null(const Value *val) override;
   int cmp(Item *arg) override;
-<<<<<<< HEAD
-  int compare(cmp_item *ci) override;
-  cmp_item *make_same(THD *thd) override;
-=======
   int compare(const cmp_item *ci) const override;
-  cmp_item *make_same() override;
->>>>>>> dbfee9fc2bc (MDEV-34348: Consolidate cmp function declarations)
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -1945,13 +1935,8 @@ public:
   void store_value(Item *item) override;
   int cmp(Item *arg) override;
   int cmp_not_null(const Value *val) override;
-<<<<<<< HEAD
-  int compare(cmp_item *c) override;
-  cmp_item *make_same(THD *thd) override;
-=======
   int compare(const cmp_item *c) const override;
-  cmp_item *make_same() override;
->>>>>>> dbfee9fc2bc (MDEV-34348: Consolidate cmp function declarations)
+  cmp_item *make_same(THD *thd) override;
 };
 
 
@@ -2720,13 +2705,8 @@ public:
     DBUG_ASSERT(false);
     return TRUE;
   }
-<<<<<<< HEAD
-  int compare(cmp_item *arg) override;
-  cmp_item *make_same(THD *thd) override;
-=======
   int compare(const cmp_item *arg) const override;
-  cmp_item *make_same() override;
->>>>>>> dbfee9fc2bc (MDEV-34348: Consolidate cmp function declarations)
+  cmp_item *make_same(THD *thd) override;
   bool store_value_by_template(THD *thd, cmp_item *tmpl, Item *) override;
   friend class Item_func_in;
   cmp_item *get_comparator(uint i) { return comparators[i]; }

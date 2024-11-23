@@ -681,12 +681,7 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 #define ROLE_OPENED             (1L << 3)
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
-<<<<<<< HEAD
 static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
-typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
-=======
-static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0U, 50U);
->>>>>>> dbfee9fc2bc (MDEV-34348: Consolidate cmp function declarations)
 static HASH acl_roles;
 /*
   An hash containing mappings user <--> role
