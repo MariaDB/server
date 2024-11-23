@@ -613,7 +613,7 @@ void TABLE::add_splitting_info_for_key_field(KEY_FIELD *key_field)
   }
   if (!eq_item)
     return;
-  KEY_FIELD *added_key_field= thd->alloc<KEY_FIELD>(1);
+  KEY_FIELD *added_key_field= new(thd) KEY_FIELD();
   if (!added_key_field ||
       spl_opt_info->added_key_fields.push_back(added_key_field,thd->mem_root))
     return;
@@ -1105,7 +1105,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(uint idx,
       key_map spl_keys= table->keys_usable_for_splitting;
       if (!(first_non_const_pos->key &&
             spl_keys.is_set(first_non_const_pos->key->key)) ||
-          !(spl_plan= thd->alloc<SplM_plan_info>(1)) ||
+          !(spl_plan= new(thd) SplM_plan_info()) ||
 	  !(spl_plan->best_positions= new(thd) POSITION[join->table_count]) ||
 	  spl_opt_info->plan_cache.push_back(spl_plan))
       {
