@@ -116,6 +116,7 @@ SET (SQL_SOURCE
                opt_range.cc vector_mhnsw.cc
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
+               opt_sargable_left.cc
                opt_sum.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
