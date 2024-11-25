@@ -7628,7 +7628,7 @@ write_bin_log_start_alter_rollback(THD *thd, uint64 &start_alter_id,
     start_alter_info *info= thd->rgi_slave->sa_info;
     Master_info *mi= thd->rgi_slave->rli->mi;
 
-    if (info->sa_seq_no == 0)
+    if (info->gtid.seq_no == 0)
     {
       /*
          Error occurred before SA got to processing incl its binlogging.

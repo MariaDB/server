@@ -1682,8 +1682,9 @@ static start_alter_info *get_new_start_alter_info(THD *thd)
     sql_print_error("Failed to allocate memory for ddl log free list");
     return 0;
   }
-  info->sa_seq_no= 0;
-  info->domain_id= 0;
+  info->gtid.domain_id= 0;
+  info->gtid.server_id= 0;
+  info->gtid.seq_no= 0;
   info->direct_commit_alter= false;
   info->state= start_alter_state::INVALID;
   mysql_cond_init(0, &info->start_alter_cond, NULL);
@@ -1769,8 +1770,8 @@ int Query_log_event::handle_split_alter_query_log_event(rpl_group_info *rgi,
     List_iterator<start_alter_info> info_iterator(mi->start_alter_list);
     while ((info= info_iterator++))
     {
-      if(info->sa_seq_no == rgi->gtid_ev_sa_seq_no &&
-         info->domain_id == rgi->current_gtid.domain_id)
+      if(info->gtid.seq_no == rgi->gtid_ev_sa_seq_no &&
+         info->gtid.domain_id == rgi->current_gtid.domain_id)
       {
         info_iterator.remove();
         break;
@@ -2705,10 +2706,9 @@ static void check_and_remove_stale_alter(Relay_log_info *rli)
   {
     DBUG_ASSERT(info->state == start_alter_state::REGISTERED);
 
-    sql_print_warning("ALTER query started at %u-%lu-%llu could not "
+    sql_print_warning("ALTER query started at %u-%u-%llu could not "
                       "be completed because of unexpected master server "
-                      "or its binlog change", info->domain_id,
-                      mi->master_id, info->sa_seq_no);
+                      "or its binlog change", PARAM_GTID(info->gtid));
     info_iterator.remove();
     mysql_mutex_lock(&mi->start_alter_lock);
     info->state= start_alter_state::ROLLBACK_ALTER;
