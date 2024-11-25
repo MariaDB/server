@@ -1,0 +1,103 @@
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection master
+set @max_binlog_cache_size         = @@global.max_binlog_cache_size;
+set @binlog_cache_size             = @@global.binlog_cache_size;
+set @@global.max_binlog_cache_size = 4096;
+set @@global.    binlog_cache_size = 4096;
+
+--echo #
+--echo # MDEV-35207
+--echo #
+# fixate the current (write) binlog position
+--let $binlog_file_0= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start_0 = query_get_value(SHOW MASTER STATUS, Position, 1)
+
+# use a separate connection also to validate its close will be clean
+connect (conn_err,localhost,root,,);
+
+call mtr.add_suppression("Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage");
+--error ER_TRANS_CACHE_FULL
+create table t engine=myisam select repeat ('a',4096*3) AS a;
+
+--error ER_TRANS_CACHE_FULL
+create table t engine=innodb select repeat ('a',4096*3) AS a;
+
+--error ER_DUP_ENTRY
+create table t (a int unique, b char) select 1 AS a, 'b' as b union select 1 as a, 'c' as b;
+--error ER_NO_SUCH_TABLE
+select * from t;
+
+--disconnect conn_err
+
+--connection master
+--let $binlog_file_1= query_get_value(SHOW MASTER STATUS, File, 1)
+--let $binlog_start_1= query_get_value(SHOW MASTER STATUS, Position, 1)
+
+--let $cmp = `select strcmp('$binlog_file_1', '$binlog_file_0') <> 0 OR $binlog_start_1 <> $binlog_start_0`
+if (!$cmp)
+{
+   --echo *** Error: unexpected advance of binlog position
+   --die
+}
+
+--echo
+--echo #
+--echo # TODO: MDEV-35499 errored CoRS does not DROP table in binlog
+--echo #
+--let $i = 2
+while ($i)
+{
+  --let $engine=`select if($i % 2, "myisam", "innodb")`
+  --echo #
+  --echo # Engine = $engine
+  --echo #
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_DUP_ENTRY
+  --eval set statement binlog_format=row for create or replace table t (a int primary key, b char) engine=$engine select 1 AS a, 'b' as b union select 1 as a, 'c' as b
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+  # error before stmt commit
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_TRANS_CACHE_FULL
+  --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',1024) AS a union select repeat ('a',3*4096) AS a union select repeat ('a',3*4096) AS a
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+  # error at stmt commit
+  set statement binlog_format=statement for create table t (a int) select 1 as a;
+  --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+  --let $binlog_start = query_get_value(SHOW MASTER STATUS, Position, 1)
+  --error ER_TRANS_CACHE_FULL
+  --eval set statement binlog_format=row for create or replace table t (a text) engine=$engine select repeat ('a',4096*3) AS a;
+  --error ER_NO_SUCH_TABLE
+  select * from t;
+  --echo #
+  --echo # Prove an expected lonely `DROP table t'
+  --source include/show_binlog_events.inc
+
+--dec $i
+}
+
+SET @@global.max_binlog_cache_size = @max_binlog_cache_size;
+SET @@global.    binlog_cache_size = @binlog_cache_size;
+
+# prove binlog is sane for slave as well
+# --connection slave
+--sync_slave_with_master
+
+--echo End of the tests
+--source include/rpl_end.inc

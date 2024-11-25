@@ -4475,7 +4475,8 @@ void select_insert::abort_result_set()
 	  query_cache_invalidate3(thd, table, 1);
     }
     DBUG_ASSERT(transactional_table || !changed ||
-		thd->transaction->stmt.modified_non_trans_table);
+		(thd->transaction->stmt.modified_non_trans_table ||
+                 thd->transaction->all.modified_non_trans_table));
 
     table->s->table_creation_was_logged|= binary_logged;
     table->file->ha_release_auto_increment();
@@ -5189,9 +5190,14 @@ bool select_create::send_eof()
     /* Remember xid's for the case of row based logging */
     ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
     ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-    trans_commit_stmt(thd);
-    if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
-      trans_commit_implicit(thd);
+    if (trans_commit_stmt(thd) ||
+	(!(thd->variables.option_bits & OPTION_GTID_BEGIN) &&
+	 trans_commit_implicit(thd)))
+    {
+        abort_result_set();
+        DBUG_RETURN(true);
+    }
+
     thd->binlog_xid= 0;
 
 #ifdef WITH_WSREP
@@ -5311,6 +5317,7 @@ void select_create::abort_result_set()
   /* possible error of writing binary log is ignored deliberately */
   (void) thd->binlog_flush_pending_rows_event(TRUE, TRUE);
 
+  bool has_drop_table_logged= false;
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
@@ -5357,6 +5364,7 @@ void select_create::abort_result_set()
                          create_info->db_type == partition_hton,
                          &create_info->tabledef_version,
                          tmp_table);
+          has_drop_table_logged= true;
           debug_crash_here("ddl_log_create_after_binlog");
           thd->binlog_xid= 0;
         }
@@ -5381,8 +5389,21 @@ void select_create::abort_result_set()
 
   if (create_info->table_was_deleted)
   {
-    /* Unlock locked table that was dropped by CREATE. */
-    (void) trans_rollback_stmt(thd);
+    if (has_drop_table_logged)
+    {
+      /* for DROP binlogging the error status has to be canceled first */
+      Diagnostics_area new_stmt_da(thd->query_id, false, true);
+      Diagnostics_area *old_stmt_da= thd->get_stmt_da();
+
+      thd->set_stmt_da(&new_stmt_da);
+      (void) trans_rollback_stmt(thd);
+      thd->set_stmt_da(old_stmt_da);
+    }
+    else
+    {
+      /* Unlock locked table that was dropped by CREATE. */
+      (void) trans_rollback_stmt(thd);
+    }
     thd->locked_tables_list.unlock_locked_table(thd, create_info->mdl_ticket);
   }
 
