@@ -67,6 +67,7 @@ ha_storage_put_memlim(
     (mem_heap_alloc(storage->heap, sizeof *node + data_len));
   node->data_len= data_len;
   node->data= &node[1];
+  node->next= nullptr;
   memcpy(const_cast<void*>(node->data), data, data_len);
   *after= node;
   return node->data;
