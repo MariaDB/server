@@ -1892,6 +1892,60 @@ Item *Item_func_eq::do_build_clone(THD *thd) const
   return (Item_func_eq*) Item_bool_rowready_func2::do_build_clone(thd);
 }
 
+/*
+  Whether the Item_bool_func is sargable because of a SUBSTR or LEFT
+
+  Returns true if the Item_bool_func is in the form of
+
+  substr(col, 1, ...) = "..."
+
+  or
+
+  "..." = substr(col, 1, ...)
+
+  where "..." is a const and inexpensive item.
+
+  @param  field      The first argument of substr if sargable,
+                     otherwise deferenced to NULL
+  @param  value_idx  The index of argument that is the prefix string
+                     if sargable, otherwise dereferenced to -1
+*/
+bool Item_bool_func::with_sargable_substr(Item_field **field, int *value_idx) const
+{
+  int func_idx, val_idx= -1;
+  Item **func_args, *real= NULL;
+  bool ret= false;
+  enum Functype type;
+  if (functype() != EQ_FUNC)
+    goto done;
+  if (args[0]->type() == FUNC_ITEM)
+    func_idx= 0;
+  else if (args[1]->type() == FUNC_ITEM)
+    func_idx= 1;
+  else
+    goto done;
+  type= ((Item_func *) args[func_idx])->functype();
+  if (type != SUBSTR_FUNC && type != LEFT_FUNC)
+    goto done;
+  func_args= ((Item_func *) args[func_idx])->arguments();
+  real= func_args[0]->real_item();
+  val_idx= 1 - func_idx;
+  if (real->type() == FIELD_ITEM &&
+      args[val_idx]->can_eval_in_optimize() &&
+      (type == LEFT_FUNC || func_args[1]->val_int() == 1))
+  {
+    ret= true;
+    goto done;
+  }
+  real= NULL;
+  val_idx= -1;
+done:
+  if (field != NULL)
+    *field= (Item_field *) real;
+  if (value_idx != NULL)
+    *value_idx= val_idx;
+  return ret;
+}
 
 /** Same as Item_func_eq, but NULL = NULL. */
 

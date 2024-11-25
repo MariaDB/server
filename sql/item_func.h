@@ -106,7 +106,7 @@ public:
                   JSON_EXTRACT_FUNC, JSON_VALID_FUNC, ROWNUM_FUNC,
                   CASE_SEARCHED_FUNC, // Used by ColumnStore/Spider
                   CASE_SIMPLE_FUNC,   // Used by ColumnStore/spider,
-                  DATE_FUNC, YEAR_FUNC
+                  DATE_FUNC, YEAR_FUNC, SUBSTR_FUNC, LEFT_FUNC
                 };
 
   /*
