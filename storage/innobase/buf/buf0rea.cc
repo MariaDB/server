@@ -447,7 +447,7 @@ read_ahead:
   return count;
 }
 
-dberr_t buf_read_page(const page_id_t page_id)
+dberr_t buf_read_page(const page_id_t page_id, bool unzip)
 {
   fil_space_t *space= fil_space_t::get(page_id.space());
   if (UNIV_UNLIKELY(!space))
@@ -462,7 +462,7 @@ dberr_t buf_read_page(const page_id_t page_id)
 
   buf_LRU_stat_inc_io(); /* NOT protected by buf_pool.mutex */
   return buf_read_page_low(space, true, BUF_READ_ANY_PAGE,
-                           page_id, space->zip_size(), true);
+                           page_id, space->zip_size(), unzip);
 }
 
 /** High-level function which reads a page asynchronously from a file to the

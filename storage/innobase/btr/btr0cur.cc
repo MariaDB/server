@@ -6850,14 +6850,9 @@ btr_copy_zblob_prefix(
 		buf_page_t*	bpage;
 		uint32_t	next_page_no;
 
-		/* There is no latch on bpage directly.  Instead,
-		bpage is protected by the B-tree page latch that
-		is being held on the clustered index record, or,
-		in row_merge_copy_blobs(), by an exclusive table lock. */
 		bpage = buf_page_get_zip(id);
 
 		if (UNIV_UNLIKELY(!bpage)) {
-			ib::error() << "Cannot load compressed BLOB " << id;
 			goto func_exit;
 		}
 
@@ -6927,12 +6922,10 @@ inflate_error:
 
 end_of_blob:
 			bpage->lock.s_unlock();
-			bpage->unfix();
 			goto func_exit;
 		}
 
 		bpage->lock.s_unlock();
-		bpage->unfix();
 
 		/* On other BLOB pages except the first
 		the BLOB header always is at the page header: */

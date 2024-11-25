@@ -712,7 +712,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				if (i < dict_index_get_n_unique(index)) {
 					dfield_set_data(field, buf, len);
 				} else {
@@ -725,7 +728,10 @@ error:
 			const byte*	buf = row_ext_lookup(ext, col->ind,
 							     &len);
 			if (UNIV_LIKELY_NULL(buf)) {
-				ut_a(buf != field_ref_zero);
+				if (UNIV_UNLIKELY(buf == field_ref_zero)) {
+					*err = DB_CORRUPTION;
+					goto error;
+				}
 				dfield_set_data(field, buf, len);
 			}
 		}
