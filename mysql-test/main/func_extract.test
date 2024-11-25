@@ -529,5 +529,15 @@ SELECT EXTRACT(DAY FROM CAST('100000:00:00' AS DATE));
 SET SESSION old_mode=DEFAULT;
 
 --echo #
+--echo # MDEV-35489 Assertion `!ldate->neg' or unexpected result upon extracting unit from invalid value
+--echo #
+
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480000));
+SELECT EXTRACT(DAY FROM TIMESTAMP(-177498480001));
+SELECT EXTRACT(DAY FROM TIMESTAMP(-200000000000));
+SELECT EXTRACT(DAY FROM TIMESTAMP(-221938034527));
+
+
+--echo #
 --echo # End of 10.5 tests
 --echo #
