@@ -3077,7 +3077,6 @@ void wsrep_to_isolation_end(THD *thd)
   }
   else if (wsrep_thd_is_in_rsu(thd))
   {
-    thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
     DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_RSU);
     wsrep_RSU_end(thd);
   }
