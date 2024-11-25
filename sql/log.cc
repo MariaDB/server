@@ -322,6 +322,11 @@ public:
     incident= TRUE;
   }
   
+  void clear_incident(void)
+  {
+    incident= FALSE;
+  }
+
   bool has_incident(void)
   {
     return(incident);
@@ -2537,6 +2542,18 @@ void binlog_reset_cache(THD *thd)
     cache_mngr->reset(true, true);
   }
   DBUG_VOID_RETURN;
+}
+
+
+void binlog_clear_incident(THD *thd)
+{
+  binlog_cache_mngr *const cache_mngr= opt_bin_log ?
+    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton) : 0;
+  if (cache_mngr)
+  {
+    cache_mngr->stmt_cache.clear_incident();
+    cache_mngr->trx_cache.clear_incident();
+  }
 }
 
 
