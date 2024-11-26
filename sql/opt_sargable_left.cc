@@ -32,7 +32,7 @@
   This optimization makes conditions in forms like
 
     LEFT(key_col, N) = 'string_const'
-    SUBSTRING(key_col, 1, N)='string_const'
+    SUBSTRING(key_col, 1, N) = 'string_const'
 
   sargable. The conditions take the first N characters of key_col and
   compare them with a string constant.
@@ -84,7 +84,7 @@
   +------+-----------+----------------+
 
   (However, index comparison function uses equality's comparison rules.
-  my_like_range() will produce an index range 'AA' <= col1 <'AA'. Reading rows
+  my_like_range() will produce an index range 'AA' <= col1 <= 'AA'. Reading rows
   from it will return 'Å' as well)
 
   Second, LEFT imposes additional constraints on the length of both parts. For
@@ -112,7 +112,7 @@
     Only equality conditions are supported.
     See SargableLeft above for detals.
 
-  @param  field      The first argument of substr if sargable,
+  @param  field      The first argument of LEFT or SUBSTRING if sargable,
                      otherwise deferenced to NULL
   @param  value_idx  The index of argument that is the prefix string
                      if sargable, otherwise dereferenced to -1

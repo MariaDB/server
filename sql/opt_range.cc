@@ -9029,8 +9029,8 @@ static bool escape_like_characters(String *res)
     This is used for conditions in forms:
 
      - key_col LIKE 'sargable_pattern'
-     - SUBSTR(key_col, 1, ...) = 'value' - see with_sargable_substr() for
-       details.
+     - SUBSTR(key_col, 1, ...) = 'value', or equivalent conditions involving
+       LEFT() instead of SUBSTR() - see with_sargable_substr() for details.
 
   @param
      item The comparison item (Item_func_like or Item_func_eq)
