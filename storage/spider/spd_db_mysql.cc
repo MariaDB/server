@@ -5028,6 +5028,8 @@ int spider_db_mbase_util::print_item_func(
       last_str = SPIDER_SQL_IS_NOT_NULL_STR;
       last_str_length = SPIDER_SQL_IS_NOT_NULL_LEN;
       break;
+    case Item_func::LEFT_FUNC:
+    case Item_func::SUBSTR_FUNC:
     case Item_func::UNKNOWN_FUNC:
       org_func_name= item_func->func_name_cstring();
       func_name= org_func_name.str;
