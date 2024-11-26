@@ -37,18 +37,7 @@
 #include "rpl_filter.h"
 #include "log_event.h"
 #include <mysql.h>
-
-
-struct Slave_info
-{
-  uint32 server_id;
-  uint32 master_id;
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  uint16 port;
-};
-
+#include "semisync_master.h"
 
 Atomic_counter<uint32_t> binlog_dump_thread_count;
 ulong rpl_status=RPL_NULL;
@@ -125,8 +114,10 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db.str, NULL,NULL,0,0))
     return 1;
   if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
-                                   MYF(MY_WME))))
+                                   MYF(MY_WME|MY_ZEROFILL))))
     return 1;
+  si->sync_status.store(Slave_info::SYNC_STATUS_INITIALIZING,
+                        std::memory_order_relaxed);
 
   variables.server_id= si->server_id= uint4korr(p);
   p+= 4;
@@ -179,7 +170,10 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
 {
   my_bool res= FALSE;
   mysql_mutex_lock(&thd->LOCK_thd_data);
-  if (auto si= thd->slave_info)
+  String gtid_sent, gtid_ack;
+  const char *sync_str;
+  const char *err_msg= NULL;
+  if (const Slave_info *si= thd->slave_info)
   {
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
@@ -191,6 +185,53 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
     }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);
+
+    if (gtid_state_from_binlog_pos(si->gtid_pos_sent.log_file,
+                                   (uint32) si->gtid_pos_sent.log_pos.load(
+                                       std::memory_order_relaxed),
+                                   &gtid_sent, &err_msg))
+    {
+      DBUG_ASSERT(err_msg);
+      gtid_sent.free();
+
+      if (global_system_variables.log_warnings >= 2)
+        push_warning_printf(
+            current_thd, Sql_condition::WARN_LEVEL_WARN,
+            ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS,
+            ER_THD(current_thd,
+                   ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS),
+            si->gtid_pos_sent.log_pos.load(std::memory_order_relaxed),
+            si->gtid_pos_sent.log_file, err_msg);
+    }
+    protocol->store_string_or_null(gtid_sent.ptr(), &my_charset_bin);
+
+    if (rpl_semi_sync_master_enabled && thd->semi_sync_slave)
+    {
+      if (gtid_state_from_binlog_pos(si->gtid_pos_ack.log_file,
+                                     (uint32) si->gtid_pos_ack.log_pos.load(
+                                         std::memory_order_relaxed),
+                                     &gtid_ack, &err_msg))
+      {
+        DBUG_ASSERT(err_msg);
+        gtid_ack.free();
+
+        if (global_system_variables.log_warnings >= 2)
+        {
+          push_warning_printf(
+              current_thd, Sql_condition::WARN_LEVEL_NOTE,
+              ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS,
+              ER_THD(current_thd,
+                     ER_MASTER_CANNOT_RECONSTRUCT_GTID_STATE_FOR_BINLOG_POS),
+              si->gtid_pos_ack.log_pos.load(std::memory_order_relaxed),
+              si->gtid_pos_ack.log_file, err_msg);
+        }
+      }
+    }
+    protocol->store_string_or_null(gtid_ack.ptr(), &my_charset_bin);
+
+    sync_str= si->get_sync_status_str();
+    protocol->store(sync_str, safe_strlen(sync_str), &my_charset_bin);
+
     res= protocol->write();
   }
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -234,6 +275,20 @@ bool show_slave_hosts(THD* thd)
   field_list.push_back(new (mem_root)
                        Item_return_int(thd, "Master_id", 10, MYSQL_TYPE_LONG),
                        thd->mem_root);
+
+ /* Length matches GTID_IO_Pos of SHOW SLAVE STATUS on slave */
+ field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_Pos_Sent", 30),
+                        thd->mem_root);
+
+ field_list.push_back(new (mem_root)
+                        Item_empty_string(thd, "Gtid_Pos_Ack", 30),
+                        thd->mem_root);
+
+  /* For the length, use the size of the longest possible value */
+ field_list.push_back(new (mem_root) Item_empty_string(
+                          thd, "Sync_Status", sizeof("Semi-sync Active")),
+                      thd->mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
