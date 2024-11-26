@@ -248,6 +248,7 @@ public:
   bool fix_length_and_dec(THD *thd) override { decimals=0; max_length=1; return FALSE; }
   decimal_digits_t decimal_precision() const override { return 1; }
   bool need_parentheses_in_default() override { return true; }
+  bool with_sargable_substr(Item_field **field = NULL, int *value_idx = NULL) const;
 };
 
 
@@ -540,8 +541,14 @@ public:
       may succeed.
     */
     if (!(ftree= get_full_func_mm_tree_for_args(param, args[0], args[1])) &&
-        !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])))
-      ftree= Item_func::get_mm_tree(param, cond_ptr);
+        !(ftree= get_full_func_mm_tree_for_args(param, args[1], args[0])) &&
+        !(ftree= Item_func::get_mm_tree(param, cond_ptr)))
+    {
+      Item_field *field= NULL;
+      int value_idx= -1;
+      if (with_sargable_substr(&field, &value_idx))
+        DBUG_RETURN(get_full_func_mm_tree_for_args(param, field, args[value_idx]));
+    }
     DBUG_RETURN(ftree);
   }
 };

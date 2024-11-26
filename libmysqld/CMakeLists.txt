@@ -73,6 +73,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/net_serv.cc ../sql/opt_range.cc
            ../sql/opt_rewrite_date_cmp.cc
            ../sql/opt_rewrite_remove_casefold.cc
+           ../sql/opt_sargable_left.cc
            ../sql/opt_sum.cc
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
