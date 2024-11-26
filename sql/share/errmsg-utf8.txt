@@ -12299,3 +12299,5 @@ ER_SIGNAL_SKIP_ROW_FROM_TRIGGER
         eng "The row is skipped by a trigger implementation"
 ER_TEMPORARY_TABLES_PREVENT_SWITCH_GTID_DOMAIN_ID
 	eng "Cannot modify @@session.gtid_domain_id while there are open temporary tables being binlogged"
+ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
+        eng "More than one row in the table"
