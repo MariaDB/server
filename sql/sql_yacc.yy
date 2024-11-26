@@ -286,6 +286,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class sp_head *sphead;
   class sp_name *spname;
   class sp_variable *spvar;
+  class sp_record *sprec;
   class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
@@ -734,6 +735,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  OTHERS_MARIADB_SYM            // SQL-2011-N, PLSQL-R
 %token  <kwd>  PACKAGE_MARIADB_SYM           // Oracle-R
 %token  <kwd>  RAISE_MARIADB_SYM             // PLSQL-R
+%token  <kwd>  RECORD_SYM
 %token  <kwd>  ROWTYPE_MARIADB_SYM           // PLSQL-R
 %token  <kwd>  ROWNUM_SYM                    /* Oracle-R */
 
@@ -1426,7 +1428,8 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 
 %type <json_on_response> json_on_response
 
-%type <Lex_field_type> field_type field_type_all
+%type <Lex_field_type> field_type field_type_all field_type_all_builtin
+        field_type_all_with_record
         qualified_field_type
         field_type_numeric
         field_type_string
@@ -1908,6 +1911,11 @@ rule:
 
 %type <spvar_definition> row_field_name row_field_definition
 %type <spvar_definition_list> row_field_definition_list row_type_body
+%ifdef ORACLE
+%type <spvar_definition> rec_field_definition
+%type <spvar_definition> rec_field_definition_anchored
+%type <spvar_definition_list> rec_field_definition_list rec_type_body
+%endif
 
 %type <NONE> opt_window_clause window_def_list window_def window_spec
 %type <lex_str_ptr> window_name
@@ -3474,6 +3482,51 @@ row_type_body:
           '(' row_field_definition_list ')' { $$= $2; }
         ;
 
+%ifdef ORACLE
+rec_field_definition:
+          row_field_name field_type
+          {
+            Lex->last_field->set_attributes(thd, $2,
+                                            COLUMN_DEFINITION_ROUTINE_LOCAL);
+          }
+        | rec_field_definition_anchored
+        ;
+
+rec_field_definition_anchored:
+          row_field_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (unlikely(Lex->sphead->spvar_def_fill_type_reference(thd,
+                                                                    $1, $2,
+                                                                    $4)))
+              MYSQL_YYABORT;
+          }
+        | row_field_name sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          {
+            if (unlikely(Lex->sphead->spvar_def_fill_type_reference(thd,
+                                                                    $1, $2,
+                                                                    $4, $6)))
+              MYSQL_YYABORT;
+          }
+        ;
+
+rec_field_definition_list:
+          rec_field_definition
+          {
+            if (!($$= Row_definition_list::make(thd->mem_root, $1)))
+              MYSQL_YYABORT;
+          }
+        | rec_field_definition_list ',' rec_field_definition
+          {
+            if (($$= $1)->append_uniq(thd->mem_root, $3))
+              MYSQL_YYABORT;
+          }
+        ;
+
+rec_type_body:
+          '(' rec_field_definition_list ')' { $$= $2; }
+        ;
+%endif
+
 sp_decl_idents_init_vars:
           sp_decl_idents
           {
@@ -3483,7 +3536,7 @@ sp_decl_idents_init_vars:
 
 sp_decl_variable_list:
           sp_decl_idents_init_vars
-          field_type
+          field_type_all_with_record
           {
             Lex->last_field->set_attributes(thd, $2,
                                             COLUMN_DEFINITION_ROUTINE_LOCAL);
@@ -6380,16 +6433,44 @@ udt_name:
         | non_reserved_keyword_udt      { $$= $1; }
         ;
 
-field_type_all:
+field_type_all_builtin:
           field_type_numeric
         | field_type_temporal
         | field_type_string
         | field_type_lob
         | field_type_misc
+      ;
+
+field_type_all:
+          field_type_all_builtin
         | udt_name float_options srid_option
           {
             if (Lex->set_field_type_udt(&$$, $1, $2))
               MYSQL_YYABORT;
+          }
+        ;
+
+field_type_all_with_record:
+          field_type_all_builtin
+          {
+            Lex->map_data_type(Lex_ident_sys(), &($$= $1));
+          }
+        | udt_name float_options srid_option
+          {
+            sp_record *sprec = NULL;
+            if (Lex->spcont)
+              sprec = Lex->spcont->find_record(&$1, false);
+            
+            if (sprec == NULL)
+            {
+              if (Lex->set_field_type_udt(&$$, $1, $2))
+                MYSQL_YYABORT;
+            }
+            else
+            {
+              $$.set(&type_handler_row, NULL);
+              Lex->last_field->set_attr_const_void_ptr(0, sprec);
+            }
           }
         ;
 
@@ -10808,6 +10889,7 @@ function_call_generic:
             const Type_handler *h;
             Create_func *builder;
             Item *item= NULL;
+            sp_record* rec= NULL;
 
             if (unlikely(Lex_ident_routine::check_name_with_error($1)))
               MYSQL_YYABORT;
@@ -10832,6 +10914,11 @@ function_call_generic:
                      (item= h->make_constructor_item(thd, $4)))
             {
               // Found a constructor with a proper argument count
+            }
+            else if (Lex->spcont &&
+                    (rec = Lex->spcont->find_record(&$1, false)))
+            {
+              item= new (thd->mem_root) Item_row(thd, *$4);
             }
             else
             {
@@ -16001,6 +16088,9 @@ keyword_ident:
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
+%ifdef ORACLE
+        | TYPE_SYM
+%endif
         ;
 
 keyword_sysvar_name:
@@ -16517,7 +16607,9 @@ keyword_func_sp_var_and_label:
         | TRANSACTIONAL_SYM
         | THREADS_SYM
         | TRIGGERS_SYM
+%ifdef MARIADB
         | TYPE_SYM           %prec PREC_BELOW_CONTRACTION_TOKEN2
+%endif
         | UDF_RETURNS_SYM
         | UNCOMMITTED_SYM
         | UNDEFINED_SYM
@@ -16565,6 +16657,7 @@ keyword_sp_var_and_label:
         | MONTH_SYM
         | NEXTVAL_SYM
         | OVERLAPS_SYM
+        | RECORD_SYM
 %ifdef MARIADB
         | ROWNUM_SYM
 %endif
@@ -19949,6 +20042,14 @@ sp_decl_non_handler:
               MYSQL_YYABORT;
             $$.vars= $$.conds= $$.hndlrs= 0;
             $$.curs= 1;
+          }
+        | TYPE_SYM ident_directly_assignable IS RECORD_SYM rec_type_body
+          {
+            if (unlikely(Lex->spcont->
+                          declare_record(thd, Lex_ident_column($2), $5)))
+              MYSQL_YYABORT;
+
+            $$.vars= $$.conds= $$.hndlrs= $$.curs= 0;
           }
         ;
 

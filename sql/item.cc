@@ -1935,6 +1935,13 @@ bool Item_splocal_row_field::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
   Item *item= get_variable(thd->spcont)->element_index(m_field_idx);
+  /*
+    If a row field was declared using an anchored data type,
+    then its creation time type handler was type_handler_null.
+    Let's now copy the real type handler from the item, which
+    now contains the resolved data type.
+  */
+  set_handler(item->type_handler());
   return fix_fields_from_item(thd, ref, item);
 }
 
