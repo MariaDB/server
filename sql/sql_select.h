@@ -2718,4 +2718,6 @@ void propagate_new_equalities(THD *thd, Item *cond,
 
 bool dbug_user_var_equals_str(THD *thd, const char *name, const char *value);
 
+#include "opt_vcol_substitution.h"
+
 #endif /* SQL_SELECT_INCLUDED */

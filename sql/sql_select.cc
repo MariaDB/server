@@ -2410,6 +2410,12 @@ JOIN::optimize_inner()
           thd, &Item::varchar_upper_cmp_transformer);
   }
 
+  if (substitute_indexed_vcols_for_join(this))
+  {
+    error= 1;
+    DBUG_RETURN(1);
+  }
+
   conds= optimize_cond(this, conds, join_list, ignore_on_expr,
                        &cond_value, &cond_equal, OPT_LINK_EQUAL_FIELDS);
 
