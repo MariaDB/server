@@ -268,7 +268,7 @@ class RocksDBBackup():
     start_time= time.time()
     last_progress_time= start_time
     progress_size= 0
-    for fname, size in self.target_sst.iteritems():
+    for fname, size in self.target_sst.items():
       self.do_backup_sst(fname, size)
       progress_size= progress_size + size
       elapsed_seconds = time.time() - start_time
@@ -319,11 +319,13 @@ class MySQLUtil:
     if socket:
       dbh = MySQLdb.Connect(user=user,
                             passwd=password,
+                            charset='utf8',
                             unix_socket=socket)
     else:
       dbh = MySQLdb.Connect(user=user,
                             passwd=password,
                             port=port,
+                            charset='utf8',
                             host="127.0.0.1")
     return dbh
 
@@ -645,8 +647,8 @@ def move_back():
     print_move_back_usage()
     sys.exit()
   create_moveback_dir(opts.datadir)
-  create_moveback_dir(opts.rocksdb_datadir)
   create_moveback_dir(opts.rocksdb_waldir)
+  create_moveback_dir(opts.rocksdb_datadir)
 
   os.chdir(opts.backupdir)
   for f in os.listdir(opts.backupdir):
