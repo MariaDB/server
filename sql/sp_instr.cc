@@ -1130,6 +1130,50 @@ sp_instr_set::print(String *str)
 }
 
 
+int sp_instr_set_default_param::execute(THD *thd, uint *nextp)
+{
+  DBUG_ENTER("sp_instr_set_default_param::execute");
+  DBUG_PRINT("info", ("offset: %u", m_offset));
+
+  auto rctx= get_rcontext(thd);
+  if (m_offset < rctx->get_inited_param_count())
+  {
+    // NOP
+    *nextp= m_ip + 1;
+    DBUG_RETURN(0);  
+  }
+
+  DBUG_RETURN(m_lex_keeper.validate_lex_and_exec_core(thd, nextp, true, this));
+}
+
+
+void
+sp_instr_set_default_param::print(String *str)
+{
+  /* set name@offset ... */
+  size_t rsrv = SP_INSTR_UINT_MAXLEN+20;
+  sp_variable *var = m_ctx->find_variable(m_offset);
+  const LEX_CSTRING *prefix= m_rcontext_handler->get_name_prefix();
+
+  /* 'var' should always be non-null, but just in case... */
+  if (var)
+    rsrv+= var->name.length + prefix->length;
+  if (str->reserve(rsrv))
+    return;
+  str->qs_append(STRING_WITH_LEN("set default param "));
+  str->qs_append(prefix->str, prefix->length);
+  if (var)
+  {
+    str->qs_append(&var->name);
+    str->qs_append('@');
+  }
+  str->qs_append(m_offset);
+  str->qs_append(' ');
+  m_value->print(str, enum_query_type(QT_ORDINARY |
+                                      QT_ITEM_ORIGINAL_FUNC_NULLIF));
+}
+
+
 /*
   sp_instr_set_field class functions
 */
