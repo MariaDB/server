@@ -22,6 +22,57 @@
 
 static unsigned min_length, min_digits, min_letters, min_others;
 
+#define SQL_BUFF_LEN 2048
+#define USERNAME_VIEW_NAME "username_view"
+#define STRING_WITH_LEN(X) (X), ((size_t) (sizeof(X) - 1))
+MYSQL *mysql= NULL;
+
+static int check_password_exists(MYSQL *mysql, const char *query,
+                                 size_t len)
+{
+  if (mysql_real_query(mysql, query, len)) {
+    return 1;
+  }
+
+  MYSQL_RES *result = mysql_store_result(mysql);
+  if (result)
+  {
+    my_printf_error(ER_NOT_VALID_PASSWORD,
+                    "simple_password_check: The password equal to some user name",
+                    ME_WARNING);
+    return 1;
+  }
+  else
+    return 0;
+}
+
+static int init(void* h)
+{
+  mysql= mysql_init(NULL);
+  if (!mysql)
+    return 1;
+  if (mysql_real_connect_local(mysql) == NULL)
+    return 1;
+
+  if (mysql_real_query(mysql, STRING_WITH_LEN("CREATE VIEW mysql."
+                                              USERNAME_VIEW_NAME
+                                              " AS SELECT DISTINCT user FROM mysql.user")))
+  {
+
+    my_printf_error(ER_UNKNOWN_ERROR, "simple_password_check:[%d] %s", ME_WARNING,
+                    mysql_errno(mysql), mysql_error(mysql));
+    return 1;
+  }
+
+  mysql_close(mysql);
+  return 0;
+}
+
+static int deinit(void *h)
+{
+  return 1; /* don't unload me */
+}
+
 static int validate(const MYSQL_CONST_LEX_STRING *username,
                     const MYSQL_CONST_LEX_STRING *password,
                     const MYSQL_CONST_LEX_STRING *hostname
@@ -29,6 +80,28 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
 {
   unsigned digits=0 , uppers=0 , lowers=0, others=0, length= (unsigned)password->length;
   const char *ptr= password->str, *end= ptr + length;
+
+  size_t len;
+
+  char *buff= malloc(SQL_BUFF_LEN);
+  if (!buff)
+    return 1;
+
+  if (mysql_real_connect_local(mysql) == NULL)
+    goto sql_error;
+
+  buff[24]= 0;
+
+  len= snprintf(buff, SQL_BUFF_LEN,
+                "SELECT 1 FROM mysql."
+                USERNAME_VIEW_NAME
+                " WHERE user = '%s'", ptr
+  );
+  if (check_password_exists(mysql, buff, len))
+    goto sql_error;
+
+  free(buff);
+  mysql_close(mysql);
 
   if (strncmp(password->str, username->str, length) == 0)
   {
@@ -79,6 +152,12 @@ static int validate(const MYSQL_CONST_LEX_STRING *username,
          lowers < min_letters ||
          digits < min_digits  ||
          others < min_others;
+
+sql_error:
+  free(buff);
+  if (mysql)
+    mysql_close(mysql);
+  return 1; // Error
 }
 
 static void fix_min_length(MYSQL_THD thd __attribute__((unused)),
