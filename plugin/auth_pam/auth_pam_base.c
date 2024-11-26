@@ -155,6 +155,12 @@ static int pam_auth_base(struct param *param, MYSQL_SERVER_AUTH_INFO *info)
   PAM_DEBUG((stderr, "PAM: pam_start(%s, %s)\n", service, info->user_name));
   DO( pam_start(service, info->user_name, &pam_start_arg, &pamh) );
 
+  if (info->host_or_ip)
+  {
+    PAM_DEBUG((stderr, "PAM: pam_set_item(PAM_RHOST, %s)\n", info->host_or_ip));
+    DO( pam_set_item(pamh, PAM_RHOST, info->host_or_ip) );
+  }
+
   PAM_DEBUG((stderr, "PAM: pam_authenticate(0)\n"));
   DO( pam_authenticate (pamh, 0) );
 
