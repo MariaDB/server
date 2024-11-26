@@ -3936,7 +3936,7 @@ void Item_string::print(String *str, enum_query_type query_type)
     }
     else
     {
-      str_value.print(str, system_charset_info);
+      str_value.print(str, &my_charset_utf8mb4_general_ci);
     }
   }
   else

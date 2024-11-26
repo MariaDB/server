@@ -1,0 +1,26 @@
+--eval CREATE TABLE t1 (a CHAR(8) DEFAULT REVERSE('aha')) $table_charset
+SHOW CREATE TABLE t1;
+INSERT INTO t1 VALUES ();
+SELECT * FROM t1;
+
+--eval CREATE TABLE t2 (a CHAR(8) DEFAULT REVERSE('åäá')) $table_charset
+SHOW CREATE TABLE t2;
+INSERT INTO t2 VALUES ();
+SELECT * FROM t2;
+
+--eval CREATE TABLE t3 (a CHAR(8) DEFAULT REVERSE('😎😀')) $table_charset
+SHOW CREATE TABLE t3;
+INSERT INTO t3 VALUES ();
+SELECT * FROM t3;
+
+--eval CREATE TABLE t4 (a CHAR(8), b CHAR(8) AS (REVERSE('😎😀'))) $table_charset
+SHOW CREATE TABLE t4;
+INSERT INTO t4 (a) VALUES ('');
+SELECT * FROM t4;
+
+--eval CREATE TABLE t5 (a CHAR(8), b CHAR(8) CHECK (b=BINARY REVERSE('😎😀'))) $table_charset
+SHOW CREATE TABLE t5;
+--error ER_CONSTRAINT_FAILED
+INSERT INTO t5 VALUES ('','😎😀');
+INSERT INTO t5 VALUES ('','😀😎');
+SELECT * FROM t5;
