@@ -83,6 +83,22 @@ static inline uint make_user_name(THD *thd, char *buf)
   return (uint)(end-buf);
 }
 
+static inline
+void set_tls_version_of_event(THD *thd, mysql_event_connection *event)
+{
+    event->tls_version = "";
+    event->tls_version_length = 0;
+#ifdef HAVE_OPENSSL
+    Vio *vio= thd->net.vio;
+    SSL *ssl= (SSL *) vio->ssl_arg;
+    if (ssl)
+    {
+        event->tls_version = SSL_get_version(ssl);
+        event->tls_version_length = safe_strlen_uint(event->tls_version);
+    }
+#endif
+}
+
 /**
   Call audit plugins of GENERAL audit class, MYSQL_AUDIT_GENERAL_LOG subtype.
   
@@ -219,6 +235,7 @@ void mysql_audit_notify_connection_connect(THD *thd)
     event.ip= sctx->ip;
     event.ip_length= safe_strlen_uint(sctx->ip);
     event.database= thd->db;
+    set_tls_version_of_event(thd, &event);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -248,6 +265,7 @@ void mysql_audit_notify_connection_disconnect(THD *thd, int errcode)
     event.ip= sctx->ip;
     event.ip_length= safe_strlen_uint(sctx->ip) ;
     event.database= thd->db;
+    set_tls_version_of_event(thd, &event);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
@@ -278,6 +296,7 @@ void mysql_audit_notify_connection_change_user(THD *thd,
     event.ip= old_ctx->ip;
     event.ip_length= safe_strlen_uint(old_ctx->ip);
     event.database= thd->db;
+    set_tls_version_of_event(thd, &event);
 
     mysql_audit_notify(thd, MYSQL_AUDIT_CONNECTION_CLASS, &event);
   }
