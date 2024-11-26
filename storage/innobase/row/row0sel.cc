@@ -4714,8 +4714,10 @@ aborted:
 		} else {
 wait_table_again:
 			err = lock_table(prebuilt->table, nullptr,
-					 prebuilt->select_lock_type == LOCK_S
-					 ? LOCK_IS : LOCK_IX, thr);
+                       prebuilt->full_table_scan ?
+                       prebuilt->select_lock_type :
+                       (prebuilt->select_lock_type == LOCK_S
+                        ? LOCK_IS : LOCK_IX), thr);
 
 			if (err != DB_SUCCESS) {
 
