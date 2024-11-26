@@ -117,6 +117,7 @@ SET (SQL_SOURCE
                opt_rewrite_date_cmp.cc
                opt_rewrite_remove_casefold.cc
                opt_sum.cc
+               opt_vcol_substitution.cc
                ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
@@ -187,6 +188,8 @@ SET (SQL_SOURCE
                json_table.cc
                proxy_protocol.cc backup.cc xa.cc
                socketpair.c socketpair.h
+               opt_vcol_substitution.h
+               opt_vcol_substitution.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}

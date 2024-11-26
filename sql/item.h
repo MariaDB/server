@@ -2460,6 +2460,21 @@ public:
   bool cache_const_expr_analyzer(uchar **arg);
   Item* cache_const_expr_transformer(THD *thd, uchar *arg);
 
+  /*
+    Virtual column substitution
+    - analyzer returns true if it makes sense to attempt substitution.
+      It is supposed to be a quick and dirty check.
+    - transformer actually attempts the transformation (and may do it or not)
+
+    For both, the item that returns true from the analysis and is transformed
+    is the comparison item.
+    For example, for Item_func_eq($vcol_expression='foo') it will be the
+    Item_func_eq object (and not the Item representing $vcol_expression as one
+    might expect)
+  */
+  virtual bool vcol_subst_analyzer(uchar **) { return false; }
+  virtual Item* vcol_subst_transformer(THD *thd, uchar *arg) { return this; }
+
   virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
   {
     return this;
