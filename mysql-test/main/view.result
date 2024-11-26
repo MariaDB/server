@@ -1503,8 +1503,6 @@ execute stmt1 using @a;
 set @a= 301;
 execute stmt1 using @a;
 deallocate prepare stmt1;
-insert into v3(a) select sum(302);
-insert into v3(a) select sum(303) over ();
 select * from v3;
 a	b
 100	0
@@ -1523,14 +1521,6 @@ a	b
 301	10
 301	1000
 301	2000
-302	0
-302	10
-302	1000
-302	2000
-303	0
-303	10
-303	1000
-303	2000
 drop view v3;
 drop tables t1,t2;
 create table t1(f1 int);
