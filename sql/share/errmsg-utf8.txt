@@ -12293,3 +12293,5 @@ ER_VECTOR_FORMAT_INVALID
         eng "Invalid vector format at offset: %d for '%-.100s'. Must be a valid JSON array of numbers."
 ER_VEC_DISTANCE_TYPE
         eng "Cannot determine distance type for VEC_DISTANCE, index is not found"
+ER_SEQUENCE_TABLE_HAS_TOO_MANY_ROWS
+        eng "More than one row in the table"
