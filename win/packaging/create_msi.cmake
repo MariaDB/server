@@ -17,11 +17,11 @@ SET($ENV{VS_UNICODE_OUTPUT} "")
 
 FOREACH(third_party ${WITH_THIRD_PARTY})
   INCLUDE(${SRCDIR}/${third_party}.cmake)
- 
+
   # Check than above script produced ${third_party}.wxi and ${third_party}_feature.wxi
   FOREACH(outfile ${third_party}.wxi ${third_party}_feature.wxi)
     IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${outfile})
-      MESSAGE(FATAL_ERROR 
+      MESSAGE(FATAL_ERROR
        "${SRCDIR}/${third_party}.cmake did not produce "
        "${CMAKE_CURRENT_BINARY_DIR}/${outfile}"
       )
@@ -54,7 +54,7 @@ IF(NOT CPACK_WIX_UI)
 ENDIF()
 
 IF(CMAKE_INSTALL_CONFIG_NAME)
-  STRING(REPLACE "${CMAKE_CFG_INTDIR}" "${CMAKE_INSTALL_CONFIG_NAME}" 
+  STRING(REPLACE "${CMAKE_CFG_INTDIR}" "${CMAKE_INSTALL_CONFIG_NAME}"
     WIXCA_LOCATION "${WIXCA_LOCATION}")
   SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_INSTALL_CONFIG_NAME}")
 ENDIF()
@@ -63,7 +63,7 @@ SET(COMPONENTS_ALL "${CPACK_COMPONENTS_ALL}")
 FOREACH(comp ${COMPONENTS_ALL})
  SET(ENV{DESTDIR} testinstall/${comp})
  EXECUTE_PROCESS(
-  COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM} -DCMAKE_INSTALL_COMPONENT=${comp}  
+  COMMAND ${CMAKE_COMMAND} ${CONFIG_PARAM} -DCMAKE_INSTALL_COMPONENT=${comp}
    -DCMAKE_INSTALL_PREFIX=  -P ${TOP_BINDIR}/cmake_install.cmake
    OUTPUT_QUIET
 
@@ -92,9 +92,9 @@ FOREACH(comp ${CPACK_COMPONENTS_ALL})
  IF(NOT CPACK_COMPONENT_${comp_upper}_GROUP)
    SET(WIX_FEATURE_${comp_upper}_COMPONENTS "${comp}")
    SET(CPACK_COMPONENT_${comp_upper}_HIDDEN 1)
-   SET(CPACK_COMPONENT_GROUP_${comp_upper}_DISPLAY_NAME 
+   SET(CPACK_COMPONENT_GROUP_${comp_upper}_DISPLAY_NAME
       ${CPACK_COMPONENT_${comp_upper}_DISPLAY_NAME})
-   SET(CPACK_COMPONENT_GROUP_${comp_upper}_DESCRIPTION 
+   SET(CPACK_COMPONENT_GROUP_${comp_upper}_DESCRIPTION
       ${CPACK_COMPONENT_${comp_upper}_DESCRIPTION})
    SET(CPACK_COMPONENT_GROUP_${comp_upper}_WIX_LEVEL
       ${CPACK_COMPONENT_${comp_upper}_WIX_LEVEL})
@@ -151,8 +151,8 @@ FOREACH(f ${WIX_FEATURES})
      SET(DESCRIPTION CPACK_COMPONENT_GROUP_${f_upper}_DESCRIPTION)
    ENDIF()
  ENDIF()
- 
- SET(CPACK_WIX_FEATURES 
+
+ SET(CPACK_WIX_FEATURES
  "${CPACK_WIX_FEATURES}
    <Feature  Id='${f_upper}'
      Title='${TITLE}'
@@ -162,7 +162,7 @@ FOREACH(f ${WIX_FEATURES})
      Level='${Level}' ${DISPLAY} >"
   )
  FOREACH(c ${${f}_COMPONENTS})
-   
+
    STRING(TOUPPER "${c}" c_upper)
    IF (CPACK_COMPONENT_${c_upper}_DISPLAY_NAME)
     SET(TITLE ${CPACK_COMPONENT_${c_upper}_DISPLAY_NAME})
@@ -181,15 +181,15 @@ FOREACH(f ${WIX_FEATURES})
     SET(Level 1)
    ENDIF()
    MAKE_WIX_IDENTIFIER("${c}" cg)
-   
+
    IF(CPACK_COMPONENT_${c_upper}_HIDDEN)
    SET(CPACK_WIX_FEATURES
-   "${CPACK_WIX_FEATURES} 
+   "${CPACK_WIX_FEATURES}
      <ComponentGroupRef Id='componentgroup.${cg}'/>")
    ELSE()
    SET(CPACK_WIX_FEATURES
-   "${CPACK_WIX_FEATURES} 
-    <Feature Id='${c}' 
+   "${CPACK_WIX_FEATURES}
+    <Feature Id='${c}'
        Title='${TITLE}'
        Description='${DESCRIPTION}'
        ConfigurableDirectory='INSTALLDIR'
@@ -198,14 +198,14 @@ FOREACH(f ${WIX_FEATURES})
        <ComponentGroupRef Id='componentgroup.${cg}'/>
     </Feature>")
   ENDIF()
-  
+
   ENDFOREACH()
   IF(${f}_EXTRA_FEATURES)
   FOREACH(extra_feature ${${f}_EXTRA_FEATURES})
     SET(CPACK_WIX_FEATURES
-       "${CPACK_WIX_FEATURES} 
+       "${CPACK_WIX_FEATURES}
        <FeatureRef Id='${extra_feature}' />
-	   ")  
+	   ")
   ENDFOREACH()
   ENDIF()
   SET(CPACK_WIX_FEATURES
@@ -217,7 +217,7 @@ ENDFOREACH()
 
 
 MACRO(GENERATE_GUID VarName)
- EXECUTE_PROCESS(COMMAND uuidgen -c 
+ EXECUTE_PROCESS(COMMAND uuidgen -c
  OUTPUT_VARIABLE ${VarName}
  OUTPUT_STRIP_TRAILING_WHITESPACE)
 ENDMACRO()
@@ -237,7 +237,7 @@ FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
    SET(DirectoryRefId "INSTALLDIR")
   ENDIF()
   FILE(APPEND ${file} "<DirectoryRef Id='${DirectoryRefId}'>\n")
- 
+
   SET(NONEXEFILES)
   FOREACH(v MAJOR_VERSION MINOR_VERSION PATCH_VERSION TINY_VERSION)
     IF(NOT DEFINED ${v})
@@ -281,7 +281,7 @@ FUNCTION(TRAVERSE_FILES dir topdir file file_comp  dir_root)
     GENERATE_GUID(guid)
     SET(ComponentId "C._files_${COMP_NAME}.${DirectoryRefId}")
     MAKE_WIX_IDENTIFIER("${ComponentId}" ComponentId)
-    FILE(APPEND ${file} 
+    FILE(APPEND ${file}
     "<DirectoryRef Id='${DirectoryRefId}'>\n<Component Guid='${guid}'
    Id='${ComponentId}' ${Win64}>${NONEXEFILES}\n</Component></DirectoryRef>\n")
     FILE(APPEND ${file_comp} "  <ComponentRef Id='${ComponentId}'/>\n")
@@ -324,10 +324,10 @@ FOREACH(d ${DIRS})
   GET_FILENAME_COMPONENT(d_name ${d} NAME)
 
   MAKE_WIX_IDENTIFIER("${d_name}" d_name)
-  FILE(WRITE ${abs}/${d_name}_component_group.wxs 
+  FILE(WRITE ${abs}/${d_name}_component_group.wxs
   "<ComponentGroup Id='componentgroup.${d_name}'>")
   SET(COMP_NAME ${d_name})
-  TRAVERSE_FILES(${d} ${d} ${abs}/${d_name}.wxs 
+  TRAVERSE_FILES(${d} ${d} ${abs}/${d_name}.wxs
     ${abs}/${d_name}_component_group.wxs "${abs}/dirs")
   FILE(APPEND  ${abs}/${d_name}_component_group.wxs   "</ComponentGroup>")
   IF(EXISTS ${d_name}.wxs)
@@ -335,9 +335,9 @@ FOREACH(d ${DIRS})
     SET(CPACK_WIX_COMPONENTS "${CPACK_WIX_COMPONENTS}\n${WIX_TMP}")
     FILE(REMOVE ${d_name}.wxs)
   ENDIF()
-  
+
   FILE(READ ${d_name}_component_group.wxs WIX_TMP)
- 
+
   SET(CPACK_WIX_COMPONENT_GROUPS "${CPACK_WIX_COMPONENT_GROUPS}\n${WIX_TMP}")
   FILE(REMOVE ${d_name}_component_group.wxs)
 ENDFOREACH()
@@ -351,7 +351,7 @@ FILE(REMOVE directories.wxs)
 
 
 FOREACH(src ${CPACK_WIX_INCLUDE})
-SET(CPACK_WIX_INCLUDES 
+SET(CPACK_WIX_INCLUDES
 "${CPACK_WIX_INCLUDES}
  <?include ${src}?>"
 )
@@ -373,21 +373,21 @@ ENDIF()
 FILE(REMOVE mysql_server.wixobj extra.wixobj)
 STRING(REPLACE " " ";" EXTRA_WIX_PREPROCESSOR_FLAGS_LIST ${EXTRA_WIX_PREPROCESSOR_FLAGS})
 EXECUTE_PROCESS(
- COMMAND ${CANDLE_EXECUTABLE} 
+ COMMAND ${CANDLE_EXECUTABLE}
  ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- ${CANDLE_ARCH} 
- -ext WixUtilExtension 
- -ext WixFirewallExtension   
- mysql_server.wxs 
+ ${CANDLE_ARCH}
+ -ext WixUtilExtension
+ -ext WixFirewallExtension
+ mysql_server.wxs
  ${EXTRA_CANDLE_ARGS}
 )
 
 EXECUTE_PROCESS(
  COMMAND ${CANDLE_EXECUTABLE} ${CANDLE_ARCH}
  ${EXTRA_WIX_PREPROCESSOR_FLAGS_LIST}
- -ext WixUtilExtension 
- -ext WixFirewallExtension  
- ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs 
+ -ext WixUtilExtension
+ -ext WixFirewallExtension
+ ${CMAKE_CURRENT_BINARY_DIR}/extra.wxs
  ${EXTRA_CANDLE_ARGS}
 )
 
@@ -405,12 +405,11 @@ EXECUTE_PROCESS(
 IF(SIGNCODE)
   SEPARATE_ARGUMENTS(SIGNTOOL_PARAMETERS WINDOWS_COMMAND "${SIGNTOOL_PARAMETERS}")
   EXECUTE_PROCESS(
-  COMMAND ${SIGNTOOL_EXECUTABLE} sign ${SIGNTOOL_PARAMETERS} 
+  COMMAND ${SIGNTOOL_EXECUTABLE} sign ${SIGNTOOL_PARAMETERS}
   /d ${CPACK_PACKAGE_FILE_NAME}.msi
   ${CPACK_PACKAGE_FILE_NAME}.msi
 )
 ENDIF()
-CONFIGURE_FILE(${CPACK_PACKAGE_FILE_NAME}.msi 
+CONFIGURE_FILE(${CPACK_PACKAGE_FILE_NAME}.msi
  ${TOP_BINDIR}/${CPACK_PACKAGE_FILE_NAME}.msi
   COPYONLY)
-

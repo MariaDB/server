@@ -1,14 +1,14 @@
 # Copyright 2010, Oracle and/or its affiliates. All rights reserved.
-# 
+#
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation; version 2 of the License.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335  USA
@@ -51,9 +51,9 @@ IF(NOT WIX_WCAUTIL_LIBRARY)
   CANT_BUILD_MSI("wcautil.lib not found for ${WIX_ARCH}")
 ENDIF()
 
-FIND_LIBRARY(WIX_DUTIL_LIBRARY 
+FIND_LIBRARY(WIX_DUTIL_LIBRARY
   dutil
-  PATHS 
+  PATHS
   ${WIX_SDK_DIR}/VS2017/lib/${WIX_ARCH}
   ${WIX_SDK_DIR}/VS2015/lib/${WIX_ARCH}
   )
@@ -107,7 +107,7 @@ SET(MANUFACTURER "MariaDB Corporation Ab")
 
 
 
-# WiX wants the license text as rtf; if there is no rtf license, 
+# WiX wants the license text as rtf; if there is no rtf license,
 # we create a fake one from the plain text COPYING file.
 IF(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/COPYING.rtf")
  SET(COPYING_RTF "${CMAKE_CURRENT_SOURCE_DIR}/COPYING.rtf")
@@ -148,7 +148,7 @@ ENDIF()
 FOREACH(third_party ${WITH_THIRD_PARTY})
   SET(third_party_install_plugin ${CMAKE_CURRENT_SOURCE_DIR}/${third_party}.cmake)
   IF(NOT EXISTS ${third_party_install_plugin})
-    MESSAGE(FATAL_ERROR 
+    MESSAGE(FATAL_ERROR
 "Third party MSI installation plugin ${third_party_install_plugin} does not exist.
 It was expected due to WITH_THIRD_PARTY=${WITH_THIRD_PARTY}"
 )
