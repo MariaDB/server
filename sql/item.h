@@ -2463,6 +2463,9 @@ public:
   bool cache_const_expr_analyzer(uchar **arg);
   Item* cache_const_expr_transformer(THD *thd, uchar *arg);
 
+  bool vcol_subst_analyzer(uchar **);
+  virtual Item* vcol_subst_transformer(THD *thd, uchar *arg) { return this; }
+
   virtual Item* propagate_equal_fields(THD*, const Context &, COND_EQUAL *)
   {
     return this;
