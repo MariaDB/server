@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+
+--echo list of non-innodb system tables:
+SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA='mysql' AND ENGINE!='InnoDB';
+
+use mysql;
+
+show create table help_relation;
+
+--echo Re-add relation like might have been pre-MDEV-30065 (with a bit of effort).
+
+alter table help_relation add foreign key (help_topic_id) references help_topic ( help_topic_id), add foreign key (help_keyword_id)  references help_keyword ( help_keyword_id);
+
+--exec $MYSQL_UPGRADE --force 2>&1
+
+show create table help_relation;
+let $MYSQLD_DATADIR= `select @@datadir`;
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
