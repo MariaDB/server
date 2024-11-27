@@ -483,24 +483,6 @@ bool hint_key_state(const THD *thd, const TABLE *table,
 
 
 bool hint_table_state(const THD *thd, const TABLE *table,
-                      opt_hints_enum type_arg,
-                      uint optimizer_switch)
-{
-  TABLE_LIST *table_list= table->pos_in_table_list;
-  if (table_list->opt_hints_qb)
-  {
-    bool ret_val= false;
-    if (get_hint_state(table_list->opt_hints_table,
-                       table_list->opt_hints_qb,
-                       type_arg, &ret_val))
-      return ret_val;
-  }
-
-  return optimizer_flag(thd, optimizer_switch);
-}
-
-
-bool hint_table_state_or_fallback(const THD *thd, const TABLE *table,
                                   opt_hints_enum type_arg,
                                   bool fallback_value)
 {
