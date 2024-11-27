@@ -6662,7 +6662,7 @@ add_key_field(JOIN *join,
 {
   uint optimize= 0;  
   if (eq_func &&
-      ((join->is_allowed_hash_join_access() &&
+      ((join->is_allowed_hash_join_access(field->table) &&
         field->hash_join_is_possible() && 
         !(field->table->pos_in_table_list->is_materialized_derived() &&
           field->table->is_created())) ||
@@ -9428,8 +9428,7 @@ best_access_path(JOIN      *join,
     (2) s is inner table of outer join -> join cache is allowed for outer joins
   */  
   if (idx > join->const_tables && best.key == 0 &&
-      (join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-      join->max_allowed_join_cache_level > 2 &&
+      join->is_allowed_hash_join_access(table) &&
      !bitmap_is_clear_all(eq_join_set) &&  !disable_jbuf &&
       (!s->emb_sj_nest ||                     
        join->allowed_semijoin_with_cache) &&    // (1)
@@ -11468,7 +11467,6 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
   JOIN_TAB *s;
   table_map found_tables= 0;
   bool found_eq_ref= 0;
-  bool disable_jbuf= join->thd->variables.join_cache_level == 0;
   DBUG_ENTER("get_plans_for_tables");
 
   s= *pos;
@@ -11485,6 +11483,11 @@ get_costs_for_tables(JOIN *join, table_map remaining_tables, uint idx,
       sort_end->join_tab= pos;
       sort_end->position= sort_position;
 
+      bool hint_forces_jbuf=
+        hint_table_state(join->thd, s->table, BNL_HINT_ENUM, false);
+
+      bool disable_jbuf=
+        (join->thd->variables.join_cache_level == 0) && !hint_forces_jbuf;
 
       Json_writer_object wrapper(thd);
       /* Find the best access method from 's' to the current partial plan */
@@ -14471,11 +14474,17 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
           add_cond_and_fix(thd, &tmp, tab->select_cond);
       }
 
+      uint max_jcl= join->max_allowed_join_cache_level;
+      bool is_hash_allowed= join->allowed_join_cache_types &
+                            JOIN_CACHE_HASHED_BIT;
+      bool is_bnlh_enabled= ((max_jcl == 3 || max_jcl == 4) &&
+                              is_hash_allowed) ||
+          hint_table_state(thd, tab->table, BNL_HINT_ENUM, false);
+      bool is_bkah_enabled= (max_jcl > 4 && is_hash_allowed) ||
+          hint_table_state(thd, tab->table, BKA_HINT_ENUM, false);
       is_hj= (tab->type == JT_REF || tab->type == JT_EQ_REF) &&
-             (join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-	     ((join->max_allowed_join_cache_level+1)/2 == 2 ||
-              ((join->max_allowed_join_cache_level+1)/2 > 2 &&
-	       is_hash_join_key_no(tab->ref.key))) &&
+             (is_bnlh_enabled ||
+               (is_bkah_enabled && is_hash_join_key_no(tab->ref.key))) &&
               (!tab->emb_sj_nest ||                     
                join->allowed_semijoin_with_cache) && 
               (!(tab->table->map & join->outer_join) ||
@@ -15631,17 +15640,14 @@ end_sj_materialize(JOIN *join, JOIN_TAB *join_tab, bool end_of_records)
   OPTIMIZER_HINTS
     The following hints may influence the choice of join buffering:
     BNL(t1,t2,..):    enables BNL and BNLH buffers for the specified tables
-                      when join_cache_level=0. Effectively it increases
+                      when join_cache_level < 4. It effectively increases
                       join_cache_level to 4 for given tables.
     NO_BNL(t1,t2,..): disables BNL/BNLH join buffers, which could have been
                       chosen for the specified tables otherwise. Does not
                       prevent employing of BKA/BKAH buffers
     BKA(t1,t2,..):    enables BKA and BKAH buffers for the specified tables
-                      when optimizer switch join_cache_bka=off. Does not
-                      increase join_cache_level, i.e., when join_cache_level=4
-                      and the hint is specified, BKA join buffers will still
-                      not be employed. The hint effectively overrides only
-                      optimizer switch join_cache_bka setting.
+                      when join_cache_level < 5 and/or
+                      optimizer switch join_cache_bka=off.
     NO_BKA(t1,t2,..): disables BKA/BKAH join buffers, which could have been
                       chosen for the specified tables otherwise. However,
                       does not prevent employing of BNL/BNLH buffers.
@@ -15710,22 +15716,19 @@ uint check_join_cache_usage(JOIN_TAB *tab,
          !(join->allowed_join_cache_types & JOIN_CACHE_INCREMENTAL_BIT);
   bool no_hashed_cache=
          !(join->allowed_join_cache_types & JOIN_CACHE_HASHED_BIT);
-  bool no_bnl_cache= !hint_table_state_or_fallback(join->thd,
-                          tab->tab_list->table, BNL_HINT_ENUM, true);
-  bool no_bka_cache= !hint_table_state_or_fallback(join->thd,
-                          tab->tab_list->table, BKA_HINT_ENUM,
-                          join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
-  bool hint_forces_bka= hint_table_state_or_fallback(join->thd,
-                                                     tab->tab_list->table,
-                                                     BKA_HINT_ENUM, false);
+  bool no_bnl_cache= !hint_table_state(join->thd, tab->tab_list->table,
+                                       BNL_HINT_ENUM, true);
+  bool no_bka_cache= !hint_table_state(join->thd, tab->tab_list->table,
+          BKA_HINT_ENUM, join->allowed_join_cache_types & JOIN_CACHE_BKA_BIT);
+  bool hint_forces_bka= hint_table_state(join->thd, tab->tab_list->table,
+                                         BKA_HINT_ENUM, false);
   join->return_tab= 0;
 
   if (tab->no_forced_join_cache || (no_bnl_cache && no_bka_cache))
     goto no_join_cache;
 
-  if (cache_level < 4 && hint_table_state_or_fallback(join->thd,
-                                                       tab->tab_list->table,
-                                                       BNL_HINT_ENUM, false))
+  if (cache_level < 4 && hint_table_state(join->thd, tab->tab_list->table,
+                                          BNL_HINT_ENUM, false))
   {
     cache_level= 4; // BNL() hint present, raise join_cache_level to BNLH
   }
@@ -32447,6 +32450,13 @@ void JOIN::set_allowed_join_cache_types()
   max_allowed_join_cache_level= thd->variables.join_cache_level;
 }
 
+bool JOIN::is_allowed_hash_join_access(const TABLE *table)
+{
+  return allowed_join_cache_types & JOIN_CACHE_HASHED_BIT &&
+         (max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT ||
+           hint_table_state(thd, table, BNL_HINT_ENUM, false) ||
+           hint_table_state(thd, table, BKA_HINT_ENUM, false));
+}
 
 /**
   Save a query execution plan so that the caller can revert to it if needed,

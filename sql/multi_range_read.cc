@@ -1908,7 +1908,7 @@ bool DsMrr_impl::choose_mrr_impl(uint keyno, ha_rows rows, uint *flags,
                                     OPTIMIZER_SWITCH_MRR);
   const bool force_dsmrr_by_hints=
     hint_key_state(thd, table, keyno, MRR_HINT_ENUM, 0) ||
-    hint_table_state(thd, table, BKA_HINT_ENUM, 0);
+    hint_table_state(thd, table, BKA_HINT_ENUM, false);
 
   bool doing_cpk_scan= check_cpk_scan(thd, share, keyno, *flags); 
   bool using_cpk= primary_file->is_clustering_key(keyno);

@@ -565,6 +565,18 @@ EXPLAIN SELECT /*+ BNL(t2, t3, t4)*/ t1.a
   FROM t1 LEFT JOIN (t2 LEFT JOIN (t3 LEFT JOIN t4 ON 1) ON t2.a) ON 0
     WHERE t1.a OR t4.a;
 
+set join_cache_level=8;
+INSERT INTO t2 VALUES (1), (2), (null), (1);
+--echo # BNLH buffer is used when allowed by JCL setting
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a;
+
+--echo # Make sure the hint enables BNL even when JCL=0:
+set join_cache_level=0;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+
+set join_cache_level=2;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+
 DROP TABLE t1,t2,t3,t4;
 
 
