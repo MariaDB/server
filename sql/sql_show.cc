@@ -68,6 +68,8 @@
 #include "key.h"
 
 #include "lex_symbol.h"
+#include "mysql/plugin_function.h"
+
 #define KEYWORD_SIZE 64
 
 extern SYMBOL symbols[];
@@ -8276,6 +8278,30 @@ int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
   DBUG_RETURN(0);
 }
 
+
+class Add_func_arg
+{
+public:
+  TABLE *m_table;
+  Add_func_arg(TABLE *table)
+   :m_table(table)
+  { }
+};
+
+
+static my_bool add_plugin_func(THD *thd, plugin_ref plugin, void *arg)
+{
+  Add_func_arg *add_func_arg= (Add_func_arg*) arg;
+  char buf[NAME_LEN + 1];
+  const LEX_CSTRING name= plugin_name(plugin)[0];
+  size_t length= my_charset_utf8mb3_bin.caseup(name.str, name.length,
+                                               buf, sizeof(buf)-1);
+  buf[length]= '\0';
+  if (add_symbol_to_table(buf, add_func_arg->m_table))
+    return 1;
+  return 0;
+}
+
 int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
 {
   DBUG_ENTER("fill_i_s_sql_functions");
@@ -8290,6 +8316,11 @@ int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
     if (add_symbol_to_table(native_func_registry_array.element(i).name.str,
                             table))
       DBUG_RETURN(1);
+
+  Add_func_arg add_func_arg(table);
+  if (plugin_foreach(thd, add_plugin_func,
+                     MariaDB_FUNCTION_PLUGIN, &add_func_arg))
+    DBUG_RETURN(1);
 
   DBUG_RETURN(0);
 }

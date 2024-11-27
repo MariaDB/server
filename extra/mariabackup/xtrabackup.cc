@@ -1185,7 +1185,7 @@ static void backup_file_op_fail(uint32_t space_id, int type,
 	const byte* new_name, ulint new_len)
 {
 	bool fail = false;
-	const static std::string spacename{filename_to_spacename(name, len)};
+	const std::string spacename{filename_to_spacename(name, len)};
 	switch (type) {
 	case FILE_CREATE:
 		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
