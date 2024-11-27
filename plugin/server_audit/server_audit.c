@@ -1512,12 +1512,33 @@ static size_t escape_string(const char *str, unsigned int len,
   return result - res_start;
 }
 
+/*
+  Replace "password" with "*****" in
+
+  <word1> <maybe spaces> <word2> <maybe spaces> "password"
+
+  if <word2> is 0
+
+  <word1> <maybe spaces> "password"
+
+  or
+
+  <word0> <maybe spaces> <chr0> <maybe any characters> "password"
+
+  if <chr0> is 0
+
+  <word0> <maybe any characters> "password"
+
+  NOTE: there can be " or ' around the password, the words are case
+  insensitive.
+*/
 
 static size_t escape_string_hide_passwords(const char *str, unsigned int len,
     char *result, size_t result_len,
     const char *word1, size_t word1_len,
     const char *word2, size_t word2_len,
-    int next_text_string)
+    const char *word0, size_t word0_len,
+    char chr0)
 {
   const char *res_start= result;
   const char *res_end= result + result_len - 2;
@@ -1525,18 +1546,32 @@ static size_t escape_string_hide_passwords(const char *str, unsigned int len,
 
   while (len)
   {
-    if (len > word1_len + 1 && strncasecmp(str, word1, word1_len) == 0)
+    int word1_found= (word1 && len > word1_len + 1 &&
+                      strncasecmp(str, word1, word1_len) == 0);
+    int word0_found= (word0 && len > word0_len + 1 &&
+                      strncasecmp(str, word0, word0_len) == 0);
+    if (word1_found || word0_found)
     {
-      const char *next_s= str + word1_len;
+      const char *next_s;
       size_t c;
 
-      if (next_text_string)
+      if (word0_found)
       {
+        next_s= str + word0_len;
+        if (chr0)
+        {
+          SKIP_SPACES(next_s);
+          if (len < (size_t)(next_s - str) + 1 + 1 ||
+              next_s[0] != chr0)
+            goto no_password;
+          next_s++;
+        }
         while (*next_s && *next_s != '\'' && *next_s != '"')
           ++next_s;
       }
       else
       {
+        next_s= str + word1_len;
         if (word2)
         {
           SKIP_SPACES(next_s);
@@ -1851,23 +1886,27 @@ do_log_query:
     case SQLCOM_ALTER_USER:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
-                                           "IDENTIFIED", 10, "BY", 2, 0);
+                                           "IDENTIFIED", 10, "BY", 2,
+                                           "PASSWORD", 8, '(');
       break;
     case SQLCOM_CHANGE_MASTER:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
-                                           "MASTER_PASSWORD", 15, "=", 1, 0);
+                                           "MASTER_PASSWORD", 15, "=", 1,
+                                           0, 0, 0);
       break;
     case SQLCOM_CREATE_SERVER:
     case SQLCOM_ALTER_SERVER:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
-                                           "PASSWORD", 8, NULL, 0, 0);
+                                           "PASSWORD", 8, NULL, 0,
+                                           0, 0, 0);
       break;
     case SQLCOM_SET_OPTION:
       csize+= escape_string_hide_passwords(query, query_len,
                                            uh_buffer, uh_buffer_size,
-                                           "=", 1, NULL, 0, 1);
+                                           NULL, 0, NULL, 0,
+                                           "=", 1, 0);
       break;
     default:
       csize+= escape_string(query, query_len,
