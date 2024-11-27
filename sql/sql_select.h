@@ -1885,11 +1885,7 @@ public:
                            ulonglong curr_space,
                            ulonglong needed_space);
   void set_allowed_join_cache_types();
-  bool is_allowed_hash_join_access()
-  { 
-    return MY_TEST(allowed_join_cache_types & JOIN_CACHE_HASHED_BIT) &&
-           max_allowed_join_cache_level > JOIN_CACHE_HASHED_BIT;
-  }
+  bool is_allowed_hash_join_access(const TABLE *table);
   /*
     Check if we need to create a temporary table.
     This has to be done if all tables are not already read (const tables)
