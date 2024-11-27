@@ -543,21 +543,6 @@ bool hint_key_state(const THD *thd, const TABLE *table,
                     uint keyno, opt_hints_enum type_arg,
                     uint optimizer_switch);
 
-/**
-  Returns table hint value if hint is specified, returns
-  optimizer switch value if hint is not specified.
-
-  @param thd                Pointer to THD object
-  @param tab                Pointer to TABLE object
-  @param type_arg           Hint type
-  @param optimizer_switch   Optimizer switch flag
-
-  @return table hint value if hint is specified,
-          otherwise optimizer switch value.
-*/
-bool hint_table_state(const THD *thd, const TABLE *table,
-                      opt_hints_enum type_arg,
-                      uint optimizer_switch);
 
 /**
   Returns table hint value if hint is specified, returns
@@ -571,7 +556,6 @@ bool hint_table_state(const THD *thd, const TABLE *table,
   @return table hint value if hint is specified,
           otherwise fallback value.
 */
-bool hint_table_state_or_fallback(const THD *thd, const TABLE *table,
-                                  opt_hints_enum type_arg,
-                                  bool fallback_value);
+bool hint_table_state(const THD *thd, const TABLE *table,
+                      opt_hints_enum type_arg, bool fallback_value);
 #endif /* OPT_HINTS_INCLUDED */

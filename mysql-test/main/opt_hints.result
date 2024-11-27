@@ -1135,6 +1135,24 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	0	Using where; Using join buffer (flat, BNL join)
 1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	0	Using where; Using join buffer (incremental, BNL join)
 1	SIMPLE	t4	ALL	NULL	NULL	NULL	NULL	0	Using where; Using join buffer (incremental, BNL join)
+set join_cache_level=8;
+INSERT INTO t2 VALUES (1), (2), (null), (1);
+# BNLH buffer is used when allowed by JCL setting
+EXPLAIN SELECT * FROM t1, t2 WHERE t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	4	Using where; Using join buffer (flat, BNLH join)
+# Make sure the hint enables BNL even when JCL=0:
+set join_cache_level=0;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	4	Using where; Using join buffer (flat, BNLH join)
+set join_cache_level=2;
+EXPLAIN SELECT /*+BNL(t2) */ * FROM t1, t2 WHERE t1.a=t2.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	Using where
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	5	test.t1.a	4	Using where; Using join buffer (flat, BNLH join)
 DROP TABLE t1,t2,t3,t4;
 #
 # Mix of BNL/BKA flat and incremental join buffers for OUTER JOINs
