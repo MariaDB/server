@@ -500,7 +500,8 @@ do_ftwrl_wait(rpl_group_info *rgi,
   {
     thd->set_time_for_next_stage();
     thd->ENTER_COND(&entry->COND_parallel_entry, &entry->LOCK_parallel_entry,
-                    &stage_waiting_for_ftwrl, old_stage);
+                    &stage_waiting_for_ftwrl,
+                    (*did_enter_cond ? nullptr : old_stage));
     *did_enter_cond= true;
     do
     {
