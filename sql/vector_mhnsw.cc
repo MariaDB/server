@@ -187,7 +187,50 @@ struct FVector
   }
 #endif
 
+
+/*
+  ARM NEON implementation. A microbenchmark shows 1.7x dot_product() performance
+  improvement compared to regular -O2/-O3 builds and 2.4x compared to builds
+  with auto-vectorization disabled.
+
+  There seem to be no performance difference between vmull+vmull_high and
+  vmull+vmlal2_high implementations.
+*/
+
+#ifdef NEON_IMPLEMENTATION
+  static constexpr size_t NEON_bytes= 128 / 8;
+  static constexpr size_t NEON_dims= NEON_bytes / sizeof(int16_t);
+
+  static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
+  {
+    int64_t d= 0;
+    for (size_t i= 0; i < (len + NEON_dims - 1) / NEON_dims; i++)
+    {
+      int16x8_t p1= vld1q_s16(v1);
+      int16x8_t p2= vld1q_s16(v2);
+      d+= vaddlvq_s32(vmull_s16(vget_low_s16(p1), vget_low_s16(p2))) +
+          vaddlvq_s32(vmull_high_s16(p1, p2));
+      v1+= NEON_dims;
+      v2+= NEON_dims;
+    }
+    return static_cast<float>(d);
+  }
+
+  static size_t alloc_size(size_t n)
+  { return alloc_header + MY_ALIGN(n * 2, NEON_bytes) + NEON_bytes - 1; }
+
+  static FVector *align_ptr(void *ptr)
+  { return (FVector*) (MY_ALIGN(((intptr) ptr) + alloc_header, NEON_bytes)
+                       - alloc_header); }
+
+  void fix_tail(size_t vec_len)
+  {
+    bzero(dims + vec_len, (MY_ALIGN(vec_len, NEON_dims) - vec_len) * 2);
+  }
+#endif
+
   /************* no-SIMD default ******************************************/
+#ifdef DEFAULT_IMPLEMENTATION
   DEFAULT_IMPLEMENTATION
   static float dot_product(const int16_t *v1, const int16_t *v2, size_t len)
   {
@@ -205,6 +248,7 @@ struct FVector
 
   DEFAULT_IMPLEMENTATION
   void fix_tail(size_t) {  }
+#endif
 
   float distance_to(const FVector *other, size_t vec_len) const
   {
