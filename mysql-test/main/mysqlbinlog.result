@@ -1286,3 +1286,31 @@ ERROR: Bad syntax in rewrite-db: empty FROM db
 
 ERROR: Bad syntax in rewrite-db: empty FROM db
 
+#
+# MDEV-31761: mariadb-binlog prints fractional timestamp part incorrectly
+#
+SET SESSION binlog_format= MIXED;
+RESET MASTER;
+SET time_zone= '+02:00';
+CREATE TABLE t (a INT,
+b TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6));
+set SESSION timestamp= 1689978980.012345;
+INSERT INTO t (a) VALUES (1);
+SELECT * from t;
+a	b
+1	2023-07-22 00:36:20.012345
+FLUSH BINARY LOGS;
+SET SESSION timestamp= 1689978980.567890;
+SET SESSION binlog_format= ROW;
+UPDATE t SET a = 2;
+FLUSH BINARY LOGS;
+SET SESSION binlog_format= STATEMENT;
+DROP TABLE t;
+SELECT * FROM t;
+a	b
+1	2023-07-22 00:36:20.012345
+SELECT * FROM t;
+a	b
+2	2023-07-22 00:36:20.567890
+DROP TABLE t;
+SET time_zone= default;

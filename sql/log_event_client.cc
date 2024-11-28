@@ -1851,8 +1851,11 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   end=int10_to_str((long) when, strmov(buff,"SET TIMESTAMP="),10);
   if (when_sec_part && when_sec_part <= TIME_MAX_SECOND_PART)
   {
-    *end++= '.';
-    end=int10_to_str(when_sec_part, end, 10);
+    char buff2[1 + 6 + 1];
+    /* Ensure values < 100000 are printed with leading zeros, MDEV-31761. */
+    snprintf(buff2, sizeof(buff2), ".%06lu", when_sec_part);
+    DBUG_ASSERT(strlen(buff2) == 1 + 6);
+    end= strmov(end, buff2);
   }
   end= strmov(end, print_event_info->delimiter);
   *end++='\n';
