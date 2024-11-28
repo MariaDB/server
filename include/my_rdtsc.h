@@ -230,8 +230,8 @@ static inline ulonglong my_timer_cycles(void)
     ulonglong result;
     __asm __volatile__("rdtime %0" : "=r"(result));
     return result;
-  }
 # endif
+  }
 #elif defined(HAVE_SYS_TIMES_H) && defined(HAVE_GETHRTIME)
   #define MY_TIMER_ROUTINE_CYCLES MY_TIMER_ROUTINE_GETHRTIME
   /* gethrtime may appear as either cycle or nanosecond counter */
