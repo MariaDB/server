@@ -230,6 +230,37 @@ show create user mysqltest1;
 --source include/wait_until_count_sessions.inc
 drop user mysqltest1;
 
+
+--echo # MFA password, socket
+
+--replace_result $creplace "create user 'USER'"
+eval $creplace         identified via mysql_native_password as password("GOOD") AND unix_socket;
+--replace_result $greplace "grant select on test.* to 'USER'"
+eval $greplace ;
+create user mysqltest1 identified via mysql_native_password as password("good") AND unix_socket;
+grant select on test.* to mysqltest1;
+show create user mysqltest1;
+--echo #name match, no password = not ok
+--error 1
+--exec $try_auth -u $USER
+--echo # name does not match, password good = not ok
+--error 1
+--exec $try_auth -u mysqltest1 -pgood
+--echo #name match, password good = ok
+--exec $try_auth -u $USER -pGOOD
+--replace_result $dreplace "drop user 'USER'"
+eval $dreplace, mysqltest1;
+
+--replace_result $creplace "create user 'USER'"
+eval $creplace identified via unix_socket AND ed25519 as password("GOOD");
+--echo #name match, password match = ok
+--replace_result $USER USER $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT
+--connect  con1,localhost,$USER,GOOD
+--disconnect con1
+--connection default
+--replace_result $dreplace "drop user 'USER'"
+eval $dreplace;
+
 uninstall soname 'auth_ed25519';
 --remove_file $MYSQLTEST_VARDIR/tmp/peercred_test.txt
 

@@ -221,9 +221,16 @@ typedef int *(*update_var)(THD *, struct st_mysql_show_var *);
 
 struct USER_AUTH : public Sql_alloc
 {
+  enum LOGICAL_PREDICATE
+  {
+    NONE= 0,
+    OR= 1,
+    AND= 2
+  };
   LEX_CSTRING plugin, auth_str, pwtext;
   USER_AUTH *next;
-  USER_AUTH() : next(NULL)
+  LOGICAL_PREDICATE pred;
+  USER_AUTH() : next(NULL), pred(NONE)
   {
     plugin.str= auth_str.str= "";
     pwtext.str= NULL;

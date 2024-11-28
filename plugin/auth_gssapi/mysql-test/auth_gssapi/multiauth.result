@@ -28,3 +28,55 @@ GSSAPI_SHORTNAME@localhost	GSSAPI_SHORTNAME@%
 disconnect con1;
 connection default;
 DROP USER 'GSSAPI_SHORTNAME';
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as '1234567890123456789012345678901234567890a' OR gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+connect  con1,localhost,$GSSAPI_SHORTNAME,,;
+disconnect con1;
+connection default;
+DROP USER GSSAPI_SHORTNAME;
+# MFA - gssapi,password, AND predicate
+# MFA 1 - gssapi fails (username mismatch), correct password => not ok
+CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi AND mysql_native_password as password("good");
+connect(localhost,nosuchuser,good,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,nosuchuser,good,;
+ERROR 28000: GSSAPI name mismatch, requested 'nosuchuser', actual name 'GSSAPI_SHORTNAME'
+DROP USER nosuchuser;
+# MFA 2 - gssapi succeeds, password fails = not ok
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi AND mysql_native_password as password("good");
+connect(localhost,GSSAPI_SHORTNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$GSSAPI_SHORTNAME,,;
+ERROR 28000: Access denied for user 'GSSAPI_SHORTNAME'@'localhost' (using password: NO)
+# MFA 3 - gssapi succeeds, password succeeds = ok
+connect  con1,localhost,$GSSAPI_SHORTNAME,good,;
+SELECT USER(),CURRENT_USER();
+USER()	CURRENT_USER()
+GSSAPI_SHORTNAME@localhost	GSSAPI_SHORTNAME@%
+disconnect con1;
+connection default;
+# MFA 4 - change the order or plugins. Now, native password (default plugin) is first
+ALTER USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") AND gssapi;
+SHOW CREATE USER GSSAPI_SHORTNAME;
+CREATE USER for GSSAPI_SHORTNAME@%
+CREATE USER `GSSAPI_SHORTNAME`@`%` IDENTIFIED VIA mysql_native_password USING '*8409037B3E362D6DAE24C8E667F4D3B66716144E' AND gssapi
+connect(localhost,GSSAPI_SHORTNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$GSSAPI_SHORTNAME,,;
+ERROR 28000: Access denied for user 'GSSAPI_SHORTNAME'@'localhost' (using password: NO)
+connect  con1,localhost,$GSSAPI_SHORTNAME,good,;
+disconnect con1;
+connection default;
+DROP USER 'GSSAPI_SHORTNAME';
+# MFA 6  - invalid password,gssapi = not ok
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as '1234567890123456789012345678901234567890a' AND gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+connect(localhost,GSSAPI_SHORTNAME,,test,MASTER_MYPORT,MASTER_MYSOCK);
+connect  con1,localhost,$GSSAPI_SHORTNAME,,;
+ERROR 28000: Access denied for user 'GSSAPI_SHORTNAME'@'localhost' (using password: YES)
+connection default;
+DROP USER GSSAPI_SHORTNAME;
+# MFA 5 - error mixing AND/OR
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") AND gssapi OR gssapi AS 'SID:WD';
+ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'
+CREATE USER 'GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi AND gssapi AS 'SID:WD';
+ERROR 42000: This version of MariaDB doesn't yet support 'mix of AND/OR operators in user definition'

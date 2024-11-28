@@ -18318,6 +18318,24 @@ auth_expression:
           {
             $$= $1;
             DBUG_ASSERT($$->next == NULL);
+            if($3->pred == USER_AUTH::AND)
+            {
+              my_yyabort_error((ER_NOT_SUPPORTED_YET, MYF(0),
+                               "mix of AND/OR operators in user definition"));
+            }
+            $$->pred= USER_AUTH::OR;
+            $$->next= $3;
+          }
+        | auth_token AND_SYM auth_expression
+          {
+            $$= $1;
+            DBUG_ASSERT($$->next == NULL);
+            if($3->pred == USER_AUTH::OR)
+            {
+              my_yyabort_error((ER_NOT_SUPPORTED_YET, MYF(0),
+                               "mix of AND/OR operators in user definition"));
+            }
+            $$->pred= USER_AUTH::AND;
             $$->next= $3;
           }
         | auth_token

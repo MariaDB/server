@@ -1,3 +1,4 @@
+
 # gssapi,password
 CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi OR mysql_native_password as password("good");
 replace_result $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
@@ -30,3 +31,76 @@ connection default;
 replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
 eval DROP USER '$GSSAPI_SHORTNAME';
 
+#
+# invalid password,gssapi
+#
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as '1234567890123456789012345678901234567890a' OR gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+disconnect con1;
+connection default;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval DROP USER $GSSAPI_SHORTNAME;
+
+--echo # MFA - gssapi,password, AND predicate
+--echo # MFA 1 - gssapi fails (username mismatch), correct password => not ok
+CREATE USER 'nosuchuser' IDENTIFIED WITH gssapi AND mysql_native_password as password("good");
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,nosuchuser,good,);
+DROP USER nosuchuser;
+
+--echo # MFA 2 - gssapi succeeds, password fails = not ok
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH gssapi AND mysql_native_password as password("good");
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+
+--echo # MFA 3 - gssapi succeeds, password succeeds = ok
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+connect (con1,localhost,$GSSAPI_SHORTNAME,good,);
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+SELECT USER(),CURRENT_USER();
+disconnect con1;
+connection default;
+
+--echo # MFA 4 - change the order or plugins. Now, native password (default plugin) is first
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval ALTER USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") AND gssapi;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval SHOW CREATE USER $GSSAPI_SHORTNAME;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+# fail because of bad password
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+# succeed with good password
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+connect (con1,localhost,$GSSAPI_SHORTNAME,good,);
+disconnect con1;
+connection default;
+eval DROP USER '$GSSAPI_SHORTNAME';
+
+--echo # MFA 6  - invalid password,gssapi = not ok
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as '1234567890123456789012345678901234567890a' AND gssapi;
+update mysql.global_priv set priv=replace(priv, '1234567890123456789012345678901234567890a', 'invalid password');
+flush privileges;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME $MASTER_MYSOCK MASTER_MYSOCK $MASTER_MYPORT MASTER_MYPORT;
+error ER_ACCESS_DENIED_ERROR;
+connect (con1,localhost,$GSSAPI_SHORTNAME,,);
+connection default;
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+eval DROP USER $GSSAPI_SHORTNAME;
+
+--echo # MFA 5 - error mixing AND/OR
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+error ER_NOT_SUPPORTED_YET;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") AND gssapi OR gssapi AS 'SID:WD';
+replace_result $GSSAPI_SHORTNAME GSSAPI_SHORTNAME;
+error ER_NOT_SUPPORTED_YET;
+eval CREATE USER '$GSSAPI_SHORTNAME' IDENTIFIED WITH mysql_native_password as password("good") OR gssapi AND gssapi AS 'SID:WD';

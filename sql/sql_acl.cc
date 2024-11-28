@@ -191,6 +191,7 @@ public:
   LEX_CSTRING default_rolename;
   struct AUTH { LEX_CSTRING plugin, auth_string, salt; } *auth;
   uint nauth;
+  USER_AUTH::LOGICAL_PREDICATE auth_pred;
   bool account_locked;
   bool password_expired;
   my_time_t password_last_changed;
@@ -1442,9 +1443,13 @@ class User_table_json: public User_table
     const char *array;
     int vl;
     const char *v;
-
-    if (get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    if (!get_value("auth_or", JSV_ARRAY, &array, &array_len))
+      u->auth_pred= USER_AUTH::OR;
+    else if (!get_value("auth_and", JSV_ARRAY, &array, &array_len))
+      u->auth_pred= USER_AUTH::AND;
+    else
     {
+      u->auth_pred= USER_AUTH::NONE;
       u->alloc_auth(root, 1);
       return get_auth1(thd, root, u, 0);
     }
@@ -1519,9 +1524,11 @@ class User_table_json: public User_table
   {
     size_t array_len;
     const char *array;
-    if (u.nauth == 1 && get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    if (u.nauth == 1  &&
+        get_value("auth_or", JSV_ARRAY, &array, &array_len))
+    {
       return set_auth1(u, 0);
-
+    }
     StringBuffer<JSON_SIZE> json(m_table->field[2]->charset());
     bool top_done = false;
     json.append('[');
@@ -1555,7 +1562,9 @@ class User_table_json: public User_table
       json.append('}');
     }
     json.append(']');
-    return set_value("auth_or", json.ptr(), json.length(), false) == JSV_BAD_JSON;
+    return set_value(u.auth_pred == USER_AUTH::LOGICAL_PREDICATE::OR ? "auth_or" : "auth_and", json.ptr(),
+                     json.length(),
+                     false) == JSV_BAD_JSON;
   }
   bool set_auth1(const ACL_USER &u, uint i) const
   {
@@ -3641,6 +3650,7 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
       return 1;
 
     USER_AUTH *auth= combo.auth;
+    acl_user->auth_pred= auth->pred;
     for (uint i= 0; i < nauth; i++, auth= auth->next)
     {
       work_copy[i].plugin= auth->plugin;
@@ -9347,7 +9357,12 @@ static void add_user_parameters(THD *thd, String *result, ACL_USER* acl_user,
     for (uint i=0; i < acl_user->nauth; i++)
     {
       if (i)
-        result->append(STRING_WITH_LEN(" OR "));
+      {
+        if (acl_user->auth_pred == USER_AUTH::AND)
+          result->append(STRING_WITH_LEN(" AND "));
+        else
+          result->append(STRING_WITH_LEN(" OR "));
+      }
       result->append(&acl_user->auth[i].plugin);
       if (acl_user->auth[i].auth_string.length)
       {
@@ -15096,9 +15111,21 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
       name we found that we need to switch to a non-default plugin
     */
     for (mpvio.curr_auth= mpvio.status != MPVIO_EXT::RESTART;
-         res != CR_OK && mpvio.curr_auth < acl_user->nauth;
+         mpvio.curr_auth < acl_user->nauth;
          mpvio.curr_auth++)
     {
+      /*
+        In multi-factor authentication (multiple plugins, using AND),
+        fail if any of the plugins fails, including the above default
+        plugin authentication.
+      */
+      if (acl_user->auth_pred == USER_AUTH::AND)
+      {
+        if (res != CR_OK && mpvio.curr_auth)
+          break;
+      }
+      else if (res == CR_OK)
+        break;
       thd->clear_error();
       mpvio.status= MPVIO_EXT::RESTART;
       res= do_auth_once(thd, &acl_user->auth[mpvio.curr_auth].plugin, &mpvio);
