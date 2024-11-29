@@ -626,14 +626,13 @@ ignore_db_dirs_init()
   @return                 a pointer to the key
 */
 
-static uchar *
-db_dirs_hash_get_key(const uchar *data, size_t *len_ret,
-                     my_bool __attribute__((unused)))
+static const uchar *db_dirs_hash_get_key(const void *data, size_t *len_ret,
+                                         my_bool)
 {
-  LEX_CSTRING *e= (LEX_CSTRING *) data;
+  auto e= static_cast<const LEX_CSTRING *>(data);
 
   *len_ret= e->length;
-  return (uchar *) e->str;
+  return reinterpret_cast<const uchar *>(e->str);
 }
 
 
@@ -9964,8 +9963,9 @@ ST_SCHEMA_TABLE schema_tables[]=
 };
 
 
-int initialize_schema_table(st_plugin_int *plugin)
+int initialize_schema_table(void *plugin_)
 {
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
   ST_SCHEMA_TABLE *schema_table;
   int err;
   DBUG_ENTER("initialize_schema_table");
@@ -10010,9 +10010,10 @@ int initialize_schema_table(st_plugin_int *plugin)
   DBUG_RETURN(0);
 }
 
-int finalize_schema_table(st_plugin_int *plugin)
+int finalize_schema_table(void *plugin_)
 {
-  ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
+  st_plugin_int *plugin= static_cast<st_plugin_int *>(plugin_);
+  ST_SCHEMA_TABLE *schema_table= static_cast<ST_SCHEMA_TABLE *>(plugin->data);
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)

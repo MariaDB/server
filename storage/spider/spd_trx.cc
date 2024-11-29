@@ -62,29 +62,31 @@ extern ulong spider_allocated_thds_line_no;
 extern pthread_mutex_t spider_allocated_thds_mutex;
 
 // for spider_alter_tables
-uchar *spider_alter_tbl_get_key(
-  SPIDER_ALTER_TABLE *alter_table,
+const uchar *spider_alter_tbl_get_key(
+  const void *alter_table_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto alter_table= static_cast<const SPIDER_ALTER_TABLE *>(alter_table_);
   DBUG_ENTER("spider_alter_tbl_get_key");
   *length = alter_table->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", alter_table->table_name));
-  DBUG_RETURN((uchar*) alter_table->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(alter_table->table_name));
 }
 
 // for SPIDER_TRX_HA
-uchar *spider_trx_ha_get_key(
-  SPIDER_TRX_HA *trx_ha,
+const uchar *spider_trx_ha_get_key(
+  const void *trx_ha_,
   size_t *length,
-  my_bool not_used __attribute__ ((unused))
+  my_bool
 ) {
+  auto trx_ha= static_cast<const SPIDER_TRX_HA *>(trx_ha_);
   DBUG_ENTER("spider_trx_ha_get_key");
   *length = trx_ha->table_name_length;
   DBUG_PRINT("info",("spider table_name_length=%zu", *length));
   DBUG_PRINT("info",("spider table_name=%s", trx_ha->table_name));
-  DBUG_RETURN((uchar*) trx_ha->table_name);
+  DBUG_RETURN(reinterpret_cast<const uchar *>(trx_ha->table_name));
 }
 
 /*
@@ -1173,11 +1175,9 @@ SPIDER_TRX *spider_get_trx(
         goto error_init_udf_table_mutex;
     }
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_conn_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_conn_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_conn_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_conn_get_key, 0,
+                     0))
       goto error_init_hash;
     spider_alloc_calc_mem_init(trx->trx_conn_hash, SPD_MID_GET_TRX_2);
     spider_alloc_calc_mem(
@@ -1186,11 +1186,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_conn_hash.array.max_element *
       trx->trx_conn_hash.array.size_of_element);
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_another_conn_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_conn_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_another_conn_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_conn_get_key, 0,
+                     0))
       goto error_init_another_hash;
     spider_alloc_calc_mem_init(trx->trx_another_conn_hash, SPD_MID_GET_TRX_3);
     spider_alloc_calc_mem(
@@ -1199,13 +1197,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_another_conn_hash.array.max_element *
       trx->trx_another_conn_hash.array.size_of_element);
 
-
-
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_alter_tbl_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_alter_table_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0,
+                     spider_alter_tbl_get_key, 0, 0))
       goto error_init_alter_hash;
     spider_alloc_calc_mem_init(trx->trx_alter_table_hash, SPD_MID_GET_TRX_8);
     spider_alloc_calc_mem(
@@ -1214,11 +1208,9 @@ SPIDER_TRX *spider_get_trx(
       trx->trx_alter_table_hash.array.max_element *
       trx->trx_alter_table_hash.array.size_of_element);
 
-    if (
-      my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_ha_hash,
-                   spd_charset_utf8mb3_bin, 32, 0, 0, (my_hash_get_key)
-                   spider_trx_ha_get_key, 0, 0)
-    )
+    if (my_hash_init(PSI_INSTRUMENT_ME, &trx->trx_ha_hash,
+                     spd_charset_utf8mb3_bin, 32, 0, 0, spider_trx_ha_get_key,
+                     0, 0))
       goto error_init_trx_ha_hash;
     spider_alloc_calc_mem_init(trx->trx_ha_hash, SPD_MID_GET_TRX_9);
     spider_alloc_calc_mem(

@@ -3321,6 +3321,9 @@ static int com_charset(String *, char *line)
                                 MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
   if (new_cs)
   {
+    if (new_cs->mbminlen > 1)
+      return put_info("Character sets with mbminlen>1 are not supported",
+                      INFO_ERROR, 0);
     charset_info= new_cs;
     mysql_set_character_set(&mysql, charset_info->cs_name.str);
     default_charset= (char *)charset_info->cs_name.str;

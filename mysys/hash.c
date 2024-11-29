@@ -878,8 +878,8 @@ my_bool my_hash_check(HASH *hash)
 
 #define RECORDS 1000
 
-uchar *test_get_key(uchar *data, size_t *length,
-                    my_bool not_used __attribute__((unused)))
+const uchar *test_get_key(const void *data, size_t *length,
+                          my_bool not_used __attribute__((unused)))
 {
   *length= 2;
   return data;
@@ -895,8 +895,8 @@ int main(int argc __attribute__((unused)),char **argv __attribute__((unused)))
   DBUG_PUSH("d:t:O,/tmp/test_hash.trace");
 
   printf("my_hash_init\n");
-  if (my_hash_init2(PSI_INSTRUMENT_ME, &hash_test, 100, &my_charset_bin, 20,
-                    0, 0, (my_hash_get_key) test_get_key, 0, 0, HASH_UNIQUE))
+  if (my_hash_init2(PSI_INSTRUMENT_ME, &hash_test, 100, &my_charset_bin, 20, 0,
+                    0, test_get_key, 0, 0, HASH_UNIQUE))
   {
     fprintf(stderr, "hash init failed\n");
     exit(1);

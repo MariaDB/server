@@ -2376,6 +2376,13 @@ DROP TABLE t1;
 
 DO OCT(-9223372036854775808);
 
+--echo #
+--echo # MDEV-28652 SUBSTRING(str,pos,len) returns incorrect result in view (returns an empty string)
+--echo #
+
+create view v1 as select substring('hello', 1, 4294967295);
+select * from v1;
+drop view v1;
 
 --echo #
 --echo # End of 10.5 tests

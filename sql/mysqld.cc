@@ -1362,6 +1362,11 @@ bool unix_sock_is_online= false;
 static int systemd_sock_activation; /* systemd socket activation */
 
 
+
+/** wakeup listening(main) thread by writing to this descriptor */
+static int termination_event_fd= -1;
+
+
 C_MODE_START
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
 /**
@@ -1618,44 +1623,20 @@ static my_bool warn_threads_active_after_phase_2(THD *thd, void *)
 
 static void break_connect_loop()
 {
-#ifdef EXTRA_DEBUG
-  int count=0;
-#endif
-
   abort_loop= 1;
 
 #if defined(_WIN32)
   mysqld_win_initiate_shutdown();
 #else
-  /* Avoid waiting for ourselves when thread-handling=no-threads. */
-  if (pthread_equal(pthread_self(), select_thread))
-    return;
-  DBUG_PRINT("quit", ("waiting for select thread: %lu",
-                      (ulong)select_thread));
-
   mysql_mutex_lock(&LOCK_start_thread);
-  while (select_thread_in_use)
+  if (termination_event_fd >= 0)
   {
-    struct timespec abstime;
-    int UNINIT_VAR(error);
-    DBUG_PRINT("info",("Waiting for select thread"));
-
-#ifndef DONT_USE_THR_ALARM
-    if (pthread_kill(select_thread, thr_client_alarm))
-      break;					// allready dead
-#endif
-    set_timespec(abstime, 2);
-    for (uint tmp=0 ; tmp < 10 && select_thread_in_use; tmp++)
+    uint64_t u= 1;
+    if(write(termination_event_fd, &u, sizeof(uint64_t)) < 0)
     {
-      error= mysql_cond_timedwait(&COND_start_thread, &LOCK_start_thread,
-                                  &abstime);
-      if (error != EINTR)
-        break;
+      sql_print_error("Couldn't send event to terminate listen loop");
+      abort();
     }
-#ifdef EXTRA_DEBUG
-    if (error != 0 && error != ETIMEDOUT && !count++)
-      sql_print_error("Got error %d from mysql_cond_timedwait", error);
-#endif
   }
   mysql_mutex_unlock(&LOCK_start_thread);
 #endif /* _WIN32 */
@@ -2055,6 +2036,7 @@ static void clean_up(bool print_message)
 */
 static void wait_for_signal_thread_to_end()
 {
+#ifndef _WIN32
   uint i, n_waits= DBUG_EVALUATE("force_sighup_processing_timeout", 5, 100);
   int err= 0;
   /*
@@ -2063,9 +2045,7 @@ static void wait_for_signal_thread_to_end()
   */
   for (i= 0 ; i < n_waits && signal_thread_in_use; i++)
   {
-    err= pthread_kill(signal_thread, MYSQL_KILL_SIGNAL);
-    if (err)
-      break;
+    kill(getpid(), MYSQL_KILL_SIGNAL);
     my_sleep(100000); // Give it time to die, .1s per iteration
   }
 
@@ -2082,6 +2062,7 @@ static void wait_for_signal_thread_to_end()
                       "Continuing to wait for it to stop..");
     pthread_join(signal_thread, NULL);
   }
+#endif
 }
 #endif /*EMBEDDED_LIBRARY*/
 
@@ -3115,23 +3096,14 @@ static void start_signal_handler(void)
   DBUG_VOID_RETURN;
 }
 
-/** Called only from signal_hand function. */
-static void* exit_signal_handler()
-{
-    my_thread_end();
-    signal_thread_in_use= 0;
-    pthread_exit(0);  // Safety
-    return nullptr;  // Avoid compiler warnings
-}
-
-
-/** This threads handles all signals and alarms. */
+/** This threads handles all signals */
 /* ARGSUSED */
-pthread_handler_t signal_hand(void *arg __attribute__((unused)))
+pthread_handler_t signal_hand(void *)
 {
   sigset_t set;
   int sig;
   my_thread_init();				// Init new thread
+  DBUG_ENTER("signal_hand");
   signal_thread_in_use= 1;
 
   /*
@@ -3180,16 +3152,17 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     int error;
     int origin;
 
-    while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
     if (abort_loop)
-    {
-      DBUG_PRINT("quit",("signal_handler: calling my_thread_end()"));
-      return exit_signal_handler();
-    }
+      break;
+
+    while ((error= my_sigwait(&set, &sig, &origin)) == EINTR) /* no-op */;
+
+    if (abort_loop)
+      break;
+
     switch (sig) {
     case SIGTERM:
     case SIGQUIT:
-    case SIGKILL:
 #ifdef EXTRA_DEBUG
       sql_print_information("Got signal %d to shutdown server",sig);
 #endif
@@ -3197,22 +3170,15 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       logger.set_handlers(global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
                           opt_log ? LOG_FILE:LOG_NONE);
       DBUG_PRINT("info",("Got signal: %d  abort_loop: %d",sig,abort_loop));
-      if (!abort_loop)
-      {
-        /* Delete the instrumentation for the signal thread */
-        PSI_CALL_delete_current_thread();
-        my_sigset(sig, SIG_IGN);
-        break_connect_loop(); // MIT THREAD has a alarm thread
-        return exit_signal_handler();
-      }
+
+      break_connect_loop();
+      DBUG_ASSERT(abort_loop);
       break;
     case SIGHUP:
 #if defined(SI_KERNEL)
-      if (!abort_loop && origin != SI_KERNEL)
+      if (origin != SI_KERNEL)
 #elif defined(SI_USER)
-      if (!abort_loop && origin <= SI_USER)
-#else
-      if (!abort_loop)
+      if (origin <= SI_USER)
 #endif
       {
         int not_used;
@@ -3232,11 +3198,6 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
                             opt_log ? fixed_log_output_options : LOG_NONE);
       }
       break;
-#ifdef USE_ONE_SIGNAL_HAND
-    case THR_SERVER_ALARM:
-      process_alarm(sig);			// Trigger alarms.
-      break;
-#endif
     default:
 #ifdef EXTRA_DEBUG
       sql_print_warning("Got signal: %d  error: %d",sig,error); /* purecov: tested */
@@ -3244,6 +3205,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       break;					/* purecov: tested */
     }
   }
+  DBUG_PRINT("quit", ("signal_handler: calling my_thread_end()"));
+  my_thread_end();
+  DBUG_LEAVE; // Must match DBUG_ENTER()
+  signal_thread_in_use= 0;
+  pthread_exit(0); // Safety
   return(0);					/* purecov: deadcode */
 }
 
@@ -6211,12 +6177,8 @@ void handle_connections_sockets()
   uint error_count=0;
   struct sockaddr_storage cAddr;
   int retval;
-#ifdef HAVE_POLL
   // for ip_sock, unix_sock and extra_ip_sock
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
-#else
-  fd_set readFDs,clientFDs;
-#endif
 
   DBUG_ENTER("handle_connections_sockets");
 
@@ -6239,6 +6201,25 @@ void handle_connections_sockets()
     set_non_blocking_if_supported(listen_sockets.at(i));
   }
 #endif
+  int termination_fds[2];
+  if (pipe(termination_fds))
+  {
+    sql_print_error("pipe() failed %d", errno);
+    DBUG_VOID_RETURN;
+  }
+#ifdef FD_CLOEXEC
+  for (int fd : termination_fds)
+    (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+
+  mysql_mutex_lock(&LOCK_start_thread);
+  termination_event_fd= termination_fds[1];
+  mysql_mutex_unlock(&LOCK_start_thread);
+
+  struct pollfd event_fd;
+  event_fd.fd= termination_fds[0];
+  event_fd.events= POLLIN;
+  fds.push(event_fd);
 
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
@@ -6246,12 +6227,7 @@ void handle_connections_sockets()
   DBUG_PRINT("general",("Waiting for connections."));
   while (!abort_loop)
   {
-#ifdef HAVE_POLL
     retval= poll(fds.get_pos(0), fds.size(), -1);
-#else
-    readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
-#endif
 
     if (retval < 0)
     {
@@ -6273,7 +6249,6 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
-#ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
       if (fds.at(i).revents & POLLIN)
@@ -6282,16 +6257,6 @@ void handle_connections_sockets()
         break;
       }
     }
-#else  // HAVE_POLL
-    for (size_t i=0; i < listen_sockets.size(); i++)
-    {
-      if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
-      {
-        sock= listen_sockets.at(i);
-        break;
-      }
-    }
-#endif // HAVE_POLL
 
     for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
     {
@@ -6321,6 +6286,12 @@ void handle_connections_sockets()
       }
     }
   }
+  mysql_mutex_lock(&LOCK_start_thread);
+  for(int fd : termination_fds)
+    close(fd);
+  termination_event_fd= -1;
+  mysql_mutex_unlock(&LOCK_start_thread);
+
   sd_notify(0, "STOPPING=1\n"
             "STATUS=Shutdown in progress\n");
   DBUG_VOID_RETURN;
@@ -7257,6 +7228,21 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, void *buff,
 }
 
 
+static int show_stack_usage(THD *thd, SHOW_VAR *var, void *buff,
+                            system_status_var *, enum_var_type scope)
+{
+  var->type= SHOW_ULONGLONG;
+  var->value= buff;
+  // We cannot get stack usage for 'global' or for another thread
+  if (scope == OPT_GLOBAL || thd != current_thd)
+    *(ulonglong*) buff= 0;
+  else
+    *(ulonglong*) buff= (ulonglong) (available_stack_size((char*) thd->thread_stack,
+                                                          my_get_stack_pointer(0)));
+  return 0;
+}
+
+
 #ifndef DBUG_OFF
 static int debug_status_func(THD *thd, SHOW_VAR *var, void *buff,
                              system_status_var *, enum_var_type)
@@ -7527,6 +7513,7 @@ SHOW_VAR status_vars[]= {
   {"Ssl_version",              (char*) &show_ssl_get_version, SHOW_SIMPLE_FUNC},
 #endif
 #endif /* HAVE_OPENSSL */
+  SHOW_FUNC_ENTRY("stack_usage", &show_stack_usage),
   {"Syncs",                    (char*) &my_sync_count,          SHOW_LONG_NOFLUSH},
   /*
     Expression cache used only for caching subqueries now, so its statistic
@@ -7609,10 +7596,10 @@ static void print_version(void)
 }
 
 /** Compares two options' names, treats - and _ the same */
-static int option_cmp(my_option *a, my_option *b)
+static int option_cmp(const void *a, const void *b)
 {
-  const char *sa= a->name;
-  const char *sb= b->name;
+  const char *sa= static_cast<const my_option *>(a)->name;
+  const char *sb= static_cast<const my_option *>(b)->name;
   for (; *sa || *sb; sa++, sb++)
   {
     if (*sa < *sb)
