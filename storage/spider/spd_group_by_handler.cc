@@ -1622,8 +1622,10 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->group_by; order; order = order->next)
           {
-            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (order->item_ptr == NULL ||
+                spider_db_print_item_type(order->item_ptr, NULL, spider,
+                                          NULL, NULL, 0, roop_count, TRUE,
+                                          fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create group by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
@@ -1640,10 +1642,10 @@ group_by_handler *spider_create_group_by_handler(
         {
           for (order = query->order_by; order; order = order->next)
           {
-            if ((*order->item)->type() == Item::SUM_FUNC_ITEM)
-              continue;
-            if (spider_db_print_item_type((*order->item), NULL, spider, NULL, NULL, 0,
-              roop_count, TRUE, fields_arg))
+            if (order->item_ptr == NULL ||
+                spider_db_print_item_type(order->item_ptr, NULL, spider,
+                                          NULL, NULL, 0, roop_count, TRUE,
+                                          fields_arg))
             {
               DBUG_PRINT("info",("spider dbton_id=%d can't create order by", roop_count));
               spider_clear_bit(dbton_bitmap, roop_count);
