@@ -4632,6 +4632,9 @@ btr_cur_optimistic_delete(
 				  ULINT_UNDEFINED, &heap);
 
 	dberr_t err = DB_SUCCESS;
+	DBUG_EXECUTE_IF("btr_force_pessimistic_delete",
+		err = DB_FAIL; goto func_exit;);
+
 	if (rec_offs_any_extern(offsets)
 	    || !btr_cur_can_delete_without_compress(cursor,
 						    rec_offs_size(offsets),
